@@ -1,13 +1,14 @@
+import { Check, ExternalLink, Plus } from 'lucide-react'
+import { npxFinder } from 'npx-scope-finder'
+import { type FC, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils/mcp'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Check, ExternalLink, Plus } from 'lucide-react'
-import { npxFinder } from 'npx-scope-finder'
-import { type FC, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface SearchResult {
   name: string
@@ -184,14 +185,14 @@ const NpxSearch: FC = () => {
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="selectable m-0 text-sm">{record.description}</p>
-                  <p className="selectable m-0 text-muted-foreground text-sm">
+                  <p className="selectable m-0 text-sm text-muted-foreground">
                     {t('settings.mcp.npx_list.usage')}: {record.usage}
                   </p>
                   <a
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:underline">
+                    className="selectable inline-flex items-center gap-1 text-sm text-link hover:underline">
                     {record.npmLink}
                     <ExternalLink size={13} />
                   </a>

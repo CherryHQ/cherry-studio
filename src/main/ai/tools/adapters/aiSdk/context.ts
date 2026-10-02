@@ -1,7 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ModelMessage } from 'ai'
+
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { ModelMessage } from 'ai'
 
 /**
  * Per-request context constructed once in `buildAgentParams` and
@@ -31,6 +32,14 @@ export interface RequestContext {
    * Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
+
+  /**
+   * MCP servers whose resources this request may read, frozen when the request was built (same set
+   * that gated the `mcp_resource_*` tools). Execution re-resolves the live set and intersects with
+   * this one, so a server that drops out mid-turn becomes unreadable while one that appears after
+   * the request started can never join. Absent for synthetic / IPC-driven invocations.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
 
   /**
    * Absolute paths of persisted tool-output blobs this conversation owns — the

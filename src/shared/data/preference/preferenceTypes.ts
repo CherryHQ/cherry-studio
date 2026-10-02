@@ -1,7 +1,9 @@
+import * as z from 'zod'
+
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
-import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -35,6 +37,12 @@ export type MenuPresentationMode = 'native' | 'cherry'
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
+
+/**
+ * Global default Agent reply language (`agent.language`). Human-readable label
+ * ("English", "ไทย"), not an app locale code; null = no constraint injected.
+ */
+export type AgentLanguagePreference = AgentLanguage
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -79,11 +87,17 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'tr-TR'
   | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
+/**
+ * A composer key binding (send / line break / steer). Stored as a token array so the
+ * platform-aware `CommandOrControl` token and the shared formatting helpers apply.
+ * Values written before 2.0 are one of five fixed strings; readers normalize them.
+ */
+export type ComposerShortcut = ShortcutBinding
 
 export type AssistantTabSortType = 'tags' | 'list'
 
@@ -117,14 +131,34 @@ export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
  * existing flat `SidebarFavoriteItem[]` values.
  */
 export type SidebarFavoriteItem =
-  | {
-      type: 'app'
-      id: SidebarFavorite
-    }
-  | {
-      type: 'mini_app'
-      id: string
-    }
+  | { type: 'app'; id: SidebarFavorite }
+  | { type: 'mini_app'; id: string }
+  | { type: 'agent'; id: string }
+  | { type: 'assistant'; id: string }
+
+export interface ResourceLocator {
+  providerId: string
+  resourceId: string
+}
+
+export type SidebarShortcutTarget = {
+  kind: 'resource'
+  locator: ResourceLocator
+  activationId?: string
+}
+
+export interface SidebarShortcutItem {
+  type: 'shortcut'
+  id: string
+  target: SidebarShortcutTarget
+  fallbackLabel?: string
+}
+
+export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
+  const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+  if (target.activationId !== undefined) parts.push(target.activationId)
+  return parts.map(encodeURIComponent).join(':')
+}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -151,6 +185,9 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+/** The canonical reasoning-effort selection — the same type an assistant persists. */
+export type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 /**
  * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
@@ -183,6 +220,20 @@ export const parseTranslateLangCode = (value: string): TranslateLangCode => Tran
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+/**
+ * Fold a UI-side language code down to what persistence accepts.
+ *
+ * `'unknown'` and `'auto'` are UI sentinels with no `translate_language` row, so
+ * they collapse to `null` — the FK's "language not recorded" state — instead of
+ * breaking the FK or the read-side {@link PersistedLangCodeSchema} parse. Shared
+ * by the renderer's history mutations and main's `PdfTranslationService`.
+ */
+export const toPersistedLangCodeOrNull = (
+  langCode: TranslateSourceLanguage | null | undefined
+): PersistedLangCode | null => {
+  if (langCode === null || langCode === undefined || langCode === 'unknown' || langCode === 'auto') return null
+  return parsePersistedLangCode(langCode)
+}
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
   parseTranslateLangCode(value[0]),
@@ -207,7 +258,9 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'querit',
   'fetch',
   'jina',
-  'firecrawl'
+  'firecrawl',
+  'parallel',
+  'serply'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -278,11 +331,14 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openclaw',
   'deepseek-harness',
   'gemini-cli',
+  'antigravity-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',
   'github-copilot-cli',
-  'pi'
+  'pi',
+  'hermes',
+  'minimax-code'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

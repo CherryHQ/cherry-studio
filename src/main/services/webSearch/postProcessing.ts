@@ -1,10 +1,11 @@
+import { sliceByTokens } from 'tokenx'
+
 import type {
   WebSearchCompressionConfig,
   WebSearchExecutionConfig,
   WebSearchResponse,
   WebSearchResult
 } from '@shared/data/types/webSearch'
-import { sliceByTokens } from 'tokenx'
 
 export type WebSearchPostProcessingResult = {
   response: WebSearchResponse

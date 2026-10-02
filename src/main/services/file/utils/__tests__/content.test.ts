@@ -2,10 +2,12 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { PathStaleVersionError } from '@main/utils/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { hashContent, PathStaleVersionError } from '@main/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+
+import { runPathMutationExclusive } from '../..'
 import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '../content'
 
 describe('file/utils/content', () => {
@@ -38,6 +40,21 @@ describe('file/utils/content', () => {
     expect(new TextDecoder().decode(result.content)).toBe('hello')
     expect(result.mime).toBe('text/plain')
     expect(result.version.size).toBe(5)
+    expect(result.contentHash).toBeUndefined()
+  })
+
+  it('binds a content hash to the returned bytes when asked', async () => {
+    const target = path.join(tmp, 'hashed.txt') as AbsoluteFilePath
+    await writeFile(target, 'hello', 'utf-8')
+
+    const result = await readByPath(target, { encoding: 'binary', withContentHash: true })
+
+    expect(result.contentHash).toBe(hashContent(new TextEncoder().encode('hello')))
+    // the pair survives write_if_unchanged's ambiguity tiebreaker end-to-end
+    await expect(
+      writeIfUnchangedByPath(target, new TextEncoder().encode('bye'), result.version, result.contentHash)
+    ).resolves.toBeTruthy()
+    expect(await readFile(target, 'utf-8')).toBe('bye')
   })
 
   it('reads a byte range directly by path', async () => {
@@ -74,5 +91,29 @@ describe('file/utils/content', () => {
       writeIfUnchangedByPath(target, new TextEncoder().encode('editor change'), result.version)
     ).rejects.toBeInstanceOf(PathStaleVersionError)
     expect(await readFile(target, 'utf-8')).toBe('external change')
+  })
+
+  it('waits for an exclusive path mutation before checking and writing', async () => {
+    const target = path.join(tmp, 'locked.txt') as AbsoluteFilePath
+    await writeFile(target, 'original', 'utf-8')
+    const original = await readByPath(target, { encoding: 'binary' })
+
+    let releaseMutation!: () => void
+    const mutation = runPathMutationExclusive(() => new Promise<void>((resolve) => (releaseMutation = resolve)))
+    while (!releaseMutation) await Promise.resolve()
+
+    let writeSettled = false
+    const write = writeIfUnchangedByPath(target, new TextEncoder().encode('editor change'), original.version).finally(
+      () => (writeSettled = true)
+    )
+    await Promise.resolve()
+
+    expect(writeSettled).toBe(false)
+    expect(await readFile(target, 'utf-8')).toBe('original')
+
+    releaseMutation()
+    await mutation
+    await write
+    expect(await readFile(target, 'utf-8')).toBe('editor change')
   })
 })

@@ -2,6 +2,8 @@ import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { googleReasoningCache } from '../../reasoningCache'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
 
@@ -26,16 +28,30 @@ interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
+  cacheWriteInputTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
+  const withCacheBreakdown = usage?.cachedInputTokens !== undefined || usage?.cacheWriteInputTokens !== undefined
   const messageMetadata =
     usage !== undefined
       ? {
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            // Mirror the runtime projection: top-level `inputTokens` is the
+            // cache-inclusive total, the split lives in `inputTokenDetails`.
+            ...(withCacheBreakdown
+              ? {
+                  inputTokenDetails: {
+                    ...(usage.cachedInputTokens !== undefined ? { cacheReadTokens: usage.cachedInputTokens } : {}),
+                    ...(usage.cacheWriteInputTokens !== undefined
+                      ? { cacheWriteTokens: usage.cacheWriteInputTokens }
+                      : {})
+                  }
+                }
+              : {})
           }
         }
       : undefined
@@ -90,7 +106,8 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message_start',
         message: {
           role: 'assistant',
-          model: 'test:model'
+          model: 'test:model',
+          stop_details: null
         }
       })
 
@@ -118,7 +135,7 @@ describe('AiSdkToAnthropicSse', () => {
       // Verify message_delta with stop_reason
       expect(events[5]).toMatchObject({
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn' }
+        delta: { stop_reason: 'end_turn', stop_details: null }
       })
 
       // Verify message_stop
@@ -257,6 +274,59 @@ describe('AiSdkToAnthropicSse', () => {
       })
       expect(toolBlocks.length).toBe(1)
     })
+
+    // Anthropic's wire format has nowhere to carry Gemini's thought signature, and
+    // Gemini 3 rejects a replayed functionCall without it — writer and reader must
+    // agree on the cache key. Two calls of the same tool pin that the key is the call
+    // id: keying by tool name hands both replays the second call's signature.
+    it('round-trips each parallel call signature onto the tool call replayed next turn', async () => {
+      const model = 'gemini:models/gemini-flash-latest'
+      const adapter = new AiSdkToAnthropicSse({ model })
+
+      await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig_1',
+              toolName: 'Bash',
+              input: { command: 'ls' },
+              providerMetadata: { google: { thoughtSignature: 'sig-abc' } }
+            },
+            {
+              type: 'tool-input-available',
+              toolCallId: 'call_sig_2',
+              toolName: 'Bash',
+              input: { command: 'pwd' },
+              providerMetadata: { google: { thoughtSignature: 'sig-def' } }
+            },
+            createFinish('tool-calls')
+          ])
+        )
+      )
+
+      const messages = new AnthropicMessageConverter({ googleReasoningCache }).toUIMessages({
+        model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'call_sig_1', name: 'Bash', input: { command: 'ls' } },
+              { type: 'tool_use', id: 'call_sig_2', name: 'Bash', input: { command: 'pwd' } }
+            ]
+          }
+        ]
+      })
+
+      const signatures = messages[0].parts.map(
+        (part) => (part as { callProviderMetadata?: { google?: { thoughtSignature?: string } } }).callProviderMetadata
+      )
+      expect(signatures).toEqual([
+        { google: { thoughtSignature: 'sig-abc' } },
+        { google: { thoughtSignature: 'sig-def' } }
+      ])
+    })
   })
 
   describe('Reasoning/Thinking Processing', () => {
@@ -320,6 +390,59 @@ describe('AiSdkToAnthropicSse', () => {
       })
       expect(thinkingBlocks.length).toBe(2)
     })
+
+    it('forwards the upstream signature as a signature_delta before the block closes', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'Thinking...' },
+        // @ai-sdk/anthropic delivers the signature on an empty-delta chunk's metadata.
+        { type: 'reasoning-delta', id: 'reason_1', delta: '', providerMetadata: { anthropic: { signature: 'sig_1' } } },
+        { type: 'reasoning-end', id: 'reason_1' },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+
+      const signatureIndex = events.findIndex(
+        (e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta' && e.delta.signature === 'sig_1'
+      )
+      const stopIndex = events.findIndex((e) => e.type === 'content_block_stop')
+      expect(signatureIndex).toBeGreaterThan(-1)
+      expect(signatureIndex).toBeLessThan(stopIndex)
+    })
+
+    it('captures a signature carried only on reasoning-end and uses it in the non-streaming response', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'hmm' },
+        { type: 'reasoning-end', id: 'reason_1', providerMetadata: { anthropic: { signature: 'sig_end' } } },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      expect(events.some((e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta')).toBe(true)
+
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.content).toEqual([{ type: 'thinking', thinking: 'hmm', signature: 'sig_end' }])
+    })
+
+    it('does not emit signature_delta when the upstream provides no signature', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        { type: 'reasoning-start', id: 'reason_1' },
+        { type: 'reasoning-delta', id: 'reason_1', delta: 'hmm' },
+        { type: 'reasoning-end', id: 'reason_1' },
+        createFinish()
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+      expect(events.some((e) => e.type === 'content_block_delta' && e.delta.type === 'signature_delta')).toBe(false)
+    })
   })
 
   describe('Finish Reasons', () => {
@@ -370,13 +493,74 @@ describe('AiSdkToAnthropicSse', () => {
 
       const messageDelta = events.find((e) => e.type === 'message_delta')
       if (messageDelta && messageDelta.type === 'message_delta') {
-        // The UIMessageChunk usage projection carries no cache-token breakdown,
-        // so only prompt/completion tokens are asserted here.
+        // No cache breakdown is projected here, so the cache-inclusive total
+        // stays on `input_tokens` and the cache buckets keep their defaults.
         expect(messageDelta.usage).toMatchObject({
           input_tokens: 100,
-          output_tokens: 50
+          output_tokens: 50,
+          cache_read_input_tokens: null
         })
       }
+    })
+
+    it('should split the projected input total into uncached input and cache buckets', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      // The projection's `inputTokens` is the cache-inclusive total (12 + 200 + 100),
+      // with the split carried on `inputTokenDetails`.
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200,
+          cacheWriteInputTokens: 100
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
+
+      const messageDelta = events.find((e) => e.type === 'message_delta')
+      expect(messageDelta && messageDelta.type === 'message_delta').toBe(true)
+      if (messageDelta && messageDelta.type === 'message_delta') {
+        expect(messageDelta.usage).toMatchObject({
+          input_tokens: 12,
+          output_tokens: 50,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 100
+        })
+      }
+    })
+
+    it('should surface the cache split in the non-streaming usage', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const reader = outputStream.getReader()
+      while (true) {
+        const { done } = await reader.read()
+        if (done) break
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse()
+
+      expect(response.usage).toMatchObject({
+        input_tokens: 112,
+        output_tokens: 50,
+        cache_read_input_tokens: 200,
+        cache_creation_input_tokens: 0
+      })
     })
   })
 
@@ -410,6 +594,7 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message',
         role: 'assistant',
         model: 'test:model',
+        stop_details: null,
         stop_reason: 'tool_use'
       })
 
@@ -489,6 +674,7 @@ describe('AiSdkToAnthropicSse', () => {
           content: [],
           model: 'test',
           container: null,
+          stop_details: null,
           stop_reason: null,
           stop_sequence: null,
           usage: {

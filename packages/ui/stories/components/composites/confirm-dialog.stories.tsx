@@ -1,6 +1,7 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 
 const meta: Meta<typeof ConfirmDialog> = {
   title: 'Components/Composites/confirm-dialog',

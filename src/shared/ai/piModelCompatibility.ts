@@ -115,12 +115,7 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }
 
-/** Pi uses this limit for compaction and overflow recovery, so an unknown value is not safely drivable. */
-export function hasKnownPiContextWindow(model: Model): model is Model & { contextWindow: number } {
-  return typeof model.contextWindow === 'number' && Number.isFinite(model.contextWindow) && model.contextWindow > 0
-}
-
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
-  return resolvePiApi(provider, model) !== undefined && hasKnownPiContextWindow(model)
+  return resolvePiApi(provider, model) !== undefined
 }

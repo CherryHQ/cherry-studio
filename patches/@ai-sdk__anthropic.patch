@@ -1,8 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index c180815..d39bc34 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -3474,7 +3474,7 @@ var AnthropicMessagesLanguageModel = class {
+@@ -126,7 +126,7 @@
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
+@@ -3798,7 +3798,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -11,10 +19,10 @@ index c180815..d39bc34 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3567,12 +3567,12 @@ var AnthropicMessagesLanguageModel = class {
-     const sendThinking = isThinking || thinkingType === "disabled";
-     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
-     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+@@ -3940,12 +3940,12 @@
+     const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
+     const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
+     const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
 +    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
@@ -26,7 +34,7 @@ index c180815..d39bc34 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3743,7 +3743,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -4121,7 +4121,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -38,10 +46,18 @@ index c180815..d39bc34 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index fe20f4d..e58418f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -3525,7 +3525,7 @@ var AnthropicMessagesLanguageModel = class {
+@@ -126,7 +126,7 @@
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
+@@ -3854,7 +3854,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -50,10 +66,10 @@ index fe20f4d..e58418f 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3618,12 +3618,12 @@ var AnthropicMessagesLanguageModel = class {
-     const sendThinking = isThinking || thinkingType === "disabled";
-     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
-     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+@@ -3996,12 +3996,12 @@
+     const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
+     const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
+     const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
 +    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
@@ -65,7 +81,7 @@ index fe20f4d..e58418f 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3794,7 +3794,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -4177,7 +4177,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -77,10 +93,18 @@ index fe20f4d..e58418f 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index b408db2..7cbffe6 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1521,7 +1521,7 @@ async function prepareTools({
+@@ -120,7 +120,7 @@
+           import_v42.z.object({
+             type: import_v42.z.literal("thinking"),
+             thinking: import_v42.z.string(),
+-            signature: import_v42.z.string()
++            signature: import_v42.z.string().optional()
+           }),
+           import_v42.z.object({
+             type: import_v42.z.literal("redacted_thinking"),
+@@ -1614,7 +1614,7 @@
          anthropicTools2.push({
            name: tool.name,
            description: tool.description,
@@ -89,7 +113,7 @@ index b408db2..7cbffe6 100644
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
-@@ -3272,7 +3272,7 @@ function sanitizeSchema(schema) {
+@@ -3565,7 +3565,7 @@
          ])
        );
      }
@@ -98,7 +122,7 @@ index b408db2..7cbffe6 100644
      if (schema.required != null) {
        result.required = schema.required;
      }
-@@ -3468,7 +3468,7 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3792,7 +3792,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -107,10 +131,10 @@ index b408db2..7cbffe6 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3561,12 +3561,12 @@ var AnthropicMessagesLanguageModel = class {
-     const sendThinking = isThinking || thinkingType === "disabled";
-     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
-     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+@@ -3934,12 +3934,12 @@
+     const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
+     const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
+     const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
 +    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
@@ -122,7 +146,7 @@ index b408db2..7cbffe6 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3737,7 +3737,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -4115,7 +4115,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -134,10 +158,18 @@ index b408db2..7cbffe6 100644
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 168f139..7365bc0 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1536,7 +1536,7 @@ async function prepareTools({
+@@ -110,7 +110,7 @@
+           z2.object({
+             type: z2.literal("thinking"),
+             thinking: z2.string(),
+-            signature: z2.string()
++            signature: z2.string().optional()
+           }),
+           z2.object({
+             type: z2.literal("redacted_thinking"),
+@@ -1634,7 +1634,7 @@
          anthropicTools2.push({
            name: tool.name,
            description: tool.description,
@@ -146,7 +178,7 @@ index 168f139..7365bc0 100644
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
-@@ -3313,7 +3313,7 @@ function sanitizeSchema(schema) {
+@@ -3611,7 +3611,7 @@
          ])
        );
      }
@@ -155,7 +187,7 @@ index 168f139..7365bc0 100644
      if (schema.required != null) {
        result.required = schema.required;
      }
-@@ -3509,7 +3509,7 @@ var AnthropicMessagesLanguageModel = class {
+@@ -3838,7 +3838,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -164,10 +196,10 @@ index 168f139..7365bc0 100644
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3602,12 +3602,12 @@ var AnthropicMessagesLanguageModel = class {
-     const sendThinking = isThinking || thinkingType === "disabled";
-     let thinkingBudget = thinkingType === "enabled" ? (_g = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _g.budgetTokens : void 0;
-     const thinkingDisplay = thinkingType === "adaptive" ? (_h = anthropicOptions == null ? void 0 : anthropicOptions.thinking) == null ? void 0 : _h.display : void 0;
+@@ -3980,12 +3980,12 @@
+     const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
+     const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
+     const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
 -    const maxTokens = maxOutputTokens != null ? maxOutputTokens : maxOutputTokensForModel;
 +    const maxTokens = maxOutputTokens != null ? maxOutputTokens : isAnthropicModel ? maxOutputTokensForModel : void 0;
      const baseArgs = {
@@ -179,7 +211,7 @@ index 168f139..7365bc0 100644
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -3778,7 +3778,9 @@ var AnthropicMessagesLanguageModel = class {
+@@ -4161,7 +4161,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }

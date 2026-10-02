@@ -1,0 +1,1209 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createMockWorkbookModel } from '../mockModel'
+import type { ChartModel, SheetRenderModel } from '../renderModel'
+import type { SelectedCellInfo, XlsxGridProps } from '../XlsxGrid'
+
+// jsdom has no real layout, so — matching the existing convention in
+// src/renderer/components/VirtualList/__tests__/DynamicVirtualList.test.tsx — we mock
+// @tanstack/react-virtual's useVirtualizer and assert on "what was passed in" / "what
+// virtual items were rendered" rather than pixel-perfect layout.
+interface MockVirtualItem {
+  key: string
+  index: number
+  start: number
+  size: number
+}
+
+const mocks = vi.hoisted(() => ({
+  rowRange: [] as MockVirtualItem[],
+  colRange: [] as MockVirtualItem[],
+  lastRowOptions: null as any,
+  lastColOptions: null as any,
+  rowScrollToIndex: vi.fn(),
+  colScrollToIndex: vi.fn(),
+  useVirtualizer: vi.fn()
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: mocks.useVirtualizer
+}))
+
+const toVirtualItems = (
+  prefix: string,
+  indexes: number[],
+  size: (i: number) => number,
+  start: (i: number) => number
+): MockVirtualItem[] =>
+  indexes.map((index) => ({ key: `${prefix}-${index}`, index, start: start(index), size: size(index) }))
+
+const setRangeFromCounts = (
+  rowIndexes: number[],
+  colIndexes: number[],
+  rowSize: (i: number) => number,
+  colSize: (i: number) => number,
+  rowStart: (i: number) => number,
+  colStart: (i: number) => number
+) => {
+  mocks.rowRange = toVirtualItems('row', rowIndexes, rowSize, rowStart)
+  mocks.colRange = toVirtualItems('col', colIndexes, colSize, colStart)
+}
+
+const virtualizerImpl = (options: any) => {
+  const isHorizontal = Boolean(options.horizontal)
+  if (isHorizontal) {
+    mocks.lastColOptions = options
+  } else {
+    mocks.lastRowOptions = options
+  }
+  return {
+    getVirtualItems: () => (isHorizontal ? mocks.colRange : mocks.rowRange),
+    getTotalSize: () => {
+      const range = isHorizontal ? mocks.colRange : mocks.rowRange
+      const last = range[range.length - 1]
+      return last ? last.start + last.size : 0
+    },
+    scrollToIndex: isHorizontal ? mocks.colScrollToIndex : mocks.rowScrollToIndex
+  }
+}
+
+/**
+ * jsdom ships neither PointerEvent nor pointer capture, so range dragging would have no event to fire.
+ * A MouseEvent subclass carrying pointerId covers everything the grid reads: clientX/clientY/button/pointerId.
+ */
+class TestPointerEvent extends MouseEvent {
+  readonly pointerId: number
+  constructor(type: string, init: MouseEventInit & { pointerId?: number } = {}) {
+    super(type, init)
+    this.pointerId = init.pointerId ?? 1
+  }
+}
+
+beforeAll(() => {
+  window.PointerEvent = TestPointerEvent as unknown as typeof window.PointerEvent
+  HTMLElement.prototype.setPointerCapture ??= () => {}
+  HTMLElement.prototype.releasePointerCapture ??= () => {}
+})
+
+let XlsxGrid: (props: XlsxGridProps) => ReactNode
+beforeEach(async () => {
+  vi.clearAllMocks()
+  mocks.useVirtualizer.mockImplementation(virtualizerImpl)
+  const mod = await import('../XlsxGrid')
+  XlsxGrid = mod.default
+})
+
+const model = createMockWorkbookModel()
+const salesSheet = model.sheets[0]
+
+/** Visible range covering the header area (rows 1-6, cols 1-4) — enough to see title/headers/data without the far scroll target. */
+const showHeaderRange = () => {
+  setRangeFromCounts(
+    [0, 1, 2, 3, 4, 5],
+    [0, 1, 2, 3],
+    () => 20,
+    () => 64,
+    (i) => i * 20,
+    (i) => i * 64
+  )
+}
+
+/**
+ * jsdom always reports clientWidth/clientHeight as 0, so the merge layer (which derives its
+ * viewport from the real scroll container's scrollTop/scrollLeft/clientWidth/clientHeight,
+ * independent of the mocked row/col virtualizers) would never see a non-empty viewport unless we
+ * stub the container's client size and fire a scroll event, matching what a real browser would
+ * report for a rendered, sized panel.
+ */
+const setScrollViewport = (
+  container: HTMLElement,
+  { scrollTop = 0, scrollLeft = 0, clientWidth = 2000, clientHeight = 2000 } = {}
+) => {
+  const scrollEl = container.querySelector('[data-testid="xlsx-grid-scroll"]') as HTMLElement
+  Object.defineProperty(scrollEl, 'clientWidth', { configurable: true, value: clientWidth })
+  Object.defineProperty(scrollEl, 'clientHeight', { configurable: true, value: clientHeight })
+  scrollEl.scrollTop = scrollTop
+  scrollEl.scrollLeft = scrollLeft
+  fireEvent.scroll(scrollEl)
+}
+
+describe('XlsxGrid — mock model rendering', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('renders the expected text within the visible range', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    expect(screen.getByText('Quarter')).toBeInTheDocument()
+    expect(screen.getByText('Sales')).toBeInTheDocument()
+    expect(screen.getByText('Q1')).toBeInTheDocument()
+  })
+
+  it('does not render a far cell that is outside the current virtual range', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    expect(screen.queryByText('Scroll to me')).not.toBeInTheDocument()
+  })
+
+  it('renders a far cell once the virtual range is scrolled to include it', () => {
+    const { rerender } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    expect(screen.queryByText('Scroll to me')).not.toBeInTheDocument()
+
+    // Simulate the virtualizer reporting row 60 / col 10 (0-based 59 / 9) as visible.
+    setRangeFromCounts(
+      [59],
+      [9],
+      () => 20,
+      () => 64,
+      () => 59 * 20,
+      () => 9 * 64
+    )
+    rerender(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    expect(screen.getByText('Scroll to me')).toBeInTheDocument()
+  })
+
+  it('passes precise estimateSize functions backed by the sheet layout (no measureElement reliance)', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    // Row 1 has an explicit override (36px in mockModel); row 2 uses the default (20px).
+    expect(mocks.lastRowOptions.estimateSize(0)).toBe(36)
+    expect(mocks.lastRowOptions.estimateSize(1)).toBe(20)
+    // Row 7 (index 6) is hidden (height 0 override).
+    expect(mocks.lastRowOptions.estimateSize(6)).toBe(0)
+    // Col A (index 0) has an explicit override (110px); col E (index 4) is hidden (0).
+    expect(mocks.lastColOptions.estimateSize(0)).toBe(110)
+    expect(mocks.lastColOptions.estimateSize(4)).toBe(0)
+  })
+
+  it('extends the grid with blank rows/cols beyond the used range at default sizes', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    // Used range is 60×10; the virtualizers must be given a larger padded range.
+    expect(mocks.lastRowOptions.count).toBeGreaterThan(salesSheet.rowCount)
+    expect(mocks.lastColOptions.count).toBeGreaterThan(salesSheet.colCount)
+    // Padded rows/cols beyond the used range fall back to the sheet defaults.
+    expect(mocks.lastRowOptions.estimateSize(salesSheet.rowCount)).toBe(20)
+    expect(mocks.lastColOptions.estimateSize(salesSheet.colCount)).toBe(64)
+  })
+
+  it('grows the padded range to fill a viewport larger than the used range', () => {
+    const notesSheet = model.sheets[1] // 3×2 used range
+    const { container } = render(<XlsxGrid sheet={notesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container, { clientWidth: 2000, clientHeight: 2000 })
+
+    // 2000px viewport ÷ 20px default rows = 100 rows, ÷ 64px default cols = 32 cols (plus padding).
+    expect(mocks.lastRowOptions.count).toBeGreaterThanOrEqual(100)
+    expect(mocks.lastColOptions.count).toBeGreaterThanOrEqual(32)
+  })
+})
+
+describe('XlsxGrid — style mapping', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('applies bold, background, and center alignment from the header style (styleId 1)', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const header = screen.getByText('Quarter')
+    const cellDiv = header.closest('div')
+    expect(cellDiv).toHaveStyle({ fontWeight: 'bold', backgroundColor: '#d9e1f2', justifyContent: 'center' })
+  })
+
+  it('applies wrap (whiteSpace normal) from the wrap style (styleId 3)', () => {
+    // mockModel cell '3:4' (row 3, col 4) is 0-based [2, 3].
+    setRangeFromCounts(
+      [2],
+      [3],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const wrapped = screen.getByText(
+      'Holiday campaign boosted demand, with channel restocking concentrated in late January.'
+    )
+    expect(wrapped.closest('div')).toHaveStyle({ whiteSpace: 'normal' })
+  })
+
+  it('right-aligns a numeric cell with no explicit hAlign by default-aligning on cell type', () => {
+    // Notes sheet cell 3:2 is a bare boolean with no styleId — should default-center.
+    const notesSheet = model.sheets[1]
+    setRangeFromCounts(
+      [0, 1, 2],
+      [0, 1],
+      () => 20,
+      () => 64,
+      (i) => i * 20,
+      (i) => i * 64
+    )
+    render(<XlsxGrid sheet={notesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const boolCell = screen.getByText('TRUE')
+    expect(boolCell.closest('div')).toHaveStyle({ justifyContent: 'center' })
+  })
+})
+
+/** Col widths for A..D in the mock model (A is overridden to 110px, B/C/D default to 64px). */
+const salesColWidth = (i: number) => (i === 0 ? 110 : 64)
+const salesColStart = (i: number) => (i === 0 ? 0 : 110 + (i - 1) * 64)
+
+/** Visible range covering just the title merge's row (row 1) and its 4 covered columns. */
+const showTitleMergeRange = () => {
+  setRangeFromCounts(
+    [0],
+    [0, 1, 2, 3],
+    () => 36,
+    salesColWidth,
+    () => 0,
+    salesColStart
+  )
+}
+
+describe('XlsxGrid — merged cells', () => {
+  it('renders the master text of a merge exactly once, sized to the sum of covered rows/cols', () => {
+    // Merge is rows 1-1, cols 1-4. Cover cols 1-4 in the virtual range so the underlying
+    // per-cell layer would otherwise also try to render col A..D.
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    const titleMatches = screen.getAllByText('2026 Sales Summary')
+    expect(titleMatches).toHaveLength(1)
+
+    const mergeCell = screen.getByTestId('xlsx-grid-merge-cell')
+    // width = col A (110) + col B/C/D (64 each) = 302; height = row 1 (36)
+    expect(mergeCell.firstElementChild).toHaveStyle({ width: '302px', height: '36px' })
+  })
+
+  it('exposes the merge as one spanning gridcell in its real row and keeps the overlay presentational', () => {
+    // Merge is rows 1-1, cols 1-4: the master cell in the base row must be the only semantic gridcell,
+    // exposing span metadata and the cell text; the visual merge overlay must be hidden from the a11y tree.
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    // Exactly one row 1 — the merge overlay no longer duplicates row semantics.
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex="1"]')
+    expect(rows).toHaveLength(1)
+
+    const masterCells = container.querySelectorAll('[role="gridcell"][aria-colindex="1"]')
+    expect(masterCells).toHaveLength(1)
+    const master = masterCells[0]
+    expect(rows[0].contains(master)).toBe(true)
+    expect(master).toHaveAttribute('aria-colspan', '4')
+    expect(master).toHaveAttribute('aria-rowspan', '1')
+    expect(master).toHaveAttribute('aria-label', '2026 Sales Summary')
+
+    // The 3 covered base-layer placeholders have no gridcell role and are aria-hidden.
+    expect(rows[0].querySelectorAll('[role="gridcell"]')).toHaveLength(1)
+    expect(rows[0].querySelectorAll('[aria-hidden="true"]')).toHaveLength(3)
+
+    // The merge overlay paints the visual but carries no grid semantics.
+    const overlay = screen.getByTestId('xlsx-grid-merge-cell')
+    expect(overlay.closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(overlay.closest('[role="row"]')).toBeNull()
+  })
+
+  it('does not paint internal default grid lines in covered merge placeholders', () => {
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    const row = container.querySelector('[role="row"][aria-rowindex="1"]')!
+    const coveredCells = row.querySelectorAll<HTMLElement>('[aria-hidden="true"]')
+    expect(coveredCells).toHaveLength(3)
+    for (const coveredCell of coveredCells) {
+      const visual = coveredCell.firstElementChild as HTMLElement
+      expect(visual.style.borderRight).toBe('')
+      expect(visual.style.borderBottom).toBe('')
+    }
+  })
+
+  it('keeps the merge layer visible when the master row has scrolled out of the virtual row range', () => {
+    // Only row index 5 (row 6, "Total") is in the virtual range — row 0 (the merge's master row) is not.
+    setRangeFromCounts(
+      [5],
+      [0, 1, 2, 3],
+      () => 20,
+      salesColWidth,
+      () => 100,
+      salesColStart
+    )
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    // Scroll viewport still spans y=[0, 2000], so it overlaps the merge's rect (y=[0,36]) even
+    // though row 0 itself is absent from the (mocked) row virtualizer's reported range.
+    setScrollViewport(container)
+
+    // The per-cell layer has no row-0 item, but the merge layer computes visibility from the
+    // scroll viewport independently of the row virtualizer's current range.
+    expect(screen.getByText('2026 Sales Summary')).toBeInTheDocument()
+    expect(screen.getByTestId('xlsx-grid-merge-cell')).toBeInTheDocument()
+  })
+})
+
+describe('XlsxGrid — zoom', () => {
+  it('scales photographically: cell layout stays at zoom=1 and only the transform changes', () => {
+    setRangeFromCounts(
+      [1],
+      [0],
+      () => 40,
+      () => 128,
+      () => 40,
+      () => 0
+    )
+    const { rerender } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    setRangeFromCounts(
+      [1],
+      [0],
+      () => 40,
+      () => 128,
+      () => 40,
+      () => 0
+    )
+    rerender(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={2} />)
+
+    // Cell 2:1 keeps its zoom=1 geometry (row 1 override 36 → top, col A 110 wide, row 2 default 20 tall)
+    const cell = screen.getByText('Quarter')
+    const cellDiv = cell.closest('div') as HTMLElement
+    expect(cellDiv).toHaveStyle({ top: '36px', left: '0px', width: '110px', height: '20px' })
+    // The whole content layer is scaled as one image instead
+    expect(screen.getByTestId('xlsx-grid-zoom-layer')).toHaveStyle({ transform: 'scale(2)' })
+  })
+
+  it('feeds the virtualizer scroll-space (scaled) sizes while rendering unscaled coordinates', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 72,
+      () => 220,
+      () => 0,
+      () => 0
+    )
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={2} />)
+
+    // Row 1 has a 36px override, col A a 110px override — scroll space doubles them at zoom 2.
+    expect(mocks.lastRowOptions.estimateSize(0)).toBe(72)
+    expect(mocks.lastColOptions.estimateSize(0)).toBe(220)
+  })
+})
+
+describe('XlsxGrid — cell selection', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('reports the address and cell when a plain cell is clicked', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+
+    fireEvent.click(screen.getByText('Quarter'))
+
+    expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
+      range: 'A2',
+      rect: { top: 2, left: 1, bottom: 2, right: 1 },
+      cell: expect.objectContaining({ text: 'Quarter' })
+    })
+  })
+
+  it('reports the master address/cell when a merged region is clicked', () => {
+    showTitleMergeRange()
+    const onSelectCell = vi.fn()
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />
+    )
+    setScrollViewport(container)
+
+    fireEvent.click(screen.getByTestId('xlsx-grid-merge-cell'))
+
+    // Clicking anywhere in a merge selects the whole merged range: it addresses the master, but the rect —
+    // what an extraction consumer walks — spans every covered cell.
+    expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
+      range: 'A1',
+      rect: { top: 1, left: 1, bottom: 1, right: 4 },
+      cell: expect.objectContaining({ text: '2026 Sales Summary' })
+    })
+  })
+
+  it('clears the selection (calls back with null) on Escape', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+
+    fireEvent.click(screen.getByText('Quarter'))
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })
+    expect(onSelectCell).toHaveBeenCalledWith(null)
+  })
+})
+
+describe('XlsxGrid — keyboard selection', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('lands on A1 on the first arrow key when nothing is selected', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+
+    fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'ArrowDown' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A1' }))
+  })
+
+  it('moves the selection with the arrow keys and reports each target cell', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1 (initial landing)
+    // A1 is a merge master (rows 1, cols 1-4); ArrowDown must clear the whole merge to row 2.
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A2' }))
+    fireEvent.keyDown(scroll, { key: 'ArrowRight' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'B2' }))
+  })
+
+  it('scrolls the moved-to cell into view (virtualized cells may be unmounted)', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A2 (row index 1, col index 0)
+    expect(mocks.rowScrollToIndex).toHaveBeenLastCalledWith(1)
+    expect(mocks.colScrollToIndex).toHaveBeenLastCalledWith(0)
+  })
+
+  it('does not move past the top/left edge', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowUp' }) // clamp at row 1
+    fireEvent.keyDown(scroll, { key: 'ArrowLeft' }) // clamp at col 1
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A1' }))
+  })
+
+  it('does not move into visual padding beyond the used range', () => {
+    const onSelectCell = vi.fn()
+    render(
+      <XlsxGrid sheet={model.sheets[1]} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    for (let index = 0; index < 6; index++) fireEvent.keyDown(scroll, { key: 'ArrowDown' })
+    for (let index = 0; index < 4; index++) fireEvent.keyDown(scroll, { key: 'ArrowRight' })
+
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'B3' }))
+  })
+
+  it('selects the current cursor cell on Enter', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A2
+    onSelectCell.mockClear()
+    fireEvent.keyDown(scroll, { key: 'Enter' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A2' }))
+  })
+})
+
+/** Header sizes at zoom=1, mirroring XlsxGrid's ROW_HEADER_WIDTH_PX / COL_HEADER_HEIGHT_PX. */
+const ROW_HEADER_WIDTH = 44
+const COL_HEADER_HEIGHT = 22
+
+/**
+ * Pointer event init for a zoom=1 content coordinate. The sticky headers offset the content layer, and jsdom's
+ * zeroed getBoundingClientRect leaves the scroll container's origin at (0, 0) with no scroll offset.
+ */
+const pointerAt = (contentX: number, contentY: number, init: MouseEventInit = {}) => ({
+  button: 0,
+  pointerId: 1,
+  clientX: contentX + ROW_HEADER_WIDTH,
+  clientY: contentY + COL_HEADER_HEIGHT,
+  ...init
+})
+
+// Sales-sheet content coordinates (row 1 is 36px tall, later rows 20px; col A is 110px wide, later cols 64px;
+// row 7 is hidden, so row 8 starts at y=136).
+const IN_A2 = { x: 10, y: 46 }
+const IN_B2 = { x: 120, y: 46 }
+const IN_C2 = { x: 180, y: 46 }
+const IN_B3 = { x: 120, y: 66 }
+const IN_B8 = { x: 120, y: 146 }
+const IN_A3 = { x: 10, y: 66 }
+const IN_C3 = { x: 180, y: 66 }
+/** Inside C1, one of the cells the A1:D1 title merge covers. */
+const IN_C1 = { x: 180, y: 10 }
+/** Inside the first chart's rect (x 24-384, y 240-460); the cell underneath it is A16. */
+const IN_CHART = { x: 100, y: 300 }
+
+describe('XlsxGrid — range selection', () => {
+  it('drags a range through rows the virtualizer never mounted, and commits only on release', () => {
+    // Only rows 1-2 are mounted: a hover/enter-based implementation has no element to select row 8 with.
+    setRangeFromCounts(
+      [0, 1],
+      [0, 1],
+      (i) => (i === 0 ? 36 : 20),
+      salesColWidth,
+      (i) => (i === 0 ? 0 : 36),
+      salesColStart
+    )
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+    expect(screen.queryByText('Average')).not.toBeInTheDocument() // row 8 has no DOM at all
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B8.x, IN_B8.y))
+    // Reporting mid-drag would re-render the whole grid through the parent on every pointer frame.
+    expect(onSelectCell).not.toHaveBeenCalled()
+    fireEvent.pointerUp(scroll, pointerAt(IN_B8.x, IN_B8.y))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
+      range: 'A2:B8',
+      rect: { top: 2, left: 1, bottom: 8, right: 2 },
+      cell: null
+    })
+  })
+
+  it('commits a plain press-and-release without relying on the trailing click', () => {
+    // The grid captures the pointer on pointerdown, so the synthesized click does not target the cell the
+    // press started on; leaving the commit to it strands the parent on the old selection.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'B3', rect: { top: 3, left: 2, bottom: 3, right: 2 } })
+    )
+  })
+
+  it('commits the drawn range when the pointer is cancelled instead of released', () => {
+    // Lost capture or an OS-level gesture takeover leaves the extended selection on screen; abandoning it here
+    // would leave the parent holding the pre-drag selection.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    onSelectCell.mockClear()
+    fireEvent.pointerCancel(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A2:B3', rect: { top: 2, left: 1, bottom: 3, right: 2 } })
+    )
+  })
+
+  it('anchors a press inside a merged range at its master, the way a click does', () => {
+    // A2 is a follower of the A1:B2 merge. The committed range is the same either way, but the stored corner
+    // is where the next Shift+Arrow starts, and the click path (selectCell) has always stored the master.
+    showHeaderRange()
+    const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={mergeSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyUp(scroll, { key: 'ArrowDown', shiftKey: true })
+
+    // From the master, one step down stays inside the merge. From the follower it would have reached row 3,
+    // committing A1:B3 — a different selection for the same two user actions.
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A1', rect: { top: 1, left: 1, bottom: 2, right: 2 } })
+    )
+  })
+
+  it('keeps the master when a press inside a merge drifts before release', () => {
+    // pointerdown normalizes to the master and the first pointermove writes the raw coordinate back over it —
+    // a press on a follower plus a pixel of tremor. Nothing looks wrong until the next arrow key.
+    showHeaderRange()
+    const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={mergeSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x + 1, IN_A2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_A2.x + 1, IN_A2.y))
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyUp(scroll, { key: 'ArrowDown', shiftKey: true })
+
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A1', rect: { top: 1, left: 1, bottom: 2, right: 2 } })
+    )
+  })
+
+  it('commits a Shift+Arrow extension when focus leaves before the key is released', () => {
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.click(screen.getByText('Quarter')) // A2
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    expect(onSelectCell).not.toHaveBeenCalled() // still mid-extend
+    fireEvent.blur(scroll)
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'A2:A3', rect: { top: 2, left: 1, bottom: 3, right: 1 } })
+    )
+  })
+
+  it('keeps a selection cancelled with Escape cancelled, even after the pointer is released', () => {
+    // pointerup commits the drag it was holding, so Escape has to abandon the drag as well —
+    // otherwise releasing the button re-commits exactly the range the user just cancelled.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.keyDown(scroll, { key: 'Escape' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(null)
+
+    onSelectCell.mockClear()
+    fireEvent.pointerMove(scroll, pointerAt(IN_B8.x, IN_B8.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B8.x, IN_B8.y))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('xlsx-grid-selection-range')).not.toBeInTheDocument()
+  })
+
+  it('extends the existing selection from its anchor on Shift+Click', () => {
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.click(screen.getByText('Quarter')) // A2
+    onSelectCell.mockClear()
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_B8.x, IN_B8.y, { shiftKey: true }))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B8.x, IN_B8.y, { shiftKey: true }))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
+      range: 'A2:B8',
+      rect: { top: 2, left: 1, bottom: 8, right: 2 },
+      cell: null
+    })
+  })
+
+  it('walks Shift+Arrow one cell at a time instead of jumping a whole merged range, committing on key release', () => {
+    showHeaderRange()
+    // A1:B2 is two rows tall: navigation would jump past it to row 3, which would over-select by a row.
+    const tallMergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
+    const onSelectCell = vi.fn()
+    render(
+      <XlsxGrid sheet={tallMergeSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // land on A1, the merge master
+    onSelectCell.mockClear()
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    expect(onSelectCell).not.toHaveBeenCalled() // held repeats must not report per keydown
+    fireEvent.keyUp(scroll, { key: 'Shift' })
+
+    // The active corner moved to row 2, which is still inside the merge — so the selection is still that one cell.
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>({
+      range: 'A1',
+      rect: { top: 1, left: 1, bottom: 2, right: 2 },
+      cell: expect.objectContaining({ text: '2026 Sales Summary' })
+    })
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown', shiftKey: true })
+    fireEvent.keyUp(scroll, { key: 'Shift' })
+
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>({
+      range: 'A1:B3',
+      rect: { top: 1, left: 1, bottom: 3, right: 2 },
+      cell: null
+    })
+  })
+
+  it('outlines a multi-cell range instead of overlaying one cell, and marks every covered cell selected', () => {
+    showHeaderRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    // No single cell owns a range, so the full-content overlay stays away.
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+    // A2:B3 → x=0, y=36, width = col A 110 + col B 64, height = rows 2 and 3 at 20 each.
+    expect(screen.getByTestId('xlsx-grid-selection-range')).toHaveStyle({
+      top: '36px',
+      left: '0px',
+      width: '174px',
+      height: '40px'
+    })
+    expect(container.querySelectorAll('[role="gridcell"][aria-selected="true"]')).toHaveLength(4)
+  })
+
+  it('ignores a press that starts on the sticky headers', () => {
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // Inside the row-header strip: without the guard this would resolve to column A and start a selection.
+    fireEvent.pointerDown(scroll, { button: 0, pointerId: 1, clientX: 10, clientY: 60 })
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('xlsx-grid-selection-range')).not.toBeInTheDocument()
+  })
+})
+
+describe('XlsxGrid — picker hover', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('highlights the cell under the pointer while picking', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // B3: col B starts at x=110 and is 64 wide; row 3 starts at y=56 (row 1 is 36 tall, row 2 is 20) and is 20 tall.
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '56px',
+      left: '110px',
+      width: '64px',
+      height: '20px'
+    })
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_C3.x, IN_C3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({ top: '56px', left: '174px', width: '64px' })
+
+    fireEvent.pointerLeave(scroll)
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+  })
+
+  it('shows no hover highlight when the picker is off', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_C3.x, IN_C3.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+    expect(scroll).not.toHaveAttribute('data-picker')
+    expect(scroll).not.toHaveClass('cursor-cell')
+  })
+
+  it('highlights a merged range as the one unit a click on it would pick', () => {
+    showTitleMergeRange()
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    setScrollViewport(container)
+
+    // C1 is covered by the A1:D1 title merge, so the highlight spans the merge rather than the cell under the pointer.
+    fireEvent.pointerMove(screen.getByTestId('xlsx-grid-scroll'), pointerAt(IN_C1.x, IN_C1.y))
+
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '0px',
+      left: '0px',
+      width: '302px',
+      height: '36px'
+    })
+  })
+
+  it('hides the hover highlight while a range is being dragged', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toBeInTheDocument()
+
+    // The drawn range is its own visual; a highlight trailing the pointer would double-draw its leading edge.
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+    expect(screen.getByTestId('xlsx-grid-selection-range')).toBeInTheDocument()
+  })
+
+  it('does not draw the hover highlight over the picked cell', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.click(screen.getByText('Quarter')) // A2
+
+    // The pick keeps its own marker: a hover box on top of it would out-rank exactly the thing it marks.
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_A3.x, IN_A3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '56px',
+      left: '0px',
+      width: '110px',
+      height: '20px'
+    })
+  })
+
+  it('does not draw the hover highlight over any cell inside a picked multi-cell range', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // Drag-pick A2:B2.
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B2.x, IN_B2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B2.x, IN_B2.y))
+
+    // Every cell the range covers stays hover-free, not just the one the equality check used to catch.
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B2.x, IN_B2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_C2.x, IN_C2.y))
+    const hover = screen.getByTestId('xlsx-grid-hover-cell')
+    expect(hover).toBeInTheDocument()
+    // No z-index: plain DOM order is what keeps the picked range's outline painted above the hover.
+    expect(hover.className).not.toContain('z-10')
+  })
+
+  it('re-resolves the highlight under a stationary pointer when the grid scrolls', () => {
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({ top: '56px', left: '110px' })
+
+    // Scrolling 20px down puts B4 under the same client point. The pointer never moves, so nothing but the
+    // scroll can refresh the highlight.
+    setScrollViewport(container, { scrollTop: 20 })
+
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '76px',
+      left: '110px',
+      width: '64px',
+      height: '20px'
+    })
+  })
+
+  it('does not bring the highlight back on scroll once the pointer has left', () => {
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerLeave(scroll)
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    setScrollViewport(container, { scrollTop: 20 })
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+  })
+
+  it('clears the selection when picking is switched on, and only on that switch', () => {
+    const onSelectCell = vi.fn()
+    const grid = (pickerActive?: boolean) => (
+      <XlsxGrid
+        sheet={salesSheet}
+        styles={model.styles}
+        imageUrls={{}}
+        zoom={1}
+        onSelectCell={onSelectCell}
+        pickerActive={pickerActive}
+      />
+    )
+    const { container, rerender } = render(grid())
+
+    fireEvent.click(screen.getByText('Quarter')) // A2, picked while browsing
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A2' }))
+
+    rerender(grid(true))
+    expect(onSelectCell).toHaveBeenLastCalledWith(null)
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+
+    // Scrolling rebuilds the merge index the clear hangs off. Repeating the clear on that identity change would
+    // wipe every pick the user makes from the next scroll onwards.
+    const callsAfterSwitch = onSelectCell.mock.calls.length
+    setScrollViewport(container)
+    rerender(grid(true))
+    expect(onSelectCell).toHaveBeenCalledTimes(callsAfterSwitch)
+
+    // Switching picking back off clears nothing.
+    rerender(grid())
+    expect(onSelectCell).toHaveBeenCalledTimes(callsAfterSwitch)
+  })
+})
+
+describe('XlsxGrid — grid semantics', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('exposes the focusable scroll container as a grid with used-range row/col counts', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveAttribute('tabindex', '0')
+    expect(grid).toHaveAttribute('aria-rowcount', String(salesSheet.rowCount))
+    expect(grid).toHaveAttribute('aria-colcount', String(salesSheet.colCount))
+    expect(grid).toHaveAttribute('aria-multiselectable', 'true')
+  })
+
+  it('keeps visual padding outside the semantic grid', () => {
+    render(<XlsxGrid sheet={model.sheets[1]} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    expect(screen.getAllByRole('row')).toHaveLength(model.sheets[1].rowCount)
+    expect(screen.getAllByRole('gridcell')).toHaveLength(model.sheets[1].rowCount * model.sheets[1].colCount)
+  })
+
+  it('wraps cells in rows and exposes 1-based row/col indices on gridcells', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const quarterCell = screen.getByText('Quarter').closest('[role="gridcell"]') as HTMLElement
+    // A2 → col index 1, inside row index 2.
+    expect(quarterCell).toHaveAttribute('aria-colindex', '1')
+    expect(quarterCell.closest('[role="row"]')).toHaveAttribute('aria-rowindex', '2')
+  })
+})
+
+describe('XlsxGrid — selected cell overlay', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('shows an absolutely positioned overlay with the full text when a cell is clicked', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Quarter'))
+
+    const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
+    expect(overlay).toHaveTextContent('Quarter')
+    // A2 rect: col A at x=0 (110px wide), row 2 at y=36 (20px tall). The overlay is at least the
+    // cell rect and absolutely positioned — it overlays neighbours instead of pushing the layout.
+    expect(overlay).toHaveStyle({
+      position: 'absolute',
+      top: '36px',
+      left: '0px',
+      minWidth: '110px',
+      minHeight: '20px'
+    })
+  })
+
+  it('covers the whole merge rect when the selection is a merge master', () => {
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    fireEvent.click(screen.getByTestId('xlsx-grid-merge-cell'))
+
+    const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
+    expect(overlay).toHaveTextContent('2026 Sales Summary')
+    expect(overlay).toHaveStyle({ minWidth: '302px', minHeight: '36px' })
+  })
+
+  it('removes the overlay when the selection is cleared with Escape', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    fireEvent.click(screen.getByText('Quarter'))
+    expect(screen.getByTestId('xlsx-grid-selected-overlay')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+  })
+})
+
+describe('XlsxGrid — floating layer', () => {
+  it('renders a floating image at its zoom=1 rect and lets the transform layer scale it', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{ 1: 'blob:mock-url' }} zoom={2} />)
+
+    const img = screen.getByTestId('xlsx-grid-floating-image') as HTMLImageElement
+    expect(img.src).toContain('blob:mock-url')
+    // floatingImages[0].rect = { x: 340, y: 44, width: 160, height: 90 } stays unscaled;
+    // the ancestor zoom layer's transform applies the visual scaling.
+    expect(img).toHaveStyle({ top: '44px', left: '340px', width: '160px', height: '90px' })
+    expect(screen.getByTestId('xlsx-grid-zoom-layer')).toHaveStyle({ transform: 'scale(2)' })
+  })
+
+  it('renders one image per anchor when the same imageId is reused, without a duplicate React key', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    // parseWorkbook deduplicates image data, so the same imageId can back multiple anchors. Each placement must
+    // still render, and the keys must be unique (a duplicate key warning would signal a reconciliation hazard).
+    const reusedImageSheet: SheetRenderModel = {
+      ...salesSheet,
+      floatingImages: [
+        { rect: { x: 10, y: 10, width: 80, height: 60 }, imageId: 1 },
+        { rect: { x: 200, y: 120, width: 80, height: 60 }, imageId: 1 }
+      ]
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    render(<XlsxGrid sheet={reusedImageSheet} styles={model.styles} imageUrls={{ 1: 'blob:mock-url' }} zoom={1} />)
+
+    expect(screen.getAllByTestId('xlsx-grid-floating-image')).toHaveLength(2)
+    expect(consoleError.mock.calls.some((call) => String(call[0]).includes('same key'))).toBe(false)
+    consoleError.mockRestore()
+  })
+
+  it('does not render an image when its object URL has not been resolved yet', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    expect(screen.queryByTestId('xlsx-grid-floating-image')).not.toBeInTheDocument()
+  })
+
+  it('invokes renderChart for a supported chart and calls the returned dispose function on unmount', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    const dispose = vi.fn()
+    const renderChart = vi.fn((chart: ChartModel, container: HTMLElement) => {
+      void chart
+      void container
+      return dispose
+    })
+
+    const { unmount } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} renderChart={renderChart} />
+    )
+
+    expect(renderChart).toHaveBeenCalledTimes(1)
+    const [chartArg, container] = renderChart.mock.calls[0]
+    expect(chartArg.type).toBe('bar')
+    expect(container).toBeInstanceOf(HTMLElement)
+    expect(screen.getByRole('img', { name: 'Quarterly Sales' })).toBe(container)
+    expect(dispose).not.toHaveBeenCalled()
+
+    unmount()
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the unsupported chart placeholder with the raw type name instead of calling renderChart', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    const renderChart = vi.fn(() => vi.fn())
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} renderChart={renderChart} />)
+
+    expect(screen.getByText('scatterChart')).toBeInTheDocument()
+    expect(screen.getByText('scatterChart').closest('[data-testid="xlsx-grid-chart"]')?.firstElementChild).toHaveClass(
+      'border-dashed'
+    )
+    // renderChart should only be invoked for the supported ('bar') chart, not the unsupported one.
+    expect(renderChart).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the unsupported placeholder for a supported chart type when no renderChart is provided', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    const barOnlySheet: SheetRenderModel = { ...salesSheet, charts: [salesSheet.charts[0]] }
+    render(<XlsxGrid sheet={barOnlySheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    expect(screen.getByTestId('xlsx-grid-chart').firstElementChild).toHaveClass('border-dashed')
+  })
+
+  it('leaves a press on a chart to the chart, selecting no cell and capturing no pointer', () => {
+    // ECharts binds its legend and tooltip to the chart's own events. Starting a cell drag here captures the
+    // pointer and suppresses the trailing click, so those handlers never run — picker on or off.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    const setPointerCapture = vi.spyOn(HTMLElement.prototype, 'setPointerCapture').mockImplementation(() => {})
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const chart = screen.getAllByTestId('xlsx-grid-chart')[0]
+    const chartClick = vi.fn()
+    chart.addEventListener('click', chartClick)
+
+    fireEvent.pointerDown(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+    fireEvent.pointerUp(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+    fireEvent.click(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
+    expect(setPointerCapture).not.toHaveBeenCalled()
+    expect(chartClick).toHaveBeenCalledTimes(1)
+    setPointerCapture.mockRestore()
+  })
+
+  it('highlights no cell while picking with the pointer over a chart', () => {
+    showHeaderRange()
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // A highlight already on B3 must end when the pointer enters the chart, not linger underneath it.
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toBeInTheDocument()
+    fireEvent.pointerMove(screen.getAllByTestId('xlsx-grid-chart')[0], pointerAt(IN_CHART.x, IN_CHART.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    // Nor may a later scroll resurrect it from a remembered position.
+    setScrollViewport(container, { scrollTop: 20 })
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+  })
+})

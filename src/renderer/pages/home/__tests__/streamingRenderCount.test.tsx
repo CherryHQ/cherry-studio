@@ -12,21 +12,22 @@
  * and this test catches it.
  */
 
+import { act, render, renderHook } from '@testing-library/react'
+import { memo, type ReactNode } from 'react'
+import { describe, expect, it } from 'vitest'
+
 import {
   MessagePartsScopeProvider,
   useMessageParts
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useStablePartsByMessageId } from '@renderer/components/chat/messages/stream/useStableMessagePartsLayers'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { act, render, renderHook } from '@testing-library/react'
-import { memo, type ReactNode } from 'react'
-import { describe, expect, it } from 'vitest'
 
 function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: id.startsWith('user') ? 'user' : 'assistant', parts } as unknown as CherryUIMessage
 }
 
-const text = (s: string): CherryMessagePart => ({ type: 'text', text: s }) as CherryMessagePart
+const text = (s: string): CherryMessagePart => ({ type: 'text', text: s })
 
 const renderCount: Record<string, number> = {}
 const observedPartCounts: Record<string, number[]> = {}
@@ -62,7 +63,7 @@ describe('streaming render count (PR 2 regression net)', () => {
     const initialMessages = [...stableMessages, makeMessage(STREAMING_ID, [text(`${STREAMING_ID}:0`)])]
 
     const { result, rerender } = renderHook(
-      ({ messages }: { messages: CherryUIMessage[] }) => useStablePartsByMessageId(messages, {}, {}),
+      ({ messages }: { messages: CherryUIMessage[] }) => useStablePartsByMessageId(messages, {}),
       { initialProps: { messages: initialMessages } }
     )
 
@@ -118,7 +119,7 @@ describe('streaming render count (PR 2 regression net)', () => {
     const messages = [makeMessage('m1', [text('a')]), makeMessage('m2', [text('b')])]
 
     const { result, rerender } = renderHook(
-      ({ msgs }: { msgs: CherryUIMessage[] }) => useStablePartsByMessageId(msgs, {}, {}),
+      ({ msgs }: { msgs: CherryUIMessage[] }) => useStablePartsByMessageId(msgs, {}),
       { initialProps: { msgs: messages } }
     )
 

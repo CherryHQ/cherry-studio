@@ -1,5 +1,6 @@
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { type ReactNode, useEffect, useRef } from 'react'
+
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 
 import { type RightPanelCapability, type RightPanelComponentProps, useRightPanelActions } from './RightPanel'
 
@@ -35,6 +36,7 @@ export function createResourcePaneCapability<TScope extends ResourcePaneCapabili
 } = {}): RightPanelCapability<TScope> {
   return {
     component: ResourcePaneRightPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: RESOURCE_PANE_TAB,
       instanceKey,

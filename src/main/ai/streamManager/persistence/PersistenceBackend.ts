@@ -120,6 +120,12 @@ export interface PersistAssistantInput {
   runtimeStats?: MessageRuntimeStatsInput
 }
 
+export interface PersistedAssistant {
+  messageId: string
+  messageRevision: string
+  historyRevision: string
+}
+
 export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
@@ -130,13 +136,16 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void | Promise<void>
+  /** True only when an empty successful response is itself a valid terminal result. */
+  readonly canPersistEmptySuccessTerminal?: boolean
+
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
    * placeholder row to a terminal `error` state so a reload shows a terminal
-   * bubble instead of a frozen `pending` one. Only backends that finalize a
-   * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
+   * bubble instead of a frozen `pending` one. Backends that finalize a
+   * pre-existing placeholder implement this.
    */
   markTerminalError?(): void
 

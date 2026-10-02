@@ -64,4 +64,19 @@ describe('Provider DTO logo validation', () => {
   it('accepts a non-logo update (e.g. name)', () => {
     expect(UpdateProviderSchema.safeParse({ name: 'Renamed' }).success).toBe(true)
   })
+
+  it('accepts null values in provider settings merge patches', () => {
+    const result = UpdateProviderSchema.safeParse({
+      providerSettings: { notes: null, extraHeaders: { 'X-Remove': null } }
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts only supported Anthropic cache lifetimes', () => {
+    expect(
+      UpdateProviderSchema.parse({ providerSettings: { cacheControl: { ttl: '1h' } } }).providerSettings?.cacheControl
+    ).toEqual({ ttl: '1h' })
+    expect(UpdateProviderSchema.safeParse({ providerSettings: { cacheControl: { ttl: '30m' } } }).success).toBe(false)
+  })
 })

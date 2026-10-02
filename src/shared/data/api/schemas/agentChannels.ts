@@ -98,7 +98,6 @@ const AgentChannelBaseFields = {
 const MutableAgentChannelFields = {
   name: z.string(),
   agentId: z.string().nullable().optional(),
-  sessionId: z.string().nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema,
   isActive: z.boolean(),
   activeChatIds: z.array(z.string()).optional(),
@@ -176,7 +175,6 @@ export type CreateAgentChannelDto = z.infer<typeof CreateAgentChannelSchema>
 export const UpdateAgentChannelSchema = z.strictObject({
   name: z.string().optional(),
   agentId: z.string().nullable().optional(),
-  sessionId: z.string().nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema.optional(),
   config: z
     .union([
@@ -206,25 +204,12 @@ export type AgentChannelSchemas = {
       query?: AgentChannelListQuery
       response: AgentChannelEntity[]
     }
-    POST: {
-      body: CreateAgentChannelDto
-      response: AgentChannelEntity
-    }
   }
 
   '/agent-channels/:channelId': {
     GET: {
       params: { channelId: string }
       response: AgentChannelEntity
-    }
-    PATCH: {
-      params: { channelId: string }
-      body: UpdateAgentChannelDto
-      response: AgentChannelEntity
-    }
-    DELETE: {
-      params: { channelId: string }
-      response: void
     }
   }
 }

@@ -1,3 +1,10 @@
+import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
@@ -9,6 +16,8 @@ import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
+import { SessionCreateTool } from './SessionCreateTool'
+import { SessionSendTool } from './SessionSendTool'
 import { ToMarkdownTool } from './ToMarkdownTool'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
@@ -47,6 +56,7 @@ export function AgentToolCallCard({
   isStreaming = false,
   status,
   hasError = false,
+  isCherrySessionTool = false,
   openFlowOnClick = false,
   showInlineDetails = true
 }: {
@@ -57,15 +67,24 @@ export function AgentToolCallCard({
   isStreaming?: boolean
   status?: ToolStatus
   hasError?: boolean
+  isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input ?? {}, output, hasError)
-    : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
-      ? ToMarkdownTool({ input, output })
-      : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+  const { t } = useTranslation()
+  const renderedItem =
+    isCherrySessionTool &&
+    (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
+      ? SessionCreateTool({ input, output, hasError, isStreaming, status })
+      : isCherrySessionTool &&
+          (toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`)
+        ? SessionSendTool({ input, output, hasError, isStreaming, status })
+        : isValidAgentToolsType(toolName)
+          ? renderTool(toolName, input ?? {}, output, hasError)
+          : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
+            ? ToMarkdownTool({ input, output })
+            : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
@@ -75,6 +94,61 @@ export function AgentToolCallCard({
             title: getAgentToolFlowTitle(toolName, input)
           })
       : undefined
+  if (openToolFlow) {
+    const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
+    const running = status === 'streaming' || status === 'invoking'
+    const failed = hasError || status === 'error'
+    const Icon = failed
+      ? TriangleAlert
+      : running
+        ? Loader2
+        : status === 'done'
+          ? Check
+          : status === 'cancelled'
+            ? CircleStop
+            : Circle
+    const label = failed
+      ? t('message.tools.status.failed')
+      : running
+        ? t('message.tools.status.running')
+        : status === 'done'
+          ? t('common.completed')
+          : status === 'cancelled'
+            ? t('message.tools.cancelled')
+            : t('message.tools.pending')
+    const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+    return (
+      <Tooltip content={title} delay={600} asChild>
+        <Button
+          variant="ghost"
+          aria-pressed={selected}
+          onClick={openToolFlow}
+          className={cn('h-8 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal', selected && 'bg-accent')}>
+          <span
+            className={cn(
+              'flex shrink-0 items-center',
+              failed
+                ? 'text-error'
+                : status === 'done'
+                  ? 'text-success'
+                  : running
+                    ? 'text-info'
+                    : 'text-muted-foreground'
+            )}>
+            <Icon aria-hidden="true" className={cn('size-3.5', running && 'motion-safe:animate-spin')} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+          {status === 'done' && !failed ? (
+            <span className="sr-only">{label}</span>
+          ) : (
+            <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+          )}
+          <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+        </Button>
+      </Tooltip>
+    )
+  }
+
   const errorText = shouldShowHeaderErrorText(toolName, renderedItem) ? extractToolErrorText(output) : undefined
 
   const toolContentItem: ToolDisclosureItem = {
@@ -84,7 +158,7 @@ export function AgentToolCallCard({
         label={
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
-            {status && (status !== 'done' || hasError) && (
+            {status && (status !== 'done' || hasError || openFlowOnClick) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
             )}
           </div>

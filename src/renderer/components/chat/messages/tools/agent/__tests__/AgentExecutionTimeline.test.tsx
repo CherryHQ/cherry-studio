@@ -1,6 +1,7 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 const cardProps = vi.hoisted(() => ({
   current: undefined as Record<string, unknown> | undefined
@@ -62,5 +63,17 @@ describe('AgentExecutionTimeline', () => {
       openFlowOnClick: true,
       showInlineDetails: false
     })
+  })
+
+  it('only enables Session cards for the Cherry tools server', () => {
+    const response = toolResponse('Task', { ok: true, sessionId: 'not-a-cherry-session' })
+    response.tool = { id: 'session_create', name: 'session_create', type: 'mcp', serverId: 'tmux' } as never
+
+    const { rerender } = render(<AgentExecutionTimeline toolResponse={response} />)
+    expect(cardProps.current).toMatchObject({ isCherrySessionTool: false })
+
+    response.tool = { ...response.tool, serverId: 'cherry-tools' } as never
+    rerender(<AgentExecutionTimeline toolResponse={response} />)
+    expect(cardProps.current).toMatchObject({ isCherrySessionTool: true })
   })
 })

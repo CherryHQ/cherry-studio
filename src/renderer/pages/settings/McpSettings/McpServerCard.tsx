@@ -1,3 +1,10 @@
+import { CircleXIcon, ExternalLink } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
@@ -9,18 +16,14 @@ import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { CircleXIcon, ExternalLink } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import type { FallbackProps } from 'react-error-boundary'
-import { useTranslation } from 'react-i18next'
 
+import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -31,7 +34,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
+  const { updateMcpServer, removeMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
@@ -63,6 +66,15 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
+      if (active && isQVerisApiKeyMissing(server)) {
+        void popup.error({
+          title: t('settings.mcp.startError'),
+          content: <QVerisApiKeyGuide />,
+          centered: true
+        })
+        return
+      }
+
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
@@ -112,20 +124,19 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await ipcApi.request('mcp.server.remove', { serverId: server.id })
-      await deleteMcpServer({})
+      await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
-  }, [server, deleteMcpServer, t])
+  }, [removeMcpServer, t])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation()
 
       if (server.providerUrl) {
-        window.open(server.providerUrl, '_blank')
+        void openExternalWebsite(server.providerUrl)
       }
     },
     [server.providerUrl]
@@ -191,7 +202,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           showIcon
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-error text-xs leading-5">{errorDetails}</div>}
+          description={<div className="line-clamp-3 text-xs leading-5 text-error">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
             <div className="flex items-center gap-1">
@@ -268,7 +279,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border-subtle border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-b border-border-subtle px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
@@ -290,7 +301,7 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm tabular-nums min-[1180px]:block',
+      'hidden w-16 shrink-0 truncate text-right text-sm text-muted-foreground tabular-nums min-[1180px]:block',
       className
     )}
     {...props}

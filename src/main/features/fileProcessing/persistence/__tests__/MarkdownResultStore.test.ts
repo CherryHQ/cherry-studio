@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
@@ -113,7 +114,7 @@ describe('MarkdownResultStore', () => {
       {
         jobId: 'job-1',
         resultKind: 'remote-zip-url',
-        downloadUrl: 'https://cdn.example.com/results/task-1.zip',
+        downloadUrl: 'https://cdn.example.com',
         configuredApiHost: 'https://api.example.com'
       }
     )
@@ -138,7 +139,7 @@ describe('MarkdownResultStore', () => {
         path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
-          downloadUrl: 'https://cdn.example.com/results/task-1.zip',
+          downloadUrl: 'https://cdn.example.com',
           configuredApiHost: 'https://api.example.com'
         }
       })

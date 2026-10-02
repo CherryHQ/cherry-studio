@@ -1,16 +1,19 @@
+import os from 'os'
+import path from 'path'
+import { isMainThread } from 'worker_threads'
+
+import { app, ipcMain } from 'electron'
+import winston from 'winston'
+import DailyRotateFile from 'winston-daily-rotate-file'
+
 /* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
-import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
-import { app, ipcMain } from 'electron'
-import os from 'os'
-import path from 'path'
-import winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
-import { isMainThread } from 'worker_threads'
+import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
+import { redactSecretText } from '@shared/utils/redaction'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -40,11 +43,53 @@ const SYSTEM_INFO = {
   hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
+// Mirrors the shared-ai safe message length without importing AI logic:
+// winston concatenates fileMessage and entry.message, so this counts twice.
+const MAX_ERROR_MESSAGE_CHARS = 500
+const MAX_ERROR_STACK_CHARS = 4000
+const MAX_SAFE_ERROR_TAG_CHARS = 100
+const MAX_NESTED_SANITIZE_DEPTH = 5
+
+function safeErrorText(value: unknown): string {
+  const redacted = redactSecretText(String(value ?? ''))
+  return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
+}
+
+function toSafeError(error: Error): Record<string, unknown> {
+  const safe: Record<string, unknown> = {
+    name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
+    message: safeErrorText(error.message)
+  }
+  if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
+  const source = error as unknown as Record<string, unknown>
+  if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+    safe.code = redactSecretText(source.code)
+  }
+  if (typeof source.statusCode === 'number') safe.statusCode = source.statusCode
+  if (typeof source.status === 'number') safe.status = source.status
+  if (typeof source.reason === 'string' && source.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+    safe.reason = redactSecretText(source.reason)
+  }
+  if (typeof source.isRetryable === 'boolean') safe.isRetryable = source.isRetryable
+  return safe
+}
+
+function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+  if (value instanceof Error) return toSafeError(value)
+  if (value === null || typeof value !== 'object') return value
+  if (seen.has(value)) return '[Circular]'
+  if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
+  seen.add(value)
+  if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
+  const out: Record<string, unknown> = {}
+  for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
+  return out
+}
 
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
  * level, console output, and the CSLOGGER_MAIN_* overrides all turn on together.
- * Idempotent when already in dev (`isDev || x === isDev`). See docs/guides/diagnostics.md.
+ * Idempotent when already in dev (`isDev || x === isDev`). See docs/references/diagnostics/README.md.
  */
 const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 
@@ -115,7 +160,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '30d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 
@@ -126,7 +171,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app-error.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '60d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 
@@ -248,28 +293,59 @@ export class LoggerService {
       }
     }
 
-    // add source information to meta
+    // Winston merges only the first splat object into the logged line (no
+    // `format.splat()` configured), so collapse caller data + source into one meta.
+    const entry: Record<string, unknown> = {}
+    const rest: unknown[] = []
+    let fileMessage = message
+
+    const [first, ...others] = meta
+    if (first instanceof Error) {
+      // Bounded name/message/stack plus small diagnostic tags only: custom
+      // enumerable props (e.g. AI SDK requestBodyValues) never reach disk (#20363).
+      Object.assign(entry, toSafeError(first))
+      entry.errorMessage = entry.message
+      fileMessage = `${message} ${String(entry.message)}`
+    } else if (first !== null && typeof first === 'object') {
+      Object.assign(entry, sanitizeLogValue(first) as Record<string, unknown>)
+      if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
+    } else if (first !== undefined) {
+      rest.push(first)
+    }
+    for (const item of others) {
+      rest.push(sanitizeLogValue(item))
+    }
+    if (rest.length > 0) {
+      entry.data = rest
+    }
+
+    // source fields assigned last so caller data can never clobber them
     // renderer process has its own module and context, do not use this.module and this.context
-    const sourceWithContext: LogSourceWithContext = source
+    entry.process = source.process
     if (source.process === 'main') {
-      sourceWithContext.module = this.module
+      entry.module = this.module
       if (Object.keys(this.context).length > 0) {
-        sourceWithContext.context = this.context
+        entry.context = sanitizeLogValue(this.context)
+      }
+    } else {
+      if (source.window !== undefined) {
+        entry.window = source.window
+      }
+      if (source.module !== undefined) {
+        entry.module = source.module
+      }
+      if (source.context !== undefined) {
+        entry.context = sanitizeLogValue(source.context)
       }
     }
-    meta.push(sourceWithContext)
 
     // add extra system information for error and warn levels
     if (level === LEVEL.ERROR || level === LEVEL.WARN) {
-      const extra = {
-        sys: SYSTEM_INFO,
-        appver: APP_VERSION
-      }
-
-      meta.push(extra)
+      entry.sys = SYSTEM_INFO
+      entry.appver = APP_VERSION
     }
 
-    this.logger.log(level, message, ...meta)
+    this.logger.log(level, fileMessage, entry)
   }
 
   /**
@@ -375,7 +451,12 @@ export class LoggerService {
   }
 
   /**
-   * Register IPC handler for renderer process logging
+   * Register IPC handler for renderer process logging.
+   *
+   * Deliberately NOT routed through `handleGuarded` (unlike other legacy IPC):
+   * this runs at module-eval time via the constructor, and importing the
+   * `validateSender` chain would pull `@application` into core/logger's init
+   * order. The channel only forwards log lines — no privileged action.
    */
   private registerIpcHandler(): void {
     ipcMain.handle(

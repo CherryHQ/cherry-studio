@@ -1,3 +1,12 @@
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -7,12 +16,16 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
+import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -30,6 +43,10 @@ type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 
 describe('AgentSessionMessageService', () => {
   const dbh = setupTestDatabase()
+
+  function commitData(input: Parameters<typeof agentSessionForkService.commitTx>[1]): void {
+    application.get('DbService').withWriteTx((tx) => agentSessionForkService.commitTx(tx, input))
+  }
 
   async function seedSession(values: Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }) {
     const workspaceId = values.workspaceId ?? `workspace-${values.id}`
@@ -51,6 +68,17 @@ describe('AgentSessionMessageService', () => {
     }
   }
 
+  async function seedAgent(id: string, name: string, deletedAt?: number) {
+    await dbh.db.insert(agentTable).values({
+      id,
+      type: 'claude-code',
+      name,
+      instructions: 'test',
+      orderKey: id,
+      deletedAt
+    })
+  }
+
   beforeEach(async () => {
     notifyDataApiDataChangeMock.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
@@ -70,7 +98,960 @@ describe('AgentSessionMessageService', () => {
     })
 
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('native fork persistence', () => {
+    it.each(['cherry-claw', 'claude-code', 'pi'])(
+      'matches a Claude checkpoint against the effective runtime of a stored %s agent',
+      async (storedType) => {
+        await seedAgent('fork-agent', 'Fork Agent')
+        dbh.db.update(agentTable).set({ type: storedType }).where(eq(agentTable.id, 'fork-agent')).run()
+        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        const directory = await mkdtemp(path.join(tmpdir(), 'agent-fork-runtime-'))
+        const getPath = vi
+          .spyOn(application, 'getPath')
+          .mockImplementation((_key, filename) => (filename ? path.join(directory, filename) : directory))
+        const checkpoint = {
+          runtime: 'claude-code' as const,
+          runtimeSessionId: 'native-parent',
+          messageUuid: ASSISTANT_MESSAGE_ID,
+          configDir: directory
+        }
+        const fork = vi.fn(async (input: RuntimeForkInput) => ({
+          resumeToken: 'native-child',
+          checkpoints: input.checkpoints.map((value) => ({ ...value, runtimeSessionId: 'native-child' })),
+          publish: []
+        }))
+        const connect = vi.fn()
+        for (const type of ['claude-code', 'pi']) {
+          runtimeDriverRegistry.register({
+            type,
+            capabilities: ['agent-session'],
+            validateSession: vi.fn(),
+            listAvailableTools: vi.fn().mockResolvedValue([]),
+            connect,
+            fork
+          })
+        }
+        try {
+          agentSessionMessageService.saveMessage({
+            sessionId: 'fork-source',
+            runtimeResumeToken: 'native-parent',
+            runtimeAnchor: { checkpoint },
+            message: {
+              id: ASSISTANT_MESSAGE_ID,
+              role: 'assistant',
+              status: 'success',
+              data: { parts: [{ type: 'text', text: 'answer' }] }
+            }
+          })
+          const operations = new AgentSessionForkOperations()
+          if (storedType === 'claude-code') {
+            fork.mockRejectedValueOnce(new AgentSessionForkError('history_missing'))
+            await expect(operations.fork('fork-source', ASSISTANT_MESSAGE_ID)).rejects.toMatchObject({
+              reason: 'history_missing'
+            })
+            expect(await readdir(directory)).toEqual([])
+            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(2)
+          }
+          const operation = operations.fork('fork-source', ASSISTANT_MESSAGE_ID)
+          if (storedType === 'pi') {
+            await expect(operation).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+            expect(fork).not.toHaveBeenCalled()
+          } else {
+            const childId = await operation
+            expect(agentSessionService.getById(childId)).toMatchObject({
+              agentId: 'fork-agent',
+              workspaceId: 'workspace-fork-source',
+              name: 'Source (1)'
+            })
+            const child = agentSessionMessageService.listSessionMessages(childId).items[0]
+            expect(child.id).not.toBe(ASSISTANT_MESSAGE_ID)
+            expect(child.runtimeResumeToken).toBe('native-child')
+
+            expect(
+              agentSessionMessageService.readForkPrefixTx(dbh.db, childId, child.id)![0].data.runtimeAnchor
+            ).toMatchObject({ checkpoint: { ...checkpoint, runtimeSessionId: 'native-child' } })
+          }
+          expect(connect).not.toHaveBeenCalled()
+          expect(agentSessionMessageService.getLastRuntimeResumeToken('fork-source')).toBe('native-parent')
+          expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'fork-agent')).get()?.type).toBe(storedType)
+        } finally {
+          getPath.mockRestore()
+          runtimeDriverRegistry.clearForTest()
+          await rm(directory, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it.each(['edit', 'delete'])('preserves earlier checkpoints at the same timestamp on %s', (operation) => {
+      const rows = [
+        { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d009', createdAt: 999 },
+        { id: USER_MESSAGE_ID, createdAt: 1000 },
+        { id: ASSISTANT_MESSAGE_ID, createdAt: 1000 },
+        { id: FILE_ENTRY_ID, createdAt: 1000 },
+        { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d000', createdAt: 1001 }
+      ]
+      for (const row of rows) {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          runtimeAnchor: {
+            checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: row.id }
+          },
+          message: {
+            id: row.id,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: row.id }] }
+          }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ createdAt: row.createdAt })
+          .where(eq(agentSessionMessageTable.id, row.id))
+          .run()
+      }
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID)!.map((row) => row.id)
+      ).toEqual(rows.slice(0, 3).map((row) => row.id))
+      notifyDataApiDataChangeMock.mockClear()
+      notifyDataApiDataChangeMock.mockImplementationOnce(() => {
+        expect(dbh.sqlite.inTransaction).toBe(false)
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, FILE_ENTRY_ID)!.at(-1)!.data.runtimeAnchor
+        ).toBeUndefined()
+      })
+      if (operation === 'edit') {
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          data: { parts: [{ type: 'text', text: 'edited' }] }
+        })
+      } else {
+        agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      }
+      expect(notifyDataApiDataChangeMock.mock.calls).toEqual([
+        [
+          [
+            {
+              endpoint: '/agent-sessions/:sessionId/messages',
+              kind: operation === 'edit' ? 'projection' : 'membership',
+              routeParams: { sessionId: SESSION_ID }
+            }
+          ]
+        ]
+      ])
+      for (const row of rows.slice(0, 2)) {
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, row.id)!.at(-1)!.data.runtimeAnchor
+        ).toBeDefined()
+      }
+      for (const row of rows.slice(operation === 'edit' ? 2 : 3)) {
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, row.id)!.at(-1)!.data.runtimeAnchor
+        ).toBeUndefined()
+      }
+      if (operation === 'delete')
+        expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow()
+    })
+
+    it.each([
+      { runtime: 'pi', runtimeSessionId: 'native-pi', leafId: 'leaf' },
+      {
+        runtime: 'claude-code',
+        runtimeSessionId: 'native-claude',
+        messageUuid: ASSISTANT_MESSAGE_ID,
+        configDir: '/config'
+      },
+      { runtime: 'dsh', runtimeSessionId: 'native-dsh', boundary: 7 }
+    ] as const)('keeps $runtime native identifiers out of public messages', (checkpoint) => {
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeAnchor: { checkpoint, excludedMessageIds: [USER_MESSAGE_ID] },
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      expect(saved).not.toHaveProperty('runtimeAnchor')
+      expect(JSON.stringify(saved)).not.toContain(checkpoint.runtimeSessionId)
+      const metadata = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 0,
+        toMs: Number.MAX_SAFE_INTEGER,
+        limit: 10
+      }).items[0]
+      const entity = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      expect(metadata).not.toHaveProperty('runtimeAnchor')
+    })
+
+    it.each([
+      ['missing native identifier', undefined, 'legacy_history'],
+      ['invalid native identifier', { checkpoint: { runtime: 'pi' } }, 'unsupported_checkpoint']
+    ] as const)(
+      'reports %s when fork is requested without publishing a session',
+      async (_label, runtimeAnchor, reason) => {
+        await seedAgent('fork-agent', 'Fork Agent')
+        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        agentSessionMessageService.saveMessage({
+          sessionId: 'fork-source',
+          message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ data: { parts: [], runtimeAnchor } })
+          .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+          .run()
+        await expect(new AgentSessionForkOperations().fork('fork-source', ASSISTANT_MESSAGE_ID)).rejects.toMatchObject({
+          reason
+        })
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionTable)
+            .all()
+            .map((row) => row.id)
+            .sort()
+        ).toEqual(['fork-source', SESSION_ID])
+      }
+    )
+
+    it.each(['edit', 'delete'])('rolls back checkpoint invalidation and %s without notifying windows', (operation) => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeAnchor: {
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+        },
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      notifyDataApiDataChangeMock.mockReset()
+      if (operation === 'delete') {
+        const remove = agentSessionMessageService.deleteSessionMessageTx.bind(agentSessionMessageService)
+        vi.spyOn(agentSessionMessageService, 'deleteSessionMessageTx').mockImplementation((...args) => {
+          remove(...args)
+          throw new Error('transaction failed after delete')
+        })
+        expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+          'transaction failed'
+        )
+      } else {
+        vi.spyOn(agentSessionService, 'touchUpdatedAtTx').mockImplementation(() => {
+          throw new Error('transaction failed after edit')
+        })
+        expect(() =>
+          agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+            data: { parts: [{ type: 'text', text: 'edited' }] }
+          })
+        ).toThrow('transaction failed')
+      }
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID)!.at(-1)!.data
+          .runtimeAnchor
+      ).toBeDefined()
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+        { type: 'text', text: 'answer' }
+      ])
+    })
+
+    it('keeps native checkpoints private and invalidates a selected history after edits', () => {
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeAnchor: {
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+        },
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+
+      expect(saved.data).not.toHaveProperty('runtimeAnchor')
+      const forgedData = {
+        parts: [{ type: 'text' as const, text: 'edited' }],
+        runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'forged', leafId: 'forged' } }
+      }
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, { data: forgedData })
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID)!.at(-1)!.data
+          .runtimeAnchor
+      ).toBeUndefined()
+    })
+
+    it.each([
+      ['Source', 'Source (1)', 'Source (2)'],
+      ['test(1)', 'unrelated', 'test(2)'],
+      ['test (1)', 'test (2)', 'test (3)'],
+      ['test(1)', 'test (4)', 'test(5)'],
+      ['test(9)', 'test(2)', 'test(10)'],
+      ['test(draft)', 'unrelated', 'test(draft) (1)'],
+      ['test(1) notes', 'unrelated', 'test(1) notes (1)'],
+      ['test(9007199254740992)', 'unrelated', 'test(9007199254740993)']
+    ])('forks %s alongside %s as %s with increasing numbering', async (sourceName, existingName, expectedName) => {
+      await seedAgent('fork-agent', 'Fork Agent')
+      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: sourceName, orderKey: 'fork-order' })
+      await seedSession({ id: 'existing-name', agentId: 'fork-agent', name: existingName, orderKey: 'existing-order' })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        runtimeResumeToken: 'original-token',
+        runtimeAnchor: {
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+        },
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      const source = agentSessionForkService.read('fork-source', ASSISTANT_MESSAGE_ID)
+      const journal = {
+        version: 1 as const,
+        operationId: 'test-operation',
+
+        targetSessionId: 'fork-child',
+        createdAt: Date.now(),
+        artifactDirectory: '/test-owned-operation',
+        published: [],
+        committed: false
+      }
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'later' }] }
+        }
+      })
+      commitData({
+        source,
+        messageId: ASSISTANT_MESSAGE_ID,
+        targetSessionId: journal.targetSessionId,
+        createdAt: journal.createdAt,
+        excludedIds: [],
+        messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
+      })
+      expect(agentSessionService.getById('fork-child').workspaceId).toBe(source.workspace.id)
+      expect(agentSessionService.getById('fork-child').name).toBe(expectedName)
+      expect(agentSessionService.getById('existing-name').name).toBe(existingName)
+      expect(agentSessionService.getById('fork-source').name).toBe(sourceName)
+      const child = agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID)
+      expect(child.runtimeResumeToken).toBe('child-token')
+      expect(child.data.parts).toEqual(source.messages[0].data.parts)
+
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, 'fork-child', FILE_ENTRY_ID)![0].data.runtimeAnchor
+      ).toEqual(source.messages[0].data.runtimeAnchor)
+      expect(child.stats).toBeNull()
+      expect(child.delivery).toBeNull()
+      if (sourceName === 'test(1)' && existingName === 'unrelated') {
+        const childSource = agentSessionForkService.read('fork-child', FILE_ENTRY_ID)
+        commitData({
+          source: childSource,
+          messageId: FILE_ENTRY_ID,
+          targetSessionId: 'fork-grandchild',
+          createdAt: journal.createdAt,
+          excludedIds: [],
+          messages: childSource.messages.map((row) => ({ ...row, id: 'grandchild-message' }))
+        })
+        expect(agentSessionService.getById('fork-grandchild').name).toBe('test(3)')
+        commitData({
+          source,
+          messageId: ASSISTANT_MESSAGE_ID,
+          targetSessionId: 'fork-sibling',
+          createdAt: journal.createdAt,
+          excludedIds: [],
+          messages: source.messages.map((row) => ({ ...row, id: 'sibling-message' }))
+        })
+        expect(agentSessionService.getById('fork-sibling').name).toBe('test(4)')
+        expect(agentSessionService.getById('fork-child').name).toBe('test(2)')
+      }
+      agentSessionService.deleteTx(dbh.db, 'fork-source')
+      expect(agentSessionService.getById('fork-child').id).toBe('fork-child')
+      expect(agentSessionForkService.hasPublishedSession(journal.targetSessionId)).toBe(true)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken('fork-child')).toBe('child-token')
+    })
+
+    it('publishes no child when the source prefix changed or its parent disappeared', async () => {
+      await seedAgent('fork-agent', 'Fork Agent')
+      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      const source = agentSessionForkService.read('fork-source', ASSISTANT_MESSAGE_ID)
+      const input = {
+        source,
+        messageId: ASSISTANT_MESSAGE_ID,
+        excludedIds: [],
+        messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID })),
+        targetSessionId: 'fork-child',
+        createdAt: Date.now()
+      }
+      agentSessionMessageService.updateSessionMessage('fork-source', ASSISTANT_MESSAGE_ID, { data: { parts: [] } })
+      expect(() => commitData(input)).toThrow('source_changed')
+      agentSessionService.deleteTx(dbh.db, 'fork-source')
+      expect(() => commitData(input)).toThrow('source_missing')
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'fork-child')).get()
+      ).toBeUndefined()
+    })
+  })
+
+  describe('cross-session delivery', () => {
+    it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'same-target', agentId: 'agent-a', name: 'Same target', orderKey: 'b1' })
+      await seedSession({ id: 'cross-target', agentId: 'agent-b', name: 'Cross target', orderKey: 'b2' })
+
+      const sameAgent = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'same-target',
+        content: 'same agent work'
+      })
+      const crossAgent = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'cross-target',
+        content: 'cross agent work'
+      })
+
+      expect(sameAgent.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender' },
+        receiver: { agentId: 'agent-a', sessionId: 'same-target' },
+        replyPolicy: 'none',
+        status: 'accepted'
+      })
+      expect(crossAgent.delivery).toMatchObject({
+        receiver: { agentId: 'agent-b', sessionId: 'cross-target' },
+        status: 'accepted'
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries().map((message) => message.id)).toEqual([
+        sameAgent.id,
+        crossAgent.id
+      ])
+      expect(
+        agentSessionMessageService.listRecoverableSessionDeliveries('same-target').map((message) => message.id)
+      ).toEqual([sameAgent.id])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['same-target'] },
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'same-target' },
+          entityIds: [sameAgent.id]
+        }
+      ])
+    })
+
+    it('atomically creates a same-Agent Session with its first delivery', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'shared-workspace',
+        name: 'Shared',
+        path: '/tmp/shared-workspace',
+        type: 'user',
+        orderKey: 'workspace-shared'
+      })
+
+      const created = agentSessionMessageService.createSessionWithDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        sessionName: 'Fresh work',
+        workspace: { type: 'user', workspaceId: 'shared-workspace' },
+        content: 'Start here'
+      })
+
+      expect(created.session).toMatchObject({
+        agentId: 'agent-a',
+        name: 'Fresh work',
+        workspaceId: 'shared-workspace'
+      })
+      expect(created.message).toMatchObject({
+        sessionId: created.session.id,
+        data: { parts: [{ type: 'text', text: 'Start here' }] },
+        delivery: {
+          sender: { agentId: 'agent-a', sessionId: 'sender' },
+          receiver: { agentId: 'agent-a', sessionId: created.session.id },
+          replyPolicy: 'completion',
+          status: 'accepted'
+        }
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [created.session.id] },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          entityIds: [created.message.id]
+        }
+      ])
+    })
+
+    it('atomically creates a Session for an explicit target Agent', async () => {
+      await seedAgent('agent-a', 'Sender Agent')
+      await seedAgent('agent-b', 'Target Agent')
+      await seedSession({ id: 'sender-target', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'target-workspace',
+        name: 'Target workspace',
+        path: '/tmp/target-workspace',
+        type: 'user',
+        orderKey: 'workspace-target'
+      })
+
+      const created = agentSessionMessageService.createSessionWithDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender-target',
+        targetAgentId: 'agent-b',
+        sessionName: 'Target work',
+        workspace: { type: 'user', workspaceId: 'target-workspace' },
+        content: 'Work for target'
+      })
+
+      expect(created.session.agentId).toBe('agent-b')
+      expect(created.message.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender-target' },
+        receiver: { agentId: 'agent-b', sessionId: created.session.id },
+        status: 'accepted'
+      })
+    })
+
+    it('rolls back the new Session when the sender identity is stale', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'rollback-workspace',
+        name: 'Rollback',
+        path: '/tmp/rollback-workspace',
+        type: 'user',
+        orderKey: 'workspace-rollback'
+      })
+      const sessionsBefore = await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)
+
+      expect(() =>
+        agentSessionMessageService.createSessionWithDelivery({
+          senderAgentId: 'agent-b',
+          senderSessionId: 'sender',
+          sessionName: 'Must roll back',
+          workspace: { type: 'user', workspaceId: 'rollback-workspace' },
+          content: 'Do not persist'
+        })
+      ).toThrow()
+
+      const sessionsAfter = await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)
+      expect(sessionsAfter).toEqual(sessionsBefore)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a forged sender identity without writing a message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-b',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'forged'
+        })
+      ).toThrowError(expect.objectContaining<Partial<AgentSessionDeliveryRoutingError>>({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('returns stable errors for missing, orphaned, and deleted targets', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-deleted', 'Deleted', Date.now())
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'orphan', name: 'Orphan', orderKey: 'b1' })
+      await seedSession({ id: 'deleted-target', agentId: 'agent-deleted', name: 'Deleted target', orderKey: 'b2' })
+
+      const send = (receiverSessionId: string) =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId,
+          content: 'work'
+        })
+
+      expect(() => send('missing')).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_NOT_FOUND' }))
+      expect(() => send('orphan')).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_ORPHANED' }))
+      expect(() => send('deleted-target')).toThrowError(expect.objectContaining({ code: 'TARGET_AGENT_DELETED' }))
+    })
+
+    it('rejects delivery from a trashed sender Session without writing to the target', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'trashed-sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0', deletedAt: 100 })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'trashed-sender',
+          receiverSessionId: 'target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('rejects delivery to a trashed target Session without writing a message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'trashed-target', agentId: 'agent-a', name: 'Target', orderKey: 'b1', deletedAt: 100 })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'trashed-target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_NOT_FOUND' }))
+      expect(agentSessionMessageService.listSessionDeliveries('trashed-target')).toEqual([])
+    })
+
+    it('keeps accepted and delivering rows recoverable until terminal consumption', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+      const accepted = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'durable work'
+      })
+
+      agentSessionMessageService.transitionSessionDelivery('target', accepted.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: 'assistant-turn'
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
+
+      const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
+      expect(consumed?.delivery).toMatchObject({ status: 'consumed', statusAt: expect.any(String) })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
+    })
+
+    it('rejects deleting a non-terminal delivery message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'durable work'
+      })
+
+      expect(() => agentSessionMessageService.deleteSessionMessage('target', request.id)).toThrowError(
+        expect.objectContaining({ code: 'RESOURCE_LOCKED' })
+      )
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).id).toBe(request.id)
+    })
+
+    it('finalizes one frozen completion result after terminal persistence', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d090'
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: assistantId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Frozen result' }] }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: assistantId
+      })
+
+      const first = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+      const second = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+
+      expect(first).toMatchObject({
+        sessionId: 'sender',
+        data: { parts: [{ type: 'text', text: 'Frozen result' }] },
+        delivery: {
+          inReplyTo: request.id,
+          sourceMessageId: assistantId,
+          outcome: 'success',
+          status: 'accepted'
+        }
+      })
+      expect(second).toBeNull()
+      agentSessionMessageService.updateSessionMessage('target', assistantId, {
+        data: { parts: [{ type: 'text', text: 'Edited later' }] }
+      })
+      expect(agentSessionMessageService.getSessionMessage('sender', first!.id).data).toEqual({
+        parts: [{ type: 'text', text: 'Frozen result' }]
+      })
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'consumed',
+        outcome: 'success'
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: 'target' },
+          entityIds: [request.id]
+        },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'sender' },
+          entityIds: [first!.id]
+        }
+      ])
+      expect(
+        agentSessionMessageService
+          .listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+          .map((message) => message.id)
+          .sort()
+      ).toEqual([first!.id, request.id].sort())
+    })
+
+    it('does not write a completion result to a trashed caller when finalizing', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d091'
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: assistantId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Completed work' }] }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: assistantId
+      })
+      agentSessionService.delete('sender')
+
+      const result = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+
+      expect(result).toBeNull()
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'failed',
+        error: { code: 'CALLER_SESSION_DELETED' }
+      })
+    })
+
+    it('does not write an error result to a trashed caller when delivery fails', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionService.delete('sender')
+
+      const result = agentSessionMessageService.failSessionDelivery(request, {
+        code: 'TARGET_UNAVAILABLE',
+        message: 'Target unavailable'
+      })
+
+      expect(result).toBeNull()
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'failed',
+        error: { code: 'TARGET_UNAVAILABLE' }
+      })
+    })
+
+    it('terminalizes an unfinished completion request before moving its target Session to Trash', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+
+      agentSessionService.delete('target')
+
+      const [result] = agentSessionMessageService.listSessionDeliveries({
+        sessionId: 'sender',
+        requestId: request.id
+      })
+      expect(result).toMatchObject({
+        sessionId: 'sender',
+        delivery: {
+          inReplyTo: request.id,
+          outcome: 'failed',
+          error: { code: 'TARGET_SESSION_DELETED' }
+        }
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries('target')).toEqual([])
+
+      agentSessionService.restore('target')
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_SESSION_DELETED' }
+      })
+    })
+
+    it('interrupts an active completion before deleting its Agent while retaining the target Session', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: 'assistant-turn'
+      })
+
+      agentService.deleteAgent('agent-b', { deleteSessions: false })
+
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+      expect(agentSessionService.getById('target')).toMatchObject({ id: 'target', agentId: 'agent-b' })
+      const [retained] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'target'))
+      expect(retained.agentId).toBe('agent-b')
+      const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+      expect(result.delivery).toMatchObject({
+        inReplyTo: request.id,
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+
+      agentService.restoreAgent('agent-b')
+      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
+    })
+
+    it('does not write an interruption result to a trashed caller when retaining a deleted Agent Session', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: 'assistant-turn'
+      })
+      agentSessionService.delete('sender')
+
+      agentService.deleteAgent('agent-b', { deleteSessions: false })
+
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+    })
   })
 
   describe('findCrashOrphanedAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
@@ -318,6 +1299,112 @@ describe('AgentSessionMessageService', () => {
     ).toEqual([])
   })
 
+  it('writes neither message when the owning Agent changed after validation', async () => {
+    await seedAgent('agent-a', 'Agent A')
+    await dbh.db.update(agentSessionTable).set({ agentId: 'agent-a' }).where(eq(agentSessionTable.id, SESSION_ID))
+    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-a'))
+    await dbh.db
+      .update(agentTable)
+      .set({ name: 'Agent A updated', updatedAt: agent.updatedAt + 1 })
+      .where(eq(agentTable.id, 'agent-a'))
+
+    expect(() =>
+      agentSessionMessageService.saveMessages(
+        {
+          sessionId: SESSION_ID,
+          messages: [
+            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+          ]
+        },
+        {
+          id: 'agent-a',
+          updatedAt: new Date(agent.updatedAt).toISOString(),
+          model: 'provider::validated-model',
+          type: 'claude-code'
+        }
+      )
+    ).toThrow("Agent 'agent-a' was modified by another user")
+
+    expect(
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+    ).toEqual([])
+  })
+
+  it('compares legacy cherry-claw rows by their normalized runtime type', async () => {
+    dbh.db.insert(userProviderTable).values({ providerId: 'legacy', name: 'Legacy', orderKey: 'p0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'legacy::model',
+        providerId: 'legacy',
+        modelId: 'model',
+        presetModelId: 'model',
+        name: 'Legacy model',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'm0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'legacy-agent',
+        type: 'cherry-claw',
+        name: 'Legacy Agent',
+        instructions: '',
+        model: 'legacy::model',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId: 'legacy-agent' }).where(eq(agentSessionTable.id, SESSION_ID)).run()
+    const [agent] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy-agent')).all()
+
+    expect(() =>
+      agentSessionMessageService.saveMessages(
+        {
+          sessionId: SESSION_ID,
+          messages: [
+            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+          ]
+        },
+        {
+          id: 'legacy-agent',
+          updatedAt: new Date(agent.updatedAt).toISOString(),
+          model: 'legacy::model',
+          type: 'claude-code'
+        }
+      )
+    ).not.toThrow()
+  })
+
+  it('terminalizes a pending assistant after live persistence fails', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      runtimeResumeToken: 'resume-token',
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
+        entityIds: [ASSISTANT_MESSAGE_ID]
+      }
+    ])
+  })
+
   it('keeps createdAt stable when updating an existing message', async () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
@@ -444,14 +1531,17 @@ describe('AgentSessionMessageService', () => {
       { publishDataChange: true }
     )
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'membership',
-        routeParams: { sessionId: SESSION_ID },
-        entityIds: [USER_MESSAGE_ID]
-      }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: SESSION_ID },
+          entityIds: [USER_MESSAGE_ID]
+        }
+      ])
+    )
 
     agentSessionMessageService.saveMessage(
       {
@@ -509,6 +1599,63 @@ describe('AgentSessionMessageService', () => {
     expect(() =>
       agentSessionMessageService.updateSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID, { data })
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
+  })
+
+  it('makes messages unaddressable while their Session is archived', async () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'archived session secret' }] }
+      }
+    })
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, SESSION_ID))
+
+    expect(() => agentSessionMessageService.listSessionMessages(SESSION_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        data: { parts: [{ type: 'text', text: 'changed while archived' }] }
+      })
+    ).toThrow(`Session with id '${SESSION_ID}' not found`)
+    expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toEqual([])
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toEqual([])
+
+    agentSessionService.restore(SESSION_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'archived session secret' }
+    ])
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toHaveLength(1)
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toHaveLength(1)
+  })
+
+  it('preserves turnOptions when a data patch sends only parts', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'answer' }], turnOptions: { reasoningEffort: 'high', fastMode: true } }
+      }
+    })
+
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'edited' }] }
+    })
+
+    expect(updated.data.parts).toEqual([{ type: 'text', text: 'edited' }])
+    expect(updated.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
   })
 
   it('replaces parts on the original assistant row', () => {
@@ -587,6 +1734,136 @@ describe('AgentSessionMessageService', () => {
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
+  })
+
+  it('pages live-session body-free metadata in a closed range without skipping timestamp ties', async () => {
+    await seedSession({
+      id: 'archived-range-session',
+      name: 'Archived range session',
+      orderKey: 'a1',
+      deletedAt: 250
+    })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: 'range-start',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'start' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: 'range-tie-a',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie a' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-tie-z',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie z' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-end',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: '结束🙂\n"quoted"\\slash' }] },
+        status: 'success',
+        runtimeResumeToken: 'resume-token',
+        delivery: {
+          version: 1,
+          sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+          receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
+          replyPolicy: 'completion',
+          sourceMessageId: null,
+          outcome: null,
+          error: null,
+          statusAt: '1970-01-01T00:00:00.300Z'
+        },
+        deliveryStatus: 'accepted',
+        deliveryInReplyTo: null,
+        deliveryTurnRef: null,
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: 'archived-range-middle',
+        sessionId: 'archived-range-session',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'must not be exported' }] },
+        status: 'success',
+        createdAt: 250,
+        updatedAt: 250
+      },
+      {
+        id: 'range-before',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'before' }] },
+        status: 'success',
+        createdAt: 99,
+        updatedAt: 99
+      },
+      {
+        id: 'range-after',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'after' }] },
+        status: 'success',
+        createdAt: 301,
+        updatedAt: 301
+      }
+    ])
+
+    const firstPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      limit: 2
+    })
+    const secondPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      limit: 2,
+      cursor: firstPage.nextCursor
+    })
+
+    expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+    expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+    expect(secondPage.nextCursor).toBeUndefined()
+    for (const metadata of [...firstPage.items, ...secondPage.items]) {
+      const entity = agentSessionMessageService.getSessionMessage(metadata.sessionId, metadata.id)
+      expect(metadata).not.toHaveProperty('data')
+      expect(metadata.createdAt).toBe(entity.createdAt)
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+    }
+  })
+
+  it('plans the global keyset range walk without a temporary order-by sort', () => {
+    const plan = dbh.sqlite
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT agent_session_message.id
+         FROM agent_session_message
+         INNER JOIN agent_session ON agent_session.id = agent_session_message.session_id
+         WHERE agent_session_message.created_at >= ?
+           AND agent_session_message.created_at <= ?
+           AND agent_session.deleted_at IS NULL
+           AND (agent_session_message.created_at < ? OR (agent_session_message.created_at = ? AND agent_session_message.id > ?))
+         ORDER BY agent_session_message.created_at DESC, agent_session_message.id ASC
+         LIMIT ?`
+      )
+      .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+    expect(plan.some(({ detail }) => detail.includes('USING INDEX agent_session_message_created_at_id_idx'))).toBe(true)
+    expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
   })
 
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
@@ -714,7 +1991,10 @@ describe('AgentSessionMessageService', () => {
     expect(result.nextCursor).toBeUndefined()
   })
 
-  it('keeps searchable_text and FTS index in sync from message data', async () => {
+  it('indexes text parts but excludes reasoning, and keeps the FTS index in sync', async () => {
+    // Privacy guard: `reasoning` parts hold the model's hidden chain-of-thought, which the session
+    // UI does not render. They must never reach `searchable_text` (which global-search snippets
+    // show verbatim) nor the FTS index. Only `text` parts are searchable.
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,
       sessionId: SESSION_ID,
@@ -732,7 +2012,17 @@ describe('AgentSessionMessageService', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
-    expect(inserted.searchableText).toBe('hello\nthinking')
+    expect(inserted.searchableText).toBe('hello')
+
+    const helloMatches = dbh.sqlite
+      .prepare(
+        `SELECT m.id
+            FROM agent_session_message m
+            JOIN agent_session_message_fts fts ON m.fts_rowid = fts.rowid
+            WHERE agent_session_message_fts MATCH ?`
+      )
+      .all('hello') as Array<{ id: string }>
+    expect(helloMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
 
     const thinkingMatches = dbh.sqlite
       .prepare(
@@ -742,7 +2032,7 @@ describe('AgentSessionMessageService', () => {
             WHERE agent_session_message_fts MATCH ?`
       )
       .all('thinking') as Array<{ id: string }>
-    expect(thinkingMatches.map((row) => String(row.id))).toEqual([USER_MESSAGE_ID])
+    expect(thinkingMatches).toHaveLength(0)
 
     await dbh.db
       .update(agentSessionMessageTable)
@@ -886,6 +2176,172 @@ describe('AgentSessionMessageService', () => {
     const result = agentSessionMessageService.search({ q: 'alpha needle' })
 
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba'])
+  })
+
+  it('ranks Agent-tool search by BM25 instead of requiring every term', async () => {
+    await seedSession({ id: 'session-ranked', name: 'Session Ranked', orderKey: 'sr0' })
+    await seedSession({ id: 'session-ranked-secondary', name: 'Session Ranked Secondary', orderKey: 'sr1' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca',
+        sessionId: 'session-ranked-secondary',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'hyperfine benchmark setup' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
+        sessionId: 'session-ranked',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'install and verify hyperfine with cowsay' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'hyperfine cowsay', limit: 2 })
+
+    expect(result.map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca'
+    ])
+  })
+
+  it('applies ranked-search limit to distinct Sessions', async () => {
+    await seedSession({ id: 'session-ranked-frequent', name: 'Ranked Frequent', orderKey: 'srf0' })
+    await seedSession({ id: 'session-ranked-diverse', name: 'Ranked Diverse', orderKey: 'srd0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      ...Array.from({ length: 25 }, (_, index) => ({
+        id: `018f6ed6-73b8-7f40-8d0d-9bb2f8f1${String(index).padStart(4, '0')}`,
+        sessionId: 'session-ranked-frequent',
+        role: 'assistant' as const,
+        data: { parts: [{ type: 'text' as const, text: 'needle' }] },
+        status: 'success' as const,
+        createdAt: 500 - index,
+        updatedAt: 500 - index
+      })),
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cf',
+        sessionId: 'session-ranked-diverse',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle appears in another Session' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'needle', limit: 2 })
+
+    expect(result.map((item) => item.sessionId)).toEqual(['session-ranked-frequent', 'session-ranked-diverse'])
+  })
+
+  it('bounds synchronous ranked-search evidence scanning', async () => {
+    await seedSession({ id: 'session-ranked-overflow', name: 'Ranked Overflow', orderKey: 'sro0' })
+    await seedSession({ id: 'session-ranked-after-cap', name: 'Ranked After Cap', orderKey: 'srac0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      ...Array.from({ length: 400 }, (_, index) => ({
+        id: `ranked-overflow-${String(index).padStart(4, '0')}`,
+        sessionId: 'session-ranked-overflow',
+        role: 'assistant' as const,
+        data: { parts: [{ type: 'text' as const, text: 'boundedneedle' }] },
+        status: 'success' as const,
+        createdAt: 1_000 - index,
+        updatedAt: 1_000 - index
+      })),
+      {
+        id: 'ranked-after-cap',
+        sessionId: 'session-ranked-after-cap',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'boundedneedle' }] },
+        status: 'success',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    expect(
+      agentSessionMessageService.searchRanked({ q: 'boundedneedle', limit: 2 }).map((item) => item.sessionId)
+    ).toEqual(['session-ranked-overflow'])
+  })
+
+  it('applies the Agent filter before the ranked-search limit', async () => {
+    await seedAgent('agent-ranked-a', 'Ranked A')
+    await seedAgent('agent-ranked-b', 'Ranked B')
+    await seedSession({ id: 'session-ranked-a', agentId: 'agent-ranked-a', name: 'Ranked A', orderKey: 'sra0' })
+    await seedSession({ id: 'session-ranked-b', agentId: 'agent-ranked-b', name: 'Ranked B', orderKey: 'srb0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cc',
+        sessionId: 'session-ranked-a',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle from another Agent' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cd',
+        sessionId: 'session-ranked-b',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle from the requested Agent' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'needle', agentId: 'agent-ranked-b', limit: 1 })
+
+    expect(result.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cd'])
+  })
+
+  it('supports exact identifiers, short CJK fallback, and empty ranked results', async () => {
+    await seedSession({ id: 'session-ranked-shapes', name: 'Ranked Shapes', orderKey: 'srs0' })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce',
+      sessionId: 'session-ranked-shapes',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'TEST_ECHO_42 今天天气很好' }] },
+      status: 'success',
+      createdAt: 100,
+      updatedAt: 100
+    })
+
+    expect(agentSessionMessageService.searchRanked({ q: 'TEST_ECHO_42' }).map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce'
+    ])
+    expect(agentSessionMessageService.searchRanked({ q: '天气' }).map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce'
+    ])
+    expect(agentSessionMessageService.searchRanked({ q: '全部不存在xyzzy' })).toEqual([])
+  })
+
+  it('deduplicates and caps pure-LIKE fallback terms below SQLite expression depth', async () => {
+    await seedSession({ id: 'session-ranked-fallback-cap', name: 'Fallback Cap', orderKey: 'srfc0' })
+    const uniqueShortTerms = Array.from({ length: 512 }, (_, index) => String.fromCodePoint(0x400 + index))
+      .filter((term) => /^\p{L}$/u.test(term))
+      .slice(0, 129)
+    expect(uniqueShortTerms).toHaveLength(129)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: 'ranked-fallback-cap',
+      sessionId: 'session-ranked-fallback-cap',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: uniqueShortTerms.slice(0, 128).join(' ') }] },
+      status: 'success',
+      createdAt: 100,
+      updatedAt: 100
+    })
+
+    expect(() =>
+      agentSessionMessageService.searchRanked({ q: `${'a '.repeat(993)}${uniqueShortTerms[0]}` })
+    ).not.toThrow()
+    expect(
+      agentSessionMessageService.searchRanked({ q: uniqueShortTerms.join(' ') }).map((item) => item.messageId)
+    ).toEqual(['ranked-fallback-cap'])
   })
 
   it('treats LIKE wildcards as literal session-message search text after FTS prefiltering', async () => {

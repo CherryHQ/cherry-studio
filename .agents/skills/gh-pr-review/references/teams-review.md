@@ -4,22 +4,42 @@ You are the **coordinator**. Dispatch reviewer, verifier, and fixer agents with
 the runtime-provided subagent coordination tools. Never modify source files
 directly. Read code only for arbitration, diagnosis, and fix verification.
 
-Always process all auto-fixable issues before involving the user. Do NOT pause
-to ask the user anything until Confirm (Phase 5) or Report (Phase 6).
+Independent subagent capability is a hard prerequisite. Before entering this
+flow, confirm the runtime can launch at least one reviewer and then a fresh
+verifier in a separate session with no shared conversation history. Parallel
+execution is optional. If it has no
+subagent capability, stop following this file and route to `local-review.md`
+with `LIMITED_SINGLE_AGENT = true`; coordinator self-verification cannot
+replace the reviewer–verifier mechanism.
+
+Follow `SKILL.md` § Interaction and interruption contract. This flow introduces
+no additional prompt category beyond its declared failed-fix cleanup safety
+blocker. Fixing happens only when the invocation explicitly authorized it
+(`AUTHORIZED_FIX`); all other invocations are report-only.
 
 The reviewer–verifier adversarial pair is the core quality mechanism: reviewers
-find issues, verifiers challenge them. This two-party check significantly reduces
-false positives. Reviewers and verifiers MUST NOT see each other's output or
-share conversation history.
+find issues, verifiers challenge them. They run in separate sessions and share
+no conversation history. The verifier receives only normalized findings and the
+minimum scope/evidence needed to test them. Do not pass reviewer conversation
+history, scratch artifact files, or incidental/raw tool output unless a specific
+artifact or excerpt is explicitly required as evidence.
 
 ## Input from SKILL.md
 
-- `FIX_MODE`: low | low_medium | full
+- `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
+  by `SKILL.md` § Scope derivation.
+- `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
+  fixing (`fix` modifier or equivalent user wording); commit and range
+  targets are always report-only. When false, skip Phase 4 entirely —
+  every confirmed issue is reported, none is fixed.
+- `HAS_SUBAGENTS`: must be `true`. If false or absent because the runtime
+  cannot launch subagents, return to the route above instead of continuing.
 
 ## References
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -29,53 +49,42 @@ share conversation history.
 ## Flow
 
 ```
-Scope → Review → Filter → Fix/Validate → Confirm → Report
+Authorized fix:        Scope → Product gate → Review → Filter → Fix/Validate → Report
+Report-only (default): Scope → Product gate → Review → Filter → Report
 ```
 
-- **Filter** routes auto-fixable issues to Fix/Validate; remaining go to Confirm.
-  If nothing to fix or confirm, skip directly to Report.
-- **Confirm** ↔ **Fix/Validate** loop until no pending issues remain.
+The **Product gate** is stage 1 of `SKILL.md` § Review Stages, run by the
+coordinator before dispatching any reviewer. Apply its semantic-impact and
+decision-evidence rules without collapsing the no-impact,
+established-direction, and open-decision states. Only an open product decision
+may prompt in an interactive run or use record-only behavior in an explicitly
+automated run; carry the latter's product-impact summary into the Report.
+Reviewers cover stages 2–5.
+
+- **Filter** routes issues per `judgment-matrix.md` § Handling by Risk Level,
+  which owns the risk-to-action mapping. If nothing is fixable, skip directly
+  to Report.
 
 ---
 
 ## Phase 1: Scope
 
-Determine the diff to review based on `$ARGUMENTS`:
+Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
+§ Scope derivation. The router already resolved them; when invoked
+standalone, derive them with those rules and print its usage examples if the
+resolved scope is empty. Do not restate the derivation here.
 
-- **Empty arguments**: find the base branch by checking common base branches
-  in order: `main`, `master`. Use the first one that exists. Fetch the branch
-  diff:
-  ```
-  git merge-base origin/{base_branch} HEAD
-  git diff <merge-base-sha>
-  ```
-- **Commit hash** (e.g., `abc123`): validate with `git rev-parse --verify`,
-  then `git show`.
-- **Commit range** (e.g., `abc123..def456` or `abc123...def456`): validate both
-  endpoints. Fetch the diff including both endpoints:
-  ```
-  git diff A~1..B
-  ```
-- **File/directory paths**: verify all paths exist on disk, then read file
-  contents.
-
-If diff is empty → show usage examples and exit:
-`/gh-pr-review` (uncommitted changes or current branch),
-`/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
-`/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
-`/gh-pr-review https://github.com/.../pull/123`.
-
-### Associated PR comments
+### Associated PR conversation
 
 If `gh` is available, check whether the current branch has an open PR:
 ```
 gh pr view --json number,state --jq 'select(.state == "OPEN") | .number' 2>/dev/null
 ```
-If an open PR exists, fetch its line-level review comments:
-```
-gh api repos/{owner}/{repo}/pulls/{number}/comments
-```
-Store as `PR_COMMENTS` for verification in the review step.
+If an open PR exists, collect the complete accessible conversation state using
+`pr-review.md` Step 2: `PR_REVIEWS`, `PR_CONVERSATION_COMMENTS`, whole
+`REVIEW_THREADS`, and the current reviewer's pending draft. Preserve their state
+and visibility boundaries. When this engine was entered through `pr-review.md`,
+reuse the wrapper's already collected data.
 
 Also inspect its CI checks with `gh pr checks`. Record failing, pending, and
 successful checks as review evidence. Do not run local lint, test, or format
@@ -113,10 +122,10 @@ Suggested module boundaries for this project:
 The coordinator tracks all issues in memory throughout the session. Each issue
 has:
 - Brief description
-- Status: `pending` | `approved` | `fixed` | `failed` | `skipped`
+- Status: `reported` | `fixed` | `failed`
 - Risk: low | medium | high
 - File: file path:line
-- Proposed fix (medium/high risk only)
+- Fix options, trade-offs, and optional recommendation (medium/high risk only)
 
 ---
 
@@ -127,18 +136,18 @@ has:
 Launch agents with the coordination tools exposed by the current runtime:
 
 - One independent reviewer per module.
-- One fresh independent **verifier**, launched after all reviewers complete.
+- One fresh independent **verifier** in a separate session, launched after all
+  reviewers complete.
 
 Do not prescribe tool names, agent types, or parameters the runtime does not
-expose. Keep reviewer and verifier contexts separate; pass tasks through the
-runtime's spawn/delegate interface and collect their returned reports.
-
-**Module merging**: if the total diff is ≤1000 changed lines AND ≤20 files,
-merge all modules into a single reviewer. The overhead of multiple agents
-(startup, coordination, forwarding) outweighs the parallelism benefit at
-this scale.
+expose. Keep reviewer and verifier conversation histories separate; pass tasks
+through the runtime's spawn/delegate interface and collect their returned
+reports. The coordinator, not the verifier, normalizes reviewer output for the
+handoff below.
 
 Launch reviewers concurrently when the runtime supports parallel subagents.
+If it cannot run subagents in parallel, launch the same agents sequentially —
+phases, prompts, and reviewer/verifier context separation are unchanged.
 
 ### Reviewer prompt
 
@@ -157,6 +166,17 @@ Each reviewer receives:
   behavior, paths, tools, or review rules.
   For React/performance-heavy modules, also include relevant rules from
   `vercel-react-best-practices` skill as supplementary checks.
+- **Stages**: run `SKILL.md` § Review Stages 2–5 in order for the module.
+  For a module whose diff adds or expands shared surface — judged by diff
+  semantics, never by change label — include
+  `consumer-review.md` verbatim and run it first — report its per-surface
+  decision, and review implementation quality only for surviving surfaces.
+- **Mandatory docs**: before reviewing, read the docs required by
+  `cherry-review-guidance.md` § Mandatory Baseline Docs for the processes the
+  module touches, plus its on-demand docs for touched subsystems. Review
+  architecture-first — placement, ownership, and abstraction integrity against
+  those docs before line-level detail. Any non-conformance with them is a
+  finding at Warning minimum.
 - **Evidence requirement**: every issue must have a code citation (file:line +
   snippet) from the current tree.
 - **Checklist exclusion**: see the exclusion section in the corresponding
@@ -167,9 +187,11 @@ Each reviewer receives:
   or file search before reporting.
 - **Output format**: `[file:line] [A/B/C] — [description] — [key lines]`
 
-**PR comment reviewer** (when `PR_COMMENTS` exist): one additional agent to
-verify PR review comments against current code. Same output format, same
-verification pipeline.
+**PR conversation reviewer** (when prior review threads exist): one additional
+agent to verify each whole thread's current conclusion against current code,
+using its root, all replies, and resolved/outdated state together. Review
+summaries and ordinary conversation comments are separate context. Same output
+format, same verification pipeline.
 
 ### Verification
 
@@ -180,9 +202,13 @@ verification itself. **Exception**: if every reviewer explicitly reports zero
 issues (LGTM / no issues found), skip verification and proceed directly to
 Phase 3.
 
-After all reviewer agents complete, collect their findings. Launch a single
-verifier agent with ALL findings combined. Include the following verbatim in
-the verifier's prompt:
+After all reviewer agents complete, normalize every finding to its issue claim,
+current `file:line` citation and snippet, reviewer reasoning, and the minimum
+module scope or evidence needed to test it. Launch a single verifier agent in a
+fresh session with that normalized list. Do not include reviewer conversation
+history, full reports, scratch artifact files, or incidental/raw tool output;
+include a specifically identified artifact or excerpt only when it is required
+to verify a finding. Include the following verbatim in the verifier's prompt:
 
 ```
 You are a code review verifier. Your stance is adversarial — default to doubting the
@@ -240,29 +266,36 @@ Remove cross-reviewer duplicates (same location, same topic).
 Consult `judgment-matrix.md` for risk level assessment, worth-fixing criteria,
 handling by risk level, and special rules.
 
-**Fix approach** (Medium/High only): specify the chosen approach and reasoning.
-Record in the issue's `Proposed` field. Low risk: single obvious fix, no guidance.
+**Fix guidance** (Medium/High only): record the feasible at-altitude options,
+their key trade-offs, and an optional reviewer recommendation with reasoning.
+Never record any option as already chosen. Low risk has a single obvious fix
+and needs no extra guidance. Every option must sit at the defect's altitude per
+`cherry-review-guidance.md` § Fix Recommendation Policy: minimal correction
+for local bugs, root-cause fix for structural symptoms, architecture-conformant
+relocation for boundary/entity-leakage issues. A below-altitude patch (side
+table, metadata flag, extra special case, symptom-only fix for a structural
+cause) must not enter the auto-fix queue; report the issue with the
+at-altitude options instead.
 
 ### 3.4 Route
 
 All confirmed issues are recorded with risk level.
 
-| Risk vs `FIX_MODE` | → |
-|---------------------|---|
-| At or below threshold | auto-fix queue |
-| Above threshold | `pending` (for Phase 5 Confirm) |
+Route each issue per `judgment-matrix.md` § Handling by Risk Level: what it
+sends to the auto-fix queue goes to Phase 4, everything else is `reported`
+with fix guidance.
 
 - Cross-module impact: if a fix requires updates outside the fixer's module,
   add it to the current fix queue and assign to the appropriate fixer.
 
-Always auto-fix eligible issues first — do NOT present `pending` issues to the
-user before all auto-fixable issues have been processed and validated.
-Phase 4 if auto-fix queue is non-empty. Otherwise jump to Phase 5 if pending
-issues exist, or Phase 6 if none.
+Phase 4 if the auto-fix queue is non-empty; otherwise jump to Phase 5
+(Report). Never ask the user which issues to fix.
 
 ---
 
 ## Phase 4: Fix/Validate
+
+Runs only when `AUTHORIZED_FIX` is true and the auto-fix queue is non-empty.
 
 ### Fix
 
@@ -303,11 +336,10 @@ Fix rules:
    with the reason for skipping.
 ```
 
-Fixers leave all edits uncommitted. The review workflow never stages or commits
-fixes: repository policy requires local validation before a commit, while code
-review is CI-only. Hand verified patches to a separate user-authorized
-publish/commit workflow; that workflow owns the required local checks,
-Conventional Commit with a specific kebab-case scope, and `--signoff`. Never
+Fixers leave all edits uncommitted. The review workflow never stages or
+commits fixes even when fixing is authorized. Hand verified patches to a
+separate user-authorized publish/commit workflow; that workflow owns the
+Conventional Commit with a specific kebab-case scope and `--signoff`. Never
 stage pre-existing user changes.
 
 ### Verify fixes (coordinator)
@@ -325,63 +357,54 @@ user changes while removing an unsuccessful fixer edit.
 
 ### Validate fixes
 
-Re-read every fixer diff and repeat the relevant reviewer/verifier checks. Do
-not run local lint, test, format, or build commands. Existing CI validates the
-reviewed remote commit and does not cover unpushed fixes; state that limitation
-in the report. If a later user-authorized publish workflow pushes the fixes,
-inspect the resulting CI before claiming them fully validated.
+Re-read every fixer diff and repeat the relevant reviewer/verifier checks.
+Then, because applied fixes make the session a coding task, run the
+validation selected per `SKILL.md` § Validation after applied fixes and
+include its results in the report. Existing CI validates the reviewed
+remote commit, not these unpushed fixes; state that limitation in the report.
+If a later user-authorized publish workflow pushes the fixes, inspect the
+resulting CI before claiming them fully validated.
 
-- **Static verification passes** → mark issues `fixed`, with CI pending when
+- **Verification passes** → mark issues `fixed`, with CI pending when
   the fix is not yet published.
-- **Static verification fails** → retry via a correction agent with failure
-  details (max 2 retries). If still unresolved, mark the issue `failed` and ask
-  before removing its exact patch; never reset, checkout, or otherwise discard
+- **Verification fails** → retry via a correction agent with failure
+  details (max 2 retries). If still unresolved, mark the issue `failed` and
+  treat removal of its exact patch as a safety blocker: in an interactive
+  session ask before removing it; in an automated session leave it in place and
+  report the required decision. Never reset, checkout, or otherwise discard
   unrelated or pre-existing changes.
 
 ### After validation
 
-| Condition | → |
-|-----------|---|
-| `pending` or `failed` issues exist | Phase 5 (Confirm) |
-| Otherwise | Phase 6 (Report) |
-
-If Phase 5 approves further fixes, launch new fixer agents and re-enter Phase 4.
+Proceed to Phase 5 (Report). Failed fixes are reported, not retried with the
+user; never discard pre-existing user changes while removing an unsuccessful
+fixer edit.
 
 ---
 
-## Phase 5: Confirm
-
-Present `pending` + `failed` issues grouped by risk (high → low), sorted by
-file path within each group:
-`[number] [file:line] [risk] [reason] — [description]`
-
-Then present issues via multi-select. Each option label is the issue summary
-(e.g., `[risk] file:line — description`).
-Checked → `approved`, unchecked → `skipped`.
-
-If the user replies with a bulk instruction (e.g., "fix all", "skip the rest"),
-apply it only to issues **at or below** the current `FIX_MODE` threshold.
-Issues above the threshold still require individual confirmation.
-
-- **All skipped** → Phase 6.
-- **Any approved** → Phase 4 (Fix/Validate). After validation, if more
-  `pending`/`failed` remain, return here (Phase 5). If nothing remains,
-  proceed to Phase 6.
-
----
-
-## Phase 6: Report
+## Phase 5: Report
 
 Summary:
-- Issues found / fixed / skipped / failed
+- Product Demand summary when the product decision remains open and the
+  session was automated: impact, direction, and points needing human
+  confirmation, explicitly marked as awaiting a product decision — never as
+  approved
+- Consumer review decisions per surface, when the diff added or expanded shared surface
+- Issues found / fixed (authorized fix only) / reported / failed
+- Reported issues listed with risk, `file:line`, and at-altitude fix guidance
+  (`cherry-review-guidance.md` § Fix Recommendation Policy); Medium/High
+  guidance includes options, trade-offs, and an optional recommendation
+- Local validation results (the commands selected per `SKILL.md` §
+  Validation after applied fixes) when fixes were applied
 - Rolled-back issues and reasons
 - Associated PR CI status, or "unavailable" when there is no PR
-- Unpushed fixes: static verification only, CI pending
-- Issues from PR comments (when `PR_COMMENTS` existed)
+- Unpushed fixes: CI pending until published
+- Issues from prior PR review threads (when they existed)
 - Note: "To verify fix quality, run `/gh-pr-review` again."
 
 ### Checklist evolution
 
 Review all confirmed issues from this session. If any represent a recurring
 pattern not covered by the current checklist, read `checklist-evolution.md` and
-follow its steps.
+record valid candidates as `proposed` in the report. A regular review never
+accepts, inserts, or claims to persist checklist rules.

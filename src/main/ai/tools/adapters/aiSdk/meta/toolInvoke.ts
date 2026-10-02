@@ -8,12 +8,9 @@
  * retry" without being told up front it must inspect:
  *   A. unseen-schema guard — the first invoke of a tool whose signature the
  *      model hasn't seen is rejected with that signature; the name is then
- *      recorded so the corrected retry passes (no inspect loop). This is the
- *      only protection for `jsonSchema()`-wrapped tools (e.g. MCP), where B is a no-op.
+ *      recorded so the corrected retry passes (no inspect loop).
  *   B. param validation — arguments are validated against the tool input
- *      schema; a mismatch is rejected with the signature. (Tools backed by a
- *      `jsonSchema()`-wrapped schema (e.g. MCP) carry no validator, so B is a
- *      no-op for them — same as the SDK's native dispatch path.)
+ *      schema when it provides a validator; a mismatch is rejected with the signature.
  *
  * Forwards the AI SDK execution options (messages, abortSignal,
  * experimental_context) onto the inner tool's `execute` so the per-request
@@ -154,8 +151,7 @@ export function createToolInvokeTool(
 /**
  * Validate `params` against the tool input schema, returning the parsed value
  * (Zod defaults/coercions applied) on success. Throws with the tool signature
- * on mismatch. Schemas without a validator (`jsonSchema()`-wrapped, e.g. MCP
- * tools) pass through unchanged — Guard A is their protection.
+ * on mismatch. Schemas without a validator pass through unchanged.
  */
 async function validateParams(entry: ToolEntry, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const validate = asSchema(entry.tool.inputSchema as Parameters<typeof asSchema>[0]).validate

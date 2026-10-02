@@ -1,3 +1,6 @@
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -5,18 +8,17 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { dataUrlToBlob } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
-import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
+import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
 import MessageNavigation from './list/MessageNavigation'
@@ -28,6 +30,7 @@ import {
 } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
+  useAnyMessageListItemProcessing,
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
@@ -36,7 +39,11 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import {
+  getLatestAssistantGroupKey,
+  getMessageGroupKey,
+  getOwningUserMessageIdByAssistantId
+} from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -44,6 +51,7 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+const MessageOutline = lazy(() => import('./frame/MessageOutline'))
 /** Chat content's side padding — matches NarrowLayout's `px-6`, so the inline
  * override is invisible until the rail gutter adds onto it. */
 const CHAT_SIDE_PADDING_PX = 24
@@ -169,9 +177,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 
 interface MessageListProps {
   enableSearch?: boolean
+  scrollPositionKey?: string
 }
 
-const MessageList = ({ enableSearch = false }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -203,6 +212,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const { leasedMessageIds, acquireMessageCaptureLease } = useMessageCaptureLeases()
   const isLoadingMoreRef = useRef(false)
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
@@ -210,6 +220,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const captureLeaseGroupKeys = useMemo(() => {
+    if (leasedMessageIds.length === 0) return []
+
+    const leasedIds = new Set(leasedMessageIds)
+    return groupedMessages.flatMap(([groupKey, groupMessages]) =>
+      groupMessages.some((message) => leasedIds.has(message.id)) ? [groupKey] : []
+    )
+  }, [groupedMessages, leasedMessageIds])
   // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
   // needs a projection that only changes when its topology does — otherwise its
   // `memo` never bails and every chunk re-renders all of its ticks.
@@ -228,6 +246,16 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const latestAssistantGroupMessages = useMemo(
+    () =>
+      latestAssistantGroupKey
+        ? (groupedMessages
+            .find(([key]) => key === latestAssistantGroupKey)?.[1]
+            .filter((message) => message.role === 'assistant') ?? [])
+        : [],
+    [groupedMessages, latestAssistantGroupKey]
+  )
+  const shouldKeepLatestAssistantGroupMounted = useAnyMessageListItemProcessing(latestAssistantGroupMessages)
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -286,6 +314,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
 
+  const messageCaptureLeaseContextValue = useMemo(
+    () => ({
+      acquireMessageCaptureLease,
+      getRenderedMessageElement: getMessageElement
+    }),
+    [acquireMessageCaptureLease, getMessageElement]
+  )
+
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom()
   }, [])
@@ -303,10 +339,26 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
-    const groupKey =
-      target.role === 'assistant' && target.parentId ? 'assistant' + target.parentId : target.role + target.id
-    messageListRef.current?.scrollToKey(groupKey, 'start')
+    messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
+
+  const getNavigationBaseMessageId = useCallback(() => {
+    const key = messageListRef.current?.getNavigationBaseKey()
+    if (!key) return null
+
+    const groupMessages = groupedMessages.find(([groupKey]) => groupKey === key)?.[1]
+    if (!groupMessages) return null
+
+    const userMessage = groupMessages.find((message) => message.role === 'user')
+    if (userMessage) return userMessage.id
+
+    const owningUserMessageIdByAssistantId = getOwningUserMessageIdByAssistantId(messages)
+    for (const message of groupMessages) {
+      const ownerId = owningUserMessageIdByAssistantId.get(message.id)
+      if (ownerId) return ownerId
+    }
+    return null
+  }, [groupedMessages, messages])
 
   const scrollToOutlineElement = useCallback((element: HTMLElement) => {
     messageListRef.current?.scrollToElement(element)
@@ -471,9 +523,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      const { exportService } = await import('@renderer/services/ExportService')
+
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
-        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
@@ -485,7 +539,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -501,7 +555,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
     return new Promise<void>((resolve, reject) => {
       const scrollContainer = scrollContainerRef.current
-      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      // Feed the clone the page's rendered .narrow-mode width — the scroll
+      // container's clientWidth (scrollbar + rail gutter) squeezes its column.
+      const narrowWidth = scrollContainer?.querySelector<HTMLElement>('.narrow-mode')?.getBoundingClientRect().width
+      const captureWidth =
+        (narrowWidth && Math.ceil(narrowWidth)) ||
+        scrollContainer?.clientWidth ||
+        scrollContainer?.getBoundingClientRect().width ||
+        undefined
       const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
@@ -691,6 +752,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     })
   }, [bindRuntime])
 
+  const keepMountedKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
+    for (const key of captureLeaseGroupKeys) keys.add(key)
+    return [...keys]
+  }, [captureLeaseGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
+
   if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
@@ -698,17 +766,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestAssistantGroupMessages = latestAssistantGroupKey
-    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
-    : undefined
-  const shouldKeepLatestAssistantGroupMounted =
-    latestAssistantGroupMessages?.some(
-      (message) =>
-        message.role === 'assistant' &&
-        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
-    ) ?? false
-  const keepMountedKeys =
-    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -720,7 +777,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
 
-  return (
+  const messageList = (
     <MessagesContainer
       id="messages"
       className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
@@ -750,7 +807,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu>
+      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
@@ -763,7 +820,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-            topicId={topic.id}
+            topicId={scrollPositionKey ?? topic.id}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
@@ -843,16 +900,20 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         />
       )}
       {activeOutline && activeOutlineMessage && (
-        <MessageOutline
-          message={activeOutlineMessage}
-          multiModelMessageStyle={activeOutline.multiModelMessageStyle}
-          onNavigateToElement={scrollToOutlineElement}
-        />
+        <Suspense fallback={null}>
+          <MessageOutline
+            getMessageElement={getMessageElement}
+            message={activeOutlineMessage}
+            multiModelMessageStyle={activeOutline.multiModelMessageStyle}
+            onNavigateToElement={scrollToOutlineElement}
+          />
+        </Suspense>
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
           scrollContainerRef={scrollContainerRef}
           getMessageElement={getMessageElement}
+          getNavigationBaseMessageId={getNavigationBaseMessageId}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}
@@ -862,7 +923,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       {meta.selectionLayer && (
         <SelectionBox
           isMultiSelectMode={isMultiSelectMode}
-          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+          scrollContainerRef={scrollContainerRef}
           messageElements={messageElements.current}
           handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
         />
@@ -870,6 +931,10 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        selectAllState={selection?.selectAllState}
+        selectAllDisabled={selection?.selectAllDisabled}
+        isSelectAllLoading={selection?.isSelectAllLoading}
+        onToggleSelectAll={actions.toggleSelectAllMessages}
         deleteDisabledReason={
           selectedMessageIds
             .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
@@ -881,12 +946,24 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         onCopy={
           actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
         }
+        exportMenuOptions={messageUi.menuConfig?.exportMenuOptions}
+        onExport={
+          actions.exportSelectedMessages
+            ? (target) => void actions.exportSelectedMessages?.(selectedMessageIds, target)
+            : undefined
+        }
         onDelete={
           actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
         }
         onClose={() => actions.toggleMultiSelectMode?.(false)}
       />
     </MessagesContainer>
+  )
+
+  return (
+    <HtmlArtifactPopupHost>
+      <MessageCaptureLeaseProvider value={messageCaptureLeaseContextValue}>{messageList}</MessageCaptureLeaseProvider>
+    </HtmlArtifactPopupHost>
   )
 }
 

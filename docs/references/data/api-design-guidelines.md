@@ -1,3 +1,11 @@
+---
+description: RESTful path, status code, Zod DTO, and scope/side-effect boundary rules for designing DataApi endpoints
+sources:
+  - src/shared/data/api/schemas
+  - src/main/data/api/handlers
+  - src/main/data/db/sqliteErrors.ts
+---
+
 # API Design Guidelines
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
@@ -22,7 +30,7 @@ When a route is backed by a SQLite table, the route, table, and type names MUST 
 | DB table | singular snake_case | `agent_session` |
 | REST route (collection) | plural kebab-case | `/agent-sessions` |
 | Schema / entity type | singular PascalCase | `AgentSessionEntity` |
-| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+| Inferred row type | `XxxRow` ([§5.3](../architecture/naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
 
 A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
 
@@ -188,7 +196,7 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 
 > For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
 
-Provider enablement is a narrow exception: `PATCH /providers/:providerId` atomically moves that provider to the first position only when `isEnabled` transitions from `false` to `true`. This provider-specific invariant does not establish a general permission for resource updates to mutate ordering. Redundant provider `true` updates preserve the user's existing order, and explicit reorder requests still use the canonical order routes.
+Provider enablement does not mutate ordering: `PATCH /providers/:providerId` preserves the current order when enabling or disabling an existing provider. Only `POST /providers` inserts at the first position. Resource updates still must not mutate ordering; explicit reorder requests use the canonical order routes.
 
 
 ```typescript
@@ -276,18 +284,18 @@ The API server automatically infers status codes based on HTTP method:
 ```typescript
 // Status codes are inferred automatically - no extra code needed
 '/topics': {
-  POST: async ({ body }) => {
-    return await topicService.create(body)  // Returns 201
+  POST: ({ body }) => {
+    return topicService.create(body)  // Returns 201
   }
 },
 
 '/topics/:id': {
-  GET: async ({ params }) => {
-    return await topicService.getById(params.id)  // Returns 200
+  GET: ({ params }) => {
+    return topicService.getById(params.id)  // Returns 200
   },
 
-  DELETE: async ({ params }) => {
-    await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    topicService.delete(params.id)
     return undefined  // Returns 204
   }
 }
@@ -308,8 +316,8 @@ import { SuccessStatus } from '@shared/data/api/types'
 },
 
 '/topics/:id': {
-  DELETE: async ({ params }) => {
-    const deleted = await topicService.delete(params.id)
+  DELETE: ({ params }) => {
+    const deleted = topicService.delete(params.id)
     return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
   }
 }
@@ -419,8 +427,8 @@ error buried in the `.cause` chain. Translate them to `DataApiError` with
 ```typescript
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 
-const [row] = await withSqliteErrors(
-  () => this.db.insert(tagTable).values(dto).returning(),
+const [row] = withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning().all(),
   defaultHandlersFor('Tag', dto.name)
 )
 ```
@@ -490,6 +498,7 @@ Fences (all hard):
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
 | `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
 | `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
+| `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
 
 ### Why Misuse is Harmful
 

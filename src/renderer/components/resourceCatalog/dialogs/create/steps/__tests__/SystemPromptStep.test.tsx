@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { Form } from '@cherrystudio/ui'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Form } from '@cherrystudio/ui'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { SystemPromptStep } from '../SystemPromptStep'
@@ -113,9 +114,7 @@ afterEach(cleanup)
 
 describe('SystemPromptStep', () => {
   it('resolves the selected model name in the prompt preview', () => {
-    render(
-      <Harness modelId={'provider::model' as ResourceCreateWizardFormValues['modelId']} prompt="Use {{model_name}}" />
-    )
+    render(<Harness modelId={'provider::model'} prompt="Use {{model_name}}" />)
 
     expect(screen.getByLabelText('system-prompt')).toHaveValue('Use {{model_name}}')
     expect(screen.getByLabelText('system-prompt-preview')).toHaveTextContent('Use Selected Model')

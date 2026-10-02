@@ -91,9 +91,12 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       // Augment only the `google` namespace; keep every other caller option
       // (e.g. `gateway` routing: order/only/BYOK) intact, and deep-merge
       // imageConfig so an existing imageSize survives an added aspectRatio.
+      const { gateway: rawGateway, ...otherProviderOptions } = providerOptions ?? {}
+      const { imageResolution, ...gateway } = (rawGateway ?? {}) as Record<string, JSONValue>
       const existingGoogle = (providerOptions?.google ?? {}) as Record<string, JSONValue>
       const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, JSONValue>
       const imageConfig: Record<string, JSONValue> = {
+        ...(typeof imageResolution === 'string' && imageResolution !== 'auto' ? { imageSize: imageResolution } : {}),
         ...existingImageConfig,
         ...(aspectRatio ? { aspectRatio } : {})
       }
@@ -108,7 +111,11 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
         ...(seed != null ? { seed } : {}),
         ...(headers ? { headers } : {}),
         ...(abortSignal ? { abortSignal } : {}),
-        providerOptions: { ...providerOptions, google }
+        providerOptions: {
+          ...otherProviderOptions,
+          ...(Object.keys(gateway).length > 0 ? { gateway } : {}),
+          google
+        }
       })
 
       const images: string[] = []

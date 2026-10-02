@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
+
+import { BaseService } from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -58,7 +59,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
   it('redacts sensitive URL credentials and query params', () => {
     expect(redactUrl('https://user:pass@example.com/v1/chat?api_key=secret&model=test&token=abc')).toBe(
-      'https://%5Bredacted%5D:%5Bredacted%5D@example.com/v1/chat?api_key=%5Bredacted%5D&model=test&token=%5Bredacted%5D'
+      'https://%3Credacted%3E:%3Credacted%3E@example.com/v1/chat?api_key=%3Credacted%3E&model=test&token=%3Credacted%3E'
     )
   })
 
@@ -71,10 +72,10 @@ describe('MainNetworkDevtoolsService helpers', () => {
         'X-Api-Token': 'token'
       })
     ).toEqual({
-      Authorization: '[redacted]',
-      Cookie: '[redacted]',
+      Authorization: '<redacted>',
+      Cookie: '<redacted>',
       'X-Trace-Id': 'trace-id',
-      'X-Api-Token': '[redacted]'
+      'X-Api-Token': '<redacted>'
     })
   })
 
@@ -92,9 +93,9 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
     expect(description).toEqual({
       method: 'POST',
-      url: 'https://example.com/v1/chat?token=%5Bredacted%5D',
+      url: 'https://example.com/v1/chat?token=%3Credacted%3E',
       requestHeaders: {
-        Authorization: '[redacted]',
+        Authorization: '<redacted>',
         Accept: 'application/json'
       }
     })
@@ -126,7 +127,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
       await expect(result.text()).resolves.toBe('{"ok":true}')
       await waitFor(() => serviceState.events[0]?.responseBody !== undefined)
 
-      expect(serviceState.events[0]?.requestBody?.text).toBe('{"token":"[redacted]","message":"hello"}')
+      expect(serviceState.events[0]?.requestBody?.text).toBe('{"token":"<redacted>","message":"hello"}')
       expect(serviceState.events[0]?.responseBody?.text).toBe('{"ok":true}')
     } finally {
       await service._doStop()
@@ -203,10 +204,10 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
   it('captures and redacts common request body shapes', () => {
     expect(captureRequestBody('{"api_key":"secret","prompt":"hi"}', 'application/json')?.text).toBe(
-      '{"api_key":"[redacted]","prompt":"hi"}'
+      '{"api_key":"<redacted>","prompt":"hi"}'
     )
     expect(captureRequestBody(new URLSearchParams({ token: 'secret', query: 'hello' }))?.text).toBe(
-      'token=%5Bredacted%5D&query=hello'
+      'token=%3Credacted%3E&query=hello'
     )
   })
 
@@ -378,8 +379,8 @@ function waitForRejectedSocket(port: number, origin: string): Promise<number> {
 
 function createMockClientRequest() {
   const request = new EventEmitter() as EventEmitter & {
-    write: ReturnType<typeof vi.fn>
-    end: ReturnType<typeof vi.fn>
+    write: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    end: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   request.write = vi.fn(() => true)
   request.end = vi.fn(() => request)

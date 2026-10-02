@@ -16,7 +16,7 @@ export type ModelSearchField = {
 }
 
 function normalizeSearchSegment(value: string) {
-  return value.toLowerCase().replace(/[\s._:/\\-]+/g, '')
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
 function getSearchTokens(value: string) {
@@ -64,6 +64,7 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
   if (!normalizedKeyword) {
     return null
   }
+  const allowsFlexibleMatching = keyword === normalizedKeyword
 
   let bestScore: number | null = null
 
@@ -77,6 +78,10 @@ function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
     if (textIndex !== -1) {
       const score = field.weight * 100 + textIndex
       bestScore = bestScore === null ? score : Math.min(bestScore, score)
+    }
+
+    if (!allowsFlexibleMatching) {
+      continue
     }
 
     const normalizedText = normalizeSearchSegment(field.value)

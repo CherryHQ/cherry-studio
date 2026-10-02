@@ -11,20 +11,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockIsInternalRequestToken } = vi.hoisted(() => ({
+const { mockGetModels, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } = vi.hoisted(() => ({
+  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
-  ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
-  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
+  )
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
-    PreferenceService: { get: mockPreferenceGet },
+    PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
     ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
   }
   return mockApplicationFactory(overrides)
@@ -68,7 +69,6 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 import { buildApp } from '../../app'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
-
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
   return app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
 }
@@ -109,8 +109,10 @@ describe('API gateway routes (integration)', () => {
       const { body } = await read(await get(app, '/openapi/json', {}))
       expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
 
+      // A wildcard bind is not a dialable target, so the advertised URL must be the
+      // loopback the curl example can actually reach.
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
-      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+      expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
     })
   })
 
@@ -428,6 +430,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      await read(
+        await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:models/gemini-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
     it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
@@ -436,6 +449,23 @@ describe('API gateway routes (integration)', () => {
       )
       expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
         modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
+      // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
+      // deciding the address protocol by looking for "/models/" misreads them as Antigravity
+      // paths and rejects a perfectly valid gemini-cli request.
+      await read(
+        await post(
+          app,
+          '/v1beta/models/fireworks:accounts/fireworks/models/deepseek-v4-flash@cherry:streamGenerateContent',
+          geminiBody
+        )
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'fireworks:accounts/fireworks/models/deepseek-v4-flash',
         streaming: true
       })
     })
@@ -548,6 +578,46 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(429)
       expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
       expect(body.error.message).toBe('rate limited')
+    })
+  })
+
+  describe('LAN exposure (non-loopback peer)', () => {
+    beforeEach(() => {
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '0.0.0.0' : 'test-key'))
+    })
+
+    // srvx surfaces the socket peer as `request.ip`; forge it to act as a LAN client.
+    const fromLan = (request: Request): Request => {
+      Object.defineProperty(request, 'ip', { value: '192.168.1.50', configurable: true })
+      return request
+    }
+    const postFromLan = (path: string, body: unknown, headers: Record<string, string> = AUTH) =>
+      app.handle(
+        fromLan(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+      )
+    const getFromLan = (path: string, headers: Record<string, string> = AUTH) =>
+      app.handle(fromLan(new Request(`http://localhost${path}`, { method: 'GET', headers })))
+
+    it('blocks a LAN client from the generation routes', async () => {
+      const { status, body } = await read(await postFromLan('/v1/chat/completions', { model: 'openai:gpt-4o' }))
+      expect(status).toBe(403)
+      expect(body.error).toContain('not reachable over the LAN')
+    })
+
+    it('blocks a LAN client from the MCP proxy and knowledge routes', async () => {
+      expect((await read(await postFromLan('/v1/mcps/x/mcp', {}))).status).toBe(403)
+      expect((await read(await getFromLan('/v1/knowledge-bases'))).status).toBe(403)
+    })
+
+    it('keeps loopback callers served after LAN access is revoked on a live listener', async () => {
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '127.0.0.1' : 'test-key'))
+
+      expect((await getFromLan('/v1/models')).status).toBe(403)
+      const localResponse = await post(app, '/v1/chat/completions', {
+        model: 'openai:gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }]
+      })
+      expect(localResponse.status).toBe(200)
     })
   })
 })

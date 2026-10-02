@@ -8,15 +8,16 @@
  *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
- *     unconfigured/failed) is forwarded as the native image instead, letting
- *     the provider decide what it can do with it.
+ *     unconfigured/failed) stops before the provider call with a user-facing
+ *     error.
  *
  * Content is always inlined, so visibility never depends on the model choosing
- * to call `read_file` — weak and non-tool models see it too. Every failure
- * (missing entry, parse error, native materialization)
- * degrades to a model-visible note rather than silently dropping the file or
- * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
- * materialization path, but their image/audio/video parts remain capability-gated.
+ * to call `read_file` — weak and non-tool models see it too. Other failures
+ * (missing entry, parse error, native materialization) degrade to a model-visible
+ * note rather than silently dropping the file or failing the request. Unreadable
+ * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * keep the eager materialization path, but their image/audio/video parts remain
+ * capability-gated.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -24,6 +25,8 @@
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
+import type { UIMessage } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -34,13 +37,25 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { UIMessage } from 'ai'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
+
+const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
+  "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+
+class NonVisionImageOcrError extends Error {
+  readonly i18nKey = 'image_unreadable_for_non_vision_model'
+
+  constructor() {
+    super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
+    this.name = 'NonVisionImageOcrError'
+  }
+}
 
 /** Generate a unique model-facing handle, suffixing ` (2)`, ` (3)`, … until the
  *  *final* alias is free — so a generated suffix can't collide with a real name. */
@@ -60,10 +75,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
   for (const message of messages ?? []) {
+    const composerFileTokenIds = collectComposerFileTokenIds(message)
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       if (!fileEntryId) continue
+      if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
       refs.push({ fileEntryId, handle, displayName })
@@ -94,8 +111,7 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
 
 /**
  * OCR a non-vision image. Returns trimmed text, or `null` when OCR found no
- * text or is unavailable (unconfigured / failed) — the caller falls back to
- * forwarding the native image instead. Abort rethrows.
+ * text or is unavailable (unconfigured / failed). Abort rethrows.
  */
 async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise<string | null> {
   try {
@@ -103,7 +119,7 @@ async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise
     return text || null
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
-    logger.warn('OCR unavailable or failed; forwarding the native image instead', { error })
+    logger.warn('OCR unavailable or failed for a non-vision model', { error })
     return null
   }
 }
@@ -160,16 +176,17 @@ async function prepareChatMessage<T extends UIMessage>(
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
+  const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
-    kept.push(inlined as UIMessage['parts'][number])
+    kept.push(inlined)
     return true
   }
 
   for (const part of message.parts) {
     if (part.type !== 'file') {
-      kept.push(part as UIMessage['parts'][number])
+      kept.push(part)
       continue
     }
 
@@ -181,18 +198,27 @@ async function prepareChatMessage<T extends UIMessage>(
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
-        kept.push(noteOf(name) as UIMessage['parts'][number])
+        kept.push(noteOf(name))
       } else {
         const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
         if (rejectedKind) {
           kept.push({
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
-          } as UIMessage['parts'][number])
+          })
         } else {
-          kept.push(inlined as UIMessage['parts'][number])
+          kept.push(inlined)
         }
       }
+      continue
+    }
+
+    if (!isActiveManagedFilePart(part, composerFileTokenIds)) {
+      logger.warn('Ignoring orphaned managed file part', {
+        messageId: message.id,
+        displayName: part.filename ?? 'file',
+        fileEntryId
+      })
       continue
     }
 
@@ -211,22 +237,22 @@ async function prepareChatMessage<T extends UIMessage>(
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle) as UIMessage['parts'][number])
+          kept.push(noteOf(handle))
         }
         continue
       }
 
-      // Non-vision image → OCR text when it finds any; otherwise forward the native
-      // image: the verdict describes the model, but the request goes to an endpoint
-      // (a gateway in front of it may accept images), so let the provider decide.
+      // Non-vision image → OCR text when available; otherwise stop before the
+      // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (ocrText === null) {
-          if (!(await inlineNative(part))) {
-            logger.warn('Native image fallback failed; degrading to note', { messageId: message.id, displayName })
-            kept.push(noteOf(handle) as UIMessage['parts'][number])
-          }
-          continue
+          logger.warn('Non-vision image OCR produced no readable text', {
+            messageId: message.id,
+            displayName,
+            fileEntryId
+          })
+          throw new NonVisionImageOcrError()
         }
         defer(kept, pending, handle, ocrText)
         continue
@@ -237,18 +263,19 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
+      if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
-      kept.push(noteOf(handle) as UIMessage['parts'][number])
+      kept.push(noteOf(handle))
     }
   }
 
-  return { ...message, parts: kept } as T
+  return { ...message, parts: kept }
 }
 
 /**
  * Prepare chat messages for the model: native files stay inline, non-native
- * files become capped extracted text (a non-vision image with no OCR text
- * falls back to the native image). Single pass, applied to every model.
+ * files become capped extracted text. A non-vision image with no OCR text
+ * rejects before the provider call. Single pass, applied to every model.
  */
 export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   messages: T[],

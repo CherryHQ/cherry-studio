@@ -10,11 +10,14 @@
  */
 
 import { registry, type ToolRegistry } from '../registry'
+import { createBrowserToolEntries } from './BrowserTools'
 import { createFsReadToolEntry } from './FsReadTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
 import { createKbReadToolEntry } from './KnowledgeReadTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
+import { createMcpResourceListToolEntry } from './McpResourceListTool'
+import { createMcpResourceReadToolEntry } from './McpResourceReadTool'
 import { createGenerateImageToolEntry } from './PaintingTool'
 import { createReadFileToolEntry } from './ReadFileTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
@@ -23,11 +26,14 @@ import { createWebSearchToolEntry } from './WebSearchTool'
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   // Gated per request (see createFsReadToolEntry), and always confined to the
   // request's persisted-output allow-list — an empty list denies every read.
+  for (const entry of createBrowserToolEntries()) reg.register(entry)
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
   reg.register(createKbReadToolEntry())
   reg.register(createKbManageToolEntry())
+  reg.register(createMcpResourceListToolEntry())
+  reg.register(createMcpResourceReadToolEntry())
   reg.register(createReadFileToolEntry())
   reg.register(createGenerateImageToolEntry())
   reg.register(createWebFetchToolEntry())

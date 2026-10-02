@@ -10,13 +10,21 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
+import {
+  useDataChange,
+  useInfiniteFlatItems,
+  useMutation,
+  useWriteInfiniteCache
+} from '@renderer/data/hooks/useDataApi'
+import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useMemo, useRef } from 'react'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
@@ -24,6 +32,7 @@ const PAGE_SIZE = 50
 
 interface CachedAgentSessionMessage {
   liveParts: CherryMessagePart[] | undefined
+  turnOrigin: AutonomousTurnOrigin | undefined
   message: CherryUIMessage
   modelId: AgentSessionMessageEntity['modelId']
   role: AgentSessionMessageEntity['role']
@@ -40,13 +49,29 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
   if (row.stats) metadata.stats = row.stats
+  if (row.delivery) metadata.delivery = row.delivery
 
   return {
     id: row.id,
     role: row.role,
     parts: row.data.parts ?? [],
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
-  } as CherryUIMessage
+  }
+}
+
+function dropSessionMessageFromPages(
+  pages: CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined,
+  messageId: string
+): CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined {
+  if (!pages) return pages
+  let mutated = false
+  const nextPages = pages.map((page) => {
+    const items = page.items.filter((item) => item.id !== messageId)
+    if (items.length === page.items.length) return page
+    mutated = true
+    return { ...page, items }
+  })
+  return mutated ? nextPages : pages
 }
 
 function reservedUIMessageToAgentSessionMessage(
@@ -59,7 +84,7 @@ function reservedUIMessageToAgentSessionMessage(
     id: message.id,
     sessionId,
     role: message.role,
-    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    data: { parts: message.parts ?? [] },
     searchableText: '',
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
@@ -67,6 +92,7 @@ function reservedUIMessageToAgentSessionMessage(
     messageSnapshot: metadata.messageSnapshot ?? null,
     stats: metadata.stats ?? null,
     runtimeResumeToken: null,
+    delivery: metadata.delivery ?? null,
     createdAt,
     updatedAt: createdAt
   }
@@ -75,8 +101,17 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
-  const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
-  const { pages, isLoading, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
+  // fire-and-forget (its promise is dropped inside useDataApi), so a failed
+  // page fetch is detected via the query `error` and abandons load-all
+  // instead of retrying on every render; the user can re-trigger select-all.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
+  useEffect(() => {
+    stopLoadAll()
+  }, [sessionId, stopLoadAll])
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
       params: { sessionId },
@@ -86,6 +121,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       enabled,
       swrOptions: {
         keepPreviousData: false,
+        // Paging to the end must not revalidate the first page on every step;
+        // restored once the load-all finishes.
+        revalidateFirstPage: !loadAllRequested,
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -94,8 +132,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     }
   )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
-    refresh: [sessionMessagesCachePath]
+    refresh: ({ args }) => [`/agent-sessions/${args!.params.sessionId}/messages`]
   })
+  const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
+    params: { sessionId },
+    query: { deferToolOutputs: true },
+    limit: PAGE_SIZE
+  })
+  const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
+  const deleteQueuesRef = useRef(new Map<string, Promise<void>>())
+  const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {
@@ -108,6 +154,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
+  // The display projection below includes live flow parts; settlement must read the database rows.
+  const persistedPartsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(
+    () => Object.fromEntries(rows.map((row) => [row.id, row.data.parts ?? []])),
+    [rows]
+  )
   const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
   const flowPartsKeys = useMemo(
     () => loadedMessageIds.map((messageId) => AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)),
@@ -119,6 +170,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [loadedMessageIds]
   )
   const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
+  const turnOriginKeys = useMemo(
+    () => loadedMessageIds.map((messageId) => AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)),
+    [loadedMessageIds, sessionId]
+  )
+  const selectTurnOrigins = useCallback(
+    (values: readonly (AutonomousTurnOrigin | null | undefined)[]) =>
+      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index] ?? undefined])),
+    [loadedMessageIds]
+  )
+  const turnOrigins = useSharedCacheSelector(turnOriginKeys, selectTurnOrigins)
 
   const messageProjectionRef = useRef<
     | {
@@ -140,6 +201,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
         const liveParts = flowParts[row.id]
+        const turnOrigin = turnOrigins[row.id]
         const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&
@@ -147,16 +209,19 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           cached.role === row.role &&
           cached.status === row.status &&
           cached.modelId === row.modelId &&
-          cached.liveParts === liveParts
+          cached.liveParts === liveParts &&
+          cached.turnOrigin === turnOrigin
         ) {
           nextById.set(row.id, cached)
           return cached.message
         }
 
         const message = toAgentSessionUIMessage(row)
-        const projectedMessage = liveParts ? { ...message, parts: liveParts } : message
+        const withOrigin = turnOrigin ? { ...message, metadata: { ...message.metadata, turnOrigin } } : message
+        const projectedMessage = liveParts ? { ...withOrigin, parts: liveParts } : withOrigin
         nextById.set(row.id, {
           liveParts,
+          turnOrigin,
           message: projectedMessage,
           modelId: row.modelId,
           role: row.role,
@@ -179,7 +244,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       }
       return stableMessages
     },
-    [flowParts, projectionOwnerToken]
+    [flowParts, turnOrigins, projectionOwnerToken]
   )
 
   const messages = useMemo<CherryUIMessage[]>(() => {
@@ -229,20 +294,102 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [mutate, sessionId]
   )
 
+  const replaceMessageTail = useCallback(
+    async (messageId: string, replacements: CherryUIMessage[]): Promise<void> => {
+      const replacementRows = replacements.map((message) => reservedUIMessageToAgentSessionMessage(sessionId, message))
+      await writeSessionMessagesCache((pages) => {
+        const currentPages = pages?.length ? pages : [{ items: [], nextCursor: undefined }]
+        const targetPageIndex = currentPages.findIndex((page) => page.items.some((row) => row.id === messageId))
+        const retainedPages = targetPageIndex < 0 ? currentPages : currentPages.slice(targetPageIndex)
+        const firstPage = retainedPages[0]
+        const targetIndex = firstPage.items.findIndex((row) => row.id === messageId)
+        const retainedItems = targetIndex < 0 ? firstPage.items : firstPage.items.slice(targetIndex + 1)
+        const existingIds = new Set([
+          ...retainedItems.map((row) => row.id),
+          ...retainedPages.slice(1).flatMap((page) => page.items.map((row) => row.id))
+        ])
+        const newRows = replacementRows
+          .filter((row) => !existingIds.has(row.id))
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+        return [{ ...firstPage, items: [...newRows, ...retainedItems] }, ...retainedPages.slice(1)]
+      })
+    },
+    [sessionId, writeSessionMessagesCache]
+  )
+
+  // Errors that predate the load-all are baseline; only a NEW error while paging
+  // abandons it. A retained error would otherwise deadlock a retried select-all
+  // behind the !error gate, so starting also revalidates it away.
+  const loadAllBaselineErrorRef = useRef<Error | undefined>(undefined)
+  const startLoadAll = useCallback(() => {
+    loadAllBaselineErrorRef.current = error
+    setLoadAllRequested(true)
+    if (error) void mutate()
+  }, [error, mutate])
+  useEffect(() => {
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
+      loadNext()
+    }
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
+  // A failed page fetch (new error vs the start baseline) abandons the load-all.
+  useEffect(() => {
+    if (error && loadAllRequested && error !== loadAllBaselineErrorRef.current) stopLoadAll()
+  }, [error, loadAllRequested, stopLoadAll])
+  // Fully loaded — reset so first-page revalidation resumes after select-all.
+  useEffect(() => {
+    if (loadAllRequested && !hasNext) stopLoadAll()
+  }, [hasNext, loadAllRequested, stopLoadAll])
+
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
-      await deleteMessageTrigger({ params: { sessionId, messageId } })
+      const deleteKey = `${sessionId}:${messageId}`
+      if (locallyRemovedIds.has(messageId)) {
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
+        return
+      }
+      const inFlightDelete = inFlightDeletePromisesRef.current.get(deleteKey)
+      if (inFlightDelete) return inFlightDelete
+      if (!pages.some((page) => page.items.some((item) => item.id === messageId))) return
+
+      const performDelete = async () => {
+        await deleteMessageTrigger({ params: { sessionId, messageId } })
+        locallyRemovedIds.add(messageId)
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
+      }
+      const previousDelete = deleteQueuesRef.current.get(sessionId)
+      const deletePromise = previousDelete ? previousDelete.catch(() => undefined).then(performDelete) : performDelete()
+      deleteQueuesRef.current.set(sessionId, deletePromise)
+      inFlightDeletePromisesRef.current.set(deleteKey, deletePromise)
+      try {
+        await deletePromise
+      } finally {
+        inFlightDeletePromisesRef.current.delete(deleteKey)
+        if (deleteQueuesRef.current.get(sessionId) === deletePromise) deleteQueuesRef.current.delete(sessionId)
+      }
     },
-    [deleteMessageTrigger, sessionId]
+    [deleteMessageTrigger, locallyRemovedIds, pages, sessionId, writeSessionMessagesCache]
+  )
+
+  const selectAllPagination = useMemo<MessageListSelectAllPagination>(
+    () => ({
+      hasOlder: hasNext,
+      isLoading: enabled && loadAllRequested && hasNext,
+      start: startLoadAll,
+      stop: stopLoadAll
+    }),
+    [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
   return {
     messages,
+    persistedPartsByMessageId,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
+    selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,
+    replaceMessageTail,
     deleteMessage
   }
 }

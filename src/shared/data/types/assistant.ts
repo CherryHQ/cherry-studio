@@ -5,12 +5,13 @@
  * They store inference parameters, tool references, and context source toggles.
  */
 
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
+
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
-import { UniqueModelIdSchema } from './model'
+import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
 // ============================================================================
 // Sub-Schemas
@@ -60,8 +61,13 @@ export const AssistantSettingsSchema = z.object({
   streamOutput: z.boolean(),
   /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
   reasoning_effort: ReasoningEffortOptionSchema,
+  /** Summary verbosity, where the endpoint carries one. Absent = the endpoint's own default. */
+  reasoning_summary: ReasoningSummarySchema.optional(),
+  /** Provider request service tier. Endpoint registry owns native wire values. */
+  service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
+  enableBrowser: z.boolean().optional(),
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 
@@ -155,6 +161,8 @@ export const AssistantSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
+  /** Read-only soft-delete timestamp, present only for trashed assistants. */
+  deletedAt: z.iso.datetime().optional(),
   /**
    * Human-readable model name resolved from the current runtime Model at read
    * time. Read-only embedded field — edits go through `modelId`. Renderer

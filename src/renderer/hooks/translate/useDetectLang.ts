@@ -1,3 +1,8 @@
+import { franc } from 'franc-min'
+import i18n from 'i18next'
+import { useCallback, useRef } from 'react'
+import { estimateTokenCount, sliceByTokens } from 'tokenx'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -13,10 +18,6 @@ import {
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { isQwenMTModel } from '@shared/utils/model'
-import { franc } from 'franc-min'
-import i18n from 'i18next'
-import { useCallback, useRef } from 'react'
-import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useTranslateLanguages'
 
@@ -57,7 +58,9 @@ export const detectLanguageByLLM = async (
     throw new Error(i18n.t('translate.error.detect.qwen_mt'))
   }
 
-  const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+  const systemPrompt = LANG_DETECT_PROMPT.replaceAll(/{{list_lang}}|{{input}}/g, (placeholder) =>
+    placeholder === '{{list_lang}}' ? listLangText : text
+  )
 
   const { text: result } = await ipcApi.request('ai.text.generate', {
     uniqueModelId: model.id,

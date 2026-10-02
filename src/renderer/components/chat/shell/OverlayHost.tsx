@@ -1,6 +1,7 @@
+import type { CSSProperties, ReactNode } from 'react'
+
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
-import type { CSSProperties, ReactNode } from 'react'
 
 export interface OverlayHostProps {
   children?: ReactNode

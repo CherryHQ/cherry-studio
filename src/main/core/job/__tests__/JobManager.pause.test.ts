@@ -16,6 +16,12 @@
  * onSettled): see the "onStop drain regression" block.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
@@ -26,11 +32,6 @@ import type { JobHandle, JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle/constants'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch } from './_helpers'
 
@@ -162,7 +163,7 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
 
   const dbSvc = MockMainDbServiceExport.dbService
   const cacheSvc = MockMainCacheServiceExport.cacheService
-  ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+  ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
     switch (name) {
       case 'DbService':
         return dbSvc
@@ -420,11 +421,9 @@ describe('JobManager pause / drainInFlight', () => {
       const promoteSpy = vi.spyOn(jobService, 'promoteDelayedDue')
 
       const hold = jobManager.pause('test: promoteDueAtFire gate')
-      const handle = jobManager.enqueue(
-        'pause.delayed' as never,
-        { message: 'later' } as never,
-        { scheduledAt: Date.now() + 50 } as never
-      )
+      const handle = jobManager.enqueue('pause.delayed' as never, { message: 'later' } as never, {
+        scheduledAt: Date.now() + 50
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The once promotion timer fires inside the pause window → gated before
@@ -1302,11 +1301,9 @@ describe('JobManager pause / drainInFlight', () => {
       })
 
       const hold = jobManager.pause('test: suppressed promotion re-arm')
-      const handle = jobManager.enqueue(
-        'pause.skew' as never,
-        { message: 'not-yet-due' } as never,
-        { scheduledAt: Date.now() + 600 } as never
-      )
+      const handle = jobManager.enqueue('pause.skew' as never, { message: 'not-yet-due' } as never, {
+        scheduledAt: Date.now() + 600
+      })
       expect(handle.snapshot.status).toBe('delayed')
 
       // The promotion once-timer elapses on the FAKE clock while the wall
@@ -1362,6 +1359,66 @@ describe('JobManager pause / drainInFlight', () => {
       // one-shot; the suppressed-once set is the only rebuild source.
       expect(jobService.list({ type: 'pause.spent' })).toHaveLength(0)
       expect(internals(jobManager).scheduleDisposables.has(spent.id)).toBe(false)
+
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('does not rewrite a spent once schedule whose nextRun is already null', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+      const now = Date.now()
+      const [spent] = await dbh
+        .insert(jobScheduleTable)
+        .values({
+          type: 'pause.spent-idempotent',
+          trigger: { kind: 'once', at: now - 60_000 },
+          jobInputTemplate: { message: 'already-cleared' },
+          enabled: true,
+          lastRun: now - 60_000,
+          nextRun: null,
+          catchUpPolicy: { kind: 'skip-missed' },
+          metadata: {}
+        })
+        .returning()
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['pause.spent-idempotent', makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+
+      expect(jobScheduleService.getById(spent.id)?.updatedAt).toBe(new Date(spent.updatedAt).toISOString())
+
+      vi.useRealTimers()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it.each([
+      { label: 'interval', trigger: { kind: 'interval', ms: 1000 } },
+      { label: 'cron', trigger: { kind: 'cron', expr: '* * * * * *' } }
+    ] as const)('refreshes persisted nextRun for an armed $label schedule on release', async ({ label, trigger }) => {
+      const type = `pause.next-run.${label}`
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [[type, makeCountingHandler({ count: 0 })]],
+        fakeDate: true,
+        keepFakeTimers: true
+      })
+      const { id } = jobManager.registerJobSchedule({
+        type,
+        trigger,
+        jobInputTemplate: { message: label },
+        catchUpPolicy: { kind: 'skip-missed' }
+      } as never)
+      const initialNextRun = jobScheduleService.getById(id)?.nextRun
+      expect(initialNextRun).not.toBeNull()
+
+      const hold = jobManager.pause(`test: ${label} nextRun`)
+      await vi.advanceTimersByTimeAsync(2500)
+      expect(jobScheduleService.getById(id)?.nextRun).toBe(initialNextRun)
+      expect(Date.parse(initialNextRun ?? '')).toBeLessThanOrEqual(Date.now())
+
+      hold.dispose()
+      expect(Date.parse(jobScheduleService.getById(id)?.nextRun ?? '')).toBeGreaterThan(Date.now())
 
       vi.useRealTimers()
       await teardownManager(scheduler, jobManager)

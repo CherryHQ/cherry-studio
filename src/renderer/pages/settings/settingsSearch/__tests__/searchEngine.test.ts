@@ -1,0 +1,303 @@
+import { describe, expect, it } from 'vitest'
+
+import { rankEntries } from '../searchEngine'
+import type { SettingsSearchSection } from '../types'
+
+const dict: Record<string, string> = {
+  'group.general': '通用',
+  's.appearance.title': '外观',
+  's.data.title': '数据',
+  's.general.title': '通用设置',
+  'e.proxy.title': '代理',
+  'e.proxy.desc': '网络代理设置',
+  'e.theme.title': '主题',
+  'e.theme.desc': '外观主题'
+}
+const t = (key: string) => dict[key] ?? key
+
+const sections: SettingsSearchSection[] = [
+  { route: '/settings/general', sectionTitleKey: 's.general.title', entries: [] },
+  {
+    route: '/settings/appearance',
+    sectionTitleKey: 's.appearance.title',
+    entries: [
+      {
+        anchorId: 'proxy',
+        titleKey: 'e.proxy.title',
+        descriptionKey: 'e.proxy.desc',
+        groupKey: 'group.general',
+        aliases: ['proxy', '代理服务器']
+      },
+      { anchorId: 'theme', titleKey: 'e.theme.title', descriptionKey: 'e.theme.desc' }
+    ]
+  },
+  { route: '/settings/data', sectionTitleKey: 's.data.title', entries: [] }
+]
+
+describe('rankEntries scoring tiers', () => {
+  it('ranks section title > entry title > description > alias for the same query', () => {
+    const fixture: SettingsSearchSection[] = [
+      { route: '/s1', sectionTitleKey: 'k.sec', entries: [] },
+      { route: '/s2', sectionTitleKey: 'k.other', entries: [{ anchorId: 'a', titleKey: 'k.title' }] },
+      {
+        route: '/s3',
+        sectionTitleKey: 'k.other2',
+        entries: [{ anchorId: 'a', titleKey: 'k.unrelated', descriptionKey: 'k.title' }]
+      },
+      {
+        route: '/s4',
+        sectionTitleKey: 'k.other3',
+        entries: [{ anchorId: 'a', titleKey: 'k.unrelated', aliases: ['alpha'] }]
+      }
+    ]
+    const fx: Record<string, string> = {
+      'k.sec': 'alpha',
+      'k.other': 'zzz',
+      'k.other2': 'zzz2',
+      'k.other3': 'zzz3',
+      'k.unrelated': 'zzz4',
+      'k.title': 'alpha'
+    }
+    const ranked = rankEntries('alpha', fixture, (k) => fx[k] ?? k)
+
+    expect(ranked.map((r) => r.route)).toEqual(['/s1', '/s2', '/s3', '/s4'])
+    expect(ranked.map((r) => r.score)).toEqual([900, 700, 500, 300])
+  })
+
+  it('splits each tier into exact > prefix > substring', () => {
+    const fixture: SettingsSearchSection[] = [
+      { route: '/exact', sectionTitleKey: 'k1', entries: [] },
+      { route: '/prefix', sectionTitleKey: 'k2', entries: [] },
+      { route: '/substring', sectionTitleKey: 'k3', entries: [] }
+    ]
+    const fx: Record<string, string> = { k1: '代理', k2: '代理地址', k3: '网络代理' }
+    const ranked = rankEntries('代理', fixture, (k) => fx[k] ?? k)
+
+    expect(ranked.map((r) => r.route)).toEqual(['/exact', '/prefix', '/substring'])
+    expect(ranked.map((r) => r.score)).toEqual([900, 850, 800])
+  })
+
+  it('pinyin-matches titles but never descriptions', () => {
+    // daili hits the title 代理 (pinyin, title substring grade 600); the
+    // description 网络代理设置 contains Chinese too but must stay unmatched
+    const ranked = rankEntries('daili', sections, t)
+
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0]?.title).toBe('代理')
+    expect(ranked[0]?.score).toBe(600)
+  })
+})
+
+describe('rankEntries tie-breaking', () => {
+  it('breaks equal scores by menu order first, then declaration order within a section', () => {
+    const fixture: SettingsSearchSection[] = [
+      { route: '/first', sectionTitleKey: 'k.a', entries: [{ anchorId: 'x', titleKey: 'k.hit' }] },
+      { route: '/second', sectionTitleKey: 'k.b', entries: [{ anchorId: 'y', titleKey: 'k.hit' }] },
+      {
+        route: '/third',
+        sectionTitleKey: 'k.c',
+        entries: [
+          { anchorId: 'e1', titleKey: 'k.hit' },
+          { anchorId: 'e2', titleKey: 'k.hit' }
+        ]
+      }
+    ]
+    const fx: Record<string, string> = { 'k.a': 'aa', 'k.b': 'bb', 'k.c': 'cc', 'k.hit': 'target' }
+    const ranked = rankEntries('target', fixture, (k) => fx[k] ?? k)
+
+    expect(ranked.map((r) => r.focusId)).toEqual([
+      'setting-first-x',
+      'setting-second-y',
+      'setting-third-e1',
+      'setting-third-e2'
+    ])
+  })
+})
+
+describe('rankEntries pinyin matching', () => {
+  it('matches Chinese titles by full pinyin and initials at the title substring grade', () => {
+    expect(rankEntries('daili', sections, t)[0]?.title).toBe('代理')
+    expect(rankEntries('dl', sections, t)[0]?.title).toBe('代理')
+  })
+
+  it('matches Chinese aliases by full pinyin at the alias grade', () => {
+    // 代理服务器 → dailifuwuqi; the title 代理 does not contain that string
+    const ranked = rankEntries('dailifuwuqi', sections, t)
+
+    expect(ranked.map((r) => r.title)).toEqual(['代理'])
+    expect(ranked[0]?.score).toBe(200)
+  })
+
+  it('scores latin alias exact hits at the alias grade', () => {
+    const ranked = rankEntries('proxy', sections, t)
+
+    expect(ranked.map((r) => r.title)).toEqual(['代理'])
+    expect(ranked[0]?.score).toBe(300)
+  })
+})
+
+describe('rankEntries boundaries', () => {
+  it('returns empty for blank or oversized queries', () => {
+    expect(rankEntries('   ', sections, t)).toEqual([])
+    expect(rankEntries('x'.repeat(2049), sections, t)).toEqual([])
+  })
+
+  it('caps results at 50', () => {
+    const many: SettingsSearchSection[] = Array.from({ length: 60 }, (_, i) => ({
+      route: `/s${i}`,
+      sectionTitleKey: `k${i}`,
+      entries: [{ anchorId: 'a', titleKey: 'k.hit' }]
+    }))
+    const fx: Record<string, string> = { 'k.hit': 'target' }
+    const ranked = rankEntries('target', many, (k) => fx[k] ?? k)
+
+    expect(ranked).toHaveLength(50)
+  })
+
+  it('returns a section-level result without focusId for menu title hits', () => {
+    const ranked = rankEntries('数据', sections, t)
+
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0]).toMatchObject({ route: '/settings/data', title: '数据' })
+    expect(ranked[0]?.focusId).toBeUndefined()
+  })
+
+  it('uses the entry-level route override for navigation and focus ids', () => {
+    const fixture: SettingsSearchSection[] = [
+      {
+        route: '/settings/mcp',
+        sectionTitleKey: 'k.mcp',
+        entries: [{ anchorId: 'servers', titleKey: 'k.hit', route: '/settings/mcp/servers' }]
+      }
+    ]
+    const fx: Record<string, string> = { 'k.mcp': 'mcp', 'k.hit': 'target' }
+    const [hit] = rankEntries('target', fixture, (k) => fx[k] ?? k)
+
+    expect(hit?.route).toBe('/settings/mcp/servers')
+    expect(hit?.focusId).toBe('setting-mcp-servers-servers')
+  })
+
+  it('builds the breadcrumb from group and section titles', () => {
+    const [hit] = rankEntries('代理', sections, t)
+
+    expect(hit?.breadcrumb).toEqual(['通用', '外观'])
+    expect(hit?.description).toBe('网络代理设置')
+  })
+})
+
+describe('rankEntries cross-language source matching', () => {
+  // zh UI with fully-translated rows; the en-US catalog is the migration
+  // vocabulary ("skill"/"mcp") users carry over from other platforms
+  const zhDict: Record<string, string> = {
+    'sec.skills': '技能',
+    'sec.other': '其它',
+    'row.global': '全局启用技能',
+    'row.global.desc': '控制每个技能的启用状态',
+    'row.mcpNative': 'MCP 服务器',
+    'row.enOnly': '无关联中文',
+    'row.missing': '未翻译条目'
+  }
+  const zh = (key: string) => zhDict[key] ?? key
+  const enDict: Record<string, string> = {
+    'sec.skills': 'Skills',
+    'sec.other': 'Other',
+    'row.global': 'Global skills',
+    'row.global.desc': 'Enable or disable each installed skill',
+    'row.mcpNative': 'MCP servers',
+    'row.enOnly': 'MCP marketplace'
+    // 'row.missing' absent → tEn returns the key literal (unloaded / missing)
+  }
+  const tEn = (key: string) => enDict[key] ?? key
+
+  const fixture: SettingsSearchSection[] = [
+    {
+      route: '/settings/skills',
+      sectionTitleKey: 'sec.skills',
+      entries: [
+        { anchorId: 'global', titleKey: 'row.global', descriptionKey: 'row.global.desc' },
+        { anchorId: 'missing', titleKey: 'row.missing' }
+      ]
+    },
+    {
+      route: '/settings/other',
+      sectionTitleKey: 'sec.other',
+      entries: [
+        { anchorId: 'native', titleKey: 'row.mcpNative' },
+        { anchorId: 'enonly', titleKey: 'row.enOnly' }
+      ]
+    }
+  ]
+
+  it('finds sections and entries via the en-US source at the alias tier', () => {
+    const ranked = rankEntries('skill', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.title)).toEqual(['技能', '全局启用技能'])
+    expect(ranked.map((r) => r.score)).toEqual([250, 200])
+  })
+
+  it('matches en-US descriptions for queries only the description contains', () => {
+    const ranked = rankEntries('disable', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.title)).toEqual(['全局启用技能'])
+    expect(ranked[0]?.score).toBe(200)
+  })
+
+  it('ranks same-language matches above cross-language hits', () => {
+    // MCP 服务器 hits natively at the title tier; MCP marketplace only via en-US
+    const ranked = rankEntries('mcp', fixture, zh, tEn)
+
+    expect(ranked.map((r) => r.focusId)).toEqual(['setting-other-native', 'setting-other-enonly'])
+    expect(ranked.map((r) => r.score)).toEqual([650, 250])
+  })
+
+  it('drops unresolved en-US keys instead of scoring the key literal', () => {
+    // 'row.missing' resolves to the key itself; 'missing' is a substring of it
+    expect(rankEntries('missing', fixture, zh, tEn)).toEqual([])
+  })
+
+  it('keeps en-US-only vocabulary unmatched when tEn is not provided', () => {
+    expect(rankEntries('skill', fixture, zh)).toEqual([])
+  })
+})
+
+describe('text normalization in matching', () => {
+  const fx: Record<string, string> = {
+    'k.gateway': 'API 网关',
+    'k.cafe': 'Café réseau',
+    'k.plain': 'Plain Row'
+  }
+  const fixture: SettingsSearchSection[] = [
+    { route: '/gw', sectionTitleKey: 'k.gateway', entries: [] },
+    { route: '/cafe', sectionTitleKey: 'k.cafe', entries: [{ anchorId: 'a', titleKey: 'k.plain' }] }
+  ]
+  const t = (key: string) => fx[key] ?? key
+
+  it('matches across CJK/latin spacing ("API网关" finds "API 网关")', () => {
+    const ranked = rankEntries('API网关', fixture, t)
+    expect(ranked.map((r) => r.route)).toEqual(['/gw'])
+    // Spacing is stylistic: still the exact grade, not substring
+    expect(ranked[0]?.score).toBe(900)
+  })
+
+  it('matches composed against decomposed accent forms (French)', () => {
+    // "Café" in the catalog is composed (U+00E9); the query decomposes it
+    // as e + combining acute (U+0301), as some IMEs / clipboards produce
+    const decomposed = 'cafe\u0301 re\u0301seau'
+    const ranked = rankEntries(decomposed, fixture, t)
+    expect(ranked.map((r) => r.route)).toEqual(['/cafe'])
+    expect(ranked[0]?.score).toBe(900)
+  })
+
+  it('folds whitespace in pinyin queries ("dai li" finds 代理)', () => {
+    const dict2: Record<string, string> = { 'k.zh': '代理' }
+    const fx2: SettingsSearchSection[] = [{ route: '/z', sectionTitleKey: 'k.zh', entries: [] }]
+    const ranked = rankEntries('dai li', fx2, (k) => dict2[k] ?? k)
+    expect(ranked.map((r) => r.route)).toEqual(['/z'])
+  })
+
+  it('applies the squeezed pass uniformly (latin "plainrow" finds "Plain Row")', () => {
+    // Whitespace folding is language-agnostic by design; both spellings rank exact
+    expect(rankEntries('plain row', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
+    expect(rankEntries('plainrow', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
+  })
+})

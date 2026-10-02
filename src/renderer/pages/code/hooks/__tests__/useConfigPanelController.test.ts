@@ -1,8 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   clearCliConfig: vi.fn(),
@@ -329,7 +330,8 @@ describe('useConfigPanelController', () => {
 
   describe('DeepSeek Harness selection', () => {
     it('defers gateway startup and shared config writes until the managed launch action', async () => {
-      const ensureReady = vi.fn().mockResolvedValue('gateway-key')
+      const ensureRunning = vi.fn().mockResolvedValue(undefined)
+      const getApiKey = vi.fn().mockResolvedValue('gateway-key')
       const options = {
         ...baseOptions(),
         selectedCliTool: CodeCli.DEEPSEEK_HARNESS,
@@ -340,7 +342,8 @@ describe('useConfigPanelController', () => {
         apiGatewayProvider: {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'gateway-key',
-          ensureReady
+          ensureRunning,
+          getApiKey
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({
@@ -355,7 +358,50 @@ describe('useConfigPanelController', () => {
       })
 
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
-      expect(ensureReady).not.toHaveBeenCalled()
+      expect(ensureRunning).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Antigravity selection', () => {
+    it('saves and enables a gateway model without starting it, reading its key, or writing CLI files', async () => {
+      const ensureRunning = vi.fn().mockResolvedValue(undefined)
+      const getApiKey = vi.fn().mockRejectedValue(new Error('key should not be read'))
+      const options = {
+        ...baseOptions(),
+        selectedCliTool: CodeCli.ANTIGRAVITY_CLI,
+        currentProviderId: null,
+        apiGatewayProvider: {
+          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+          apiKey: null,
+          ensureRunning,
+          getApiKey
+        }
+      }
+      mocks.resolveCliConfigApplyContext
+        .mockReturnValueOnce(null)
+        .mockReturnValue({ modelId: 'deepseek::deepseek-chat' })
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+        await flushMicrotasks()
+      })
+      await act(async () => {
+        await result.current.configPanelProps?.onSubmit({
+          modelId: 'deepseek::deepseek-chat',
+          config: {}
+        })
+      })
+
+      expect(options.upsertProviderConfig).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID, {
+        modelId: 'deepseek::deepseek-chat',
+        config: {}
+      })
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_API_GATEWAY_PROVIDER_ID)
+      expect(ensureRunning).not.toHaveBeenCalled()
+      expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
     })
   })
@@ -522,7 +568,7 @@ describe('useConfigPanelController', () => {
         result.current.openConfigurePanel({ id: 'p1' } as Provider)
       })
       await result.current.configPanelProps!.onSubmit({
-        modelId: 'anthropic::claude-sonnet-4-5' as any,
+        modelId: 'anthropic::claude-sonnet-4-5',
         config: { permissionMode: 'plan' }
       })
 
@@ -652,8 +698,8 @@ describe('useConfigPanelController', () => {
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
     })
 
-    it('propagates a gateway ensureReady failure on panel save to the submitting dialog', async () => {
-      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+    it('propagates a gateway startup failure on panel save to the submitting dialog', async () => {
+      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
       const options = {
         ...baseOptions(),
         currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
@@ -663,7 +709,8 @@ describe('useConfigPanelController', () => {
         apiGatewayProvider: {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'cs-sk-old',
-          ensureReady
+          ensureRunning,
+          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
@@ -686,16 +733,17 @@ describe('useConfigPanelController', () => {
 
     // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the
     // gateway fails to start — otherwise the UI shows the gateway active with nothing listening on the
-    // port. `ensureReady` throws on a failed start; the write and selection flip must both be skipped.
-    it('does not enable the gateway when ensureReady (start) fails', async () => {
-      const ensureReady = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+    // port. `ensureRunning` throws on a failed start; the write and selection flip must both be skipped.
+    it('does not enable the gateway when startup fails', async () => {
+      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
       const options = {
         ...baseOptions(),
         currentProviderId: null, // gateway not current → toggling enables it
         apiGatewayProvider: {
           provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
           apiKey: 'cs-sk-old',
-          ensureReady
+          ensureRunning,
+          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
         }
       }
       mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
@@ -707,7 +755,7 @@ describe('useConfigPanelController', () => {
         await flushMicrotasks()
       })
 
-      expect(ensureReady).toHaveBeenCalled()
+      expect(ensureRunning).toHaveBeenCalled()
       // Never wrote a config against a dead port, never flipped the active selection.
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()

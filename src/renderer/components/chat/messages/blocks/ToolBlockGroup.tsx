@@ -1,13 +1,10 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   Brain,
   CalendarDays,
   Database,
   FileSearch,
   FileText,
+  GitBranchPlus,
   Globe,
   ImageIcon,
   ListChecks,
@@ -22,6 +19,12 @@ import {
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import MessageTools from '../tools/MessageTools'
@@ -72,6 +75,8 @@ function getToolHeaderCandidateKey(candidate: ToolHeaderCandidate): string {
 }
 
 const TOOL_GROUP_ICON_BY_NAME: Record<string, LucideIcon> = {
+  [SESSION_CREATE_TOOL_NAME]: GitBranchPlus,
+  [`mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`]: GitBranchPlus,
   [AgentToolsType.Agent]: Sparkles,
   [AgentToolsType.Bash]: SquareTerminal,
   [AgentToolsType.BashOutput]: SquareTerminal,

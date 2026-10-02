@@ -50,8 +50,9 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: () => ({ data: [] })
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
+  useQuery: () => ({ data: [], refetch: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -86,8 +87,18 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+    ({
+      children,
+      closeOnOverlayClick,
+      closeLabel,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+    }) => {
       void closeOnOverlayClick
+      void closeLabel
       return React.createElement(tag, props, children)
     }
 
@@ -119,6 +130,7 @@ vi.mock('@cherrystudio/ui', () => {
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: passthrough('label'),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
@@ -202,7 +214,6 @@ describe('ChannelDetail', () => {
         type: 'telegram',
         name: 'Telegram channel',
         agentId: 'agent-1',
-        sessionId: null,
         workspace: { type: 'system' },
         config: { bot_token: 'token', allowed_chat_ids: [] },
         isActive: true,
@@ -212,14 +223,11 @@ describe('ChannelDetail', () => {
       }
     ]
 
-    // ChannelDetail now reads logs/statuses via ipcApi.request and subscribes via useIpcOn
-    // (ipcApi.on). Stub the IpcApi bridge: log/status queries resolve empty, events no-op.
+    // Logs and QR events still use IpcApi; connection status comes from Shared Cache.
     window.api = {
       ipcApi: {
         request: vi.fn((route: string) =>
-          route === 'channel.get_logs' || route === 'channel.get_statuses'
-            ? Promise.resolve([])
-            : Promise.resolve(undefined)
+          route === 'channel.get_logs' ? Promise.resolve([]) : Promise.resolve(undefined)
         ),
         on: vi.fn(() => () => {})
       }

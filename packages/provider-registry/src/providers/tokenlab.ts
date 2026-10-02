@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'tokenlab',
   name: 'TokenLab',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -49,7 +50,6 @@ export default defineProvider({
       apiModelId: 'gemini-3.1-flash-lite',
       endpointTypes: ['google-generate-content']
     },
-    { modelId: 'grok-4-3', apiModelId: 'grok-4.3' },
-    { modelId: 'grok-4-fast' }
+    { modelId: 'grok-4-3', apiModelId: 'grok-4.3' }
   ]
 })

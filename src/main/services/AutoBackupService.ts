@@ -26,6 +26,7 @@ const SCHEDULE_ID_PREFIX = 'auto-backup:'
 const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
+const STARTUP_GRACE_PERIOD_MS = 60_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: ['data.backup.webdav.auto_sync', 'data.backup.webdav.host', 'data.backup.webdav.sync_interval'],
@@ -34,7 +35,7 @@ const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = 
   nutstore: ['data.backup.nutstore.auto_sync', 'data.backup.nutstore.token', 'data.backup.nutstore.sync_interval']
 }
 
-type ScheduleMode = 'immediate' | 'fromLastSyncTime' | 'fromNow'
+type ScheduleMode = 'immediate' | 'startup' | 'fromLastSyncTime' | 'fromNow'
 
 interface ScheduleState {
   generation: number
@@ -71,8 +72,6 @@ export class AutoBackupService extends BaseService {
   private activeRunType: AutoBackupType | null = null
   private activeAbortController: AbortController | null = null
   private nextEventId = 0
-  private readonly latestTerminalEvents = new Map<AutoBackupType, AutoBackupEvent>()
-  private readonly latestTransientEvents = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingNotifications = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingRuns = new Map<AutoBackupType, number>()
   private readonly schedules: Record<AutoBackupType, ScheduleState> = {
@@ -103,7 +102,7 @@ export class AutoBackupService extends BaseService {
   protected override onReady(): void {
     this.active = true
     for (const type of AUTO_BACKUP_TYPES) {
-      this.restartSchedule(type, 'fromLastSyncTime')
+      this.restartSchedule(type, 'startup')
     }
   }
 
@@ -111,7 +110,6 @@ export class AutoBackupService extends BaseService {
     this.active = false
     this.unregisterAllSchedules()
     this.pendingRuns.clear()
-    this.latestTransientEvents.clear()
     this.activeAbortController?.abort(new DOMException('Automatic backup service stopped.', 'AbortError'))
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].generation++
@@ -123,9 +121,6 @@ export class AutoBackupService extends BaseService {
 
   getStateSnapshot(): AutoBackupSnapshot {
     return {
-      events: [...this.latestTerminalEvents.values(), ...this.latestTransientEvents.values()].sort(
-        (first, second) => first.id - second.id
-      ),
       pendingNotifications: [...this.pendingNotifications.values()]
     }
   }
@@ -182,11 +177,14 @@ export class AutoBackupService extends BaseService {
     let delay = delayOverride ?? INITIAL_DELAY_MS
     if (delayOverride === undefined && mode === 'fromNow') {
       delay = settings.intervalMs
-    } else if (delayOverride === undefined && mode === 'fromLastSyncTime') {
+    } else if (delayOverride === undefined && (mode === 'startup' || mode === 'fromLastSyncTime')) {
       const lastSyncTime = this.schedules[type].lastSyncTime
       delay = lastSyncTime
         ? Math.max(INITIAL_DELAY_MS, lastSyncTime + settings.intervalMs - Date.now())
         : settings.intervalMs
+      if (mode === 'startup') {
+        delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
+      }
     }
 
     application
@@ -297,7 +295,8 @@ export class AutoBackupService extends BaseService {
         webdavPath: preferenceService.get('data.backup.webdav.path'),
         maxBackups: preferenceService.get('data.backup.webdav.max_backups'),
         skipBackupFile: preferenceService.get('data.backup.webdav.skip_backup_file'),
-        disableStream: preferenceService.get('data.backup.webdav.disable_stream')
+        disableStream: preferenceService.get('data.backup.webdav.disable_stream'),
+        allowSelfSignedTls: preferenceService.get('data.backup.webdav.allow_self_signed_tls') ?? false
       }
       const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
       if (success === false) throw new Error('WebDAV automatic backup failed')
@@ -419,13 +418,8 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
-    const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
-    if (event.status === 'running' || event.status === 'stopped') {
-      this.latestTransientEvents.set(event.type, emittedEvent)
-    } else {
-      this.latestTerminalEvents.set(event.type, emittedEvent)
-      this.latestTransientEvents.delete(event.type)
-    }
+    const emittedEvent = { ...event, id: ++this.nextEventId }
+    application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)
     }

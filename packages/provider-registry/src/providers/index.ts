@@ -11,6 +11,7 @@ import p_burncloud from './burncloud'
 import p_cerebras from './cerebras'
 import p_cherryin from './cherryin'
 import p_claude_code from './claude-code'
+import p_comfyui from './comfyui'
 import p_copilot from './copilot'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
@@ -19,7 +20,6 @@ import p_doubao from './doubao'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
 import p_gemini from './gemini'
-import p_github from './github'
 import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
@@ -35,10 +35,12 @@ import p_minimax_global from './minimax-global'
 import p_mistral from './mistral'
 import p_modelscope from './modelscope'
 import p_moonshot from './moonshot'
+import p_moonshot_global from './moonshot-global'
 import p_new_api from './new-api'
 import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
+import p_omlx from './omlx'
 import p_openai from './openai'
 import p_openai_codex from './openai-codex'
 import p_opencode from './opencode'
@@ -54,6 +56,7 @@ import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
 import p_together from './together'
+import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
 import p_tokenlab from './tokenlab'
 import type { Provider } from './types'
@@ -66,7 +69,6 @@ import p_zhipu from './zhipu'
 /** Every provider, in registry order. Source of truth for data/providers.json + data/provider-models.json. */
 export const PROVIDERS: Provider[] = [
   p_cherryin,
-  p_radeon_cloud,
   p_silicon,
   p_aihubmix,
   p_ovms,
@@ -85,20 +87,23 @@ export const PROVIDERS: Provider[] = [
   p_qiniu,
   p_openrouter,
   p_ollama,
+  p_radeon_cloud,
+  p_tokendance,
   p_new_api,
   p_lmstudio,
   p_anthropic,
   p_claude_code,
   p_openai_codex,
   p_grok_cli,
+  p_omlx,
   p_openai,
   p_opencode,
   p_azure_openai,
   p_gemini,
   p_vertexai,
-  p_github,
   p_copilot,
   p_moonshot,
+  p_moonshot_global,
   p_baichuan,
   p_dashscope,
   p_stepfun,
@@ -125,6 +130,7 @@ export const PROVIDERS: Provider[] = [
   p_huggingface,
   p_gateway,
   p_cerebras,
+  p_comfyui,
   p_mimo,
   p_zai,
   p_minimax_global

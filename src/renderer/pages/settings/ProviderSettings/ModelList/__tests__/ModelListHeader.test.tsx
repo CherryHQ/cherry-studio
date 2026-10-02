@@ -30,7 +30,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 const baseProps = {
-  isBusy: false,
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),

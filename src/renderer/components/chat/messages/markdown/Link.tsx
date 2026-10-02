@@ -1,18 +1,21 @@
+import { omit } from 'es-toolkit/compat'
+import type { Element } from 'hast'
+import React, { useMemo } from 'react'
+
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
-import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { MarkdownLinkRenderer } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
-import { omit } from 'es-toolkit/compat'
-import React, { useMemo } from 'react'
-import type { Node } from 'unist'
 
+import { useOptionalMessageListActions } from '../MessageListProvider'
 import CitationTooltip from './CitationTooltip'
-import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: Omit<Node, 'type'>
+  node?: Element
   citationRegistry?: ReadonlyMap<number, Citation>
+  /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
+  openFilePath?: (path: string) => void | Promise<void>
 }
 
 function getWebHostname(href?: string): string {
@@ -26,10 +29,6 @@ function getWebHostname(href?: string): string {
   }
 }
 
-function hasFaviconChild(children: React.ReactNode): boolean {
-  return React.Children.toArray(children).some((child) => React.isValidElement(child) && child.type === Favicon)
-}
-
 function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
   if (!href) return false
   try {
@@ -41,16 +40,28 @@ function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
 }
 
 const Link: React.FC<LinkProps> = (props) => {
+  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
   const citationData = useMemo(() => {
     const number = Number(findCitationInChildren(props.children))
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
   }, [props.children, props.citationRegistry])
   const hostname = useMemo(() => getWebHostname(props.href), [props.href])
-  const containsFaviconChild = useMemo(() => hasFaviconChild(props.children), [props.children])
-
-  // 处理内部链接
-  if (props.href?.startsWith('#')) {
-    return <span className="link">{props.children}</span>
+  const handleWebsiteClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.stopPropagation()
+    props.onClick?.(event)
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      !hostname ||
+      !openExternalUrl
+    )
+      return
+    event.preventDefault()
+    void openExternalUrl(props.href!)
   }
 
   if (props.href && isKnownNavigationPath(props.href)) {
@@ -69,50 +80,25 @@ const Link: React.FC<LinkProps> = (props) => {
       (child) => child.tagName === 'sup'
     )
   )
-  const showFavicon = !!hostname && !isCitation && !containsFaviconChild
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
-  const linkContent = showFavicon ? (
-    <>
-      <span
-        className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
-        aria-hidden="true">
-        <Favicon hostname={hostname} alt="" />
-      </span>
-      {props.children}
-    </>
-  ) : (
-    props.children
-  )
 
   // 如果是引用链接并且有引用数据，则使用CitationTooltip
   if (isCitation && citationData && hasSameUrl(props.href, citationData.url)) {
     return (
       <CitationTooltip citation={citationData}>
         <a
-          {...omit(props, ['node', 'citationRegistry'])}
+          {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
           href={props.href || undefined}
           target="_blank"
           rel="noreferrer"
           className={linkClassName}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleWebsiteClick}
         />
       </CitationTooltip>
     )
   }
 
-  // 普通链接
-  return (
-    <Hyperlink href={props.href || ''}>
-      <a
-        {...omit(props, ['node', 'citationRegistry'])}
-        target="_blank"
-        rel="noreferrer"
-        className={linkClassName}
-        onClick={(e) => e.stopPropagation()}>
-        {linkContent}
-      </a>
-    </Hyperlink>
-  )
+  return <MarkdownLinkRenderer {...omit(props, ['citationRegistry'])} openExternalUrl={openExternalUrl} />
 }
 
 export default Link

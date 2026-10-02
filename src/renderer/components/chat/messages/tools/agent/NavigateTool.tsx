@@ -1,4 +1,4 @@
-import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
+export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,16 +23,17 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
 
   // Settings pages
+  '/settings/general': { icon: '⚙️', labelKey: 'settings.general.common.title' },
   '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
   '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
   '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
   '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
   '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
-  '/settings/system': { icon: '⚙️', labelKey: 'settings.system.title' },
   '/settings/data': { icon: '💾', labelKey: 'settings.data.title' },
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
   '/settings/file-processing': {
     icon: '📄',
     labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
@@ -60,19 +61,6 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
 
 // Sorted by path length descending for longest prefix match
 const SORTED_ROUTES = Object.entries(ROUTE_LABELS).sort((a, b) => b[0].length - a[0].length)
-const KNOWN_NAVIGATION_ROUTES = [
-  ...Object.keys(ROUTE_LABELS),
-  '/app/mini-app/$appId',
-  '/app/paintings/$',
-  '/settings/mcp/$',
-  '/settings/mcp/settings/$serverId',
-  '/settings/scheduled-tasks/$taskId'
-]
-
-export function isKnownNavigationPath(path: string): boolean {
-  const cleanPath = path.split('?')[0]
-  return isAllowedNavigationPath(cleanPath, KNOWN_NAVIGATION_ROUTES)
-}
 
 function getRouteInfo(path: string): { icon: string; labelKey?: string; label?: string } {
   // Exact match first
@@ -145,7 +133,7 @@ export function NavigateToolInline({
     <button
       onClick={handleClick}
       disabled={!basePath || !navigateToRoute}
-      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
+      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-border bg-muted px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>

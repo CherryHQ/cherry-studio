@@ -20,8 +20,19 @@ import {
 // bedrock cross-vendor `[region.]vendor.` / `vendor-` prefix (shared with the runtime).
 const base = (id: string) => stripBedrockVendorPrefix(stripAggregatorPrefixes(id.toLowerCase().split('/').pop()!))
 
+// OpenRouter's `:batch` twin uses an async endpoint the app never calls and discounted pricing.
+// Drop instead of fold so it cannot claim the base model's pricing or `apiModelId`.
+const BATCH_TWIN = /[:-]batch$/
+
+// Vercel lists `openai/*-fast` gateway routes as model SKUs; they are not creator models.
+// Keep real vendor `-fast` SKUs from Vercel and every other upstream source.
+export const isModelsDevRoutingAlias = (provider: string, id: string): boolean =>
+  provider === 'vercel' && /^openai\/.+-fast$/i.test(id)
+
 // Minus param-size stripping — the catalog keeps `qwen3-235b` ≠ `qwen3-30b`.
+// Returns `''` for an id that is not a catalog model; every intake point drops those.
 export const canonOf = (id: string): string => {
+  if (BATCH_TWIN.test(id.toLowerCase())) return ''
   let s = base(id) // split('/').pop, lowercase, strip aggregator + bedrock-vendor prefix
   s = stripBedrockRevision(s) // bedrock arn revision: claude-…-v1:0 / …:0 (keeps whisper-v3)
   s = expandKnownPrefixes(s) // mm- → minimax-

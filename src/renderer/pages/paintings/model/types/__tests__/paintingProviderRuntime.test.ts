@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { resolvePaintingApiHost } from '../paintingProviderRuntime'
 
@@ -10,14 +11,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     name: 'CherryIN',
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: {
-      arrayContent: false,
-      streamOptions: false,
-      developerRole: false,
-      serviceTier: false,
-      verbosity: false,
-      reportsActualCost: false
-    },
+    reportsActualCost: false,
     settings: {},
     isEnabled: true,
     ...overrides

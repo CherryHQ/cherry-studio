@@ -1,3 +1,7 @@
+import { useNavigate } from '@tanstack/react-router'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
@@ -15,33 +19,42 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
-import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { ResponseForPath } from '@shared/data/api/paths'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
+import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
   consumePendingAgentSessionImageActions,
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -55,7 +68,7 @@ function withTerminalErrorFallback(
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
@@ -94,10 +107,18 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
   messageNavigation: string
@@ -149,10 +170,18 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   openCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
+  openBrowserUrl,
+  openExternalUrl,
+  openDiagnosticReport,
+  diagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
@@ -160,7 +189,9 @@ export function useAgentMessageListProviderValue({
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const navigate = useNavigate()
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -191,7 +222,7 @@ export function useAgentMessageListProviderValue({
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
@@ -217,27 +248,21 @@ export function useAgentMessageListProviderValue({
     })
   }, [resolvedAgentId, visibleMessages, topic.id])
 
-  const persistDiagnosis = useCallback(
-    async (partId: string, diagnosis: DiagnosisResult) => {
-      const parsed = parseMessagePartId(partId)
-      if (!parsed) return
-
-      const persistedMessage = (await dataApiService.get(
-        `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
-      )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
-      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-      if (!updatedParts) return
-
-      await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {
-        body: { data: { parts: updatedParts } }
-      })
+  const getDoctorSubject = useCallback(
+    (message: MessageListItem): DoctorSubjectRef | undefined => {
+      if (!resolvedAgentId) return undefined
+      const model = message ? getMessageListItemModel(message) : undefined
+      return model
+        ? { kind: 'agent', agentId: resolvedAgentId, providerId: model.provider, modelId: model.id }
+        : { kind: 'agent', agentId: resolvedAgentId }
     },
-    [sessionId]
+    [resolvedAgentId]
   )
   const {
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -246,36 +271,40 @@ export function useAgentMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    exportToObsidian,
     topicId: topic.id,
     topicName: topic.name,
     messages: messageItems,
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
-    persistDiagnosis
+    diagnosticReport,
+    getDoctorSubject,
+    selectAllPagination
   })
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
+  // Raw path to main, which resolves workspace-relative input against the session's workspace: the
+  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
   const openPath = useCallback(
-    (path: string) => {
-      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
-    },
+    (path: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path }),
+    [sessionId]
+  )
+
+  // Still renderer-side: the open-target menu needs an absolute path to describe, and it is not a
+  // file-opening call.
+  const resolvePath = useMemo<MessageListActions['resolvePath']>(
+    () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
   )
 
-  const showInFolder = useCallback(
-    (path: string) => {
-      return window.api.file.showInFolder(requireWorkspaceFilePath(workspacePath, path))
+  const isDirectory = useCallback<NonNullable<MessageListActions['isDirectory']>>(
+    async (path) => {
+      const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
+      return metadata?.kind === 'directory'
     },
     [workspacePath]
   )
-
-  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
-    const open = leafCapabilities.openInExternalApp
-    if (!open) return undefined
-
-    return (app, path) => open(app, requireWorkspaceFilePath(workspacePath, path))
-  }, [leafCapabilities.openInExternalApp, workspacePath])
 
   const abortTool = useCallback((toolId: string) => {
     return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
@@ -355,6 +384,43 @@ export function useAgentMessageListProviderValue({
     [sessionId]
   )
 
+  const { notifyError } = leafCapabilities
+  const openForkSourceSession = useCallback(
+    async (sourceSessionId: string) => {
+      try {
+        await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
+        await navigate({
+          to: '/app/agents',
+          search: { sessionId: sourceSessionId, forkReturnSessionId: sessionId ?? undefined }
+        })
+      } catch (error) {
+        notifyError(
+          isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
+        )
+      }
+    },
+    [navigate, notifyError, sessionId, t]
+  )
+  const forkSession = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return
+      try {
+        const result = await ipcApi.request('ai.agent.session.fork', {
+          sourceSessionId: sessionId,
+          messageId
+        })
+        openRoute('/app/agents', { sessionId: result.sessionId })
+      } catch (error) {
+        const reason = agentSessionForkFailureReason(error)
+        if (reason) {
+          notifyError(agentSessionForkReasonLabel(t, reason))
+          return
+        }
+        throw error
+      }
+    },
+    [sessionId, t, notifyError]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -372,6 +438,7 @@ export function useAgentMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
+      messageActivityStore,
       getMessageActivityState,
       ...pickMessageLeafState(leafCapabilities)
     }),
@@ -384,6 +451,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageActivityStore,
       messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
@@ -398,21 +466,41 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      editLabel: t('agent.edit_resend.label'),
+      canEditMessage: (message) =>
+        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
+      startEditing: startEditing
+        ? (message) => {
+            void startEditing(message.id)
+          }
+        : undefined,
+      openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
+      forkSession: normalInteractionsEnabled
+        ? {
+            label: t('agent_session_fork.label'),
+            availability: (message) => agentSessionForkAvailability(t, message),
+            run: forkSession
+          }
+        : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      openBrowserUrl,
+      openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
+      resolvePath,
+      isDirectory,
       openPath,
-      openInExternalApp,
       openArtifactFile,
+      openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
+      isAgentToolFlowActive,
       openAgentToolFlow,
-      showInFolder,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -422,6 +510,11 @@ export function useAgentMessageListProviderValue({
       updateRenderConfig
     }),
     [
+      forkSession,
+      startEditing,
+      editBusy,
+      openForkSourceSession,
+      t,
       abortTool,
       bindRuntime,
       bindMessageGroupRuntime,
@@ -430,19 +523,24 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      openDiagnosticReport,
+      openBrowserUrl,
+      openExternalUrl,
+      isAgentToolFlowActive,
       openAgentToolFlow,
-      openInExternalApp,
       openPath,
       respondToolApproval,
+      resolvePath,
       selectionController.actions,
-      showInFolder,
       updateRenderConfig
     ]
   )

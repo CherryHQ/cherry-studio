@@ -1,7 +1,8 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 vi.mock('@main/utils/prompt', () => ({
   replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
@@ -164,6 +165,30 @@ describe('assembleSystemPrompt', () => {
       tools: { web_search: {} } as unknown as ToolSet,
       hasCitableTools: false
     })
+    expect(out).toBe('base')
+  })
+
+  it('anchors relative dates to the runtime local date when web search is enabled', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 23, 59)
+    })
+
+    expect(out).toContain('<current-date>2026-08-20</current-date>')
+    expect(out).toContain('this month')
+    expect(out).toContain('Do not substitute dates remembered from training')
+  })
+
+  it('does not add volatile date context when web search is unavailable', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: false,
+      now: new Date(2026, 7, 20)
+    })
+
     expect(out).toBe('base')
   })
 })

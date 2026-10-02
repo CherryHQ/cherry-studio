@@ -1,16 +1,16 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronsDownUp, ChevronsUpDown, FileText, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 import { ModelTypeFilterTabs } from './ModelTypeFilterTabs'
 
 export interface ModelListHeaderProps {
-  isBusy: boolean
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
@@ -25,7 +25,6 @@ export interface ModelListHeaderProps {
 }
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
-  isBusy,
   hasNoModels,
   searchText,
   setSearchText,
@@ -57,7 +56,9 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
     <>
       <div className={modelListClasses.headerInlineRow}>
         <div className={modelListClasses.sectionTitleLine}>
-          <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+          <h2 id="setting-provider-model-list" className={modelListClasses.sectionTitle}>
+            {t('settings.models.list_title')}
+          </h2>
           {docsLink ? (
             <div className={modelListClasses.titleHelpRow}>
               <Tooltip content={t('settings.models.docs')}>
@@ -77,7 +78,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               type="button"
               className={modelListClasses.groupToggleIconButton}
               aria-label={t(groupsExpanded ? 'settings.models.collapse_all' : 'settings.models.expand_all')}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={onToggleGroupsExpanded}>
               <GroupExpansionIcon className={modelListClasses.toolbarHeaderIcon} />
             </button>
@@ -90,7 +91,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="text"
                 value={searchText}
                 placeholder={t('models.search.placeholder')}
-                disabled={isBusy}
                 onChange={(event) => setSearchText(event.target.value)}
                 onFocus={() => setSearchOpen(true)}
                 onBlur={() => {
@@ -119,7 +119,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 type="button"
                 className={modelListClasses.searchIconButton}
                 aria-label={t('common.search')}
-                disabled={isBusy}
                 onClick={() => setSearchOpen(true)}>
                 <Search className={modelListClasses.toolbarHeaderIcon} />
               </button>
@@ -134,7 +133,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               )}
               aria-label={t('settings.models.filter.label')}
               aria-pressed={filterOpen}
-              disabled={isBusy || hasNoModels}
+              disabled={hasNoModels}
               onClick={() => setFilterOpen((open) => !open)}>
               <Filter className={modelListClasses.toolbarHeaderIcon} />
             </button>

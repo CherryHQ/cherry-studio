@@ -1,3 +1,6 @@
+import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
+
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
@@ -5,8 +8,6 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { isMetaToolName } from './meta/metaToolNames'
 import { AgentToolsType } from './shared/agentToolTypes'
@@ -22,6 +23,18 @@ const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
 )
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
+const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
+  ['bash', AgentToolsType.Bash],
+  ['pwsh', AgentToolsType.Bash],
+  ['edit', AgentToolsType.Edit],
+  ['exit_plan_mode', AgentToolsType.ExitPlanMode],
+  ['read', AgentToolsType.Read],
+  ['skill', AgentToolsType.Skill],
+  ['subagent', AgentToolsType.Task],
+  ['subagent_fork', AgentToolsType.Task],
+  ['todo_write', AgentToolsType.TodoWrite],
+  ['write', AgentToolsType.Write]
+])
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -36,12 +49,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function normalizeToolName(part: ToolResponsePart): string {
-  const toolName = getToolName(part)
-  return toolName.trim() || 'unknown'
+/**
+ * Canonical tool identity for a tool part: cherry-runtime parts (tagged via
+ * `providerMetadata.cherry.transport`) map their runtime-native tool name onto the shared
+ * `AgentToolsType` name; all other parts keep their wire name.
+ */
+export function getCanonicalToolName(part: CherryMessagePart): string | undefined {
+  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return undefined
+  const toolPart = part as unknown as ToolResponsePart
+  const toolName = getToolName(toolPart).trim()
+  if (!toolName) return undefined
+  return hasCherryTransport(toolPart.callProviderMetadata)
+    ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
+    : toolName
 }
 
-function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
+function normalizeToolName(part: ToolResponsePart): string {
+  return getCanonicalToolName(part) ?? 'unknown'
+}
+
+function mapPartStateToStatus(state: string | undefined, approved?: boolean): McpToolResponseStatus {
   switch (state) {
     case 'output-available':
       return 'done'
@@ -54,8 +81,9 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
       return 'streaming'
     case 'input-available':
       return 'invoking'
-    case 'approval-requested':
     case 'approval-responded':
+      return approved === false ? 'cancelled' : 'pending'
+    case 'approval-requested':
       return 'pending'
     default:
       return 'pending'
@@ -94,19 +122,20 @@ function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undef
   )
 }
 
-function extractClaudeParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
+function extractParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
   if (!isRecord(metadata)) return undefined
-  const claudeCode = isRecord(metadata['claude-code']) ? metadata['claude-code'] : undefined
-  const parentToolCallId = claudeCode?.parentToolCallId ?? claudeCode?.parentToolUseId
-  return typeof parentToolCallId === 'string' && parentToolCallId ? parentToolCallId : undefined
+  // claude's own namespace first, then the runtime-neutral one (dsh et al.).
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = isRecord(metadata[namespace]) ? metadata[namespace] : undefined
+    const parentToolCallId = entry?.parentToolCallId ?? entry?.parentToolUseId
+    if (typeof parentToolCallId === 'string' && parentToolCallId) return parentToolCallId
+  }
+  return undefined
 }
 
 function extractParentToolUseId(part: ToolResponsePart): string | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
-  return (
-    extractClaudeParentToolCallIdFrom(part.callProviderMetadata) ??
-    extractClaudeParentToolCallIdFrom(resultProviderMetadata)
-  )
+  return extractParentToolCallIdFrom(part.callProviderMetadata) ?? extractParentToolCallIdFrom(resultProviderMetadata)
 }
 
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
@@ -117,6 +146,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
+  if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
@@ -178,7 +208,14 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
-  const status = mapPartStateToStatus(toolPart.state)
+  const approval =
+    typeof toolPart.approval?.approved === 'boolean'
+      ? {
+          approved: toolPart.approval.approved,
+          ...(typeof toolPart.approval.reason === 'string' ? { reason: toolPart.approval.reason } : {})
+        }
+      : undefined
+  const status = mapPartStateToStatus(toolPart.state, approval?.approved)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
@@ -198,6 +235,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response,
+      ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
       ...(partialArguments ? { partialArguments } : {})
@@ -212,6 +250,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     arguments: toolPart.input as NormalToolResponse['arguments'],
     status,
     response,
+    ...(approval ? { approval } : {}),
     toolCallId,
     ...(parentToolUseId ? { parentToolUseId } : {}),
     ...(partialArguments ? { partialArguments } : {})

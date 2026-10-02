@@ -1,3 +1,9 @@
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { v4 as uuidv4 } from 'uuid'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -13,12 +19,8 @@ import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import type { FileEntryId } from '@shared/data/types/file'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { v4 as uuidv4 } from 'uuid'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -197,6 +199,42 @@ describe('FileRefService', () => {
       expect(fileRefService.findBySource({ sourceType: 'job', sourceId: jobId })).toEqual([
         expect.objectContaining({ fileEntryId: entryId, sourceType: 'job', sourceId: jobId, role: 'input' })
       ])
+    })
+
+    it('keeps both translate-history roles visible by source, entry, and count', async () => {
+      const sourceEntryId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
+      const targetEntryId = '019606a0-0000-7000-8000-00000000aa05' as FileEntryId
+      await seedEntry(sourceEntryId)
+      await seedEntry(targetEntryId)
+      const history = translateHistoryService.createFileTx(dbh.db, {
+        sourceText: 'paper.pdf',
+        targetText: 'paper.zh-CN.pdf',
+        sourceLanguage: null,
+        targetLanguage: null,
+        targetFileEntryId: targetEntryId,
+        sourceFileEntryId: sourceEntryId
+      })
+
+      const translateRefs = fileRefService
+        .findBySource({ sourceType: 'translate_history', sourceId: history.id })
+        .filter((ref) => ref.sourceType === 'translate_history')
+      const refsByRole = new Map(translateRefs.map((ref) => [ref.role, ref.fileEntryId]))
+      expect(refsByRole).toEqual(
+        new Map([
+          ['source', sourceEntryId],
+          ['target', targetEntryId]
+        ])
+      )
+      expect(fileRefService.findByEntryId(sourceEntryId)).toEqual([
+        expect.objectContaining({ sourceId: history.id, role: 'source' })
+      ])
+      expect(fileRefService.findByEntryId(targetEntryId)).toEqual([
+        expect.objectContaining({ sourceId: history.id, role: 'target' })
+      ])
+
+      const counts = fileRefService.countByEntryIds([sourceEntryId, targetEntryId])
+      expect(counts.get(sourceEntryId)).toBe(1)
+      expect(counts.get(targetEntryId)).toBe(1)
     })
   })
 

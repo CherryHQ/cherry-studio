@@ -7,6 +7,7 @@ import type { RenderItemType, SortableDragHandleProps } from './types'
 
 interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
+  activatorRef?: React.Ref<HTMLDivElement>
   index?: number
   item: T
   renderItem: RenderItemType<T>
@@ -22,6 +23,7 @@ interface ItemRendererProps<T> {
 
 export function ItemRenderer<T>({
   ref,
+  activatorRef,
   index,
   item,
   renderItem,
@@ -63,19 +65,18 @@ export function ItemRenderer<T>({
         ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
       }}>
       <div
-        style={
-          {
-            position: 'relative',
-            boxSizing: 'border-box',
-            touchAction: 'manipulation',
-            transformOrigin: '50% 50%',
-            transform: dragOverlay ? 'scale(var(--scale))' : 'scale(var(--scale, 1))',
-            zIndex: dragging && !dragOverlay ? 0 : undefined,
-            opacity: dragging && !dragOverlay ? (ghost ? 0.25 : 0) : 1,
-            cursor: dragOverlay ? 'inherit' : (itemStyle?.cursor ?? 'pointer'),
-            pointerEvents: dragOverlay ? 'none' : undefined
-          } as React.CSSProperties
-        }
+        ref={activatorRef}
+        style={{
+          position: 'relative',
+          boxSizing: 'border-box',
+          touchAction: 'manipulation',
+          transformOrigin: '50% 50%',
+          transform: dragOverlay ? 'scale(var(--scale))' : 'scale(var(--scale, 1))',
+          zIndex: dragging && !dragOverlay ? 0 : undefined,
+          opacity: dragging && !dragOverlay ? (ghost ? 0.25 : 0) : 1,
+          cursor: dragOverlay ? 'inherit' : (itemStyle?.cursor ?? 'pointer'),
+          pointerEvents: dragOverlay ? 'none' : undefined
+        }}
         {...listeners}
         {...props}>
         {renderItem(item, { dragging: !!dragging, overlay: !!dragOverlay, dragHandleProps })}

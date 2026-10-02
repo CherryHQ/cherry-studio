@@ -2,16 +2,17 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle'
-import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
+import type { SpanEntity } from '@shared/data/types/trace'
+
+import { convertSpanToSpanEntity } from '../../core/spanConvert'
 import { TraceSpanStore } from '../TraceSpanStore'
 import { TraceStorageService } from '../TraceStorageService'
 
@@ -64,7 +65,7 @@ function spyOnHistoryReads(service: TraceStorageService) {
 }
 
 function timedEvent(name: string): TimedEvent {
-  return { name, time: [0, 0], attributes: {} } as TimedEvent
+  return { name, time: [0, 0], attributes: {} }
 }
 
 describe('TraceStorageService', () => {
@@ -180,6 +181,20 @@ describe('TraceStorageService', () => {
     expect((await service.getSpans('topic-a', 'trace-a')).map((item) => item.id).sort()).toEqual(['first', 'second'])
   })
 
+  // S12: trace JSONL holds raw prompts/API bodies (dev-gated plaintext by design) and
+  // Electron's userData can be world-readable on Linux, so artifacts must be owner-only.
+  it.skipIf(process.platform === 'win32')('writes owner-only trace artifacts (file 0600, topic dir 0700)', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'secret-ish', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    const fileStats = await fs.stat(path.join(traceDir, 'topic-a', 'trace-a'))
+    expect(fileStats.mode & 0o777).toBe(0o600)
+    const dirStats = await fs.stat(path.join(traceDir, 'topic-a'))
+    expect(dirStats.mode & 0o777).toBe(0o700)
+  })
+
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
   // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
   // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended
@@ -223,7 +238,7 @@ describe('TraceStorageService', () => {
     )
 
     // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
-    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    service.saveEntity({ ...endedEntity, topicId: 't' })
     expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
 
     const cappedStore = new TraceSpanStore(1)
@@ -298,8 +313,11 @@ describe('TraceStorageService', () => {
   it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
     await service._doInit()
 
-    const bigEvent = (): TimedEvent =>
-      ({ name: 'llm_request', time: [0, 0], attributes: { body: 'x'.repeat(2 * 1024 * 1024) } }) as TimedEvent
+    const bigEvent = (): TimedEvent => ({
+      name: 'llm_request',
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(2 * 1024 * 1024) }
+    })
 
     // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
     for (let i = 0; i < 10; i++) {
@@ -395,8 +413,11 @@ describe('TraceStorageService', () => {
       span({ id: 'big', traceId: 'trace', topicId: 'topic', events: [timedEvent('retained-before-oversized')] })
     )
 
-    const bigEvent = (name: string): TimedEvent =>
-      ({ name, time: [0, 0], attributes: { body: 'x'.repeat(3 * 1024 * 1024) } }) as TimedEvent
+    const bigEvent = (name: string): TimedEvent => ({
+      name,
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(3 * 1024 * 1024) }
+    })
     for (const name of ['body-0', 'body-1', 'body-2']) {
       service.addSpanEvent('trace', 'big', bigEvent(name))
     }
@@ -440,6 +461,48 @@ describe('TraceStorageService', () => {
     await service.saveSpans('topic-x')
     expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
   })
+
+  // Agent-session topicIds (`agent-session:<uuid>`) carry a colon that NTFS rejects, so an
+  // unencoded topic dir made every Windows flush fail with ENOENT and no history was ever written.
+  it('persists a colon topicId to an encoded directory and reads it back (REGRESSION windows-colon-topic)', async () => {
+    await service._doInit()
+    const topicId = 'agent-session:2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'
+
+    service.saveEntity(span({ id: 'agent-span', traceId: 'trace-agent', topicId }))
+    await service.saveSpans(topicId)
+
+    const entries = await fs.readdir(traceDir)
+    expect(entries).toEqual(['agent-session%3A2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'])
+    // saveSpans clears memory, so this read comes from the history file via the same mapping.
+    await expect(service.getSpans(topicId, 'trace-agent')).resolves.toMatchObject([{ id: 'agent-span' }])
+  })
+
+  // Histories written before Windows-safe encoding live at the raw colon dir on POSIX. They must
+  // stay visible after the upgrade, and the next flush must carry them into the encoded file.
+  // POSIX-only: the legacy colon dir cannot exist on NTFS, which is why the encoding was needed.
+  it.skipIf(process.platform === 'win32')(
+    'reads pre-encoding colon history and merges it forward on flush (REGRESSION colon-topic-upgrade)',
+    async () => {
+      await service._doInit()
+      const topicId = 'agent-session:2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'
+      const traceId = 'trace-agent'
+
+      const legacyDir = path.join(traceDir, topicId)
+      await fs.mkdir(legacyDir, { recursive: true })
+      await fs.writeFile(
+        path.join(legacyDir, traceId),
+        `${JSON.stringify(span({ id: 'old-span', traceId, topicId }))}\n`
+      )
+
+      expect((await service.getSpans(topicId, traceId)).map((s) => s.id)).toEqual(['old-span'])
+
+      service.saveEntity(span({ id: 'new-span', traceId, topicId }))
+      await service.saveSpans(topicId)
+
+      expect(await fs.readdir(traceDir)).toEqual(['agent-session%3A2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'])
+      expect((await service.getSpans(topicId, traceId)).map((s) => s.id)).toEqual(['old-span', 'new-span'])
+    }
+  )
 
   // A second /v1/traces export of the same span must not drop log events already drained onto it.
   it('preserves drained log events when a later span update arrives with empty or extra events', async () => {

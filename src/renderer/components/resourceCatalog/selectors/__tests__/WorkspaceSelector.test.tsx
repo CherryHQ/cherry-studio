@@ -1,14 +1,17 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 const {
   closeConversationTabsMock,
   createWorkspaceMock,
   deleteWorkspaceMock,
   invalidateCacheMock,
+  ipcRequestMock,
   refetchReferencesMock,
   refetchWorkspacesMock,
   selectFolderMock,
@@ -21,6 +24,7 @@ const {
   createWorkspaceMock: vi.fn(),
   deleteWorkspaceMock: vi.fn(),
   invalidateCacheMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
   refetchReferencesMock: vi.fn(),
   refetchWorkspacesMock: vi.fn(),
   selectFolderMock: vi.fn(),
@@ -35,7 +39,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
   useInvalidateCache: () => invalidateCacheMock,
   useMutation: useMutationMock,
   useQuery: useQueryMock
@@ -43,6 +48,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => closeConversationTabsMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => undefined) }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -192,7 +201,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
   }
@@ -242,6 +251,9 @@ beforeEach(() => {
   })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
   deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
+  ipcRequestMock.mockImplementation((_route, input) =>
+    deleteWorkspaceMock({ params: { workspaceId: input.workspaceId } })
+  )
   invalidateCacheMock.mockResolvedValue(undefined)
   refetchReferencesMock.mockResolvedValue(undefined)
   refetchWorkspacesMock.mockResolvedValue(undefined)
@@ -259,6 +271,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  MockUseDataApiUtils.resetMocks()
   vi.clearAllMocks()
 })
 
@@ -272,11 +285,25 @@ function openPopover() {
 }
 
 describe('WorkspaceSelector', () => {
+  it('refreshes the open list after a workspace membership notification', async () => {
+    const props = { trigger: <button type="button">Open</button>, value: null, onChange: vi.fn(), open: true }
+    const view = render(<WorkspaceSelector {...props} />)
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+    refetchWorkspacesMock.mockImplementationOnce(async () => {
+      useQueryMock.mockReturnValue({ data: [WORKSPACES[1]], refetch: refetchWorkspacesMock, isLoading: false })
+      view.rerender(<WorkspaceSelector {...props} />)
+    })
+    await act(async () => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-workspaces', kind: 'membership' }])
+    })
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.getByRole('option')).toHaveTextContent('cherry-studio-1')
+  })
+
   it('loads workspaces and renders folder rows', () => {
     renderSelector()
     openPopover()
 
-    expect(useQueryMock).toHaveBeenCalledWith('/agent-workspaces')
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('cherry-studio')
     expect(options[1]).toHaveTextContent('cherry-studio-1')

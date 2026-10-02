@@ -1,5 +1,6 @@
-import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { SuccessStatus } from '@shared/data/api/types'
 
 const {
   listMock,
@@ -7,7 +8,6 @@ const {
   getByIdMock,
   getReferencesMock,
   updateMock,
-  deleteWorkspaceCascadeMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
@@ -16,7 +16,6 @@ const {
   getByIdMock: vi.fn(),
   getReferencesMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteWorkspaceCascadeMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -30,12 +29,6 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
     update: updateMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    deleteWorkspaceCascade: deleteWorkspaceCascadeMock
   }
 }))
 
@@ -60,11 +53,11 @@ describe('agentWorkspaceHandlers', () => {
     listMock.mockReturnValueOnce([workspace])
     getByIdMock.mockReturnValueOnce(workspace)
 
-    await expect(agentWorkspaceHandlers['/agent-workspaces'].GET({} as never)).resolves.toEqual([workspace])
+    await expect(agentWorkspaceHandlers['/agent-workspaces'].GET({})).resolves.toEqual([workspace])
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toBe(workspace)
 
     expect(listMock).toHaveBeenCalledOnce()
@@ -78,13 +71,13 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
         body: { path: workspace.path, name: workspace.name }
-      } as never)
+      })
     ).resolves.toEqual({ data: workspace, status: SuccessStatus.CREATED })
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
         body: { name: 'Renamed' }
-      } as never)
+      })
     ).resolves.toMatchObject({ name: 'Renamed' })
 
     expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, { name: workspace.name })
@@ -97,7 +90,7 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
         body: { path: workspace.path, name: 'Ignored Rename' }
-      } as never)
+      })
     ).resolves.toEqual({ data: workspace, status: SuccessStatus.OK })
   })
 
@@ -122,19 +115,6 @@ describe('agentWorkspaceHandlers', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('delegates workspace deletion cascade to AgentSessionService', async () => {
-    const result = { deletedIds: ['session-1'] }
-    deleteWorkspaceCascadeMock.mockReturnValueOnce(result)
-
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
-        params: { workspaceId: workspace.id }
-      } as never)
-    ).resolves.toBe(result)
-
-    expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
-  })
-
   it('delegates workspace reference lookup to AgentWorkspaceService', async () => {
     const references = {
       sessions: { items: [{ id: 'session-1', name: 'Session' }], total: 1 },
@@ -146,7 +126,7 @@ describe('agentWorkspaceHandlers', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toBe(references)
 
     expect(getReferencesMock).toHaveBeenCalledWith(workspace.id)

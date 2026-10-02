@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { findAllSkillDirectories } from '../markdownParser'
 
+/** Normalize path separators to forward slash for cross-platform assertions. */
+const fwd = (p: string): string => p.replaceAll('\\', '/')
+
 describe('findAllSkillDirectories', () => {
   const tempDirs: string[] = []
 
@@ -26,6 +29,51 @@ describe('findAllSkillDirectories', () => {
 
     const result = await findAllSkillDirectories(root, root)
 
-    expect(result.map((candidate) => candidate.sourcePath).sort()).toEqual(['first/shared-name', 'second/shared-name'])
+    expect(result.map((candidate) => fwd(candidate.sourcePath)).sort()).toEqual([
+      'first/shared-name',
+      'second/shared-name'
+    ])
+  })
+
+  it('skips arbitrary hidden directories and node_modules', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
+    tempDirs.push(root)
+    const visible = path.join(root, 'skills', 'my-skill')
+    const hidden = path.join(root, '.openclaw', 'skills', 'my-skill')
+    const nodeModules = path.join(root, 'node_modules', 'my-skill')
+    await Promise.all([
+      fs.promises.mkdir(visible, { recursive: true }),
+      fs.promises.mkdir(hidden, { recursive: true }),
+      fs.promises.mkdir(nodeModules, { recursive: true })
+    ])
+    await Promise.all([
+      fs.promises.writeFile(path.join(visible, 'SKILL.md'), '# visible'),
+      fs.promises.writeFile(path.join(hidden, 'SKILL.md'), '# hidden'),
+      fs.promises.writeFile(path.join(nodeModules, 'SKILL.md'), '# node_modules')
+    ])
+
+    const result = await findAllSkillDirectories(root, root)
+
+    expect(result.map((candidate) => fwd(candidate.sourcePath))).toEqual(['skills/my-skill'])
+  })
+
+  it('allows dot-prefixed community convention directories only at the root', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
+    tempDirs.push(root)
+    await Promise.all(
+      ['.agents', '.claude', '.gemini', 'nested/.agents', 'nested/.claude', 'nested/.gemini'].map(async (dir) => {
+        const skillDir = path.join(root, dir, 'skills', 'my-skill')
+        await fs.promises.mkdir(skillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
+      })
+    )
+
+    const result = await findAllSkillDirectories(root, root)
+
+    expect(result.map((candidate) => fwd(candidate.sourcePath)).sort()).toEqual([
+      '.agents/skills/my-skill',
+      '.claude/skills/my-skill',
+      '.gemini/skills/my-skill'
+    ])
   })
 })

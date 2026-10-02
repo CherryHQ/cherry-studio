@@ -32,7 +32,8 @@ import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
-import { canonOf, prefixHit, splitOverrideWireId } from './canonicalize'
+import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
+import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -300,11 +301,24 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   for (const [p, v] of Object.entries(md)) {
     if (!ownerOf.has(p)) continue
     for (const [id, m] of Object.entries(v.models ?? {})) {
+      if (isModelsDevRoutingAlias(p, id)) continue
       if (crossVendorHost(id, ownerOf.get(p))) continue
       consider(id, parseMdEntry(m), p)
     }
   }
-  for (const m of or.data ?? []) consider(m.id, parseOrEntry(m), 'openrouter')
+  const openRouter = PROVIDERS.find((provider) => provider.id === 'openrouter')
+  const openRouterStandalones = new Set(
+    [
+      ...(openRouter?.standaloneModelIds ?? []),
+      ...(openRouter?.overrides?.flatMap((override) => (override.name && override.modelId ? [override.modelId] : [])) ??
+        [])
+    ].map(canonOf)
+  )
+  for (const m of or.data ?? []) {
+    // Provider-declared standalone routes are not creator models.
+    if (openRouterStandalones.has(canonOf(m.id))) continue
+    consider(m.id, parseOrEntry(m), 'openrouter')
+  }
 
   // Fold host/org re-prefixes WITHOUT a hand-list (stripHostReprefix uses the index as the oracle):
   // databricks-gemini-3-flash → gemini-3-flash, cerebras-llama-4-scout → llama-4-scout, etc. Brands like
@@ -330,7 +344,8 @@ async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<strin
     if (!creator.modelsDevProviders) continue
     const ids = new Set<string>()
     for (const p of creator.modelsDevProviders)
-      for (const id of Object.keys(md[p]?.models ?? {})) if (!crossVendorHost(id, creator.id)) ids.add(canonOf(id))
+      for (const id of Object.keys(md[p]?.models ?? {}))
+        if (!isModelsDevRoutingAlias(p, id) && !crossVendorHost(id, creator.id)) ids.add(canonOf(id))
     creatorProviderIds.set(creator.id, ids)
   }
   // each creator's own API list (most native; keyless → empty, falls back to the passes below)
@@ -476,7 +491,7 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  */
 function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => {
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, ...conn }) => {
     const serverTools = conn.serverTools?.map((tool) => {
       const config = { ...tool }
       delete config.modelIdPrefixes
@@ -505,6 +520,9 @@ function buildProviderModels(
   orImageModels: OpenRouterApi,
   baseIds: Set<string>
 ): { overrides: any[] } {
+  const openRouterStandaloneIds = new Set(
+    PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
+  )
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -518,9 +536,7 @@ function buildProviderModels(
     seen.add(k)
     rows.push(o)
   }
-  // md-derived rows key on `modelId` only — upstream date snapshots that canonicalize to one id collapse to
-  // a single row. Providers may also declare model-id reasoning templates; the template is expanded into
-  // each matching upstream row while its upstream pricing/apiModelId remain intact.
+  // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
     if (seen.has(k)) return
@@ -528,29 +544,39 @@ function buildProviderModels(
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    const reasoningTemplates = (p.overrides ?? []).filter(
-      (override) => p.modelsDevProvider && !override.apiModelId && override.reasoningContracts
+    const modelTemplates = (p.overrides ?? []).filter(
+      (override) =>
+        p.modelsDevProvider &&
+        !override.apiModelId &&
+        (override.endpointTypes ||
+          override.reasoningContracts ||
+          override.requestControls ||
+          override.parameterSupport ||
+          override.name ||
+          override.ownedBy ||
+          Object.hasOwn(override, 'pricing'))
     )
-    const matchedTemplates = new Set<(typeof reasoningTemplates)[number]>()
+    const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) {
-      if (!reasoningTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
+      if (!modelTemplates.includes(override)) addOverride({ providerId: p.id, ...override })
     }
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
+      if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue
       const meta = parseMdEntry(m)
       if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
       const modelId = canonOf(apiModelId)
       if (!modelId) continue
-      const template = reasoningTemplates.find((override) => override.modelId === modelId)
+      const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
-        row.name = meta.name // vendor-exclusive → standalone
+        row.name ??= meta.name // vendor-exclusive → standalone
       }
       addModel(row)
     }
-    for (const template of reasoningTemplates) {
+    for (const template of modelTemplates) {
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
     }
   }
@@ -589,11 +615,25 @@ function buildProviderModels(
     const modelId = canonOf(model.id)
     if (!imageGeneration || !modelId) continue
     const meta = parseOrEntry(model)
+    const existing =
+      rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id) ??
+      rows.find(
+        (row) =>
+          !baseIds.has(modelId) &&
+          row.providerId === 'openrouter' &&
+          row.modelId === modelId &&
+          row.apiModelId === undefined
+      )
     const imageRow = {
       providerId: 'openrouter',
       modelId,
       apiModelId: model.id,
-      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy: model.id.split('/')[0] } : {}),
+      ...(!baseIds.has(modelId)
+        ? {
+            name: existing?.name ?? model.name ?? model.id,
+            ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
+          }
+        : {}),
       capabilities: { add: ['image-generation'] },
       endpointTypes: ['openai-image-generation'],
       ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
@@ -603,7 +643,6 @@ function buildProviderModels(
     // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
     // row in place so its pricing and the image catalog's controls coexist instead of first-wins
     // deduplication silently dropping one side.
-    const existing = rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id)
     if (existing) Object.assign(existing, imageRow)
     else addModel(imageRow)
   }
@@ -662,14 +701,19 @@ void (async () => {
       delete rest.metadata
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
+  const providers = buildProviders()
+  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
+  if (serviceTierErrors.length > 0) {
+    throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)
+  }
+
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 
-  const providers = buildProviders()
   fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
   console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
   fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
   console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 

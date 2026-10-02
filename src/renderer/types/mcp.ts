@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
 import { isBuiltinMcpServerName } from '@shared/utils/mcp'
-import * as z from 'zod'
 
 /**
  * 定义 MCP 服务器的通信类型。

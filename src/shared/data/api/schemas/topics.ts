@@ -53,14 +53,31 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  * Query parameters for `GET /topics` (cursor pagination + search).
  */
 export const ListTopicsQuerySchema = z.strictObject({
+  /** Exact topic ids to include. */
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  q: z.string().optional(),
+  /** `true` lists only trashed topics; omitted/false lists active topics. */
+  inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: z.string().min(1).optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+/** Exact creation target for atomically reusing or creating an empty topic. */
+export const ReuseOrCreateTopicSchema = z.strictObject({
+  assistantId: z.string().min(1).nullable(),
+  excludeTopicId: z.string().min(1).optional()
+})
+export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -113,25 +130,22 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-active topic, or `null` when empty. */
+/** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
   topic: Topic | null
 }
 
-const DeleteTopicsIdsQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).min(1))
+/** The reusable empty topic selected or created for the exact target. */
+export interface ReusableTopicPlaceholderResponse {
+  topic: Topic
+  created: boolean
+}
 
-export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: DeleteTopicsIdsQueryValueSchema
+export const DeleteTopicQuerySchema = z.strictObject({
+  /** DataApi owns only the DB-only purge path; archiving is an IpcApi lifecycle command. */
+  permanent: z.literal(true)
 })
-export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -150,7 +164,6 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
-   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -171,32 +184,35 @@ export type TopicSchemas = {
       body: CreateTopicDto
       response: Topic
     }
-    /**
-     * Delete an explicit set of topics.
-     *
-     * Used by multi-select table flows where the selection can span assistants.
-     * This operation is all-or-nothing: if any supplied ID does not resolve to
-     * a non-deleted topic, the request fails and no selected topics are deleted.
-     */
-    DELETE: {
-      query: DeleteTopicsQuery
-      response: DeleteTopicsResult
-    }
   }
 
   /**
-   * Most-recently-active topic across all assistants.
+   * Most-recently-active topic, globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
    * `latest` is never mistaken for a topic id. Proves global latest via
    * `lastActivityAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `assistantId=unlinked` covers topics without a live assistant.
    *
    * @example GET /topics/latest
+   * @example GET /topics/latest?assistantId=asst_123
    */
   '/topics/latest': {
     GET: {
+      query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  /**
+   * Atomically reuse the latest structurally empty, untitled placeholder for
+   * one exact creation target, or create it when none exists.
+   */
+  '/topics/reusable-placeholder': {
+    POST: {
+      body: ReuseOrCreateTopicDto
+      response: ReusableTopicPlaceholderResponse
     }
   }
 
@@ -204,7 +220,7 @@ export type TopicSchemas = {
    * Individual topic endpoint
    * @example GET /topics/abc123
    * @example PATCH /topics/abc123 { "name": "Updated Name" }
-   * @example DELETE /topics/abc123
+   * @example DELETE /topics/abc123?permanent=true
    */
   '/topics/:id': {
     /** Get a topic by ID */
@@ -218,10 +234,19 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Delete a topic and all its messages */
+    /** Permanently delete a topic already in the Recycle Bin. */
     DELETE: {
       params: { id: string }
+      query: DeleteTopicQuery
       response: void
+    }
+  }
+
+  /** Restore one trashed topic. Pins and tags are not restored. */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 
@@ -261,20 +286,6 @@ export type TopicSchemas = {
       params: { id: string }
       body: DuplicateTopicDto
       response: Topic
-    }
-  }
-
-  /**
-   * Delete all topics currently linked to an assistant.
-   *
-   * This is an explicit scoped collection delete. It does not change
-   * the default `DELETE /assistants/:id` behavior, which only deletes the
-   * assistant itself unless the caller opts into `deleteTopics=true`.
-   */
-  '/assistants/:assistantId/topics': {
-    DELETE: {
-      params: { assistantId: string }
-      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

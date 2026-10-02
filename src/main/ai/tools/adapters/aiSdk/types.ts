@@ -1,8 +1,9 @@
+import type { Tool } from 'ai'
+
 import type { EntityToolOutputCodec } from '@cherrystudio/ai-core'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport, UniqueModelId } from '@shared/data/types/model'
 import type { WebToolRoutes } from '@shared/utils/provider'
-import type { Tool } from 'ai'
 
 /**
  * Main-side codec: the aiCore deflate/assemble pair plus the persist-lane
@@ -19,6 +20,7 @@ export interface ToolOutputCodec extends EntityToolOutputCodec {
  */
 export interface ToolApplyScope {
   readonly assistant?: Assistant
+  readonly browserEnabled?: boolean
   /** Painting model resolved once for this request; dynamic builtins derive their schema from it. */
   readonly paintingModel?: {
     readonly uniqueModelId: UniqueModelId
@@ -26,6 +28,11 @@ export interface ToolApplyScope {
   }
   /** Server allowlist + per-tool disable already applied. */
   readonly mcpToolIds: ReadonlySet<string>
+  /**
+   * In-scope MCP servers that declared the `resources` capability — gates the `mcp_resource_*`
+   * tools. Empty (the default) means no server can serve a resource, so neither tool is exposed.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
   /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
   readonly hasFileAttachments?: boolean
   /** True when the conversation already references persisted tool-output blobs — gates the `fs_read` tool. Defaults to false. */

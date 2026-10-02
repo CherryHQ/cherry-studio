@@ -4,7 +4,6 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { type IncomingMessage, WeixinBot } from './WeChatProtocol'
@@ -91,14 +90,18 @@ class WeChatAdapter extends ChannelAdapter {
       throw new Error('Bot is not connected')
     }
 
-    const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+    const bot = this.bot
+    try {
+      const chunks = splitMessage(text, WECHAT_MAX_LENGTH)
+      for (let i = 0; i < chunks.length; i++) {
+        await bot.send(chatId, chunks[i])
 
-    for (let i = 0; i < chunks.length; i++) {
-      await this.bot.send(chatId, chunks[i])
-
-      if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
       }
+    } finally {
+      bot.stopTyping(chatId).catch(() => {})
     }
   }
 
@@ -106,12 +109,8 @@ class WeChatAdapter extends ChannelAdapter {
     if (!this.bot) {
       throw new Error('Bot is not connected')
     }
-    // The reverse-engineered WeChat protocol only supports outbound images today
-    // (WeixinBot.sendImage). Document upload would need protocol-level CDN work.
-    if (!file.media_type.startsWith('image/')) {
-      throw new Error(`WeChat can only forward image files, not "${file.media_type}" (${file.filename})`)
-    }
-    await this.bot.sendImage(chatId, Buffer.from(file.data, 'base64'))
+
+    await this.bot.sendFile(chatId, file.filename, Buffer.from(file.data, 'base64'), file.media_type)
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
@@ -158,7 +157,7 @@ class WeChatAdapter extends ChannelAdapter {
           .map((uri) => {
             const result = parseDataUrl(uri)
             if (!result || !result.isBase64 || !result.mediaType) return null
-            return { media_type: result.mediaType, data: result.data } as ImageAttachment
+            return { media_type: result.mediaType, data: result.data }
           })
           .filter((img): img is ImageAttachment => img !== null)
         if (parsed.length > 0) images = parsed
@@ -175,7 +174,8 @@ class WeChatAdapter extends ChannelAdapter {
             return {
               filename: r.filename,
               data: r.data.toString('base64'),
-              media_type: FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream',
+              media_type:
+                r.mediaType === 'application/octet-stream' ? FILE_EXTENSION_MIME_MAP[ext] || r.mediaType : r.mediaType,
               size: r.data.length
             } satisfies FileAttachment
           })
@@ -234,12 +234,8 @@ class WeChatAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('wechat', (channel, agentId) => {
+export function createWeChatAdapter(config: ChannelAdapterConfig<'wechat'>) {
   return new WeChatAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

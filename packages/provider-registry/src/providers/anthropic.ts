@@ -1,6 +1,8 @@
 import { defineProvider } from './types'
 
 const webToolModels = [
+  'claude-sonnet-5-5',
+  'claude-opus-5-5',
   'claude-opus-4',
   'claude-sonnet-4',
   'claude-haiku-4',
@@ -12,6 +14,7 @@ const webToolModels = [
 export default defineProvider({
   id: 'anthropic',
   name: 'Anthropic',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'anthropic-messages',
   endpointConfigs: {
     'anthropic-messages': {

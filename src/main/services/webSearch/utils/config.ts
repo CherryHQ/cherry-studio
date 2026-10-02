@@ -107,7 +107,7 @@ function inheritExaMcpApiKeys(
  * store, so rotating or disabling it there takes effect here too.
  */
 function inheritZhipuModelProviderApiKeys(provider: WebSearchProvider): WebSearchProvider {
-  if (provider.id !== 'zhipu' || provider.apiKeys.length > 0) {
+  if (provider.id !== 'zhipu') {
     return provider
   }
 
@@ -116,10 +116,10 @@ function inheritZhipuModelProviderApiKeys(provider: WebSearchProvider): WebSearc
     modelProviderKeys = trimStringList(providerService.getApiKeys('zhipu', { enabled: true }).map((entry) => entry.key))
   } catch {
     // No Zhipu model provider row: the user simply has not configured Zhipu at all.
-    return provider
+    return { ...provider, apiKeys: [] }
   }
 
-  return modelProviderKeys.length > 0 ? { ...provider, apiKeys: modelProviderKeys } : provider
+  return { ...provider, apiKeys: modelProviderKeys }
 }
 
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {

@@ -1,11 +1,14 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { mergeHeaders } from '@main/utils/http'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -15,7 +18,6 @@ import {
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import {
   type Assistant,
   DEFAULT_ASSISTANT_SETTINGS,
@@ -26,30 +28,27 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
-import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
-import { createHttpTraceFetch } from '../../../observability'
-import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import { applyHttpTrace } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import {
-  resolveAiSdkProviderId,
-  type ResolvedEndpoint,
-  resolveEffectiveEndpoint,
-  resolveProviderOptionsKey,
-  resolveWireModelId
-} from '../../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
-import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
+import {
+  resolveAssistantMcpToolIds,
+  resolveMcpResourceServers
+} from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiBaseRequest, CallOverrides } from '../../../types'
+import type { AiChatRequest, CallOverrides } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -58,13 +57,14 @@ import {
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
-  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -88,8 +88,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
-  request: AiBaseRequest & {
-    chatId?: string
+  request: AiChatRequest & {
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -130,10 +129,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride,
-    request.chatId
+    request.apiKeyOverride
   )
-  applyHttpTrace(sdkConfig, request.chatId, model)
+  applyHttpTrace(sdkConfig.providerSettings, {
+    topicId: request.conversation.topicId,
+    modelName: model.name ?? model.id
+  })
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -146,6 +147,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // context (fs_read's per-call cap follows the effective persist threshold).
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
+    request.conversation,
     assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
@@ -157,11 +159,15 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
-  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
+  const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request, assistant) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
-      ? toolSignals.mcpToolIds.size > 0 ||
+      ? toolSignals.browserEnabled === true ||
+        toolSignals.mcpToolIds.size > 0 ||
+        // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
+        // mistaken for a request that loads no function tool.
+        toolSignals.mcpResourceServerIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
         // scope one. ORing the two made every user with any KB look like a function-tool conflict,
         // which withheld the server web-search route on Gemini 2.5 for requests that load no tool.
@@ -172,7 +178,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds } = toolSignals
     ? await resolveTools(
         request,
         assistant,
@@ -184,7 +190,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         hasPersistedOutputs,
         canOffloadToolOutputs
       )
-    : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
+    : {
+        tools: undefined,
+        deferredEntries: [] as ToolEntry[],
+        hasCitableTools: false,
+        mcpToolIds: new Set<string>(),
+        mcpResourceServerIds: new Set<string>()
+      }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
@@ -201,6 +213,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const reasoningEndpointType =
     runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
@@ -213,12 +226,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model,
     endpointType
   )
+  const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
+  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
-    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    selection: reasoningSelection,
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: provider.settings.summaryText
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,
@@ -228,7 +243,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
-    topicId: request.chatId,
+    topicId: request.conversation.topicId,
     assistant,
     abortSignal: signal,
     fileAttachments,
@@ -238,6 +253,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // per-turn appends never contaminate the RetainedContext shared across the
     // models of a multi-model send.
     persistedOutputPaths: new Set(retained.persistedOutputPaths),
+    // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
+    mcpResourceServerIds,
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
@@ -254,8 +271,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    serviceTierControl,
     requestContext,
     mcpToolIds,
+    mcpResourceServerIds,
     contextSettings,
     compressionModel,
     compactionSink,
@@ -269,7 +288,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries, hasCitableTools })
+  const system = await assembleSystemPrompt({
+    assistant,
+    model,
+    tools,
+    deferredEntries,
+    hasCitableTools,
+    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
+  })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -277,6 +303,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
+  applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
   return {
     sdkConfig,
@@ -291,39 +318,27 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-async function resolveSdkConfig(
-  provider: Provider,
-  model: Model,
-  resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string,
-  sessionId?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
-    apiKeyOverride,
-    resolvedEndpoint,
-    sessionId
-  })
-  return {
-    sdkConfig: {
-      ...config,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-        actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-      }),
-      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
-    },
-    credentialReceipt
-  }
-}
-
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
+/**
+ * OpenAI Responses API expects the system prompt in the top-level `instructions`
+ * field. The AI SDK only turns `system` into an input message and leaves
+ * `instructions` empty, which lets relay servers inject their own default system
+ * prompt and override the user's. Mirror the assembled system prompt there for
+ * Responses-endpoint models, unless the user already set it explicitly. (#16008)
+ */
+export function applyResponsesInstructions(
+  options: AgentOptions,
+  system: string | undefined,
+  endpointType: EndpointType | undefined,
+  providerOptionsKey: string
+): void {
+  if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
+  const providerOptions = (options.providerOptions ??= {})
+  const namespace = (providerOptions[providerOptionsKey] ??= {})
+  if (namespace.instructions != null) return
+  namespace.instructions = system
+  // `instructions` does not displace the system input message; without this the
+  // whole prompt ships twice.
+  namespace.systemMessageMode = 'remove'
 }
 
 /**
@@ -340,15 +355,38 @@ function canModelConsumeTools(model: Model): boolean {
   return isFunctionCallingModel(model)
 }
 
-/** Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`. */
+/**
+ * Pre-tool-resolution signals — feed the web-tool routing and are reused by `resolveTools`.
+ *
+ * `mcpResourceServerIds` is resolved (and frozen) here rather than inside `resolveTools` because web
+ * routing runs first and has to know that this request will carry function tools: a resource-only
+ * assistant that reported "no function tools" would be routed to a provider's server web route, and
+ * `finalizeWebToolRoutes` can only withdraw that route afterwards, not fall back to the client one.
+ */
 async function resolveRequestToolSignals(
-  request: BuildAgentParamsInput['request']
-): Promise<{ mcpToolIds: ReadonlySet<string>; hasAnyKnowledgeBase: boolean }> {
+  request: BuildAgentParamsInput['request'],
+  assistant: Assistant | undefined
+): Promise<{
+  mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
+  hasAnyKnowledgeBase: boolean
+  browserEnabled?: boolean
+}> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
-  return { mcpToolIds: new Set(mcpIdList ?? []), hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase() }
+  return {
+    mcpToolIds: new Set(mcpIdList ?? []),
+    mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
+    browserEnabled: Boolean(
+      request.conversation.topicId &&
+      assistant &&
+      assistant.settings.enableBrowser !== false &&
+      application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ),
+    hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
+  }
 }
 
 /**
@@ -371,8 +409,10 @@ export async function resolveTools(
   deferredEntries: ToolEntry[]
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
+    signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
     // resolving ownership by exact id without MCP network round trips.
@@ -383,7 +423,9 @@ export async function resolveTools(
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
+    browserEnabled,
     mcpToolIds,
+    mcpResourceServerIds,
     hasFileAttachments,
     hasPersistedOutputs,
     canOffloadToolOutputs,
@@ -422,7 +464,13 @@ export async function resolveTools(
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
-  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
+  return {
+    tools: exposed.tools,
+    deferredEntries: exposed.deferredEntries,
+    hasCitableTools,
+    mcpToolIds,
+    mcpResourceServerIds
+  }
 }
 
 async function resolveRequestWebToolRoutes(
@@ -445,13 +493,13 @@ async function resolveRequestWebToolRoutes(
         resolveClientWebCapabilityAvailability('fetchUrls')
       ])
     : [false, false]
-  const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+  const modelToolsPreferred = preferenceService.get('chat.web_search.model_tools_preferred')
 
   return resolveWebToolRoutes(model, provider, {
     webSearchEnabled: clientWebToolsEnabled,
     clientSearchAvailable,
     clientFetchAvailable,
-    clientToolsPreferred,
+    modelToolsPreferred,
     endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort
@@ -460,7 +508,13 @@ async function resolveRequestWebToolRoutes(
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
     try {
       const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
-      return isWebSearchProviderReady(clientProvider, capability)
+      const fallbackProviders = await Promise.all(
+        getWebSearchFallbackProviderIds(clientProvider.id, capability).map((providerId) =>
+          getProviderById(providerId, preferenceService)
+        )
+      )
+
+      return Boolean(resolveReadyWebSearchProvider([clientProvider, ...fallbackProviders], clientProvider, capability))
     } catch (error) {
       if (!isPermanentWebSearchConfigError(error)) {
         logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })
@@ -507,42 +561,33 @@ function buildAgentOptions(
     request,
     aiSdkProviderId,
     endpointType,
-    reasoning
+    reasoning,
+    serviceTierControl
   } = scope
 
-  let providerOptions =
-    assistant && capabilities
-      ? buildCapabilityProviderOptions(
-          model,
-          provider,
-          {
-            enableReasoning: capabilities.enableReasoning,
-            enableGenerateImage: capabilities.enableGenerateImage,
-            enableWebSearch: scope.webToolRoutes?.webSearch === 'server'
-          },
-          {
-            aiSdkProviderId,
-            runtimeProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }
-        )
-      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
-        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
-        // gateway/topic-naming requests are unchanged.
-        request.reasoningEffort !== undefined
-        ? (buildResolvedReasoningProviderOptions({
-            aiSdkProviderId: sdkConfig.providerId,
-            providerOptionsKey: sdkConfig.providerOptionsKey,
-            endpointType,
-            reasoning
-          }) as Record<string, Record<string, JSONValue>>)
-        : {}
+  // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
+  // can't diverge. Assistant-less callers (translate, prompt streams) carry no capabilities;
+  // they opt into reasoning by setting `request.reasoningEffort` explicitly.
+  let providerOptions = buildCapabilityProviderOptions(
+    model,
+    provider,
+    {
+      enableReasoning: capabilities ? capabilities.enableReasoning : request.reasoningEffort !== undefined,
+      enableGenerateImage: capabilities?.enableGenerateImage ?? false,
+      enableWebSearch: capabilities ? scope.webToolRoutes?.webSearch === 'server' : false
+    },
+    {
+      aiSdkProviderId,
+      runtimeProviderId: sdkConfig.providerId,
+      providerOptionsKey: sdkConfig.providerOptionsKey,
+      endpointType,
+      reasoning
+    }
+  )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant, model, reasoning)
-    const topP = getTopP(assistant, model, reasoning)
+    const temperature = getTemperature(assistant.settings, model, reasoning)
+    const topP = getTopP(assistant.settings, model, reasoning)
     standardParams = {
       ...(temperature !== undefined && { temperature }),
       ...(topP !== undefined && { topP }),
@@ -566,6 +611,23 @@ function buildAgentOptions(
     }
   }
 
+  if (serviceTierControl) {
+    providerOptions = applyServiceTierToProviderOptions(
+      providerOptions,
+      sdkConfig.providerOptionsKey,
+      serviceTierControl,
+      request.serviceTier ?? assistant?.settings.service_tier
+    )
+    if (serviceTierControl.wire.delivery.type === 'request-body') {
+      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+        [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
+          serviceTierControl,
+          request.serviceTier ?? assistant?.settings.service_tier
+        )
+      })
+    }
+  }
+
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
@@ -576,6 +638,9 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  // A namespace that ended up empty carries nothing; emitting it would ship a bare
+  // `providerOptions` for callers that opted into nothing.
+  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -591,7 +656,11 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const { headers, maxRetries } = request.requestOptions ?? {}
+  const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
+  // A provider that keys on the conversation declared the header; the caller's own headers win.
+  const headers = sdkConfig.conversationHeader
+    ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
+    : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
@@ -602,7 +671,7 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(Object.keys(effectiveProviderOptions).length > 0 && { providerOptions: effectiveProviderOptions }),
+    ...(hasProviderOptions && { providerOptions: effectiveProviderOptions }),
     ...(telemetry && { telemetry }),
     ...standardParams,
     context: requestContext,
@@ -610,6 +679,7 @@ function buildAgentOptions(
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      headers,
       getUsagePlugins: getRepairUsagePlugins
     })
   }

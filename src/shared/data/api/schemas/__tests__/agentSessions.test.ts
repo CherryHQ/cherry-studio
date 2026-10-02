@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  AGENT_SESSION_DELETE_MAX_IDS,
   CreateAgentSessionSchema,
-  DeleteAgentSessionsQuerySchema,
+  ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
 describe('AgentSession schemas', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `session-${index}`)
+
+    expect(ListAgentSessionsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+
   it('accepts workspace changes through the dedicated workspace source body', () => {
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)
@@ -70,13 +77,5 @@ describe('AgentSession schemas', () => {
       }).success
     ).toBe(false)
     expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
-  })
-
-  it('caps bulk delete ids', () => {
-    const validIds = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS }, (_, index) => `session-${index}`).join(',')
-    const tooManyIds = `${validIds},session-overflow`
-
-    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: validIds }).success).toBe(true)
-    expect(DeleteAgentSessionsQuerySchema.safeParse({ ids: tooManyIds }).success).toBe(false)
   })
 })

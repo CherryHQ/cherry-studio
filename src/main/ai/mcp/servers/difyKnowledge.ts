@@ -1,9 +1,10 @@
-// inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
-import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
 import * as z from 'zod'
+
+// inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
@@ -114,7 +115,7 @@ class DifyKnowledgeServer {
             return await this.performSearchKnowledge(
               parsed.data.id,
               parsed.data.query,
-              parsed.data.topK || 6,
+              parsed.data.topK ?? 6,
               this.config.difyKey,
               this.config.apiHost
             )

@@ -1,8 +1,9 @@
-import { HorizontalScrollContainer, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ArrowUpDown, AudioLines, Boxes, Image, type LucideIcon, Mic, Speech, Type, Video } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { HorizontalScrollContainer, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
@@ -58,6 +59,7 @@ interface ModelTypeFilterTabsProps {
   onValueChange: (value: string) => void
   counts: ModelListCapabilityCounts
   extraTabs?: ModelTypeFilterExtraTab[]
+  hideEmptyFilters?: boolean
   className?: string
   listClassName?: string
 }
@@ -73,6 +75,7 @@ export function ModelTypeFilterTabs({
   onValueChange,
   counts,
   extraTabs = [],
+  hideEmptyFilters = false,
   className,
   listClassName
 }: ModelTypeFilterTabsProps) {
@@ -121,18 +124,20 @@ export function ModelTypeFilterTabs({
               </span>
             </TabsTrigger>
           ))}
-          {MODEL_TYPE_FILTERS.map((filter) => {
-            const Icon = CAPABILITY_FILTER_ICONS[filter]
-            return (
-              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
-                <Icon className="size-3.5 shrink-0" aria-hidden />
-                <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
-                <span className={modelSyncClasses.manageTabCount} aria-hidden>
-                  {counts[filter]}
-                </span>
-              </TabsTrigger>
-            )
-          })}
+          {MODEL_TYPE_FILTERS.filter((filter) => !hideEmptyFilters || counts[filter] > 0 || value === filter).map(
+            (filter) => {
+              const Icon = CAPABILITY_FILTER_ICONS[filter]
+              return (
+                <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
+                  <Icon className="size-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
+                  <span className={modelSyncClasses.manageTabCount} aria-hidden>
+                    {counts[filter]}
+                  </span>
+                </TabsTrigger>
+              )
+            }
+          )}
         </TabsList>
       </HorizontalScrollContainer>
     </Tabs>

@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+
 import type { PermissionModeCard } from '@renderer/types/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -5,7 +7,6 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
@@ -99,9 +100,10 @@ export const permissionModeCards: PermissionModeCard[] = [
 ]
 
 /**
- * Two modes mean something different on pi, so their copy has to differ too: `auto` is Cherry's own
- * deterministic gate rather than Claude's model-side classifier (no "depends on the model" caveat),
- * and `bypassPermissions` really does bypass everything but disabled tools.
+ * `auto` means something different on pi, so its copy has to differ too: it is Cherry's own
+ * deterministic gate rather than Claude's model-side classifier (no "depends on the model" caveat).
+ * `bypassPermissions` now reads the same on every runtime — approvals are lifted, explicit safety
+ * blocks (disabled tools, global installs, and cross-Session delegation ceilings) still apply.
  */
 const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionModeCard>>> = {
   auto: {
@@ -113,12 +115,6 @@ const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionM
     // t('agent.settings.tooling.permissionMode.auto.warning_pi')
     warningKey: 'agent.settings.tooling.permissionMode.auto.warning_pi',
     warningFallback: 'Recognition is best-effort; an unusual command can still slip through.'
-  },
-  bypassPermissions: {
-    // t('agent.settings.tooling.permissionMode.bypassPermissions.warning_pi')
-    warningKey: 'agent.settings.tooling.permissionMode.bypassPermissions.warning_pi',
-    warningFallback:
-      'Dangerous — nothing is ever asked except for disabled tools, including file deletion and network access.'
   }
 }
 

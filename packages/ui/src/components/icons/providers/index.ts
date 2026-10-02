@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-08-10T12:29:08.620Z
- * Total icons: 158
+ * Generated at: 2026-09-10T18:57:46.000Z
+ * Total icons: 163
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -37,6 +37,7 @@ export { CherryinIcon as Cherryin } from './cherryin'
 export { ClaudeCodeIcon as ClaudeCode } from './claude-code'
 export { CloudflareIcon as Cloudflare } from './cloudflare'
 export { CohereIcon as Cohere } from './cohere'
+export { ComfyuiIcon as Comfyui } from './comfyui/comfyui'
 export { ComposioIcon as Composio } from './composio'
 export { CozeIcon as Coze } from './coze'
 export { DangbeiIcon as Dangbei } from './dangbei'
@@ -112,11 +113,13 @@ export { NousresearchIcon as Nousresearch } from './nousresearch'
 export { NvidiaIcon as Nvidia } from './nvidia'
 export { OcoolaiIcon as Ocoolai } from './ocoolai'
 export { OllamaIcon as Ollama } from './ollama'
+export { OmlxIcon as Omlx } from './omlx/omlx'
 export { OpenaiIcon as Openai } from './openai'
 export { OpenclawIcon as Openclaw } from './openclaw'
 export { OpenCodeGoIcon as OpenCodeGo } from './opencode'
 export { OpenrouterIcon as Openrouter } from './openrouter'
 export { PaddleocrIcon as Paddleocr } from './paddleocr'
+export { ParallelIcon as Parallel } from './parallel'
 export { PerplexityIcon as Perplexity } from './perplexity'
 export { Ph8Icon as Ph8 } from './ph8'
 export { PoeIcon as Poe } from './poe'
@@ -132,6 +135,7 @@ export { RiverflowIcon as Riverflow } from './riverflow'
 export { RunwayIcon as Runway } from './runway'
 export { SearxngIcon as Searxng } from './searxng'
 export { SensetimeIcon as Sensetime } from './sensetime'
+export { SerplyIcon as Serply } from './serply'
 export { SiliconIcon as Silicon } from './silicon'
 export { SkyworkIcon as Skywork } from './skywork'
 export { SmitheryIcon as Smithery } from './smithery'
@@ -146,6 +150,7 @@ export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'
 export { TngIcon as Tng } from './tng'
 export { TogetherIcon as Together } from './together'
+export { TokendanceIcon as Tokendance } from './tokendance'
 export { TwitterIcon as Twitter } from './twitter'
 export { UpstageIcon as Upstage } from './upstage'
 export { VercelIcon as Vercel } from './vercel'

@@ -7,9 +7,10 @@
  * `useChatWrite()`.
  */
 
+import { createContext, use } from 'react'
+
 import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { createContext, use } from 'react'
 
 /** Optional arguments passed alongside `deleteMessage`. */
 export interface DeleteMessageOptions {
@@ -45,7 +46,6 @@ export interface ChatWriteActions {
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (messageIds: readonly string[]) => Promise<void>
   pause: () => void
-  clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
    * Branch a user message: create a sibling with edited parts, make it active,

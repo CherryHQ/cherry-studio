@@ -6,6 +6,7 @@ import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
 import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
 import { powerPointFilePreviewPlugin } from './plugins/powerpoint/powerPointFilePreviewPlugin'
+import { spreadsheetFilePreviewPlugin } from './plugins/spreadsheet/spreadsheetFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
@@ -48,7 +49,13 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     markdownFilePreviewPlugin,
     pdfFilePreviewPlugin,
     powerPointFilePreviewPlugin,
+    spreadsheetFilePreviewPlugin,
     textFilePreviewPlugin,
     wordFilePreviewPlugin
   ]
 })
+
+/** Whether the plugin that would render `filePath` declares `supportsSelectionReference`. */
+export function canProduceSelectionReference(filePath: string): boolean {
+  return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
+}

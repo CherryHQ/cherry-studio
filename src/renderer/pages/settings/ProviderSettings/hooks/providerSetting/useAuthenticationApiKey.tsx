@@ -10,7 +10,7 @@ export function useAuthenticationApiKey() {
   const value = use(ApiKeyContext)
 
   if (!value) {
-    throw new Error('useAuthenticationApiKey must be used within AuthenticationSection')
+    throw new Error('useAuthenticationApiKey must be used within ApiKeyProvider')
   }
 
   return value

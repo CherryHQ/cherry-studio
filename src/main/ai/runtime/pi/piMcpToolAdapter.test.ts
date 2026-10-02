@@ -5,8 +5,9 @@ import {
   ListToolsRequestSchema,
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
-import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
@@ -61,7 +62,7 @@ describe('warmMcpToolCatalogs', () => {
   })
 
   it('does not fail session startup when a catalog refresh rejects', async () => {
-    mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'server' } as McpServerEntity)
+    mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'server' })
     mocks.refreshTools.mockRejectedValue(new Error('offline'))
 
     await expect(warmMcpToolCatalogs(['server-1'])).resolves.toBeUndefined()
@@ -129,7 +130,15 @@ describe('buildMcpToolDefinitions', () => {
       ],
       structuredContent: { total: 3 }
     }))
-    const server = createServer([tool('run')], call)
+    const server = createServer(
+      [
+        {
+          ...tool('run'),
+          outputSchema: { type: 'object', properties: { total: { type: 'integer' } }, required: ['total'] }
+        }
+      ],
+      call
+    )
     const bridge = await buildMcpToolDefinitions({ server: { name: 'server', instance: server } })
 
     const output = await bridge.tools[0].execute('call-1', { value: 'x' }, undefined, undefined, {} as never)
@@ -142,6 +151,11 @@ describe('buildMcpToolDefinitions', () => {
         { type: 'text', text: 'body' }
       ],
       details: { total: 3 }
+    })
+    expect(bridge.tools[0].outputSchema).toEqual({
+      type: 'object',
+      properties: { total: { type: 'integer' } },
+      required: ['total']
     })
     await bridge.close()
   })

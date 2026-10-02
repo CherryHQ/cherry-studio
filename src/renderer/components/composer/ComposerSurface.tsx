@@ -1,9 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import SendMessageButton from '@renderer/components/SendMessageButton'
-import { toast } from '@renderer/services/toast'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -16,6 +10,15 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import SendMessageButton from '@renderer/components/SendMessageButton'
+import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
+
+import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { getComposerEditorMinHeight } from './composerSizing'
 import type { ComposerDeferredIntent, ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -43,24 +46,6 @@ function loadRuntime() {
   return runtimePromise
 }
 
-function isSendShortcut(event: ReactKeyboardEvent<HTMLTextAreaElement>, shortcut: SendMessageShortcut) {
-  if (event.key !== 'Enter' && event.key !== 'NumpadEnter') return false
-  if (event.nativeEvent.isComposing) return false
-
-  switch (shortcut) {
-    case 'Enter':
-      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-    case 'Ctrl+Enter':
-      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
-    case 'Command+Enter':
-      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
-    case 'Alt+Enter':
-      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
-    case 'Shift+Enter':
-      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
-  }
-}
-
 /** Clipboard/drag payloads are only readable during their own event, so keep an owned copy. */
 function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
   if (!source) return undefined
@@ -74,11 +59,14 @@ function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
 
 function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const { t } = useTranslation()
+  const showAiDisclaimer = props.showAiDisclaimer && getAppEdition() === 'cn'
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
   const intentRef = useRef<ComposerDeferredIntent>({})
   const [preferredSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const sendMessageShortcut = props.sendMessageShortcut ?? preferredSendMessageShortcut
+  const sendMessageShortcut = props.sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
+  const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
+  const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
@@ -115,12 +103,27 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     [props.draftTokens, props.text, props.tokens]
   )
 
-  // The fallback cannot rebase token offsets or render the editing header, so hand those states
-  // straight to the runtime instead of serving them badly.
-  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length)
+  // The fallback cannot rebase token offsets, render the editing header, grow beyond its fixed
+  // two-line box, or represent structural variants, so hand those states to the runtime instead.
+  const needsRuntime =
+    Boolean(props.editingState) ||
+    Boolean(props.draftTokens?.length) ||
+    props.tokens.length > 0 ||
+    props.text.trim().length > 0 ||
+    Boolean(props.compactWhenSingleLine) ||
+    props.isExpanded
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
+
+  // Swap while the app is idle rather than under the user's first keystroke: a swap that lands
+  // between a keydown and its character insertion drops that character, and no hand-off inside
+  // the runtime can recover it. Idle work stays off the first-paint path this fallback protects.
+  useEffect(() => {
+    if (Runtime || !window.requestIdleCallback) return
+    const idleId = window.requestIdleCallback(() => requestRuntime())
+    return () => window.cancelIdleCallback(idleId)
+  }, [Runtime, requestRuntime])
 
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
@@ -147,6 +150,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       },
       onTextChange: updateText,
       replaceDraft: (draft) => {
+        selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
       },
@@ -154,10 +158,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
       // A token needs its prompt text woven into the document at the caret, which only the rich
       // editor can do; the whole range travels along so the runtime still replaces a selection.
-      insertToken: (token) => {
+      insertToken: (token, updateOnly) => {
         const input = textareaRef.current
         intentRef.current.insertToken = {
           token,
+          updateOnly,
           selection: {
             start: input?.selectionStart ?? props.text.length,
             end: input?.selectionEnd ?? props.text.length
@@ -172,7 +177,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }, [Runtime, getFallbackDraft, props, requestRuntime])
 
   if (Runtime && runtimeReady && !isComposing) {
-    return <Runtime {...props} initialTextSelection={selectionRef.current} deferredIntent={intentRef.current} />
+    return (
+      <Runtime
+        {...props}
+        showAiDisclaimer={showAiDisclaimer}
+        initialTextSelection={selectionRef.current}
+        deferredIntent={intentRef.current}
+      />
+    )
   }
 
   const updateSelection = () => {
@@ -180,14 +192,21 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     if (input) selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
   }
 
+  const insertFallbackNewline = (input: HTMLTextAreaElement) => {
+    input.setRangeText('\n', input.selectionStart, input.selectionEnd, 'end')
+    selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+    props.onTextChange(input.value)
+  }
+
   const captureTransfer = (kind: 'paste' | 'drop', data: DataTransfer | null) => {
+    if (props.editable === false) return
     const transfer = cloneTransfer(data)
     if (transfer) intentRef.current.transfer = { kind, data: transfer }
     requestRuntime()
   }
 
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (!props.isInputHistoryActive || !props.onInputHistoryNavigate) return false
+    if (!props.onInputHistoryNavigate) return false
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
 
@@ -195,7 +214,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
     const isAtBoundary =
-      event.key === 'ArrowUp' ? input.selectionStart === 0 : input.selectionEnd === input.value.length
+      event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
     if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
@@ -243,63 +262,86 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       {props.topContent}
       <div className={props.leadingContent ? 'flex items-start' : 'contents'}>
         {props.leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{props.leadingContent}</div> : null}
-        <textarea
-          ref={textareaRef}
-          aria-label={props.placeholder}
-          value={props.text}
-          placeholder={props.placeholder}
-          rows={1}
-          disabled={props.editable === false}
-          spellCheck={props.enableSpellCheck}
-          data-ui="part:composer-input"
-          className="box-border block w-full min-w-0 flex-1 resize-none overflow-auto bg-transparent text-foreground outline-none"
-          style={{
-            height: editorMinHeight,
-            minHeight: editorMinHeight,
-            padding: '6px 44px 0 15px',
-            fontSize: props.fontSize,
-            lineHeight: 1.4
-          }}
-          onChange={(event) => {
-            updateSelection()
-            props.onTextChange(event.currentTarget.value)
-            requestRuntime()
-          }}
-          onFocus={() => {
-            props.onFocus?.()
-          }}
-          onSelect={updateSelection}
-          onPaste={(event) => {
-            // Native insertion would keep only the plain text and drop files, HTML and token
-            // fragments, so hand the whole payload to the runtime instead.
-            event.preventDefault()
-            captureTransfer('paste', event.clipboardData)
-          }}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={(event) => {
-            // Some IMEs only write the committed characters on compositionend, and the textarea is
-            // about to unmount, so read the final value here rather than waiting for `change`.
-            const input = event.currentTarget
-            selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
-            if (input.value !== props.text) props.onTextChange(input.value)
-            setIsComposing(false)
-          }}
-          onKeyDown={(event) => {
-            requestRuntime()
-            if (navigateInputHistory(event)) {
+        <div className="group/composer-editor relative flex min-w-0 flex-1">
+          <textarea
+            ref={textareaRef}
+            aria-label={props.placeholder}
+            value={props.text}
+            placeholder={props.placeholder}
+            rows={1}
+            readOnly={props.editable === false}
+            spellCheck={props.enableSpellCheck}
+            data-ui="part:composer-input"
+            className="box-border block w-full min-w-0 flex-1 resize-none overflow-auto bg-transparent text-foreground outline-none"
+            style={{
+              height: editorMinHeight,
+              minHeight: editorMinHeight,
+              padding: '6px 15px 0',
+              fontSize: props.fontSize,
+              lineHeight: 1.4
+            }}
+            onChange={(event) => {
+              updateSelection()
+              props.onTextChange(event.currentTarget.value)
+              requestRuntime()
+            }}
+            onFocus={() => {
+              intentRef.current.hadFocus = true
+              props.onFocus?.()
+              // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
+              // would otherwise commit before the keystroke's input event, dropping the character.
+              requestRuntime()
+            }}
+            onSelect={updateSelection}
+            onPaste={(event) => {
+              // Native insertion would keep only the plain text and drop files, HTML and token
+              // fragments, so hand the whole payload to the runtime instead.
               event.preventDefault()
-              return
-            }
-            if (!isSendShortcut(event, sendMessageShortcut)) return
-            event.preventDefault()
-            if (event.repeat) return
-            if (props.sendDisabled) {
-              showBlockedSendReason()
-            } else {
-              void props.onSendDraft(getFallbackDraft())
-            }
-          }}
-        />
+              captureTransfer('paste', event.clipboardData)
+            }}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={(event) => {
+              // Some IMEs only write the committed characters on compositionend, and the textarea is
+              // about to unmount, so read the final value here rather than waiting for `change`.
+              const input = event.currentTarget
+              selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+              if (props.editable !== false && input.value !== props.text) props.onTextChange(input.value)
+              setIsComposing(false)
+            }}
+            onKeyDown={(event) => {
+              if (props.editable === false) return
+              requestRuntime()
+              if (navigateInputHistory(event)) {
+                event.preventDefault()
+                return
+              }
+              // Same priority order as the runtime surface, so the two never drift: steer wins over
+              // send, and every other Enter combination is swallowed rather than inserting a break.
+              const isEnterPressed =
+                (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.nativeEvent.isComposing
+              if (!isEnterPressed) return
+
+              event.preventDefault()
+
+              const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
+              if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
+                // Holding the key must not send twice; holding the newline key still repeats.
+                if (event.repeat) return
+                if (props.sendDisabled) {
+                  showBlockedSendReason()
+                } else if (isSteerPressed) {
+                  void props.onSendDraft(getFallbackDraft(), { steer: true })
+                } else {
+                  void props.onSendDraft(getFallbackDraft())
+                }
+                return
+              }
+
+              if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
+            }}
+          />
+          <ComposerFocusShortcut focus={() => textareaRef.current?.focus()} editable={props.editable} />
+        </div>
       </div>
       <div
         data-ui="part:composer-actions"
@@ -355,6 +397,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               <div className="relative">{inputbarElement}</div>
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

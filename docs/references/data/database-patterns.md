@@ -1,3 +1,11 @@
+---
+description: Database schema authoring patterns - file organization, naming, column helpers, write serialization (withWriteTx)
+sources:
+  - src/main/data/db/schemas
+  - src/main/data/db/schemas/_columnHelpers.ts
+  - src/main/data/db/DbService.ts
+---
+
 # Database Schema Guidelines
 
 ## Schema File Organization
@@ -262,12 +270,12 @@ Always use `.returning()` to get inserted/updated data instead of re-querying:
 
 ```typescript
 // Good: Use returning()
-const [row] = await db.insert(table).values(data).returning();
-return rowToEntity(row);
+const [row] = db.insert(table).values(data).returning().all()
+return rowToEntity(row)
 
 // Avoid: Re-query after insert (unnecessary database round-trip)
-await db.insert(table).values({ id, ...data });
-return this.getById(id);
+db.insert(table).values({ id, ...data }).run()
+return this.getById(id)
 ```
 
 ### Row → Entity Mapping
@@ -306,7 +314,7 @@ camelCase mapping is automatic and fully type-safe.
 
 ```typescript
 // Step 1 — recursive CTE returns ID-only
-const idRows = await db.all<{ id: string }>(sql`
+const idRows = db.all<{ id: string }>(sql`
   WITH RECURSIVE ancestors AS (
     SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
     UNION ALL
@@ -320,7 +328,7 @@ const ids = idRows.map((r) => r.id)
 
 // Step 2 — fetch full rows via ORM (auto camelCase)
 const rows = ids.length > 0
-  ? await db.select().from(messageTable).where(inArray(messageTable.id, ids))
+  ? db.select().from(messageTable).where(inArray(messageTable.id, ids)).all()
   : []
 
 // Step 3 — restore CTE order (IN-list does not preserve order)

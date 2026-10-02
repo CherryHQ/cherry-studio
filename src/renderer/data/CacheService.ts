@@ -17,6 +17,8 @@
  * @see {@link CacheService} For implementation details
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import type {
   InferSharedCacheValue,
@@ -35,7 +37,6 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -1111,7 +1112,7 @@ export class CacheService {
   }
 
   /**
-   * Schedule persist cache save with 200ms debounce to avoid excessive writes
+   * Schedule persist cache save with 350ms debounce to avoid excessive writes
    */
   private schedulePersistSave(): void {
     this.persistDirty = true

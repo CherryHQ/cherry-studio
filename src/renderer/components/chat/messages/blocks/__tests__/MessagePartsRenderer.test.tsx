@@ -1,16 +1,19 @@
-import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
-import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
-const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
-const mockTopicStreamState = vi.hoisted(() => ({ status: undefined as string | undefined }))
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -27,19 +30,39 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
-vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
-  useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
-}))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockTopicStreamState.status,
-    activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: mockTopicStreamState.status === 'pending' || mockTopicStreamState.status === 'streaming',
+
+// Mocked as a real external store, so a renderer that re-subscribes to topic
+// stream state re-renders from this source alone — the #19716 fan-out.
+const topicStreamStore = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let snapshot = {
+    status: undefined as string | undefined,
+    activeExecutions: [] as unknown[],
+    awaitingApprovalAnchors: [] as unknown[],
+    isPending: false,
     isFulfilled: false,
-    markSeen: vi.fn()
-  })
-}))
+    markSeen: () => {}
+  }
+  return {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    getSnapshot: () => snapshot,
+    setStatus: (status: string | undefined) => {
+      snapshot = { ...snapshot, status }
+      listeners.forEach((listener) => listener())
+    }
+  }
+})
+vi.mock('@renderer/hooks/useTopicStreamStatus', async () => {
+  const { useSyncExternalStore } = await import('react')
+  return {
+    useTopicStreamStatus: () => useSyncExternalStore(topicStreamStore.subscribe, topicStreamStore.getSnapshot)
+  }
+})
 vi.mock('@renderer/types/file', () => ({
   COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -89,9 +112,14 @@ vi.mock('react-i18next', () => ({
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.tools.groupHeader') return `${params?.count} tool calls`
       if (key === 'message.processing') return 'Processing'
+      if (key === 'agent_session_fork.continue_in_source') return 'Continue in the original chat'
       if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.error') return 'Error'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
+      if (key === 'message.tools.sessionCreate.created') return 'Session created'
+      if (key === 'message.tools.sessionCreate.open') return 'Open session'
+      if (key === 'message.tools.sessionCreate.untitled') return 'Untitled session'
+      if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'common.expand') return 'Expand'
@@ -170,60 +198,6 @@ vi.mock('../../tools/MessageTools', () => {
   }
 })
 
-vi.mock('../../tools/toolResponse', () => ({
-  normalizeToolOutputResponse: (output: unknown) =>
-    output && typeof output === 'object' && !Array.isArray(output) && 'content' in output
-      ? (output as { content: unknown }).content
-      : output,
-  buildToolResponseFromPart: (part: any, fallbackId?: string) => {
-    const type = part.type as string
-    if (!type.startsWith('tool-') && type !== 'dynamic-tool') return null
-    const id = part.toolCallId ?? fallbackId
-    if (!id) return null
-    const name = part.toolName || type.replace(/^tool-/, '') || 'unknown'
-    const output = part.output
-    const metadata = output && typeof output === 'object' && output.metadata ? output.metadata : undefined
-    const isMcp = metadata?.type === 'mcp' || type === 'dynamic-tool'
-    const isMcpContent =
-      metadata?.type === 'mcp' &&
-      Array.isArray(output?.content) &&
-      output.content.every(
-        (item: unknown) =>
-          item &&
-          typeof item === 'object' &&
-          'type' in item &&
-          typeof item.type === 'string' &&
-          ['text', 'image', 'audio', 'resource', 'resource_link'].includes(item.type)
-      )
-    const status =
-      part.state === 'output-available'
-        ? 'done'
-        : part.state === 'output-error'
-          ? 'error'
-          : part.state === 'input-streaming'
-            ? 'streaming'
-            : part.state === 'input-available'
-              ? 'invoking'
-              : 'pending'
-
-    return {
-      id,
-      toolCallId: id,
-      tool: {
-        id,
-        name,
-        type: part.toolType ?? (isMcp ? 'mcp' : 'builtin'),
-        ...(isMcp ? { serverId: metadata?.serverId ?? 'unknown', serverName: metadata?.serverName ?? 'MCP' } : {})
-      },
-      arguments: part.input,
-      partialArguments:
-        (status === 'streaming' || status === 'invoking') && typeof part.input === 'string' ? part.input : undefined,
-      status,
-      response: part.state === 'output-error' ? { isError: true } : isMcpContent ? output : (output?.content ?? output)
-    }
-  }
-}))
-
 vi.mock('../../frame/MessageVideo', () => ({
   __esModule: true,
   default: ({ url, filePath }: any) => (
@@ -233,13 +207,7 @@ vi.mock('../../frame/MessageVideo', () => ({
 
 vi.mock('../ErrorBlock', () => ({
   __esModule: true,
-  default: ({ error, cachedDiagnosis }: any) => (
-    <div
-      data-testid="mock-error-block"
-      data-error-message={error?.message ?? ''}
-      data-cached-diagnosis={cachedDiagnosis ? JSON.stringify(cachedDiagnosis) : ''}
-    />
-  )
+  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
 }))
 
 vi.mock('../ThinkingBlock', () => ({
@@ -263,7 +231,9 @@ vi.mock('../ThinkingBlock', () => ({
 
 vi.mock('../../frame/MessageAttachments', () => ({
   __esModule: true,
-  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
+  default: ({ name, handle }: any) => (
+    <div data-testid="mock-attachments" data-file-name={name ?? ''} data-handle={JSON.stringify(handle)} />
+  )
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
@@ -344,8 +314,12 @@ vi.mock('../CompactBlock', () => ({
 
 vi.mock('../TranslationBlock', () => ({
   __esModule: true,
-  default: ({ content, isStreaming }: any) => (
-    <div data-testid="mock-translation-block" data-streaming={String(!!isStreaming)}>
+  default: ({ content, isStreaming, onDelete }: any) => (
+    <div
+      data-testid="mock-translation-block"
+      data-streaming={String(!!isStreaming)}
+      data-has-delete={String(!!onDelete)}
+      onClick={onDelete}>
       {content}
     </div>
   )
@@ -363,39 +337,42 @@ vi.mock('../PlaceholderBlock', () => ({
 
 import MessagePartsRenderer from '../MessagePartsRenderer'
 
-const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
-  ({
-    id: 'msg-1',
-    role: 'assistant',
-    assistantId: 'a',
-    topicId: 't',
-    createdAt: '2026-01-01T00:00:00Z',
-    status: 'success',
-    ...overrides
-  }) as MessageListItem
+const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
+  id: 'msg-1',
+  role: 'assistant',
+  assistantId: 'a',
+  topicId: 't',
+  createdAt: '2026-01-01T00:00:00Z',
+  status: 'success',
+  ...overrides
+})
+
+let activityStore: KeyedMessageActivityStore
 
 const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
 ) => {
   const value: MessageListProviderValue = {
     state: {
       topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
-      messages: [message],
-      partsByMessageId: { [message.id]: parts },
+      messages: [...history.map((entry) => entry.message), message],
+      partsByMessageId: Object.fromEntries([
+        ...history.map((entry) => [entry.message.id, entry.parts]),
+        [message.id, parts]
+      ]),
       messageNavigation: 'none',
       estimateSize: 400,
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
       renderConfig,
-      getMessageActivityState: () => ({
-        isProcessing: false,
-        isStreamTarget: false,
-        isApprovalAnchor: false
-      })
+      messageActivityStore: activityStore,
+      getMessageActivityState: activityStore.getSnapshot
     },
     actions,
     meta: { selectionLayer: false }
@@ -404,7 +381,7 @@ const renderPartsTree = (
   return (
     <MessageListProvider value={value}>
       <PartsProvider value={{ [message.id]: parts }}>
-        <MessagePartsRenderer message={message} />
+        <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
       </PartsProvider>
     </MessageListProvider>
   )
@@ -414,12 +391,21 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistAttachments = false
+) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistAttachments))
 
-function activateTurn(status?: string): void {
-  mockIsActiveTurnTarget.mockReturnValue(true)
-  mockTopicStreamState.status = status
+function activateTurn(status?: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update(['msg-1'], status === 'awaiting-approval' ? ['msg-1'] : [], status)
+  })
+}
+
+function finishTurn(status: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update([], [], status)
+  })
 }
 
 function expandCollapsedLiveToolGroups(): void {
@@ -476,8 +462,9 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
-    mockIsActiveTurnTarget.mockReturnValue(false)
-    mockTopicStreamState.status = undefined
+    invalidateCachedMessageUiStates(['msg-1'])
+    activityStore = new KeyedMessageActivityStore()
+    topicStreamStore.setStatus(undefined)
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -499,9 +486,70 @@ describe('MessagePartsRenderer', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   describe('leaf rendering', () => {
+    it('does not rerender unrelated message content when another message becomes active', () => {
+      const firstMessage = msg({ id: 'msg-1' })
+      const secondMessage = msg({ id: 'msg-2' })
+      const messages = [firstMessage, secondMessage]
+      const partsByMessageId = {
+        'msg-1': [{ type: 'text', text: 'First' }] as CherryMessagePart[],
+        'msg-2': [{ type: 'text', text: 'Second' }] as CherryMessagePart[]
+      }
+      const store = new KeyedMessageActivityStore()
+      const updateCommits = new Map<string, number>()
+      const value: MessageListProviderValue = {
+        state: {
+          topic: { id: 't', name: 'Topic' } as MessageListProviderValue['state']['topic'],
+          messages,
+          partsByMessageId,
+          messageNavigation: 'none',
+          estimateSize: 400,
+          overscan: 0,
+          loadOlderDelayMs: 0,
+          loadingResetDelayMs: 0,
+          renderConfig: defaultMessageRenderConfig,
+          messageActivityStore: store,
+          getMessageActivityState: store.getSnapshot
+        },
+        actions: {},
+        meta: { selectionLayer: false }
+      }
+
+      render(
+        <MessageListProvider value={value}>
+          {messages.map((message) => (
+            <React.Profiler
+              key={message.id}
+              id={message.id}
+              onRender={(id, phase) => {
+                if (phase === 'update') updateCommits.set(id, (updateCommits.get(id) ?? 0) + 1)
+              }}>
+              <MessagePartsRenderer message={message} />
+            </React.Profiler>
+          ))}
+        </MessageListProvider>
+      )
+
+      // A topic-level change must reach no leaf at all: renderers read activity
+      // only through the keyed store.
+      act(() => {
+        topicStreamStore.setStatus('streaming')
+      })
+
+      expect(updateCommits.get('msg-1') ?? 0).toBe(0)
+      expect(updateCommits.get('msg-2') ?? 0).toBe(0)
+
+      act(() => {
+        store.update(['msg-1'], [], 'streaming')
+      })
+
+      expect(updateCommits.get('msg-1') ?? 0).toBeGreaterThan(0)
+      expect(updateCommits.get('msg-2') ?? 0).toBe(0)
+    })
+
     it('renders paused feedback for an interrupted empty message', () => {
       renderParts([], msg({ status: 'paused' }))
 
@@ -535,7 +583,8 @@ describe('MessagePartsRenderer', () => {
               loadingResetDelayMs: 0,
               renderConfig: defaultMessageRenderConfig,
               activeTurnStatus,
-              getMessageActivityState: () => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })
+              messageActivityStore: activityStore,
+              getMessageActivityState: activityStore.getSnapshot
             },
             actions: {},
             meta: { selectionLayer: false }
@@ -547,6 +596,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       // Not processing → renderer is not invoked at all.
+      finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -612,44 +662,48 @@ describe('MessagePartsRenderer', () => {
       expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
-    it('hides the duplicate user image when its composer file token is visible', () => {
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: 'Look ',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [
-                    {
-                      id: 'file:source-image',
-                      kind: 'file',
-                      label: 'photo.png',
-                      index: 0,
-                      textOffset: 5
-                    }
-                  ]
+    it('renders a sent user image instead of its composer file token', () => {
+      const persisted = UpdateAgentSessionMessageSchema.parse({
+        data: {
+          parts: [
+            {
+              type: 'text',
+              text: 'Look ',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:source-image',
+                        kind: 'file',
+                        label: 'photo.png',
+                        index: 0,
+                        textOffset: 5
+                      }
+                    ]
+                  }
                 }
               }
-            }
-          } as unknown as CherryMessagePart,
-          {
-            type: 'file',
-            url: 'file:///tmp/photo.png',
-            mediaType: 'image/png',
-            filename: 'photo.png'
-          } as unknown as CherryMessagePart
-        ],
-        msg({ role: 'user' })
-      )
+            } as unknown as CherryMessagePart,
+            {
+              type: 'file',
+              url: 'file:///tmp/photo.png',
+              mediaType: 'image/png',
+              filename: 'photo.png',
+              providerMetadata: { cherry: { fileTokenSourceId: 'source-image' } }
+            } as unknown as CherryMessagePart
+          ]
+        }
+      })
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     })
 
-    it('hides duplicate user images with the same filename by composer file token identity', () => {
+    it('groups sent user images with the same filename by composer file token identity', () => {
       renderParts(
         [
           {
@@ -697,8 +751,11 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(0)
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+        'data-images',
+        '["file:///tmp/first/photo.png","file:///tmp/second/photo.png"]'
+      )
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
         url: 'file:///tmp/first/photo.png',
         mediaType: 'image/png'
@@ -707,6 +764,294 @@ describe('MessagePartsRenderer', () => {
         url: 'file:///tmp/second/photo.png',
         mediaType: 'image/png'
       })
+    })
+
+    it('renders a legacy sent image without its unique matching file token', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:legacy-image', kind: 'file', label: 'legacy.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          { type: 'file', url: 'file:///tmp/legacy.png', mediaType: 'image/png', filename: 'legacy.png' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/legacy.png"]')
+    })
+
+    it('keeps the sent image token when its matching file part has no renderable URL', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:missing-image', kind: 'file', label: 'missing.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            mediaType: 'image/png',
+            filename: 'missing.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'missing-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('missing.png')
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    })
+
+    it('consumes hidden image token prompt text instead of exposing it as message text', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'before internal image context after',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:prompt-image',
+                      kind: 'file',
+                      label: 'photo.png',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'internal image context'
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'prompt-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByText('before after')).toBeInTheDocument()
+      expect(screen.queryByText(/internal image context/)).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('renders sent images while keeping non-image files as tokens', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    { id: 'file:mixed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 },
+                    { id: 'file:mixed-pdf', kind: 'file', label: 'report.pdf', index: 1, textOffset: 0 }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-image' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'mixed-pdf' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('keeps sent images rendered when the user text is collapsed', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'one\ntwo\nthree\nfour\nfive\nsix',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:collapsed-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'collapsed-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' })
+      )
+
+      expect(document.querySelector('[data-user-message-content-toggle]')).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    })
+
+    it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'look at this',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('look at this')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists non-image attachments and hides their token chips', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'see the doc',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    it('hoists attachments that carry no composer token', () => {
+      renderParts(
+        [
+          { type: 'text', text: 'see the doc' },
+          { type: 'file', url: 'file:///tmp/report.pdf', mediaType: 'application/pdf', filename: 'report.pdf' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('see the doc')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    // A blank text part stays "substantive" while it carries a token chip, so hoisting every
+    // token away must drop it too — otherwise the bubble renders an empty line.
+    it('renders nothing when hoisted attachments are the only content', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'text',
+            text: '',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:only-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'only-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('links pasted-text token previews through fileTokenSourceId without rendering a duplicate attachment', () => {
@@ -960,6 +1305,44 @@ describe('MessagePartsRenderer', () => {
       expect(content).not.toContain('[cite:70536f0b-1]')
     })
 
+    // #19771: the follow-up turn re-cites a kb_search result from the previous turn.
+    it('renders a [cite:id] re-cited from an earlier turn as a badge', () => {
+      const earlierTurn = {
+        message: msg({ id: 'msg-0' }),
+        parts: [
+          {
+            type: 'tool-kb_search',
+            toolCallId: 'search-0',
+            state: 'output-available',
+            input: { query: '审计内容', baseIds: ['b'] },
+            output: [
+              {
+                id: '2598d0ab-1',
+                baseId: 'b',
+                conceptId: 'audit/plan.md',
+                title: '审计方案.md',
+                type: 'file',
+                content: '工程立项与审批合规性审计',
+                score: 0.9
+              }
+            ]
+          }
+        ] as unknown as CherryMessagePart[]
+      }
+
+      renderParts(
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-1' }),
+        {},
+        defaultMessageRenderConfig,
+        [earlierTurn]
+      )
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).not.toContain('[cite:')
+    })
+
     it('renders video and error value parts', async () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
@@ -973,30 +1356,6 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
     })
 
-    it('rehydrates a persisted diagnosis onto the error block after an API round-trip', () => {
-      const diagnosis = {
-        summary: 'OpenAI API key is invalid',
-        category: 'auth',
-        explanation: 'The server rejected the request because the key is invalid.',
-        steps: [{ text: 'Open provider settings and check the key' }]
-      }
-      const initialParts = [
-        { type: 'data-error', data: { name: 'AuthError', message: 'Unauthorized' } }
-      ] as unknown as CherryMessagePart[]
-
-      // Persist the diagnosis, then push the whole message data through the PATCH
-      // body validator the DataApi runs before writing `data.parts` to SQLite.
-      const withDiagnosis = withMessagePartDiagnosis(initialParts, 0, diagnosis)
-      expect(withDiagnosis).not.toBeNull()
-      const parsed = UpdateAgentSessionMessageSchema.parse({ data: { parts: withDiagnosis } })
-
-      renderParts(parsed.data.parts as CherryMessagePart[])
-
-      const block = screen.getByTestId('mock-error-block')
-      expect(block).toHaveAttribute('data-error-message', 'Unauthorized')
-      expect(JSON.parse(block.getAttribute('data-cached-diagnosis') || 'null')).toEqual(diagnosis)
-    })
-
     it('does not move non-consecutive updates for the same video ahead of intervening content', async () => {
       const { container } = renderParts([
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },
@@ -1008,6 +1367,73 @@ describe('MessagePartsRenderer', () => {
       const html = container.innerHTML
       expect(html.indexOf('first.mp4')).toBeLessThan(html.indexOf('between videos'))
       expect(html.indexOf('between videos')).toBeLessThan(html.indexOf('second.mp4'))
+    })
+
+    it.each(['pending', 'success'] as const)('keeps subagent entries after the reply while %s', (status) => {
+      const { container } = renderParts(
+        [
+          { type: 'text', text: 'Delegating review' },
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          { type: 'text', text: 'Current summary' },
+          { type: 'text', text: 'Private child output', providerMetadata: { cherry: { parentToolCallId: 'reviewer' } } }
+        ] as CherryMessagePart[],
+        msg({ status }),
+        { openAgentToolFlow: vi.fn() }
+      )
+      if (status === 'success') fireEvent.click(screen.getByRole('button', { expanded: false }))
+      const summary = screen.getByText('Current summary')
+      const child = screen.getByTestId('mock-message-tools')
+      expect(summary.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(container.querySelectorAll('[data-tool-name="Agent"]')).toHaveLength(1)
+      expect(screen.queryByText('Private child output')).toBeNull()
+    })
+
+    it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
+      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const actions = { openAgentToolFlow: vi.fn() }
+      activateTurn('streaming')
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+      finishTurn('done')
+      rerender(renderPartsTree(parts, msg(), actions))
+      expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { expanded: false }))
+      rerender(renderPartsTree([...parts, { type: 'text', text: 'Final answer' }], msg(), actions))
+      expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
+    })
+
+    it.each(['error', 'stopped', 'in_progress'] as const)(
+      'keeps %s subtasks visible after the parent response',
+      (status) => {
+        const parts = [
+          toolPart('reviewer', 'output-available', 'Agent'),
+          {
+            type: 'data-agent-task-event',
+            data: { taskId: 'child', toolUseId: 'reviewer', status }
+          }
+        ] as CherryMessagePart[]
+        renderParts(parts, msg(), { openAgentToolFlow: vi.fn() })
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
+      }
+    )
+
+    it('keeps the list open when the user is reading a subtask as the turn finishes', () => {
+      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const actions = { openAgentToolFlow: vi.fn(), isAgentToolFlowActive: () => true }
+      activateTurn('streaming')
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
+      finishTurn('done')
+      rerender(renderPartsTree(parts, msg(), { ...actions, isAgentToolFlowActive: () => false }))
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+      expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
     })
 
     it('keeps parent agent-flow parts out of the top-level message', () => {
@@ -1032,9 +1458,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('child text')).toBeNull()
     })
 
-    it('renders report artifacts after the final message content and not as an inline tool', async () => {
+    it('renders report artifacts after the final message content and not as an inline tool', () => {
       const openArtifactFile = vi.fn()
-      const openPath = vi.fn()
       const { container } = renderParts(
         [
           { type: 'text', text: 'before tool' },
@@ -1052,7 +1477,7 @@ describe('MessagePartsRenderer', () => {
           { type: 'text', text: 'final answer' }
         ] as unknown as CherryMessagePart[],
         msg(),
-        { openArtifactFile, openPath }
+        { openArtifactFile }
       )
 
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
@@ -1063,18 +1488,13 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
-      fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
-      await waitFor(() => {
-        expect(openPath).toHaveBeenCalledWith('dist/report.md')
-      })
     })
 
-    it('waits for the turn and smooth text playout to finish before rendering report artifacts', () => {
+    it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
       let clock = 0
       let rafId = 0
       let rafCallbacks = new Map<number, FrameRequestCallback>()
-      vi.stubGlobal('performance', { now: () => clock } as Performance)
+      vi.stubGlobal('performance', { now: () => clock })
       vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
         rafId += 1
         rafCallbacks.set(rafId, callback)
@@ -1102,30 +1522,42 @@ describe('MessagePartsRenderer', () => {
         input: { artifacts: [{ path: 'dist/report.md', description: 'Report' }] },
         output: {}
       } as unknown as CherryMessagePart
+      const sessionPart = {
+        ...toolPart('create-session', 'output-available', 'session_create'),
+        input: { title: 'Research session' },
+        output: {
+          content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+          metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+        }
+      } as unknown as CherryMessagePart
       const initialParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: 'A', state: 'streaming' }
       ] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       const finalText = `A${'b'.repeat(100)}`
       const finalParts = [
         reportPart,
+        sessionPart,
         { type: 'text', text: finalText, state: 'done' }
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
+      expect(screen.queryByTestId('session-result-cards')).toBeNull()
 
       act(() => tick(50))
 
       expect(screen.getByText('report.md')).toBeInTheDocument()
+      expect(screen.getByTestId('session-result-cards')).toBeInTheDocument()
     })
 
     it('keeps the usingTools placeholder when report_artifacts is the only active part, then shows the card', () => {
@@ -1146,8 +1578,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
       expect(screen.queryByText('report.md')).toBeNull()
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1514,6 +1945,51 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('terminal layout', () => {
+    it('keeps the fork link below the copied answer across new messages and reloads, and blocks repeat clicks', async () => {
+      const user = userEvent.setup()
+      const lookup = Promise.withResolvers<void>()
+      const actions = { openForkSourceSession: vi.fn(() => lookup.promise) }
+      const parts: CherryMessagePart[] = [
+        { type: 'reasoning', text: 'Thinking', state: 'done' },
+        { type: 'text', text: 'Copied answer' },
+        { type: 'data-agent-session-fork', data: { sourceSessionId: 'parent' } }
+      ]
+      const { rerender, unmount } = renderParts(parts, msg(), actions)
+      const link = screen.getByRole('button', { name: 'Continue in the original chat' })
+      expectNodeBefore(screen.getByText('Copied answer'), link)
+      await user.click(link)
+      expect(link).toBeDisabled()
+      await user.click(link)
+      expect(actions.openForkSourceSession.mock.calls).toEqual([['parent']])
+      await act(async () => lookup.resolve())
+      expect(link).toBeEnabled()
+      const history = () => (
+        <>
+          {renderPartsTree(JSON.parse(JSON.stringify(parts)), msg(), actions)}
+          {renderPartsTree([{ type: 'text', text: 'New answer' }], msg({ id: 'msg-2' }), actions)}
+        </>
+      )
+      rerender(history())
+      expectNodeBefore(
+        screen.getByText('Copied answer'),
+        screen.getByRole('button', { name: 'Continue in the original chat' })
+      )
+      expectNodeBefore(
+        screen.getByRole('button', { name: 'Continue in the original chat' }),
+        screen.getByText('New answer')
+      )
+      unmount()
+      render(history())
+      expectNodeBefore(
+        screen.getByText('Copied answer'),
+        screen.getByRole('button', { name: 'Continue in the original chat' })
+      )
+      expectNodeBefore(
+        screen.getByRole('button', { name: 'Continue in the original chat' }),
+        screen.getByText('New answer')
+      )
+    })
+
     it('replaces direct live process content with collapsed history and keeps the final answer outside', () => {
       activateTurn('streaming')
       const parts = [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[]
@@ -1525,8 +2001,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -1538,14 +2013,88 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
     })
 
+    it('places a completed session action after the final answer and opens it directly', () => {
+      const navigateToRoute = vi.fn()
+      renderParts(
+        [
+          {
+            ...toolPart('create-session', 'output-available', 'session_create'),
+            input: { title: 'Research session' },
+            output: {
+              content: JSON.stringify({ ok: true, sessionId: 'session-research' }),
+              metadata: { type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          },
+          { type: 'text', text: 'The new session is ready.' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { navigateToRoute }
+      )
+
+      const answer = screen.getByText('The new session is ready.')
+      const resultCards = screen.getByTestId('session-result-cards')
+      expectNodeBefore(answer, resultCards)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open session: Research session' }))
+      expect(navigateToRoute).toHaveBeenCalledWith({
+        path: '/app/agents',
+        query: { sessionId: 'session-research' }
+      })
+    })
+
+    it('opens a read conversation after its deferred history loads without expanding tool details', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      const result = Promise.withResolvers<{ found: boolean; output: unknown }>()
+      const request = vi.spyOn(ipcApi, 'request').mockReturnValue(result.promise)
+      const parts = [
+        {
+          ...toolPart('read-session', 'output-available', 'session_read'),
+          callProviderMetadata: {
+            cherry: {
+              tool: { name: 'session_read', type: 'mcp', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+            }
+          },
+          output: {
+            $deferredToolResult: { topicId: 'agent-session:caller', messageId: 'msg-1', toolCallId: 'read-session' }
+          }
+        },
+        { type: 'text', text: 'I found the earlier conversation.' }
+      ] as CherryMessagePart[]
+      render(
+        <SWRConfig value={{ provider: () => new Map() }}>
+          {renderPartsTree(parts, msg(), { navigateToRoute })}
+        </SWRConfig>
+      )
+      expect(screen.queryByRole('button', { name: 'Open session: Untitled session' })).not.toBeInTheDocument()
+      await waitFor(() =>
+        expect(request).toHaveBeenCalledWith('ai.tool.get_result', {
+          topicId: 'agent-session:caller',
+          messageId: 'msg-1',
+          toolCallId: 'read-session'
+        })
+      )
+
+      await act(async () => {
+        result.resolve({
+          found: true,
+          output: { source: 'topic', sessionId: 'old-topic', messages: [{ text: 'history '.repeat(5000) }] }
+        })
+      })
+
+      const open = await screen.findByRole('button', { name: 'Open session: Untitled session' })
+      expectNodeBefore(screen.getByText('I found the earlier conversation.'), open)
+      await user.click(open)
+      expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: { topicId: 'old-topic' } })
+    })
+
     it('keeps the final text node mounted across the active-to-terminal frame', () => {
       activateTurn('streaming')
       const parts = [{ type: 'text', text: 'stable answer node' }] as unknown as CherryMessagePart[]
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
       const activeAnswerNode = screen.getByText('stable answer node')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'done'
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
@@ -1562,8 +2111,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.status = 'error'
+      finishTurn('error')
       rerender(renderPartsTree(parts, msg({ status: 'error' })))
 
       expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)
@@ -1625,7 +2173,7 @@ describe('MessagePartsRenderer', () => {
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
 
       const visibleAuthTool = screen.getByTestId('mock-message-tools')
-      expect(visibleAuthTool).toHaveAttribute('data-tool-name', 'mcp__cherry-tools__config')
+      expect(visibleAuthTool).toHaveAttribute('data-tool-name', 'config')
       expect(visibleAuthTool.closest('[data-testid="tool-history-content"]')).toBeNull()
 
       fireEvent.click(historyTrigger)
@@ -1633,10 +2181,30 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
       expect(
-        screen
-          .getAllByTestId('mock-message-tools')
-          .filter((node) => node.getAttribute('data-tool-name') === 'mcp__cherry-tools__config')
+        screen.getAllByTestId('mock-message-tools').filter((node) => node.getAttribute('data-tool-name') === 'config')
       ).toHaveLength(1)
+    })
+
+    it('keeps a prepared diagnostic report action outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      const visibleDiagnosticAction = screen.getByTestId('mock-message-tools')
+      expect(visibleDiagnosticAction).toHaveAttribute('data-tool-name', 'prepare_diagnostic_report')
+      expect(visibleDiagnosticAction.closest('[data-testid="tool-history-content"]')).toBeNull()
     })
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
@@ -1984,6 +2552,27 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('removes this message translation through the inline delete when the action is available', () => {
+      const removeMessageTranslation = vi.fn()
+      renderParts(
+        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-translated' }),
+        { removeMessageTranslation }
+      )
+
+      const block = screen.getByTestId('mock-translation-block')
+      expect(block).toHaveAttribute('data-has-delete', 'true')
+      fireEvent.click(block)
+      expect(removeMessageTranslation).toHaveBeenCalledWith('msg-translated')
+    })
+
+    it('hides the inline translation delete in read-only embeds without removeMessageTranslation', () => {
+      renderParts([
+        { type: 'data-translation', data: { content: 'translated answer' } }
+      ] as unknown as CherryMessagePart[])
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'false')
     })
   })
 })

@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -70,6 +69,9 @@ describe('MessageTokenDetailsCard cost', () => {
     expect(row).toHaveTextContent(formatWith('USD', 0.0123))
     expect(row).toHaveTextContent('Billed by provider')
     expect(row).not.toHaveTextContent('Estimated')
+    expect(row).toHaveClass('items-center', 'border-y', 'py-2')
+    // Mixed-size source and amount text must share a visual center in the cost row.
+    expect(row.lastElementChild).toHaveClass('items-center', 'leading-5')
   })
 
   it('renders the persisted currency instead of assuming USD', () => {

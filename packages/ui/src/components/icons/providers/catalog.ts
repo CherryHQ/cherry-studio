@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-10T12:29:08.885Z
- * Total icons: 158
+ * Generated at: 2026-09-10T18:57:46.000Z
+ * Total icons: 163
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -39,6 +39,7 @@ import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { ComfyuiIcon } from './comfyui/comfyui'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -115,11 +116,13 @@ import { NousresearchIcon } from './nousresearch'
 import { NvidiaIcon } from './nvidia'
 import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
+import { OmlxIcon } from './omlx/omlx'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
+import { ParallelIcon } from './parallel'
 import { PerplexityIcon } from './perplexity'
 import { Ph8Icon } from './ph8'
 import { PoeIcon } from './poe'
@@ -135,6 +138,7 @@ import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
@@ -149,6 +153,7 @@ import { TesseractJsIcon } from './tesseract-js'
 import { ThinkAnyIcon } from './think-any'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
+import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
@@ -200,6 +205,7 @@ export const PROVIDER_ICON_CATALOG = {
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  comfyui: ComfyuiIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,
@@ -275,11 +281,13 @@ export const PROVIDER_ICON_CATALOG = {
   nvidia: NvidiaIcon,
   ocoolai: OcoolaiIcon,
   ollama: OllamaIcon,
+  omlx: OmlxIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
   opencode: OpenCodeGoIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
+  parallel: ParallelIcon,
   perplexity: PerplexityIcon,
   ph8: Ph8Icon,
   poe: PoeIcon,
@@ -294,6 +302,7 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
+  serply: SerplyIcon,
   sensetime: SensetimeIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
@@ -309,6 +318,7 @@ export const PROVIDER_ICON_CATALOG = {
   'think-any': ThinkAnyIcon,
   tng: TngIcon,
   together: TogetherIcon,
+  tokendance: TokendanceIcon,
   twitter: TwitterIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,

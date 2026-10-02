@@ -105,12 +105,12 @@ describe('releaseNotes', () => {
     )
   })
 
-  it('rejects bundled history notes that differ from the current stable release', () => {
+  it('accepts bundled history notes that differ from the current stable release', () => {
     expect(() =>
       validateCurrentReleaseHistory({ releaseNotes, version: '2.0.2' }, [
         { releaseNotes: `${releaseNotes}\nChanged`, version: '2.0.2' }
       ])
-    ).toThrow('must match electron-builder.yml')
+    ).not.toThrow()
   })
 
   it('does not require prereleases in stable release history', () => {

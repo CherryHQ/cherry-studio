@@ -1,8 +1,9 @@
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { ConfigList } from '../ConfigList'
 
@@ -27,6 +28,7 @@ vi.mock('@cherrystudio/ui', () => ({
     visibleItems?: T[]
     gap: string
     itemStyle?: CSSProperties
+    disabled?: boolean
     getId: (item: T) => string
     renderItem: (item: T, index: number, state: { dragging: boolean }) => ReactNode
   }) => {
@@ -192,6 +194,27 @@ describe('ConfigList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'move-second' }))
 
     expect(onReorder).toHaveBeenCalledWith([providers[1], providers[0], providers[2]])
+  })
+
+  it('disables provider reordering and move-to-top while actions are locked', () => {
+    const providers = ['first', 'second'].map((id) => ({ id, name: id }) as Provider)
+    render(
+      <ConfigList
+        selectedCliTool={CodeCli.HERMES}
+        toolName="Hermes Agent"
+        providers={providers}
+        providerConfigs={{}}
+        currentProviderId={null}
+        providerActionsDisabled
+        resolveMeta={(item) => ({ providerName: item.name })}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(reorderableListProps.mock.lastCall?.[0]).toMatchObject({ disabled: true })
+    expect(screen.queryByRole('button', { name: 'move-second' })).not.toBeInTheDocument()
   })
 
   it('omits the Configure button on the own-login row for a non-configurable tool', () => {

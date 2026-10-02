@@ -1,4 +1,5 @@
 const { Arch } = require('electron-builder')
+const { rebuild } = require('@electron/rebuild')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
@@ -17,6 +18,10 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
+  '@deepseek-ai/node-addon-system-darwin-arm64',
+  '@deepseek-ai/node-addon-system-darwin-x64',
+  '@deepseek-ai/node-addon-system-linux-arm64',
+  '@deepseek-ai/node-addon-system-linux-x64',
   // anydoc converts binary office documents to markdown for the knowledge base.
   // It ships no win32-arm64 build and no wasm fallback, so existing formats use
   // their legacy readers there while newly supported .ppt fails visibly.
@@ -69,8 +74,32 @@ const packages = [
   '@aiany/sqlite-vec-linux-arm64',
   '@aiany/sqlite-vec-linux-x64',
   '@aiany/sqlite-vec-windows-arm64',
-  '@aiany/sqlite-vec-windows-x64'
+  '@aiany/sqlite-vec-windows-x64',
+  // Screen capture backend. Its platform binaries are npm sibling packages, not nested
+  // under the main package, so they are declared in optionalDependencies like every other
+  // family here — that is what puts them at top-level node_modules where the keep/exclude
+  // filters and the asarUnpack glob can see them. loong64 is omitted: not a target arch.
+  'node-screenshots-darwin-arm64',
+  'node-screenshots-darwin-x64',
+  'node-screenshots-linux-arm64-gnu',
+  'node-screenshots-linux-x64-gnu',
+  'node-screenshots-linux-x64-musl',
+  'node-screenshots-win32-arm64-msvc',
+  'node-screenshots-win32-ia32-msvc',
+  'node-screenshots-win32-x64-msvc',
+  // macOS permission prompts. Unlike everything above, one package covers both arches.
+  'node-mac-permissions'
 ]
+
+/**
+ * Platform-gated packages whose names carry no arch token, so the name matcher in
+ * {@link keepPackages} cannot classify them. Kept for every arch of their own platform and
+ * excluded everywhere else — otherwise a Windows or Linux package cross-built on a Mac
+ * would ship a darwin-only `.node`.
+ */
+const platformOnlyPackages = {
+  darwin: ['node-mac-permissions']
+}
 
 const platformToArch = {
   mac: 'darwin',
@@ -79,12 +108,56 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+async function prepareNativeModulesForElectron(
+  context,
+  rebuildFn = rebuild,
+  ensureLinuxArtifact = ensureLinuxNativeArtifact
+) {
+  const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
+  const platformName = context.packager.platform.name
+  const platform = platformToArch[platformName]
+  const electronVersion = context.packager.config.electronVersion
+  const projectRoot = path.join(__dirname, '..')
+
+  if (!platform || !electronVersion) {
+    throw new Error(`Cannot resolve Electron rebuild target for ${platformName}-${arch}`)
+  }
+
+  if (platform === 'linux') {
+    if (context.arch !== Arch.arm64 && context.arch !== Arch.x64) {
+      throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
+    }
+    const artifact = ensureLinuxArtifact({ projectRoot, arch })
+    process.stdout.write(
+      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
+        `linux-${arch} (${artifact.inspection.sha256})\n`
+    )
+    return
+  }
+
+  // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
+  // Force the ABI-sensitive addon from source for the exact target before app files are copied.
+  await rebuildFn({
+    buildPath: projectRoot,
+    electronVersion,
+    platform,
+    arch,
+    onlyModules: ['better-sqlite3'],
+    force: true,
+    buildFromSource: true
+  })
+}
+exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
+
 // Most native packages encode Electron's platform key (win32) in their name, but some
 // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
 const keepPackages = (platform, arch) => {
   const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
-  return packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t)))
+  return [
+    ...packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t))),
+    ...(platformOnlyPackages[platform] ?? [])
+  ]
 }
 
 // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
@@ -105,28 +178,33 @@ const assertPrebuiltPackages = (platform, arch) => {
   }
 }
 exports.assertPrebuiltPackages = assertPrebuiltPackages
+exports.keepPackages = keepPackages
+
+const getNativeModuleFilters = (platform, arch) => {
+  const keptPackages = keepPackages(platform, arch)
+  const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
+  return [
+    ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
+    `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
+    `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
+    `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
+    `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
+  ]
+}
+exports.getNativeModuleFilters = getNativeModuleFilters
 
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  await prepareNativeModulesForElectron(context)
   assertPrebuiltPackages(platform, arch)
 
-  if (platform === 'linux') {
-    const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
-    if (!linuxArch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
-
-    const projectRoot = path.join(__dirname, '..')
-    const artifact = ensureLinuxNativeArtifact({ projectRoot, arch: linuxArch })
-    process.stdout.write(
-      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
-        `linux-${linuxArch} (${artifact.inspection.sha256})\n`
-    )
-  }
-
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
-  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch} --packaging`, {
+    stdio: 'inherit'
+  })
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
   require('./download-binaries').verifyBundledBinaries(platform, arch)
 
@@ -142,16 +220,6 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = keepPackages(platform, 'arm64')
-  const arm64ExcludePackages = packages
-    .filter((p) => !arm64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const x64KeepPackages = keepPackages(platform, 'x64')
-  const x64ExcludePackages = packages
-    .filter((p) => !x64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
   const currentPlatformKey = `${platform}-${arch}`
   // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
   // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
@@ -161,9 +229,5 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
-  }
+  await excludePackages([...getNativeModuleFilters(platform, arch), ...excludeBundledBinaryFilters])
 }
