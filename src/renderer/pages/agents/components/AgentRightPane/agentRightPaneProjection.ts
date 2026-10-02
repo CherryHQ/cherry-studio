@@ -812,3 +812,15 @@ export function buildAgentRightPaneStatus(
     artifacts: Array.from(artifactByPath.values())
   }
 }
+
+/**
+ * Whether a polled task list still describes the state on screen.
+ *
+ * The poll runs every three seconds, so a response can land after the user has already stopped a
+ * task — and it was asked before that stop, so its rows are older than what is displayed. Applying
+ * it would put a stopped task back to `running` until the next tick, and a task the user cannot
+ * stop again in the meantime, since the buttons are keyed on that status.
+ */
+export function isTaskListResponseCurrent(requestedAt: number, currentMutation: number): boolean {
+  return requestedAt === currentMutation
+}
