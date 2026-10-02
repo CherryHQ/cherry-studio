@@ -135,6 +135,7 @@ import {
 // Must import after mocks are set up
 const {
   createCustomModel,
+  mergeEndpointReasoningFormat,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -1084,6 +1085,157 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+
+    it('resolves a self-hosted reasoning format from a custom provider endpoint config', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('self-hosted')
+      expect(result.reasoningProfile.wire.auto?.operations).toEqual([
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: true },
+          delivery: 'request-body'
+        }
+      ])
+      expect(result.reasoningProfile.wire.off?.operations).toEqual([
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: false },
+          delivery: 'request-body'
+        }
+      ])
+    })
+
+    it('keeps preset endpoint wire when the user row persisted only the reasoning format selector', async () => {
+      const catalogWire = {
+        off: {
+          operations: [
+            {
+              target: 'reasoning.effort' as const,
+              value: { source: 'literal' as const, value: 'none' },
+              delivery: 'request-body' as const
+            }
+          ]
+        }
+      }
+      setupRegistryData()
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openrouter',
+            name: 'OpenRouter',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                baseUrl: 'https://openrouter.ai/api/v1',
+                reasoningFormat: { type: 'openai-chat', wire: catalogWire }
+              }
+            } as Record<
+              string,
+              { baseUrl: string; reasoningFormat: { type: 'openai-chat'; wire: typeof catalogWire } }
+            >,
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: { website: {} }
+          } as never
+        ]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openrouter', modelId: 'gpt-4o', apiModelId: 'gpt-4o' }]
+      })
+
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openrouter-user',
+        presetProviderId: 'openrouter',
+        name: 'OpenRouter User',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://proxy.example/v1',
+            reasoningFormat: { type: 'openai-chat' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('openrouter-user', 'gpt-4o')
+
+      expect(result.reasoningProfile.wire.off).toEqual(catalogWire.off)
+    })
+
+    it('keeps the default openai-chat format when a custom provider has no reasoningFormat', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1'
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
+  })
+})
+
+describe('mergeEndpointReasoningFormat', () => {
+  it('reuses catalog wire when the user override only selects the format type', () => {
+    const catalogWire = {
+      off: {
+        operations: [
+          {
+            target: 'reasoning.effort' as const,
+            value: { source: 'literal' as const, value: 'none' },
+            delivery: 'request-body' as const
+          }
+        ]
+      }
+    }
+
+    expect(mergeEndpointReasoningFormat({ type: 'openai-chat' }, { type: 'openai-chat', wire: catalogWire })).toEqual({
+      type: 'openai-chat',
+      wire: catalogWire
+    })
+  })
+
+  it('does not borrow catalog wire when the user selected a different format type', () => {
+    const catalogWire = {
+      off: {
+        operations: [
+          {
+            target: 'reasoning.effort' as const,
+            value: { source: 'literal' as const, value: 'none' },
+            delivery: 'request-body' as const
+          }
+        ]
+      }
+    }
+
+    expect(mergeEndpointReasoningFormat({ type: 'self-hosted' }, { type: 'openai-chat', wire: catalogWire })).toEqual({
+      type: 'self-hosted'
+    })
   })
 })
 
@@ -1095,13 +1247,15 @@ describe('projectRuntimeReasoning summary options', () => {
     const withSummary = projectRuntimeReasoning(effortSupport, {
       effort: {
         operations: [
-          { target: 'reasoningEffort', value: { source: 'effort' } },
-          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+          { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' }, delivery: 'provider-option' }
         ]
       }
     })
     const withoutSummary = projectRuntimeReasoning(effortSupport, {
-      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+      effort: {
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }]
+      }
     })
 
     expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])

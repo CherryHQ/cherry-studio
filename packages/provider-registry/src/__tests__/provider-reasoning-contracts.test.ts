@@ -18,7 +18,9 @@ describe('provider reasoning contracts', () => {
   it('encodes OpenRouter Off as an explicit none effort', () => {
     const wire = provider('openrouter').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
 
-    expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
+    expect(wire?.off?.operations).toEqual([
+      { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' as const }
+    ])
   })
 
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
@@ -267,7 +269,9 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'extra_body.reasoning_effort', value: { source: 'effort' } }])
     expect(
       override('poe', 'claude-sonnet-4-6').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
-    ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
+    ).toEqual([
+      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'request-body' as const }
+    ])
   })
 
   it.each(['qwen3-coder', 'qwen3-coder-next'])('does not declare a DashScope reasoning contract for %s', (modelId) => {

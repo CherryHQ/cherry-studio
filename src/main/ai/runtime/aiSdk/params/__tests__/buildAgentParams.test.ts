@@ -386,6 +386,8 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
     expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    // Vertex MaaS keeps `chat_template_kwargs` in providerOptions so assistant custom
+    // parameters can override the provider-option reasoning profile.
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
         reasoningEffort: 'high',

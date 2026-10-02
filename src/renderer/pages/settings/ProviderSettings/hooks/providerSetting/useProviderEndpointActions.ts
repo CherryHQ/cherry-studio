@@ -14,6 +14,28 @@ import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 
+// Whole-endpoint-snapshot writers (host save, reasoning format, reset, the endpoint
+// drawer) must not overwrite each other's fields: every snapshot is computed from a
+// provider copy that the previous write may already have changed. Serializing the
+// network writes per provider makes the last computed snapshot win instead of racing.
+const endpointConfigWriteLocks = new Map<string, Promise<unknown>>()
+
+/** Run `write` after all previously registered endpoint-config writes for this provider settle. */
+export function withEndpointConfigWriteLock<T>(providerId: string, write: () => Promise<T>): Promise<T> {
+  const previous = endpointConfigWriteLocks.get(providerId) ?? Promise.resolve()
+  const next = previous.catch(() => undefined).then(write)
+  endpointConfigWriteLocks.set(
+    providerId,
+    next.catch(() => undefined)
+  )
+  return next
+}
+
+/** Resolve once every registered endpoint-config write for this provider has settled. */
+export function awaitEndpointConfigWrites(providerId: string): Promise<void> {
+  return endpointConfigWriteLocks.get(providerId)?.then(() => undefined) ?? Promise.resolve()
+}
+
 function getEndpointActionErrorMessage(error: unknown, fallback: string): string {
   if (isDataApiError(error) || isSerializedDataApiError(error)) {
     const dataError = toDataApiError(error)
@@ -67,28 +89,41 @@ export function useProviderEndpointActions({
 }: UseProviderEndpointActionsParams) {
   const { t } = useTranslation()
   const lastPersistedApiHostRef = useRef(trim(providerApiHost))
+  const providerRef = useRef(provider)
+  const apiHostRef = useRef(apiHost)
+  const hostPatchInFlightRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     lastPersistedApiHostRef.current = trim(providerApiHost)
   }, [providerApiHost])
 
+  useEffect(() => {
+    providerRef.current = provider
+  }, [provider])
+
+  useEffect(() => {
+    apiHostRef.current = apiHost
+  }, [apiHost])
+
   const buildNextApiEndpointConfigs = useCallback(
     (baseUrl: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return undefined
       }
 
       return {
-        ...provider.endpointConfigs,
-        [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl }
+        ...currentProvider.endpointConfigs,
+        [primaryEndpoint]: { ...currentProvider.endpointConfigs?.[primaryEndpoint], baseUrl }
       }
     },
-    [primaryEndpoint, provider]
+    [primaryEndpoint]
   )
 
   const persistApiHostDraft = useCallback(
     async (nextApiHost: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return false
       }
 
@@ -97,25 +132,54 @@ export function useProviderEndpointActions({
         return false
       }
 
-      if (!isVertexProvider(provider) && !trimmedApiHost) {
+      if (!isVertexProvider(currentProvider) && !trimmedApiHost) {
         return false
       }
 
-      const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+      await awaitEndpointConfigWrites(currentProvider.id)
+      const liveProvider = providerRef.current ?? currentProvider
+      const baseEndpoint = liveProvider.endpointConfigs?.[primaryEndpoint]
+      let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
       if (!nextEndpointConfigs) {
         return false
       }
+      if (baseEndpoint?.reasoningFormat !== undefined) {
+        nextEndpointConfigs = {
+          ...nextEndpointConfigs,
+          [primaryEndpoint]: {
+            ...nextEndpointConfigs[primaryEndpoint],
+            reasoningFormat: baseEndpoint.reasoningFormat
+          }
+        }
+      }
 
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      const patchPromise = withEndpointConfigWriteLock(currentProvider.id, () =>
+        patchProvider({ endpointConfigs: nextEndpointConfigs })
+      )
+      const trackedHostPatch = patchPromise
+        .catch(() => undefined)
+        .finally(() => {
+          if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+        }) as Promise<void>
+      hostPatchInFlightRef.current = trackedHostPatch
+      await patchPromise
       lastPersistedApiHostRef.current = trimmedApiHost
       return true
     },
-    [buildNextApiEndpointConfigs, patchProvider, provider]
+    [buildNextApiEndpointConfigs, patchProvider, primaryEndpoint]
   )
 
   const debouncedPersistApiHost = useMemo(
-    () => debounce((nextApiHost: string) => void persistApiHostDraft(nextApiHost), 150),
-    [persistApiHostDraft]
+    () =>
+      debounce((nextApiHost: string) => {
+        void persistApiHostDraft(nextApiHost).catch((error: unknown) => {
+          // The queued write runs outside any caller's try/catch — surface
+          // failures through the same error handling as explicit commits.
+          logger.error('Failed to persist provider API host draft', { providerId: providerRef.current?.id, error })
+          toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        })
+      }, 150),
+    [persistApiHostDraft, t]
   )
 
   useEffect(() => {
@@ -168,9 +232,21 @@ export function useProviderEndpointActions({
           return false
         }
 
-        const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+        await awaitEndpointConfigWrites(provider.id)
+        const liveProvider = providerRef.current ?? provider
+        let nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
         if (!nextEndpointConfigs) {
           return false
+        }
+        const existingReasoningFormat = liveProvider.endpointConfigs?.[primaryEndpoint]?.reasoningFormat
+        if (existingReasoningFormat !== undefined) {
+          nextEndpointConfigs = {
+            ...nextEndpointConfigs,
+            [primaryEndpoint]: {
+              ...nextEndpointConfigs[primaryEndpoint],
+              reasoningFormat: existingReasoningFormat
+            }
+          }
         }
 
         if (trimmedApiHost !== trim(apiHost)) {
@@ -178,7 +254,7 @@ export function useProviderEndpointActions({
         }
 
         if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
+          await withEndpointConfigWriteLock(provider.id, () => patchProvider({ endpointConfigs: nextEndpointConfigs }))
           lastPersistedApiHostRef.current = trimmedApiHost
         }
 
@@ -194,6 +270,7 @@ export function useProviderEndpointActions({
       buildNextApiEndpointConfigs,
       debouncedPersistApiHost,
       patchProvider,
+      primaryEndpoint,
       provider,
       providerApiHost,
       setApiHost,
@@ -218,14 +295,14 @@ export function useProviderEndpointActions({
               baseUrl: trimmedHost
             }
           }
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
+          await withEndpointConfigWriteLock(provider.id, () => patchProvider({ endpointConfigs: nextEndpointConfigs }))
           setAnthropicApiHost(trimmedHost)
           return true
         }
 
         const nextConfigs = { ...provider.endpointConfigs }
         delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        await patchProvider({ endpointConfigs: nextConfigs })
+        await withEndpointConfigWriteLock(provider.id, () => patchProvider({ endpointConfigs: nextConfigs }))
         setAnthropicApiHost('')
         return true
       } catch (error) {
@@ -258,29 +335,37 @@ export function useProviderEndpointActions({
   }, [apiVersion, patchProvider, provider, t])
 
   const resetApiHost = useCallback(async (): Promise<boolean> => {
-    if (!provider) {
+    const currentProvider = providerRef.current
+    if (!currentProvider) {
       return false
     }
 
+    await awaitEndpointConfigWrites(currentProvider.id)
+    const liveProvider = providerRef.current ?? currentProvider
     const nextBaseUrl = defaultApiHost
+    const nextEndpoint = {
+      ...liveProvider.endpointConfigs?.[primaryEndpoint],
+      baseUrl: nextBaseUrl
+    }
+
     const nextEndpointConfigs = {
-      ...provider.endpointConfigs,
-      [primaryEndpoint]: {
-        ...provider.endpointConfigs?.[primaryEndpoint],
-        baseUrl: nextBaseUrl
-      }
+      ...liveProvider.endpointConfigs,
+      [primaryEndpoint]: nextEndpoint
     }
 
     setApiHost(nextBaseUrl)
     try {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      await withEndpointConfigWriteLock(currentProvider.id, () =>
+        patchProvider({ endpointConfigs: nextEndpointConfigs })
+      )
+      lastPersistedApiHostRef.current = nextBaseUrl
       return true
     } catch (error) {
-      logger.error('Failed to reset provider API host', { providerId: provider.id, error })
+      logger.error('Failed to reset provider API host', { providerId: currentProvider.id, error })
       toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
-  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
+  }, [defaultApiHost, patchProvider, primaryEndpoint, setApiHost, t])
 
   return {
     commitApiHost,

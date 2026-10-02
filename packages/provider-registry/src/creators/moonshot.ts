@@ -8,6 +8,7 @@ export default defineCreator({
   modelsDevProviders: ['moonshotai', 'moonshotai-cn'],
   families: ['kimi'],
   idPrefixes: ['kimi', 'moonshot'],
+  models: [{ id: 'kimi-k2-instruct', name: 'Kimi K2 Instruct' }],
   reasoningFamilies: [
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the
@@ -18,6 +19,7 @@ export default defineCreator({
     { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
     { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
     // Kimi K2.5+ exposes the thinking toggle; kimi-k2-thinking is always-on.
+    { pattern: '^kimi-k2$', toggle: true },
     { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
     // The thinking budget is a K2.x-era knob — K3 controls depth via
     // `reasoning_effort` only (platform.kimi.com thinking-effort guide).

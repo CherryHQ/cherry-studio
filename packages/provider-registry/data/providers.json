@@ -582,6 +582,7 @@
                 },
                 "operations": [
                   {
+                    "delivery": "request-body",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "effort"
@@ -592,6 +593,7 @@
               "effort": {
                 "operations": [
                   {
+                    "delivery": "request-body",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "effort"
@@ -602,6 +604,7 @@
               "off": {
                 "operations": [
                   {
+                    "delivery": "request-body",
                     "target": "reasoning.effort",
                     "value": {
                       "source": "literal",
@@ -2676,5 +2679,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "5aa1ec2cbe9acbbe"
 }
