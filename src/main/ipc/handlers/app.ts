@@ -8,14 +8,16 @@ import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import {
+  abandonNotesRelocationSession,
   acknowledgeRendererNotesEditsFlush,
+  acquireNotesRelocationSession,
   inspectNotesRelocation,
+  isRendererNotesEditsFlushWindowRegistered,
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
-  abandonNotesRelocationSession,
-  acquireNotesRelocationSession,
   releaseNotesRelocationSession,
   requestRendererNotesEditsFlush,
+  setNotesRelocationMigrateInFlight,
   unregisterRendererNotesEditsFlushWindow
 } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
@@ -79,13 +81,21 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
 
     acquireNotesRelocationSession(senderId)
+    setNotesRelocationMigrateInFlight(true)
     try {
       await requestRendererNotesEditsFlush()
-      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      if (!isRendererNotesEditsFlushWindowRegistered(senderId)) {
+        releaseNotesRelocationSession(senderId)
+        application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
+      }
+      return result
     } catch (error) {
       releaseNotesRelocationSession(senderId)
       application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
       throw error
+    } finally {
+      setNotesRelocationMigrateInFlight(false)
     }
   },
   'app.notes_relocation.complete': async (_input, { senderId }) => {
