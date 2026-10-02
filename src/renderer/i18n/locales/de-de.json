@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Bitte geben Sie die Bundle-ID der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: com.google.Chrome, com.apple.mail",
   "selection.settings.filter_modal.user_tips.windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, CherryStudio.exe",
   "selection.settings.linux.compositor_incompatible": "Ihre Desktop-Umgebung unterstützt die Auswahlfunktion nicht. Bitte wechseln Sie zu einer X11-Sitzung für die vollständige Erfahrung.",
-  "selection.settings.linux.filter_warning_text": "In Wayland-Sitzung nicht verfügbar",
   "selection.settings.linux.input_group_fail": "Nicht gewährt, bitte führen Sie `sudo usermod -aG input $USER` aus und melden sich erneut an",
   "selection.settings.linux.input_group_label": "Eingabegruppenberechtigung:",
   "selection.settings.linux.input_group_pass": "Gewährt",

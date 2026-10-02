@@ -3395,7 +3395,6 @@
   "selection.settings.filter_modal.user_tips.mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
   "selection.settings.filter_modal.user_tips.windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, CherryStudio.exe, etc.",
   "selection.settings.linux.compositor_incompatible": "Your desktop environment does not support the selection feature. Please switch to an X11 session for the full experience.",
-  "selection.settings.linux.filter_warning_text": "Not available in Wayland session",
   "selection.settings.linux.input_group_fail": "Not granted, please run `sudo usermod -aG input $USER` and re-login",
   "selection.settings.linux.input_group_label": "input group permission: ",
   "selection.settings.linux.input_group_pass": "Granted",
