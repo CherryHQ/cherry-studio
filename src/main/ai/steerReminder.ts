@@ -28,17 +28,22 @@ export function wrapSteerReminder(text: string, backgroundTasksNote?: string): s
 /**
  * Render the still-running detached background work for a turn that starts before it drains: the
  * model learns the earlier results are pending delivery and must not be re-launched. Descriptions
- * come from the driver's normalized task snapshot (untrusted text — defanged by the wrapper above).
+ * come from the driver's normalized task snapshot (untrusted text — defanged by the wrapper above);
+ * the snapshot can be empty while the runtime still holds the work (the driver publishes empty
+ * membership ahead of the terminal edge), so the count line stands on its own.
  */
-export function renderBackgroundTasksNote(descriptions: readonly string[]): string | undefined {
-  if (descriptions.length === 0) return undefined
+export function renderBackgroundTasksNote(descriptions: readonly string[]): string {
   const total = descriptions.length
   // Task descriptions are model-authored text: defang so a literal reminder tag cannot terminate
   // the wrapper the caller will embed this note inside.
   const shown = descriptions.slice(0, 5).map((description) => `- ${defangSystemReminderTags(description)}`)
   const overflow = total - shown.length
   return [
-    `${total} background task${total === 1 ? '' : 's'} started by earlier turn${total === 1 ? '' : 's'} ${total === 1 ? 'is' : 'are'} still running:`,
+    // The snapshot is momentarily empty while the runtime still holds the work, so a count of zero
+    // is a real state to state plainly rather than to render as "0 tasks are still running".
+    total === 0
+      ? 'Background tasks started by an earlier turn are still running:'
+      : `${total} background task${total === 1 ? '' : 's'} started by earlier turn${total === 1 ? '' : 's'} ${total === 1 ? 'is' : 'are'} still running:`,
     ...shown,
     ...(overflow > 0 ? [`- … and ${overflow} more`] : []),
     "Their results will be delivered when they complete. Do not start duplicate work in the meantime; address the user's message now."
