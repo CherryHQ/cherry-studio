@@ -39,6 +39,7 @@ import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeCompose
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
+  createComposerPathReferenceText,
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
   hasSupportedClipboardImage,
@@ -683,13 +684,15 @@ export default function ComposerSurfaceRuntime({
   )
 
   const insertPastedPaths = useCallback((paths: string[]) => {
-    const addition = getComposerInputTextWithinLimit(textRef.current, paths.join('\n'))
-    if (!addition) return
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
+    // A global-handler paste lands at the end of the draft rather than at the possibly stale stored
+    // selection, so it needs a break of its own or the path runs on after the last word. Both
+    // branches keep the rich tokens intact.
+    const body = createComposerPathReferenceText(paths.join('\n'), !editor.state.doc.textContent)
+    const addition = getComposerInputTextWithinLimit(textRef.current, body)
+    if (!addition) return
     const content = createComposerPlainTextContent(addition)
-    // At the caret while focused; a global-handler paste lands at the end of the draft
-    // instead of the possibly stale stored selection. Both keep the rich tokens intact.
     if (editor.isFocused) {
       editor.chain().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
     } else {

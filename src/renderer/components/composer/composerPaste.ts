@@ -89,6 +89,15 @@ export function createComposerPlainTextPasteContent(text: string): JSONContent[]
   return createComposerPlainTextContent(text)
 }
 
+/**
+ * The text a wildcard path paste adds to the draft. Appended at the end of a non-empty draft it
+ * needs a break of its own, or the path runs on after the last word; at the caret it is the user's
+ * own text and gets none.
+ */
+export function createComposerPathReferenceText(paths: string, draftIsEmpty: boolean): string {
+  return draftIsEmpty ? paths : `\n${paths}`
+}
+
 function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
   return token.id.startsWith(prefix) ? token.id.slice(prefix.length) : token.label
 }
