@@ -64,13 +64,42 @@ function htmlBlockTerminator(line: string): RegExp | null {
   return null
 }
 
-/** A link reference or footnote definition; both render nothing until something references them. */
-const DEFINITION_START = /^\s{0,3}(?:\[[^\]]+\]:\s*\S|\[\^[^\]]+\]:)/
-
-/** A footnote definition owns its indented lines; a link definition ends with its line run. */
+/** A footnote definition, which owns its indented lines. */
 const FOOTNOTE_DEFINITION_START = /^\s{0,3}\[\^[^\]]+\]:/
 
+/** A link reference definition label, which may leave its destination to a line of its own. */
+const LINK_DEFINITION_LABEL = /^\s{0,3}\[(?!\^)[^\]]+\]:[ \t]*/
+
+/** A link destination: an angle-bracketed run or a whitespace-free one. */
+const LINK_DESTINATION = /^(?:<[^<>]*>|[^\s]+)/
+
+/** A link title, which may sit on the line below the destination. */
+const LINK_TITLE = /^[ \t]*(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\))[ \t]*$/
+
 const INDENTED_LINE = /^\s+\S/
+
+/**
+ * How many lines a link reference definition covers, or 0 when the label opens none. The destination
+ * may sit a line below the label and the title a line below that, but nothing may follow the
+ * destination except the title — so `[label]:\ntext` is a paragraph and `[label]:\n/url` is not.
+ * Hoisting either the wrong way would show it in every chunk, so the span has to be exact.
+ */
+function linkDefinitionSpan(lines: string[], index: number): number {
+  const label = LINK_DEFINITION_LABEL.exec(lines[index])
+  if (!label) return 0
+  let tail = lines[index].slice(label[0].length)
+  let span = 1
+  if (!LINK_DESTINATION.test(tail)) {
+    const next = lines[index + 1]
+    if (next === undefined || !/\S/.test(next)) return 0
+    tail = next.trimStart()
+    if (!LINK_DESTINATION.test(tail)) return 0
+    span = 2
+  }
+  tail = tail.replace(LINK_DESTINATION, '')
+  if (!/^[ \t]*$/.test(tail)) return LINK_TITLE.test(tail) ? span : 0
+  return LINK_TITLE.test(lines[index + span] ?? '') ? span + 1 : span
+}
 
 /**
  * A list item marker, with the indentation and the marker that identify its list. A list ends where
@@ -92,14 +121,52 @@ const TOP_LEVEL_BLOCK_START =
 const LATEX_ENVIRONMENTS = 'equation\\*?|align\\*?|aligned|gather\\*?|gathered|multline\\*?'
 
 /**
- * The terminator of the display math `remarkLatexMath` opens with a bracket or an environment —
- * the `$$` form is tracked separately, because it closes with the same delimiter it opens with.
+ * A display math run open across lines, with the nesting its own delimiters count. `remarkLatexMath`
+ * accepts the close only once the depth is back to one, so `\[ … \[ … \] … \]` and a repeated
+ * `\begin{align}` each end at their second close and cannot be cut in half before it.
  */
-function displayMathTerminator(line: string): RegExp | null {
+interface MathRun {
+  /** Raises the depth: the delimiter the run opened with. */
+  open: RegExp
+  /** Lowers it: the delimiter that closes the run. */
+  close: RegExp
+  depth: number
+}
+
+/**
+ * The depth `run` leaves open after `line`, scanning it the way the parser does: a backslash is
+ * consumed together with the character after it, so `\\[` is a literal backslash and only the run's
+ * own delimiters move the depth.
+ */
+function trackMathRun(run: MathRun, line: string): MathRun | null {
+  let { depth } = run
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] !== '\\') continue
+    if (run.open.test(line.slice(i))) depth += 1
+    else if (run.close.test(line.slice(i))) depth -= 1
+    i += 1
+    if (depth <= 0) return null
+  }
+  return { ...run, depth }
+}
+
+/**
+ * The display math run a line opens at its head, or null. The `$$` form is tracked separately,
+ * because it closes with the same delimiter it opens with.
+ */
+function openMathRun(line: string): MathRun | null {
   const environment = new RegExp(`^\\s{0,3}\\\\begin\\{(${LATEX_ENVIRONMENTS})\\}`).exec(line)
-  if (environment) return new RegExp(`\\\\end\\{${environment[1]}\\}`)
-  if (/^\s{0,3}\\\[(?!.*\\\])/.test(line)) return /\\\]/
-  return null
+  const bracket = environment ? null : /^\s{0,3}\\\[(?!.*\\\])/.exec(line)
+  const opener = environment ?? bracket
+  if (!opener) return null
+  const run: MathRun = environment
+    ? {
+        open: new RegExp(`^\\\\begin\\{${environment[1]}\\}`),
+        close: new RegExp(`^\\\\end\\{${environment[1]}\\}`),
+        depth: 1
+      }
+    : { open: /^\\\[/, close: /^\\\]/, depth: 1 }
+  return trackMathRun(run, line.slice(opener[0].length))
 }
 
 /** The length of the `$$` fence that opens display math at the head of `line`, or 0. */
@@ -159,7 +226,7 @@ export function splitMarkdownChunks(
   let bufferChars = 0
   let fence: Fence | null = null
   let dollarFence = 0
-  let mathTerminator: RegExp | null = null
+  let mathRun: MathRun | null = null
   let htmlTerminator: RegExp | null = null
   let inDefinition = false
   let footnoteDefinition = false
@@ -178,8 +245,8 @@ export function splitMarkdownChunks(
       if (htmlTerminator.test(line)) htmlTerminator = null
       continue
     }
-    if (mathTerminator) {
-      if (mathTerminator.test(line)) mathTerminator = null
+    if (mathRun) {
+      mathRun = trackMathRun(mathRun, line)
       continue
     }
     if (dollarFence > 0) {
@@ -204,9 +271,9 @@ export function splitMarkdownChunks(
       inDefinition = false
       continue
     }
-    const mathEnd = displayMathTerminator(line)
-    if (mathEnd) {
-      if (!mathEnd.test(line)) mathTerminator = mathEnd
+    const math = openMathRun(line)
+    if (math) {
+      mathRun = math
       inDefinition = false
       continue
     }
@@ -216,10 +283,21 @@ export function splitMarkdownChunks(
       definitions.push(line)
       continue
     }
-    if (DEFINITION_START.test(line)) {
+    if (FOOTNOTE_DEFINITION_START.test(line)) {
       definitions.push(line)
       inDefinition = true
-      footnoteDefinition = FOOTNOTE_DEFINITION_START.test(line)
+      footnoteDefinition = true
+      continue
+    }
+    // A link definition is a run of up to three lines, none of them blank, so it holds no boundary.
+    const definitionSpan = linkDefinitionSpan(lines, i)
+    if (definitionSpan > 0) {
+      for (let n = 0; n < definitionSpan; n++) {
+        definitions.push(lines[i + n])
+        if (n > 0) bufferChars += lines[i + n].length + 1
+      }
+      i += definitionSpan - 1
+      inDefinition = false
       continue
     }
     inDefinition = false

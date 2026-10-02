@@ -164,6 +164,29 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a link reference definition whose destination sits on its own line', () => {
+    // `[label]:` alone is no definition, so the run has to travel whole or the reference degrades.
+    const content = ['[label]:', 'https://example.com', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]:\nhttps://example.com')
+    }
+  })
+
+  it('carries a link reference definition that runs to a title on its own line', () => {
+    const content = ['[label]:', 'https://example.com', '"the title"', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]:\nhttps://example.com\n"the title"')
+    }
+  })
+
   it('carries a footnote definition into the chunk that uses it', () => {
     const content = ['[^1]: the note', '', 'see the note[^1]'].join('\n')
 
@@ -194,6 +217,35 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
   })
 
+  it('does not carry the indented text that follows a complete link definition', () => {
+    // Only the destination's title belongs to the definition; the rest is a block of its own.
+    const content = [
+      '[label]: https://example.com',
+      '    "the title"',
+      '    visible tail text',
+      '',
+      'para one',
+      '',
+      'see [label]'
+    ].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('visible tail text'))).toHaveLength(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com\n    "the title"')
+    }
+  })
+
+  it('does not carry a label line that opens no definition', () => {
+    // `[label]:` with no destination is a paragraph, so hoisting it would print it in every chunk.
+    const content = ['[label]:', 'not a destination here', '', 'para one', '', 'see [label]'].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('not a destination here'))).toHaveLength(1)
+  })
+
   it('splits every chunk at the budget rather than every paragraph after the first', () => {
     // Without a reset, the budget stops being spent once and every later paragraph becomes a chunk.
     const content = Array.from({ length: 10 }, (_, i) => `paragraph-${i + 1}`).join('\n\n')
@@ -212,6 +264,19 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
   })
 
+  it('keeps bracket display math whose delimiters nest in one chunk', () => {
+    // The parser counts a nested `\[`/`\]` pair, so the outer formula ends at its second `\]` and
+    // a boundary after the inner one would leave both chunks with a stray delimiter.
+    const content = ['opening paragraph', '', '\\[', 'x = 1', '\\[', 'y = 2', '\\]', '', 'z = 3', '\\]', 'after'].join(
+      '\n'
+    )
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('\\[\nx = 1\n\\[\ny = 2\n\\]\n\nz = 3\n\\]')
+  })
+
   it('keeps a LaTeX environment that spans blank lines in one chunk', () => {
     const content = ['opening paragraph', '', '\\begin{align}', 'x = 1', '', 'y = 2', '\\end{align}', 'after'].join(
       '\n'
@@ -221,6 +286,28 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks[1].text).toContain('x = 1\n\ny = 2')
+  })
+
+  it('keeps a LaTeX environment whose repeat nests in one chunk', () => {
+    // The parser counts a repeated `\begin{align}`, so the outer one ends at its second `\end{align}`.
+    const content = [
+      'opening paragraph',
+      '',
+      '\\begin{align}',
+      'x = 1',
+      '\\begin{align}',
+      'y = 2',
+      '\\end{align}',
+      '',
+      'z = 3',
+      '\\end{align}',
+      'after'
+    ].join('\n')
+
+    const chunks = splitMarkdownChunks(content, 10)
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1].text).toContain('\\end{align}\n\nz = 3\n\\end{align}')
   })
 
   it('carries a multi-paragraph footnote definition in full', () => {
