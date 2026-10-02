@@ -752,8 +752,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
   })
 
-  it.each([undefined, 64_000, 99_999])(
-    'omits a model context window below Claude Code limits (%s)',
+  it.each([undefined, 0, -1, Number.NaN])(
+    'does not pin an absent or invalid model context window (%s)',
     async (contextWindow) => {
       const settings = await buildClaudeCodeSessionSettings(
         {
@@ -768,10 +768,81 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
       expect(settings.settings).not.toHaveProperty('autoCompactWindow')
       expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
-      // Without a budget there is nothing to reserve against, so the CLI keeps its own output default.
+      // Without a valid declared window, the CLI keeps its own output default.
       expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_OUTPUT_TOKENS')
     }
   )
+
+  it.each([49_152, 64_000, 99_999])(
+    'pins the actual %i-token window without an invalid SDK autoCompactWindow',
+    async (contextWindow) => {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never,
+        { contextWindow, maxOutputTokens: 8_192 }
+      )
+
+      expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+      expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+      expect(settings.env).toMatchObject({
+        CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow),
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS: '8192',
+        CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60'
+      })
+    }
+  )
+
+  it('caps the unknown-model output default to preserve input room on a 49K window', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 49_152 }
+    )
+
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '49152',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '12288',
+      CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60'
+    })
+  })
+
+  it('preserves a safe explicit output override and caps an oversized one on a 49K window', async () => {
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '4096' } }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const safe = await buildClaudeCodeSessionSettings(session as never, {} as never, { contextWindow: 49_152 })
+    expect(safe.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '49152',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '4096'
+    })
+
+    agent.configuration.env_vars.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '32768'
+    const capped = await buildClaudeCodeSessionSettings(session as never, {} as never, { contextWindow: 49_152 })
+    expect(capped.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '12288' })
+  })
 
   // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
   it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
