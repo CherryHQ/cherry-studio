@@ -5,11 +5,13 @@ import {
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
 
+import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import {
   createComposerMarkedTextPasteContent,
   createComposerPathReferenceText,
   createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
+  getComposerInputTextWithinLimit,
   getComposerPlainTextPasteOverride
 } from '../composerPaste'
 
@@ -62,6 +64,16 @@ describe('composer paste handling', () => {
     expect(createComposerPlainTextPasteContent(createComposerPathReferenceText('/w/model.onnx', true))).toEqual([
       { type: 'text', text: '/w/model.onnx' }
     ])
+  })
+
+  it('allows a path to replace selected text that pushed the draft over the limit', () => {
+    // The selection is what the insert removes, so charging it against the budget twice would
+    // refuse an insertion that fits.
+    const draft = `head ${'x'.repeat(COMPOSER_INPUT_MAX_LENGTH)}`
+    const selected = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH)
+
+    expect(getComposerInputTextWithinLimit(draft, '/w/model.onnx', selected)).toBe('/w/model.onnx')
+    expect(getComposerInputTextWithinLimit(draft, '/w/model.onnx')).toBe('')
   })
 
   it('intercepts single-line text paste as plain text content', () => {

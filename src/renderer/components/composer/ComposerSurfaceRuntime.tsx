@@ -41,6 +41,7 @@ import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposer
 import {
   createComposerPathReferenceText,
   getComposerClipboardPasteOverride,
+  getComposerInputTextWithinLimit,
   getComposerPlainTextPasteOverride,
   hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
@@ -357,12 +358,6 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
 
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
   return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
-}
-
-function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = '') {
-  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
-  if (remainingLength <= 0) return ''
-  return nextText.slice(0, remainingLength)
 }
 
 function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
@@ -690,18 +685,25 @@ export default function ComposerSurfaceRuntime({
     // selection, so it needs a break of its own or the path runs on after the last word. Both
     // branches keep the rich tokens intact.
     const body = createComposerPathReferenceText(paths.join('\n'), !editor.state.doc.textContent)
-    const addition = getComposerInputTextWithinLimit(textRef.current, body)
-    if (!addition) return
-    const content = createComposerPlainTextContent(addition)
     if (editor.isFocused) {
-      editor.chain().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
-    } else {
+      // `insertContent` replaces the selection, so the budget has to allow for the text it removes.
+      const replaced = getComposerReplacementText(editor.view, editor.state.selection.from, editor.state.selection.to)
+      const addition = getComposerInputTextWithinLimit(textRef.current, body, replaced)
+      if (!addition) return
       editor
         .chain()
         .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
-        .insertContentAt(editor.state.doc.content.size, content)
+        .insertContent(createComposerPlainTextContent(addition))
         .run()
+      return
     }
+    const addition = getComposerInputTextWithinLimit(textRef.current, body)
+    if (!addition) return
+    editor
+      .chain()
+      .setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+      .insertContentAt(editor.state.doc.content.size, createComposerPlainTextContent(addition))
+      .run()
   }, [])
 
   const pasteHandlerOptions = useMemo(
