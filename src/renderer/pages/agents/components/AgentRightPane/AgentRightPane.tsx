@@ -1779,7 +1779,7 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
               <span className="min-w-0 flex-1 truncate font-medium" title={task.command}>
                 {task.name}
               </span>
-              <span className="text-muted-foreground">{task.status}</span>
+              <span className="text-muted-foreground">{t(`agent.right_pane.detached_task.status_${task.status}`)}</span>
               {task.status === 'running' && (
                 <>
                   <Button

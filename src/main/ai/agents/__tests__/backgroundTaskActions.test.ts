@@ -7,7 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { getPathMock } = vi.hoisted(() => ({ getPathMock: vi.fn() }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: vi.fn(() => null) } }))
-vi.mock('@application', () => ({ application: { getPath: getPathMock } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const { application } = mockApplicationFactory()
+  application.getPath = getPathMock
+  return { application }
+})
 
 import { agentService } from '@data/services/AgentService'
 
