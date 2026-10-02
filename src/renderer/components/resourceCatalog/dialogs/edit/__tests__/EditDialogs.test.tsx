@@ -1097,6 +1097,18 @@ describe('edit dialogs', () => {
     )
   })
 
+  // The three model tiers pin Claude Code's opus / sonnet / haiku aliases rather than
+  // being three parallel work tiers, and the sonnet slot has nothing to do with Plan mode.
+  // Each label therefore carries a help trigger naming the variable it becomes.
+  it('explains what each agent model slot is wired to', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model', 'Primary agent model.')
+    expectHelpTrigger('Plan model', 'Plan model.')
+    expectHelpTrigger('Small model', 'Small model.')
+  })
+
   // The heartbeat is turned off by its switch, so an emptied interval is a retype,
   // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
   it('does not persist a zero heartbeat interval when the field is cleared', async () => {
