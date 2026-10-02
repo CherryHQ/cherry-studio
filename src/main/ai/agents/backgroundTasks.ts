@@ -20,6 +20,7 @@ import { mkdir, open, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/backgroundTask'
 
 export type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/backgroundTask'
@@ -257,7 +258,7 @@ async function stopDetachedBackgroundTaskUnlocked(
     ...record,
     stopRequestedAt: new Date().toISOString(),
     stopSignal: signal,
-    note: force ? 'Kill requested.' : 'Stop requested; use Kill if the process does not exit.'
+    note: force ? t('background_task.note.kill_requested') : t('background_task.note.stop_requested')
   }
   await writeRecord(storageDir, requested)
   try {
@@ -346,13 +347,13 @@ async function reconcileDetachedBackgroundTask(
       status: 'stopped',
       signal: record.stopSignal ?? 'SIGTERM',
       finishedAt: record.finishedAt ?? new Date().toISOString(),
-      note: 'The stopped process is no longer running; no completion event was captured.'
+      note: t('background_task.note.stopped_no_event')
     }
   }
   return {
     ...record,
     status: 'unknown',
-    note: 'Process is gone and no completion marker exists — the app likely exited while the task was running. Check the log file.'
+    note: t('background_task.note.gone_no_marker')
   }
 }
 
@@ -385,9 +386,14 @@ async function finalizeDetachedBackgroundTask(
         JSON.stringify(completion, null, 2),
         { mode: 0o600 }
       )
-      const summary = `Background task "${finished.name}" (${finished.id}) finished with ${
-        signal ? `signal ${signal}` : `exit code ${exitCode ?? 'unknown'}`
-      }. Log: ${finished.logFile}`
+      const summary = t('background_task.summary_finished', {
+        name: finished.name,
+        id: finished.id,
+        outcome: signal
+          ? t('background_task.summary_signal', { signal })
+          : t('background_task.summary_exit_code', { code: exitCode ?? t('background_task.summary_unknown_code') }),
+        log: finished.logFile
+      })
       logger.info('Detached background task finished', { taskId: finished.id, status, exitCode, signal })
       onExit?.({ record: finished, summary })
     } catch (error) {
