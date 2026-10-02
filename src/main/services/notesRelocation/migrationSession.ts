@@ -15,17 +15,17 @@ const COMMIT_TIMEOUT_MS = 60_000
 let migrationInFlight = false
 let activeSessionId: string | null = null
 let blockedRoots: { source: string; target: string } | null = null
-let activeNotesBatchMarkdownUploads = 0
-let batchMarkdownUploadIdleWaiters: Array<() => void> = []
+let activeNotesFilesystemMutations = 0
+let notesFilesystemMutationIdleWaiters: Array<() => void> = []
 let commitWatchTimer: NodeJS.Timeout | undefined
 let commitWatchCleanup: (() => void) | undefined
 
-function resolveBatchMarkdownUploadIdleWaiters(): void {
-  if (activeNotesBatchMarkdownUploads > 0) {
+function resolveNotesFilesystemMutationIdleWaiters(): void {
+  if (activeNotesFilesystemMutations > 0) {
     return
   }
-  const waiters = batchMarkdownUploadIdleWaiters
-  batchMarkdownUploadIdleWaiters = []
+  const waiters = notesFilesystemMutationIdleWaiters
+  notesFilesystemMutationIdleWaiters = []
   for (const resolve of waiters) {
     resolve()
   }
@@ -99,25 +99,46 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
   }
 }
 
-export function beginNotesBatchMarkdownUpload(): void {
+export function beginNotesFilesystemMutation(): void {
   if (migrationInFlight) {
     throw new NotesMigrationWriteBlockedError()
   }
-  activeNotesBatchMarkdownUploads++
+  activeNotesFilesystemMutations++
 }
 
-export function endNotesBatchMarkdownUpload(): void {
-  activeNotesBatchMarkdownUploads--
-  resolveBatchMarkdownUploadIdleWaiters()
+export function endNotesFilesystemMutation(): void {
+  activeNotesFilesystemMutations--
+  resolveNotesFilesystemMutationIdleWaiters()
 }
 
-export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
-  if (activeNotesBatchMarkdownUploads === 0) {
+export async function withNotesFilesystemMutation<T>(fn: () => Promise<T>): Promise<T> {
+  beginNotesFilesystemMutation()
+  try {
+    return await fn()
+  } finally {
+    endNotesFilesystemMutation()
+  }
+}
+
+export function waitForNotesFilesystemMutationsIdle(): Promise<void> {
+  if (activeNotesFilesystemMutations === 0) {
     return Promise.resolve()
   }
   return new Promise((resolve) => {
-    batchMarkdownUploadIdleWaiters.push(resolve)
+    notesFilesystemMutationIdleWaiters.push(resolve)
   })
+}
+
+export function beginNotesBatchMarkdownUpload(): void {
+  beginNotesFilesystemMutation()
+}
+
+export function endNotesBatchMarkdownUpload(): void {
+  endNotesFilesystemMutation()
+}
+
+export function waitForNotesBatchMarkdownUploadsIdle(): Promise<void> {
+  return waitForNotesFilesystemMutationsIdle()
 }
 
 export function releaseNotesMigrationSession(): void {
