@@ -12,7 +12,8 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 import {
   releaseNotesMigrationSession,
   setNotesMigrationBlockedRoots,
-  tryBeginNotesDirectoryMigration
+  tryBeginNotesDirectoryMigration,
+  waitForNotesFilesystemMutationsIdle
 } from '@main/services/notesRelocation/migrationSession'
 
 import { fileStorage } from '../FileStorage'
@@ -251,6 +252,32 @@ describe('FileStorage', () => {
       await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
         /migration is in progress/
       )
+    })
+
+    it('waits for an in-flight external write before migration can install the write barrier', async () => {
+      const notesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-flight-'))
+      const dest = path.join(notesDir, 'note.md')
+      const originalWrite = fs.promises.writeFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'writeFile').mockImplementation(async (filePath, data, ...args) => {
+        await originalWrite(filePath, data, ...(args as [BufferEncoding]))
+        if (String(filePath) === dest) {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+      })
+
+      const write = fileStorage.writeFile(event, dest, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
+      const idle = waitForNotesFilesystemMutationsIdle()
+      let barrierReady = false
+      void idle.then(() => {
+        barrierReady = true
+      })
+      await Promise.resolve()
+      expect(barrierReady).toBe(false)
+
+      await write
+      await idle
+      expect(barrierReady).toBe(true)
     })
 
     it('aborts an in-flight batch upload when migration starts before a write', async () => {

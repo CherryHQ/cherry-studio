@@ -17,7 +17,7 @@ import {
   scheduleAwaitingMigrationCommit,
   setNotesMigrationBlockedRoots,
   tryBeginNotesDirectoryMigration,
-  waitForNotesBatchMarkdownUploadsIdle
+  waitForNotesFilesystemMutationsIdle
 } from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -69,7 +69,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
           'a renderer window failed to prepare for notes directory migration'
         )
       }
-      await waitForNotesBatchMarkdownUploadsIdle()
+      await waitForNotesFilesystemMutationsIdle()
       setNotesMigrationBlockedRoots(sourcePath, targetPath)
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
       const sessionId = getNotesMigrationSessionId()

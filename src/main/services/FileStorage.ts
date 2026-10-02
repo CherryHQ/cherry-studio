@@ -33,7 +33,8 @@ import {
   assertNotesPathNotMutatingDuringMigration,
   beginNotesBatchMarkdownUpload,
   endNotesBatchMarkdownUpload,
-  isNotesMigrationWriteBlockedError
+  isNotesMigrationWriteBlockedError,
+  withNotesFilesystemMutation
 } from '@main/services/notesRelocation'
 import { getFileType } from '@main/utils/file'
 import {
@@ -284,143 +285,141 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
-  public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
-    try {
-      if (!filePath) return
+  public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        if (!filePath) return
 
-      const nativePath = normalizeTrashPath(filePath)
-      await assertOutsideManagedStorageMutation(nativePath)
-      assertNotesPathNotMutatingDuringMigration(nativePath)
-      if (!fs.existsSync(nativePath)) {
-        return
+        const nativePath = normalizeTrashPath(filePath)
+        await assertOutsideManagedStorageMutation(nativePath)
+        assertNotesPathNotMutatingDuringMigration(nativePath)
+        if (!fs.existsSync(nativePath)) {
+          return
+        }
+
+        await shell.trashItem(nativePath)
+        logger.debug(`External file moved to trash successfully: ${nativePath}`)
+      } catch (error) {
+        logger.error('Failed to delete external file:', error as Error)
+        throw error
       }
+    })
 
-      await shell.trashItem(nativePath)
-      logger.debug(`External file moved to trash successfully: ${nativePath}`)
-    } catch (error) {
-      logger.error('Failed to delete external file:', error as Error)
-      throw error
-    }
-  }
+  public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        if (!dirPath) return
 
-  public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
-    try {
-      if (!dirPath) return
+        const nativePath = normalizeTrashPath(dirPath)
+        await assertOutsideManagedStorageMutation(nativePath)
+        assertNotesPathNotMutatingDuringMigration(nativePath)
+        if (!fs.existsSync(nativePath)) {
+          return
+        }
 
-      const nativePath = normalizeTrashPath(dirPath)
-      await assertOutsideManagedStorageMutation(nativePath)
-      assertNotesPathNotMutatingDuringMigration(nativePath)
-      if (!fs.existsSync(nativePath)) {
-        return
+        await shell.trashItem(nativePath)
+        logger.debug(`External directory moved to trash successfully: ${nativePath}`)
+      } catch (error) {
+        logger.error('Failed to delete external directory:', error as Error)
+        throw error
       }
+    })
 
-      await shell.trashItem(nativePath)
-      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
-    } catch (error) {
-      logger.error('Failed to delete external directory:', error as Error)
-      throw error
-    }
-  }
+  public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        await assertOutsideManagedStorageMutation(filePath, newPath)
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        assertNotesPathNotMutatingDuringMigration(newPath)
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Source file does not exist: ${filePath}`)
+        }
 
-  public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
-    try {
-      await assertOutsideManagedStorageMutation(filePath, newPath)
-      assertNotesPathNotMutatingDuringMigration(filePath)
-      assertNotesPathNotMutatingDuringMigration(newPath)
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`Source file does not exist: ${filePath}`)
+        const destDir = path.dirname(newPath)
+        if (!fs.existsSync(destDir)) {
+          await fs.promises.mkdir(destDir, { recursive: true })
+        }
+
+        await fs.promises.rename(filePath, newPath)
+        logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
+      } catch (error) {
+        logger.error('Move file failed:', error as Error)
+        throw error
       }
+    })
 
-      // 确保目标目录存在
-      const destDir = path.dirname(newPath)
-      if (!fs.existsSync(destDir)) {
-        await fs.promises.mkdir(destDir, { recursive: true })
+  public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        await assertOutsideManagedStorageMutation(dirPath, newDirPath)
+        assertNotesPathNotMutatingDuringMigration(dirPath)
+        assertNotesPathNotMutatingDuringMigration(newDirPath)
+        if (!fs.existsSync(dirPath)) {
+          throw new Error(`Source directory does not exist: ${dirPath}`)
+        }
+
+        const parentDir = path.dirname(newDirPath)
+        if (!fs.existsSync(parentDir)) {
+          await fs.promises.mkdir(parentDir, { recursive: true })
+        }
+
+        await fs.promises.rename(dirPath, newDirPath)
+        logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
+      } catch (error) {
+        logger.error('Move directory failed:', error as Error)
+        throw error
       }
+    })
 
-      // 移动文件
-      await fs.promises.rename(filePath, newPath)
-      logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
-    } catch (error) {
-      logger.error('Move file failed:', error as Error)
-      throw error
-    }
-  }
+  public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Source file does not exist: ${filePath}`)
+        }
 
-  public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
-    try {
-      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
-      assertNotesPathNotMutatingDuringMigration(dirPath)
-      assertNotesPathNotMutatingDuringMigration(newDirPath)
-      if (!fs.existsSync(dirPath)) {
-        throw new Error(`Source directory does not exist: ${dirPath}`)
+        const dirPath = path.dirname(filePath)
+        const newFilePath = path.join(dirPath, newName + '.md')
+        await assertOutsideManagedStorageMutation(filePath, newFilePath)
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        assertNotesPathNotMutatingDuringMigration(newFilePath)
+
+        if (fs.existsSync(newFilePath)) {
+          throw new Error(`Target file already exists: ${newFilePath}`)
+        }
+
+        await fs.promises.rename(filePath, newFilePath)
+        logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
+      } catch (error) {
+        logger.error('Rename file failed:', error as Error)
+        throw error
       }
+    })
 
-      // 确保目标父目录存在
-      const parentDir = path.dirname(newDirPath)
-      if (!fs.existsSync(parentDir)) {
-        await fs.promises.mkdir(parentDir, { recursive: true })
+  public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        if (!fs.existsSync(dirPath)) {
+          throw new Error(`Source directory does not exist: ${dirPath}`)
+        }
+
+        const parentDir = path.dirname(dirPath)
+        const newDirPath = path.join(parentDir, newName)
+        await assertOutsideManagedStorageMutation(dirPath, newDirPath)
+        assertNotesPathNotMutatingDuringMigration(dirPath)
+        assertNotesPathNotMutatingDuringMigration(newDirPath)
+
+        if (fs.existsSync(newDirPath)) {
+          throw new Error(`Target directory already exists: ${newDirPath}`)
+        }
+
+        await fs.promises.rename(dirPath, newDirPath)
+        logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
+      } catch (error) {
+        logger.error('Rename directory failed:', error as Error)
+        throw error
       }
-
-      // 移动目录
-      await fs.promises.rename(dirPath, newDirPath)
-      logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
-    } catch (error) {
-      logger.error('Move directory failed:', error as Error)
-      throw error
-    }
-  }
-
-  public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
-    try {
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`Source file does not exist: ${filePath}`)
-      }
-
-      const dirPath = path.dirname(filePath)
-      const newFilePath = path.join(dirPath, newName + '.md')
-      await assertOutsideManagedStorageMutation(filePath, newFilePath)
-      assertNotesPathNotMutatingDuringMigration(filePath)
-      assertNotesPathNotMutatingDuringMigration(newFilePath)
-
-      // 如果目标文件已存在，抛出错误
-      if (fs.existsSync(newFilePath)) {
-        throw new Error(`Target file already exists: ${newFilePath}`)
-      }
-
-      // 重命名文件
-      await fs.promises.rename(filePath, newFilePath)
-      logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
-    } catch (error) {
-      logger.error('Rename file failed:', error as Error)
-      throw error
-    }
-  }
-
-  public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
-    try {
-      if (!fs.existsSync(dirPath)) {
-        throw new Error(`Source directory does not exist: ${dirPath}`)
-      }
-
-      const parentDir = path.dirname(dirPath)
-      const newDirPath = path.join(parentDir, newName)
-      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
-      assertNotesPathNotMutatingDuringMigration(dirPath)
-      assertNotesPathNotMutatingDuringMigration(newDirPath)
-
-      // 如果目标目录已存在，抛出错误
-      if (fs.existsSync(newDirPath)) {
-        throw new Error(`Target directory already exists: ${newDirPath}`)
-      }
-
-      // 重命名目录
-      await fs.promises.rename(dirPath, newDirPath)
-      logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
-    } catch (error) {
-      logger.error('Rename directory failed:', error as Error)
-      throw error
-    }
-  }
+    })
 
   /**
    * Core file reading logic that handles both documents and text files.
@@ -549,11 +548,12 @@ class FileStorage {
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
     data: Uint8Array | string
-  ): Promise<void> => {
-    await assertOutsideManagedStorageMutation(filePath)
-    assertNotesPathNotMutatingDuringMigration(filePath)
-    await fs.promises.writeFile(filePath, data)
-  }
+  ): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      await assertOutsideManagedStorageMutation(filePath)
+      assertNotesPathNotMutatingDuringMigration(filePath)
+      await fs.promises.writeFile(filePath, data)
+    })
 
   public fileNameGuard = async (
     _: Electron.IpcMainInvokeEvent,
@@ -570,18 +570,19 @@ class FileStorage {
     return { safeName: finalName, exists }
   }
 
-  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
-    try {
-      await assertOutsideManagedStorageMutation(dirPath)
-      assertNotesPathNotMutatingDuringMigration(dirPath)
-      logger.debug(`Attempting to create directory: ${dirPath}`)
-      await fs.promises.mkdir(dirPath, { recursive: true })
-      return dirPath
-    } catch (error) {
-      logger.error('Failed to create directory:', error as Error)
-      throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
-    }
-  }
+  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        await assertOutsideManagedStorageMutation(dirPath)
+        assertNotesPathNotMutatingDuringMigration(dirPath)
+        logger.debug(`Attempting to create directory: ${dirPath}`)
+        await fs.promises.mkdir(dirPath, { recursive: true })
+        return dirPath
+      } catch (error) {
+        logger.error('Failed to create directory:', error as Error)
+        throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
+      }
+    })
 
   public base64Image = async (
     _: Electron.IpcMainInvokeEvent,
@@ -807,11 +808,14 @@ class FileStorage {
         return null
       }
 
-      await assertOutsideManagedStorageMutation(result.filePath)
-      assertNotesPathNotMutatingDuringMigration(result.filePath)
-      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-
-      return result.filePath
+      const filePath = result.filePath
+      const savedPath = await withNotesFilesystemMutation(async () => {
+        await assertOutsideManagedStorageMutation(filePath)
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        writeFileSync(filePath, content, { encoding: 'utf-8' })
+        return filePath
+      })
+      return savedPath
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
       return Promise.reject('An error occurred saving the file: ' + err?.message)
@@ -826,11 +830,14 @@ class FileStorage {
       })
 
       if (!result.canceled && result.filePath) {
-        await assertOutsideManagedStorageMutation(result.filePath)
-        assertNotesPathNotMutatingDuringMigration(result.filePath)
-        const parseResult = parseDataUrl(data)
-        await fs.promises.writeFile(result.filePath, parseResult?.data ?? data, 'base64')
-        return true
+        const filePath = result.filePath
+        return await withNotesFilesystemMutation(async () => {
+          await assertOutsideManagedStorageMutation(filePath)
+          assertNotesPathNotMutatingDuringMigration(filePath)
+          const parseResult = parseDataUrl(data)
+          await fs.promises.writeFile(filePath, parseResult?.data ?? data, 'base64')
+          return true
+        })
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
@@ -942,26 +949,25 @@ class FileStorage {
   }
 
   // @TraceProperty({ spanName: 'copyFile', tag: 'FileStorage' })
-  public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> => {
-    try {
-      const sourcePath = path.join(this.storageDir, id)
-      await assertOutsideManagedStorageMutation(destPath)
-      assertNotesPathNotMutatingDuringMigration(destPath)
+  public copyFile = async (_: Electron.IpcMainInvokeEvent, id: string, destPath: string): Promise<void> =>
+    withNotesFilesystemMutation(async () => {
+      try {
+        const sourcePath = path.join(this.storageDir, id)
+        await assertOutsideManagedStorageMutation(destPath)
+        assertNotesPathNotMutatingDuringMigration(destPath)
 
-      // 确保目标目录存在
-      const destDir = path.dirname(destPath)
-      if (!fs.existsSync(destDir)) {
-        await fs.promises.mkdir(destDir, { recursive: true })
+        const destDir = path.dirname(destPath)
+        if (!fs.existsSync(destDir)) {
+          await fs.promises.mkdir(destDir, { recursive: true })
+        }
+
+        await fs.promises.copyFile(sourcePath, destPath)
+        logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
+      } catch (error) {
+        logger.error('Copy file failed:', error as Error)
+        throw error
       }
-
-      // 复制文件
-      await fs.promises.copyFile(sourcePath, destPath)
-      logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
-    } catch (error) {
-      logger.error('Copy file failed:', error as Error)
-      throw error
-    }
-  }
+    })
 
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {

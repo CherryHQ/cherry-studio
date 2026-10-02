@@ -237,4 +237,25 @@ describe('notesRelocation', () => {
 
     expect(() => assertNotesRelocationPaths(source, nestedTarget)).toThrow()
   })
+
+  it('rejects non-merge migration when the target gains a file during copying', async () => {
+    const source = path.join(tempRoot, 'source-notes-late-target')
+    const target = path.join(tempRoot, 'target-notes-late-target')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'first.md'), '# first')
+    fs.writeFileSync(path.join(source, 'second.md'), '# second')
+
+    const originalCopyFile = fs.promises.copyFile.bind(fs.promises)
+    vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to) => {
+      await originalCopyFile(from, to)
+      if (String(from).endsWith('first.md')) {
+        fs.writeFileSync(path.join(target, 'second.md'), 'late arrival')
+      }
+    })
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
+    })
+  })
 })
