@@ -47,9 +47,10 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
-import { getToolName, isToolUIPart } from 'ai'
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -358,6 +359,18 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
   return undefined
 }
 
+/** dsh's own name for the receipt that resumes a child; other runtimes spell it `SendMessage`. */
+const DSH_SEND_MESSAGE_TOOL_NAME = 'send_message'
+const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
+
+/** The runtime that produced a part, as the transport its adapter stamped onto the call. */
+function getCherryTransport(part: unknown): string | undefined {
+  const metadata = (part as { callProviderMetadata?: unknown } | null)?.callProviderMetadata
+  if (!isRecord(metadata) || !isRecord(metadata.cherry)) return undefined
+  const transport = metadata.cherry.transport
+  return typeof transport === 'string' ? transport : undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -391,6 +404,13 @@ export interface AgentLaunchIndex {
    * cold-resumed child streams under its own `send_message` call, which is therefore a flow root.
    */
   childRootCallIds: ReadonlySet<string>
+  /**
+   * Call ids the dsh runtime bound a task to. A cold-resumed child's task names the `send_message`
+   * call that resumed it and its content streams under that call, so the call roots a flow of its
+   * own even before any of that content arrives. Claude task edges can name a resuming call without
+   * owning its content, so only dsh's own binding is trusted here.
+   */
+  dshTaskRootCallIds: ReadonlySet<string>
 }
 
 export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMessagePart[]> | null): AgentLaunchIndex {
@@ -398,10 +418,19 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
   const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()
   const descriptionsByToolCallId = new Map<string, string | undefined>()
   const childRootCallIds = new Set<string>()
-  if (!partsByMessageId) return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds }
+  const taskBoundCallIds = new Set<string>()
+  const dshResumeCallIds = new Set<string>()
+  const dshTaskRootCallIds = new Set<string>()
+  if (!partsByMessageId)
+    return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      // Task events are data parts, so the call a task is bound to is read before the tool-part gate.
+      if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
+        if (part.data.toolUseId) taskBoundCallIds.add(part.data.toolUseId)
+        continue
+      }
       // Child content is text and reasoning parts, not tool parts, so the parent link is read
       // before the tool-part gate below.
       const parentToolCallId = getPartParentToolCallId(part)
@@ -411,6 +440,9 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
       const toolPart = part as unknown as Parameters<typeof getToolName>[0]
       if (!isToolUIPart(toolPart)) continue
       const toolName = getToolName(toolPart).trim()
+      if (toolName === DSH_SEND_MESSAGE_TOOL_NAME && getCherryTransport(part) === DSH_TRANSPORT) {
+        if (typeof record.toolCallId === 'string') dshResumeCallIds.add(record.toolCallId)
+      }
       // DSH launches under its own tool names, so the wire name is matched alongside the shared
       // ones rather than through a canonicalising import, which would cycle back into this module.
       if (
@@ -433,7 +465,10 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
       launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description })
     }
   }
-  return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds }
+  for (const callId of taskBoundCallIds) {
+    if (dshResumeCallIds.has(callId)) dshTaskRootCallIds.add(callId)
+  }
+  return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
 }
 
 /**

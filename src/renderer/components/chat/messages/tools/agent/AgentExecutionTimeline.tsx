@@ -102,9 +102,12 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   )
   // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
   // redirecting to the launch root would drop everything the resume produced. The index is read
-  // rather than the parts map, which a settled tool group deliberately empties.
+  // rather than the parts map, which a settled tool group deliberately empties, and a task the dsh
+  // runtime bound to this call is enough to know the content is on its way here.
   const receiptRootsItsFlow =
-    resumeState?.kind === 'navigable' && launchIndex?.childRootCallIds.has(toolResponse.toolCallId) === true
+    resumeState?.kind === 'navigable' &&
+    (launchIndex?.childRootCallIds.has(toolResponse.toolCallId) === true ||
+      launchIndex?.dshTaskRootCallIds.has(toolResponse.toolCallId) === true)
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
