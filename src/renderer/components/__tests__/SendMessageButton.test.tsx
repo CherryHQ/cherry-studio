@@ -1,120 +1,69 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
-import React, { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const TOOLTIP_CONTENT_ID = 'mock-tooltip-content'
-
-/** Radix `Slot` merges its trigger props into the child, composing handlers instead of replacing. */
-function mergeTriggerProps(own: Record<string, unknown>, trigger: Record<string, unknown>) {
-  const merged = { ...own, ...trigger }
-  for (const [key, value] of Object.entries(trigger)) {
-    const ownValue = own[key]
-    if (typeof ownValue !== 'function' || typeof value !== 'function') continue
-    merged[key] = (...args: unknown[]) => {
-      ;(ownValue as (...args: unknown[]) => void)(...args)
-      ;(value as (...args: unknown[]) => void)(...args)
-    }
-  }
-  return merged
-}
-
-// Mirrors the primitive's trigger contract: with `asChild` the child element *is* the trigger and
-// carries the composed props, without it the library wraps the child in a div of its own,
-// `isDisabled` returns the bare child, and content is portalled only while open (Radix behavior).
-vi.mock('@cherrystudio/ui', () => ({
-  Kbd: ({ children, className, ...props }: ComponentProps<'kbd'>) => (
-    <kbd data-slot="kbd" className={className} {...props}>
-      {children}
-    </kbd>
-  ),
-  Tooltip: ({
-    children,
-    content,
-    asChild,
-    isDisabled
-  }: {
-    children: ReactNode
-    content: ReactNode
-    asChild?: boolean
-    isDisabled?: boolean
-  }) => {
-    const [open, setOpen] = useState(false)
-
-    if (isDisabled) {
-      return asChild && React.isValidElement(children) ? children : <div>{children}</div>
-    }
-
-    const triggerProps = {
-      'aria-describedby': open ? TOOLTIP_CONTENT_ID : undefined,
-      'data-tooltip-trigger': 'true',
-      onPointerEnter: () => setOpen(true),
-      onPointerLeave: () => setOpen(false),
-      onFocus: () => setOpen(true),
-      onBlur: () => setOpen(false)
-    }
-
-    return (
-      <>
-        {asChild && React.isValidElement(children) ? (
-          // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix's Slot merge
-          React.cloneElement(children, mergeTriggerProps(children.props as Record<string, unknown>, triggerProps))
-        ) : (
-          <div {...triggerProps}>{children}</div>
-        )}
-        {open &&
-          createPortal(
-            <span id={TOOLTIP_CONTENT_ID} data-testid="tooltip-content">
-              {content}
-            </span>,
-            document.body
-          )}
-      </>
-    )
-  }
-}))
+// The shortcut tooltip is this button's accessibility contract, so it runs against the real
+// `@cherrystudio/ui` primitives; the shared renderer mock's Tooltip never opens a content node.
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  const [tooltip, kbd] = await Promise.all([
+    import('@cherrystudio/ui/components/primitives/tooltip'),
+    import('@cherrystudio/ui/components/primitives/kbd')
+  ])
+  return { ...actual, ...tooltip, ...kbd }
+})
 
 import SendMessageButton from '../SendMessageButton'
+
+/** Long enough for a real tooltip to have opened, short enough to keep the suite fast. */
+const TOOLTIP_SETTLE_MS = 300
 
 describe('SendMessageButton', () => {
   afterEach(cleanup)
 
-  it('hangs the shortcut tooltip on the send control itself', async () => {
+  it('announces the send shortcut to keyboard and screen-reader users', async () => {
     const user = userEvent.setup()
-    const { container } = render(
-      <SendMessageButton disabled={false} sendMessage={vi.fn()} shortcutLabel="Ctrl+Enter" />
-    )
+    render(<SendMessageButton disabled={false} sendMessage={vi.fn()} shortcutLabel="Ctrl+Enter" />)
     const send = screen.getByRole('button', { name: 'chat.input.send' })
 
-    // `asChild` leaves the control as the only element the tooltip owns; a wrapper would sit here.
-    expect(container.firstElementChild).toBe(send)
-    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
+    // The send control must be the trigger itself: the default wrapper owns the focus handlers and
+    // would keep the shortcut away from everyone not using a mouse.
+    expect(document.querySelector('[data-slot="tooltip-trigger"]')).toBe(send)
 
-    await user.hover(send)
+    await user.tab()
+    expect(send).toHaveFocus()
 
-    expect(send).toHaveAttribute('aria-describedby', TOOLTIP_CONTENT_ID)
-    const content = await screen.findByTestId('tooltip-content')
-    expect(content).toHaveTextContent('chat.input.send')
-    expect(content.querySelector('[data-slot="kbd"]')).toHaveTextContent('Ctrl+Enter')
+    const description = await waitFor(() => {
+      const id = send.getAttribute('aria-describedby')
+      expect(id).toBeTruthy()
+      return document.getElementById(id as string)
+    })
+    expect(description).toHaveAttribute('role', 'tooltip')
+    expect(description).toHaveTextContent('chat.input.send')
     // The keycap is aria-hidden, so the sr-only copy is what the description announces.
-    expect(content.querySelector('.sr-only')).toHaveTextContent('Ctrl+Enter')
+    expect(description).toHaveTextContent('Ctrl+Enter')
   })
 
-  it('suppresses the tooltip while the send control is disabled', () => {
-    const { container } = render(<SendMessageButton disabled sendMessage={vi.fn()} shortcutLabel="Ctrl+Enter" />)
+  it('does not advertise a send shortcut while sending is blocked', async () => {
+    const user = userEvent.setup()
+    render(<SendMessageButton disabled sendMessage={vi.fn()} shortcutLabel="Ctrl+Enter" />)
     const send = screen.getByRole('button', { name: 'chat.input.send' })
 
-    fireEvent.pointerEnter(send)
+    // Disabled leaves the control out of the tooltip tree, so no hover can produce a description.
+    expect(document.querySelector('[data-slot="tooltip-trigger"]')).toBeNull()
 
-    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
-    expect(send).not.toHaveAttribute('data-tooltip-trigger')
-    expect(container.firstElementChild).toBe(send)
+    await user.hover(send)
+    await new Promise((resolve) => setTimeout(resolve, TOOLTIP_SETTLE_MS))
+
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toBeNull()
+    expect(send).not.toHaveAttribute('aria-describedby')
   })
 
   it('still sends on click and reports a blocked send when disabled', () => {
