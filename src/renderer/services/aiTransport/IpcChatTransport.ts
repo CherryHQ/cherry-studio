@@ -2,10 +2,22 @@ import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
+import {
+  type AiChatRequestBody,
+  type AiStreamOpenRequest,
+  type StreamChunkPayload,
+  type StreamDonePayload,
+  type StreamErrorPayload
+} from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import {
+  capAttachReplayChunks,
+  dropCoveredOverflow,
+  MAX_ATTACH_REPLAY_CHUNKS,
+  repairAttachOverflow
+} from './capAttachReplay'
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -45,7 +57,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             parentAnchorId: mergedBody.parentAnchorId ?? '',
             mentionedModelIds: mergedBody.mentionedModels,
             reasoningEffort: mergedBody.reasoningEffort,
-            serviceTier: mergedBody.serviceTier,
             ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
         : {
@@ -55,7 +66,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
             mentionedModelIds: mergedBody.mentionedModels,
             reasoningEffort: mergedBody.reasoningEffort,
-            serviceTier: mergedBody.serviceTier,
             ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
 
@@ -70,7 +80,26 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const topicId = options.chatId
     logger.info('reconnectToStream called', { topicId })
 
-    const result = await ipcApi.request('ai.stream.attach', { topicId })
+    // Subscribe BEFORE attaching: main registers our sender the moment it
+    // processes the attach, and live chunks broadcast before our stream
+    // listeners exist would otherwise be lost. Overflow drains after replay.
+    const overflowChunks: StreamChunkPayload[] = []
+    let overflowDone: StreamDonePayload | undefined
+    let overflowError: StreamErrorPayload | undefined
+    const overflowUnsubs = [
+      ipcApi.on('ai.stream.chunk', (data) => {
+        if (data.topicId === topicId) overflowChunks.push(data)
+      }),
+      ipcApi.on('ai.stream.done', (data) => {
+        if (data.topicId === topicId) overflowDone = data
+      }),
+      ipcApi.on('ai.stream.error', (data) => {
+        if (data.topicId === topicId) overflowError = data
+      })
+    ]
+    const result = await ipcApi.request('ai.stream.attach', { topicId }).finally(() => {
+      for (const unsub of overflowUnsubs) unsub()
+    })
     logger.info('reconnectToStream result', { topicId, status: result.status })
 
     if (result.status === 'not-found') return null
@@ -84,18 +113,51 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
 
     logger.info('Reconnected to stream', { topicId, bufferedChunks: result.bufferedChunks.length })
-    return this.buildListenerStream(topicId, result.bufferedChunks)
+    // The Chat parser is single-execution (siblings demux via TopicStreamSubscription),
+    // so scope replay, overflow, and live filtering to one execution that is actually
+    // still streaming — pinning a finished replay execution would drop the live one.
+    const targetExecutionId = result.activeExecutions?.[0]?.executionId
+    let replayChunks = result.bufferedChunks
+    if (targetExecutionId) {
+      replayChunks = replayChunks.filter((payload) => payload.executionId === targetExecutionId)
+    }
+    let droppedSeqs: readonly number[] = []
+    if (replayChunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
+      logger.warn('transport replay capped', {
+        total: result.bufferedChunks.length,
+        topicId,
+        overflowChunks: overflowChunks.length
+      })
+      const capped = capAttachReplayChunks(replayChunks, MAX_ATTACH_REPLAY_CHUNKS)
+      replayChunks = capped.replay
+      droppedSeqs = capped.droppedSeqs
+    }
+    // Main also sent pre-attach live chunks to a stale/parallel listener for
+    // this window; those are inside the snapshot above, so drain only the rest.
+    const scopedOverflow = targetExecutionId
+      ? overflowChunks.filter((payload) => payload.executionId === targetExecutionId)
+      : overflowChunks
+    const freshOverflow = repairAttachOverflow(
+      replayChunks,
+      dropCoveredOverflow(replayChunks, scopedOverflow, droppedSeqs)
+    )
+    return this.buildListenerStream(topicId, [...replayChunks, ...freshOverflow], undefined, targetExecutionId, {
+      done: overflowDone,
+      error: overflowError
+    })
   }
 
   private buildListenerStream(
     topicId: string,
     initialChunks?: StreamChunkPayload[],
     abortSignal?: AbortSignal,
-    executionId?: UniqueModelId
+    executionId?: UniqueModelId,
+    initialTerminal?: { done?: StreamDonePayload; error?: StreamErrorPayload }
   ): ReadableStream<UIMessageChunk> {
     const unsubscribers: Array<() => void> = []
     let isCleaned = false
     let isStreamClosed = false
+    let pinnedExecutionId: UniqueModelId | undefined
 
     const cleanup = () => {
       if (isCleaned) return
@@ -106,8 +168,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     return new ReadableStream<UIMessageChunk>({
       start(controller) {
         if (initialChunks) {
+          // Targeted streams only accept their own execution. A topic-level
+          // fallback replay must not pin here: its first replay execution can
+          // be finished, and pinning would drop the live continuation's chunks.
           for (const data of initialChunks) {
-            if (matchesStream(data)) controller.enqueue(data.chunk)
+            if (data.topicId !== topicId) continue
+            if (executionId && data.executionId !== executionId) continue
+            controller.enqueue(data.chunk)
           }
         }
 
@@ -160,7 +227,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
-          return !data.executionId || !!data.isTopicDone
+          if (data.isTopicDone) return true
+          if (!data.executionId) return true
+          if (pinnedExecutionId === undefined) {
+            pinnedExecutionId = data.executionId
+            return true
+          }
+          return data.executionId === pinnedExecutionId
         }
 
         unsubscribers.push(
@@ -174,7 +247,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           ipcApi.on('ai.stream.chunk', (data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
             if (isStreamClosed || !matchesStream(data)) return
             schedulePending(data.chunk)
           })
@@ -182,15 +254,17 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
         unsubscribers.push(
           ipcApi.on('ai.stream.done', (data) => {
-            if (!matchesStream(data)) return
-            if (executionId && data.executionId !== executionId) return
+            if (data.topicId !== topicId || isStreamClosed) return
             if (!executionId && isPerExecutionOnly(data)) return
+            if (!matchesStream(data)) return
             closeStream()
           })
         )
 
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
+            if (data.topicId !== topicId || isStreamClosed) return
+            if (!executionId && isPerExecutionOnly(data)) return
             if (!matchesStream(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
@@ -214,6 +288,25 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           }
           abortSignal.addEventListener('abort', onAbort, { once: true })
           unsubscribers.push(() => abortSignal.removeEventListener('abort', onAbort))
+        }
+
+        // Terminal events that arrived during the attach round-trip use the
+        // same filters as their live handlers so the stream still settles.
+        // A targeted stream accepts its own per-execution terminal or any
+        // topic-level one (matchesStream); a topic-level stream ignores
+        // per-execution-only terminals so they cannot poison the live pin.
+        if (initialTerminal?.error) {
+          const data = initialTerminal.error
+          if (!isStreamClosed && (executionId || !isPerExecutionOnly(data)) && matchesStream(data)) {
+            errorStream(new Error(data.error.message ?? 'Unknown stream error'))
+          }
+        }
+        // A filtered per-execution error must not suppress a later topic done.
+        if (!isStreamClosed && initialTerminal?.done) {
+          const data = initialTerminal.done
+          if ((executionId || !isPerExecutionOnly(data)) && matchesStream(data)) {
+            closeStream()
+          }
         }
       },
       cancel() {
