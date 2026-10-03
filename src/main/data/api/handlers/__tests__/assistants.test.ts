@@ -4,6 +4,7 @@ const {
   listMock,
   createMock,
   createFromImportMock,
+  initializeCherryInOfficialAssistantsMock,
   getByIdMock,
   updateMock,
   deleteMock,
@@ -13,6 +14,7 @@ const {
   listMock: vi.fn(),
   createMock: vi.fn(),
   createFromImportMock: vi.fn(),
+  initializeCherryInOfficialAssistantsMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock('@data/services/AssistantService', () => ({
     list: listMock,
     create: createMock,
     createFromImport: createFromImportMock,
+    initializeCherryInOfficialAssistants: initializeCherryInOfficialAssistantsMock,
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -153,6 +156,28 @@ describe('assistantHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createFromImportMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants:initialize-cherryin-official', () => {
+    it('forwards an empty initialization request', async () => {
+      initializeCherryInOfficialAssistantsMock.mockReturnValueOnce({ createdAssistantIds: [ASSISTANT_ID] })
+
+      await expect(assistantHandlers['/assistants:initialize-cherryin-official'].POST({ body: {} })).resolves.toEqual({
+        createdAssistantIds: [ASSISTANT_ID]
+      })
+
+      expect(initializeCherryInOfficialAssistantsMock).toHaveBeenCalledOnce()
+    })
+
+    it('rejects client-controlled initialization fields', async () => {
+      await expect(
+        assistantHandlers['/assistants:initialize-cherryin-official'].POST({
+          body: { providerId: 'openrouter' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(initializeCherryInOfficialAssistantsMock).not.toHaveBeenCalled()
     })
   })
 

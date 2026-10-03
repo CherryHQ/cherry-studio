@@ -77,6 +77,13 @@ export const ImportAssistantSchema = CreateAssistantSchema.pick({
 })
 export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 
+export const InitializeCherryInOfficialAssistantsSchema = z.strictObject({})
+export type InitializeCherryInOfficialAssistantsDto = z.infer<typeof InitializeCherryInOfficialAssistantsSchema>
+
+export interface InitializeCherryInOfficialAssistantsResult {
+  createdAssistantIds: string[]
+}
+
 /**
  * DTO for updating an existing assistant. All fields optional.
  *
@@ -198,6 +205,14 @@ export type AssistantSchemas = {
     POST: {
       body: ImportAssistantDto
       response: Assistant
+    }
+  }
+
+  /** Create any never-created official assistants that have eligible CherryIN models. */
+  '/assistants:initialize-cherryin-official': {
+    POST: {
+      body: InitializeCherryInOfficialAssistantsDto
+      response: InitializeCherryInOfficialAssistantsResult
     }
   }
 

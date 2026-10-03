@@ -16,6 +16,7 @@ import {
   DeleteAssistantQuerySchema,
   DuplicateAssistantSchema,
   ImportAssistantSchema,
+  InitializeCherryInOfficialAssistantsSchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
@@ -38,6 +39,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     POST: async ({ body }) => {
       const parsed = ImportAssistantSchema.parse(body)
       return assistantDataService.createFromImport(parsed)
+    }
+  },
+
+  '/assistants:initialize-cherryin-official': {
+    POST: async ({ body }) => {
+      InitializeCherryInOfficialAssistantsSchema.parse(body)
+      return assistantDataService.initializeCherryInOfficialAssistants()
     }
   },
 
