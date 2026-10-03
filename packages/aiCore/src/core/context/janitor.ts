@@ -279,7 +279,7 @@ export interface CompressionDetails {
 
 export interface JanitorConfig {
   /**
-   * The model's context window size (in tokens).
+   * Token budget (the model's context window, or a trigger below it).
    * Compression is triggered when token usage exceeds this value.
    */
   contextWindow: number
@@ -308,8 +308,8 @@ export interface JanitorConfig {
 
   /**
    * Hook triggered when the token budget is exceeded, BEFORE the mechanical
-   * drop. Return a modified history to replace it (re-evaluated against the
-   * budget), or return null/undefined to let the default drop handle it.
+   * drop. Return a modified history to send it as-is, or return
+   * null/undefined to let the default drop handle it.
    *
    * Contract: must not throw or reject. Errors propagate out of the
    * middleware's transformParams — return null on failure instead.
@@ -323,24 +323,25 @@ export interface JanitorConfig {
 /**
  * Tracks token usage across calls and shrinks over-budget histories.
  *
- * Budget source: an externally fed usage value (`feedTokenUsage`, consumed
- * once) or the character heuristic (`estimateMessages`). When over budget the
- * caller's `onBeforeCompress` hook gets the first chance to shrink the
- * history; if the result is still over budget, everything but the last
- * `preserveRecentMessages` turns is dropped behind a placeholder summary.
+ * Budget source: the last call's reported input tokens (`feedTokenUsage`)
+ * plus whatever the history grew by since, or the character heuristic
+ * (`estimateMessages`) before any usage is known. When over budget the
+ * caller's `onBeforeCompress` hook decides the history; without a hook
+ * result, everything but the last `preserveRecentMessages` turns is dropped
+ * behind a placeholder summary.
  */
 export class Janitor {
-  /** Externally reported token count from the last API response. */
+  /** Externally reported input tokens of the last API call. */
   private _externalTokenUsage: number | null = null
-  /** Suppresses the next compression check after a compression (E10) to avoid cascading re-compression. */
-  private _suppressNextCompression = false
+  /** Estimate of the history that call carried — the baseline for measuring growth since. */
+  private _lastSentEstimate: number | null = null
 
   constructor(private config: JanitorConfig) {}
 
   /**
    * Feeds an externally-reported token count (e.g. from the LLM API response).
-   * When this value exceeds contextWindow, compression is triggered on the
-   * next compress() call. The value is consumed after use.
+   * The next compress() call adds whatever the history grew by since that
+   * call. The value is consumed after use.
    */
   public feedTokenUsage(tokenCount: number): void {
     this._externalTokenUsage = tokenCount
@@ -351,30 +352,28 @@ export class Janitor {
    * `onBeforeCompress` first, then the mechanical keep-last-N-turns drop.
    */
   public async compress(history: ContextMessage[]): Promise<ContextMessage[]> {
+    const result = await this.shrink(history)
+    this._lastSentEstimate = estimateMessages(result)
+    return result
+  }
+
+  private async shrink(history: ContextMessage[]): Promise<ContextMessage[]> {
     const evaluation = this.evaluateBudget(history)
     if (evaluation === null) return history
-
-    let { splitIndex } = evaluation
-    const { currentTokens } = evaluation
 
     // Fire onBeforeCompress hook — the caller gets a chance to intervene
     const hook = this.config.onBeforeCompress
     if (hook) {
       const modified = await hook(history, {
-        currentTokens,
+        currentTokens: evaluation.currentTokens,
         limit: this.config.contextWindow
       })
-
-      if (modified != null) {
-        // Re-evaluate with the caller-modified history
-        const reEval = this.evaluateBudget(modified)
-        if (reEval === null) return modified
-        history = modified
-        splitIndex = reEval.splitIndex
-      }
+      // The hook owns the outcome: re-cutting it mechanically could open the
+      // window on a non-user turn, which strict providers reject.
+      if (modified != null) return modified
     }
 
-    return this.executeCompression(history, splitIndex)
+    return this.executeCompression(history, evaluation.splitIndex)
   }
 
   /**
@@ -388,14 +387,13 @@ export class Janitor {
   private evaluateBudget(history: ContextMessage[]): { splitIndex: number; currentTokens: number } | null {
     if (history.length === 0) return null
 
-    // E10: Skip check once after a compression to avoid cascading re-compression.
-    if (this._suppressNextCompression) {
-      this._suppressNextCompression = false
-      return null
-    }
-
-    const currentTokens = this._externalTokenUsage ?? estimateMessages(history)
+    const estimated = estimateMessages(history)
+    const fed = this._externalTokenUsage
     this._externalTokenUsage = null
+    // Fed usage covers only what the last call carried: add the steps appended
+    // since, and whatever an earlier drop removed (each call re-sends it all).
+    const currentTokens =
+      fed === null ? estimated : fed + Math.max(0, estimated - (this._lastSentEstimate ?? estimated))
 
     if (currentTokens <= this.config.contextWindow) {
       return null
@@ -423,8 +421,6 @@ export class Janitor {
         { compressedMessages: toCompress }
       )
     }
-    // E10: Suppress the immediate next compression check.
-    this._suppressNextCompression = true
     return [...toKeep]
   }
 }

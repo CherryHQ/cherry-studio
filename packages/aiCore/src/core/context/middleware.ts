@@ -106,7 +106,8 @@ export interface CompactConfig {
 
 export interface ContextMiddlewareOptions {
   /**
-   * The model's context window size in tokens.
+   * Token budget for the conversation: the model's context window, or a
+   * trigger below it.
    *
    * Required when `onBeforeCompress` is configured — `createContextMiddleware`
    * throws otherwise. Optional (and unused) for truncate / compact-only
@@ -122,8 +123,8 @@ export interface ContextMiddlewareOptions {
   compact?: CompactConfig
   /**
    * Called when the token budget is exceeded. Return modified messages to
-   * replace history (re-evaluated against the budget), or null/undefined to
-   * let the mechanical keep-last-turn drop handle it.
+   * send them as-is, or null/undefined to let the mechanical keep-last-turn
+   * drop handle it.
    */
   onBeforeCompress?: (
     history: ContextMessage[],
@@ -161,8 +162,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 
   // Surface the in-flight-without-persistence footgun: if budget compression
   // keeps firing, each call re-expands the history (nothing is persisted), so
-  // the payload grows unbounded (and compression effectively skips every
-  // other call via E10 suppression).
+  // the payload grows unbounded.
   let compressionsFired = 0
   let persistenceWarned = false
   const onCompressionFired = () => {
