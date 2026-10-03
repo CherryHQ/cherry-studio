@@ -310,7 +310,9 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  name: 'Bailian',
+  // Rebranded to Qwen AI Platform (mainland China); the 'dashscope' id and endpoints stay
+  // unchanged so existing users' keys and configs keep working (ref #18432).
+  name: 'Qwen AI Platform',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
@@ -344,10 +346,10 @@ export default defineProvider({
   ],
   metadata: {
     website: {
-      apiKey: 'https://bailian.console.aliyun.com/?tab=model#/api-key',
-      docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/?tab=model#/model-market',
-      official: 'https://www.aliyun.com/product/bailian'
+      apiKey: 'https://platform.qianwenai.com/home/api-keys',
+      docs: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call',
+      models: 'https://www.qianwenai.com/models',
+      official: 'https://www.qianwenai.com/'
     }
   },
   overrides: [
