@@ -1048,7 +1048,14 @@ describe('AiService', () => {
         name: 'Qwen Image',
         capabilities: []
       })
-      const viaJob = vi.spyOn(service as never, 'generateImageViaJob').mockResolvedValue({ images: [] } as never)
+      const viaJob = vi
+        .spyOn(
+          service as unknown as {
+            generateImageViaJob: (request: { uniqueModelId?: string }) => Promise<{ images: string[] }>
+          },
+          'generateImageViaJob'
+        )
+        .mockResolvedValue({ images: [] })
 
       await service.generateImage({
         assistantId: 'assistant-1',

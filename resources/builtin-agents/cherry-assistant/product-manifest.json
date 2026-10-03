@@ -660,6 +660,10 @@
         "name": "Bailian"
       },
       {
+        "id": "qwencloud",
+        "name": "QwenCloud"
+      },
+      {
         "id": "stepfun",
         "name": "StepFun"
       },
