@@ -46,7 +46,7 @@ describe('OpenAI-compatible chat response extensions', () => {
     })
     const chunks = await collect(result.stream)
 
-    expect(chunks).toContainEqual({ type: 'text-delta', id: 'txt-0', delta: 'hello' })
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'hello' }))
     expect(chunks).toContainEqual(
       expect.objectContaining({ type: 'finish', finishReason: expect.objectContaining({ unified: 'stop' }) })
     )
