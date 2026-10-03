@@ -1333,7 +1333,7 @@ export class AiService extends BaseService {
     try {
       let probe: Promise<unknown>
       if (isOllamaProvider(provider) && !options?.chatOnly) {
-        probe = probeOllamaModel(provider, model.apiModelId, signal, request.apiKeyOverride)
+        probe = probeOllamaModel(provider, model.apiModelId, signal, request.apiKeyOverride, model.apiKeyId)
       } else if (!options?.chatOnly && isRerankModel(model)) {
         probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
           if (result.ranking.length === 0) {

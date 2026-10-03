@@ -115,7 +115,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     await resolveProviderAiSdkConfig(provider, model)
 
     expect(buildCherryCloudProviderConfigMock).not.toHaveBeenCalled()
-    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined)
+    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined, undefined)
   })
 
   it('keeps the managed CherryAI default model on its API-key HMAC transport', async () => {
@@ -131,7 +131,21 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     expect(resolved.config.providerId).toBe('openai-compatible')
     expect(buildCherryCloudProviderConfigMock).not.toHaveBeenCalled()
-    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined)
+    expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined, undefined)
+  })
+
+  it('passes a model-bound api key id into provider key resolution', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({
+      id: 'openai::gpt-4o',
+      apiModelId: 'gpt-4o',
+      providerId: 'openai',
+      apiKeyId: 'key-b'
+    })
+
+    await providerToAiSdkConfig(provider, model)
+
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', undefined, 'key-b')
   })
 
   it('uses an explicit API key override instead of the provider rotation key', async () => {
@@ -140,7 +154,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
 
-    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected')
+    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected', undefined)
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 

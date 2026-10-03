@@ -310,7 +310,7 @@ export function resolvePiProviderInjectionFromSnapshot(
     return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
   }
 
-  const resolvedApiKey = providerService.resolveApiKey(provider.id)
+  const resolvedApiKey = providerService.resolveApiKey(provider.id, undefined, model.apiKeyId)
   if (!resolvedApiKey.value.trim()) {
     // Keyless local servers (registry authOptional) need no credential; the
     // placeholder keeps the pi-side auth storage non-empty.

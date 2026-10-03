@@ -317,7 +317,7 @@ export async function resolveDshProviderInjectionFromSnapshot(
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
-  const resolvedApiKey = providerService.resolveApiKey(provider.id)
+  const resolvedApiKey = providerService.resolveApiKey(provider.id, undefined, model.apiKeyId)
   if (!resolvedApiKey.value.trim()) {
     // Keyless local servers (registry authOptional) need no credential; dsh
     // still wants a non-empty credential value.

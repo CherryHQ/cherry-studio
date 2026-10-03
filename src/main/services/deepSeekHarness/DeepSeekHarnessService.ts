@@ -261,13 +261,13 @@ export class DeepSeekHarnessService extends BaseService {
     }
     const { protocol, baseUrl } = resolveDeepSeekHarnessEndpoint(provider, model)
     const { route, credentialRef } = createDeepSeekHarnessDirectIdentity(provider.id, protocol)
-    const apiKey = providerService.getApiKeys(provider.id, { enabled: true })[0]?.key
+    const apiKey = providerService.resolveApiKey(provider.id, undefined, model.apiKeyId).value
     if (!apiKey && !provider.authOptional) throw new Error(`Provider ${provider.id} has no enabled API key`)
 
     return {
       route,
       credentialRef,
-      credentialValue: apiKey ?? NO_KEY_PLACEHOLDER,
+      credentialValue: apiKey || NO_KEY_PLACEHOLDER,
       displayName: `Cherry Studio: ${provider.name}`,
       protocol,
       baseUrl,
