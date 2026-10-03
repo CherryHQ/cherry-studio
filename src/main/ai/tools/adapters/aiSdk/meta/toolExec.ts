@@ -41,7 +41,35 @@ export function createToolExecTool(registry: ToolRegistry): Tool {
         result: result.result,
         ...(result.logs && result.logs.length > 0 ? { logs: result.logs } : {}),
         ...(result.error ? { error: result.error } : {}),
-        ...(result.isError ? { isError: true } : {})
+        ...(result.isError ? { isError: true } : {}),
+        ...(result.images?.length ? { images: result.images } : {})
+      }
+    },
+    toModelOutput: ({ output }) => {
+      const { images, ...textOutput } = output
+      if (!images?.length) return { type: 'json', value: output }
+
+      return {
+        type: 'content',
+        value: [
+          {
+            type: 'text',
+            text: JSON.stringify(textOutput, (key, value) =>
+              key === 'content' && Array.isArray(value)
+                ? value.filter(
+                    (part) =>
+                      !(
+                        part?.type === 'image' &&
+                        typeof part.data === 'string' &&
+                        typeof part.mimeType === 'string' &&
+                        images.some((image) => image.data === part.data && image.mimeType === part.mimeType)
+                      )
+                  )
+                : value
+            )
+          },
+          ...images.map(({ data, mimeType }) => ({ type: 'image-data' as const, data, mediaType: mimeType }))
+        ]
       }
     }
   })

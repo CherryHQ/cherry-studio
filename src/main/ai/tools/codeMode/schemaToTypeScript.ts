@@ -109,6 +109,10 @@ interface ToolTypeScriptInput {
   outputSchema?: unknown
 }
 
+interface ToolFacadeTypeScriptInput extends ToolTypeScriptInput {
+  methodName: string
+}
+
 function toolInvokeToTypeScript(tool: ToolTypeScriptInput, indent: string): string[] {
   const doc = docText(tool.description || tool.name)
   const output = tool.outputSchema ? jsonSchemaToTypeScript(tool.outputSchema) : 'McpToolResult'
@@ -128,6 +132,22 @@ export function toolsToTypeScript(tools: readonly ToolTypeScriptInput[]): string
     '',
     'declare const tools: {',
     ...tools.flatMap((tool) => toolInvokeToTypeScript(tool, '  ')),
+    '}'
+  ].join('\n')
+}
+
+/** Generate a typed object facade whose methods retain each tool's input and output schema. */
+export function toolFacadeToTypeScript(name: string, tools: readonly ToolFacadeTypeScriptInput[]): string {
+  return [
+    `declare const ${quotePropertyName(name)}: {`,
+    ...tools.flatMap((tool) => {
+      const doc = docText(tool.description || tool.methodName)
+      const output = tool.outputSchema ? jsonSchemaToTypeScript(tool.outputSchema) : 'McpToolResult'
+      return [
+        `  /** ${doc} */`,
+        `  ${quotePropertyName(tool.methodName)}(params: ${jsonSchemaToTypeScript(tool.inputSchema)}): Promise<${output}>`
+      ]
+    }),
     '}'
   ].join('\n')
 }

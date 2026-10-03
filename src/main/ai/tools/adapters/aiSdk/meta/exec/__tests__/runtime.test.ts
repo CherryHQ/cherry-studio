@@ -58,6 +58,100 @@ describe('runExec / handleToolCall', () => {
     expect(execute.mock.calls[0][0]).toEqual({ foo: 'bar' })
   })
 
+  it('forwards nested MCP image content through the exec result', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      content: [
+        { type: 'text', text: 'captured' },
+        { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+      ]
+    })
+    const reg = registryWith({ name: 'mcp__s1__screenshot', tool: toolWith({ execute }) })
+
+    const out = await runExec("await tools.invoke('mcp__s1__screenshot', {}); return 'done'", {
+      registry: reg,
+      parentOptions: makeOptions()
+    })
+
+    expect(out.result).toBe('done')
+    expect(out.images).toEqual([{ data: 'base64-png', mimeType: 'image/png' }])
+  })
+
+  it('keeps multiple forwarded and explicitly emitted images in order', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      content: [
+        { type: 'image', data: 'first', mimeType: 'image/png' },
+        { type: 'image', data: 'second', mimeType: 'image/jpeg' }
+      ]
+    })
+    const reg = registryWith({ name: 'mcp__s1__screenshot', tool: toolWith({ execute }) })
+
+    const out = await runExec(
+      "await tools.invoke('mcp__s1__screenshot', {}); emitImage({ data: 'third', mimeType: 'image/webp' }); return 'done'",
+      { registry: reg, parentOptions: makeOptions() }
+    )
+
+    expect(out.result).toBe('done')
+    expect(out.images).toEqual([
+      { data: 'first', mimeType: 'image/png' },
+      { data: 'second', mimeType: 'image/jpeg' },
+      { data: 'third', mimeType: 'image/webp' }
+    ])
+  })
+
+  it('fails explicitly when nested tools forward too many images', async () => {
+    const image = { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+    const execute = vi.fn().mockResolvedValue({ content: Array.from({ length: 33 }, () => image) })
+    const reg = registryWith({ name: 'mcp__s1__screenshot', tool: toolWith({ execute }) })
+
+    const out = await runExec("try { await tools.invoke('mcp__s1__screenshot', {}) } catch {} return 'done'", {
+      registry: reg,
+      parentOptions: makeOptions()
+    })
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/image output.*32 images/)
+    expect(out.images).toBeUndefined()
+  })
+
+  it('fails explicitly when code emits too many images', async () => {
+    const reg = new ToolRegistry()
+    const out = await runExec(
+      "try { for (let i = 0; i < 33; i++) emitImage({ data: 'base64-png', mimeType: 'image/png' }) } catch {} return 'done'",
+      { registry: reg, parentOptions: makeOptions() }
+    )
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/image output.*32 images/)
+    expect(out.images).toBeUndefined()
+  })
+
+  it('shares one image budget between nested tools and explicit emits', async () => {
+    const image = { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+    const execute = vi.fn().mockResolvedValue({ content: Array.from({ length: 32 }, () => image) })
+    const reg = registryWith({ name: 'mcp__s1__screenshot', tool: toolWith({ execute }) })
+
+    const out = await runExec(
+      "await tools.invoke('mcp__s1__screenshot', {}); try { emitImage({ data: 'extra', mimeType: 'image/png' }) } catch {} return 'done'",
+      { registry: reg, parentOptions: makeOptions() }
+    )
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/image output.*32 images/)
+    expect(out.images).toBeUndefined()
+  })
+
+  it('fails explicitly when one emitted image exceeds the data budget', async () => {
+    const reg = new ToolRegistry()
+    const out = await runExec(
+      "try { emitImage({ data: 'A'.repeat(64 * 1024 * 1024 + 1), mimeType: 'image/png' }) } catch {} return 'done'",
+      { registry: reg, parentOptions: makeOptions() }
+    )
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/image output.*64 MiB/)
+    expect(out.images).toBeUndefined()
+  })
+
   it('nests the toolCallId under the parent so telemetry can rebuild the call tree', async () => {
     const execute = vi.fn().mockResolvedValue('ok')
     const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute }) })
