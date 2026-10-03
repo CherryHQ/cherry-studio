@@ -188,7 +188,9 @@ describe('aionly New API multiplexing', () => {
   ] as const
 
   it('declares every New API multiplexing endpoint', () => {
-    expect(Object.keys(provider('aionly').endpointConfigs ?? {})).toEqual([...multiplexingEndpoints])
+    expect(Object.keys(provider('aionly').endpointConfigs ?? {}).toSorted()).toEqual(
+      [...multiplexingEndpoints].toSorted()
+    )
   })
 
   it('routes every declared endpoint through the newapi adapter family', () => {
