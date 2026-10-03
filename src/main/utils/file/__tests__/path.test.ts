@@ -237,8 +237,12 @@ describe('canWrite', () => {
     expect(await canWrite(path.join(tmp, 'nope', String(Date.now())) as AbsoluteFilePath)).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')('returns false for a chmod-stripped directory (POSIX)', async () => {
-    await chmod(tmp, 0o500)
-    expect(await canWrite(tmp as AbsoluteFilePath)).toBe(false)
-  })
+  // Root can write through POSIX mode restrictions.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'returns false for a chmod-stripped directory (POSIX)',
+    async () => {
+      await chmod(tmp, 0o500)
+      expect(await canWrite(tmp as AbsoluteFilePath)).toBe(false)
+    }
+  )
 })

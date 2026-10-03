@@ -66,12 +66,3 @@ export async function resolveOutsideManagedStorageEntryMutations(...candidates: 
   const roots = await resolveManagedStorageRoots()
   return Promise.all(candidates.map((candidate) => resolveCandidateEntryOutsideManagedStorage(candidate, roots)))
 }
-
-/**
- * Renderer-provided raw paths must never overlap FileManager-owned storage.
- *
- * Checks both lexical paths and real paths resolved through the nearest
- * existing parent so symlinks, not-yet-created destinations, and destructive
- * operations against an ancestor directory are all rejected. Ambiguous paths
- * fail closed instead of being treated as safe.
- */
