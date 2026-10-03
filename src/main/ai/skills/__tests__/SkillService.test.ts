@@ -2644,4 +2644,43 @@ describe('SkillService', () => {
       await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
     })
   })
+
+  describe('extractZip (case and Unicode collisions)', () => {
+    // On a case- or normalization-insensitive filesystem these entries land on one path, so the
+    // installed content would depend on the platform and on entry order.
+    it.each([
+      ['a file differing only in case', ['skill/scripts/setup.sh', 'skill/Scripts/setup.sh']],
+      ['a directory entry differing only in case', ['Docs/', 'docs/guide.md']],
+      ['names differing only in Unicode composition', ['caf\u00e9/SKILL.md', 'cafe\u0301/SKILL.md']]
+    ])('rejects %s before extracting anything', async (_case, entryNames) => {
+      const zipDir = await createTempDir('skill-zip-collide-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      for (const name of entryNames) zip.addFile(name, Buffer.from(name.endsWith('/') ? '' : `# ${name}`))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      await expect(skillArchive.extractZip(zipPath, destDir)).rejects.toThrow('collide')
+      await expect(fs.promises.readdir(destDir)).resolves.toEqual([])
+    })
+
+    it('checks a deeply nested entry name in linear time', () => {
+      const deepName = Array.from({ length: 20_000 }, () => 'a').join('/')
+
+      expect(() => skillArchive.assertNoFoldedPathCollisions([deepName, `${deepName}/b`])).not.toThrow()
+    })
+
+    it('extracts same-named files that live in different directories', async () => {
+      const zipDir = await createTempDir('skill-zip-ok-')
+      const destDir = await createTempDir('skill-dest-')
+      const zip = new AdmZip()
+      zip.addFile('README.md', Buffer.from('# root'))
+      zip.addFile('docs/readme.md', Buffer.from('# docs'))
+      const zipPath = path.join(zipDir, 'skill.zip')
+      zip.writeZip(zipPath)
+
+      await skillArchive.extractZip(zipPath, destDir)
+      await expect(fs.promises.readFile(path.join(destDir, 'docs', 'readme.md'), 'utf-8')).resolves.toBe('# docs')
+    })
+  })
 })

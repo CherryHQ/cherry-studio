@@ -435,6 +435,15 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command } })
     })
 
+    it('asks before running a destructive command that rtk rewrote', async () => {
+      mocks.rtkRewrite.mockResolvedValueOnce('rtk git push --force')
+      const { handler, emitted } = buildAutoGate()
+      void handler(toolEvent('bash', { command: 'git push --force' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'rtk git push --force' } })
+    })
+
     it('asks before writing outside the workspace', async () => {
       const { handler, emitted } = buildAutoGate()
       void handler(toolEvent('write', { path: join(outside, 'new.txt'), content: 'x' }), extCtx)

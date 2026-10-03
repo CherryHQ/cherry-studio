@@ -364,9 +364,21 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi"
+        },
+        "google-generate-content": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.aiionly.com"
+          "adapterFamily": "newapi",
+          "baseUrl": "https://api.aiionly.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "aionly",
@@ -2704,5 +2716,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "96bcc22234ce0e16"
+  "version": "5cef887531d3aef8"
 }
