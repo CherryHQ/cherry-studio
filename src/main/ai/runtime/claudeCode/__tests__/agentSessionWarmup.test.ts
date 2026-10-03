@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
+  ensureTranscriptAvailableForWorkspace: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn()
 }))
 
@@ -75,6 +76,10 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 vi.mock('@application', () => ({
   application: {
+    getPath: vi.fn((name: string) => {
+      if (name === 'feature.agents.claude.root') return '/app/Data/Agents/.claude'
+      throw new Error(`Unexpected application.getPath(${name})`)
+    }),
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
         return {
@@ -116,6 +121,10 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
+}))
+
+vi.mock('../claudeProjectDirectory', () => ({
+  ensureTranscriptAvailableForWorkspace: mocks.ensureTranscriptAvailableForWorkspace
 }))
 
 const {
@@ -188,6 +197,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.ensureTranscriptAvailableForWorkspace.mockResolvedValue('present')
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -204,6 +214,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBe('explicit-token')
     expect(mocks.getLastRuntimeResumeToken).not.toHaveBeenCalled()
+    expect(mocks.ensureTranscriptAvailableForWorkspace).toHaveBeenCalledWith(
+      '/app/Data/Agents/.claude',
+      '/workspace/project',
+      'explicit-token'
+    )
   })
 
   it('falls back to the persisted resume token when no explicit token is given', async () => {
@@ -215,6 +230,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 
+  it('keeps resume best effort when transcript relocation fails', async () => {
+    mocks.ensureTranscriptAvailableForWorkspace.mockRejectedValueOnce(new Error('copy failed'))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', 'explicit-token')
+
+    expect(request?.options.resume).toBe('explicit-token')
+  })
+
   it('leaves resume undefined when neither an explicit nor a persisted token exists', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -222,6 +245,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBeUndefined()
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+    expect(mocks.ensureTranscriptAvailableForWorkspace).not.toHaveBeenCalled()
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
