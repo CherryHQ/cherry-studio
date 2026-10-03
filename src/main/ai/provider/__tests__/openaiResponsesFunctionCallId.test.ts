@@ -69,7 +69,18 @@ describe('@ai-sdk/openai replayed tool calls', () => {
     expect(body.input.find((item: any) => item.type === 'function_call_output')).toMatchObject({ call_id: 'call_abc' })
   })
 
-  it('omits local UUIDs from assistant and reasoning item ids during continuation', async () => {
+  it.each([
+    {
+      version: 'v4',
+      textItemId: 'bda7112f-9c3e-4a1d-8f52-1e0d6b7a4c99',
+      reasoningItemId: '9c1f8f9e-1d6d-4f6a-9e27-8f7c6e5d4c3b'
+    },
+    {
+      version: 'v7',
+      textItemId: '019606a0-0000-7000-8000-000000000001',
+      reasoningItemId: '019606a0-0000-7000-8000-000000000002'
+    }
+  ])('omits local UUID $version item ids during continuation', async ({ textItemId, reasoningItemId }) => {
     let body: any
     const model = createOpenAI({
       apiKey: 'sk-test',
@@ -98,14 +109,14 @@ describe('@ai-sdk/openai replayed tool calls', () => {
             {
               type: 'text',
               text: 'continued answer',
-              providerOptions: { openai: { itemId: 'bda7112f-9c3e-4a1d-8f52-1e0d6b7a4c99' } }
+              providerOptions: { openai: { itemId: textItemId } }
             },
             {
               type: 'reasoning',
               text: 'continued reasoning',
               providerOptions: {
                 openai: {
-                  itemId: '9c1f8f9e-1d6d-4f6a-9e27-8f7c6e5d4c3b',
+                  itemId: reasoningItemId,
                   rawReasoningContent: true
                 }
               }
