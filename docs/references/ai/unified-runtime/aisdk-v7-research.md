@@ -1,5 +1,5 @@
 ---
-description: AI SDK 7.0.123 assessment against Cherry Studio 6.0.185, with migration boundaries and patch audit priorities
+description: AI SDK 7.0.127 assessment and pinned main deltas against Cherry Studio 6.0.185, with capability coverage and migration gates
 sources:
   - src/main/ai
   - packages/aiCore/src/core/context/compaction.ts
@@ -9,12 +9,13 @@ sources:
 
 # AI SDK v7 — Upgrade Assessment
 
-> SDK baseline verified 2026-10-01; implementation plan and Code Mode approval correction updated 2026-10-02. Published baseline: **`ai@7.0.123`**, released 2026-09-30.
-> Cherry baseline: **`e51a3ad0643`**, `ai@6.0.185`. This is research, not an SDK upgrade or a runtime migration approval.
+> Refreshed 2026-10-04 against published **`ai@7.0.127`** and upstream main **`15f1a4d0531ac641a4a4d9cc602c0536c1906834`**.
+> Cherry baseline: **`e3052500309`** (includes main `b6e69eb2012e`), still `ai@6.0.185`.
+> This is research, not an SDK upgrade or a runtime migration approval.
 > The [June report](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/aisdk-v7-research.md) remains available in Git history.
-> Planning coverage corrected 2026-10-04: the [research coverage matrix](./migration-plan.md#research-coverage)
-> maps every item below and in the feature inventory to implementation, acceptance or an explicit pending
-> decision. This correction does not re-date the upstream version research.
+> The earlier 2026-10-01 assessment used `ai@7.0.123` and main `09aa6c2af27ec15482c5476f601984a9c7361890`.
+> The [research coverage matrix](./migration-plan.md#research-coverage) now includes the refreshed release
+> deltas, main-only fixes, provider skill uploads, and Cherry's current native Pi/VCC baseline.
 
 ## Recommendation
 
@@ -35,15 +36,28 @@ adoption and lifecycle decisions. Runtime replacement does not cover them automa
 
 | Surface | Observed value | Evidence |
 |---|---|---|
-| Published stable SDK | `ai@7.0.123` | [Release](https://github.com/vercel/ai/releases/tag/ai%407.0.123) |
-| v6 maintenance line | `ai@6.0.297`, npm `ai-v6` tag | [Release](https://github.com/vercel/ai/releases/tag/ai%406.0.297); `npm view ai dist-tags --json` |
+| Published SDK comparison | `ai@7.0.127` | [Release](https://github.com/vercel/ai/releases/tag/ai%407.0.127) |
+| Historical v6 maintenance observation | `ai@6.0.297`, npm `ai-v6` tag on 2026-10-01; not rechecked in this refresh | [Release](https://github.com/vercel/ai/releases/tag/ai%406.0.297) |
 | Cherry SDK pin | `ai@6.0.185` | `package.json`, `pnpm-lock.yaml` |
-| Upstream source inspected | `09aa6c2af27ec15482c5476f601984a9c7361890` | [Main snapshot](https://github.com/vercel/ai/commit/09aa6c2af27ec15482c5476f601984a9c7361890) |
-| Published comparison point | `ai@7.0.123` tag | [Core changelog](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md) |
+| Upstream source inspected | `15f1a4d0531ac641a4a4d9cc602c0536c1906834` | [Main snapshot](https://github.com/vercel/ai/commit/15f1a4d0531ac641a4a4d9cc602c0536c1906834) |
+| Published comparison point | `ai@7.0.127` tag | [Core changelog](https://github.com/vercel/ai/blob/ai%407.0.127/packages/ai/CHANGELOG.md) |
 
-The main snapshot contains changes after the release, including the Topaz provider addition. Those are
-not counted as released v7.0.123 capabilities here. npm tags and live docs can move; use the fixed tag
-when reproducing this assessment. A v6 maintenance tag is not a promise of indefinite support.
+Main contains post-release changes even where `package.json` still says `7.0.127`. The inventory's
+[release/main ledger](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger) separates released
+Tool Search, audio telemetry and provider changes from pending approval/Harness fixes. Use fixed tags
+and commit links to reproduce this assessment; npm tags and live docs can move.
+
+### Changes that affect the implementation plan
+
+- Tool Search now accepts a custom ranking callback and result limit. Evaluate the public callback
+  before proposing another search layer; namespace browsing and next-step execution remain separate constraints.
+- Provider `uploadSkill` / `SkillsV4` was already present in the old baseline but missing from this
+  research. Track it separately from attachment uploads and local/Harness skills in [S](./large-file-upload-port.md#s--provider-skill-uploads).
+- OpenAI-compatible multipart tool results need an endpoint-specific adoption decision; speech and
+  transcription need operation-specific telemetry/usage gates if adopted. See [capability work](./capability-migration-plan.md).
+- Cherry now uses Pi 1.0 native Code Mode, Tool Search, MCP and pi-vcc. The old Pi worker replacement
+  map is superseded; [H2](./migration-plan.md#phase-4-implementation-slices) must resolve the native
+  dependency gap and prove these contracts through the selected Harness Pi adapter before cutover.
 
 ## What changed after 7.0.0
 
@@ -135,9 +149,10 @@ Harness session compaction, message pruning, and application-owned summarization
    regression gates. Keep runtime ownership unchanged during this SDK baseline.
 3. Run the independent FilesV4, image-capability/result-lifecycle, stream-recovery and Tool Search workstreams
    through their detailed acceptance plans. Do not treat their completion as a consequence of an SDK upgrade.
-4. Migrate Code Mode separately; initially keep approval-required tools direct on the Core route, and
-   verify the published callback/continuation APIs before replacing Pi's existing nested approvals.
-5. Resolve the explicit Batch, audio/transcription/translation, async-video, Realtime and evaluation
+4. Evaluate Core Code Mode separately; initially keep approval-required tools direct. Preserve Pi's
+   existing native QuickJS and nested approvals until its Harness acceptance passes; audit leftover
+   worker code independently rather than assuming Pi still consumes it.
+5. Resolve the explicit provider-skill, Batch, audio/transcription/translation, async-video, Realtime and evaluation
    adoption records. Selected features follow their own provider/lifecycle gates; unresolved items remain open.
 6. Execute Harness acceptance per runtime with its consumed file/image/tool/delivery contracts, real
    adapters, failure injection, real providers and packaged Electron. Independent new-media decisions

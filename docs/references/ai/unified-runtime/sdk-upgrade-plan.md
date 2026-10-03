@@ -13,9 +13,10 @@ sources:
 
 # Phase 1 — Upgrade AI SDK Before Migrating Features
 
-> Written 2026-10-02 against Cherry `1b799934263` (`ai@6.0.185`). Target assessment:
-> `ai@7.0.123`, `@ai-sdk/codemod@4.0.3`. These are reproducible comparison versions, not a claim about
-> the latest release. **Implementation, codemod execution, and runtime validation are not started.**
+> Refreshed 2026-10-04 against Cherry `e3052500309` (`ai@6.0.185`). Published target comparison:
+> `ai@7.0.127`. The codemod inventory remains pinned to `@ai-sdk/codemod@4.0.3`; choose and inspect the
+> actual implementation dependency closure before applying it. [Main-only fixes](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger)
+> are not included merely by selecting that release. **Implementation, codemod execution, and runtime validation are not started.**
 
 This is the first implementation phase of the [migration sequence](./migration-plan.md#implementation-sequence).
 Its deliverable is Cherry running on v7 with its existing behavior preserved. Tool Search, Code Mode,
@@ -142,6 +143,7 @@ Sources: [fixed migration guide](https://github.com/vercel/ai/blob/ai%407.0.123/
 | `runtime/aiSdk/Agent.ts`, `loop/types.ts`, `loop/hookRunner.ts`, `params/composeHooks.ts` | Wire native lifecycle callbacks; keep fan-in; remove only duplicated wrapper synthesis; update stream/UI helpers | Normal, error, approval-pause, abort, and multi-step terminal cases emit the intended lifecycle once |
 | `tools/adapters/aiSdk/context.ts`, `buildAgentParams.ts`, built-ins/MCP/meta-tools | Put host orchestration state in `runtimeContext`; explicitly provide each tool's declared context and preserve nested forwarding | Request/session/knowledge/provenance values reach only the intended tools, including repair and nested calls |
 | `messages/messageRules.ts`, `messageCapabilities.ts`, ai-core context | Adapt image/file/reasoning-file parts and step response-message accumulation; keep history valid | Reload older messages, file/URL inputs, reasoning, tool-pairing, and compaction without loss |
+| OpenAI-compatible provider settings and `messageCapabilities.ts` | Preserve current tool-media conversion during the baseline; record per-endpoint disposition for the new multipart flag | SDK-04 preserves current media; optional I6/I-09 tests actual array tool content and fallback before enabling it |
 | `params/assembleSystemPrompt.ts`, prompt features and repair | Use `instructions`; opt into `allowSystemInMessages` only for trusted history where necessary; account for carried-forward `prepareStep` overrides | No lost/reset persona or promoted user-controlled system instruction across steps |
 | `observers/usage.ts`, `utils/usageNormalize.ts`, usage persistence and gateway adapters | Separate aggregate `usage` from `finalStep`; adapt result/metadata reads | Two-step totals equal individual invocations with no double-counted billing or lost cache/reasoning tokens |
 | Approval host and tool adapters | Migrate `needsApproval` policy to core `toolApproval` where appropriate; preserve Main authority, schema-transformed inputs, and continuation identity | Denial causes no effect; valid approval resumes the intended call once; stale/cross-session decisions fail |
@@ -162,6 +164,13 @@ submit/poll/cancel behavior, including its current `abandon` recovery policy, du
 contracts rather than being smuggled into the dependency change. Likewise, F1/R1 preserve existing file
 and stream behavior before F2/R2 add new upstream capabilities.
 
+The [release/main ledger](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger) supplies specific
+regressions for this refresh: stale approvals after `addToolOutput`, equal inputs across JavaScript
+realms, merged-stream cancellation including later readers, and resumed versus new-message approval
+state. The last fix is main-only; reproduce on the chosen release and record whether a later version or
+scoped patch is required. Audit `convertDataPart` when using Agent UI helpers. Speech/transcription hooks
+and usage are M2 adoption work unless an existing consumer is found; SkillsV4 is a separate S decision.
+
 ## 1.4 Verification and exit gate
 
 Run real SDK/provider packages against a controlled HTTP protocol server where supported. The server
@@ -171,9 +180,9 @@ that with real-provider smoke and packaged Electron runs. At minimum record:
 | ID | Scenario | Required observable result |
 |---|---|---|
 | SDK-01 | Text/reasoning, structured output, two tool steps | Correct final answer/artifacts, ordered durable messages, one terminal outcome |
-| SDK-02 | Missing context, schema defaults/transforms, approval allow/deny | Correct validated input and context; denied or misattributed calls create no effect |
-| SDK-03 | Stop, provider error, partial stream disconnect, model/key fallback | Existing terminal/retry behavior preserved; no duplicated committed tool effect |
-| SDK-04 | Reload v6-created messages with media and tool outputs | History readable; tool/result pairs and partial UI parts remain coherent |
+| SDK-02 | Missing context, schema defaults/transforms, approval allow/deny, stale output approvals and cross-realm equal inputs | Correct validated input and context; valid equal input remains approved; denied, changed or misattributed calls create no effect |
+| SDK-03 | Stop, provider error, partial disconnect, model/key fallback, merged readers before/after cancel | Existing terminal/retry behavior preserved; no duplicated effect or abandoned merged reader; renderer detachment keeps its existing meaning |
+| SDK-04 | Reload v6-created media/tool/data parts; approval resume versus a new message | History and model-input conversion preserve intended parts; tool pairing stays coherent; resumed approval is retained only for its own message |
 | SDK-05 | Multi-step usage/cache/reasoning, tracing on/off | Per-invocation and aggregate accounting agree; opt-out respected |
 | SDK-06 | I-01–07: image generation/edit/masks, SDK and custom Job delivery, painting and image-tool callers | Correct wire inputs and saved bytes; capability policy, usage, cancellation, result ownership and old history preserved |
 | SDK-07 | Large streaming response and mutable nested parts | No snapshot aliasing; latency/memory measured against the pinned baseline with agreed budgets |

@@ -1,18 +1,20 @@
 ---
-description: FilesV4 migration plan for attachment routing, upload references, account isolation, expiry, cleanup, replay, and black-box acceptance
+description: FilesV4 attachment lifecycle migration and separate SkillsV4 adoption decisions, with scoped references and acceptance gates
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
   - src/main/services/file
   - src/main/ai/runtime/aiSdk/retry/createRetryableWrap.ts
+  - src/main/ai/runtime/pi/PiRuntimeConnection.ts
+  - src/main/ai/runtime/claudeCode
   - package.json
 ---
 
-# FilesV4 — Attachment and File Lifecycle Migration
+# FilesV4 and SkillsV4 — Upload Migration Boundaries
 
-> Updated 2026-10-01 against Cherry e51a3ad0643 and ai@7.0.123.
-> Implementation planning expanded 2026-10-04 against Cherry `a6104715d0d`. Status: **planned**;
+> Refreshed 2026-10-04 against Cherry `e3052500309` and the [pinned SDK release/main baseline](./aisdk-v7-research.md#reproducible-baseline).
+> FilesV4 contracts are unchanged from the earlier `ai@7.0.123` assessment. Status: **planned**;
 > provider/model support, persistence design and runtime acceptance have not been validated.
 > The [June port recipe](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/large-file-upload-port.md) is historical: its `services/remotefile`,
 > `FileServiceManager`, and `resolveFileUIPart` wiring must not be used as the current implementation map.
@@ -111,3 +113,36 @@ reopened history. A mock returning a file ID does not establish compatibility.
 
 F-01 is mandatory SDK-09 regression coverage. F-02–06 gate the new upload lifecycle. Record the
 provider/model matrix, chosen lifecycle owner, request evidence and rollback before enabling a route.
+
+## S — Provider skill uploads
+
+**S1 disposition: decision pending.** `uploadSkill` / `SkillsV4` was already exported in `ai@7.0.123`;
+its omission from the earlier inventory did not mean it was absent upstream. It uploads a skill file set
+through `provider.skills()` and returns a provider reference with optional version/metadata. Anthropic
+and OpenAI have implementations, but upload success alone does not prove the intended inference route
+can use the skill.
+
+Keep three surfaces distinct: FilesV4 attachment references; Cherry-managed local skill directories
+(`additionalSkillPaths` in `PiRuntimeConnection` and Claude's enabled-skill whitelist); and remote provider
+skills. Harness adapter skill configuration does not establish provider upload support or replace the
+local installer. Record adopt, retain-local or defer with a reason, tracking record and revisit trigger.
+No blanket upload of installed skills is implied.
+
+If adopted, define the file manifest/path and size limits, provider/account/endpoint scope, content
+version, returned reference/version and actual inference binding (for example Anthropic container skills
+or OpenAI shell-environment skills). Decide how references survive local edits, credential changes,
+restart and failed admission. **SkillsV4 only standardizes upload**: it does not inherit FilesV4
+metadata/download/delete/streaming APIs or public cancellation/header options. Record unsupported
+cleanup/cancellation and uncertain accepted uploads explicitly rather than promising those operations.
+
+| ID | Scenario / failure | Observable adoption gate |
+|---|---|---|
+| S-01 | Valid skill file set, rejected path/size, unsupported provider or inference route | Intended files reach the provider; returned reference/version is consumed by the selected operation; unsupported use is explicit |
+| S-02 | Local skill edited, account/endpoint changed, concurrent sessions, cold restart | Content and remote version bind to the intended scope; another account's reference is never reused; local skills remain independently usable |
+| S-03 | Upload error, caller stops, remote acceptance before local failure | No false inference success or blind duplicate upload; cancellation and cleanup limits are visible; late results have a defined owner |
+
+Sources: [public upload API](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/upload-skill/upload-skill.ts),
+[SkillsV4 contract](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/provider/src/skills/v4/skills-v4.ts),
+[upload options](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/provider/src/skills/v4/skills-v4-upload-skill-call-options.ts),
+[Anthropic implementation](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/anthropic/src/skills/anthropic-skills.ts),
+and [OpenAI implementation](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/openai/src/skills/openai-skills.ts).

@@ -58,8 +58,9 @@ renderer-side transport that connects to them.
 
 ## Design research
 
-- [Unified Runtime and AI SDK v7](./unified-runtime/README.md) — SDK research refreshed on 2026-10-01
-  against ai@7.0.123, with migration boundaries and the original June design rationale.
+- [Unified Runtime and AI SDK v7](./unified-runtime/README.md) — research refreshed on 2026-10-04
+  against ai@7.0.127 and pinned upstream main, with file/skill/image/media coverage, current Pi/VCC
+  migration boundaries, separate release/main fixes, and the original June design rationale.
 
 ## Where the code lives
 

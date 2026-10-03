@@ -6,6 +6,8 @@ sources:
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
   - src/main/ai/tools/painting.ts
   - src/main/ai/tools/generateImageTool.ts
+  - src/main/ai/messages/messageCapabilities.ts
+  - src/main/ai/observability/adapters/aiSdk/aiSdkSpanAdapter.ts
   - src/main/ai/runtime/aiSdk/retry/createRetryableWrap.ts
   - src/main/ai/streamManager
   - src/renderer/pages/paintings/model
@@ -15,8 +17,9 @@ sources:
 
 # Capability Migration — Images, Recovery, and Media
 
-> Planning coverage updated 2026-10-04 against Cherry `a6104715d0d`. The upstream comparison remains
-> the research's pinned `ai@7.0.123`; this is not a new latest-version survey.
+> Refreshed 2026-10-04 against Cherry `e3052500309`, published `ai@7.0.127`, and pinned main
+> `15f1a4d0531ac641a4a4d9cc602c0536c1906834`. [Released and main-only changes](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger)
+> have separate adoption/version records.
 > All implementation and runtime acceptance below are **planned**, not completed.
 
 The [research coverage matrix](./migration-plan.md#research-coverage) is the scope ledger. Files have
@@ -75,9 +78,18 @@ replacement references are proven; do not switch cleanup policy as incidental mi
    downloader and renderer orchestration path as retain/replace/remove. Remove a path only after all
    its callers, operations, result ownership and provider exceptions pass. Keep historical painting and
    tool-result readers. Batch adoption is tracked under M1 and is not an I1 prerequisite.
+6. **I6 — Decide multipart tool-result routing per endpoint.** `@ai-sdk/openai-compatible@3.0.62`
+   introduces `supportsMultiPartToolContent`, default false. Cherry's `messageCapabilities.ts` currently
+   returns `NO_MEDIA` for openai/ollama dialects and moves tool images to synthetic user messages.
+   Preserve that route in phase 1, then record retain/adopt for each actual endpoint. Adoption must align
+   the provider flag with Cherry message conversion; upgrading the package alone does not change it.
+   Verify image/audio/video parts individually, fallback and old-history replay. Do not globally enable
+   array tool content or infer support from an endpoint's OpenAI-compatible name.
 
 Sources: [current image parameter architecture](../image-generation-parameters.md),
 [SDK file/mask support](https://ai-sdk.dev/docs/ai-sdk-core/image-generation#checking-image-editing-support),
+[multipart setting](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/openai-compatible/src/openai-compatible-provider.ts#L94),
+[wire conversion](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/openai-compatible/src/chat/convert-to-openai-compatible-chat-messages.ts#L303),
 and the source owners listed above. Recheck live SDK documentation against the chosen package lock.
 
 ### Image acceptance
@@ -95,9 +107,11 @@ Run each applicable case through the painting page and image tool, including the
 | I-06 | Provider succeeds but local save/consumer attachment fails | Invocation usage is retained once; result ownership and retry/reconciliation policy distinguish remote success from delivery failure |
 | I-07 | Reopen painting/chat history, reuse a generated image for editing, GC of temporary inputs | Images remain available to their owners; active jobs retain inputs; discarded scratch files are eventually reclaimable |
 | I-08 | If recovery is adopted: crash before/after task-ID save, download and destination write | Recovery reaches the original destination once; uncertainty never triggers blind resubmission; current abandon behavior is not reported as recovery |
+| I-09 | Multipart setting on/off, supported/unsupported tool media, endpoint/model fallback and history replay | Actual tool-message payload follows the route decision; media remains accessible and attributed once; unsupported endpoints retain the verified conversion path |
 
 I-01–07 supply the detailed scenarios behind SDK-06. I-03 preserves verified existing behavior during
-phase 1 and gates the new shared capability policy in I2. I-08 gates I4's recovery adoption separately.
+phase 1 and gates the new shared capability policy in I2. I-08 gates I4's recovery adoption separately;
+I-09 gates I6's optional endpoint adoption, with existing conversion preserved by SDK-04.
 
 ## R — Stream recovery and UI delivery
 
@@ -111,7 +125,9 @@ Neither should be deleted on the assumption that SDK `streamRetries` or resumabl
 1. **R1 — Baseline UI migration, in phase 1.** Adapt stateless stream helpers and test snapshot isolation,
    partial text/reasoning/tool input, metadata, abort, and approval continuation. Include the Gateway
    SSE adapters and all existing listeners. A stored UI snapshot does not by itself restore a live
-   stream parser or a provider connection.
+   stream parser or a provider connection. Record whether the `7.0.125` Agent helper `convertDataPart`
+   applies to any current custom data parts; verify model-input conversion and history without dropping
+   or accidentally promoting UI-only data into model instructions.
 2. **R2 — Provider stream recovery, after phase 1.** Define which provider error events qualify, total
    attempts across nested retry layers, request deadlines, cancellation, and usage attribution. Keep
    `streamRetries` off until failed-attempt output and effect handling pass. Account for the research's
@@ -134,8 +150,16 @@ Neither should be deleted on the assumption that SDK `streamRetries` or resumabl
 | R-04 | Abort/deadline during retry delay; key/model fallback plus stream retry | Work stops within the declared bound; attempts stay within one documented budget; files/options rebind to the actual provider |
 | R-05 | Long stream, nested mutable metadata, slow/disconnected consumer | Snapshot isolation and agreed latency/memory bounds hold; closing a renderer does not lose Main-owned output |
 | R-06 | SSE heartbeat enabled/disabled, approval continuation, tracing on/off | Consumers accept framing; heartbeats create no content or usage; decisions and spans retain the correct owner |
+| R-07 | Cancel outer merged stream before/after inner reader registration | Existing and later-merged readers cancel; no abandoned reader continues emitting or keeps resources alive |
 
-R-01, R-05 and existing approval/transport behavior in R-06 are phase-1 obligations. R-02–04 and new
+For R-06, include stale approval removal after `addToolOutput`, equal approved inputs from another
+JavaScript realm, and approval resume followed by a new message. The first two fixes are released in
+`7.0.126–127`; approval-state preservation on resume is main-only at this snapshot. Keep prior approved
+state only for the same resumed message; a new message must not inherit it. Reproduce against the chosen
+release and record a version blocker or scoped fix if needed. R-07 covers the published `7.0.127` merged
+stream fix; it does not change Cherry's rule that renderer detachment alone leaves Main generation alive.
+
+R-01, R-05, R-07 and existing approval/transport behavior in R-06 are phase-1 obligations. R-02–04 and new
 heartbeat activation require separate adoption evidence. The [feature inventory](./aisdk-v7-feature-inventory.md#execution-boundaries)
 supplies the researched retry semantics; verify them against the installed package, not mocked SDK events.
 
@@ -150,7 +174,7 @@ named tracking record; no such decision has been made by this document.
 | ID / research capability | Integration boundary and prerequisite | Implementation / decision record | Black-box adoption gate |
 |---|---|---|---|
 | M1 — Batch: text, tools, per-request models and images | JobManager, provider config, FileManager and durable result consumers; SDK baseline, F for any uploaded inputs, I4 for image destinations | Define submit/status/results/list/cancel, stable item IDs, mixed success, attribution, polling vs webhook delivery, input retention and replay; image generation's wait-for-result API stays distinct | M-01: out-of-order/partial results attach to the correct item once; duplicate notifications, restart and cancel do not resubmit paid work or lose completed outputs |
-| M2 — Speech generation, transcription and streaming transcription | Inventory actual consumers first; media capture/playback, IPC, provider adapter and file/message result ownership | Identify existing wrappers requiring baseline migration versus new user entry points; define formats, partial/final transcript, backpressure, timeout and cleanup | M-02: actual audio is transcribed/played or saved; partial text is not duplicated on finalize; stop releases capture, connection and buffers; unsupported models give an explicit outcome |
+| M2 — Speech generation, transcription and streaming transcription | Inventory actual consumers first; media capture/playback, IPC, provider adapter and file/message result ownership | Define formats, partial/final transcript, backpressure, timeout, cleanup, operation/callId attribution, usage units and telemetry opt-out | M-02: actual audio/transcript is delivered without duplication; success/error/cancel settles once; stop releases resources; provider usage retains its units; unsupported models give an explicit outcome |
 | M3 — Streaming speech translation | M2 media lifecycle plus target-language/config ownership; ordinary text translation retains its own contract | Map source/translated text and audio, ordering, interruption, usage and durable outputs | M-03: interrupted/reconnected translation preserves attribution and completed segments, with no cross-session audio or double playback |
 | M4 — Async video | Provider-specific generation/status interface, JobManager and durable file/result destination; F if references are uploaded | Define image/video reference inputs, remote task identity, poll/webhook completion, expiry, download, cancel and uncertain submission | M-04: reconnect/restart collects the original task where supported; expired URLs, download failures and late completion do not become a false success or duplicate charge |
 | M5 — Realtime Live | Electron media permissions, Main-held credentials, WebSocket relay or scoped browser-direct session, host tools and approvals | Select a supported transport/provider; define session/context ownership, tool execution, bounded queues, turn interruption, usage, close and reconnect | M-05: voice turn and approved tool effect complete through the real connection; denial causes no effect; network loss, barge-in and window close release resources and preserve intended turn attribution |
@@ -159,6 +183,19 @@ Do not infer an existing product implementation from an SDK export or from attac
 and video. Inventory shared `ai` imports and wrappers during phase 1; if an existing caller is found,
 its compatibility becomes mandatory phase-1 work even while a new M feature remains undecided. Reuse
 existing Job/File/IPC owners where their contracts fit; do not add a universal media service speculatively.
+
+**M2 telemetry acceptance:** `ai@7.0.124` adds speech/transcription telemetry and provider usage.
+Ordinary operations use `onStart/onEnd`; streaming transcription has experimental start/end callbacks,
+and its error/cancellation path uses `onError`. Text-generation `onAbort` is not a universal audio hook.
+Map these to the actual operation and call ID with one terminal outcome, preserving tokens, characters
+and seconds as distinct units. Cover tracing off, content-recording policy, provider failure and user
+Stop. Cherry's current span classification has no speech/transcription operation mapping, and this
+scan found no direct production SDK speech/transcribe caller: these are conditional M2 adoption gates,
+not a claim that an existing audio product has regressed.
+
+Sources: [telemetry contracts](https://github.com/vercel/ai/blob/ai%407.0.127/packages/ai/src/telemetry/telemetry.ts),
+[stream transcription lifecycle](https://github.com/vercel/ai/blob/ai%407.0.127/packages/ai/src/transcribe/stream-transcribe.ts),
+and [provider usage units](https://github.com/vercel/ai/blob/ai%407.0.127/packages/otel/src/provider-usage-attributes.ts).
 
 ## Q — Structured output and evaluation
 

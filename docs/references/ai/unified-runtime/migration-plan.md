@@ -3,16 +3,19 @@ description: AI SDK v7 research coverage and migration tracker for baseline comp
 sources:
   - src/main/ai
   - packages/aiCore/src/core/context/compaction.ts
+  - src/shared/ai/piBuiltinTools.ts
+  - scripts/piVccBundle.ts
+  - patches
   - package.json
   - pnpm-workspace.yaml
 ---
 
 # AI SDK Upgrade & Unified Runtime — Migration Assessment
 
-> Updated 2026-10-02. SDK target baseline: `ai@7.0.123`; Cherry baseline: `1b799934263`, `ai@6.0.185`.
+> Refreshed 2026-10-04. Published target comparison: `ai@7.0.127`; Cherry baseline: `e3052500309`, `ai@6.0.185`.
 > This is a proposed work breakdown. No dependency, runtime, schema, or permission behavior is changed by this document.
-> Coverage corrected 2026-10-04 against Cherry `a6104715d0d`: files, images, recovery and every researched
-> media/evaluation capability now have explicit work records. The pinned upstream research is unchanged.
+> Main-only findings are pinned to `15f1a4d0531ac641a4a4d9cc602c0536c1906834`; see the
+> [release/main ledger](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger) before choosing packages.
 
 ## Current baseline
 
@@ -51,10 +54,11 @@ in that phase, even when new capabilities in the same domain ship later.
 |---|---|---|---|
 | 1. AI SDK upgrade | [Version/patch audit, all 32 codemods, manual semantic migration, regression plan](./sdk-upgrade-plan.md) | Exact Cherry baseline and supported provider/platform/caller matrix | SDK-01–12, including detailed file/image/UI cases, compatible peers, reviewed patches and package builds; **planned** |
 | F. FilesV4 | [Attachment/upload/reference lifecycle plan](./large-file-upload-port.md#f--implementation-slices) | Existing attachment gate in phase 1; provider reference support and lifecycle decisions | F-01–06: usable content, scoped references, expiry, cancellation, cleanup, replay; **planned**, store/policy decisions unresolved |
-| I. Images | [Generation/editing, capabilities, custom transports, result ownership](./capability-migration-plan.md#i--image-generation-and-editing) | I1 baseline in phase 1; capability conflicts resolved before I2; destination/reconciliation design before recovery | I-01–07 for current paths and capability adoption; I-08 separately for restart recovery; **planned** |
-| R. Recovery and UI | [Provider retry, partial UI parts, reconnect, SSE and patch disposition](./capability-migration-plan.md#r--stream-recovery-and-ui-delivery) | R1 baseline in phase 1; effect/output/attempt policy before enabling retries | R-01–06 as applicable; **planned**, new retries disabled until accepted |
-| 2. Tool Search | [Request binding, direct dispatch, prompt/UI/history changes, deletion map](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path) | Phase 1 accepted | TS-01–08, real-provider and Electron validation; **planned** |
-| 3. Code Mode | [QuickJS engine replacement, Pi approval parity, Core caller integration](./tool-discovery-plan.md#phase-3--replace-code-mode-execution-then-integrate-discovery) | Phase 1 accepted; Phase 2 accepted for native search integration | CM-01–10 for adopted routes; Pi engine replacement and chat feature activation recorded separately; **planned** |
+| S. Provider skills | [SkillsV4 upload and inference binding](./large-file-upload-port.md#s--provider-skill-uploads) | Explicit adopt/retain-local/defer choice, provider/account/version and operation support | S-01–03 if adopted; local/Harness skill contracts stay distinct; **decision pending** |
+| I. Images and tool media | [Generation/editing, capabilities, custom transports, result ownership and multipart tool output](./capability-migration-plan.md#i--image-generation-and-editing) | I1 baseline in phase 1; capability conflicts resolved before I2; destination design before recovery; endpoint decision before I6 | I-01–07 for current paths and capability adoption; I-08 for restart recovery; I-09 for multipart adoption; **planned**, I6 decision pending |
+| R. Recovery and UI | [Provider retry, partial UI parts, reconnect, SSE and patch disposition](./capability-migration-plan.md#r--stream-recovery-and-ui-delivery) | R1 baseline in phase 1; effect/output/attempt policy before enabling retries | R-01–07 as applicable; **planned**, new retries disabled until accepted |
+| 2. Tool Search | [Request binding, callback ranking, direct dispatch, prompt/UI/history changes, deletion map](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path) | Phase 1 accepted | TS-01–09, real-provider and Electron validation; **planned** |
+| 3. Code Mode | [Core adoption, leftover worker cleanup and native Pi parity](./tool-discovery-plan.md#phase-3--core-code-mode-adoption-and-native-pi-parity) | Phase 1 accepted; Phase 2 accepted for native Core search integration | CM-01–10 for adopted routes; keep native Pi under H2, audit unused code separately; Core activation **decision pending** |
 | M. Batch/audio/video/Realtime | [M1–M5 product, provider, lifecycle and acceptance records](./capability-migration-plan.md#m--batch-audio-video-and-realtime) | Phase 1; relevant file/result/approval contracts for each selected feature | M-01–05 if adopted; each item otherwise needs reason, tracking record and revisit trigger; **decision pending** |
 | Q. Structured output/evaluation | [Existing-output migration and experimental evaluation adoption](./capability-migration-plan.md#q--structured-output-and-evaluation) | Existing structured output in phase 1; evaluation consumer/dataset before Q2 | SDK-11 mandatory; Q-01 if evaluation adopted; **Q1 planned, Q2 decision pending** |
 | 4. Harness | Common integration, then Pi / Claude Code / DSH adapter cutovers below | Phase 1 accepted; applicable tool, file/image, approval and delivery contracts stabilized | Each runtime passes the complete product matrix, including attachments and image-tool outputs; **planned** |
@@ -82,20 +86,23 @@ behavior must survive the upgrade; **planned adoption** means implementation is 
 | Context and instructions | `Agent`, ai-core executor, tool context, prompt features/repair; shared runtime vs tool contexts and trusted system history | Required: SDK-01–02, SDK-12 |
 | Approval, reasons, transformed input, signed continuation | Main approval authority, stored pending decisions, nested execution and resumed inputs | Required: SDK-02/04; TS/CM and per-runtime Harness approval cases |
 | Lifecycle callbacks, results, aggregate/final-step usage | Hook composition, usage/cost persistence, retry/model/tool parentage | Required: SDK-01/03/05; no duplicated terminal or billing records |
-| Telemetry / separate OTel | Per-call instrumentation, opt-in policy and retry/approval spans | Required: SDK-05; R-06 and Q-01 if adopted |
+| Telemetry / separate OTel | Per-call instrumentation, opt-in policy and retry/approval spans; audio operation hooks and usage units | Required: SDK-05; R-06, M-02 and Q-01 as applicable |
 | Reasoning, provider options and prompt/media parts | Message conversion/replay, endpoint-specific options, native/compatible wire contracts | Required: SDK-01/04/09/12; old provider acceptance is not new-feature parity |
 | Structured output, arrays, final tool-loop result | Real final-step extraction and schema constraints through ai-core/callers | Required: Q1, SDK-11 |
 | Embedding and rerank | `AiService.embedMany/rerank`, knowledge indexing/search and local/custom providers | Required: SDK-10; ordering, dimensions, scores, retry and usage preserved |
 | Existing attachment inputs and FilesV4 lifecycle | Local ingestion, native vs extraction/OCR, upload/reference readiness, expiry/account scoping, cleanup, replay | Required F1/SDK-09; planned adoption F2–F5, F-02–06 |
+| Provider `uploadSkill` / `SkillsV4` | Remote skill file set, provider/account/version reference and inference binding, separate from local and Harness skills | S1 decision pending; S-01–03 if adopted; no inherited FilesV4 lifecycle APIs |
 | Image generation/editing and SDK image capabilities | Painting UI and tools, SDK/custom transports, parameters, file/mask inputs, downloads, usage and durable results | Required I1/SDK-06; planned capability adoption I2–I3; I4 recovery needs destination decision; I-01–08 |
+| OpenAI-compatible multipart tool outputs | Provider flag plus `messageCapabilities.ts` conversion; retain/adopt per endpoint and modality | Required existing conversion SDK-04; I6 decision pending, I-09 if adopted |
 | Provider streaming errors / retries | Key/model failover vs mid-stream provider retries; partial output and side effects | Required existing behavior SDK-03; planned R2 adoption, R-02–04 |
-| UI snapshots, active partial parts, cancellation/approval continuation, SSE heartbeat | Main stream/persistence, renderer overlay, Gateway SSE consumers | Required R1/SDK-04/07; R-01/05/06; new heartbeat activation tracked in R3 |
-| Native Tool Search / deferred loading | Request-selected catalogs, direct invocation, UI/history compatibility | Planned phase 2, TS-01–08 |
-| Code Mode / conversation catalogs / caller routing | Engine, Pi nested approval, signatures/results, prompt/catalog cache behavior | Planned phase 3, CM-01–10; chat activation remains a separate choice |
+| UI snapshots, active/data parts, cancellation/approval continuation, SSE heartbeat | Main stream/persistence, renderer overlay, Gateway SSE consumers; selected-release fixes versus main-only resume fix | Required R1/SDK-02/03/04/07; R-01/05/06/07; new heartbeat activation tracked in R3 |
+| Native Tool Search / deferred loading | Request-selected catalogs, callback ranking/limit, direct invocation, UI/history compatibility | Planned phase 2, TS-01–09 |
+| Code Mode / conversation catalogs / caller routing | Core adoption versus existing Pi native QuickJS/search/MCP; nested approval, results and prompt/catalog behavior | Planned phase 3, CM-01–10; Core activation remains a separate choice; native Pi maps to H2 |
 | Harness adapters, sandbox, native auth, per-turn settings, steering, questions/callbacks, history | Existing host/driver boundary; Pi/Claude/DSH capability and lifecycle parity | Planned H1–H4 and full Harness matrix; resume is not transcript access or exactly-once recovery |
+| Harness release/main fixes and Pi native dependency gap | ACP tool/input binding if selected; terminal telemetry, Claude cumulative cost; Pi 1.0/VCC versus older adapter dependencies | H1–H3 version ledger and black-box cases below; pending changesets are not released guarantees |
 | Compaction and custom-loop boundaries | Reuse `compactModelMessages` / `inLoopCompaction`; tool pairing, summaries, attachment access and context budget | Required SDK-12; no new compaction subsystem or unpublished API assumption |
 | Batch: tools, per-request models, image jobs, list/cancel/webhooks | Job identity, item/result correlation, durable destination and provider support | M1 decision pending; M-01 if adopted |
-| Speech / transcription, including streaming | Inventory existing wrappers; new capture/playback and transcript/file lifecycle | Existing callers required if found; M2 decision pending, M-02 |
+| Speech / transcription, including streaming | Inventory existing wrappers; capture/playback, transcript/file lifecycle, call attribution and tokens/characters/seconds | Existing callers required if found; M2 decision pending, M-02 including success/error/cancel and tracing opt-out |
 | Speech translation | Source/target audio/text, ordering and interruption | M3 decision pending, M-03; distinct from existing text translation |
 | Async video and reference inputs | Task identity, poll/webhook, cancellation, download and persistence | M4 decision pending, M-04 |
 | Realtime Live | Transport, credentials, media permissions, queues, host tools/approval/context | M5 decision pending, M-05 |
@@ -109,14 +116,41 @@ tracking record and revisit trigger. An unresolved row cannot disappear into a c
 
 | Slice | Concrete work at the existing runtime boundary | Removal / acceptance |
 |---|---|---|
-| H1 — Shared integration | Map Harness session/turn lifecycle, chunks, approvals, usage and resume state to `AgentRuntimeConnection`; keep admission, persistence, delivery and reconciliation authority in Cherry | Prove one real vertical slice and the shared test fixture before generalizing; do not create another session host |
-| H2 — Pi | Reuse phase-3 work where the adapter supports it; verify host-process provider/auth, tools, skills, compaction, steer, fork/edit and context reporting | Replace `PiRuntimeDriver` direct SDK plumbing only after its complete contract passes; do not lose nested approvals or off-turn output |
-| H3 — Claude Code | Integrate a local filesystem/process sandbox bridge and lifecycle; preserve native identity, fork/edit, background events, managed binaries and credentials | Replace direct query/bridge plumbing after packaged and background-work acceptance; keep caller-owned cleanup explicit |
+| H1 — Shared integration | Map lifecycle, chunks, approvals, usage and resume state to `AgentRuntimeConnection`; keep admission, persistence, delivery and reconciliation in Cherry | Prove a real vertical slice; one terminal telemetry event on success/error/abort; if ACP is selected, bind approval to tool/input and reject stale/reused relay authorization |
+| H2 — Pi | Map current Pi 1.0 provider/auth, native Code Mode/search/MCP, local skills, nested approvals, VCC, steer, fork/edit and context reporting; compare native dependency closure explicitly | Replace direct SDK plumbing only after the H2 detail below and full runtime matrix pass; retain native integration until then |
+| H3 — Claude Code | Integrate a local filesystem/process sandbox bridge; preserve native identity, fork/edit, background events, managed binaries, credentials and cost attribution | Packaged/background acceptance plus multiple-result and resumed-session cost cases; do not sum cumulative totals or book prior session cost as a new invocation |
 | H4 — DSH | Establish upstream/custom adapter support; confirm ACP compatibility before choosing ACP; preserve goal/autonomous rounds, checkpoints, approvals and tool policy | Capability blocker until an adapter exists and passes the same product contract; naming a custom wrapper is not completion |
 
 Pi is the proposed first slice because it avoids the Claude sandbox-bridge integration, but current
 fork/policy/event gaps still block cutover. Resolve upstream gaps before downstream workarounds. No
 runtime may silently lose a shipped capability to make the shared interface smaller.
+
+### H2 — Current native Pi contract
+
+Cherry pins `@earendil-works/pi-ai` and `pi-coding-agent` to `1.0.0`, and pi-vcc to `0.8.1`.
+`PiRuntimeConnection` installs native Code Mode (`models: false`), tool search, MCP and VCC extensions;
+`piMcpExtension.ts` supplies Cherry's in-memory transport while Pi owns discovery, execution, results and
+teardown. `approvalExtension.ts` gates nested `tool_call` events. The old `piCodeMode.ts` worker is gone.
+
+At the pinned upstream main, [Harness Pi dependencies](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/harness-pi/package.json)
+still use `pi-ai@0.74.2`, `pi-coding-agent@^0.85.1` and `pi-mcp-adapter@2.12.1`. Existing provider,
+extension-factory and in-process reattach hooks are useful integration surfaces, not proof of Pi 1.0
+parity. Resolve native API/type/patch and packaging differences upstream before a downstream workaround;
+version differences alone are not evidence of a runtime failure.
+
+| Current shipped contract | H2 acceptance before replacement |
+|---|---|
+| Native Code Mode/search/MCP and nested approval | Real approved/denied nested effects, disabled tools, stable MCP identities/results and transport teardown; no model-call escape through Code Mode |
+| Default VCC compression and `vcc_recall` | Long session compresses; recall retrieves the same session's prior content after JSONL close/reopen; another session's history is inaccessible |
+| Explicit `/compact` instructions | Instructions still delegate to native summarization instead of being ignored by VCC |
+| Independently disabled recall and legacy `tool_exec` policy names | Disabling recall does not turn off compression; stored disabled-tool policy maps to native names without widening access |
+| Cherry-owned VCC configuration and command surface | Configuration uses Cherry's path without consuming CLI configuration; CLI-only VCC command remains unexposed |
+| Native SDK and VCC ESM loading | Packaged Electron loads the SDK and dedicated VCC bundle without a development checkout |
+
+Current contract evidence: `src/main/ai/runtime/pi/` contains `PiRuntimeConnection.ts`,
+`piMcpExtension.ts`, `piSdk.ts`, `piNativeTools.test.ts` and `piVcc.test.ts`; also inspect
+`src/shared/ai/piBuiltinTools.ts`, `scripts/piVccBundle.ts` and the pi-vcc patch. These tests identify contracts; no Harness
+parity run has been performed. Fork/edit, live-policy and off-turn gaps below still block cutover.
 
 ## Workstream evidence
 
@@ -176,7 +210,7 @@ preserve runtime-specific capabilities rather than silently reducing every runti
 
 ### Known gaps in the inspected implementation
 
-The following are static findings in the inspected upstream snapshot, not reproduced upstream bugs:
+The following were rechecked at main `15f1a4d0531a`; they are static findings, not reproduced upstream bugs:
 
 - **Fork/edit:** `HarnessV1Session` exposes resume/continue but no fork/edit/rewind operation; the checked
   Claude/Pi adapters do not wire the native branch/edit capabilities needed by Cherry.
@@ -193,10 +227,10 @@ The following are static findings in the inspected upstream snapshot, not reprod
   slash-command catalog queries. A stopped/lost runtime may continue by rerunning work; that is different
   from attaching to a still-running turn and does not guarantee non-idempotent tool effects occur once.
 
-Evidence: [session contract](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness/src/v1/harness-v1-session.ts),
-[Pi event subscription](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness-pi/src/pi-session.ts#L1159),
-[Claude turn termination](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness-claude-code/src/bridge/index.ts#L673),
-and [Harness settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/harness/src/agent/harness-agent-settings.ts).
+Evidence: [session contract](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/harness/src/v1/harness-v1-session.ts),
+[Pi event subscription](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/harness-pi/src/pi-session.ts#L1159),
+[Claude turn termination](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/harness-claude-code/src/bridge/index.ts#L673),
+and [Harness settings](https://github.com/vercel/ai/blob/15f1a4d0531ac641a4a4d9cc602c0536c1906834/packages/harness/src/agent/harness-agent-settings.ts).
 These are requirements for upstream adapter/contract work before full replacement, not reasons to
 silently remove existing Cherry features. Track request acceptance, actual input consumption, execution,
 and durable completion separately in black-box evidence.
@@ -237,6 +271,8 @@ Use three complementary levels:
 | Fork/edit at a saved boundary | Original session stays intact; branch starts from the selected boundary with no future-message leakage or active writer corrupting history |
 | Background subagent/DSH goal round overlaps queued input | Output stays attached to its actual owner; autonomous turns cannot consume interactive steering; delivery and scheduled turns keep distinct attribution |
 | Model/credential change, compaction, usage events | Selected settings reach the next eligible turn; tool-call/result pairs survive compaction; credentials stay out of persisted config/logs; usage is attributed once to the correct invocation |
+| Pi VCC compression, recall after reopen, instructions and disabled recall | H2's native contracts pass through the real adapter, including configuration isolation and packaged ESM loading |
+| Harness success/error/abort and Claude multiple results/resumed prior cost | One correctly classified terminal event per call; latest cumulative cost is not summed repeatedly or mistaken for current-invocation cost |
 | Concurrent sessions, archive/restore/purge, repeated reconnect | Native identity and workspace remain isolated; recovery does not duplicate admitted work; cleanup respects surviving/trashed sessions and ownership |
 
 For each case define the promised result before running it. Run the same contract scenarios against the

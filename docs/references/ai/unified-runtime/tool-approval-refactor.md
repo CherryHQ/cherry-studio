@@ -1,5 +1,5 @@
 ---
-description: Tool approval migration constraints for AI SDK 7.0.123 and the historical permission centralization proposal
+description: Tool approval migration constraints for AI SDK 7.0.127 and pinned main fixes, with the historical permission proposal
 sources:
   - src/main/ai
   - package.json
@@ -7,12 +7,13 @@ sources:
 
 # Tool Approval — Migration Constraints & Proposal
 
-> Reassessed 2026-10-02. The original permission-engine design follows as historical rationale.
+> Refreshed 2026-10-04 against Cherry `e3052500309` and the [release/main ledger](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger).
+> The original permission-engine design follows as historical rationale.
 > This update does not approve a new permission subsystem or change persisted approval ownership.
 
 ## Current SDK boundaries
 
-| Surface | v6 | v7.0.123 |
+| Surface | v6 | v7.0.127 |
 |---|---|---|
 | Approval request/response message flow | Available | Available |
 | Per-tool `needsApproval` | Existing trigger | Deprecated compatibility surface |
@@ -24,7 +25,8 @@ sources:
 Keep approval-required tools directly callable during the initial Core Code Mode adoption. The published
 package exposes nested approval helpers despite the live guide's narrower claim; see the
 [verified package contract and migration gate](./tool-discovery-plan.md#31-resolve-the-approval-contract-from-the-published-package).
-Pi's existing nested approval behavior must be preserved before its engine is replaced. A policy verdict or signed SDK
+Pi now uses native Code Mode and its nested `tool_call` gate; preserve that contract through any Harness
+cutover rather than assuming the old worker still owns it. A policy verdict or signed SDK
 approval does not replace Cherry's own authorization and state ownership. Validate approval-resumed
 inputs against the actual schemas, including transforms, rather than treating persisted input as trusted.
 
@@ -43,9 +45,15 @@ Compare with the [current approval reference](../tool-approval.md) and
   stale/duplicate decisions, changed policy/schema, signing-key lifetime, and replayed side effects
   before exposing gated tools through the new engine.
 - Keep provider-side execution and adapter-native approvals distinct from host-executed AI SDK tools.
+- Include stale approval cleanup after `addToolOutput` (`7.0.126`) and equal approved inputs from another
+  JavaScript realm (`7.0.127`). Reject changed input even when a previous input was authorized.
+- Test same-message resume and new-message boundaries separately. Approval-state preservation on resume
+  is main-only at `15f1a4d0531a`, not guaranteed by `7.0.127`; record the selected release or patch evidence.
+- If adopting Harness ACP, verify `1.0.77` host-tool relay matching through the real adapter: approved
+  tool and input must match, and stale/reused authorization must not execute an effect.
 
 Sources: [Code Mode guide (see package correction above)](https://ai-sdk.dev/docs/ai-sdk-core/code-mode),
-[published core changes](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/CHANGELOG.md),
+[published core changes](https://github.com/vercel/ai/blob/ai%407.0.127/packages/ai/CHANGELOG.md),
 [Agent settings](https://github.com/vercel/ai/blob/ai%407.0.123/packages/ai/src/agent/tool-loop-agent-settings.ts).
 
 <details>
