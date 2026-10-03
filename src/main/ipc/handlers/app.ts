@@ -11,6 +11,7 @@ import {
   abandonNotesRelocationSession,
   acknowledgeRendererNotesEditsFlush,
   acquireNotesRelocationSession,
+  assertNotesRelocationSessionOwner,
   inspectNotesRelocation,
   isRendererNotesEditsFlushWindowRegistered,
   migrateNotesDirectory,
@@ -33,8 +34,8 @@ function broadcastNotesRelocationMigrateComplete(): void {
   application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
 }
 
-function finishNotesRelocationSession(ownerId: string): void {
-  if (releaseNotesRelocationSession(ownerId)) {
+function finishNotesRelocationSession(ownerId: string, sessionEpoch: number): void {
+  if (releaseNotesRelocationSession(ownerId, sessionEpoch)) {
     broadcastNotesRelocationMigrateComplete()
   }
 }
@@ -92,22 +93,24 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
         'notes relocation requires a renderer window'
       )
     }
-    acquireNotesRelocationSession(senderId)
+    const sessionEpoch = acquireNotesRelocationSession(senderId)
     try {
       await requestRendererNotesEditsFlush()
+      return { sessionEpoch }
     } catch (error) {
-      releaseNotesRelocationSession(senderId)
-      broadcastNotesRelocationMigrateComplete()
+      if (releaseNotesRelocationSession(senderId, sessionEpoch)) {
+        broadcastNotesRelocationMigrateComplete()
+      }
       throw error
     }
   },
-  'app.notes_relocation.end_barrier': async (_input, { senderId }) => {
+  'app.notes_relocation.end_barrier': async ({ sessionEpoch }, { senderId }) => {
     if (senderId == null) {
       return
     }
-    finishNotesRelocationSession(senderId)
+    finishNotesRelocationSession(senderId, sessionEpoch)
   },
-  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, { senderId }) => {
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge, sessionEpoch }, { senderId }) => {
     if (senderId == null) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
@@ -115,36 +118,36 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       )
     }
 
-    acquireNotesRelocationSession(senderId)
+    assertNotesRelocationSessionOwner(senderId, sessionEpoch)
     setNotesRelocationMigrateInFlight(true)
     try {
       await requestRendererNotesEditsFlush()
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
       if (!isRendererNotesEditsFlushWindowRegistered(senderId)) {
-        finishNotesRelocationSession(senderId)
+        finishNotesRelocationSession(senderId, sessionEpoch)
       }
       return result
     } catch (error) {
-      finishNotesRelocationSession(senderId)
+      finishNotesRelocationSession(senderId, sessionEpoch)
       throw error
     } finally {
       setNotesRelocationMigrateInFlight(false)
     }
   },
-  'app.notes_relocation.complete': async (_input, { senderId }) => {
+  'app.notes_relocation.complete': async ({ sessionEpoch }, { senderId }) => {
     if (senderId == null) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
         'notes relocation requires a renderer window'
       )
     }
-    finishNotesRelocationSession(senderId)
+    finishNotesRelocationSession(senderId, sessionEpoch)
   },
-  'app.notes_relocation.release_session': async (_input, { senderId }) => {
+  'app.notes_relocation.release_session': async ({ sessionEpoch }, { senderId }) => {
     if (senderId == null) {
       return
     }
-    finishNotesRelocationSession(senderId)
+    finishNotesRelocationSession(senderId, sessionEpoch)
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),

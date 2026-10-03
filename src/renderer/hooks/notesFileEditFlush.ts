@@ -1,6 +1,7 @@
 type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
+const autosaveCancelCallbacks = new Set<() => void>()
 let relocationEditLockDepth = 0
 let inFlightStructuralWrites = 0
 const structuralWriteIdleWaiters: Array<() => void> = []
@@ -17,6 +18,16 @@ function notifyStructuralWriteIdleWaiters(): void {
 
 export function lockNotesEditsForRelocation(): void {
   relocationEditLockDepth += 1
+  for (const cancel of autosaveCancelCallbacks) {
+    cancel()
+  }
+}
+
+export function registerNotesRelocationAutosaveCancel(cancel: () => void): () => void {
+  autosaveCancelCallbacks.add(cancel)
+  return () => {
+    autosaveCancelCallbacks.delete(cancel)
+  }
 }
 
 export function unlockNotesEditsForRelocation(): void {
