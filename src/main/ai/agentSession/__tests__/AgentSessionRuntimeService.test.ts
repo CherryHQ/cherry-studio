@@ -47,7 +47,6 @@ const mocks = vi.hoisted(() => ({
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
-  getConversationById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -86,7 +85,6 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    getConversationById: mocks.getConversationById,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -496,7 +494,7 @@ describe('AgentSessionRuntimeService', () => {
       id: message.id ?? 'generated-message-id',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.getConversationById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
+    mocks.getSessionById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
@@ -4206,13 +4204,14 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ sessionId: 'session-1', error: closeError })
       )
     )
-    expect(service.isSessionBusy('session-1')).toBe(true)
     expect(service.hasBusySessions()).toBe(true)
     expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
-    expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+    expect(() => service.forkSession('session-1', 'assistant-1')).toThrow('close_failed')
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(() => service.beginTurn(baseTurnInput)).not.toThrow()
   })
 
-  it('blocks writes after the close deadline and recovers when native teardown eventually completes', async () => {
+  it('blocks history rewrites after the close deadline and allows them once native teardown completes', async () => {
     vi.useFakeTimers()
     try {
       const service = new AgentSessionRuntimeService()
@@ -4222,11 +4221,10 @@ describe('AgentSessionRuntimeService', () => {
       const closing = service.closeSession('session-1')
       await vi.advanceTimersByTimeAsync(20_001)
       await closing
-      expect(() => service.beginTurn(baseTurnInput)).toThrow('close_failed')
+      expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
       teardown.resolve()
       await vi.advanceTimersByTimeAsync(0)
-      expect(() => service.beginTurn(baseTurnInput)).not.toThrow()
-      await service.closeSession('session-1')
+      expect(() => service.assertSessionEditable('session-1')).not.toThrow()
     } finally {
       vi.useRealTimers()
     }

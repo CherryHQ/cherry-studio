@@ -116,6 +116,46 @@ describe('webSearch provider utils', () => {
     expect(rotationState.resolve(provider)).toBe('alpha-key')
   })
 
+  it('rotates over distinct keys when the same key is listed twice', () => {
+    // `indexOf` reports the first occurrence, so a duplicate entry pinned the rotation to it and
+    // the other configured key never served a request.
+    const provider = createProvider({
+      id: 'exa',
+      apiKeys: ['KEY-A', 'KEY-A', 'KEY-B']
+    })
+
+    const rotationState = new ApiKeyRotationState()
+
+    expect(rotationState.resolve(provider)).toBe('KEY-A')
+    expect(rotationState.resolve(provider)).toBe('KEY-B')
+    expect(rotationState.resolve(provider)).toBe('KEY-A')
+    expect(rotationState.resolve(provider)).toBe('KEY-B')
+  })
+
+  it('treats a whitespace variant of a key as that same key', () => {
+    const provider = createProvider({
+      id: 'exa',
+      apiKeys: [' KEY-A ', 'KEY-A', 'KEY-B']
+    })
+
+    const rotationState = new ApiKeyRotationState()
+
+    expect(rotationState.resolve(provider)).toBe('KEY-A')
+    expect(rotationState.resolve(provider)).toBe('KEY-B')
+  })
+
+  it('collapses a list of identical keys into the single key', () => {
+    const provider = createProvider({
+      id: 'exa',
+      apiKeys: ['KEY-A', ' KEY-A', 'KEY-A ']
+    })
+
+    const rotationState = new ApiKeyRotationState()
+
+    expect(rotationState.resolve(provider)).toBe('KEY-A')
+    expect(rotationState.resolve(provider)).toBe('KEY-A')
+  })
+
   it('clears service-owned rotation state', () => {
     const rotationState = new ApiKeyRotationState()
     const provider = createProvider({
