@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,11 +9,18 @@ import { CodeBlockView } from '../CodeBlockView'
 import { CodeBlockWrapLinesContext } from '../wrapLinesContext'
 
 const mocks = vi.hoisted(() => ({
-  CodeEditor: vi.fn(({ value }: { value: string }) => (
-    <div role="textbox" aria-label="Code editor">
-      {value}
-    </div>
-  )),
+  CodeEditor: vi.fn(
+    ({ value, onSave, readOnly }: { value: string; onSave?: (newContent: string) => void; readOnly?: boolean }) => (
+      <div>
+        <div role="textbox" aria-label="Code editor" aria-readonly={readOnly}>
+          {value}
+        </div>
+        <button type="button" onClick={() => onSave?.('const value = 2')}>
+          Save from editor
+        </button>
+      </div>
+    )
+  ),
   CodeViewer: vi.fn(({ value, wrapped }: { value: string; wrapped?: boolean }) => (
     <pre aria-label="Code viewer" data-wrapped={wrapped ? 'true' : 'false'}>
       {value}
@@ -31,6 +38,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
+}))
+
+vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
+  default: () => <div aria-label="Mermaid preview" />
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
@@ -88,15 +99,175 @@ describe('CodeBlockView', () => {
     })
   })
 
-  it('uses the editor for editable code that is already settled', () => {
+  it('shows settled editable code in the viewer until edit is requested', async () => {
+    const user = userEvent.setup()
     render(
       <CodeBlockView language="javascript" editable onSave={vi.fn()}>
         const value = 1
       </CodeBlockView>
     )
 
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+
     expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveTextContent('const value = 1')
     expect(screen.getByRole('textbox', { name: 'Code editor' }).closest('[data-ui~="part:code-block"]')).not.toBeNull()
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+  })
+
+  it('returns to the viewer when editing is cancelled', async () => {
+    const user = userEvent.setup()
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'code_block.edit.label' })).toBeInTheDocument()
+  })
+
+  it('leaves edit mode once the save succeeds', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(true)
+    render(
+      <CodeBlockView language="javascript" editable onSave={onSave}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+
+    expect(onSave).toHaveBeenCalledWith('const value = 2')
+    expect(await screen.findByLabelText('Code viewer')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
+  })
+
+  it('locks the editor until an in-flight save settles so later input cannot be lost', async () => {
+    const user = userEvent.setup()
+    let finishSave: (saved: boolean) => void = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    render(
+      <CodeBlockView language="javascript" editable onSave={onSave}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).not.toHaveAttribute('aria-readonly', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toHaveAttribute('aria-readonly', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    await act(async () => finishSave(false))
+
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).not.toHaveAttribute('aria-readonly', 'true')
+  })
+
+  it('ignores a save that settles after the editor was closed and reopened', async () => {
+    const user = userEvent.setup()
+    let finishSave: (saved: boolean) => void = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    render(
+      <CodeBlockView language="javascript" editable onSave={onSave}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+
+    await act(async () => finishSave(true))
+
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+  })
+
+  it('ignores a save that settles after the split preview was restored to the editor', async () => {
+    const user = userEvent.setup()
+    let finishSave: (saved: boolean) => void = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    render(
+      <CodeBlockView language="mermaid" editable onSave={onSave}>
+        graph TD
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.more' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.split.label' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.split.restore' }))
+
+    await act(async () => finishSave(true))
+
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Mermaid preview')).not.toBeInTheDocument()
+  })
+
+  it('leaves split edit mode once the save succeeds', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(true)
+    render(
+      <CodeBlockView language="mermaid" editable onSave={onSave}>
+        graph TD
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.more' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.split.label' }))
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Mermaid preview')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Mermaid preview')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+  })
+
+  it('stays in edit mode when the save fails', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(false)
+    render(
+      <CodeBlockView language="javascript" editable onSave={onSave}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+
+    expect(onSave).toHaveBeenCalledWith('const value = 2')
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 

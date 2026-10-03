@@ -689,12 +689,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     await waitFor(() => expect(value).toBeDefined())
-    await value?.actions.saveCodeBlock?.({
+    const saved = await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
       originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
+    expect(saved).toBe(true)
     expect(updateCodeBlock).toHaveBeenCalledWith(
       '```ts\nconst value = "old"\n```',
       'const value = "old"',
@@ -819,12 +820,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     await waitFor(() => expect(value).toBeDefined())
-    await value?.actions.saveCodeBlock?.({
+    const saved = await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
       originalContent: 'const value = "missing"',
       newContent: 'const value = "new"'
     })
 
+    expect(saved).toBe(false)
     expect(chatWriteMock.editMessage).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label')
     expect(toast.success).not.toHaveBeenCalled()
@@ -857,12 +859,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
 
     await waitFor(() => expect(value).toBeDefined())
-    await value?.actions.saveCodeBlock?.({
+    const saved = await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
       originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
+    expect(saved).toBe(false)
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [
       {
         ...textPart,
