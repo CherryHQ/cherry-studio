@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto'
 
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
+import { replaceLoneSurrogates } from '@shared/utils/text'
+
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -101,6 +103,110 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
   )
 }
 
+/**
+ * Replace lone surrogates in provider-bound content with U+FFFD.
+ *
+ * A split pair serializes as a `\ud800`-style escape that strict parsers
+ * reject (DeepSeek: "messages[N].content: unexpected end of hex escape", #20476),
+ * failing the whole request while the chat looks stuck. Runs last so every
+ * upstream producer is covered; copy-on-write, never throws, UI untouched.
+ */
+export function sanitizeLoneSurrogateContent(messages: ModelMessage[]): ModelMessage[] {
+  let out: ModelMessage[] | undefined
+  messages.forEach((message, messageIndex) => {
+    const content = (message as { content?: unknown }).content
+    const fixed = typeof content === 'string' ? replaceLoneSurrogates(content) : sanitizeParts(content)
+    if (fixed !== content) {
+      out ??= messages.slice()
+      out[messageIndex] = { ...message, content: fixed } as ModelMessage
+    }
+  })
+  return out ?? messages
+}
+
+function sanitizeParts(content: unknown): unknown {
+  if (!Array.isArray(content)) return content
+  let out: unknown[] | undefined
+  content.forEach((part, partIndex) => {
+    const fixed = sanitizePart(part)
+    if (fixed !== part) {
+      out ??= content.slice()
+      out[partIndex] = fixed
+    }
+  })
+  return out ?? content
+}
+
+function sanitizePart(part: unknown): unknown {
+  if (part === null || typeof part !== 'object') return part
+  const typed = part as { type?: unknown }
+  if (typed.type === 'text' || typed.type === 'reasoning') {
+    const text = (typed as { text?: unknown }).text
+    if (typeof text !== 'string') return part
+    const fixed = replaceLoneSurrogates(text)
+    return fixed === text ? part : { ...typed, text: fixed }
+  }
+  if (typed.type === 'tool-call') {
+    const input = (typed as { input?: unknown }).input
+    const fixed = sanitizeJsonValue(input)
+    return fixed === input ? part : { ...typed, input: fixed }
+  }
+  if (typed.type === 'tool-result') {
+    const output = (typed as { output?: unknown }).output
+    const fixed = sanitizeToolOutput(output)
+    return fixed === output ? part : { ...typed, output: fixed }
+  }
+  return part
+}
+
+function sanitizeToolOutput(output: unknown): unknown {
+  if (output === null || typeof output !== 'object') return output
+  const typed = output as { type?: unknown; value?: unknown; reason?: unknown }
+  if (typeof typed.value === 'string') {
+    const fixed = replaceLoneSurrogates(typed.value)
+    return fixed === typed.value ? output : { ...typed, value: fixed }
+  }
+  if (typed.value !== undefined) {
+    const fixed = sanitizeJsonValue(typed.value)
+    return fixed === typed.value ? output : { ...typed, value: fixed }
+  }
+  if (typeof typed.reason === 'string') {
+    const fixed = replaceLoneSurrogates(typed.reason)
+    return fixed === typed.reason ? output : { ...typed, reason: fixed }
+  }
+  return output
+}
+
+function sanitizeJsonValue<T>(value: T): T {
+  if (typeof value === 'string') {
+    const fixed = replaceLoneSurrogates(value)
+    return (fixed === value ? value : fixed) as T
+  }
+  if (Array.isArray(value)) {
+    let out: unknown[] | undefined
+    value.forEach((item, index) => {
+      const fixed = sanitizeJsonValue(item)
+      if (fixed !== item) {
+        out ??= value.slice()
+        out[index] = fixed
+      }
+    })
+    return (out ?? value) as T
+  }
+  if (value !== null && typeof value === 'object') {
+    let out: Record<string, unknown> | undefined
+    for (const [key, entry] of Object.entries(value)) {
+      const fixed = sanitizeJsonValue(entry)
+      if (fixed !== entry) {
+        out ??= { ...(value as Record<string, unknown>) }
+        out[key] = fixed
+      }
+    }
+    return (out ?? value) as T
+  }
+  return value
+}
+
 /** Intersection of the provider rules: OpenAI `^[a-zA-Z0-9_-]{1,64}$`, Gemini's leading letter/underscore. */
 const WIRE_TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/
 const NAME_DIGEST_LENGTH = 8
@@ -176,6 +282,7 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
  * left by drops → placeholder any turn that still converted to empty content. See #16195.
+ * → replace lone surrogates that strict provider parsers reject. See #20476.
  */
 export async function toModelMessages(
   messages: UIMessage[],
@@ -189,5 +296,5 @@ export async function toModelMessages(
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
-  return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
+  return sanitizeLoneSurrogateContent(ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated)))
 }
