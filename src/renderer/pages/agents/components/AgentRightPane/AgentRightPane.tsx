@@ -119,15 +119,9 @@ import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import { AgentBrowserView } from './AgentBrowserView'
 import {
-  type AgentArtifactFile,
   type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
-  type AgentRightPaneStatus,
-  type AgentRunLiveness,
-  type AgentRunTask,
-  type AgentStatusTask,
   type AgentToolFlowOpenInput,
-  buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
@@ -138,6 +132,14 @@ import {
   type AgentRightPaneRuntime,
   useAgentRightPaneRuntime
 } from './agentRightPaneRuntime'
+import {
+  type AgentArtifactFile,
+  type AgentRightPaneStatus,
+  type AgentRunLiveness,
+  type AgentRunTask,
+  type AgentStatusTask,
+  buildAgentRightPaneStatus
+} from './agentStatusProjection'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentToolFlowActions } from './useAgentToolFlowActions'
 

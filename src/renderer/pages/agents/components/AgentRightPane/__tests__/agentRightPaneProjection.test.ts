@@ -5,11 +5,8 @@ import { getPartParentToolCallId } from '@renderer/components/chat/messages/tool
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import {
-  buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
-} from '../agentRightPaneProjection'
+import { buildAgentToolFlowProjection, findLatestAgentPreviewUrl } from '../agentRightPaneProjection'
+import { buildAgentRightPaneStatus } from '../agentStatusProjection'
 import { dshToolPart, message, textPart, toolPart } from './agentRightPaneProjectionTestUtils'
 
 describe('agent right pane projections', () => {
