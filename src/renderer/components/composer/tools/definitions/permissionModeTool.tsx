@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import {
+  FullAccessConfirmDialog,
   PermissionModeIcon,
   PermissionModeOptionLabel,
   PermissionModeWarning
@@ -25,15 +26,35 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
   const permissionModeCards = useMemo(() => getPermissionModeCards(agent?.type), [agent?.type])
+  const [fullAccessPending, setFullAccessPending] = useState(false)
+
+  // Returns false when there is no agent yet so the confirm dialog stays open.
+  const applyMode = useCallback(
+    (nextMode: PermissionMode) => {
+      if (!agentId || !agent) return false
+      void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
+      return true
+    },
+    [agent, agentId, updateAgent]
+  )
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
-      if (!agentId || !agent || nextMode === currentMode) return
-
-      void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
+      if (nextMode === currentMode) return
+      if (nextMode === 'bypassPermissions') {
+        setFullAccessPending(true)
+        return
+      }
+      setFullAccessPending(false)
+      applyMode(nextMode)
     },
-    [currentMode, agent, agentId, updateAgent]
+    [applyMode, currentMode]
   )
+
+  // A newer selection wins; confirming must never apply a stale dialog.
+  useEffect(() => {
+    if (currentMode === 'bypassPermissions') setFullAccessPending(false)
+  }, [currentMode])
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
@@ -82,12 +103,29 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     ])
   }, [currentMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, t, tooltipTitle])
 
-  return { currentMode, tooltipTitle }
+  return {
+    currentMode,
+    tooltipTitle,
+    fullAccessPending,
+    setFullAccessPending,
+    applyMode,
+    agentName: agent?.name.trim() || undefined
+  }
 }
 
 const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeContext }) => {
-  usePermissionModeToolController(context)
-  return null
+  const { t } = context
+  const { fullAccessPending, setFullAccessPending, applyMode, agentName } = usePermissionModeToolController(context)
+
+  return (
+    <FullAccessConfirmDialog
+      open={fullAccessPending}
+      onOpenChange={setFullAccessPending}
+      onConfirm={() => applyMode('bypassPermissions')}
+      scopeName={agentName}
+      t={t}
+    />
+  )
 }
 
 const permissionModeTool = defineTool({

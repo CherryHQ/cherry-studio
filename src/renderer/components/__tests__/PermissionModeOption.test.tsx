@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { TFunction } from 'i18next'
 import { useForm } from 'react-hook-form'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -240,5 +241,119 @@ describe('PermissionModeSelect', () => {
 
     fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
     expect(onValueChange).toHaveBeenCalledWith('auto')
+  })
+})
+
+const fullAccessCard = {
+  mode: 'bypassPermissions' as const,
+  titleKey: 'title.key',
+  titleFallback: 'Full Access',
+  descriptionKey: 'description.key',
+  descriptionFallback: 'Skips permission checks.',
+  warningKey: 'warning.key',
+  warningFallback: 'Use with caution.',
+  dangerous: true
+}
+
+function FullAccessSelectHarness({ onValueChange }: { onValueChange: (value: PermissionMode) => void }) {
+  const form = useForm<{ permissionMode: PermissionMode }>({ defaultValues: { permissionMode: 'default' } })
+
+  return (
+    <Form {...form}>
+      <form>
+        <FormField
+          control={form.control}
+          name="permissionMode"
+          render={({ field }) => (
+            <FormItem>
+              <PermissionModeSelect
+                cards={[withoutWarning, withWarning, fullAccessCard]}
+                value={field.value}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  onValueChange(value)
+                }}
+                portalContainer={document.body}
+                ariaLabel="Permission mode"
+                scopeName="Support Bot"
+                t={t}
+              />
+            </FormItem>
+          )}
+        />
+      </form>
+    </Form>
+  )
+}
+
+async function selectFullAccess(onValueChange: (value: PermissionMode) => void) {
+  const user = userEvent.setup()
+  render(<FullAccessSelectHarness onValueChange={onValueChange} />)
+
+  // Radix options do not select via pointer events in jsdom; drive the hidden
+  // native select the way the existing value-change test does.
+  const nativeSelect = document.querySelector('select')
+  expect(nativeSelect).not.toBeNull()
+  fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'bypassPermissions' } })
+  return user
+}
+
+describe('PermissionModeSelect Full Access confirmation', () => {
+  it('opens a scope confirmation instead of persisting Full Access silently', async () => {
+    const onValueChange = vi.fn()
+    await selectFullAccess(onValueChange)
+
+    expect(onValueChange).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog', { name: 'Enable Full Access?' })).toBeInTheDocument()
+    expect(screen.getByText(/every folder and resource in the selected scope/)).toBeInTheDocument()
+    expect(screen.getByText('Support Bot')).toBeInTheDocument()
+    expect(screen.getByText(/safety blocks still apply/)).toBeInTheDocument()
+  })
+
+  it('applies Full Access only after the user confirms', async () => {
+    const onValueChange = vi.fn()
+    const user = await selectFullAccess(onValueChange)
+
+    await user.click(screen.getByRole('button', { name: 'Enable Full Access' }))
+
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+    expect(onValueChange).toHaveBeenCalledWith('bypassPermissions')
+  })
+
+  it('keeps the previous mode when the user cancels', async () => {
+    const onValueChange = vi.fn()
+    const user = await selectFullAccess(onValueChange)
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onValueChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toHaveTextContent('Ask Before Acting')
+  })
+
+  it('applies other modes immediately without a confirmation', async () => {
+    const onValueChange = vi.fn()
+    render(<FullAccessSelectHarness onValueChange={onValueChange} />)
+
+    const nativeSelect = document.querySelector('select')
+    expect(nativeSelect).not.toBeNull()
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
+
+    expect(onValueChange).toHaveBeenCalledWith('auto')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('drops a pending Full Access confirmation when another mode is chosen', async () => {
+    const onValueChange = vi.fn()
+    await selectFullAccess(onValueChange)
+    expect(await screen.findByRole('dialog', { name: 'Enable Full Access?' })).toBeInTheDocument()
+
+    const nativeSelect = document.querySelector('select')
+    expect(nativeSelect).not.toBeNull()
+    fireEvent.change(nativeSelect as HTMLSelectElement, { target: { value: 'auto' } })
+
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+    expect(onValueChange).toHaveBeenCalledWith('auto')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
