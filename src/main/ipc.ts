@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import {
   listDirectory as searchListDirectory,
-  listDirectoryEntries as searchListDirectoryEntries
+  listDirectoryEntries as searchListDirectoryEntries,
+  openRequestPath
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -111,7 +112,8 @@ export async function registerIpc() {
 
   // file
   handleGuarded(IpcChannel.File_Open, fileManager.open.bind(fileManager))
-  handleGuarded(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
+  // Raw renderer path text: resolves and validates before the OS default-open (see `openRequestPath`).
+  handleGuarded(IpcChannel.File_OpenPath, (_event: Electron.IpcMainInvokeEvent, path: string) => openRequestPath(path))
   handleGuarded(IpcChannel.File_Save, fileManager.save.bind(fileManager))
   handleGuarded(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
   handleGuarded(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))

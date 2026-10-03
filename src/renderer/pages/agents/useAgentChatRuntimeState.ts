@@ -2,7 +2,6 @@ import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { loggerService } from '@logger'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -194,6 +193,7 @@ export function useAgentChatRuntimeState({
     selectAllPagination,
     refresh,
     seedReservedMessages,
+    replaceMessageTail,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
@@ -244,9 +244,7 @@ export function useAgentChatRuntimeState({
       if (ack.mode !== 'blocked' && currentSessionRef.current === sessionId) {
         resetOverlay()
         setMessages([])
-        await Promise.resolve(refresh()).catch((error) =>
-          loggerService.withContext('AgentEdit').warn('Failed to refresh edited history', { error })
-        )
+        await replaceMessageTail(input.editTarget.messageId, ack.reservedMessages ?? [])
       }
       return ack
     }

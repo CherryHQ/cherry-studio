@@ -31,7 +31,7 @@ import {
 } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
-import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
+import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
@@ -360,7 +360,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
 })
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
-  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
   useArtifactFileTreeModel: (options: unknown) => {
@@ -1979,7 +1979,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
   })
 
-  it('shows the files shortcut only after a system workspace contains a file', () => {
+  it('shows the files shortcut once a system workspace contains an entry', () => {
     const { rerender } = render(
       <TestAgentRightPane
         sessionId="session-a"
@@ -1993,28 +1993,11 @@ describe('AgentRightPane', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { watchMissingRoot: true })
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { maxDepth: 1, watchMissingRoot: true })
 
     const systemWorkspaceRoot = systemFileTreeState.root
     if (!systemWorkspaceRoot) throw new Error('Expected the system workspace tree root')
-    const outputDirectory = new TreeDir({ path: '/system-workspace/output' })
-    systemWorkspaceRoot.attachChild(outputDirectory)
-    systemFileTreeState.version += 1
-    rerender(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/system-workspace"
-        workspaceType="system"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-
-    outputDirectory.attachChild(new TreeFile({ path: '/system-workspace/output/artifact.md' }))
+    systemWorkspaceRoot.attachChild(new TreeDir({ path: '/system-workspace/output' }))
     systemFileTreeState.version += 1
     rerender(
       <TestAgentRightPane
@@ -2047,7 +2030,7 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { watchMissingRoot: true })
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { maxDepth: 1, watchMissingRoot: true })
   })
 
   it('hides conversation shortcuts when the conversation is unavailable', () => {

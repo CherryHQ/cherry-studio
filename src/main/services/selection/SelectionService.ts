@@ -353,6 +353,9 @@ export class SelectionService extends BaseService implements Activatable {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } {
+    // The env is only read when the native module loads (normally on activation); load it now so
+    // the settings page sees the real env even while the feature is still disabled.
+    if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
