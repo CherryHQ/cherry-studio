@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
+import { connect, createServer, type Socket } from 'node:net'
+
 import { app } from 'electron'
 
 import { application } from '@application'
@@ -5,40 +9,71 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('SingleInstance')
 
-/**
- * Require this process to be the primary Cherry Studio instance.
- *
- * Claims Electron's single-instance lock via `app.requestSingleInstanceLock()`.
- * If another Cherry Studio process already holds the lock, this function
- * logs the outcome, calls `application.quit()` to let the shared quit
- * machinery run, and then calls `process.exit(0)` as a belt-and-suspenders
- * terminator in case the Electron `quit` path is slow or blocked. Callers
- * can therefore treat a normal return from this function as a guarantee
- * that we are the live process.
- *
- * Timing contract:
- *   - Must run after `resolveUserDataLocation()`. Electron scopes the
- *     single-instance lock to the resolved userData path, so dev runs
- *     using different userData suffixes can coexist while same-suffix
- *     runs still exclude each other.
- *   - Must run before `application.initPathRegistry()` so second
- *     instances exit before wasting work on a frozen path snapshot.
- *   - Packaged runs also resolve userData before this lock. That keeps
- *     the lock aligned with the final BootConfig/portable userData path,
- *     so a second packaged instance using the same data directory exits
- *     before relocation execution or bootstrap work begins. Pending userData
- *     relocation is intentionally handled after this lock, so two processes
- *     cannot copy/commit the same `temp.user_data_relocation`.
- *   - Does not depend on any lifecycle-managed service: `application.quit()`
- *     is the container's own top-level method, identical in spirit to
- *     how v2MigrationGate uses it on its fatal branches.
- *
- * See core/preboot/README.md for the preboot membership criteria.
- */
-export function requireSingleInstance(): void {
-  if (app.requestSingleInstanceLock()) return
+// A random Windows pipe is a transient reply channel, not a second data-directory lock.
+function probePipe(id: string): string {
+  return `\\\\.\\pipe\\cherry-startup-${id}`
+}
 
-  logger.info('Another Cherry Studio instance already holds the single-instance lock; exiting')
-  application.quit()
-  process.exit(0)
+/** Runs after path resolution/registry initialization and before any user-data operation. */
+export async function requireSingleInstance(): Promise<boolean> {
+  if (process.platform !== 'win32') {
+    if (app.requestSingleInstanceLock()) return true
+    application.forceExit(0)
+    return false
+  }
+  const probe = randomUUID()
+  const sockets = new Set<Socket>()
+  let acknowledge!: () => void
+  const acknowledged = new Promise<void>((resolve) => {
+    acknowledge = resolve
+  })
+  const server = createServer((socket) => {
+    sockets.add(socket)
+    socket.on('error', () => socket.destroy())
+    socket.once('close', () => sockets.delete(socket))
+    let reply = ''
+    socket.on('data', (chunk) => {
+      reply += chunk.toString()
+      if (reply === 'ready') acknowledge()
+      if (reply.length >= 5) socket.destroy()
+    })
+  })
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  let retry = false
+  try {
+    server.listen(probePipe(probe))
+    await once(server, 'listening')
+    if (app.requestSingleInstanceLock({ startupProbe: probe })) {
+      const respond = (_event: Electron.Event, _argv: string[], _cwd: string, data: unknown): void => {
+        if (!data || typeof data !== 'object' || !('startupProbe' in data)) return
+        if (typeof data.startupProbe !== 'string' || !/^[a-f0-9-]{36}$/.test(data.startupProbe)) return
+        const socket = connect(probePipe(data.startupProbe))
+        socket.on('error', (error) => logger.debug('Startup probe no longer available', error))
+        socket.setTimeout(1000, () => socket.destroy())
+        socket.once('connect', () => socket.end('ready'))
+      }
+      app.on('second-instance', respond)
+      app.once('will-quit', () => app.removeListener('second-instance', respond))
+      return true
+    }
+    const responded = await Promise.race([
+      acknowledged.then(() => true),
+      new Promise<false>((resolve) => {
+        timeout = setTimeout(() => resolve(false), 5000)
+      })
+    ])
+    if (!responded) {
+      // Older versions cannot acknowledge probes; timeout alone never authorizes termination.
+      const { showStartupRecovery } = await import('@main/services/startupRecovery')
+      retry =
+        (await showStartupRecovery({ code: 'SQLITE_BUSY' }, application.getPath('app.database.file'), true)) === 'retry'
+    }
+  } finally {
+    clearTimeout(timeout)
+    for (const socket of sockets) socket.destroy()
+    server.close()
+  }
+  if (retry) application.relaunch()
+  else application.forceExit(0)
+  return false
 }

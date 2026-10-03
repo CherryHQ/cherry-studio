@@ -9,7 +9,7 @@
  */
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { bootConfigService } from '@main/data/bootConfig'
@@ -19,7 +19,8 @@ import { SERVICE_STOP_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS } from '../../lifecycle/co
 import { DependsOn, Injectable } from '../../lifecycle/decorators'
 import { LifecycleManager } from '../../lifecycle/LifecycleManager'
 import { ServiceContainer } from '../../lifecycle/ServiceContainer'
-import { Phase } from '../../lifecycle/types'
+import { Phase, ServiceInitError } from '../../lifecycle/types'
+import type { PathMap } from '../../paths/pathRegistry'
 import { Application } from '../Application'
 
 // The `@application` alias resolves to Application.ts, so the global
@@ -74,6 +75,25 @@ describe('Application shutdown', () => {
     resetApplication()
   })
 
+  it('propagates fatal bootstrap failures to the startup entry point', async () => {
+    const application = Application.getInstance()
+    application.__setPathMapForTesting({} as PathMap)
+    vi.spyOn(process, 'on').mockReturnValue(process)
+    vi.spyOn(bootConfigService, 'hasLoadError').mockReturnValue(false)
+    Object.assign(app, { whenReady: vi.fn().mockResolvedValue(undefined) })
+    const showDialog = vi.spyOn(dialog, 'showMessageBox')
+    const error = new ServiceInitError('DbService', new Error('database unavailable'))
+    const manager = application.getLifecycleManager()
+    vi.spyOn(manager, 'startPhase').mockImplementation(async (phase) => {
+      if (phase === Phase.BeforeReady) throw error
+    })
+    const allReady = vi.spyOn(manager, 'allReady')
+
+    await expect(application.bootstrap()).rejects.toBe(error)
+    expect(allReady).not.toHaveBeenCalled()
+    expect(showDialog).not.toHaveBeenCalled()
+  })
+
   /** Messages a mocked logger level received, for `stringContaining` matching. */
   const messages = (level: 'info' | 'warn'): string[] =>
     mockMainLoggerService[level].mock.calls.map((call) => String(call[0]))
@@ -104,6 +124,45 @@ describe('Application shutdown', () => {
 
     await vi.runAllTimersAsync()
   }
+
+  it('runs service cleanup before exiting for a normal relaunch', async () => {
+    const stopped: string[] = []
+    @Injectable('RestartResource')
+    class RestartResource extends BaseService {
+      protected override onDestroy(): void {
+        stopped.push('closed')
+      }
+    }
+    const application = Application.getInstance()
+    ServiceContainer.getInstance().register(RestartResource)
+    application['isBootstrapped'] = true
+    application['setupQuitHandlers']()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    Object.assign(app, { isPackaged: true, relaunch: vi.fn() })
+    vi.mocked(app.quit).mockImplementation(() => {
+      const listener = appOn.mock.calls.find(([event]) => event === 'will-quit')?.[1] as QuitListener
+      listener({ preventDefault: vi.fn() })
+    })
+    appExit.mockImplementation(() => {
+      expect(stopped).toEqual(['closed'])
+    })
+
+    application.relaunch()
+    await vi.runAllTimersAsync()
+    expect(appExit).toHaveBeenCalledWith(0)
+    expect(stopped).toEqual(['closed'])
+  })
+
+  it('does not schedule a relaunch while a critical operation prevents quitting', () => {
+    const application = Application.getInstance()
+    application['isBootstrapped'] = true
+    Object.assign(app, { isPackaged: true, relaunch: vi.fn() })
+    const hold = application.preventQuit('data migration')
+    application.relaunch()
+    expect(app.relaunch).not.toHaveBeenCalled()
+    expect(appExit).not.toHaveBeenCalled()
+    hold.dispose()
+  })
 
   it('should not force-exit when a single service times out, and still stop the rest', async () => {
     const stopped: string[] = []

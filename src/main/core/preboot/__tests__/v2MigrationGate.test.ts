@@ -41,6 +41,9 @@ const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
+const forceExitMock = vi.fn()
+const recoveryMock = vi.fn()
+vi.mock('@main/services/startupRecovery', () => ({ showStartupRecovery: recoveryMock }))
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
 const getLocaleMock = vi.fn().mockReturnValue('en-US')
@@ -75,11 +78,10 @@ function stubMigrationV2() {
     // barrel, so they live on this mock. The helpers are pure — keep the real
     // implementations so schemaOutOfSyncError() fixtures are still detected and the
     // dialogs carry the real flattened cause chain.
-    const { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
+    const { describeErrorChain, isSchemaOutOfSyncError } = (await vi.importActual(
       '@data/migration/v2/core/migrationErrors'
     )) as {
       describeErrorChain: (error: unknown) => string
-      isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -104,7 +106,6 @@ function stubMigrationV2() {
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
       describeErrorChain,
-      isMigrationStorageError,
       isSchemaOutOfSyncError
     }
   })
@@ -128,13 +129,15 @@ function stubElectron() {
 }
 
 function stubApplication() {
-  vi.doMock('@application', () => ({
-    application: {
-      getPath: vi.fn((key: string) => (key === 'cherry.home' ? '/mock/cherry-home' : undefined)),
-      quit: appQuitMock,
-      relaunch: appRelaunchMock
-    }
-  }))
+  vi.doMock('@application', async () => {
+    const { mockApplicationFactory } = await import('@test-mocks/main/application')
+    const module = mockApplicationFactory()
+    module.application.getPath.mockImplementation((key: string) =>
+      key === 'cherry.home' ? '/mock/cherry-home' : '/mock/path'
+    )
+    Object.assign(module.application, { quit: appQuitMock, relaunch: appRelaunchMock, forceExit: forceExitMock })
+    return module
+  })
 }
 
 function stubPlatform(isDev: boolean) {
@@ -145,13 +148,6 @@ function stubPlatform(isDev: boolean) {
 function schemaOutOfSyncError(): Error {
   const inner = Object.assign(new Error('table `agent` already exists'), { code: 'SQLITE_ERROR' })
   return Object.assign(new Error('SQLITE_ERROR: table `agent` already exists'), { code: 'SQLITE_ERROR', cause: inner })
-}
-
-function storageError(): Error {
-  const cause = Object.assign(new Error('attempt to write a readonly database at /Users/private/cherrystudio.sqlite'), {
-    code: 'SQLITE_READONLY'
-  })
-  return new Error('Database WAL setup failed at /Users/private/cherrystudio.sqlite', { cause })
 }
 
 async function loadModule() {
@@ -173,6 +169,8 @@ beforeEach(() => {
   showErrorBoxMock.mockReset()
   showMessageBoxMock.mockReset()
   appQuitMock.mockReset()
+  forceExitMock.mockReset()
+  recoveryMock.mockReset().mockResolvedValue('exit')
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
   getLocaleMock.mockReset().mockReturnValue('en-US')
@@ -346,134 +344,37 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — migration check fails', () => {
-    it('localizes a production storage retry and continues after the next initialization succeeds', async () => {
-      initializeMock.mockImplementationOnce(() => {
-        throw storageError()
+    it.each(['retry', 'exit'])('closes the connection before recovery and honors %s', async (action) => {
+      const error = new Error('probe failed', { cause: { code: 'SQLITE_IOERR_TRUNCATE' } })
+      needsMigrationMock.mockRejectedValue(error)
+      recoveryMock.mockImplementation(async () => {
+        expect(closeMock).toHaveBeenCalledOnce()
+        return action
       })
-      needsMigrationMock.mockResolvedValue(false)
-      showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
-      getLocaleMock.mockReturnValue('zh')
       stubMigrationV2()
       stubElectron()
       stubApplication()
       stubPlatform(false)
-
       const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-      const { loggerService } = await import('@logger')
-
-      expect(result).toBe('skipped')
-      expect(initializeMock).toHaveBeenCalledTimes(2)
-      expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
-      expect(closeMock).toHaveBeenCalledTimes(2)
-      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
-      expect(showMessageBoxMock.mock.calls[0][0]).toMatchObject({
-        title: '数据库不可用',
-        message: 'Cherry Studio 无法访问本地数据库。',
-        detail: '请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。',
-        buttons: ['重试', '退出'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      expect(JSON.stringify(showMessageBoxMock.mock.calls[0][0])).not.toContain('/Users/private')
-      const storageLog = vi
-        .mocked(loggerService.error)
-        .mock.calls.map(([message]) => String(message))
-        .find((message) => message.startsWith('Migration database unavailable:'))
-      expect(storageLog).toContain(
-        '[SQLITE_READONLY] attempt to write a readonly database at /Users/private/cherrystudio.sqlite'
-      )
-      expect(storageLog?.match(/attempt to write a readonly database/g)).toHaveLength(1)
-      expect(showErrorBoxMock).not.toHaveBeenCalled()
-      expect(appQuitMock).not.toHaveBeenCalled()
+      expect(await runV2MigrationGate()).toBe('handled')
+      expect(recoveryMock).toHaveBeenCalledWith(error, defaultMigrationPaths.databaseFile)
+      expect(appRelaunchMock).toHaveBeenCalledTimes(action === 'retry' ? 1 : 0)
+      expect(forceExitMock).toHaveBeenCalledTimes(action === 'exit' ? 1 : 0)
+      expect(migrationWindowCreateMock).not.toHaveBeenCalled()
     })
 
-    it('closes partial state and quits when the user declines a production storage retry', async () => {
+    it('exits even if the recovery dialog cannot be displayed', async () => {
       initializeMock.mockImplementation(() => {
-        throw storageError()
+        throw new Error('database unavailable')
       })
-      showMessageBoxMock.mockResolvedValueOnce({ response: 1 })
+      recoveryMock.mockRejectedValue(new Error('dialog unavailable'))
       stubMigrationV2()
       stubElectron()
       stubApplication()
       stubPlatform(false)
-
       const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-
-      expect(result).toBe('handled')
-      expect(initializeMock).toHaveBeenCalledTimes(1)
-      expect(closeMock).toHaveBeenCalledTimes(1)
-      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).not.toHaveBeenCalled()
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
-    })
-
-    it.each(['SQLITE_NOTADB', 'SQLITE_CORRUPT'])(
-      'keeps an open-stage %s failure on the fatal production path',
-      async (code) => {
-        const { MigrationDatabaseError } = await vi.importActual<{
-          MigrationDatabaseError: new (stage: 'open' | 'wal' | 'schema', cause: unknown) => Error
-        }>('@data/migration/v2/core/migrationErrors')
-        initializeMock.mockImplementation(() => {
-          throw new MigrationDatabaseError('open', Object.assign(new Error('database file is invalid'), { code }))
-        })
-        stubMigrationV2()
-        stubElectron()
-        stubApplication()
-        stubPlatform(false)
-
-        const { runV2MigrationGate } = await loadModule()
-        const result = await runV2MigrationGate()
-
-        expect(result).toBe('handled')
-        expect(showMessageBoxMock).not.toHaveBeenCalled()
-        expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-        expect(appQuitMock).toHaveBeenCalledTimes(1)
-      }
-    )
-
-    it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
-      initializeMock.mockImplementation(() => {
-        throw new Error('DB unavailable')
-      })
-      stubMigrationV2()
-      stubElectron()
-      stubApplication()
-      stubPlatform(false)
-
-      const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-
-      expect(result).toBe('handled')
-      expect(whenReadyMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed')
-      expect(title).not.toContain('(Dev)')
-      expect(message).toContain('DB unavailable')
-      // Regression: the old fallback mislabeled every failure as a DB "connectivity issue".
-      expect(message).not.toContain('connectivity')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
-      // Migration path was never taken, so handlers stay un-touched.
-      expect(registerMigrationIpcHandlersMock).not.toHaveBeenCalled()
-      expect(unregisterMigrationIpcHandlersMock).not.toHaveBeenCalled()
-      // close() must NOT fire — the try block errored before the normal path.
-      expect(closeMock).not.toHaveBeenCalled()
-    })
-
-    it("returns 'handled' when needsMigration() itself throws", async () => {
-      needsMigrationMock.mockRejectedValue(new Error('needsMigration failed'))
-      stubMigrationV2()
-      stubElectron()
-      stubApplication()
-
-      const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-
-      expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(await runV2MigrationGate()).toBe('handled')
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
   })
 
@@ -495,7 +396,7 @@ describe('runV2MigrationGate', () => {
       const [title, message] = showErrorBoxMock.mock.calls[0]
       expect(title).toContain('Database Schema Out of Sync')
       expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
 
     it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
@@ -511,17 +412,14 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed')
-      // Production must NOT get the dev variant nor any "delete the DB" instruction.
-      expect(title).not.toContain('(Dev)')
-      expect(message).not.toContain('rm -f')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error), defaultMigrationPaths.databaseFile)
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
 
-    it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
+    it('offers recovery for a locked database in development without suggesting deletion', async () => {
       initializeMock.mockImplementation(() => {
-        throw new Error('DB unavailable')
+        throw new Error('DB unavailable', { cause: { code: 'SQLITE_BUSY' } })
       })
       stubMigrationV2()
       stubElectron()
@@ -532,14 +430,9 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed (Dev)')
-      expect(message).toContain('DB unavailable')
-      // Dev surfaces BOTH possibilities (incompatible data vs migration bug) + the DB path,
-      // and explicitly does NOT assert "just delete the DB".
-      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(message).toContain('Do NOT just delete the DB')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error), defaultMigrationPaths.databaseFile)
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
   })
 

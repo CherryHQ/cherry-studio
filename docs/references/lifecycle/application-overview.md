@@ -61,7 +61,7 @@ setupQuitHandlers()                      ← before-quit (preventQuit gate) + wi
             └── allReady()               ← notify all services the system is fully ready
 ```
 
-If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exit or Restart.
+If a `fail-fast` service throws during bootstrap, `bootstrap()` rejects with `ServiceInitError`. The main entry point delegates the error to `services/startupRecovery.ts`, which offers database recovery for database failures and Exit or Restart for other fatal service failures. Lifecycle orchestration does not select recovery UI.
 
 ## Shutdown Flow
 

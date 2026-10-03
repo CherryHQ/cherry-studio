@@ -44,8 +44,6 @@ export class MigrationDbService {
     } catch (error) {
       throw new MigrationDatabaseError('open', error)
     }
-    const db = drizzle({ client: sqlite, casing: 'snake_case' })
-
     try {
       // WAL mode persisted in DB file; synchronous=NORMAL is WAL's safe pairing.
       sqlite.pragma('journal_mode = WAL')
@@ -70,26 +68,17 @@ export class MigrationDbService {
     // DbService so table-recreate migrations get the same out-of-transaction FK handling;
     // it restores this connection's setting (ON by default) when it returns.
     try {
+      const db = drizzle({ client: sqlite, casing: 'snake_case' })
       applyMigrations(db, paths.migrationsFolder)
+      // Migrators validate foreign keys after importing interdependent records.
+      sqlite.pragma('foreign_keys = OFF')
+      logger.info('Migration database ready')
+      return new MigrationDbService(db, sqlite)
     } catch (error) {
       // Close the SQLite connection to avoid dangling handles, then re-throw with context.
       closeSilently(sqlite)
       throw new MigrationDatabaseError('schema', error)
     }
-
-    // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
-    // connection makes this one PRAGMA hold for every statement until close() — no replay
-    // needed (applyMigrations restores FK = ON on its own connection, so this must run AFTER it).
-    //
-    // This lets bulk inserts carry not-yet-resolved references; integrity is then verified
-    // after all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator
-    // also self-checking its own tables via BaseMigrator.assertOwnedForeignKeys. FK
-    // enforcement is restored implicitly: this migration connection is disposed via close()
-    // when migration ends, and normal runtime uses DbService's own connection (foreign_keys = ON).
-    sqlite.pragma('foreign_keys = OFF')
-
-    logger.info('Migration database ready')
-    return new MigrationDbService(db, sqlite)
   }
 
   getDb(): DbType {

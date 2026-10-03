@@ -21,6 +21,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
+import { startShutdownWatchdog } from './shutdownWatchdog'
 
 const logger = loggerService.withContext('Lifecycle')
 
@@ -63,6 +64,8 @@ export class Application {
    * allow test isolation.
    */
   private ensuredKeys = new Set<PathKey>()
+
+  private stopShutdownWatchdog?: () => void
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -198,40 +201,28 @@ export class Application {
 
     const bootstrapStart = performance.now()
 
-    try {
-      // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
-      const backgroundPromise = this.lifecycleManager.startPhase(Phase.Background)
+    // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
+    const backgroundPromise = this.lifecycleManager.startPhase(Phase.Background)
 
-      // 2. BeforeReady phase and app.whenReady() in parallel
-      await Promise.all([this.lifecycleManager.startPhase(Phase.BeforeReady), app.whenReady()])
+    // 2. BeforeReady phase and app.whenReady() in parallel
+    await Promise.all([this.lifecycleManager.startPhase(Phase.BeforeReady), app.whenReady()])
 
-      // Setup Electron event handlers after app is ready
-      this.setupElectronHandlers()
+    // Setup Electron event handlers after app is ready
+    this.setupElectronHandlers()
 
-      // 3. WhenReady phase - services requiring Electron API
-      await this.lifecycleManager.startPhase(Phase.WhenReady)
+    // 3. WhenReady phase - services requiring Electron API
+    await this.lifecycleManager.startPhase(Phase.WhenReady)
 
-      this.isBootstrapped = true
+    this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services.
-      // ServiceInitError = fail-fast service failure → must propagate to
-      // handleFatalServiceError() via the outer catch block.
-      // Non-ServiceInitError = graceful/unexpected failure in a background
-      // service — log and continue, as background services are non-critical.
-      await backgroundPromise.catch((err) => {
-        if (err instanceof ServiceInitError) {
-          throw err
-        }
-        logger.error('Background phase failed:', err)
-      })
-      this.lifecycleManager.allReady()
-    } catch (error) {
-      if (error instanceof ServiceInitError) {
-        await this.handleFatalServiceError(error)
-        return
+    // Fail-fast errors reach the startup entry point; other background failures are non-critical.
+    await backgroundPromise.catch((err) => {
+      if (err instanceof ServiceInitError) {
+        throw err
       }
-      throw error
-    }
+      logger.error('Background phase failed:', err)
+    })
+    this.lifecycleManager.allReady()
 
     const totalDuration = performance.now() - bootstrapStart
     logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
@@ -256,7 +247,7 @@ export class Application {
 
     this.isShuttingDown = true
     this._isQuitting = true
-    logger.info('Shutting down...')
+    logger.info('Shutting down...', { pid: process.pid, version: app.getVersion() })
 
     const start = performance.now()
 
@@ -286,37 +277,6 @@ export class Application {
 
     // Close logger LAST — after this point, no more logging
     loggerService.finish()
-  }
-
-  /**
-   * Handle fatal service initialization error by showing a dialog.
-   * Called when a fail-fast service fails to initialize.
-   */
-  private async handleFatalServiceError(error: ServiceInitError): Promise<void> {
-    logger.error(`Fatal service initialization error: ${error.serviceName}`, error.cause)
-
-    // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
-    await app.whenReady()
-
-    const result = await dialog.showMessageBox({
-      type: 'error',
-      title: 'Unable to Start',
-      message: `Cherry Studio could not start because ${error.serviceName} failed to initialize.`,
-      detail:
-        'Try restarting the application. If the problem persists, check the application logs for detailed error information.',
-      buttons: ['Exit', 'Restart'],
-      defaultId: 1,
-      cancelId: 0
-    })
-
-    if (result.response === 0) {
-      logger.info(`User chose to exit due to ${error.serviceName} initialization failure`)
-      this.forceExit(1)
-      return
-    }
-
-    logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
-    this.relaunch()
   }
 
   /**
@@ -398,6 +358,10 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
+    if (this.isBootstrapped && !this.canQuit()) {
+      logger.warn('Relaunch blocked while an operation prevents quitting')
+      return
+    }
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
@@ -426,7 +390,8 @@ export class Application {
     }
 
     app.relaunch(options)
-    app.exit(0)
+    if (this.isBootstrapped) this.quit()
+    else app.exit(0)
   }
 
   /**
@@ -435,18 +400,14 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
-    // Last resort, not the working mechanism. Starvation is handled one level
-    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
-    // only catches the case where enough services burn their whole ceiling to
-    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
-    // every timer here it is powerless against a synchronously blocking
-    // `onStop()`, which never yields the event loop for it to fire on.
+    // Keep the main-thread fuse as a fallback if the worker cannot start.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
     }
 
     process.on('SIGINT', async () => {
+      this.armShutdownWatchdog()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -454,11 +415,13 @@ export class Application {
         logger.error('Error during shutdown:', error as Error)
       } finally {
         clearTimeout(timer)
+        this.stopShutdownWatchdog?.()
         app.exit(0)
       }
     })
 
     process.on('SIGTERM', async () => {
+      this.armShutdownWatchdog()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -466,9 +429,22 @@ export class Application {
         logger.error('Error during shutdown:', error as Error)
       } finally {
         clearTimeout(timer)
+        this.stopShutdownWatchdog?.()
         app.exit(0)
       }
     })
+  }
+
+  private armShutdownWatchdog(): void {
+    if (this.stopShutdownWatchdog) return
+    logger.info('Shutdown deadline armed', { pid: process.pid, timeoutMs: SHUTDOWN_TIMEOUT_MS })
+    try {
+      this.stopShutdownWatchdog = startShutdownWatchdog(SHUTDOWN_TIMEOUT_MS, (error) => {
+        logger.error('Shutdown watchdog failed', error)
+      })
+    } catch (error) {
+      logger.error('Could not start shutdown watchdog', error as Error)
+    }
   }
 
   /**
@@ -487,6 +463,7 @@ export class Application {
         return
       }
       this._isQuitting = true
+      this.armShutdownWatchdog()
     })
 
     // will-quit: all windows closed, perform actual cleanup
@@ -494,6 +471,7 @@ export class Application {
       if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
 
       event.preventDefault()
+      this.armShutdownWatchdog()
 
       // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
@@ -505,6 +483,7 @@ export class Application {
         .catch((err) => logger.error('Error during shutdown:', err as Error))
         .finally(() => {
           clearTimeout(timer)
+          this.stopShutdownWatchdog?.()
           app.exit(0)
         })
     })

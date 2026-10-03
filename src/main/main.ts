@@ -25,32 +25,30 @@ import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/prot
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { initSentry } from '@main/services/sentry'
+import { handleStartupError } from '@main/services/startupRecovery'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
-requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
 initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
-// process — startApp() itself awaits app.whenReady(), so this cannot move in there.
+// process — startup awaits Electron readiness, so this cannot move into startApp().
 protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
 
 import { electronApp } from '@electron-toolkit/utils'
-import { app, protocol } from 'electron'
-
-import { loggerService } from '@logger'
+import { protocol } from 'electron'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
 
-const logger = loggerService.withContext('MainEntry')
-
 const startApp = async () => {
+  if (!(await requireSingleInstance())) return
+
   // Reset before backup, migration, or services open user data.
   runDataReset()
 
@@ -77,11 +75,7 @@ const startApp = async () => {
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
-  const bootstrapPromise = application.bootstrap()
-
-  await app.whenReady()
-  // Wait for lifecycle bootstrap (all core services are now ready)
-  await bootstrapPromise
+  await application.bootstrap()
 
   // Record current version for upgrade-path tracking
   versionService.recordCurrentVersion()
@@ -92,10 +86,4 @@ const startApp = async () => {
   await registerIpc()
 }
 
-// Top-level safety net: bootstrap() handles known fatal errors internally
-// (ServiceInitError → dialog → exit/relaunch), so this catch only fires
-// for unexpected errors that escape the normal handling path.
-startApp().catch((error) => {
-  logger.error('Fatal startup error:', error)
-  application.forceExit(1)
-})
+void startApp().catch(handleStartupError)

@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import { classifyDatabaseFailure } from '@data/db/startupErrors'
 import { openReadableFileSnapshot } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -73,7 +74,15 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
   for (const [key, entry] of Object.entries(value)) {
     if (!KNOWN_KEYS.has(key) && !PAYLOAD_KEYS.has(key)) rest[key] = entry
   }
-  const detail = serializeDetail(rest)
+  const failure = classifyDatabaseFailure(value)
+  const serialized = serializeDetail(rest)
+  const detailText = [failure.code, serialized?.text].filter(Boolean).join('\n')
+  const detail = detailText
+    ? {
+        text: detailText.slice(0, MAX_DETAIL_CHARS),
+        truncated: serialized?.truncated || detailText.length > MAX_DETAIL_CHARS
+      }
+    : undefined
 
   return {
     timestampMs,

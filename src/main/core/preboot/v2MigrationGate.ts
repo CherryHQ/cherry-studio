@@ -19,9 +19,7 @@ import {
   evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
-  isMigrationStorageError,
   isSchemaOutOfSyncError,
-  type MigrationPaths,
   migrationEngine,
   migrationWindowManager,
   pinUserDataPath,
@@ -33,7 +31,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { resolveSystemLanguage, t } from '@main/i18n'
+import { showStartupRecovery } from '@main/services/startupRecovery'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -42,13 +40,9 @@ const logger = loggerService.withContext('V2MigrationGate')
  *
  * - `'skipped'`  : no migration needed; caller should continue with
  *                  `application.bootstrap()` as normal.
- * - `'handled'`  : the gate took over. Either a migration window is now
- *                  running (the user will drive migration through it and
- *                  the app will relaunch afterwards), or a fatal error
- *                  was surfaced via `dialog.showErrorBox` and
- *                  `application.quit()` has already been called. Either
- *                  way the caller MUST return immediately without
- *                  starting bootstrap.
+ * - `'handled'`  : migration UI or a failure/recovery flow took over. The
+ *                  caller must return without starting bootstrap, including
+ *                  when the user requested a relaunch or exit.
  */
 export type V2MigrationGateResult = 'handled' | 'skipped'
 
@@ -69,43 +63,6 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   )
   application.quit()
   return 'handled'
-}
-
-async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: boolean): Promise<boolean | null> {
-  while (true) {
-    try {
-      logger.info('Checking if data migration v2 is needed')
-      migrationEngine.initialize(paths, legacyDataConfirmed)
-      migrationEngine.registerMigrators(getAllMigrators())
-      const needsMigration = await migrationEngine.needsMigration()
-      logger.info('Migration status check result', { needsMigration })
-      return needsMigration
-    } catch (error) {
-      if (isDev || !isMigrationStorageError(error)) throw error
-
-      const reason = describeErrorChain(error)
-      logger.error(`Migration database unavailable: ${reason}`, error as Error)
-      migrationEngine.close()
-      await app.whenReady()
-      const language = resolveSystemLanguage(app.getLocale())
-      const { response } = await dialog.showMessageBox({
-        type: 'error',
-        title: t('dialog.migration_database_unavailable.title', undefined, language),
-        message: t('dialog.migration_database_unavailable.message', undefined, language),
-        detail: t('dialog.migration_database_unavailable.detail', undefined, language),
-        buttons: [
-          t('dialog.migration_database_unavailable.retry', undefined, language),
-          t('dialog.migration_database_unavailable.quit', undefined, language)
-        ],
-        defaultId: 0,
-        cancelId: 1
-      })
-      if (response === 0) continue
-
-      application.quit()
-      return null
-    }
-  }
 }
 
 /**
@@ -189,12 +146,15 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   let needsMigration = false
 
   try {
-    const result = await checkMigrationStatus(paths, legacyDataConfirmed)
-    if (result === null) return 'handled'
-    needsMigration = result
+    logger.info('Checking if data migration v2 is needed')
+    migrationEngine.initialize(paths, legacyDataConfirmed)
+    migrationEngine.registerMigrators(getAllMigrators())
+    needsMigration = await migrationEngine.needsMigration()
+    logger.info('Migration status check result', { needsMigration })
   } catch (error) {
     // The driver reason lives in `.cause`, which neither `error.message` nor the
     // winston serializer carries — flatten it or the failure is undiagnosable.
+    migrationEngine.close()
     const reason = describeErrorChain(error)
     logger.error(`Migration status check failed: ${reason}`, error as Error)
     await app.whenReady()
@@ -217,38 +177,20 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           `Original error: ${reason}`
       )
       logger.error('Exiting application due to schema out of sync (dev)')
-      application.quit()
+      application.forceExit(1)
       return 'handled'
     }
 
-    // The error wasn't the unambiguous "object already exists" signal handled above. Anything else
-    // (e.g. a SQLITE_CONSTRAINT_* thrown from migrate() when a new constraint is incompatible with
-    // existing rows) is AMBIGUOUS: it may be incompatible legacy/dev data OR a genuine migration bug.
-    // So we never assert "delete the DB" here — in dev we surface both possibilities plus the path;
-    // in production we stay neutral and never tell a real user to delete their data.
-    if (isDev) {
-      dialog.showErrorBox(
-        'Migration Failed (Dev) - Application Cannot Start',
-        `Startup migration failed while applying schema changes:\n\n` +
-          `  ${reason}\n\n` +
-          `In development this is usually one of:\n\n` +
-          `  1. Your local database predates a schema change (incompatible legacy data). ` +
-          `If this is throwaway dev data, reset it and restart:\n` +
-          `       rm -f "${paths.databaseFile}"\n\n` +
-          `  2. A bug in the migration that introduced the failing change — inspect the failing ` +
-          `migration and fix it. Do NOT just delete the DB, or the bug will resurface for users ` +
-          `with real data.\n\n` +
-          `The application will now exit.`
-      )
-    } else {
-      dialog.showErrorBox(
-        'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${reason}\n\n` +
-          `The application will now exit. Please try again, and contact support if the problem persists.`
-      )
+    try {
+      if ((await showStartupRecovery(error, paths.databaseFile)) === 'retry') {
+        application.relaunch()
+        return 'handled'
+      }
+    } catch (recoveryError) {
+      logger.error('Startup recovery failed', recoveryError as Error)
     }
     logger.error('Exiting application due to migration status check failure')
-    application.quit()
+    application.forceExit(1)
     return 'handled'
   }
 
