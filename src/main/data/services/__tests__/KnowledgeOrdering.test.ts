@@ -6,6 +6,7 @@ import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { KnowledgeBaseOrderSeeder } from '@data/db/seeding/seeders/knowledgeBaseOrderSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { groupService } from '@data/services/GroupService'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeItemSort, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
@@ -83,6 +84,35 @@ describe('Knowledge ordering contracts', () => {
     createBase('Second target', groupB)
     bases.update(moving.id, { groupId: groupB })
     expect(ordered(groupB)).toEqual(['Second target', 'First target', 'Moving'])
+  })
+
+  it('appends deleted-group bases in order and can insert between formerly equal keys', () => {
+    const first = createBase('Ungrouped')
+    const last = createBase('Group last', groupA)
+    createBase('Group first', groupA)
+    const other = createBase('Other group', groupB)
+    expect(first.orderKey).toBe(last.orderKey)
+
+    groupService.delete(groupA)
+    expect(ordered(null)).toEqual(['Ungrouped', 'Group first', 'Group last'])
+    expect(bases.getById(other.id).groupId).toBe(groupB)
+    bases.reorder(last.id, { anchor: { after: first.id } })
+    expect(ordered(null)).toEqual(['Ungrouped', 'Group last', 'Group first'])
+  })
+
+  it('rolls back regrouping and ordering when deleting the group fails', () => {
+    const base = createBase('Grouped', groupA)
+    createBase('Ungrouped')
+    dbh.sqlite.exec(`CREATE TRIGGER reject_group_delete BEFORE DELETE ON "group"
+      BEGIN SELECT RAISE(ABORT, 'delete rejected'); END`)
+    try {
+      expect(() => groupService.delete(groupA)).toThrow()
+      expect(bases.getById(base.id)).toEqual(base)
+      expect(ordered(null)).toEqual(['Ungrouped'])
+      expect(groupService.getById(groupA).name).toBe('A')
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER reject_group_delete')
+    }
   })
 
   it('initializes old order once without changing metadata or later user order', () => {

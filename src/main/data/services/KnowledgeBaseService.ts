@@ -10,7 +10,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -35,6 +35,7 @@ import {
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
 
+import { registerDataService } from './dataServiceRegistry'
 import { groupService } from './GroupService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -579,6 +580,22 @@ export class KnowledgeBaseService {
     return rowToKnowledgeBase(row)
   }
 
+  ungroupTx(tx: DbOrTx, groupId: string): void {
+    const rows = tx
+      .select({ id: knowledgeBaseTable.id })
+      .from(knowledgeBaseTable)
+      .where(eq(knowledgeBaseTable.groupId, groupId))
+      .orderBy(asc(knowledgeBaseTable.orderKey), asc(knowledgeBaseTable.id))
+      .all()
+    for (const { id } of rows) {
+      tx.update(knowledgeBaseTable).set({ groupId: null }).where(eq(knowledgeBaseTable.id, id)).run()
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope: isNull(knowledgeBaseTable.groupId)
+      })
+    }
+  }
+
   reorder(id: string, { anchor, groupId }: ReorderKnowledgeBaseDto): void {
     application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()
@@ -621,3 +638,4 @@ export class KnowledgeBaseService {
 }
 
 export const knowledgeBaseService = new KnowledgeBaseService()
+registerDataService('KnowledgeBaseService', knowledgeBaseService)

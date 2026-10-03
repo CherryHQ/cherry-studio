@@ -66,8 +66,7 @@ const BaseNavigatorContent = ({
     const draggingGroup = args.active.data.current?.type === 'group'
     const droppableContainers = args.droppableContainers.filter(
       (container) =>
-        container.id !== args.active.id &&
-        (!draggingGroup || (container.data.current?.type === 'group' && container.data.current.groupId !== null))
+        !draggingGroup || (container.data.current?.type === 'group' && container.data.current.groupId !== null)
     )
     const candidates = { ...args, droppableContainers }
     const hits = pointerWithin(candidates)
