@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -155,6 +155,7 @@ it('runs native Code Mode through MCP and blocks forbidden nested calls', async 
   try {
     await session.bindExtensions({})
     await session.prompt('Run the native tools')
+    await mkdir('.context/cherry-electron-dev', { recursive: true })
     await writeFile('.context/cherry-electron-dev/pi-native-events.json', JSON.stringify({ events, chunks }, null, 2))
     expect(calls).toEqual(['read_value'])
     const output = events.find((event) => event.type === 'tool_execution_end' && event.toolName === 'codemode')
