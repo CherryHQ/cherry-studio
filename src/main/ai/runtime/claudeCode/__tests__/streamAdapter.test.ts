@@ -2170,6 +2170,27 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe('<thinking')
     })
 
+    it('suppresses scratchpad wrappers whose opening tag has a slash inside a quoted attribute', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking =
+        '<thinking data="notes/path">internal reasoning about the session</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedThinking } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('internal reasoning')
+      expect(text).not.toContain('<thinking')
+    })
+
     it('suppresses parentless scratchpad wrapper text outside compaction windows', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'

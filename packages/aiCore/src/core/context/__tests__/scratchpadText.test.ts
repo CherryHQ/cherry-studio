@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   stripKnownModelScratchpadBlocks,
   stripModelScratchpadBlocks,
-  textStartsWithModelScratchpadTag
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
 } from '../scratchpadText'
 
 describe('scratchpadText', () => {
@@ -14,6 +15,13 @@ describe('scratchpadText', () => {
     expect(textStartsWithModelScratchpadTag('<div>markup</div>')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<thinking-note>ordinary markup</thinking-note>')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<thinking />')).toBe(false)
+    expect(textStartsWithModelScratchpadTag('<thinking data="path/foo">plan</thinking>')).toBe(true)
+  })
+
+  it('detects non-scratchpad opening tags without confusing scratchpad prefixes', () => {
+    expect(textStartsWithNonScratchpadOpeningTag('<p>hello</p>')).toBe(true)
+    expect(textStartsWithNonScratchpadOpeningTag('<thinking-note>x</thinking-note>')).toBe(true)
+    expect(textStartsWithNonScratchpadOpeningTag('<thinking>hidden</thinking>')).toBe(false)
   })
 
   it('strips arbitrary paired scratchpad blocks and unwraps summary payloads', () => {

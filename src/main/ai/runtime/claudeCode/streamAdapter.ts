@@ -36,9 +36,9 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
 import {
-  MODEL_SCRATCHPAD_TAG_NAMES,
   stripKnownModelScratchpadBlocks,
-  textStartsWithModelScratchpadTag
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
@@ -972,11 +972,7 @@ export class ClaudeCodeStreamAdapter {
       return { action: 'pending' }
     }
 
-    const tagMatch = trimmed.match(/^<([a-z][a-z0-9]*)(?:(?=\s[^/]*>)|(?=>))/i)
-    if (
-      tagMatch &&
-      !MODEL_SCRATCHPAD_TAG_NAMES.includes(tagMatch[1].toLowerCase() as (typeof MODEL_SCRATCHPAD_TAG_NAMES)[number])
-    ) {
+    if (textStartsWithNonScratchpadOpeningTag(trimmed)) {
       return { action: 'emit', visible: probe }
     }
 
