@@ -1,13 +1,23 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
+
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import type { CliConfigWriteFile } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { clearCliConfig, writeCliConfigDraft } from '../index'
+import {
+  clearCliConfig,
+  extractConnectionFromCliConfigDraft,
+  updateCliConfigDraftConfig,
+  writeCliConfigDraft
+} from '../index'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
+const hermesConfigPath = resolvedSpecPath('hermes-config')
+const minimaxConfigPath = resolvedSpecPath('minimax-config')
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
@@ -52,6 +62,19 @@ const ollamaProvider = {
   defaultChatEndpoint: 'ollama-chat'
 } as unknown as Provider
 
+/** Keyless local server (authOptional) exposing both Anthropic and chat endpoints. */
+const omlxProvider = {
+  id: 'omlx',
+  presetProviderId: 'omlx',
+  name: 'oMLX',
+  authOptional: true,
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'http://localhost:8000' },
+    'openai-chat-completions': { baseUrl: 'http://localhost:8000' }
+  },
+  defaultChatEndpoint: 'openai-chat-completions'
+} as unknown as Provider
+
 const openaiCompatProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
@@ -85,30 +108,29 @@ describe('writeCliConfigDraft', () => {
   let existing: Record<string, string>
 
   beforeEach(() => {
+    mocks.request.mockClear()
+    vi.mocked(dataApiService.get).mockClear()
     written = null
     writes = []
     existing = {}
-    // Draft building still reads config files renderer-side; the mock keeps
-    // resolving `~/…` spec paths to `/resolved~/…` for the `existing` fixture.
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: {
-          readExternal: vi.fn(async (absPath: string) => {
-            if (absPath in existing) return existing[absPath]
-            throw new Error(`File does not exist: ${absPath}`)
+    // Draft building still reads on-disk config files renderer-side
+    // (`code_cli.read_config`); the mock maps declarative spec paths to
+    // deterministic `/resolved…` entries for the `existing` fixture.
+    mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route === 'code_cli.read_config') {
+        return {
+          files: (input.targets as CliConfigTarget[]).map((target) => {
+            const resolvedPath = resolvedSpecPath(target)
+            return { target, path: resolvedPath, content: resolvedPath in existing ? existing[resolvedPath] : null }
           })
         }
       }
-    })
-    // The disk mutation is main-process now (`code_cli.write_config` carries
-    // a target, never a path). Translate each write target back to the
-    // same `/resolved~/…` path so the content fixtures stay unchanged.
-    mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
-      for (const file of input.files) {
+      // The disk mutation is main-process now (`code_cli.write_config` carries
+      // a target, never a path). Translate each write target back to the
+      // same deterministic path so the content fixtures stay unchanged.
+      for (const file of input.files as CliConfigWriteFile[]) {
         if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
-        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        const nextWrite = { path: resolvedSpecPath(file.target), content: file.content }
         written = nextWrite
         writes.push(nextWrite)
       }
@@ -132,6 +154,255 @@ describe('writeCliConfigDraft', () => {
     await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
     )
+  })
+
+  it('writes Hermes custom-runtime metadata separately from the API key', async () => {
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.HERMES,
+      files: [
+        { target: 'hermes-config', content: expect.any(String) },
+        { target: 'hermes-env', content: expect.any(String) }
+      ]
+    })
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    const env = files.find((file) => file.target === 'hermes-env')
+    if (!config || typeof config.content !== 'string' || !env || typeof env.content !== 'string') {
+      throw new Error('Expected Hermes config and environment files')
+    }
+
+    expect(parseYaml(config.content)).toEqual({
+      model: {
+        provider: 'custom',
+        default: 'hermes-3',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '${CHERRY_HERMES_API_KEY}',
+        api_mode: 'chat_completions'
+      }
+    })
+    expect(config.content).not.toContain('sk-secret')
+    expect(env.content).toContain('CHERRY_HERMES_API_KEY=sk-secret')
+  })
+
+  it('preserves user-owned YAML presentation while updating the Hermes model', async () => {
+    existing[hermesConfigPath] = [
+      '# user-owned comment',
+      'model:',
+      '  context_length: 200000 # keep inline comment',
+      '  label: "keep quoted"',
+      '  tags: [one, two]',
+      'shared: &shared { enabled: true }',
+      'reuse: *shared',
+      ''
+    ].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(config.content).toContain('# user-owned comment')
+    expect(config.content).toContain('context_length: 200000 # keep inline comment')
+    expect(config.content).toContain('label: "keep quoted"')
+    expect(config.content).toContain('tags: [ one, two ]')
+    expect(config.content).toContain('shared: &shared { enabled: true }')
+    expect(config.content).toContain('reuse: *shared')
+    expect(parseYaml(config.content).model).toMatchObject({
+      provider: 'custom',
+      default: 'hermes-3',
+      api_key: '${CHERRY_HERMES_API_KEY}'
+    })
+  })
+
+  it('fills in an empty Hermes model section instead of rejecting it', async () => {
+    existing[hermesConfigPath] = ['# user-owned comment', 'model:', 'telemetry: false', ''].join('\n')
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })
+
+    const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+    const config = files.find((file) => file.target === 'hermes-config')
+    if (!config || typeof config.content !== 'string') throw new Error('Expected Hermes config')
+    expect(parseYaml(config.content)).toMatchObject({
+      telemetry: false,
+      model: { provider: 'custom', default: 'hermes-3', api_key: '${CHERRY_HERMES_API_KEY}' }
+    })
+    expect(config.content).toContain('# user-owned comment')
+  })
+
+  it('names the Hermes config file and path when it cannot be parsed', async () => {
+    existing[hermesConfigPath] = 'model: [unclosed\n'
+    mockGet({
+      '/providers/deepseek': () => openaiCompatProvider,
+      '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => null
+    })
+
+    await expect(writeCliConfigDraft({ cliTool: CodeCli.HERMES, modelId: 'deepseek::hermes-3' })).rejects.toThrow(
+      /Failed to parse .+ at \/resolvedconfig\.yaml:/
+    )
+  })
+
+  describe('minimax-code (~/.minimax/config.yaml)', () => {
+    it('injects a custom_provider entry and defaultModel from an OpenAI-compatible provider', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+        cliTool: CodeCli.MINIMAX_CODE,
+        files: [{ target: 'minimax-config', content: expect.any(String) }]
+      })
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      expect(parseYaml(config.content)).toEqual({
+        custom_provider: {
+          'cherry-DeepSeek': {
+            api: 'openai-completions',
+            name: 'DeepSeek',
+            options: { apiKey: 'sk-secret', baseURL: 'https://api.deepseek.com/v1' },
+            models: { 'deepseek-chat': {} }
+          }
+        },
+        defaultModel: 'custom_provider:cherry-DeepSeek/deepseek-chat'
+      })
+    })
+
+    it('prefers the Anthropic dialect when the provider exposes it', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'anthropic::claude-4' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      expect(parseYaml(config.content).custom_provider['cherry-Anthropic'].api).toBe('anthropic-messages')
+    })
+
+    it('preserves user-owned YAML presentation and replaces a stale Cherry provider', async () => {
+      existing[minimaxConfigPath] = [
+        '# user-owned comment',
+        'custom_provider:',
+        '  cherry-old: { options: { apiKey: stale, baseURL: https://old.example } }',
+        'permissionMode: default # keep inline comment',
+        ''
+      ].join('\n')
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      expect(config.content).toContain('# user-owned comment')
+      expect(config.content).toContain('permissionMode: default # keep inline comment')
+      const parsed = parseYaml(config.content)
+      expect(parsed.custom_provider['cherry-old']).toBeUndefined()
+      expect(parsed.custom_provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
+    })
+
+    it('strips every stale Cherry provider on write, whatever its position', async () => {
+      // `cherry-DeepSeek` sits BEFORE another stale key so an early-stopping
+      // sweep (one that halts at the incoming key) would leave `cherry-older`
+      // behind — the ordering bug this regression guards against.
+      existing[minimaxConfigPath] = [
+        'custom_provider:',
+        '  cherry-DeepSeek:',
+        '    options: { apiKey: stale, baseURL: https://stale.example }',
+        '  cherry-older:',
+        '    options: { apiKey: stale2, baseURL: https://older.example }',
+        '  user-relay:',
+        '    options: { apiKey: user-key, baseURL: https://relay.example }',
+        ''
+      ].join('\n')
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      const parsed = parseYaml(config.content)
+      expect(Object.keys(parsed.custom_provider)).toEqual(['user-relay', 'cherry-DeepSeek'])
+    })
+
+    it('round-trips the connection through extract and update without drift', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      const draft = [
+        {
+          target: 'minimax-config',
+          label: 'MiniMax Code config.yaml',
+          path: minimaxConfigPath,
+          language: 'yaml',
+          content: config.content
+        } as const
+      ]
+      expect(extractConnectionFromCliConfigDraft(CodeCli.MINIMAX_CODE, [...draft])).toEqual({
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: 'sk-secret',
+        model: 'deepseek-chat'
+      })
+
+      const updated = updateCliConfigDraftConfig(CodeCli.MINIMAX_CODE, [...draft], {})
+      expect(parseYaml(updated[0].content)).toEqual(parseYaml(draft[0].content))
+    })
+
+    it('rejects the draft when the on-disk config cannot be parsed', async () => {
+      existing[minimaxConfigPath] = 'custom_provider: [unclosed\n'
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/Failed to parse MiniMax Code config\.yaml/)
+    })
   })
 
   describe('claude-code (~/.claude/settings.json)', () => {
@@ -201,6 +472,62 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_AUTH_TOKEN: 'ollama',
         ANTHROPIC_MODEL: 'llama3'
       })
+    })
+
+    it('injects a per-provider placeholder auth token for a keyless local provider', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: 'http://localhost:8000',
+        ANTHROPIC_AUTH_TOKEN: 'omlx',
+        ANTHROPIC_MODEL: 'qwen3-coder-30b'
+      })
+    })
+
+    it('writes a keyless local provider through the Qwen Code writer without an API key', async () => {
+      mockGet({
+        '/providers/omlx': () => omlxProvider,
+        '/providers/omlx/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.QWEN_CODE,
+        modelId: 'omlx::qwen3-coder-30b'
+      })
+
+      expect(written).not.toBeNull()
+    })
+
+    it('accepts a keyless Ollama provider and injects the placeholder token', async () => {
+      mockGet({
+        '/providers/ollama': () => ollamaProvider,
+        '/providers/ollama/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'ollama::llama3' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const config = files[0]
+      if (!config || typeof config.content !== 'string') throw new Error('Expected MiniMax config file')
+      const parsed = parseYaml(config.content)
+      expect(parsed.custom_provider['cherry-Ollama']).toMatchObject({
+        api: 'anthropic-messages',
+        options: { apiKey: 'ollama', baseURL: 'http://localhost:11434' }
+      })
+      expect(parsed.defaultModel).toBe('custom_provider:cherry-Ollama/llama3')
     })
 
     it('omits ANTHROPIC_MODEL for detailed Claude model config', async () => {
@@ -551,7 +878,7 @@ describe('writeCliConfigDraft', () => {
     // that remote compaction is on, regardless of the actual toggle — so a provider whose
     // display name really is "OpenAI" must never be written verbatim unless that mode is on.
     it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -566,7 +893,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -1293,6 +1620,44 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.env.ANTHROPIC_BASE_URL).toBe(GATEWAY_BASE_URL)
       expect(parsed.env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     })
+
+    it('rebuilds purely from a complete draft when every on-disk read fails', async () => {
+      // A complete in-memory draft must not depend on the disk: a transient read
+      // failure (EACCES/EBUSY) must not block a rebuild the draft already covers.
+      const editedDraft = {
+        target: 'claude-settings' as const,
+        label: 'Claude settings',
+        path: '/resolved~/.claude/settings.json',
+        language: 'json' as const,
+        content: JSON.stringify({ theme: 'dark', env: { KEEP: '1' } })
+      }
+      mockGet({ '/models/': () => ({ id: 'deepseek-chat' }) })
+      mocks.request.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        for (const file of input.files as CliConfigWriteFile[]) {
+          // This path asserts writes only; delete entries never reach it (the suite pins that).
+          const nextWrite = {
+            path: resolvedSpecPath(file.target),
+            content: (file as { content: string }).content
+          }
+          written = nextWrite
+          writes.push(nextWrite)
+        }
+        return { success: true }
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        files: [editedDraft],
+        gateway
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+    })
   })
 
   describe('clear on disable deletes Cherry-managed keys', () => {
@@ -1483,8 +1848,9 @@ describe('writeCliConfigDraft', () => {
       // Before the fix this was swallowed and treated as "file doesn't exist
       // yet", which would silently wipe every unmanaged key from the real file.
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({ hooks: { foo: 'bar' } })
-      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
-        throw new Error('EACCES: permission denied')
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'code_cli.read_config') throw new Error('EACCES: permission denied')
+        return { success: true }
       })
       mockGet({
         '/providers/anthropic': () => anthropicProvider,
@@ -1498,7 +1864,7 @@ describe('writeCliConfigDraft', () => {
       // Nothing was sent to the main-process writer — the real file (and its
       // unmanaged keys) is untouched. (Snapshot/rollback safety around the
       // write itself is a main-side property, pinned in configWriter tests.)
-      expect(mocks.request).not.toHaveBeenCalled()
+      expect(mocks.request.mock.calls.some(([route]) => route === 'code_cli.write_config')).toBe(false)
     })
   })
 })

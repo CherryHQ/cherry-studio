@@ -1,5 +1,6 @@
-import { ScreenCaptureError } from '@main/services/screenshot/types'
 import { describe, expect, it, vi } from 'vitest'
+
+import { ScreenCaptureError } from '@main/services/screenshot/types'
 
 // Mock the loader, not the native package (see the sibling file), throwing what a real load failure
 // throws. The factory is async because, being hoisted, it must not close over module-scope bindings.

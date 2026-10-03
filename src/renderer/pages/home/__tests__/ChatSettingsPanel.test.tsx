@@ -1,8 +1,13 @@
-import type { Topic } from '@renderer/types/topic'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
+import type { Topic } from '@renderer/types/topic'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import Chat from '../Chat'
 
@@ -11,6 +16,12 @@ const renderCounters = vi.hoisted(() => ({
   navbar: 0,
   eventEmit: vi.fn(),
   setBranchLiveState: vi.fn()
+}))
+const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
+
+vi.mock('@renderer/components/chat/panes/Shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof PaneShellModule>()),
+  useRightPanelActions: () => ({ tryOpen: vi.fn() })
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -127,11 +138,13 @@ vi.mock('../components/TopicRightPane', () => {
 
 vi.mock('../ChatContent', () => ({
   default: ({
+    topic,
     onBranchLiveStateChange,
     onLocateMessageHandled,
     onOpenCitationsPanel,
     locateMessageId
   }: {
+    topic: Topic
     onBranchLiveStateChange?: (state: unknown) => void
     onLocateMessageHandled?: () => void
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
@@ -144,7 +157,9 @@ vi.mock('../ChatContent', () => ({
         <button type="button" onClick={() => onLocateMessageHandled?.()}>
           handled locate
         </button>
-        <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+        <button
+          type="button"
+          onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `https://${topic.id}.example` }] })}>
           open citations
         </button>
         <button
@@ -164,17 +179,30 @@ vi.mock('../ChatContent', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
-    <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
-      {open && (
-        <button type="button" onClick={onClose}>
-          close citations
-        </button>
-      )}
-    </div>
-  )
-}))
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
+  citationsPanelModuleLoads.value += 1
+
+  return {
+    default: ({
+      open,
+      onClose,
+      citations
+    }: {
+      open: boolean
+      onClose: () => void
+      citations: Array<{ number: number; url: string }>
+    }) => (
+      <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+        {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
+        {open && (
+          <button type="button" onClick={onClose}>
+            close citations
+          </button>
+        )}
+      </div>
+    )
+  }
+})
 
 function renderChat(activeTopic: Topic) {
   return render(<Chat activeTopic={activeTopic} />)
@@ -192,26 +220,60 @@ describe('Chat panels', () => {
   }
 
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/assistants/:id', {
+      id: 'assistant-1',
+      name: 'Assistant',
+      prompt: '',
+      emoji: '😀',
+      description: '',
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS },
+      modelId: null,
+      modelName: null,
+      groupId: null,
+      orderKey: 'a0',
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
+      createdAt: activeTopic.createdAt,
+      updatedAt: activeTopic.updatedAt
+    })
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
     renderCounters.setBranchLiveState.mockReset()
   })
 
-  it('opens and closes the citations panel from chat content', () => {
+  it('loads citations on first open and keeps the panel mounted while closing', async () => {
+    const user = userEvent.setup()
     renderChat(activeTopic)
 
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+    expect(citationsPanelModuleLoads.value).toBe(0)
+    expect(screen.queryByTestId('citations-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(await screen.findByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
+    expect(citationsPanelModuleLoads.value).toBe(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
+    await user.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('closes citations when switching topics', async () => {
+    const user = userEvent.setup()
+    const view = renderChat(activeTopic)
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(await screen.findByText('https://topic-1.example')).toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={activeTopic} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
   })
 
   it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {

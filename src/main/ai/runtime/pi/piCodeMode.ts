@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
+
 import { runExecCode } from '@main/ai/tools/codeMode/runtime'
 import { toolsToTypeScript, toolToTypeScript } from '@main/ai/tools/codeMode/schemaToTypeScript'
 import {

@@ -1,5 +1,7 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -23,7 +25,13 @@ export async function startAgentSessionRun(input: {
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
   headless?: boolean
+  /** Recipients authorized only for this run; [] deliberately disables notify. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
+  /** Synchronously assert admission after preparation, inside the message-write transaction. */
+  beforePersist?: () => void
+  /** Commit caller-owned durable admission alongside the reserved messages, before activation. */
+  onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -35,6 +43,10 @@ export async function startAgentSessionRun(input: {
   let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
 
   await manager.withDispatchLock(topicId, async () => {
+    // A cleanup listener of the previous turn may release this caller mid-dispatch; admitting now
+    // would evict that stream before its terminal lifecycle ran (stale-generation guard skips it).
+    await manager.whenTerminalDispatchSettled(topicId)
+
     if (manager.isWriteQuiesced) {
       throw new Error(
         'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
@@ -66,7 +78,7 @@ export async function startAgentSessionRun(input: {
 
     let prepared
     try {
-      prepared = await agentChatContextProvider.prepareDispatch(
+      prepared = await agentChatContextProvider.prepareAgentSessionDispatch(
         primary,
         {
           trigger: 'submit-message',
@@ -74,11 +86,14 @@ export async function startAgentSessionRun(input: {
           userMessageParts: input.userParts,
           headless: input.headless === true
         },
+        { trustedNotifyChannels: input.trustedNotifyChannels },
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
-        }
+          expectedAgentId: input.requireIdle?.expectedAgentId,
+          beforePersist: input.beforePersist
+        },
+        input.onPersist
       )
     } catch (error) {
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {

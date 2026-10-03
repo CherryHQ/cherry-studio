@@ -1,3 +1,21 @@
+---
+description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
+sources:
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/data/services/AgentSessionService.ts
+  - src/main/data/db/schemas/agentSession.ts
+  - src/main/ai/agents/runAgentTask.ts
+  - src/main/ai/runtime/types.ts
+  - src/main/ai/runtime/claudeCode
+  - src/main/ai/runtime/pi
+  - src/main/ai/runtime/dsh
+  - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - src/main/ai/messages/readConversation.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
+  - packages/dsh-bridge/src/plugin.ts
+---
+
 # Agent Session Runtime
 
 ## Purpose
@@ -12,22 +30,54 @@ The boundary is:
 - `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
 - `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
 
-Claude Code is the first driver. Its `query`, warm query, SDK input
-queue, and `resume` handling are driver internals.
+The built-in drivers are Claude Code, Pi, and DeepSeek Harness (DSH). Their
+query/session transports, tool surfaces, approval gates, and resume formats are
+driver internals behind the same host contract.
 
 ## Ownership
 
 | Owner | Responsibility |
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
-| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, quiescing, and deletion coordination. |
+| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
+| `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
-| `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
-| Usage capture | Direct/external routes emit one record input per Claude SDK assistant request; gateway routes use AiService provider-call middleware and ignore SDK aggregate usage. |
-| Runtime timing | `AiStreamManager` owns the message clock. Claude SDK `PostToolUse`/`PostToolUseFailure` hooks contribute tool spans for direct/external and gateway-backed routes using `duration_ms`; approval waits are captured independently from approval request to decision/abort. |
+| Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
+| Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Background sessions and conversation navigation
+
+`agent_session.type` distinguishes `conversation` from `background`. Heartbeat
+runs create background sessions, including replacements after failed admission;
+ordinary scheduled tasks retain their conversation behavior. The type is internal
+to Main and is not a renderer-controlled visibility flag.
+
+Conversation lists (including pins), latest-session selection, discovery search,
+and empty-session reuse only consider conversation sessions. The public
+session-by-id and message routes (reads, mutations, and workspace changes) apply
+that scope too, so a saved tab cannot restore a background session as an
+interactive conversation and a known background id is not addressable from the
+renderer surface. Runtime lookups retain access to all sessions through the
+internal `getById` method and service methods. Background activity publishes
+detail/message changes without invalidating the conversation navigation read
+models.
+
+The appended migration classifies existing sessions only when retained job
+records identify heartbeat execution — the fire ran on a schedule whose
+template carries the heartbeat sentinel — and no retained job records identify
+a different use of the same session. Unknown history remains a conversation;
+classification never relies on a session name or workspace. Session/message
+data is retained, and subsequent job retention cannot change the
+classification.
+
+This is a bounded classification within the existing session model. Separating
+execution sessions from user-managed conversation membership is tracked in
+[issue #20635](https://github.com/CherryHQ/cherry-studio/issues/20635); background-session retention and a dedicated activity UI
+also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
@@ -43,7 +93,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 6. linked-channel security policy;
 7. citation markers for the lookup tools the runtime actually exposes;
 8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the configured app response language.
+9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -51,18 +101,18 @@ Runtime adapters own only native mechanics:
 
 | Runtime-neutral Cherry policy | Runtime-specific carrier |
 |---|---|
-| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps native to the `claude_code` preset; pi leaves `systemPromptOverride` unset. Both pass custom content as the SDK base override. |
-| Common append text and block order | Claude uses the preset's `append`; pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude's `AgentsMdLoader` supplies root text and hooks load nested scopes; pi's `DefaultResourceLoader` supplies its native project-context section after the common append. Physical placement may differ, while the common precedence contract keeps semantic authority identical. |
-| Enabled managed skill content | Claude injects its plugin/config representation; pi uses `additionalSkillPaths`. |
-| Current workspace guarantee | Claude's preset owns cwd/git context and receives an explicit cwd block only when a custom base replaces it; pi's native builder always appends date and cwd. |
-| Coding/runtime handbook and native tool snippets | Owned by the Claude Code or pi base prompt, never copied into the common materializer. |
+| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides, and DSH composes base plus append into its generated persona. |
+| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`; DSH places it in composition persona text. |
+| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files; DSH enables bounded workspace context. Physical placement differs while semantic precedence stays common. |
+| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`; DSH writes `skillDirs` into the generated composition. |
+| Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
+| Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
 ## Fresh turn
 
-1. Renderer sends `Ai_Stream_Open` for topic `agent-session:<sessionId>`.
+1. Renderer sends `ai.stream.open` for topic `agent-session:<sessionId>`.
 2. `AgentChatContextProvider` validates the session:
    - the session must have an agent and workspace;
    - system workspaces are materialized under Cherry's managed root, while user
@@ -120,6 +170,18 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 A receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `pendingTurns` until terminal persistence releases runtime ownership.
+The runtime's `autonomous-turn-state: started` event names why it opened the turn
+(`AutonomousTurnOrigin`: a dsh goal round with its round number, or Claude Code
+waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
+status like the api-retry state, not conversation content — so the transcript can
+label a turn that has no user message above it while the session is open.
+If a user turn is live when the runtime starts its own — even an admitted one, since
+dsh runs a queued goal round ahead of a prompt it has already accepted — the user turn
+is deferred: its stream is suspended, the receive-only turn takes the connection, and
+the user turn is relaunched afterwards with its admission preserved (no re-send).
+Content the runtime produces for the deferred turn before its stream reopens is
+buffered on the execution and replayed by `flush-transition`.
 A normal turn whose stream is still `unopened` is queued for the same reason;
 steering is only valid after that turn's stream is `open`. Redirect also requires
 both the current turn and incoming input to be interactive. Delivery, channel,
@@ -149,15 +211,21 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes the session tools below:
 
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
+  using the existing storage query rules. The caller does not supply a conversation type;
+  ambiguous IDs fail rather than selecting the first matching store;
+- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
+  availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
   Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
   hits instead of overloading an empty message-match list;
-- `session_create` — atomically create a same-Agent Session plus its first completion request;
+- `session_create` — atomically create a Session plus its first completion request, optionally
+  choosing another Agent with `target_agent_id`;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
@@ -176,8 +244,10 @@ Session. Every request owns one independent target turn; delivery never redirect
 turn and never enters the runtime's process-local follow-up queue. The tool returns after the
 durable request reaches `accepted`; it never waits for scheduling or target execution.
 
-`session_create` reuses the same completion-request path after creating the same-Agent Session. The
-model is not a tool argument because Sessions use their owning Agent's model.
+`session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
+same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
+the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
+tool argument because Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
@@ -199,6 +269,13 @@ List, search, send, create, and delivery-query visibility share one authorizatio
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
 but still require a live approval for delegation. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_read` shares this caller authorization boundary. It reads current source data, without a
+cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
+retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
+semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
+uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
+when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
 
 ### Durable row shape
 
@@ -322,7 +399,7 @@ backup and shutdown drains cannot be held by a synchronous retry loop. Legacy `c
 rows compare using their effective `claude-code` runtime type.
 
 Session deletion is a mixed operation and therefore uses the IpcApi
-`ai.agent.session.delete`, not DataApi DELETE. `AgentSessionDeliveryService` calls the data service
+`ai.agent.session.delete`, not DataApi DELETE. `AgentLifecycleService` calls the data service
 for one transaction that creates exact failure results before cascading target rows, then closes the
 deleted Sessions' runtimes before kicking only those returned result rows. A caller that has already
 been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
@@ -412,6 +489,37 @@ maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
 to restore files.
 
+## Native user-data SQLite guard
+
+`userDataSqliteGuard.ts` is the single policy source that protects Cherry Studio's SQLite files
+across Claude Code, Pi, and DSH. Native structured write tools cannot bypass it through a permission
+mode: Claude calls it from the common `PreToolUse` guard table, Pi calls it in the shared native and
+code-mode authorizer before Full Access handling, and DSH asks Main over the authenticated bridge
+before local approval or bypass policy. DSH root agents and delegated subagents use the same check;
+an unavailable bridge or invalid cwd fails closed. This does not add to or change DSH's existing
+sandbox configuration.
+
+The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
+Existing symlink and hard-link aliases to those files are protected by canonical path and file
+identity checks.
+Other `.db` and `.sqlite` files and their sidecars below `userData` are protected unless the session
+workspace is a strict descendant of `userData` and the target stays inside that workspace. A
+workspace equal to or above `userData` creates no exception, and the Agent data directory is not an
+exception by itself. Structured read tools are unaffected.
+
+Shell inspection is deliberately best-effort. It recognizes literal quoted or unquoted tokens,
+control separators, paths relative to the initial cwd, absolute and literal home paths, SQLite
+`file:` URIs, sidecars, and option values after `=`. For direct Python, Node.js, and Bun commands,
+it also checks path literals embedded in inline code; ordinary interpreter use in the workspace
+remains available. It does not model `cd`, expand arbitrary variables or globs, inspect
+substitutions, evaluate constructed interpreter paths, or read script contents. A literal match is
+denied even when the command appears read-only.
+
+This hook is a tool-call policy boundary, not a sandbox or an operating-system security boundary.
+It does not inspect third-party MCP argument schemas, constrain child processes, or promise safety
+against a same-user local process replacing a checked path before use (TOCTOU). A stronger guarantee
+requires enforcement at the execution or sandbox boundary.
+
 ## Claude Code driver
 
 Normal multi-turn chat does not use `continue: true` and does not rely
@@ -443,8 +551,18 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
+- a top-level `message_start` -> a live `context-usage` projected from the
+  request's input usage (the occupancy at that provider call), so the usage
+  indicator advances mid-turn; the host's post-turn `getContextUsage()` pull
+  stays the authoritative reading;
 - a successful `result` -> flush pending per-request usage, then `resume-token`, a
   cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
+- a `result` stamped `origin.kind === 'task-notification'` -> resume token only, never
+  turn settlement. A resumed CLI replays pending background-task notifications as their
+  own zero-turn query before it pulls the host's input
+  ([claude-agent-sdk#383](https://github.com/anthropics/claude-agent-sdk-typescript/issues/383)),
+  so that result belongs to the task, not to the open turn, which keeps waiting for the
+  user query's own result (a CLI death in between surfaces through the normal error path);
 - a failed `result` -> preserve its final usage and resume token, then emit `error` and
   tear down the connection. This includes SDK envelopes whose subtype is `success` but
   whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
@@ -496,8 +614,9 @@ old policy.
 ## pi driver resource boundary
 
 pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
-The driver must not import the user's standalone pi setup from `~/.pi/agent`,
-and must not silently trust executable or prompt resources from a workspace.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`
+(apart from the Windows `shellPath` field below), and must not silently trust
+executable or prompt resources from a workspace.
 
 Allowed in v1:
 
@@ -546,11 +665,19 @@ Allowed in v1:
   Context files are workspace **text**, a different trust class than executable
   extensions (which stay off). This is the only project-discovered resource pi
   loads; everything else below is still disabled.
+- On Windows, the top-level `shellPath` from the user's global pi
+  `settings.json` — read as a single field, validated to name an available
+  `bash.exe`, and passed to the in-memory settings manager and the managed Bash
+  tool. Without it pi resolves `bash` from PATH and silently lands in the WSL
+  shim. An invalid configured path fails startup rather than switching
+  execution environments behind the user's back; an absent one falls back to
+  Cherry's own Git Bash discovery.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
-- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
-  skill folders such as `~/.agents/skills`.
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) other
+  than the `shellPath` field above, or user skill folders such as
+  `~/.agents/skills`.
 - Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
   `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
@@ -621,6 +748,45 @@ an outer approval prompt. Pi's native file and shell tools are not in the code-m
 catalog; `read`, `write`, `edit`, and `bash` remain direct tools with their existing
 path and command policy.
 
+## DSH driver boundary
+
+`DshRuntimeDriver` launches the bundled DeepSeek Harness through
+`@deepseek-ai/dsh-sdk-client`. `DshRuntimeConnection` generates a
+session-specific composition under the centralized DSH paths, injects the
+resolved provider/model configuration, and connects the harness process to a
+local `DshBridgeServer`.
+
+The bridge is the Cherry capability boundary. It projects Cherry-owned and
+selected MCP tools into DSH names, applies live disabled-tool and permission
+policy, routes approval requests through the shared registry, and forwards
+subagent/background-flow events into the host event model. DSH-native built-ins
+remain described by the shared `dshBuiltinTools` catalog; the driver does not
+reuse the AI SDK `ToolRegistry`.
+
+The generated composition receives the common Agent prompt, bounded workspace
+context, managed skill directories, and a generation-specific bridge socket and
+token. Connection materialization snapshots provider/model/tool facts before
+and after startup and fails closed if they change. Resume tokens are validated
+before use and remain opaque to `AgentSessionRuntimeService`.
+
+`DshStreamAdapter` maps session events, usage, retries, compaction, plan-mode,
+and terminal reasons into `AgentRuntimeEvent`s. DSH child-session lifecycle is
+coordinated separately so nested content is either attached to the current host
+turn or persisted as background flow without corrupting the main transcript.
+
+### Approval feedback and Full Access shell validation
+
+When an approval is rejected with a reason, the bridge injects that feedback into
+the current Agent turn so the harness can respond to it. Agent tool calls without
+a verified workspace directory are denied.
+
+In Full Access mode, the bridge removes `sandbox_permissions` and `justification`
+from the native `bash` and `pwsh` tool schemas. A runtime guard also rejects calls
+that still supply either field, before executing the command, and tells the Agent
+to retry using its current permissions. This validation does not terminate the
+conversation or add a general retry limit. No setup is required; repeated invalid
+requests can be corrected by removing those fields or stopping the run.
+
 ## Internal Agent continuation normalization
 
 When a Cherry-internal Agent Session request enters the API gateway in Anthropic
@@ -634,21 +800,17 @@ transcript's user-visible history, or the renderer. Direct Anthropic requests do
 not enter the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
-## Corrupt resume history recovery
+## Native resume failures
 
-Each Claude Code connection may recover once from either a missing resumed
-conversation (`No conversation found with session ID`) or a request-time duplicate
-tool-use id failure (`tool_use ids must be unique`). The driver discards the failed
-resume token, rebuilds the SDK input queue and query without `resume`, and replays the
-pending user input with an empty SDK `session_id`. The replacement query's next
-`system/init` advances the normal resume-token persistence path to the new session id.
+Claude Code surfaces native resume failures, including missing conversations and
+duplicate tool-use IDs. The adapter does not discard the resume token and replay
+the pending input into a fresh conversation. Native history and its recovery
+semantics belong to the harness.
 
-Duplicate-id recovery is allowed only before the current turn emits any non-metadata
-chunk. Text, reasoning, tool calls, tool results, and background-flow chunks all close
-that safety gate because replay could repeat visible output or a tool side effect. If
-the gate has closed, the driver does not rebuild or replay; it surfaces the original
-error. Missing-conversation recovery keeps its existing compatibility behavior and is
-not activity-gated, but both reasons share the same one-attempt connection budget.
+Forked sessions use the same persisted native resume-token path as other Agent
+sessions. Cherry does not rebuild their context from visible messages when native
+history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
+separate publication and file-resource recovery path.
 
 ## Idle and shutdown
 
@@ -669,6 +831,12 @@ When the idle timer expires, the runtime closes the entry:
 - prewarms Claude Code when a latest resume token is known.
 
 Service stop and destroy close all runtime entries.
+Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,
+its close is chained behind the prior one so callers wait for every connection generation to settle.
+An immediate retry may create its entry while that close is still draining, but it cannot connect until
+the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
+connection it produces before releasing the successor; the predecessor's observed resume token is handed
+to that successor directly.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
@@ -704,30 +872,21 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff — plus detached-flow finalizers that may still persist message
-parts after their runtime entry closes. The resulting stream writes belong to `AiStreamManager`'s
-drain. This is distinct from the BaseService lifecycle pause and never touches service state.
+parts and runtime close barriers that may still flush external state after their entry is removed.
+The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
+lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
-hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
+hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
 suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the
 generic idle event so accepted work blocked by a stopped turn is not stranded.
 Per-Session kicks use a rerun latch: an idle/terminal wake arriving while the previous single-flight
 kick unwinds is replayed after ownership releases rather than being dropped as a duplicate.
 
-## Removed old path
-
-Claude Code is not a normal provider extension anymore:
-
-- no `createClaudeCode`;
-- no `ClaudeCodeLanguageModel`;
-- no `ClaudeCodeProviderSettings`;
-- no `injectedMessageSource` in provider settings;
-- no `providerToAiSdkConfig(..., { runtimeResumeToken })` branch.
-
-Any `agent-session:*` stream that reaches `AiService.streamText()`
-without runtime metadata is rejected. That fail-fast rule prevents a
-regression back to one CLI process per turn without the long-lived SDK
-input queue inside the Claude Code driver.
+BackupManager reaches these Agent-specific participants through `AgentLifecycleService`.
+The lifecycle owner separately tracks archive/restore/purge work and aggregates it with
+Channel, Delivery, and Runtime drains. Its ingress barrier precedes execution pause;
+see [Backup and shutdown](./agent-lifecycle.md#backup-and-shutdown).
 
 ## Verification
 
@@ -740,6 +899,9 @@ Focused tests:
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
+- `src/main/ai/runtime/dsh/DshRuntimeDriver.test.ts`
+- `src/main/ai/runtime/dsh/__tests__/DshRuntimeConnection.trace.test.ts`
 
 Cross-Session delivery acceptance tests additionally pin these crash and security boundaries:
 

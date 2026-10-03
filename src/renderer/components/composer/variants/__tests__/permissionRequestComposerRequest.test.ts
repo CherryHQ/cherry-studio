@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { findNextPendingPermissionRequest } from '../PermissionRequestComposer'
 
@@ -81,6 +82,14 @@ describe('findNextPendingPermissionRequest', () => {
     expect(result?.title).toBe('Run focused composer tests')
   })
 
+  it('shows the target path for Pi file-tool approvals', () => {
+    const result = findNextPendingPermissionRequest({
+      'message-1': [makePart({ input: { path: '/managed-skills/find-skills/SKILL.md' } })]
+    })
+
+    expect(result?.title).toBe('/managed-skills/find-skills/SKILL.md')
+  })
+
   it('uses Claude Code MCP metadata for the tool preview', () => {
     const result = findNextPendingPermissionRequest({
       'message-1': [
@@ -135,7 +144,7 @@ describe('findNextPendingPermissionRequest', () => {
         makePart({ state: 'approval-responded' }),
         makePart({ approval: undefined }),
         makePart({ toolCallId: undefined }),
-        { type: 'text', text: 'hello' } as CherryMessagePart
+        { type: 'text', text: 'hello' }
       ]
     })
 

@@ -327,6 +327,13 @@ export function buildKimiConfig(
   return merged
 }
 
+export function buildHermesEnvConfig(envMap: Map<string, string>, apiKey: string): Map<string, string> {
+  const next = new Map(envMap)
+  next.delete('CHERRY_HERMES_API_KEY')
+  if (apiKey) next.set('CHERRY_HERMES_API_KEY', apiKey)
+  return next
+}
+
 export function buildPiModelsConfig(
   existing: Record<string, any>,
   resolved: {

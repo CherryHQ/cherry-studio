@@ -1,11 +1,12 @@
-import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
 
 const mockApproval = vi.hoisted(() => vi.fn())
-const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
 const mockHighlightCode = vi.hoisted(() => vi.fn(async (code: string) => `<pre>${code}</pre>`))
 
@@ -33,7 +34,12 @@ vi.mock('@renderer/components/icons/CopyIcon', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => (typeof fallback === 'string' ? fallback : key) }),
+  useTranslation: () => ({
+    t: (key: string, fallback?: string) => {
+      if (key === 'agent.toolPermission.decisionDenied') return 'Denied'
+      return typeof fallback === 'string' ? fallback : key
+    }
+  }),
   initReactI18next: { type: '3rdParty', init: vi.fn() }
 }))
 
@@ -136,6 +142,20 @@ describe('MessageMcpTool', () => {
     render(<MessageMcpTool toolResponse={createMcpToolResponse({ status: 'done' })} />)
 
     expect(screen.getByLabelText('message.tools.autoApproveEnabled')).toBeInTheDocument()
+  })
+
+  it('keeps a custom rejection reason visible in MCP tool history', () => {
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'cancelled',
+          approval: { approved: false, reason: 'Use the read-only endpoint instead' }
+        })}
+      />
+    )
+
+    expect(screen.getByText('Denied')).toBeInTheDocument()
+    expect(screen.getByText('Use the read-only endpoint instead')).toBeInTheDocument()
   })
 
   it('renders structured tool output that is not an MCP content envelope', async () => {

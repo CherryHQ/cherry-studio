@@ -1,9 +1,11 @@
+import { getToolName, isToolUIPart } from 'ai'
+
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getToolName, isToolUIPart } from 'ai'
 
+import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -133,7 +135,11 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
 }
 
 function isInlineResultToolPart(part: CherryMessagePart): boolean {
-  return isChannelAuthQrPart(part) || isGeneratedImageResultPart(part)
+  return (
+    isChannelAuthQrPart(part) ||
+    agentInlineResultPresentationRegistry.isResultPart(part) ||
+    isGeneratedImageResultPart(part)
+  )
 }
 
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
@@ -277,11 +283,14 @@ export function isResultPart(part: CherryMessagePart): boolean {
  */
 export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
+  const forkEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
-    if (isReportToolPart(entry.part)) {
+    if (entry.part.type === 'data-agent-session-fork') {
+      forkEntries.push(entry)
+    } else if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
     } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
       contentEntries.push(entry)
@@ -359,7 +368,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: contentEntries.filter(isDirectResult),
+    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
     reportEntries
   }
 }

@@ -1,6 +1,13 @@
+---
+description: Warmup state machine for pooled and singleton windows — idle queue, GC ticks, standby vs recycle axes, reuse IPC
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/windowRegistry.ts
+---
+
 # Warmup Mechanics
 
-Shared warmup state machine for singleton and pooled lifecycles: idle queue, GC ticks, warmup strategies, and the `WindowManager_Reused` IPC contract.
+Shared warmup state machine for singleton and pooled lifecycles: idle queue, GC ticks, warmup strategies, and the `window.reused` IpcApi contract.
 
 For conceptual intro to the `pooled` lifecycle mode, see [Overview → Lifecycle Modes](./window-manager-overview.md#pooled--two-axis-pool-with-active-standby--passive-recycle).
 
@@ -121,12 +128,12 @@ For singleton, `eager` pre-creates exactly one hidden instance; `lazy` defers un
 
 Persistence is the caller's responsibility. On restart, the owning service should call `suspendPool()` in its `onInit()` if the pool should remain suspended — this is guaranteed to run before `onAllReady()` (where eager warmup fires).
 
-## `WindowManager_Reused` IPC
+## `window.reused` event
 
-When a **re-used** window (pool recycle or singleton reopen) is handed back to a caller and the caller supplied `initData`, the renderer receives `IpcChannel.WindowManager_Reused` with that init data as the event payload:
+When a **re-used** window (pool recycle or singleton reopen) is handed back to a caller and the caller supplied `initData`, the renderer receives the typed `window.reused` IpcApi event with that init data as the payload:
 
 ```typescript
-window.electron?.ipcRenderer.on(IpcChannel.WindowManager_Reused, (_event, payload) => {
+useIpcOn('window.reused', (payload) => {
   // payload is exactly the object passed as `open({ initData })`
 })
 ```
@@ -137,7 +144,7 @@ Rules:
 - No "empty" Reused events. No `initData` → no event.
 - The same payload is simultaneously written into the init-data store, so `getInitData(windowId)` reflects the new value synchronously once `open()` returns.
 - For **pooled** reuse `open()` without `initData`, the previously stored init data for that window is **cleared** from the store — pool windows are multi-consumer, so stale payload leakage would be a foot-gun.
-- For **singleton** hide→show reuse without new `initData`, the store entry is **preserved** — singleton is single-consumer, so "still the same session" means the renderer may legitimately want the last payload back (e.g. via `WindowManager_GetInitData` after a devtools reload during hide). The Reused IPC still does not fire unless the caller passes new `initData`.
+- For **singleton** hide→show reuse without new `initData`, the store entry is **preserved** — singleton is single-consumer, so "still the same session" means the renderer may legitimately want the last payload back (e.g. via `window.get_init_data` after a devtools reload during hide). The event still does not fire unless the caller passes new `initData`.
 
 **Recommended usage** in the renderer: don't handle these two paths by hand — use the [`useWindowInitData` hook](./window-manager-usage.md#renderer-usewindowinitdata-hook), which encapsulates both cold-start invoke and re-use payload delivery into a single React hook.
 

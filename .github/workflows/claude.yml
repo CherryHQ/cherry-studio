@@ -78,13 +78,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || format('refs/pull/{0}/head', github.event.issue.number) }}
           fetch-depth: 1
 
       - name: Run Claude Code Review
         id: claude-review
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
@@ -131,6 +132,10 @@ jobs:
             --model ${{ vars.ANTHROPIC_MODEL }}
             --allowedTools "Agent,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
 
+      - name: Report advisory review failure
+        if: steps.claude-review.outcome == 'failure'
+        run: echo "::warning::Claude review did not complete successfully; this advisory check does not affect CI."
+
   claude:
     if: |
       (github.event_name == 'issue_comment'
@@ -158,7 +163,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
 

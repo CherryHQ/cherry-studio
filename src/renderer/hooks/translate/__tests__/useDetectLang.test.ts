@@ -1,9 +1,10 @@
-import { toast } from '@renderer/services/toast'
-import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
 import {
@@ -97,6 +98,17 @@ describe('detectLanguageByLLM', () => {
     generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+  })
+
+  it('interpolates every prompt placeholder once and preserves replacement tokens in input', async () => {
+    const input = "$$E=mc^2$$ | $& | $` | $' | {{list_lang}}"
+
+    await expect(detectLanguageByLLM(input, [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+
+    const systemPrompt = generateTextMock.mock.lastCall?.[0].system
+    expect(systemPrompt).toContain('predefined list ["en-us","zh-cn"]')
+    expect(systemPrompt).toContain('not found in the ["en-us","zh-cn"] list')
+    expect(systemPrompt).toContain(`<text>\n${input}\n</text>`)
   })
 
   it('disables reasoning for LLM language detection', async () => {

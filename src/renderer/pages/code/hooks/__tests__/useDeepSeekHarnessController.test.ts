@@ -1,7 +1,9 @@
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
@@ -13,6 +15,7 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
+vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -24,6 +27,10 @@ vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 const { useDeepSeekHarnessController } = await import('../useDeepSeekHarnessController')
+
+const emitStatusChanged = (payload: Record<string, unknown>) => {
+  cacheService.setShared('feature.deepseek_harness.status', payload as never)
+}
 
 const directProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
@@ -45,9 +52,9 @@ function renderController(provider: Provider = directProvider) {
 describe('useDeepSeekHarnessController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheService.deleteShared('feature.deepseek_harness.status')
     vi.spyOn(Date, 'now').mockReturnValue(1_776_000_000_000)
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'deepseek_harness.start') {
         return Promise.resolve({ success: true, url: 'http://127.0.0.1:43123' })
       }
@@ -74,6 +81,10 @@ describe('useDeepSeekHarnessController', () => {
       logo: 'deepseek'
     })
     expect(new URL(descriptor.url).searchParams.get('cherry_navigation_revision')).toBe('1776000000000')
+    // Running state is no longer written locally — it arrives as a main-pushed event.
+    await act(async () => {
+      emitStatusChanged({ status: 'running', url: 'http://127.0.0.1:43123' })
+    })
     expect(result.current.running).toBe(true)
   })
 
@@ -111,7 +122,6 @@ describe('useDeepSeekHarnessController', () => {
 
   it('does not open a Mini App when main rejects the launch', async () => {
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'deepseek_harness.start') return Promise.resolve({ success: false, message: 'config collision' })
       return Promise.resolve({ success: true })
     })
@@ -121,11 +131,12 @@ describe('useDeepSeekHarnessController', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('config collision')
   })
 
-  it('polls managed status, reopens the current URL, and stops only through the managed IPC', async () => {
+  it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
+    cacheService.setShared('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:45231'
+    })
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') {
-        return Promise.resolve({ status: 'running', url: 'http://127.0.0.1:45231' })
-      }
       if (route === 'deepseek_harness.stop') return Promise.resolve({ success: true })
       return Promise.resolve({ success: true })
     })
@@ -134,10 +145,16 @@ describe('useDeepSeekHarnessController', () => {
 
     await act(async () => result.current.onOpenWebUi())
     expect(mocks.openSmartMiniApp).toHaveBeenCalledOnce()
+
+    // A kill surfaces immediately through the pushed event — no 5s polling wait.
+    await act(async () => {
+      emitStatusChanged({ status: 'error' })
+    })
+    expect(result.current.running).toBe(false)
+
     await act(async () => {
       await result.current.onStop()
     })
     expect(mocks.request).toHaveBeenCalledWith('deepseek_harness.stop')
-    expect(result.current.running).toBe(false)
   })
 })

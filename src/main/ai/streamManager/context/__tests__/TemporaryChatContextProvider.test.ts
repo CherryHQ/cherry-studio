@@ -1,6 +1,7 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 // ── Service mocks ────────────────────────────────────────────────────
 
@@ -188,6 +189,7 @@ describe('TemporaryChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
 
     expect(prepared.topicId).toBe('1')
+    expect(provider.isPersistentConversation).toBe(false)
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)

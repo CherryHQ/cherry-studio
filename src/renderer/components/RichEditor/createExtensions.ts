@@ -1,4 +1,3 @@
-import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
 import type { Extensions } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Mention from '@tiptap/extension-mention'
@@ -11,17 +10,16 @@ import Typography from '@tiptap/extension-typography'
 import { Markdown } from '@tiptap/markdown'
 import { StarterKit } from '@tiptap/starter-kit'
 
+import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
+
 import { createCommandSuggestion } from './command'
 import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
-import { EnhancedMath } from './extensions/enhancedMath'
+import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
 import { MarkdownTable } from './extensions/markdownTable'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
-
-/** Click handler shape forwarded to EnhancedMath block/inline node options. */
-type MathClickOptions = { onClick?: (node: { attrs: { latex?: string } }, pos: number) => boolean | void }
 
 /** Table row/column action handler shape (mirrors `@cherrystudio/extension-table-plus`). */
 type TableActionHandler<T extends 'rowIndex' | 'colIndex'> = (
@@ -44,9 +42,9 @@ export interface CreateRichEditorExtensionsOptions {
   /** Table-of-contents update callback. */
   onTocUpdate?: (content: TableOfContentDataItem[]) => void
   /** Block math node click handler. */
-  mathBlockOptions?: MathClickOptions
+  mathBlockOptions?: EnhancedMathOptions['blockOptions']
   /** Inline math node click handler. */
-  mathInlineOptions?: MathClickOptions
+  mathInlineOptions?: EnhancedMathOptions['inlineOptions']
   /** Table row action-menu trigger. */
   onRowActionClick?: TableActionHandler<'rowIndex'>
   /** Table column action-menu trigger. */

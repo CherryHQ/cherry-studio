@@ -24,7 +24,6 @@ export interface CaptureResult {
 export interface RawWindowInfo {
   pid: number
   title: string
-  appName: string
   x: number
   y: number
   width: number

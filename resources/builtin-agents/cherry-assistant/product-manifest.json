@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.7",
+    "version": "2.1.4",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
@@ -49,6 +49,7 @@
       "/app",
       "/settings",
       "/app/agents",
+      "/app/browser",
       "/app/chat",
       "/app/code",
       "/app/file-preview",
@@ -61,10 +62,13 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
+      "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
       "/settings/data",
       "/settings/dependencies",
+      "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",
@@ -72,10 +76,12 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
       "/settings/screenshot",
+      "/settings/search",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -91,6 +97,7 @@
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
       "/settings/scheduled-tasks/$taskId",
+      "/settings/skills/$skillId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
@@ -106,7 +113,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -170,6 +178,23 @@
       }
     },
     {
+      "id": "app.window.close",
+      "titleKey": "settings.shortcuts.close_window",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "editable": false,
+        "supportedPlatforms": [
+          "darwin"
+        ]
+      }
+    },
+    {
       "id": "app.zoom.in",
       "titleKey": "settings.shortcuts.zoom_in",
       "categoryKey": "settings.shortcuts.general",
@@ -223,6 +248,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -359,6 +397,18 @@
       }
     },
     {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
+        ]
+      }
+    },
+    {
       "id": "topic.create",
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
@@ -391,6 +441,18 @@
         "defaultBinding": [
           "CommandOrControl",
           "]"
+        ]
+      }
+    },
+    {
+      "id": "tab.close",
+      "titleKey": "settings.shortcuts.close_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "W"
         ]
       }
     },
@@ -434,16 +496,12 @@
     }
   ],
   "providers": {
-    "version": "7dd1ae83c85245f9",
-    "count": 62,
+    "version": "a97aae2405a78d18",
+    "count": 65,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -518,6 +576,14 @@
         "name": "Ollama"
       },
       {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
+      },
+      {
         "id": "new-api",
         "name": "New API"
       },
@@ -542,6 +608,10 @@
         "name": "Grok CLI"
       },
       {
+        "id": "omlx",
+        "name": "oMLX"
+      },
+      {
         "id": "openai",
         "name": "OpenAI"
       },
@@ -562,16 +632,16 @@
         "name": "VertexAI"
       },
       {
-        "id": "github",
-        "name": "Github Models"
-      },
-      {
         "id": "copilot",
         "name": "Github Copilot"
       },
       {
         "id": "moonshot",
         "name": "Moonshot AI"
+      },
+      {
+        "id": "moonshot-global",
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",
@@ -587,7 +657,7 @@
       },
       {
         "id": "doubao",
-        "name": "doubao"
+        "name": "Doubao"
       },
       {
         "id": "minimax",
@@ -674,6 +744,10 @@
         "name": "Cerebras AI"
       },
       {
+        "id": "comfyui",
+        "name": "ComfyUI"
+      },
+      {
         "id": "mimo",
         "name": "Xiaomi MiMo"
       },
@@ -747,6 +821,11 @@
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
+    },
+    {
+      "value": "tr-TR",
+      "flag": "🇹🇷",
+      "label": "Türkçe"
     }
   ],
   "agents": {
@@ -772,11 +851,71 @@
         "openclaw",
         "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes",
+        "minimax-code"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null,
+          "thresholdPercent": 80
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

@@ -1,5 +1,6 @@
-import type { FileEntryId } from '@shared/data/types/file'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import type { FileEntryId } from '@shared/data/types/file'
 
 import type { FileVersion } from '../FileManager'
 import { createVersionCacheImpl, type VersionCache } from '../versionCache'

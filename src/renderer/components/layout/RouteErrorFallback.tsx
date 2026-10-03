@@ -1,8 +1,9 @@
+import type { ErrorComponentProps } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
-import type { ErrorComponentProps } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Per-tab router error component (wired as `defaultErrorComponent` in TabRouter).

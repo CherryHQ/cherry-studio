@@ -1,10 +1,15 @@
-import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { useConfigMetadata } from '../useConfigMetadata'
 
@@ -57,6 +62,9 @@ const disabledProvider = {
   authMethods: ['api-key']
 } as unknown as Provider
 
+const enabledProvider = (id: string) =>
+  ({ id, name: id, isEnabled: true, authMethods: ['api-key'] }) as unknown as Provider
+
 const makeModel = (providerId: string, modelId: string, capabilities: string[] = []): Model =>
   ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
 
@@ -104,6 +112,13 @@ describe('useConfigMetadata.filterProviders', () => {
 
     expect(filtered).toEqual([apiKeyProvider])
   })
+
+  it('filters providers with the requested CLI tool instead of the active one', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+
+    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
+    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
+  })
 })
 
 describe('useConfigMetadata.makeModelFilter (gateway)', () => {
@@ -113,7 +128,9 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   it('keeps a chat model of ANY enabled provider regardless of the CLI tool (cross-protocol routing)', () => {
     // Claude Code tool, but a non-Anthropic (OpenAI-style) model must still pass:
     // the gateway does dialect conversion, so the per-tool/provider scope is dropped.
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('deepseek'), enabledProvider('openai')])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('deepseek', 'deepseek-chat'))).toBe(true)
@@ -121,7 +138,9 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes embedding / rerank / image-generation models (the gateway cannot chat-route them)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('openai'), enabledProvider('jina')])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('openai', 'text-embedding-3', [MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
@@ -130,7 +149,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes the CherryAI managed default model (not routable through the gateway)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider(CHERRYAI_PROVIDER_ID)]))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID))).toBe(false)
@@ -138,11 +157,33 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
     expect(filter(model(CHERRYAI_PROVIDER_ID, 'some-other-model'))).toBe(true)
   })
 
+  it('routes Cherry Cloud models only where the edition allows them outside Agents', () => {
+    const cloudProvider = enabledProvider(CHERRY_CLOUD_PROVIDER_ID)
+    const cloudModel = model(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free')
+
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    try {
+      const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [cloudProvider]))
+      expect(result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)(cloudModel)).toBe(false)
+    } finally {
+      vi.stubGlobal('__APP_EDITION__', 'global')
+    }
+
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [cloudProvider]))
+    expect(result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)(cloudModel)).toBe(true)
+  })
+
   // The picker shares isGatewayRoutableModel with the gateway's /v1/models listing, so every
   // non-chat class is excluded — not just embedding/rerank/text-to-image (audio/video generation
   // and transcription models would reach the chat runtime and fail).
   it('excludes non-chat audio/video generation and transcription models', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() =>
+      useConfigMetadata(CodeCli.CLAUDE_CODE, [
+        enabledProvider('elevenlabs'),
+        enabledProvider('openai'),
+        enabledProvider('kling')
+      ])
+    )
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('elevenlabs', 'eleven-tts', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(false)
@@ -151,7 +192,7 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
   })
 
   it('excludes models of a provider id containing ":" (cannot round-trip the gateway address)', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [enabledProvider('corp:west')]))
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('corp:west', 'gpt-4o'))).toBe(false)

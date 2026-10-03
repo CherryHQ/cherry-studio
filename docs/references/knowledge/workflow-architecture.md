@@ -1,6 +1,14 @@
+---
+description: 'Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics'
+sources:
+  - src/main/features/knowledge/ingestion
+  - src/main/features/knowledge/tasks
+  - src/main/features/knowledge/KnowledgeService.ts
+---
+
 # Knowledge Workflow Architecture
 
-This document records the intended v2 Knowledge workflow architecture. It is the canonical reference for the runtime workflow; temporary RFC copies under `v2-refactor-temp/` may be removed before release.
+This document records the implemented Knowledge workflow architecture.
 
 ## Goals
 
@@ -33,6 +41,10 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
+`addItems` supports three root-name conflict strategies: `rename` allocates a
+collision-free `_N` name, `detect` reports conflicts without writing, and
+`replace` cancels/purges conflicting roots before importing the replacements.
+
 ## Scheduling Model
 
 The workflow service owns all branching:
@@ -63,7 +75,7 @@ If a child is another `directory`, `scheduleItem` queues another `knowledge.prep
 
 ## Job Types
 
-Round 1 job types:
+Registered job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
@@ -74,7 +86,13 @@ Round 1 job types:
 
 `knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 
-> Status (2026-06-08): baseline behavior. `check-file-processing-result` is a polling job: `scheduleFileProcessingCheck` reschedules it at `FILE_PROCESSING_CHECK_DELAY_MS = 5_000` (5s) intervals until the FileProcessing job reaches a terminal state; if it is still unfinished after `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000` (30 minutes), the remote job is cancelled and the item is marked `failed`. On success the output's relative path is recorded via `updateIndexedRelativePath`, then `index-documents` is scheduled.
+`check-file-processing-result` is a polling job:
+`scheduleFileProcessingCheck` reschedules it at
+`FILE_PROCESSING_CHECK_DELAY_MS = 5_000` intervals until the FileProcessing job
+reaches a terminal state. After `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000`,
+the remote job is cancelled and the item is marked `failed`. On success the
+output's relative path is recorded via `updateIndexedRelativePath`, then
+`index-documents` is scheduled.
 
 ## Mutation And Crash Semantics
 

@@ -1,3 +1,8 @@
+import { ExternalLink } from 'lucide-react'
+import type { ComponentProps, FC, ReactNode } from 'react'
+import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -14,10 +19,6 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
-import { ExternalLink } from 'lucide-react'
-import type { ComponentProps, FC, ReactNode } from 'react'
-import { useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'

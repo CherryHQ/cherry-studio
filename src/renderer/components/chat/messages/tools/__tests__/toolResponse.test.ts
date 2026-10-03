@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 
@@ -235,6 +236,64 @@ describe('toolResponse adapter', () => {
     expect(response?.status).toBe('pending')
     expect(response?.tool.type).toBe('provider')
     expect(response?.tool.name).toBe('CustomTool')
+  })
+
+  it('projects a persisted denial and its reason into cancelled tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-denied',
+      state: 'approval-responded',
+      input: { command: 'rm -rf build' },
+      approval: { id: 'approval-denied', approved: false, reason: 'use a copy instead' },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'cancelled',
+      approval: { approved: false, reason: 'use a copy instead' }
+    })
+  })
+
+  it('projects a persisted approval into pending tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-approved',
+      state: 'approval-responded',
+      input: { command: 'pnpm test' },
+      approval: { id: 'approval-approved', approved: true },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'pending',
+      approval: { approved: true }
+    })
+  })
+
+  it('projects a persisted denial without a reason into cancelled tool history', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'call-denied-without-reason',
+      state: 'approval-responded',
+      input: { command: 'rm -rf build' },
+      approval: { id: 'approval-denied-without-reason', approved: false },
+      callProviderMetadata: { cherry: { transport: 'pi', toolName: 'bash' } }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+
+    expect(response).toMatchObject({
+      status: 'cancelled',
+      approval: { approved: false }
+    })
+    expect(response?.approval?.reason).toBeUndefined()
   })
 
   it('marks provider-executed Responses tools as provider tools', () => {

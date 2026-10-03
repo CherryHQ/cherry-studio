@@ -17,11 +17,13 @@ export function parseComposerLink(value: string | undefined): ComposerLink | nul
     if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) return null
     const hostname = parsed.hostname.replace(/^www\./, '')
     const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')
+    // The label hides search/hash; the ellipsis tells the user those parts exist (hover shows the full url).
+    const hasHiddenParts = Boolean(parsed.search || parsed.hash)
 
     return {
       url,
       hostname: parsed.hostname,
-      label: `${hostname}${pathname}`
+      label: `${hostname}${pathname}${hasHiddenParts ? '…' : ''}`
     }
   } catch {
     return null

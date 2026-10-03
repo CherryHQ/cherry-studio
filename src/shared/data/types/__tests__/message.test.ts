@@ -11,17 +11,20 @@ describe('coerceSearchRole', () => {
 })
 
 describe('MessageDataSchema', () => {
-  it('accepts persisted assistant turn options', () => {
+  it('accepts persisted assistant retry settings', () => {
     expect(
       MessageDataSchema.safeParse({
         parts: [],
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        modelSelection: 'explicit',
+        turnOptions: { reasoningEffort: 'high', fastMode: true, serviceTier: 'flex' }
       }).success
     ).toBe(true)
   })
 
-  it('rejects invalid persisted assistant turn options', () => {
+  it('rejects invalid persisted assistant retry settings', () => {
+    expect(MessageDataSchema.safeParse({ parts: [], modelSelection: 'unknown' }).success).toBe(false)
     expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { reasoningEffort: 'turbo' } }).success).toBe(false)
     expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { fastMode: 'true' } }).success).toBe(false)
+    expect(MessageDataSchema.safeParse({ parts: [], turnOptions: { serviceTier: 'turbo' } }).success).toBe(false)
   })
 })

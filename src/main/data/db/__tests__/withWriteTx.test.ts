@@ -13,11 +13,12 @@
  *     contract the production JSDoc promises.
  */
 
-import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
-import { jobService } from '@data/services/JobService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+
+import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
+import { jobService } from '@data/services/JobService'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -79,9 +80,9 @@ describe('withWriteTx integration — real better-sqlite3', () => {
 
   it('commits writes — two jobs created through withWriteTx both persist', async () => {
     // `jobService.create` is a thin wrapper over `DbService.withWriteTx`. On a
-    // single synchronous connection the two awaited creates simply run one
-    // after the other; the assertion is that both rows survive.
-    const results = await Promise.all([jobService.create(makeJobDto('job-0')), jobService.create(makeJobDto('job-1'))])
+    // single synchronous connection the two creates simply run one after the
+    // other; the assertion is that both rows survive.
+    const results = [jobService.create(makeJobDto('job-0')), jobService.create(makeJobDto('job-1'))]
     expect(results.map((r) => r.id).sort()).toEqual(['job-0', 'job-1'])
 
     const rows = await dbh.db.select().from(jobTable)

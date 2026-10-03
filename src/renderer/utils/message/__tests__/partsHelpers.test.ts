@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { canEditAssistantMessageParts } from '../partsHelpers'
 
@@ -27,8 +28,23 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'data-citation', data: {} }
       )
     },
+    // The derived translation is dropped by the same save, so it does not displace the file
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'data-translation', data: { content: 'translation', targetLanguage: 'en-us' } },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
     {
       messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
     },
     {
       messageParts: parts({
@@ -77,31 +93,6 @@ describe('canEditAssistantMessageParts', () => {
           openai: 'msg_1'
         }
       })
-    }
-  ])('allows one unambiguous editable run', ({ messageParts }) => {
-    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
-  })
-
-  it.each([
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before tool' },
-        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
-        { type: 'text', text: 'after tool' }
-      )
-    },
-    {
-      messageParts: parts(
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'answer' }
-      )
-    },
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before file' },
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'after file' }
-      )
     },
     {
       messageParts: parts({
@@ -171,9 +162,42 @@ describe('canEditAssistantMessageParts', () => {
         },
         { type: 'text', text: 'second paragraph' }
       )
+    }
+  ])('is editable when the message has text', ({ messageParts }) => {
+    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
+  })
+
+  it.each([
+    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) },
+    {
+      messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' })
     },
-    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) }
-  ])('rejects parts that Composer cannot safely write back', ({ messageParts }) => {
+    { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
+    { messageParts: parts({ type: 'text', text: '   ' }) },
+    { messageParts: parts() },
+    // Files have no anchor: Composer re-emits them as one run directly after the edited text, so a
+    // file parked anywhere else is moved by a save
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'answer' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before file' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'after file' }
+      )
+    }
+  ])('is not editable when the message has no text or a file outside the run after it', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })

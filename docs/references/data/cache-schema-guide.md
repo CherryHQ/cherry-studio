@@ -1,3 +1,10 @@
+---
+description: Adding fixed and template cache keys to the cache schemas - naming rules and fixed/template/casual selection
+sources:
+  - src/shared/data/cache/cacheSchemas.ts
+  - src/shared/data/cache/cacheValueTypes.ts
+---
+
 # Cache Schema Guide
 
 How to add fixed and template keys. Aligned with [Preference Schema Guide](./preference-schema-guide.md) and [Boot Config Schema Guide](./boot-config-schema-guide.md).

@@ -3,12 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
+
 import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
 const getResource = vi.fn()
@@ -65,7 +66,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function makeServer(id: string, overrides: Partial<McpServer> = {}): McpServer {
-  return { id, name: `${id}-name`, isActive: true, ...overrides } as McpServer
+  return { id, name: `${id}-name`, isActive: true, ...overrides }
 }
 
 function makeResource(serverId: string, uri: string): McpResource {
@@ -82,7 +83,7 @@ function callExecute(
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 function callNeedsApproval(args: Record<string, unknown>, request: Record<string, unknown>): Promise<boolean> {
@@ -94,7 +95,7 @@ function callNeedsApproval(args: Record<string, unknown>, request: Record<string
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 describe('mcp_resource_* entries', () => {

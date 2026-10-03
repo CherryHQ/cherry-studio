@@ -1,7 +1,14 @@
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
-import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import {
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  useRightPanelActions
+} from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -12,22 +19,27 @@ import {
 } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
-import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
+
+const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
 
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
@@ -65,21 +77,32 @@ interface Props {
   resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
+interface CitationPanelState {
+  topicId: string
+  citations: Citation[]
+}
+
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
+  const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
+  const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const rightPanelActions = useRightPanelActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
+  const isActiveTab = useIsActiveTab()
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.topicId === activeTopicId ? citationPanelState.citations : null
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
@@ -87,18 +110,29 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  // Provider metadata is only used by the selected-model details popover. A normal single-model
-  // conversation already carries everything its trigger needs on the Model entity itself.
+  const composerModels = activeConversationControlsSnapshot
+    ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
+      ? activeConversationControlsSnapshot.lockedMentionedModels
+      : activeConversationControlsSnapshot.mentionedModelSelectorValue
+    : EMPTY_MODELS
+  const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
+  // Provider metadata supplies the user-facing name for both the single-model trigger and
+  // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      activeConversationControlsSnapshot &&
-      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
-        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
-        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+    (assistantContext.model ||
+      (activeConversationControlsSnapshot &&
+        (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+          activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+          activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
+
+  useEffect(() => {
+    setCitationPanelState(null)
+  }, [activeTopicId])
 
   useEffect(() => {
     setBranchLocateMessageId(undefined)
@@ -122,7 +156,7 @@ const Chat: FC<Props> = (props) => {
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-muted-foreground">{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="text-muted-foreground mt-2">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })
@@ -130,12 +164,45 @@ const Chat: FC<Props> = (props) => {
     },
     { enabled: showConversation }
   )
+  useCommandHandler(
+    'topic.clear_messages',
+    async () => {
+      if (!activeTopic) return
+      const confirmed = await popup.confirm({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
+        centered: true
+      })
+      if (!confirmed) return
+      try {
+        await clearTopicMessages(activeTopic.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    { enabled: showConversation && isActiveTab }
+  )
 
   const citationsPanelOpen = citationPanelCitations !== null
+  const openCitationInBrowser = useCallback(
+    (url: string) => {
+      if (!activeTopicId) return
+      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      rightPanelActions.tryOpen('browser', { userInitiated: true })
+      setCitationPanelState(null)
+    },
+    [activeTopicId, rightPanelActions]
+  )
 
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setCitationPanelCitations(citations)
-  }, [])
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!activeTopicId) return
+      setShouldMountCitationsPanel(true)
+      setCitationPanelState({ topicId: activeTopicId, citations })
+    },
+    [activeTopicId]
+  )
   const handleAssistantChange = useCallback(
     async (nextAssistantId: string | null) => {
       if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
@@ -177,6 +244,7 @@ const Chat: FC<Props> = (props) => {
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
+        composerModelId={composerModelId}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
@@ -252,18 +320,25 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
           </>
         ) : undefined
       }
       showTopRightToolWhenPaneOpen
       sidePanel={
-        showConversation ? (
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
-            citations={citationPanelCitations ?? []}
-          />
+        showConversation && shouldMountCitationsPanel ? (
+          <React.Suspense fallback={null}>
+            <CitationsPanel
+              openBrowserUrl={openCitationInBrowser}
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelState(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          </React.Suspense>
         ) : undefined
       }
       center={center}

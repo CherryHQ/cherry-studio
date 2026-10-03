@@ -1,3 +1,13 @@
+---
+description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
+sources:
+  - src/main/ai/messages/attachmentRouting.ts
+  - src/main/ai/messages/fileProcessor.ts
+  - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/shared/utils/file/fileExtensions.ts
+  - src/renderer/utils/file.ts
+---
+
 # Chat Attachments
 
 How a user's attached files reach the model on a chat turn.
@@ -57,6 +67,22 @@ external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
 
+## Supported extensions (upload allowlist)
+
+What the composer lets the user pick is `imageExts`, `documentExts`, and
+`textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
+always, plus every linguist-recognized code extension and the `customTextExts`
+additions (dotfiles, config, log, and domain formats such as `.conf`,
+`.config`, `.yaml`, `.toml`, `.ini`) — with `audioExts`/`videoExts` added only
+when the active model(s) support that modality. That union covers C# (`.cs`),
+stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
+files. Unknown extensions are not rejected outright — `isSupportedFile`
+(`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
+content — while recognized binary extensions (executables, archives) stay
+rejected with an aggregate "N files are not supported" toast in the composer.
+Files that attach but cannot be decoded inline reach the model as a short
+unsupported-type note instead (see the routing matrix above).
+
 ## The cap (the only context guard)
 
 Extracted text is bounded so multi-turn context stays in control:
@@ -70,7 +96,8 @@ Default cap ≈ 8k chars/file (tunable).
 
 ## `read_file` — text-only overflow tool
 
-`src/main/ai/tools/fileLookup.ts` + `tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
+`src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
+per-request attachment allow-list from the tool-call context.
 
 - Input `{ filename, offset?, limit? }`. The `filename` is the model-facing
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an

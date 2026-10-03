@@ -61,6 +61,7 @@ const providerKeyMap = {
   ocoolai: 'provider.ocoolai',
   ovms: 'provider.ovms',
   ollama: 'provider.ollama',
+  omlx: 'provider.omlx',
   openai: 'provider.openai',
   'openai-codex': 'provider.openai-codex',
   openrouter: 'provider.openrouter',
@@ -74,6 +75,7 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
+  tokendance: 'provider.tokendance',
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
@@ -90,21 +92,25 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
+  'moonshot-global': 'provider.moonshot-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
-  opencode: 'provider.opencode'
+  opencode: 'provider.opencode',
+  comfyui: 'provider.comfyui'
 } as const
 
 /**
  * 获取内置供应商的本地化标签
  * @param id - 供应商的id
+ * @param fallback - 未登记该 id 时直接返回的值；省略时记录缺失 key
  * @returns 本地化后的供应商名称
  * @remarks
  * 该函数仅用于获取内置供应商的 i18n label
  *
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
-export const getProviderLabelKey = (id: string): string => {
+export const getProviderLabelKey = (id: string, fallback?: string): string => {
+  if (fallback !== undefined && !Object.hasOwn(providerKeyMap, id)) return fallback
   return getLabelKey(providerKeyMap, id)
 }
 

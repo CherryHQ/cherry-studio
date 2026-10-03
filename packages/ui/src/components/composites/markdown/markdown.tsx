@@ -31,6 +31,8 @@ export interface MarkdownProps {
   className?: string
   /** Override the default 'Footnotes' label for i18n. */
   footnoteLabel?: string
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function Markdown({
@@ -42,7 +44,8 @@ export function Markdown({
   remarkPlugins,
   disallowedElements,
   className,
-  footnoteLabel
+  footnoteLabel,
+  preserveFileLinkHrefs
 }: MarkdownProps): ReactElement {
   return (
     <MarkdownCore
@@ -54,7 +57,8 @@ export function Markdown({
       extraRemarkPlugins={remarkPlugins}
       disallowedElements={disallowedElements}
       className={className}
-      footnoteLabel={footnoteLabel}>
+      footnoteLabel={footnoteLabel}
+      preserveFileLinkHrefs={preserveFileLinkHrefs}>
       {children}
     </MarkdownCore>
   )

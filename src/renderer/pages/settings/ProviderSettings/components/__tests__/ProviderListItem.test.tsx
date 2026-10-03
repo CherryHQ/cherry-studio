@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,10 +12,6 @@ vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', (
     providerAvatarMock(props)
     return <span data-testid="provider-avatar" />
   }
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => (key === 'models.type.free' ? 'Translated Free' : key) })
 }))
 
 afterEach(() => {
@@ -49,8 +44,8 @@ describe('ProviderListItem', () => {
     expect(screen.getByTestId('provider-list-drag-handle-silicon-flow')).toBeInTheDocument()
   })
 
-  it('shows a compact Free badge only for AMD GPU Cloud', () => {
-    const { rerender } = render(
+  it('does not add promotional copy to AMD GPU Cloud', () => {
+    render(
       <ProviderListItem
         provider={{ id: 'radeon-cloud', name: 'AMD GPU Cloud' } as any}
         selected={false}
@@ -59,12 +54,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(screen.getByTestId('radeon-cloud-free-badge')).toHaveTextContent('Translated Free')
-    expect(screen.getByTestId('radeon-cloud-free-badge')).toHaveClass('h-4', 'text-[9px]', 'shrink-0')
-
-    rerender(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
-
-    expect(screen.queryByTestId('radeon-cloud-free-badge')).not.toBeInTheDocument()
+    expect(screen.getByRole('button')).toHaveTextContent(/^AMD GPU Cloud$/)
   })
 
   it('shows an enabled-state dot when provider.isEnabled is true', () => {

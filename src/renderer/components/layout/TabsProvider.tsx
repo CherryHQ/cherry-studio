@@ -1,14 +1,24 @@
-import { loggerService } from '@logger'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { TabLruManager } from '@renderer/services/TabLruManager'
-import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
-import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
+
+import { loggerService } from '@logger'
+import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
+import {
+  type CloseConversationTabs,
+  CloseConversationTabsContext,
+  findClosableConversationTabIds,
+  type OpenTabOptions,
+  TabsContext,
+  type TabsContextValue,
+  useConversationNavigationOwner
+} from '@renderer/hooks/tab'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { TabLruManager } from '@renderer/services/TabLruManager'
+import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('TabsProvider')
 
@@ -477,6 +487,21 @@ export function TabsProvider({
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
 
+  const closeConversationTabsStateRef = useRef({ tabs, activeTabId, closeTabs })
+  useLayoutEffect(() => {
+    closeConversationTabsStateRef.current = { tabs, activeTabId, closeTabs }
+  }, [tabs, activeTabId, closeTabs])
+
+  const closeConversationTabs = useCallback<CloseConversationTabs>((appId, keys) => {
+    const {
+      tabs: latestTabs,
+      activeTabId: latestActiveTabId,
+      closeTabs: closeLatestTabs
+    } = closeConversationTabsStateRef.current
+    const tabIds = findClosableConversationTabIds(latestTabs, latestActiveTabId, appId, keys)
+    if (tabIds.length > 0) closeLatestTabs(tabIds)
+  }, [])
+
   /**
    * Open a Tab - reuses existing tab or creates new one
    */
@@ -517,7 +542,7 @@ export function TabsProvider({
   const pinTab = useCallback(
     (id: string) => {
       const tab = tabs.find((t) => t.id === id)
-      if (!tab || tab.isPinned) return
+      if (!tab || tab.isPinned || isTransientMiniAppTab(tab)) return
 
       // Remove from normalTabs
       setNormalTabs((prev) => prev.filter((t) => t.id !== id))
@@ -619,6 +644,8 @@ export function TabsProvider({
   // Listen for tab attach requests (from Main Process)
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
 
+  useConversationNavigationOwner({ tabs, openTab, setActiveTab })
+
   /**
    * Get the currently active tab
    */
@@ -655,5 +682,12 @@ export function TabsProvider({
     reorderTabs
   }
 
-  return <TabsContext value={value}>{children}</TabsContext>
+  return (
+    <CloseConversationTabsContext value={closeConversationTabs}>
+      <TabsContext value={value}>
+        {children}
+        <AgentBrowserRuntimeHost />
+      </TabsContext>
+    </CloseConversationTabsContext>
+  )
 }

@@ -5,9 +5,11 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
+import * as z from 'zod'
+
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
-import * as z from 'zod'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import type { OrderEndpoints } from './_endpointHelpers'
 import { CreateLogoSchema } from './logo'
@@ -43,7 +45,7 @@ export const CreateMiniAppSchema = z.strictObject({
   url: MiniAppUrlSchema,
   /**
    * Custom logo — a preset key only (`{ kind: 'key', key }`). Uploaded images
-   * go through the `mini_app.set_logo` IpcApi command, not this DTO.
+   * go through the `mini_app.settings.set_logo` IpcApi command, not this DTO.
    */
   logo: CreateLogoSchema.optional()
 })
@@ -53,15 +55,20 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
  * Zod schema for updating an existing miniapp.
  *
  * Preset rows may only update `status`; custom rows can also update their
- * user-editable fields. Reordering goes through the dedicated `/order`
+ * user-editable fields; installed (`kind='app'`) rows may only update `status`
+ * and their two model slots. Reordering goes through the dedicated `/order`
  * endpoints, not this PATCH.
  */
 export const UpdateMiniAppSchema = z.strictObject({
   status: MiniAppStatusSchema.optional(),
   name: z.string().min(1).optional(),
-  url: MiniAppUrlSchema.optional()
+  url: MiniAppUrlSchema.optional(),
   // Logo edits (preset key / image upload / clear) go through the
-  // `mini_app.set_logo` IpcApi command, not this PATCH body.
+  // `mini_app.settings.set_logo` IpcApi command, not this PATCH body.
+  /** Installed apps only; `null` = follow the global default model. */
+  aiModelId: UniqueModelIdSchema.nullable().optional(),
+  /** Installed apps only; `null` = follow the global quick model. */
+  aiQuickModelId: UniqueModelIdSchema.nullable().optional()
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

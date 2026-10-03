@@ -1,5 +1,7 @@
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 
 import { ToolRegistry } from '../../registry'
 
@@ -93,7 +95,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: true,
       content: [{ type: 'text', text: 'boom from server' }]
-    } as McpCallToolResponse)
+    })
 
     await expect(execute({ q: 'x' }, { toolCallId: 'call-2' } as any)).rejects.toThrow('boom from server')
   })
@@ -106,7 +108,7 @@ describe('mcpTools execute wrapper', () => {
     const runtimeResult: McpCallToolResponse = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
-    } as McpCallToolResponse
+    }
     callTool.mockResolvedValue(runtimeResult)
     const abortSignal = new AbortController().signal
 
@@ -123,6 +125,42 @@ describe('mcpTools execute wrapper', () => {
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
+  })
+
+  it('rejects Draft 2020-12-invalid deferred arguments before calling the MCP runtime', async () => {
+    const reg = new ToolRegistry()
+    const tool = {
+      ...mcpTool('s1', 't'),
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+        unevaluatedProperties: false
+      }
+    }
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    listTools.mockReturnValue([tool])
+    getById.mockReturnValue(activeServer('s1'))
+    callTool.mockResolvedValue({
+      isError: false,
+      content: [{ type: 'text', text: 'should not run' }]
+    })
+    await syncMcpToolsToRegistry(reg)
+
+    const invoke = createToolInvokeTool(reg, new Set([tool.id]), new Set([tool.id]))
+    const execute = invoke.execute
+    if (!execute) throw new Error('expected tool_invoke to have an execute fn')
+
+    await expect(
+      execute(
+        { name: tool.id, params: { query: 'hello', unexpected: true } },
+        {
+          toolCallId: 'outer-1',
+          messages: []
+        }
+      )
+    ).rejects.toThrow(/Invalid params/)
+    expect(callTool).not.toHaveBeenCalled()
   })
 
   it('executes the explicitly selected server when display names normalize alike', async () => {
@@ -148,7 +186,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
-    } as McpCallToolResponse)
+    })
 
     await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set([reimbursement.id]) })
     const execute = reg.getByName(reimbursement.id)?.tool.execute

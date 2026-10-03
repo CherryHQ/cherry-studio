@@ -7,8 +7,14 @@ const {
   installFromDirectoryMock,
   listLocalMock,
   discoverSystemMock,
+  getByIdMock,
+  getInstalledSkillDirectoryMock,
   importSystemMock,
-  reconcileMock
+  openPathMock,
+  reconcileMock,
+  reconcileSkillMock,
+  checkRemoteUpdateMock,
+  applyRemoteUpdateMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
@@ -16,11 +22,29 @@ const {
   installFromDirectoryMock: vi.fn(),
   listLocalMock: vi.fn(),
   discoverSystemMock: vi.fn(),
+  getByIdMock: vi.fn(),
+  getInstalledSkillDirectoryMock: vi.fn(),
   importSystemMock: vi.fn(),
-  reconcileMock: vi.fn()
+  openPathMock: vi.fn(),
+  reconcileMock: vi.fn(),
+  reconcileSkillMock: vi.fn(),
+  checkRemoteUpdateMock: vi.fn(),
+  applyRemoteUpdateMock: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  shell: { openPath: openPathMock }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
+  SkillRemoteUpdateError: class SkillRemoteUpdateError extends Error {
+    constructor(
+      readonly code: string,
+      message: string
+    ) {
+      super(message)
+    }
+  },
   skillService: {
     install: installMock,
     uninstall: uninstallMock,
@@ -28,8 +52,13 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     installFromDirectory: installFromDirectoryMock,
     listLocal: listLocalMock,
     discoverSystem: discoverSystemMock,
+    getById: getByIdMock,
+    getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
-    reconcileSkills: reconcileMock
+    reconcileSkills: reconcileMock,
+    reconcileSkill: reconcileSkillMock,
+    checkRemoteUpdate: checkRemoteUpdateMock,
+    applyRemoteUpdate: applyRemoteUpdateMock
   }
 }))
 
@@ -106,6 +135,98 @@ describe('skillHandlers', () => {
 
     await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
     expect(reconcileMock).toHaveBeenCalledWith()
+  })
+
+  it('scopes reconcile to one Skill when skillId is present', async () => {
+    reconcileSkillMock.mockResolvedValue(undefined)
+
+    await expect(skillHandlers['skill.reconcile']({ skillId: 's1' }, ctx)).resolves.toBeUndefined()
+    expect(reconcileSkillMock).toHaveBeenCalledExactlyOnceWith('s1')
+    expect(reconcileMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards remote checks and applies while preserving stable domain error codes', async () => {
+    checkRemoteUpdateMock.mockResolvedValue({ state: 'up_to_date', localChanges: false, remoteVersion: '1.0.0' })
+    await expect(skillHandlers['skill.remote.check']({ skillId: 's1' }, ctx)).resolves.toEqual({
+      state: 'up_to_date',
+      localChanges: false,
+      remoteVersion: '1.0.0'
+    })
+
+    const { SkillRemoteUpdateError } = await import('@main/ai/skills/SkillService')
+    applyRemoteUpdateMock.mockRejectedValue(new SkillRemoteUpdateError('SKILL_REMOTE_STALE', 'stale'))
+    await expect(
+      skillHandlers['skill.remote.apply']({ skillId: 's1', revision: 'revision', overwriteLocalChanges: false }, ctx)
+    ).rejects.toMatchObject({ code: 'SKILL_REMOTE_STALE', message: 'stale' })
+  })
+
+  it('opens the registered skill directory without accepting a renderer-supplied path', async () => {
+    const skill = { id: 's1', folderName: 'safe-skill' }
+    getByIdMock.mockResolvedValue(skill)
+    getInstalledSkillDirectoryMock.mockReturnValue('/managed/skills/safe-skill')
+    openPathMock.mockResolvedValue('')
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, ctx)).resolves.toBeUndefined()
+
+    expect(getByIdMock).toHaveBeenCalledWith('s1')
+    expect(getInstalledSkillDirectoryMock).toHaveBeenCalledWith(skill)
+    expect(openPathMock).toHaveBeenCalledWith('/managed/skills/safe-skill')
+  })
+
+  it('resolves the managed directory and marks only builtin Skills as read-only', async () => {
+    getByIdMock
+      .mockResolvedValueOnce({ id: 'local', folderName: 'local-skill', source: 'local' })
+      .mockResolvedValueOnce({ id: 'builtin', folderName: 'builtin-skill', source: 'builtin' })
+    getInstalledSkillDirectoryMock
+      .mockReturnValueOnce('/managed/skills/local-skill')
+      .mockReturnValueOnce('/managed/skills/builtin-skill')
+
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'local' }, ctx)).resolves.toEqual({
+      rootPath: '/managed/skills/local-skill',
+      access: 'read_write'
+    })
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'builtin' }, ctx)).resolves.toEqual({
+      rootPath: '/managed/skills/builtin-skill',
+      access: 'read_only',
+      readOnlyReason: 'builtin'
+    })
+  })
+
+  it('does not resolve a folder when the Skill is no longer installed', async () => {
+    getByIdMock.mockResolvedValue(null)
+
+    await expect(skillHandlers['skill.folder.resolve']({ skillId: 'missing' }, ctx)).rejects.toThrow(
+      'Skill not found: missing'
+    )
+    expect(getInstalledSkillDirectoryMock).not.toHaveBeenCalled()
+  })
+
+  it('does not open a path when the skill is no longer installed', async () => {
+    getByIdMock.mockResolvedValue(null)
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 'missing' }, ctx)).rejects.toThrow(
+      'Skill not found: missing'
+    )
+    expect(openPathMock).not.toHaveBeenCalled()
+  })
+
+  it('does not open a skill folder for a trusted but unmanaged renderer', async () => {
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, { senderId: null })).rejects.toThrow(
+      'Skill folders can only be opened from a managed window'
+    )
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(openPathMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the OS error when the managed skill directory cannot be opened', async () => {
+    const skill = { id: 's1', folderName: 'missing-directory' }
+    getByIdMock.mockResolvedValue(skill)
+    getInstalledSkillDirectoryMock.mockReturnValue('/managed/skills/missing-directory')
+    openPathMock.mockResolvedValue('The file does not exist')
+
+    await expect(skillHandlers['skill.folder.open']({ skillId: 's1' }, ctx)).rejects.toThrow(
+      'Failed to open skill folder: The file does not exist'
+    )
   })
 
   it('import_system lets errors propagate to IpcApi', async () => {

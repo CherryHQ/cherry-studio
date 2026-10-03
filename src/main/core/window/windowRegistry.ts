@@ -254,6 +254,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     //   - backgroundColor / darkTheme (theme snapshot at create time)
     //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
     //   - x / y (only when Tab_Detach payload carries a drop position)
+    //   - zoomFactor (PreferenceService snapshot at open; pre-warmed standbys are
+    //     re-applied at pop — see SubWindowService.createWindow)
     // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
     // every BrowserWindow (see WindowManager.ts:1186-1201). SubWindow inherits both
     // automatically; do NOT attach another setWindowOpenHandler here or in the
@@ -574,9 +576,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     behavior: {
       // screen-saver level puts the overlay above the Dock and menu bar.
       alwaysOnTop: { level: 'screen-saver' },
-      // visibleOnFullScreen lets the overlay cover macOS fullscreen apps; skipTransformProcessType
-      // stops the process-type change that would flash the Dock icon and disturb focus.
-      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      // Keep the overlay on the Space where capture started while still allowing it
+      // above fullscreen apps. skipTransformProcessType avoids Dock/focus churn.
+      visibleOnAllWorkspaces: { enabled: false, visibleOnFullScreen: true, skipTransformProcessType: true },
       macShowInDock: false
     },
     quirks: {
@@ -677,5 +679,5 @@ export function mergeWindowOptions(
   // Strip platformOverrides from the returned object so it never leaks to `new BrowserWindow(...)`.
   const rest: Record<string, unknown> = { ...merged }
   delete rest.platformOverrides
-  return rest as Omit<WindowOptions, 'platformOverrides'>
+  return rest
 }

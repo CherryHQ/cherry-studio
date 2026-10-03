@@ -1,7 +1,8 @@
-import { MODALITY } from '@cherrystudio/provider-registry'
-import type { Model } from '@shared/data/types/model'
 import type { ModelMessage, UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import { MODALITY } from '@cherrystudio/provider-registry'
+import type { Model } from '@shared/data/types/model'
 
 import {
   gateToolResultMedia,
@@ -13,12 +14,11 @@ import {
 
 const model = (inputModalities: string[]): Model => ({ capabilities: [], inputModalities }) as unknown as Model
 
-const fileMsg = (mediaType: string): UIMessage =>
-  ({
-    id: 'm',
-    role: 'user',
-    parts: [{ type: 'file', mediaType, url: 'data:application/octet-stream;base64,AA' }]
-  }) as UIMessage
+const fileMsg = (mediaType: string): UIMessage => ({
+  id: 'm',
+  role: 'user',
+  parts: [{ type: 'file', mediaType, url: 'data:application/octet-stream;base64,AA' }]
+})
 
 describe('resolveMediaCapabilities', () => {
   it('derives modality flags from the model', () => {
@@ -125,24 +125,23 @@ describe('resolveToolResultMediaCapabilities', () => {
 describe('routeToolResultMedia', () => {
   const VISION = { image: true, video: false, audio: false }
   const NO_TOOL_MEDIA = { image: false, video: false, audio: false }
-  const imageToolMessage = (toolCallId: string): ModelMessage =>
-    ({
-      role: 'tool',
-      content: [
-        {
-          type: 'tool-result',
-          toolCallId,
-          toolName: 'mcp_resource_read',
-          output: {
-            type: 'content',
-            value: [
-              { type: 'text', text: 'saved to /tmp/image.png' },
-              { type: 'image-data', data: 'BASE64', mediaType: 'image/png' }
-            ]
-          }
+  const imageToolMessage = (toolCallId: string): ModelMessage => ({
+    role: 'tool',
+    content: [
+      {
+        type: 'tool-result',
+        toolCallId,
+        toolName: 'mcp_resource_read',
+        output: {
+          type: 'content',
+          value: [
+            { type: 'text', text: 'saved to /tmp/image.png' },
+            { type: 'image-data', data: 'BASE64', mediaType: 'image/png' }
+          ]
         }
-      ]
-    }) as ModelMessage
+      }
+    ]
+  })
 
   it('relocates an image after the complete tool-result run when the model sees images but its wire cannot', () => {
     const routed = routeToolResultMedia(

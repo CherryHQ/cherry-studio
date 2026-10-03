@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+
 import * as z from 'zod'
 
 import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
@@ -36,6 +37,23 @@ export async function handleLsTool(args: unknown, baseDir: string) {
 
   const targetPath = parsed.data.path || baseDir
   const validPath = await validatePath(targetPath, baseDir)
+
+  // Verify the target exists and is a directory before walking it: the recursive
+  // walk below treats an unreadable directory as empty, so without this check a
+  // missing or non-directory path is reported as "(empty directory)" instead of
+  // the real error. Same contract `glob` and `read` apply to their targets.
+  try {
+    const stats = await fs.stat(validPath)
+    if (!stats.isDirectory()) {
+      throw new Error(`Path is not a directory: ${validPath}`)
+    }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      throw new Error(`Directory not found: ${validPath}`)
+    }
+    throw error
+  }
+
   const recursive = parsed.data.recursive || false
 
   interface TreeNode {
@@ -99,7 +117,15 @@ export async function handleLsTool(args: unknown, baseDir: string) {
       }
 
       return nodes
-    } catch (error) {
+    } catch (error: unknown) {
+      // A subdirectory that cannot be listed is skipped so one unreadable folder
+      // does not abort the whole tree, but the root was verified above, so
+      // reaching this point at depth 0 means the listing failed for a real
+      // reason (e.g. permissions) and must not read as an empty directory.
+      if (depth === 0) {
+        throw error
+      }
+      logger.debug('Skipping unreadable directory', { path: dirPath })
       return []
     }
   }

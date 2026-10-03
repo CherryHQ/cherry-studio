@@ -1,3 +1,9 @@
+import type { TFunction } from 'i18next'
+import { AlertCircle, Download, Languages, X } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, CircularProgress, EmptyState, Tooltip } from '@cherrystudio/ui'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -13,11 +19,6 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgressStage, PdfTranslationStage } from '@shared/ipc/schemas/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { TFunction } from 'i18next'
-import { AlertCircle, Download, Languages, X } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { saveTranslationFileAs } from '../translationFiles'
 
@@ -321,7 +322,7 @@ const PdfTranslationView = ({
   })
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
         <PdfPane
           header={
@@ -393,12 +394,17 @@ const PdfTranslationResult = ({
 
       const roundedOverallProgress = Math.round(state.progress.overallProgress)
       const roundedStageProgress = Math.round(state.progress.stageProgress)
+      const displayProgress =
+        state.progress.stage === 'checking_assets' || state.progress.stage === 'downloading_assets'
+          ? state.progress.stageProgress
+          : state.progress.overallProgress
+      const roundedDisplayProgress = Math.round(displayProgress)
       return (
         <div className="flex h-full items-center justify-center">
           <PdfProgress
-            progress={state.progress.overallProgress}
+            progress={displayProgress}
             label={progressLabel}
-            percentLabel={t('translate.pdf.progress.percent', { progress: roundedOverallProgress })}
+            percentLabel={t('translate.pdf.progress.percent', { progress: roundedDisplayProgress })}
             valueText={t('translate.pdf.progress.value', {
               stage: progressLabel,
               overallProgress: roundedOverallProgress,

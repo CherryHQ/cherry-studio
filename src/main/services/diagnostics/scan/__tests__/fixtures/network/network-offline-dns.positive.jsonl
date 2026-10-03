@@ -1,0 +1,2 @@
+{"level":"error","message":"update error net::ERR_INTERNET_DISCONNECTED","module":"AppUpdater","process":"main","timestamp":"2026-08-20 11:00:00"}
+{"level":"error","message":"getaddrinfo ENOTFOUND api.example.test","stack":"Error: getaddrinfo ENOTFOUND api.example.test\n    at GetAddrInfoReqWrap","timestamp":"2026-08-19 11:00:00"}

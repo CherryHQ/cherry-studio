@@ -3,9 +3,16 @@ import * as path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import {
+  COMPRESSION_MAX_OUTPUT_TOKENS,
+  COMPRESSION_MIN_OUTPUT_TOKENS
+} from '../../../packages/aiCore/src/core/context/middleware'
 import { appLanguageOptions } from '../../../src/renderer/i18n/languages'
+import { DEFAULT_CONTEXT_SETTINGS, MIN_TRUNCATE_THRESHOLD } from '../../../src/shared/data/types/contextSettings'
+import { McpServerInstallSourceSchema, McpServerTypeSchema } from '../../../src/shared/data/types/mcpServer'
 import { CodeCli } from '../../../src/shared/types/codeCli'
 import { COMMAND_DEFINITIONS } from '../../../src/shared/utils/command/definitions'
+import { knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../../../src/shared/utils/file/fileExtensions'
 import { generateProductManifest, serializeProductManifest } from '../generators/manifest'
 
 describe('generateProductManifest', () => {
@@ -65,6 +72,21 @@ describe('generateProductManifest', () => {
     expect(new Set(manifest.agents.scheduleTriggerKinds).size).toBe(manifest.agents.scheduleTriggerKinds.length)
     expect(manifest.agents.codeCli.route).toBe(manifest.routes.primary.find(({ id }) => id === 'code_tools')?.path)
     expect(manifest.agents.codeCli.tools).toEqual(Object.values(CodeCli))
+  })
+
+  it('includes feature-level catalog derived from source-of-truth constants', () => {
+    const manifest = generateProductManifest()
+
+    expect(manifest.features.context.defaults).toEqual(DEFAULT_CONTEXT_SETTINGS)
+    expect(manifest.features.context.limits).toEqual({
+      minTruncateThreshold: MIN_TRUNCATE_THRESHOLD,
+      compressionMinOutputTokens: COMPRESSION_MIN_OUTPUT_TOKENS,
+      compressionMaxOutputTokens: COMPRESSION_MAX_OUTPUT_TOKENS
+    })
+    expect(manifest.features.mcp.serverTypes).toEqual([...McpServerTypeSchema.options])
+    expect(manifest.features.mcp.installSources).toEqual([...McpServerInstallSourceSchema.options])
+    expect(manifest.features.knowledge.supportedFileExtensions).toEqual([...knowledgeSupportedFileExts])
+    expect(manifest.features.knowledge.fileProcessingExtensions).toEqual([...knowledgeFileProcessingExts])
   })
 
   it('serializes the manifest as stable JSON', () => {

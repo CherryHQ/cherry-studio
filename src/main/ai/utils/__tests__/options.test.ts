@@ -1,13 +1,20 @@
+import { createOpenAI } from '@ai-sdk/openai'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { generateText } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
+
+import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
 
@@ -32,6 +39,58 @@ describe('applyFastModeToProviderOptions', () => {
     })
     expect(applyFastModeToProviderOptions(provider, { ...model, supportsFastMode: false }, {}, true)).toEqual({})
     expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
+  })
+
+  it('honours a provider-declared service tier value (Ark asks for fast, not priority)', () => {
+    expect(
+      applyFastModeToProviderOptions(
+        { fastMode: { transport: 'openai-priority', serviceTier: 'fast' } },
+        model,
+        {},
+        true
+      )
+    ).toEqual({ openai: { serviceTier: 'fast' } })
+  })
+
+  it('sends no service tier for SDK-carried transports (claude-code)', () => {
+    expect(applyFastModeToProviderOptions({ fastMode: { transport: 'claude-code' } }, model, {}, true)).toEqual({})
+  })
+})
+
+describe('service tier provider options', () => {
+  const control = {
+    default: 'standard',
+    options: ['standard', 'auto', 'fast', 'flex'],
+    wire: {
+      delivery: { type: 'provider-option', key: 'serviceTier' },
+      values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+    }
+  } satisfies ResolvedServiceTierControl
+
+  it('maps the canonical selection while preserving existing provider options', () => {
+    expect(applyServiceTierToProviderOptions({ groq: { parallelToolCalls: true } }, 'groq', control, 'fast')).toEqual({
+      groq: { parallelToolCalls: true, serviceTier: 'performance' }
+    })
+  })
+
+  it('falls back to the endpoint default for an unsupported saved selection', () => {
+    const restricted = { ...control, options: ['standard', 'auto', 'flex'] } satisfies ResolvedServiceTierControl
+    expect(resolveServiceTierWireValue(restricted, 'fast')).toBe('on_demand')
+  })
+
+  it('does not write provider options for request-body delivery', () => {
+    const requestBodyControl = {
+      ...control,
+      wire: { ...control.wire, delivery: { type: 'request-body' as const, key: 'service_tier' } }
+    }
+    expect(
+      applyServiceTierToProviderOptions(
+        { anthropic: { cacheControl: true, service_tier: 'custom' } },
+        'anthropic',
+        requestBodyControl,
+        'flex'
+      )
+    ).toEqual({ anthropic: { cacheControl: true } })
   })
 })
 
@@ -74,11 +133,7 @@ describe('extractAiSdkStandardParams', () => {
 describe('mergeCustomProviderParameters', () => {
   it('Case 1: key in actualAiSdkProviderIds → merge directly', () => {
     const initial = { openai: { reasoningEffort: 'low' as never } }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { openai: { customFlag: true } },
-      'openai'
-    )
+    const result = mergeCustomProviderParameters(initial, { openai: { customFlag: true } }, 'openai')
     expect(result).toEqual({
       openai: { reasoningEffort: 'low', customFlag: true }
     })
@@ -87,41 +142,25 @@ describe('mergeCustomProviderParameters', () => {
   it('Case 2 (proxy): key === rawProviderId, not in actualAiSdkProviderIds → map to primary', () => {
     // CherryIn proxy emits `google` as the actual SDK provider; user writes `cherryin: {...}`.
     const initial = { google: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { cherryin: { proxyOpt: 'val' } },
-      'cherryin'
-    )
+    const result = mergeCustomProviderParameters(initial, { cherryin: { proxyOpt: 'val' } }, 'cherryin')
     expect(result).toEqual({ google: { proxyOpt: 'val' } })
   })
 
   it('Case 2 (gateway): preserves gateway key for routing', () => {
     const initial = { gateway: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { gateway: { order: ['openai', 'anthropic'] } },
-      'gateway'
-    )
+    const result = mergeCustomProviderParameters(initial, { gateway: { order: ['openai', 'anthropic'] } }, 'gateway')
     expect(result).toEqual({ gateway: { order: ['openai', 'anthropic'] } })
   })
 
   it('Case 3: regular params merged onto primary provider', () => {
     const initial = { google: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { customKey: 'customVal' },
-      'google'
-    )
+    const result = mergeCustomProviderParameters(initial, { customKey: 'customVal' }, 'google')
     expect(result).toEqual({ google: { customKey: 'customVal' } })
   })
 
   it('renames `reasoning_effort` → `reasoningEffort` for openai-compatible providers', () => {
     const initial = { 'openai-compatible': {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { reasoning_effort: 'high' },
-      'openai-compatible'
-    )
+    const result = mergeCustomProviderParameters(initial, { reasoning_effort: 'high' }, 'openai-compatible')
     // The key should be renamed and applied to the primary (openai-compatible) provider.
     expect(result).toEqual({
       'openai-compatible': { reasoningEffort: 'high' }
@@ -131,7 +170,7 @@ describe('mergeCustomProviderParameters', () => {
   it('does NOT clobber existing reasoningEffort with renamed reasoning_effort', () => {
     const initial = { 'openai-compatible': {} }
     const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
+      initial,
       { reasoning_effort: 'high', reasoningEffort: 'low' },
       'openai-compatible'
     )
@@ -139,9 +178,39 @@ describe('mergeCustomProviderParameters', () => {
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
   })
 
+  it('normalizes reasoning_effort → reasoningEffort for github-copilot-openai-compatible (#11140)', () => {
+    // Mirror the OpenAI-compatible path: AI SDK silently drops snake_case keys, so a
+    // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
+    // to `reasoningEffort` before being merged into the `copilot` provider namespace.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect(result).toEqual({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+  })
+
+  it('does NOT clobber existing reasoningEffort with renamed reasoning_effort for github-copilot (#11140)', () => {
+    // Mirror the openai-compatible clobber test: when the user's custom params carry BOTH
+    // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
+    // the existing camelCase wins and the snake_case form is dropped.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high', reasoningEffort: 'low' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect((result['copilot'] as Record<string, unknown>).reasoningEffort).toBe('low')
+    expect((result['copilot'] as Record<string, unknown>).reasoning_effort).toBeUndefined()
+  })
+
   it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {
     const result = mergeCustomProviderParameters(
-      { dashscope: {} } as Record<string, Record<string, never>>,
+      { dashscope: {} },
       { dashscope: { reasoning_effort: 'high' } },
       'dashscope',
       'openai-compatible'
@@ -152,7 +221,7 @@ describe('mergeCustomProviderParameters', () => {
 
   it('does not rewrite a nested extra_body reasoning_effort field', () => {
     const result = mergeCustomProviderParameters(
-      { poe: {} } as Record<string, Record<string, never>>,
+      { poe: {} },
       { extra_body: { reasoning_effort: 'high' } },
       'poe',
       'openai-compatible'
@@ -163,11 +232,7 @@ describe('mergeCustomProviderParameters', () => {
 
   it('preserves unrelated providerOptions entries', () => {
     const initial = { google: { thinkingConfig: { mode: 'auto' as never } }, anthropic: { cacheControl: {} as never } }
-    const result = mergeCustomProviderParameters(
-      initial as unknown as Record<string, Record<string, never>>,
-      { google: { extra: 1 } },
-      'google'
-    )
+    const result = mergeCustomProviderParameters(initial, { google: { extra: 1 } }, 'google')
     expect(result.anthropic).toEqual({ cacheControl: {} })
     expect(result.google).toMatchObject({ thinkingConfig: { mode: 'auto' }, extra: 1 })
   })
@@ -180,11 +245,7 @@ describe('customParameters → providerOptions plugin contract', () => {
   it('splits standardParams to root and providerParams to providerOptions[primaryId]', () => {
     const flat = { topK: 40, customFlag: true }
     const { standardParams, providerParams } = extractAiSdkStandardParams(flat)
-    const providerOptions = mergeCustomProviderParameters(
-      { openai: {} } as Record<string, Record<string, never>>,
-      providerParams,
-      'openai'
-    )
+    const providerOptions = mergeCustomProviderParameters({ openai: {} }, providerParams, 'openai')
     expect(standardParams).toEqual({ topK: 40 })
     expect(providerOptions).toEqual({ openai: { customFlag: true } })
   })
@@ -215,7 +276,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
       id: providerOptionsKey,
       name: providerOptionsKey,
       settings: {},
-      apiFeatures: {}
+      reportsActualCost: false
     } as Provider
     const capabilityOptions = buildCapabilityProviderOptions(
       model,
@@ -241,6 +302,46 @@ describe('OpenAI-compatible reasoning normalization', () => {
       expect(options[providerOptionsKey].reasoning_effort).toBeUndefined()
     }
   })
+
+  it.each(['none', 'high'] as const)('serializes custom Responses reasoning effort %s on the wire', async (effort) => {
+    const reasoning: ResolvedReasoningInvocation = {
+      kind: effort === 'none' ? 'off' : 'effort',
+      selection: effort,
+      ...(effort === 'high' ? { effort } : {}),
+      emissions: [{ target: 'reasoningEffort', value: effort }]
+    }
+    const providerOptions = buildResolvedReasoningProviderOptions({
+      aiSdkProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      reasoning
+    })
+    const fetchMock = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: 'resp_1',
+            created_at: 1,
+            model: 'deepseek-v4-flash',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1 },
+            incomplete_details: null,
+            service_tier: null
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+    )
+    const openai = createOpenAI({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch })
+
+    await generateText({
+      model: openai.responses('deepseek-v4-flash'),
+      prompt: 'ping',
+      providerOptions: providerOptions as ProviderOptions
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+    expect(body.reasoning).toEqual({ effort })
+  })
 })
 
 describe('buildCapabilityProviderOptions', () => {
@@ -258,24 +359,14 @@ describe('buildCapabilityProviderOptions', () => {
     const provider = {
       id: 'openai',
       name: 'OpenAI',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false,
-        reportsActualCost: false,
-        enableThinking: true
-      },
+      reportsActualCost: false,
       apiKeys: [],
       authType: 'api-key',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
       },
-      settings: {
-        summaryText: 'detailed'
-      },
+      settings: {},
       isEnabled: true
     } as Provider
 
@@ -499,7 +590,7 @@ describe('buildCapabilityProviderOptions', () => {
         {
           id: 'vertex',
           settings: {},
-          apiFeatures: {}
+          reportsActualCost: false
         } as Provider,
         {
           enableReasoning: false,
@@ -536,7 +627,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         id: 'ollama',
         settings: {},
-        apiFeatures: {}
+        reportsActualCost: false
       } as Provider,
       {
         enableReasoning: false,
@@ -559,7 +650,7 @@ describe('buildCapabilityProviderOptions', () => {
     expect(result).toMatchObject({ ollama: { options: { num_ctx: 32_768 } } })
   })
 
-  it('omits num_ctx for Ollama models without a configured contextWindow', () => {
+  it('omits num_ctx for an Ollama model whose contextWindow could not be read', () => {
     const result = buildCapabilityProviderOptions(
       {
         id: 'ollama::qwen3:32b',
@@ -570,7 +661,7 @@ describe('buildCapabilityProviderOptions', () => {
       {
         id: 'ollama',
         settings: {},
-        apiFeatures: {}
+        reportsActualCost: false
       } as Provider,
       {
         enableReasoning: false,
@@ -590,6 +681,8 @@ describe('buildCapabilityProviderOptions', () => {
       }
     )
 
+    // Not a fixed floor: Ollama sizes by available VRAM (4k / 32k / 256k) when num_ctx is
+    // absent, so substituting a guess would shrink the window on a well-provisioned machine.
     expect(result.ollama).not.toHaveProperty('options')
   })
 })

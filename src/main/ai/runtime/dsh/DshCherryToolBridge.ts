@@ -1,21 +1,16 @@
 import { createHash } from 'node:crypto'
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+
 import { application } from '@application'
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 import { dshToolResultErrorText, projectDshToolResult } from './dshToolResultProjection'
@@ -51,24 +46,23 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-const toDshRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildDshCherryToolName(serverName, toolName)
-}
+export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
-export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
-  buildDshCherryToolName('agent-memory', 'memory'),
-  buildDshCherryToolName('skills', 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
-export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
 /** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
 export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
@@ -135,7 +129,8 @@ export async function buildDshCherryToolBridge(
       const result = (await binding.client.callTool(
         { name: binding.rawName, arguments: toToolArguments(args) },
         undefined,
-        signal ? { signal } : undefined
+        // Forwarding only: no timeout policy at this layer — McpRuntimeService owns it (#20266).
+        { signal, timeout: MCP_FORWARDING_TIMEOUT_MS }
       )) as CallToolResult
       if (result.isError) throw new Error(dshToolResultErrorText(result.content, binding.rawName))
       const text = await projectDshToolResult(result.content, binding.rawName, {
@@ -154,7 +149,7 @@ function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescripto
   return {
     name: buildDshCherryToolName(serverName, tool.name),
     description: tool.description ?? '',
-    inputSchema: tool.inputSchema as Record<string, unknown>
+    inputSchema: tool.inputSchema
   }
 }
 

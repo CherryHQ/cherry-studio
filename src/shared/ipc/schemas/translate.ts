@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import { type TranslateLangCode, TranslateLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -19,9 +20,7 @@ export const translateRequestSchemas = {
     input: z.object({
       streamId: z.string(),
       text: z.string(),
-      targetLangCode: z.custom<TranslateLangCode>(),
-      messageId: z.string().optional(),
-      sourceLangCode: z.custom<TranslateLangCode>().optional()
+      targetLangCode: z.custom<TranslateLangCode>()
     }),
     output: z.object({ streamId: z.string() })
   }),

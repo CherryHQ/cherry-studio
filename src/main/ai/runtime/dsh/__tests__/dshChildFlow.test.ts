@@ -1,17 +1,20 @@
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { DshRuntimeEvent } from '@cherrystudio/dsh-bridge'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DshSubagentCoordinator, type DshSubagentSink } from '../dshChildFlow'
 
 const MAIN = 'main-session'
 
 let seq = 0
-const event = (type: string, data: unknown): SessionEvent =>
-  ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
+const event = (type: string, data: unknown): DshRuntimeEvent =>
+  ({ type, seq: ++seq, time: Date.now(), data }) as unknown as DshRuntimeEvent
 
-const textDelta = (turn: number, index: number, text: string) =>
-  event('assistant/chunk', { turn, step: 0, chunk: { type: 'text-delta', index, text } })
+const textDelta = (turn: number, index: number, text: string): DshRuntimeEvent => ({
+  type: 'assistant/chunk',
+  data: { turn, step: 0, chunk: { type: 'text-delta', index, text } }
+})
 
 const toolCall = (callId: string, name: string, args: Record<string, unknown> = {}) =>
   event('tool/call', { callId, name, arguments: JSON.stringify(args) })
@@ -30,7 +33,7 @@ function spawnAnchor(callId: string, description: string, toolName = 'subagent')
     toolCallId: callId,
     toolName,
     input: { description, prompt: 'go' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
@@ -39,11 +42,11 @@ function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
     toolCallId: callId,
     toolName: 'send_message',
     input: { subagent_id: subagentId, message: 'go on' }
-  } as CherryUIMessageChunk
+  }
 }
 
 function toolError(callId: string): CherryUIMessageChunk {
-  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' } as CherryUIMessageChunk
+  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' }
 }
 
 function makeSink() {
@@ -72,6 +75,18 @@ beforeEach(() => {
 })
 
 describe('DshSubagentCoordinator binding', () => {
+  it('holds work when the SDK creation arrives before the lifecycle pipe', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'review'))
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true])
+    coordinator.handleLifecycle(startEdge('child', 'run'))
+    coordinator.handleLifecycle(endEdge('child', 'run'))
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+    coordinator.handleSdkSubagentStarted(MAIN, 'child')
+    expect(sink.emitTasks.mock.lastCall?.[0]).toEqual([])
+    expect(sink.emitWorkState.mock.calls.map(([active]) => active)).toEqual([true, false])
+  })
+
   it('binds the child to its spawning tool call and parents its content chunks', () => {
     coordinator.noteMainChunk(spawnAnchor('call-1', 'research task'))
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
@@ -193,7 +208,7 @@ describe('DshSubagentCoordinator binding', () => {
       toolCallId: 'call-x',
       toolName: 'read',
       input: { file_path: 'a.txt' }
-    } as CherryUIMessageChunk)
+    })
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleChildEvent('child-1', textDelta(0, 0, 'x'))
     // No anchor → still buffered, nothing mis-parented under call-x.
@@ -269,8 +284,9 @@ describe('DshSubagentCoordinator child projection', () => {
       'child-1',
       event('tool/result', {
         message: {
-          role: 'user',
-          content: [{ type: 'tool-result', toolCallId: 'c-tool-1', content: [{ type: 'text', text: 'file body' }] }],
+          role: 'tool',
+          toolCallId: 'c-tool-1',
+          content: [{ type: 'text', text: 'file body' }],
           source: { kind: 'tool', callId: 'c-tool-1' }
         }
       })
@@ -294,15 +310,10 @@ describe('DshSubagentCoordinator child projection', () => {
       event('tool/result', {
         error: 'denied',
         message: {
-          role: 'user',
-          content: [
-            {
-              type: 'tool-result',
-              toolCallId: 'c-tool-2',
-              isError: true,
-              content: [{ type: 'text', text: 'permission denied' }]
-            }
-          ],
+          role: 'tool',
+          toolCallId: 'c-tool-2',
+          isError: true,
+          content: [{ type: 'text', text: 'permission denied' }],
           source: { kind: 'tool', callId: 'c-tool-2' }
         }
       })
@@ -319,6 +330,30 @@ describe('DshSubagentCoordinator child projection', () => {
         turn: 2,
         usage: { inputTokens: 100, outputTokens: 20 },
         model: 'deepseek-chat'
+      })
+    )
+  })
+
+  it('records failed provider attempts from assistant/attempt events', () => {
+    coordinator.handleChildEvent(
+      'child-1',
+      event('assistant/attempt', {
+        turn: 3,
+        step: 1,
+        stream: [
+          {
+            type: 'chunk',
+            time: Date.now(),
+            chunk: { type: 'usage', usage: { inputTokens: 12, outputTokens: 3 } }
+          }
+        ]
+      })
+    )
+    expect(sink.recordChildUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childSessionId: 'child-1',
+        turn: 3,
+        usage: { inputTokens: 12, outputTokens: 3 }
       })
     )
   })
@@ -342,8 +377,9 @@ describe('DshSubagentCoordinator destination pinning', () => {
       'child-1',
       event('tool/result', {
         message: {
-          role: 'user',
-          content: [{ type: 'tool-result', toolCallId: 'c-tool-1', content: [{ type: 'text', text: 'ok' }] }],
+          role: 'tool',
+          toolCallId: 'c-tool-1',
+          content: [{ type: 'text', text: 'ok' }],
           source: { kind: 'tool', callId: 'c-tool-1' }
         }
       })
@@ -364,8 +400,9 @@ describe('DshSubagentCoordinator destination pinning', () => {
       'child-1',
       event('tool/result', {
         message: {
-          role: 'user',
-          content: [{ type: 'tool-result', toolCallId: 'c-tool-2', content: [{ type: 'text', text: 'out' }] }],
+          role: 'tool',
+          toolCallId: 'c-tool-2',
+          content: [{ type: 'text', text: 'out' }],
           source: { kind: 'tool', callId: 'c-tool-2' }
         }
       })

@@ -1,3 +1,13 @@
+---
+description: How to add boot config keys to the auto-generated schema, plus the V1-to-V2 boot config migration pipeline
+sources:
+  - src/shared/data/bootConfig/bootConfigSchemas.ts
+  - src/shared/data/bootConfig/bootConfigTypes.ts
+  - src/main/data/bootConfig
+  - scripts/data-classify/scripts/generate-boot-config.js
+  - scripts/data-classify/data/classification.json
+---
+
 # Boot Config Schema Guide
 
 This guide explains how to add new boot config keys and covers the V1-to-V2 data migration pipeline.
@@ -39,7 +49,7 @@ Boot config keys follow the same naming convention as preferences.
 
 ## Adding a New Boot Config Key
 
-### Step 1: Add to Schema
+### Step 1: Add to the Generator Input
 
 **File:** `src/shared/data/bootConfig/bootConfigSchemas.ts` (auto-generated — do not edit by hand)
 
@@ -59,7 +69,11 @@ export const DefaultBootConfig: BootConfigSchema = {
 }
 ```
 
-> **This file is fully auto-generated.** To add a key, edit `classification.json` (simple `boolean`/`string`/`number` types map to zod automatically) or `MANUAL_BOOT_CONFIG_ITEMS` in the generator (complex types need an explicit `zodType` expression), then regenerate — see [V1 to V2 Data Migration](#v1-to-v2-data-migration) below.
+> **This file is fully auto-generated.** For a key migrated from a supported v1
+> source, edit `classification.json`. For a new key without a legacy source, or
+> a config-file-sourced key, add it to `MANUAL_BOOT_CONFIG_ITEMS` in
+> `generate-boot-config.js`. Complex types need an explicit `zodType`
+> expression. Then regenerate as described below.
 
 ### Step 2: Add Custom Types (if needed)
 
@@ -113,7 +127,7 @@ For detailed usage of `usePreference`, see [Preference Usage Guide](./preference
 
 ### Overview
 
-The `v2-refactor-temp/tools/data-classify/` directory contains the code generation pipeline for migrating legacy data into V2 systems. `classification.json` is the single source of truth that classifies every legacy key into its target system (Preference, BootConfig, Cache, or DataApi).
+The `scripts/data-classify/` directory contains the code generation pipeline for migrating legacy data into V2 systems. `classification.json` is the single source of truth that classifies every legacy key into its target system (Preference, BootConfig, Cache, or DataApi).
 
 ### How It Works
 
@@ -131,14 +145,17 @@ The `v2-refactor-temp/tools/data-classify/` directory contains the code generati
 | ElectronStore | `ElectronStoreReader.get(key)` | Direct key lookup |
 | Dexie settings | Key-value table | Direct key lookup |
 | localStorage | `localStorage.getItem(key)` | Direct key lookup |
-| Legacy home config file | `LegacyHomeConfigReader` | `~/.cherrystudio/config/config.json` (`appDataPath` field only) |
+| Legacy home config file | `LegacyHomeConfigReader` | `{cherryHome}/config/config.json` (`appDataPath` field only) |
 
 > **Config-file source mappings are manually maintained.** The `data-classify` toolchain's `classification.json` doesn't model config-file sources yet. In two places, a small hand-maintained list complements the classification-driven pipeline:
 >
-> - **Schema keys**: `MANUAL_BOOT_CONFIG_ITEMS` at the top of `v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js` — these items are merged with the classification-derived items and emitted into `bootConfigSchemas.ts` as part of the normal auto-generated output. The resulting schema file is fully auto-generated (no manual sections). Each manual item needs an explicit `zodType` expression string (classification-derived simple types map to zod automatically); the generator aborts on items it cannot map.
+> - **Schema keys**: `MANUAL_BOOT_CONFIG_ITEMS` at the top of `scripts/data-classify/scripts/generate-boot-config.js` — these items are merged with the classification-derived items and emitted into `bootConfigSchemas.ts` as part of the normal auto-generated output. The resulting schema file is fully auto-generated (no manual sections). Each manual item needs an explicit `zodType` expression string (classification-derived simple types map to zod automatically); the generator aborts on items it cannot map.
 > - **Mappings**: inline `configFileMappings` inside `BootConfigMigrator.loadMigrationItems()` — a small `ReadonlyArray<{ originalKey: string; targetKey: BootConfigKey }>` whose `BootConfigKey` annotation is the regen safety net: if the schema loses `app.user_data_path`, this array fails to compile at its declaration site.
 >
-> To add a new config-file-sourced key in the future: add an entry to `MANUAL_BOOT_CONFIG_ITEMS` in the generator, add the matching entry to `BootConfigMigrator.loadMigrationItems()`'s `configFileMappings`, and run `npm run generate`.
+> To add a config-file-sourced key, add an entry to
+> `MANUAL_BOOT_CONFIG_ITEMS`, add the matching entry to
+> `BootConfigMigrator.loadMigrationItems()`'s `configFileMappings`, and run
+> `npm run generate`.
 
 ### Adding a Migration Mapping
 
@@ -162,7 +179,7 @@ To migrate a legacy key to boot config:
 2. Regenerate mappings:
 
 ```bash
-cd v2-refactor-temp/tools/data-classify && npm run generate
+cd scripts/data-classify && npm run generate
 ```
 
 3. Verify the generated output in `BootConfigMappings.ts`
@@ -172,16 +189,19 @@ cd v2-refactor-temp/tools/data-classify && npm run generate
 | Legacy Source | Legacy Key | Target Key |
 |---------------|-----------|------------|
 | Redux (`settings`) | `disableHardwareAcceleration` | `app.disable_hardware_acceleration` |
-| Config file (`~/.cherrystudio/config/config.json`) | `appDataPath` | `app.user_data_path` |
+| Config file (`{cherryHome}/config/config.json`) | `appDataPath` | `app.user_data_path` |
 
 #### AppImage / Windows Portable Executable Path
 
-The v1 `~/.cherrystudio/config/config.json` stores `appDataPath` as an array of `{ executablePath, dataPath }` entries keyed by executable path. On AppImage Linux builds and Windows portable builds, `src/main/utils/init.ts:51-60` writes a **special** `executablePath` that differs from `app.getPath('exe')`:
+The v1 `{cherryHome}/config/config.json` stores `appDataPath` as an array of `{ executablePath, dataPath }` entries keyed by executable path. `{cherryHome}` defaults to `~/.cherrystudio`; unpackaged runs with `CS_DEV_PROFILE_ROOT` use `{profileRoot}/.cherrystudio`. AppImage Linux builds and Windows portable builds use a normalized executable key that differs from `app.getPath('exe')`:
 
 - AppImage: `path.dirname(process.env.APPIMAGE) + '/cherry-studio.appimage'`
 - Windows portable: `process.env.PORTABLE_EXECUTABLE_DIR + '/cherry-studio-portable.exe'`
 
-Consumers of `app.user_data_path` must use `getNormalizedExecutablePath()` from `src/main/core/preboot/userDataLocation.ts` so migrated records under AppImage/portable match the lookup key.
+`resolveMigrationPaths()` and the runtime user-data-location resolver both use
+`getNormalizedExecutablePath()` from
+`src/main/core/preboot/userDataLocation.ts`, keeping migration and lookup on the
+same key.
 
 ## File Structure
 
@@ -191,8 +211,8 @@ Consumers of `app.user_data_path` must use `getNormalizedExecutablePath()` from 
 | `src/shared/data/bootConfig/bootConfigTypes.ts` | `BootConfigKey`, `Public`/`InternalBootConfigKey`, `BootConfigPreferenceKeys` mapped type |
 | `src/main/data/bootConfig/BootConfigService.ts` | Service implementation |
 | `src/main/data/bootConfig/types.ts` | `BootConfigLoadError` type |
-| `v2-refactor-temp/tools/data-classify/data/classification.json` | Migration source of truth |
-| `v2-refactor-temp/tools/data-classify/scripts/generate-boot-config.js` | Schema generator (migration) |
+| `scripts/data-classify/data/classification.json` | Migration source of truth |
+| `scripts/data-classify/scripts/generate-boot-config.js` | Schema generator (migration) |
 | `src/main/data/migration/v2/migrators/BootConfigMigrator.ts` | Migration executor |
 | `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts` | Auto-generated migration mappings |
 

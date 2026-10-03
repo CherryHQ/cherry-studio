@@ -1,7 +1,10 @@
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { readUIMessageStream } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import { webSearchOutputSchema } from '@shared/ai/builtinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { PI_TRANSPORT, PiStreamAdapter } from './piStreamAdapter'
 
@@ -42,14 +45,14 @@ describe('PiStreamAdapter', () => {
         toolCallId: 't1',
         toolName: 'bash',
         args: { command: 'ls' }
-      } as AgentSessionEvent,
+      },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'bash',
         result: 'file.txt',
         isError: false
-      } as AgentSessionEvent,
+      },
       {
         type: 'turn_end',
         message: {
@@ -95,14 +98,14 @@ describe('PiStreamAdapter', () => {
 
   it('stamps the pi transport on tool error output', () => {
     const chunks = collect([
-      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} },
       {
         type: 'tool_execution_end',
         toolCallId: 'e1',
         toolName: 'edit',
         result: { message: 'boom' },
         isError: true
-      } as AgentSessionEvent
+      }
     ])
     const err = chunks.find((chunk) => chunk.type === 'tool-output-error')
     expect(err).toMatchObject({
@@ -166,14 +169,14 @@ describe('PiStreamAdapter', () => {
       assistantEvent({ type: 'text_start', contentIndex: 0 }),
       assistantEvent({ type: 'text_delta', contentIndex: 0, delta: 'done' }),
       assistantEvent({ type: 'text_end', contentIndex: 0 }),
-      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'read',
         result: 'contents',
         isError: false
-      } as AgentSessionEvent
+      }
     ])
     const message = await accumulate(chunks)
     const text = message.parts.find((part) => part.type === 'text')
@@ -212,14 +215,14 @@ describe('PiStreamAdapter', () => {
     }
     const message = await accumulate(
       collect([
-        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input } as AgentSessionEvent,
+        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input },
         {
           type: 'tool_execution_end',
           toolCallId: 'artifact-1',
           toolName,
           result: 'Recorded 1 artifact(s).',
           isError: false
-        } as AgentSessionEvent
+        }
       ])
     )
 
@@ -227,6 +230,96 @@ describe('PiStreamAdapter', () => {
       toolName,
       input,
       state: 'output-available'
+    })
+  })
+
+  it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
+    const chunks = collect([
+      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'm1',
+        toolName: 'mcp__exa__search',
+        result: { content: [{ type: 'text', text: 'results' }] },
+        isError: false
+      }
+    ])
+    const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
+    expect(toolOutput).toMatchObject({
+      providerMetadata: {
+        cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', name: 'search', serverName: 'exa' } }
+      }
+    })
+  })
+
+  /**
+   * pi's code mode is unconditional, so cherry-tools is never a tool name of its own — every call
+   * arrives as `tool_call`, returning the target's MCP result verbatim. The renderer resolves
+   * `[cite:id]` markers by validating that output against `webSearchOutputSchema`, which a content
+   * block array never matches, so without the unwrap the markers stay literal.
+   */
+  it('unwraps a tool_call search result into the shape the citation resolver validates', async () => {
+    const results = [{ id: '19ff9dcd-1', title: 'First', url: 'https://a.com', content: 'x' }]
+    const message = await accumulate(
+      collect([
+        {
+          type: 'tool_execution_start',
+          toolCallId: 'm2',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          args: { name: 'mcp__cherry-tools__web_search', params: { query: 'x' } }
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm2',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content: [{ type: 'text', text: JSON.stringify(results) }], details: null },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    const output = (message.parts.find((part) => part.type === 'dynamic-tool') as { output?: unknown }).output
+    expect(webSearchOutputSchema.safeParse(output).success).toBe(true)
+  })
+
+  it('falls back to joined text when a tool_call result is not JSON', async () => {
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm3', toolName: PI_TOOL_CALL_TOOL_NAME, args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm3',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content: [{ type: 'text', text: 'plain results' }], details: null },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: PI_TOOL_CALL_TOOL_NAME,
+      output: 'plain results'
+    })
+  })
+
+  it('keeps non-text tool_call content blocks as blocks', async () => {
+    const content = [
+      { type: 'text', text: 'shot' },
+      { type: 'image', data: 'aGk=', mimeType: 'image/png' }
+    ]
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'm4', toolName: PI_TOOL_CALL_TOOL_NAME, args: {} },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'm4',
+          toolName: PI_TOOL_CALL_TOOL_NAME,
+          result: { content, details: null },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    expect(message.parts.find((part) => part.type === 'dynamic-tool')).toMatchObject({
+      toolName: PI_TOOL_CALL_TOOL_NAME,
+      output: content
     })
   })
 })

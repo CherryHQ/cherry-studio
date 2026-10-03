@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
@@ -331,6 +332,7 @@ vi.mock('react-i18next', () => ({
             'common.more': '更多',
             'common.no_results': '暂无结果',
             'common.go_to_settings': '前往设置',
+            'files.drag_upload': '拖拽文件到此处上传',
             'knowledge.data_source.actions.preview_source': '预览原文',
             'knowledge.data_source.actions.view_chunks': '查看 Chunks',
             'knowledge.data_source.actions.reindex': '重新索引',
@@ -555,6 +557,37 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '链接' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
+  })
+
+  it('sends dropped files through the existing file add flow while preserving the picker entry', () => {
+    const onAdd = vi.fn()
+    const files = [
+      new File(['report'], 'report.pdf', { type: 'application/pdf' }),
+      new File(['unsupported'], 'unsupported.exe', { type: 'application/octet-stream' })
+    ]
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const dropTarget = screen.getByText('上传第一个数据源')
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
+
+    fireEvent.dragEnter(dropTarget, { dataTransfer: { files } })
+    expect(screen.getByText('拖拽文件到此处上传')).toBeInTheDocument()
+
+    fireEvent.drop(dropTarget, { dataTransfer: { files } })
+
+    expect(onAdd).toHaveBeenCalledWith('file', files)
+    expect(screen.queryByText('拖拽文件到此处上传')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
   })
 
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {

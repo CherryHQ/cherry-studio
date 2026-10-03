@@ -1,8 +1,17 @@
+---
+description: How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL_STATEMENTS replay, FTS5 fts_rowid, rebuilds
+sources:
+  - src/main/data/db/DbService.ts
+  - src/main/data/db/applyMigrations.ts
+  - src/main/data/db/customSqls.ts
+  - migrations/sqlite-drizzle
+---
+
 # Database Construction (Build, Migrations, Custom SQL, FTS5)
 
 How the SQLite database is **built at boot and evolved over time**. Scope: drizzle migrations, the `CUSTOM_SQL_STATEMENTS` replay, FTS5 / `fts_rowid`, and the additive-vs-rebuild rule.
 
-> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
+> **Not here (linked, not duplicated):** schema-authoring patterns (FKs, raw-SQL casing, `rowToEntity`) → [database-patterns.md](./database-patterns.md); default-value & nullability rules → [best-practice-default-values-and-nullability.md](./best-practice-default-values-and-nullability.md); naming (tables / `XxxRow` types) → [naming-conventions.md](../architecture/naming-conventions.md); the test harness → [testing/database-testing.md](../testing/database-testing.md); the data-system choice (BootConfig / Cache / Preference / DataApi / `app_state`) → [data/README.md](./README.md); the one-shot v1→v2 data-migration engine → [v2-migration-guide.md](./v2-migration-guide.md).
 
 ## 1. Boot init order
 
@@ -96,7 +105,7 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 | Nullable by design | The AFTER INSERT trigger fills it after the row exists; a `NOT NULL` column would reject the row before the trigger runs. |
 | Assignment | `fts_rowid = (SELECT COALESCE(MAX(fts_rowid),0)+1 FROM <table>)` in the AFTER INSERT trigger. The `…_fts_rowid_uniq` UNIQUE index makes this an O(log N) min/max lookup (a bare column → O(N²) bulk migration) and rejects any duplicate loudly. Race-free **only** because writes serialize through `DbService.withWriteTx` (see [database-patterns.md](./database-patterns.md) → Write Serialization). |
 | Local-only physical identity | Like `rowid`: never set by app code, **never exported/imported in backups**. Restore MUST insert row-by-row through the trigger; a content row left with NULL `fts_rowid` makes `integrity-check, 1` fail and the row unsearchable. |
-| `searchable_text` | Trigger-populated (NOT a SQLite `GENERATED` column). `group_concat` over text parts wrapped in `COALESCE(…,'')` (it returns NULL for tool-only/empty messages; the column is `NOT NULL DEFAULT ''`). `message` extracts `text` parts + `data-code`/`data-translation`/`data-compact` content + `data-error` message; `agent_session_message` extracts `text`+`reasoning`. Adding a searchable part type means updating `searchableTextExpression` — and because triggers are DROP+CREATE, the fix lands on existing DBs at the next boot replay. |
+| `searchable_text` | Trigger-populated (NOT a SQLite `GENERATED` column). `group_concat` over text parts wrapped in `COALESCE(…,'')` (it returns NULL for tool-only/empty messages; the column is `NOT NULL DEFAULT ''`). `message` extracts `text` parts + `data-code`/`data-translation`/`data-compact` content + `data-error` message; `agent_session_message` extracts only `text` parts so hidden reasoning cannot leak through search snippets. Adding a searchable part type means updating the relevant trigger expression — and because triggers are DROP+CREATE, the fix lands on existing DBs at the next boot replay. |
 
 ### Knowledge `search_text_fts` follows the same rule
 

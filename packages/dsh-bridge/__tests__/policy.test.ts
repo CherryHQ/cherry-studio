@@ -16,7 +16,7 @@ writeFileSync(path.join(agentData, 'memory.md'), 'mem')
 writeFileSync(path.join(outside, 'secret.txt'), 'out')
 mkdirSync(path.join(workspace, 'sub'))
 // Symlink escape: lexically inside the workspace, physically outside.
-symlinkSync(path.join(outside, 'secret.txt'), path.join(workspace, 'escape.txt'))
+symlinkSync(outside, path.join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 
 const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   permissionMode: 'default',
@@ -26,6 +26,7 @@ const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   editTools: ['edit', 'write'],
   autoApprovedTools: [],
   approvalRequiredTools: [],
+  nonBypassableApprovalTools: [],
   planSafeTools: [],
   ...overrides
 })
@@ -54,7 +55,14 @@ describe('decideToolCall', () => {
       'allow'
     ],
     ['default', 'read outside asks', policy(), 'read', { file_path: path.join(outside, 'secret.txt') }, 'ask'],
-    ['default', 'read of a symlink escaping the workspace asks', policy(), 'read', { file_path: 'escape.txt' }, 'ask'],
+    [
+      'default',
+      'read of a symlink escaping the workspace asks',
+      policy(),
+      'read',
+      { file_path: 'escape/secret.txt' },
+      'ask'
+    ],
     ['default', 'read of ../ traversal out of the workspace asks', policy(), 'read', { file_path: '../x' }, 'ask'],
     ['default', 'read of a file:// URL asks (ambiguous)', policy(), 'read', { file_path: 'file:///etc/passwd' }, 'ask'],
     ['default', 'read of a non-string path asks (ambiguous)', policy(), 'read', { file_path: 42 }, 'ask'],
@@ -126,9 +134,32 @@ describe('decideToolCall', () => {
     ],
     [
       'bypassPermissions',
-      'approval-required first-party tool still asks',
+      'approval-required first-party tool allows (bypass is the explicit opt-out of per-call approval)',
       policy({
         permissionMode: 'bypassPermissions',
+        autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
+        approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
+      }),
+      'mcp__cherry-tools__kb_manage',
+      {},
+      'allow'
+    ],
+    [
+      'bypassPermissions',
+      'non-bypassable delegation still asks',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'ask'
+    ],
+    [
+      'default',
+      'approval-required beats auto-approval outside bypass',
+      policy({
         autoApprovedTools: ['mcp__cherry-tools__kb_manage'],
         approvalRequiredTools: ['mcp__cherry-tools__kb_manage']
       }),
@@ -218,6 +249,24 @@ describe('decideDelegatedToolCall', () => {
   it.each([
     ['contained read still allows', policy(), 'read', { file_path: 'inside.txt' }, 'allow'],
     ['bypass still allows bash', policy({ permissionMode: 'bypassPermissions' }), 'bash', { command: 'ls' }, 'allow'],
+    [
+      'bypass lifts approval-required for the delegated child too (no dead-end deny)',
+      policy({ permissionMode: 'bypassPermissions', approvalRequiredTools: ['mcp__cherry-tools__kb_manage'] }),
+      'mcp__cherry-tools__kb_manage',
+      {},
+      'allow'
+    ],
+    [
+      'non-bypassable delegation denies in the delegated child under bypass',
+      policy({
+        permissionMode: 'bypassPermissions',
+        approvalRequiredTools: ['mcp__cherry-tools__session_send'],
+        nonBypassableApprovalTools: ['mcp__cherry-tools__session_send']
+      }),
+      'mcp__cherry-tools__session_send',
+      {},
+      'deny'
+    ],
     [
       'acceptEdits contained edit still allows',
       policy({ permissionMode: 'acceptEdits' }),

@@ -1,15 +1,17 @@
 import type {
   AssistantMessage,
-  CallId,
   ContentBlock,
   ImageBlock,
   MessageId,
   StreamChunk,
+  ToolCallId,
   ToolResultMessage
 } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { DshRuntimeEvent } from '@cherrystudio/dsh-bridge'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
 
@@ -17,7 +19,7 @@ type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
 type DshCommandId = NonNullable<SessionEventMap['compaction/start']['sourceCommandId']>
 type DshRetryId = SessionEventMap['llm/retry']['retryId']
 
-const callId = (id: string) => id as CallId
+const callId = (id: string) => id as ToolCallId
 
 const assistantMessage = (model = 'm-1'): AssistantMessage => ({
   id: 'msg-1' as MessageId,
@@ -28,8 +30,10 @@ const assistantMessage = (model = 'm-1'): AssistantMessage => ({
 
 const toolResultMessage = (id: string, content: ContentBlock[], isError?: boolean): ToolResultMessage => ({
   id: `msg-${id}` as MessageId,
-  role: 'user',
-  content: [{ type: 'tool-result', toolCallId: callId(id), content, ...(isError !== undefined ? { isError } : {}) }],
+  role: 'tool',
+  toolCallId: callId(id),
+  content,
+  ...(isError !== undefined ? { isError } : {}),
   source: { kind: 'tool', callId: callId(id) }
 })
 
@@ -41,7 +45,9 @@ function makeAdapter() {
   const onTurnEnd = vi.fn(() => order.push('turn-end'))
   const onCompaction = vi.fn()
   const onApiRetry = vi.fn()
-  const onAutonomousTurnState = vi.fn((state: 'started' | 'finished') => order.push(`autonomous:${state}`))
+  const onAutonomousTurnState = vi.fn((event: { state: 'started' | 'finished' }) =>
+    order.push(`autonomous:${event.state}`)
+  )
   const onPlanMode = vi.fn()
   const adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
@@ -74,8 +80,10 @@ const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T])
 /** An event outside the compile-time union (merge-extended or lifecycle-only shape). */
 const rawEvent = (type: string, data: unknown): SessionEvent =>
   ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
-const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk) =>
-  envelope('assistant/chunk', { turn, step, chunk })
+const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk): DshRuntimeEvent => ({
+  type: 'assistant/chunk',
+  data: { turn, step, chunk }
+})
 
 describe('DshStreamAdapter', () => {
   it('relays committed plan/mode folds to the sink', () => {
@@ -102,7 +110,7 @@ describe('DshStreamAdapter', () => {
     const [start, delta] = chunks
     expect(start).toMatchObject({ id: expect.stringMatching(/^dsh-\d+-0$/) })
     expect(delta).toMatchObject({ id: (start as { id: string }).id, delta: 'Hello' })
-    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, (events.at(-1)! as SessionEvent).seq)
     // A host-prompted turn never reports autonomous lifecycle.
     expect(onAutonomousTurnState).not.toHaveBeenCalled()
   })
@@ -113,12 +121,13 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 2 }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'round work' }))
-    adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+    const turnEnd = envelope('turn/end', { turn: 2, reason: { kind: 'completed' } })
+    adapter.handleEvent(turnEnd)
 
     // `started` precedes the first chunk; `finished` precedes the terminal onTurnEnd.
     expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
-    expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual(['started', 'finished'])
-    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    expect(onAutonomousTurnState.mock.calls.map((call) => call[0].state)).toEqual(['started', 'finished'])
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, turnEnd.seq)
   })
 
   it('swallows a content-less turn instead of fabricating an empty one', () => {
@@ -130,6 +139,147 @@ describe('DshStreamAdapter', () => {
     expect(chunks).toHaveLength(0)
     expect(onTurnEnd).not.toHaveBeenCalled()
     expect(onAutonomousTurnState).not.toHaveBeenCalled()
+  })
+
+  describe('turn provenance from the entering user/message batch', () => {
+    /** dsh appends the entering batch inside step 1, before the model call. */
+    const entering = (turn: number, step: number, ...sources: unknown[]) => [
+      envelope('step/start', { turn, step }),
+      ...sources.map((source, index) =>
+        rawEvent('user/message', { id: `um-${turn}-${index}`, role: 'user', content: [], source })
+      )
+    ]
+    const hostPrompt = { kind: 'user' }
+    const goalRound = (round: number) => ({ kind: 'goal', goalId: 'g-1', revision: 1, round })
+    const injectedContext = { kind: 'plugin', plugin: 'agent-instructions' }
+    const runtimeContext = { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' }
+    const text = (turn: number, step: number, value: string) => [
+      chunkEnvelope(turn, step, { type: 'block-start', index: 0, blockType: 'text' }),
+      chunkEnvelope(turn, step, { type: 'text-delta', index: 0, text: value })
+    ]
+    const deltas = (chunks: CherryUIMessageChunk[]) =>
+      chunks.filter((chunk) => chunk.type === 'text-delta').map((chunk) => (chunk as { delta: string }).delta)
+
+    const hostTurn = (adapter: DshStreamAdapter, turn: number, value: string) => {
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn }))
+      for (const event of [...entering(turn, 1, hostPrompt), ...text(turn, 1, value)]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn, reason: { kind: 'completed' } }))
+    }
+
+    it('opens a goal round after the host turn as an autonomous turn tagged with its round', () => {
+      // #18755: the round followed no prompt, so the transcript must say why it exists — and must
+      // still carry its content, since the round really ran.
+      const { adapter, chunks, order, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      order.length = 0
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState).toHaveBeenCalledWith({ state: 'started', origin: { kind: 'goal-round', round: 1 } })
+      expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
+      expect(deltas(chunks)).toEqual(['answer', 'goal work'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps a goal round that races a fresh host prompt out of that prompt’s turn', () => {
+      // The host opens its stream at beginTurn(), but dsh may run a queued goal round first. That
+      // round must open its own receive-only turn; the prompt's content lands in the prompt's turn.
+      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      onTurnEnd.mockClear()
+
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+      adapter.handleEvent(envelope('turn/start', { turn: 3 }))
+      for (const event of [...entering(3, 1, hostPrompt), ...text(3, 1, 'reply')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 3, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+      expect(deltas(chunks)).toEqual(['answer', 'goal work', 'reply'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not let a host prompt sent during an already-classified goal round take over that round', () => {
+      // The user replies right after the host turn ended: dsh has already opened round 1 (its entering
+      // batch is in) when `beginTurn()` fires. Seen live: the round's content landed under the user's
+      // prompt with no badge, and the prompt's own reply was dropped.
+      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      onTurnEnd.mockClear()
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of entering(2, 1, goalRound(1))) adapter.handleEvent(event)
+      adapter.beginTurn()
+      for (const event of text(2, 1, 'E')) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+      adapter.handleEvent(envelope('turn/start', { turn: 3 }))
+      for (const event of [...entering(3, 1, hostPrompt), ...text(3, 1, '我很好')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 3, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+      expect(deltas(chunks)).toEqual(['answer', 'E', '我很好'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
+    it('tags autonomous turns that are not goal rounds as background work', () => {
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, injectedContext), ...text(2, 1, 'notice')]) adapter.handleEvent(event)
+
+      expect(onAutonomousTurnState).toHaveBeenCalledWith({ state: 'started', origin: { kind: 'background-work' } })
+    })
+
+    it.each([
+      { position: 'before', sources: [injectedContext, hostPrompt] },
+      { position: 'after', sources: [hostPrompt, runtimeContext] },
+      { position: 'around', sources: [injectedContext, hostPrompt, runtimeContext] }
+    ])('keeps the host stream when context appears $position the prompt', ({ sources }) => {
+      const { adapter, chunks, order, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      for (const event of [...entering(1, 1, ...sources), ...text(1, 1, 'answer')]) {
+        adapter.handleEvent(event)
+      }
+      const turnEnd = envelope('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      adapter.handleEvent(turnEnd)
+
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+      expect(order).toEqual(['text-start', 'text-delta', 'turn-end'])
+      expect(deltas(chunks)).toEqual(['answer'])
+      expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, turnEnd.seq)
+    })
+
+    it('does not let mid-turn input reclassify an open goal round as the host turn', () => {
+      // Only the entering batch classifies. A later step's `user` input flipping the round to a host
+      // turn would skip `finished` and leave the host's queued prompt unowned.
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      adapter.beginTurn()
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
+      for (const event of [...entering(2, 2, hostPrompt), ...text(2, 2, 'more')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+    })
   })
 
   it('maps reasoning blocks to reasoning chunks', () => {
@@ -178,6 +328,36 @@ describe('DshStreamAdapter', () => {
       providerMetadata: { cherry: { transport: DSH_TRANSPORT } }
     })
     expect(chunks[2]).toMatchObject({ toolCallId: 'c1', output: 'file.txt' })
+  })
+
+  it('materializes an approval tool part ahead of its tool/call event, without duplicating it', () => {
+    const { adapter, chunks } = makeAdapter()
+    adapter.beginTurn()
+    adapter.ensureToolCall('c1', 'bash', { command: 'rm -rf build' })
+    adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+    // The late session event for the same call must not re-open the part (it would reset an
+    // already-rendered approval back to input-streaming).
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{"command":"ls"}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: 'done' }])
+      })
+    )
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'tool-input-start',
+      'tool-input-available',
+      'tool-output-available'
+    ])
+    expect(chunks[1]).toMatchObject({ toolCallId: 'c1', toolName: 'bash', input: { command: 'rm -rf build' } })
+    expect(chunks[2]).toMatchObject({
+      toolCallId: 'c1',
+      providerMetadata: { cherry: { tool: { type: 'builtin', name: 'bash' } } }
+    })
   })
 
   it('unwraps an all-text tool result into its structured payload', () => {
@@ -271,6 +451,7 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 1 }))
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage('m-1'),
@@ -279,6 +460,7 @@ describe('DshStreamAdapter', () => {
     )
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 2,
         message: assistantMessage('m-1'),
@@ -325,6 +507,7 @@ describe('DshStreamAdapter', () => {
       vi.advanceTimersByTime(100)
       adapter.handleEvent(
         envelope('assistant/message', {
+          stream: [],
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
@@ -359,6 +542,7 @@ describe('DshStreamAdapter', () => {
       adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }))
       adapter.handleEvent(
         envelope('assistant/message', {
+          stream: [],
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
@@ -383,6 +567,15 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } }))
     adapter.handleEvent(
+      envelope('assistant/attempt', {
+        turn: 1,
+        step: 1,
+        stream: [
+          { type: 'chunk', time: Date.now(), chunk: { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } } }
+        ]
+      })
+    )
+    adapter.handleEvent(
       envelope('llm/retry', {
         retryId: 'r-1' as DshRetryId,
         turn: 1,
@@ -400,6 +593,7 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } }))
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         usage: { inputTokens: 20, outputTokens: 5 },
@@ -423,6 +617,15 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 2 }))
     adapter.handleEvent(envelope('step/start', { turn: 2, step: 1 }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } }))
+    adapter.handleEvent(
+      envelope('assistant/attempt', {
+        turn: 2,
+        step: 1,
+        stream: [
+          { type: 'chunk', time: Date.now(), chunk: { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } } }
+        ]
+      })
+    )
     adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
     adapter.handleEvent(
       envelope('turn/end', {
@@ -439,6 +642,7 @@ describe('DshStreamAdapter', () => {
     const { adapter, onAssistantUsage } = makeAdapter()
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         usage: { inputTokens: 1, outputTokens: 1 },
@@ -451,7 +655,7 @@ describe('DshStreamAdapter', () => {
 
   it('ignores unknown and lifecycle-only events', () => {
     const { adapter, chunks, onTurnEnd } = makeAdapter()
-    adapter.handleEvent(envelope('todo/write', { todos: [] }))
+    adapter.handleEvent(rawEvent('todo/write', { todos: [] }))
     adapter.handleEvent(rawEvent('approval/asked', { toolName: 'bash' }))
     adapter.handleEvent(rawEvent('request/header', { header: {} }))
     adapter.handleEvent(rawEvent('compaction/prune', { shadowedTokenCount: 512 }))
@@ -468,8 +672,8 @@ describe('DshStreamAdapter', () => {
       envelope('compaction/summary', {
         compactionId: 'comp-1' as DshCompactionId,
         summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
-        shadowedRange: { start: 2, end: 10 },
-        shadowedSeqs: [2, 6, 10],
+        shadowedRange: { start: SessionSeq(2), end: SessionSeq(10) },
+        shadowedSeqs: [SessionSeq(2), SessionSeq(6), SessionSeq(10)],
         shadowedTokenCount: 42_000,
         provider: 'deepseek',
         model: 'deepseek-chat',

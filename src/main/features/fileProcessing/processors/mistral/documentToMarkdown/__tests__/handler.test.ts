@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } = vi.hoisted(() => {
   const uploadMock = vi.fn()
@@ -15,16 +16,18 @@ const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } 
     getSignedUrlMock,
     deleteMock,
     ocrProcessMock,
-    MistralMock: vi.fn(() => ({
-      files: {
-        upload: uploadMock,
-        getSignedUrl: getSignedUrlMock,
-        delete: deleteMock
-      },
-      ocr: {
-        process: ocrProcessMock
+    MistralMock: vi.fn(function MistralMock() {
+      return {
+        files: {
+          upload: uploadMock,
+          getSignedUrl: getSignedUrlMock,
+          delete: deleteMock
+        },
+        ocr: {
+          process: ocrProcessMock
+        }
       }
-    }))
+    })
   }
 })
 
@@ -44,7 +47,15 @@ describe('mistralDocumentToMarkdownHandler', () => {
     deleteMock.mockResolvedValue({})
     ocrProcessMock.mockResolvedValue({
       model: 'mistral-ocr-latest',
-      pages: [{ markdown: '# Page 1' }, { markdown: 'Page 2' }]
+      pages: [
+        { markdown: '# Page 1' },
+        {
+          markdown: 'Page 2\n\n[tbl-0.md](tbl-0.md)',
+          tables: [
+            { id: 'tbl-0.md', content: '| Item | Amount |\n| --- | --- |\n| Revenue | 1024 |', format: 'markdown' }
+          ]
+        }
+      ]
     })
   })
 
@@ -55,10 +66,9 @@ describe('mistralDocumentToMarkdownHandler', () => {
       throw new Error('Expected Mistral document handler to prepare a background task')
     }
 
-    const progress: number[] = []
     const output = await preparedTask.execute({
       signal: new AbortController().signal,
-      reportProgress: (value) => progress.push(value)
+      reportProgress: vi.fn()
     })
 
     expect(MistralMock).toHaveBeenCalledWith({
@@ -77,14 +87,6 @@ describe('mistralDocumentToMarkdownHandler', () => {
         signal: expect.any(AbortSignal)
       })
     )
-    expect(getSignedUrlMock).toHaveBeenCalledWith(
-      {
-        fileId: 'uploaded-file-1'
-      },
-      expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      })
-    )
     expect(ocrProcessMock).toHaveBeenCalledWith(
       {
         model: 'mistral-ocr-latest',
@@ -92,7 +94,7 @@ describe('mistralDocumentToMarkdownHandler', () => {
           type: 'document_url',
           documentUrl: 'https://signed.example.com/input.pdf'
         },
-        tableFormat: 'html',
+        tableFormat: 'markdown',
         includeImageBase64: false
       },
       expect.objectContaining({
@@ -109,9 +111,8 @@ describe('mistralDocumentToMarkdownHandler', () => {
     )
     expect(output).toEqual({
       kind: 'markdown',
-      markdownContent: '# Page 1\n\nPage 2'
+      markdownContent: '# Page 1\n\nPage 2\n\n| Item | Amount |\n| --- | --- |\n| Revenue | 1024 |'
     })
-    expect(progress).toEqual([10, 35, 45, 85, 95])
   })
 
   it('uses a fresh cleanup request when the task signal was aborted after upload', async () => {

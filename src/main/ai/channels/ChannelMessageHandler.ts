@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import mime from 'mime'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
@@ -19,6 +22,7 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -43,7 +47,7 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * succession. Debouncing prevents each fragment from triggering a separate
  * agent round-trip and avoids concurrent stream interleaving.
  */
-const MESSAGE_BATCH_DELAY_MS = 8000
+const MESSAGE_BATCH_DELAY_MS = 1000
 // Cap a sender's debounce extension so another sender in the conversation cannot wait forever.
 const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
@@ -120,7 +124,7 @@ export class ChannelMessageHandler {
 
   /**
    * Stop channel intake and immediately flush the buffered debounce batches (not waiting out
-   * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
+   * the 1 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
    * writers. No resume() — dispose your own hold. There is no release compensation: intake
    * dropped while quiesced is not replayable.
    *
@@ -233,7 +237,10 @@ export class ChannelMessageHandler {
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => this.flushBatch(batchKey), Math.max(0, existing.deadline - Date.now()))
+        existing.timer = setTimeout(
+          () => this.flushBatch(batchKey),
+          Math.min(MESSAGE_BATCH_DELAY_MS, Math.max(0, existing.deadline - Date.now()))
+        )
         logger.debug('Message appended to pending batch', {
           batchKey,
           batchSize: existing.messages.length
@@ -372,16 +379,7 @@ export class ChannelMessageHandler {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
-        await adapter
-          .sendMessage(message.chatId, t('common.channel_session_resolution_error'), {
-            ...responseOptionsFor(message)
-          })
-          .catch((err) => {
-            logger.debug('Failed to send session-error notification to channel', {
-              chatId: message.chatId,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -390,11 +388,13 @@ export class ChannelMessageHandler {
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
       const agent = agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -415,49 +415,19 @@ export class ChannelMessageHandler {
         }
       }
 
-      // Save images to agent workspace so the agent can read them via the Read tool
-      let imagePaths: string[] = []
-      if (message.images && message.images.length > 0 && workDir) {
-        try {
-          imagePaths = await this.persistImages(workDir, message.images)
-          logger.info('Persisted channel images to workspace', {
-            agentId,
-            count: imagePaths.length,
-            dir: path.join(workDir, '.cherry-studio', 'channel-images')
-          })
-        } catch (error) {
-          logger.warn('Failed to persist channel images', {
-            agentId,
-            error: error instanceof Error ? error.message : String(error)
-          })
+      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      try {
+        if (message.images?.length && workDir) {
+          userParts.push(...(await this.persistImages(workDir, message.images)))
         }
-      }
-
-      // Save files to agent workspace so the agent can read them via the Read tool
-      let filePaths: string[] = []
-      if (message.files && message.files.length > 0 && workDir) {
-        try {
-          filePaths = await this.persistFiles(workDir, message.files)
-          logger.info('Persisted channel files to workspace', {
-            agentId,
-            count: filePaths.length,
-            dir: path.join(workDir, '.cherry-studio', 'channel-files')
-          })
-        } catch (error) {
-          logger.warn('Failed to persist channel files', {
-            agentId,
-            error: error instanceof Error ? error.message : String(error)
-          })
+        if (message.files?.length && workDir) {
+          userParts.push(...(await this.persistFiles(workDir, message.files)))
         }
-      }
-
-      // Build text with attachment file paths appended so the agent knows where they are saved
-      let textWithAttachments = message.text
-      if (imagePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
-      }
-      if (filePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
+      } catch (error) {
+        await adapter
+          .sendMessage(message.chatId, t('common.channel_message_processing_error'), responseOptionsFor(message))
+          .catch(() => {})
+        throw error
       }
 
       const abortController = new AbortController()
@@ -478,7 +448,7 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          textWithAttachments,
+          userParts,
           abortController,
           adapter,
           message.chatId,
@@ -606,7 +576,7 @@ export class ChannelMessageHandler {
           try {
             const response = await this.collectStreamResponse(
               session,
-              '/compact',
+              [{ type: 'text', text: '/compact' }],
               abortController,
               adapter,
               command.chatId,
@@ -887,9 +857,20 @@ export class ChannelMessageHandler {
     }
   }
 
+  private async notifySessionResolutionError(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    await adapter
+      .sendMessage(message.chatId, t('common.channel_session_resolution_error'), responseOptionsFor(message))
+      .catch((err) => {
+        logger.debug('Failed to send session-error notification to channel', {
+          chatId: message.chatId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+  }
+
   private async collectStreamResponse(
     session: AgentSessionEntity,
-    content: string,
+    userParts: CherryMessagePart[],
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
@@ -928,7 +909,7 @@ export class ChannelMessageHandler {
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
-        userParts: [{ type: 'text', text: content }],
+        userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
@@ -945,45 +926,42 @@ export class ChannelMessageHandler {
     return executionDone
   }
 
-  /**
-   * Save images to the agent's workspace so the agent can read them via the Read tool.
-   * Returns the list of absolute file paths written.
-   */
-  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<string[]> {
+  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<FileUIPart[]> {
     const dir = path.join(workDir, '.cherry-studio', 'channel-images')
     await fs.mkdir(dir, { recursive: true })
 
-    const paths: string[] = []
+    const parts: FileUIPart[] = []
     for (const img of images) {
-      const ext = img.media_type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+      // media_type is attacker-supplied; only a registered extension may reach the filename.
+      const ext = mime.getExtension(img.media_type) || 'png'
       const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))
-      paths.push(filePath)
+      parts.push({ type: 'file', url: pathToFileURL(filePath).href, mediaType: img.media_type, filename })
     }
 
-    return paths
+    return parts
   }
 
-  /**
-   * Save files to the agent's workspace so the agent can read them via the Read tool.
-   * Returns the list of absolute file paths written.
-   */
-  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<string[]> {
+  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<FileUIPart[]> {
     const dir = path.join(workDir, '.cherry-studio', 'channel-files')
     await fs.mkdir(dir, { recursive: true })
 
-    const paths: string[] = []
+    const parts: FileUIPart[] = []
     for (const file of files) {
-      // Prefix with timestamp to avoid collisions, preserve original filename for readability
       const safeName = file.filename.replace(/[/\\:*?"<>|]/g, '_')
-      const filename = `${Date.now()}-${safeName}`
+      const filename = `${Date.now()}-${randomUUID().slice(0, 8)}-${safeName}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(file.data, 'base64'))
-      paths.push(filePath)
+      parts.push({
+        type: 'file',
+        url: pathToFileURL(filePath).href,
+        mediaType: file.media_type,
+        filename: file.filename
+      })
     }
 
-    return paths
+    return parts
   }
 }
 

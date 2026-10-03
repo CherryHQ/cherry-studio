@@ -7,7 +7,7 @@ import type {
   RegisteredKeybindingRule,
   SupportedPlatform
 } from '@shared/types/command'
-import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
+import { canonicalTriggerToken, normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
 import { type CommandId, findKeybindingRule, REGISTERED_KEYBINDINGS } from './definitions'
@@ -60,7 +60,10 @@ export interface FindKeybindingConflictsOptions {
   rules?: readonly RegisteredKeybindingRule<CommandId>[]
 }
 
-const isPlatformSupported = (rule: RegisteredKeybindingRule, platform?: SupportedPlatform): boolean => {
+export const isPlatformSupported = (
+  rule: Pick<RegisteredKeybindingRule, 'supportedPlatforms'>,
+  platform?: SupportedPlatform
+): boolean => {
   if (!rule.supportedPlatforms?.length || !platform) {
     return true
   }
@@ -73,9 +76,6 @@ const isScopeSupported = (rule: RegisteredKeybindingRule, scope?: CommandScope):
   }
   return rule.scope === scope || rule.scope === 'both'
 }
-
-const scopesOverlap = (left: CommandScope, right: CommandScope): boolean =>
-  left === right || left === 'both' || right === 'both'
 
 const platformsOverlap = (
   left?: readonly SupportedPlatform[],
@@ -95,17 +95,19 @@ const platformsOverlap = (
   return left.some((item) => right.includes(item))
 }
 
+// Keypad Enter and main Return are one trigger: a binding recorded from either
+// key must fire commands bound to the other spelling.
 const shortcutBindingMatches = (left: ShortcutBinding, right: ShortcutBinding): boolean => {
   if (left.length !== right.length) {
     return false
   }
 
-  const leftTokens = new Set(left)
+  const leftTokens = new Set(left.map(canonicalTriggerToken))
   if (leftTokens.size !== right.length) {
     return false
   }
 
-  return right.every((token) => leftTokens.has(token))
+  return right.every((token) => leftTokens.has(canonicalTriggerToken(token)))
 }
 
 const getTriggerBindings = (
@@ -120,7 +122,8 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   if (!binding.length) {
     return undefined
   }
-  return binding.join('+')
+  // Electron has no keypad-Enter accelerator; register the canonical spelling.
+  return binding.map(canonicalTriggerToken).join('+')
 }
 
 const isPlatformBindingMap = (
@@ -317,9 +320,8 @@ export const findKeybindingConflicts = ({
     if (rule.command === command) {
       continue
     }
-    if (!scopesOverlap(commandRule.scope, rule.scope)) {
-      continue
-    }
+    // Scope never separates bindings: main-scope shortcuts consume the keys before the renderer
+    // sees them (window-local `before-input-event` or OS-level `globalShortcut`), shadowing renderer commands.
     if (!platformsOverlap(commandRule.supportedPlatforms, rule.supportedPlatforms, platform)) {
       continue
     }

@@ -19,7 +19,9 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   enabled: z.boolean(),
   // min(1): '' would read as an explicit pick and silently kill compression
   // (resolveCompressionModel('') → null) — clearing must be expressed as null.
-  modelId: z.string().min(1).nullable().optional()
+  modelId: z.string().min(1).nullable().optional(),
+  /** Compact once the prompt passes this percent of the available input context. */
+  thresholdPercent: z.number().int().min(20).max(100).optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
@@ -47,7 +49,8 @@ export const EffectiveContextSettingsSchema = z.object({
   maxMessages: z.number().int().min(1).nullable(),
   compress: z.object({
     enabled: z.boolean(),
-    modelId: z.string().nullable()
+    modelId: z.string().nullable(),
+    thresholdPercent: z.number().int().min(20).max(100)
   })
 })
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
@@ -67,6 +70,15 @@ export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSc
  */
 export const MIN_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Bounds for the compaction trigger, shared by both settings UIs and the
+ * resolver (clamped by `clampThresholdPercent` in `@shared/utils`). Above 100
+ * the trigger can never fire; the floor keeps it clear of the keep budget,
+ * which is sized as a fraction of the trigger itself.
+ */
+export const MIN_COMPRESS_THRESHOLD_PERCENT = 20
+export const MAX_COMPRESS_THRESHOLD_PERCENT = 100
+
 /** Hardcoded floor. compress.enabled defaults TRUE (P2-B decision); the
  *  threshold mirrors CONTEXT_PERSIST_THRESHOLD_CHARS so the persist trigger
  *  and the default agree out of the box. */
@@ -76,6 +88,7 @@ export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   maxMessages: null,
   compress: {
     enabled: true,
-    modelId: null
+    modelId: null,
+    thresholdPercent: 80
   }
 }

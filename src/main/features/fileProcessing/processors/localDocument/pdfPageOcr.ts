@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 import { application } from '@application'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { ensureDir, remove, removeDir, write } from '@main/utils/file'
 import { createPdfParser } from '@main/utils/pdf'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -43,13 +42,12 @@ export async function ocrPdfPagesToMarkdown(
     const parser = await createPdfParser({ data: pdfBytes })
 
     try {
-      const modelPaths = ocrModelPaths()
       const pages: string[] = []
 
       for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
         executionContext.signal.throwIfAborted()
 
-        const pageText = await recognizePage(parser, pageNumber, workDir, modelPaths, executionContext.signal)
+        const pageText = await recognizePage(parser, pageNumber, workDir, executionContext.signal)
         if (pageText.length > 0) {
           pages.push(pageText)
         }
@@ -70,7 +68,6 @@ async function recognizePage(
   parser: Awaited<ReturnType<typeof createPdfParser>>,
   pageNumber: number,
   workDir: string,
-  modelPaths: ReturnType<typeof ocrModelPaths>,
   signal: AbortSignal
 ): Promise<string> {
   const screenshot = await parser.getScreenshot({
@@ -91,9 +88,7 @@ async function recognizePage(
   await write(imagePath, await preprocessImage(Buffer.from(rendered)))
 
   try {
-    const { text } = await application
-      .get('OcrInferenceService')
-      .recognize(modelPaths, { kind: 'path', imagePath }, signal)
+    const { text } = await application.get('OcrInferenceService').recognize({ kind: 'path', imagePath }, signal)
     return text.trim()
   } finally {
     await remove(imagePath)

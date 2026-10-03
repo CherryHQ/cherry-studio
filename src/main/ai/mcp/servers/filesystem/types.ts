@@ -1,11 +1,13 @@
-import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+
+import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { canonicalizePathForContainment } from '@main/utils/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -88,9 +90,9 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
   const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
-  const resolvedPath = await resolveRealOrNearestExistingPath(absolute)
+  const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
-  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
+  if (!resolvedPath || !isPathWithinRoot(resolvedPath, resolvedRoot)) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
@@ -529,11 +531,23 @@ export function replaceWithFuzzyMatch(
 
   for (const replacer of ALL_REPLACERS) {
     for (const search of replacer(content, oldString)) {
+      // Replacers can yield the empty string: TrimmedBoundaryReplacer trims a
+      // whitespace-only old_string to '' and content.includes('') is always
+      // true, and LineTrimmedReplacer can yield the blank trailing line. An
+      // empty candidate is always "found" (indexOf('') is 0), so replace_all
+      // would interleave new_string between every character; the single-match
+      // path only avoided that by accident (indexOf('') never equals
+      // lastIndexOf('')). Skip empty candidates so neither path consumes one.
+      if (search === '') continue
       const index = content.indexOf(search)
       if (index === -1) continue
       notFound = false
       if (replaceAll) {
-        return content.replaceAll(search, newString)
+        // split/join keeps newString literal. String.prototype.replaceAll
+        // expands `$`-patterns ($&, $', $`, $$) in its replacement argument, so
+        // a replacement that legitimately contains one would be rewritten to
+        // the matched or surrounding text instead of being written verbatim.
+        return content.split(search).join(newString)
       }
       const lastIndex = content.lastIndexOf(search)
       if (index !== lastIndex) continue

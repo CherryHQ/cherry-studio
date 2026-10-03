@@ -1,13 +1,18 @@
+import { isEmpty } from 'es-toolkit/compat'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
-import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  type EndpointType as RuntimeEndpointType,
+  type ListedModels,
+  type Model,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
-import { isEmpty } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
@@ -25,7 +30,6 @@ export class ModelSyncError extends Error {
 }
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
-type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
 export function resolveCreateModelEndpointTypes(
@@ -62,7 +66,10 @@ export function toCreateModelDto(
     name: model.name,
     group: model.group,
     ...(capabilities ? { capabilities: [...capabilities] } : {}),
-    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
+    ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
+    // Discovered rather than registry-supplied for local providers — Ollama's window comes from
+    // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
   }
 }
 
@@ -153,20 +160,23 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<ListedModels<Model>> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
-    const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })
+    const { models: fetched, skippedModels } = await ipcApi.request('ai.provider.model.list', {
+      providerId,
+      throwOnError: true
+    })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
-    return await enrichFetchedModels(providerId, fetched)
+    // Enrichment rebuilds the array, so the notice main reported alongside the
+    // models is carried onto the result.
+    const models = await enrichFetchedModels(providerId, fetched)
+    return skippedModels ? { models, skippedModels } : { models }
   } catch (error) {
-    logger.error('Failed to fetch and resolve provider models', { providerId, error })
+    logger.error('Failed to fetch and resolve provider models', {
+      providerId,
+      errorType: error instanceof Error ? error.name : typeof error
+    })
     throw error
   }
-}
-
-export async function fetchProviderCatalogModels(providerId: string): Promise<Model[]> {
-  const presetPath: ProviderPresetPath = `/providers/${providerId}/preset`
-  const preset = (await dataApiService.get(presetPath, { query: { fields: 'models' } })) as ProviderPreset
-  return preset.models ?? []
 }

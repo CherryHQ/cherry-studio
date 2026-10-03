@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { app } from 'electron'
 
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
@@ -12,6 +13,7 @@ import JaJP from './locales/ja-jp.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
+import trTR from './locales/tr-tr.json'
 import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
 import ZhTw from './locales/zh-tw.json'
@@ -29,12 +31,29 @@ const locales = Object.fromEntries(
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
-    ['vi-VN', viVN]
+    ['vi-VN', viVN],
+    ['tr-TR', trTR]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
 /** Every language main carries a catalog for — the source of truth other modules should key off of. */
 export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
+
+export const resolveSystemLanguage = (locale: string): LanguageVarious => {
+  const normalizedLocale = locale.toLowerCase()
+  const exactMatch = SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase() === normalizedLocale)
+  if (exactMatch) return exactMatch
+
+  const language = normalizedLocale.split('-')[0]
+  if (language === 'zh') {
+    try {
+      return new Intl.Locale(locale).maximize().script === 'Hant' ? 'zh-TW' : 'zh-CN'
+    } catch {
+      return 'zh-CN'
+    }
+  }
+  return SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase().split('-')[0] === language) ?? defaultLanguage
+}
 
 export const getAppLanguage = (): LanguageVarious => {
   const language = application.get('PreferenceService').get('app.language')
@@ -44,16 +63,14 @@ export const getAppLanguage = (): LanguageVarious => {
     return language
   }
 
-  return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
-}
-
-export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<string, any> => {
-  return locales[language]
+  return resolveSystemLanguage(appLocale)
 }
 
 /**
- * Get translation by key path (e.g., 'dialog.save_file')
+ * Get translation by key (e.g., 'dialog.save_file')
  * This is a simplified version for main process, similar to i18next's t() function.
+ *
+ * Catalogs are flat, so the dotted key is looked up literally — there is no path walk.
  *
  * Resolution order: `language` (defaults to the current app language), then the
  * en-US catalog, then the key itself. Supports i18next-style `{{var}}`
@@ -66,18 +83,13 @@ export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<st
  * one translation per requested language, independent of `app.language`.
  */
 export const t = (key: string, params?: Record<string, string | number>, language?: LanguageVarious): string => {
-  const resolve = (translation: any): string | undefined => {
-    let result: any = translation
-    for (const k of key.split('.')) {
-      result = result?.[k]
-      if (result === undefined) {
-        return undefined
-      }
-    }
+  const resolve = (translation: Record<string, string>): string | undefined => {
+    const result = translation[key]
     return typeof result === 'string' && !result.startsWith('[to be translated]') ? result : undefined
   }
 
-  const value = resolve(getI18n(language).translation) ?? resolve(locales[defaultLanguage].translation)
+  const value =
+    resolve(locales[language ?? getAppLanguage()].translation) ?? resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }

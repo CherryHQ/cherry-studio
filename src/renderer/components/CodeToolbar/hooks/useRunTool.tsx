@@ -1,9 +1,10 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { CirclePlay } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 
 interface UseRunToolProps {
   enabled: boolean

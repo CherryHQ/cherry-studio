@@ -1,9 +1,10 @@
+import { APICallError } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import { APICallError } from 'ai'
 
 const logger = loggerService.withContext('KnowledgeRerank')
 

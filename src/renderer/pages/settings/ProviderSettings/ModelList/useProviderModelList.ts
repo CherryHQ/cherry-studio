@@ -1,15 +1,15 @@
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
   calculateModelListDerivedState,
   countModelsInGroups,
-  groupModels,
-  type ModelGroups,
+  groupModelEntries,
   type ModelListCapabilityCounts,
   type ModelListCapabilityFilter
 } from './modelListDerivedState'
@@ -55,12 +55,13 @@ interface UseProviderModelListArgs {
 }
 
 type DisplayedSectionState = {
-  groups: ModelGroups
+  /** Ordered pairs rather than a record: see `groupModelEntries`. */
+  groupEntries: ReadonlyArray<readonly [string, Model[]]>
   displayEnabledModelCount: number
 }
 
-const toGroupSections = (groups: ModelGroups): ModelListGroupSection[] => {
-  return Object.entries(groups).map(([groupName, models]) => ({
+const toGroupSections = (groupEntries: ReadonlyArray<readonly [string, Model[]]>): ModelListGroupSection[] => {
+  return groupEntries.map(([groupName, models]) => ({
     groupName,
     items: models.map((model) => ({ model }))
   }))
@@ -83,10 +84,11 @@ const withPrunedModelIds = <T>(entries: Record<string, T>, validIds: Set<string>
 }
 
 export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
-  const { models, isLoading: isModelsLoading } = useModels(
-    { providerId },
-    { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
-  )
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { deleteModel, deleteModels } = useModelMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
@@ -132,11 +134,16 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const displayState = useMemo<DisplayedSectionState>(() => {
     const preserveGroupOrder = Boolean(searchText.trim())
-    const groups = groupModels(derivedState.filteredModels, preserveGroupOrder, { preferModelGroup: true })
+    // The order lives in the entries, not a record: a group named like a number
+    // (`10`, `2`) is reordered by JavaScript's integer-key rule the moment it
+    // becomes an object key, which would discard the order the models arrived in.
+    const groupEntries = groupModelEntries(derivedState.filteredModels, preserveGroupOrder, {
+      preferModelGroup: true
+    })
 
     return {
-      groups,
-      displayEnabledModelCount: countModelsInGroups(groups)
+      groupEntries,
+      displayEnabledModelCount: countModelsInGroups(groupEntries)
     }
   }, [derivedState.filteredModels, searchText])
 
@@ -150,6 +157,21 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const closeEditModelDrawer = useCallback(() => {
     setEditingModel(null)
   }, [])
+
+  const confirmModelsDeleted = useCallback(
+    async (modelIds: readonly UniqueModelId[]) => {
+      try {
+        const refreshedModels = (await refetchModels()) as readonly Model[] | undefined
+        if (!refreshedModels) return false
+
+        const refreshedModelIds = new Set(refreshedModels.map((model) => model.id))
+        return modelIds.every((modelId) => !refreshedModelIds.has(modelId))
+      } catch {
+        return false
+      }
+    },
+    [refetchModels]
+  )
 
   const onDeleteModel = useCallback(
     async (model: Model) => {
@@ -166,13 +188,15 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       try {
         await deleteModel(model.providerId, modelId)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted([model.id])
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
           delete next[model.id]
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -181,7 +205,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModel, disabled]
+    [confirmModelsDeleted, defaultModelIds, deleteModel, disabled]
   )
 
   const onDeleteModels = useCallback(
@@ -191,6 +215,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       if (deletableModels.length === 0) {
         return
       }
+      const deletableModelIds = deletableModels.map((model) => model.id)
 
       setOptimisticDeletedByModelId((current) => {
         const next = { ...current }
@@ -212,19 +237,21 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       })
 
       try {
-        await deleteModels(deletableModels.map((model) => model.id))
+        await deleteModels(deletableModelIds)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted(deletableModelIds)
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
 
-          for (const model of deletableModels) {
-            delete next[model.id]
+          for (const modelId of deletableModelIds) {
+            delete next[modelId]
           }
 
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -237,10 +264,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModels, disabled]
+    [confirmModelsDeleted, defaultModelIds, deleteModels, disabled]
   )
 
-  const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])
+  const enabledSections = useMemo(() => toGroupSections(displayState.groupEntries), [displayState.groupEntries])
   const pendingModelIds = useMemo(() => new Set(Object.keys(pendingModelIdMap)), [pendingModelIdMap])
 
   const header: ProviderModelListHeaderSurface = {

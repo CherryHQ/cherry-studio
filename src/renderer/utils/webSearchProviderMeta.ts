@@ -56,6 +56,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
+  parallel: {
+    descriptionKey: 'settings.tool.websearch.provider_description.parallel',
+    iconRef: providerIconRef('parallel'),
+    officialWebsite: 'https://parallel.ai',
+    apiKeyWebsite: 'https://platform.parallel.ai'
+  },
   querit: {
     descriptionKey: 'settings.tool.websearch.provider_description.querit',
     iconRef: providerIconRef('querit'),
@@ -66,6 +72,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
+  },
+  serply: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serply',
+    iconRef: providerIconRef('serply'),
+    officialWebsite: 'https://serply.io',
+    apiKeyWebsite: 'https://serply.io'
   },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',

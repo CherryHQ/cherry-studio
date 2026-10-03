@@ -1,14 +1,15 @@
-import { Scrollbar } from '@cherrystudio/ui'
 import { Check, Copy, NotebookPen } from 'lucide-react'
 import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import { AppMarkdown } from '@renderer/components/markdown'
 
 import IconButton from './IconButton'
 
 type Props = {
   ref?: Ref<HTMLDivElement>
   translatedContent: string
-  renderedMarkdown: string
   enableMarkdown: boolean
   translating: boolean
   copied: boolean
@@ -20,7 +21,6 @@ type Props = {
 const TranslateOutputPane = ({
   ref,
   translatedContent,
-  renderedMarkdown,
   enableMarkdown,
   translating,
   copied,
@@ -31,9 +31,7 @@ const TranslateOutputPane = ({
   const { t } = useTranslation()
 
   return (
-    <div
-      data-ui="translate.output"
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <Scrollbar
         ref={ref}
         onScroll={onScroll}
@@ -46,7 +44,7 @@ const TranslateOutputPane = ({
             </div>
           ) : translatedContent ? (
             enableMarkdown ? (
-              <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              <AppMarkdown isStreaming={translating}>{translatedContent}</AppMarkdown>
             ) : (
               <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
             )

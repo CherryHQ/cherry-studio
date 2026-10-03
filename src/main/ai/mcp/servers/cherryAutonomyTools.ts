@@ -8,39 +8,65 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import QRCode from 'qrcode'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import {
+  createAgentChannel,
+  createAgentChannelAndWaitForQr,
+  deleteAgentChannel,
+  reconnectAgentChannel,
+  reconnectAgentChannelWithQr,
+  type ChannelAdapter,
+  resolveWorkspaceFile,
+  sanitizeChannelOutput,
+  updateAgentChannel,
+  updateAgentChannelAndWaitForQr
+} from '@main/ai/channels'
+import { conversationEvidence } from '@main/ai/messages/conversationEvidence'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
+  SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
-import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+const AGENT_LIST_TOOL_NAME = 'agent_list'
 
 /** Per-session agent context the autonomy tools act on behalf of. */
 export interface CherryAgentContext {
   agentId: string
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
-  sourceChannelId?: string
+  /** Notification recipients authorized for this exact turn, supplied only by the runtime. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
+  /** Source-channel turns may explicitly select another live channel owned by this Agent. */
+  allowAnyOwnedNotifyChannel?: boolean
   /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
   canAccessAllKnowledgeBases?: () => boolean
   /**
@@ -80,18 +106,18 @@ function parseDurationToMinutes(duration: string): number {
 const CRON_TOOL: Tool = {
   name: CRON_TOOL_NAME,
   description:
-    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
+    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'update' with an id to change only the supplied fields, 'list' to see this Agent's jobs, or 'remove' to delete a job. Edit existing jobs with 'update' instead of removing and re-creating them. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
   inputSchema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['add', 'list', 'remove'],
+        enum: ['add', 'update', 'list', 'remove'],
         description: 'The action to perform'
       },
       name: {
         type: 'string',
-        description: 'Name of the job (required for add)'
+        description: 'Name of the job (required for add). Names are unique across all Agents, including disabled jobs.'
       },
       message: {
         type: 'string',
@@ -114,16 +140,22 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
       },
       timeout_minutes: {
-        type: 'number',
+        type: ['number', 'null'],
+        minimum: 1,
         description:
-          'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
+          'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+      },
+      reuse_session: {
+        type: 'boolean',
+        description:
+          'Continue each execution in the same session. Default is false on add; omit on update to keep the current setting.'
       },
       id: {
         type: 'string',
-        description: 'Job ID (required for remove)'
+        description: 'Job ID (required for update and remove)'
       }
     },
     required: ['action']
@@ -133,7 +165,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
+    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -144,16 +176,16 @@ const NOTIFY_TOOL: Tool = {
       file_path: {
         type: 'string',
         description:
-          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
+          'A workspace file to deliver. Provide this, message, or both. Use a relative path or an absolute path inside the session workspace.'
       },
       channel_id: {
         type: 'string',
-        description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+        description:
+          'Optional explicit destination channel. Omit to deliver to all configured recipients for this turn.'
       }
-    },
-    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
-    // the trimmed values (empty strings must still be rejected).
-    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+    }
+    // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
+    // enforces "message or file_path" on the trimmed values anyway.
   }
 }
 
@@ -281,6 +313,12 @@ const SESSION_LIST_TOOL: Tool = {
   }
 }
 
+const AGENT_LIST_TOOL: Tool = {
+  name: AGENT_LIST_TOOL_NAME,
+  description: 'List available Cherry Agents with their public identity and runtime readiness.',
+  inputSchema: { type: 'object', properties: {} }
+}
+
 const SESSION_SEARCH_TOOL: Tool = {
   name: SESSION_SEARCH_TOOL_NAME,
   description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
@@ -297,6 +335,27 @@ const SESSION_SEARCH_TOOL: Tool = {
     },
     required: ['query']
   }
+}
+
+const SessionReadArgsSchema = z.strictObject({
+  session_id: z.string().min(1).describe('Chat topic, Agent Session, or temporary conversation id.'),
+  cursor: z.string().optional().describe('Opaque cursor returned by the previous page.'),
+  limit: z.number().int().positive().optional().describe('Maximum messages to return.'),
+  node_id: z.string().optional().describe('Topic branch endpoint message id.'),
+  include_siblings: z.boolean().optional().describe('Include sibling replies for topic messages.'),
+  message_id: z.string().min(1).optional().describe('Read one exact message in the conversation.'),
+  tool_call_id: z.string().min(1).optional().describe('Restore the persisted output for message_id tool call.')
+})
+
+const sessionReadInputSchema = z.toJSONSchema(SessionReadArgsSchema)
+// Strict MCP clients reject the JSON Schema dialect marker.
+delete sessionReadInputSchema.$schema
+
+const SESSION_READ_TOOL: Tool = {
+  name: SESSION_READ_TOOL_NAME,
+  description:
+    'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
+  inputSchema: sessionReadInputSchema as Tool['inputSchema']
 }
 
 const SESSION_DELIVERIES_TOOL: Tool = {
@@ -316,12 +375,13 @@ const SESSION_DELIVERIES_TOOL: Tool = {
 const SESSION_CREATE_TOOL: Tool = {
   name: SESSION_CREATE_TOOL_NAME,
   description:
-    'Create a new Session for the current Agent and send its first durable message. The new Session inherits the current workspace policy and uses the Agent model.',
+    'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
   inputSchema: {
     type: 'object',
     properties: {
       message: { type: 'string', description: 'First message for the new Session.' },
-      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' }
+      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' },
+      target_agent_id: { type: 'string', description: 'Optional target Agent id.' }
     },
     required: ['message']
   }
@@ -354,7 +414,9 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  AGENT_LIST_TOOL,
   SESSION_SEARCH_TOOL,
+  SESSION_READ_TOOL,
   SESSION_CREATE_TOOL,
   SESSION_DELIVERIES_TOOL,
   SESSION_SEND_TOOL
@@ -365,21 +427,34 @@ export class CherryAutonomyTools {
   private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
-  private sourceChannelId: string | undefined
+  private trustedNotifyChannels: readonly NotifyChannel[]
+  private allowAnyOwnedNotifyChannel: boolean
 
   constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
     this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
-    this.sourceChannelId = context.sourceChannelId
+    this.trustedNotifyChannels = context.trustedNotifyChannels ?? []
+    this.allowAnyOwnedNotifyChannel = context.allowAnyOwnedNotifyChannel === true
   }
 
   tools(): Tool[] {
-    return [...AUTONOMY_TOOLS]
+    return AUTONOMY_TOOLS.flatMap((tool) => {
+      if (tool.name !== NOTIFY_TOOL_NAME) return [tool]
+      return this.trustedNotifyChannels.length > 0
+        ? [
+            {
+              ...tool,
+              description: `${tool.description} Configured recipients: ${this.trustedNotifyChannels.map((channel) => `${channel.type} (${channel.id})`).join(', ')}.`
+            }
+          ]
+        : []
+    })
   }
 
   handles(toolName: string): boolean {
+    // Keep hidden tools routable so a stale catalog receives the policy error from `call()`.
     return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
   }
 
@@ -390,21 +465,32 @@ export class CherryAutonomyTools {
           const action = args.action
           switch (action) {
             case 'add':
-              return await this.addJob(args)
+            case 'update':
+              return this.saveJob(args, action)
             case 'list':
               return this.listJobs()
             case 'remove':
               return await this.removeJob(args)
             default:
-              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
+              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/update/list/remove`)
           }
         }
         case NOTIFY_TOOL_NAME:
+          if (this.trustedNotifyChannels.length === 0) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'notify is unavailable because this turn has no configured notification recipients'
+            )
+          }
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case AGENT_LIST_TOOL_NAME:
+          return this.listAgents()
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
+        case SESSION_READ_TOOL_NAME:
+          return await this.readSession(args)
         case SESSION_CREATE_TOOL_NAME:
           return await this.createSession(args)
         case SESSION_DELIVERIES_TOOL_NAME:
@@ -441,7 +527,11 @@ export class CherryAutonomyTools {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      let message = error instanceof Error ? error.message : String(error)
+      if (toolName === CRON_TOOL_NAME && message.startsWith(JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT)) {
+        message +=
+          " Names are unique across all Agents, including disabled jobs; cron list only shows this Agent's jobs. Use update with the existing job id to edit your own task, choose a different name, or inspect the conflicting task in Settings > Scheduled Tasks."
+      }
       logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
       if (!(error instanceof AgentSessionDeliveryRoutingError)) {
         return {
@@ -487,6 +577,22 @@ export class CherryAutonomyTools {
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
     }
+  }
+
+  private listAgents() {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const agents = agentService.listAgents().agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description ?? '',
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      modelConfigured: agent.model !== null
+    }))
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ agents }) }] }
   }
 
   private searchSessions(args: Record<string, unknown>) {
@@ -549,6 +655,41 @@ export class CherryAutonomyTools {
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
   }
 
+  private async readSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const parsed = SessionReadArgsSchema.safeParse(args)
+    if (!parsed.success)
+      throw new McpError(ErrorCode.InvalidParams, parsed.error.issues[0]?.message ?? 'Invalid session_read input')
+    const sessionId = parsed.data.session_id.trim()
+    if (parsed.data.tool_call_id && !parsed.data.message_id) {
+      throw new McpError(ErrorCode.InvalidParams, "'tool_call_id' requires 'message_id'")
+    }
+
+    const readInput: ReadConversationInput = {
+      sessionId,
+      cursor: parsed.data.cursor,
+      limit: parsed.data.limit,
+      nodeId: parsed.data.node_id,
+      includeSiblings: parsed.data.include_siblings,
+      messageId: parsed.data.message_id
+    }
+    const conversation = conversationEvidence(readConversation(readInput))
+    if (parsed.data.tool_call_id && parsed.data.message_id) {
+      const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
+      const toolResult = await findPersistedToolOutput(topicId, parsed.data.message_id, parsed.data.tool_call_id)
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ...conversation, toolResult })
+          }
+        ]
+      }
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify(conversation) }] }
+  }
+
   private listSessionDeliveries(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
     this.assertSessionToolsAuthorized()
@@ -596,12 +737,24 @@ export class CherryAutonomyTools {
     }
     if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
 
+    let targetAgentId: string | undefined
+    if (args.target_agent_id !== undefined) {
+      if (typeof args.target_agent_id !== 'string' || !args.target_agent_id.trim()) {
+        throw new McpError(ErrorCode.InvalidParams, "'target_agent_id' must be a non-empty string")
+      }
+      targetAgentId = args.target_agent_id.trim()
+      if (!agentService.getAgent(targetAgentId)) {
+        throw new AgentSessionDeliveryRoutingError('TARGET_AGENT_DELETED', `Target Agent not found: ${targetAgentId}`)
+      }
+    }
+
     const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       sessionName: title,
       workspace: this.workspace,
-      content
+      content,
+      ...(targetAgentId ? { targetAgentId } : {})
     })
     return {
       content: [
@@ -653,63 +806,119 @@ export class CherryAutonomyTools {
     }
   }
 
-  private async addJob(args: Record<string, unknown>) {
-    const name = args.name as string | undefined
-    const message = args.message as string | undefined
-    const cronExpr = args.cron as string | undefined
-    const every = args.every as string | undefined
-    const at = args.at as string | undefined
-    const rawChannelIds = args.channel_ids as string[] | undefined
-    const timeoutMinutes = args.timeout_minutes as number | undefined
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
-    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
+  private getNotifyChannelAccess(
+    channelId: string,
+    adapters?: readonly { channelId: string; connected: boolean }[]
+  ): 'allowed' | 'not-owned' | 'not-granted' {
+    const channel = channelService.getChannel(channelId)
+    if (!channel || channel.agentId !== this.agentId) return 'not-owned'
+    if (this.trustedNotifyChannels.some((trustedChannel) => trustedChannel.id === channelId)) return 'allowed'
+    // A dropped adapter stays registered for reconnection, so require a live connection here —
+    // otherwise this fallback authorizes an offline channel the turn was never granted.
+    return this.allowAnyOwnedNotifyChannel &&
+      (adapters ?? application.get('ChannelManager').getAgentAdapters(this.agentId)).some(
+        (adapter) => adapter.channelId === channelId && adapter.connected
+      )
+      ? 'allowed'
+      : 'not-granted'
+  }
+
+  private saveJob(args: Record<string, unknown>, action: 'add' | 'update') {
+    const {
+      name,
+      message,
+      cron: cronExpr,
+      every,
+      at,
+      timeout_minutes: timeoutMinutes,
+      reuse_session: reuseSession,
+      id
+    } = z
+      .object({
+        name: z.string().min(1).optional(),
+        message: z.string().min(1).optional(),
+        cron: z.string().min(1).optional(),
+        every: z.string().min(1).optional(),
+        at: z.string().min(1).optional(),
+        timeout_minutes: TimeoutMinutesAtomSchema,
+        reuse_session: z.boolean().optional(),
+        id: z.string().min(1).optional()
+      })
+      .parse(args)
+    const rawChannelIds = args.channel_ids
+    if (action === 'update' && !id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for update")
+    if (action === 'add' && !name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
+    if (action === 'add' && !message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
     // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
     const scheduleCount = [cronExpr, every, at].filter(Boolean).length
-    if (scheduleCount === 0) throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
+    if (action === 'add' && scheduleCount === 0)
+      throw new McpError(ErrorCode.InvalidParams, "One of 'cron', 'every', or 'at' is required")
     if (scheduleCount > 1) throw new McpError(ErrorCode.InvalidParams, "Use only one of 'cron', 'every', or 'at'")
 
-    let trigger: Trigger
+    let trigger: Trigger | undefined
 
     if (cronExpr) {
       trigger = { kind: 'cron', expr: cronExpr }
     } else if (every) {
       const minutes = parseDurationToMinutes(every)
       trigger = { kind: 'interval', ms: minutes * 60_000 }
-    } else {
-      const date = new Date(at!)
+    } else if (at) {
+      const date = new Date(at)
       if (isNaN(date.getTime())) throw new McpError(ErrorCode.InvalidParams, `Invalid timestamp: "${at}"`)
       trigger = { kind: 'once', at: date.getTime() }
     }
 
-    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
-    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
-    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
-    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
     let channelIds: string[] | undefined
-    if (Array.isArray(rawChannelIds)) {
-      for (const channelId of rawChannelIds) {
-        const channel = channelService.getChannel(channelId)
-        if (!channel || channel.agentId !== this.agentId)
-          throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (rawChannelIds !== undefined) {
+      // Callers bypassing this tool's schema can pass a non-array; rejecting keeps it from being
+      // read as omission and fanning out to every trusted recipient.
+      if (!Array.isArray(rawChannelIds) || rawChannelIds.some((id) => typeof id !== 'string')) {
+        throw new McpError(ErrorCode.InvalidParams, "'channel_ids' must be an array of channel ids")
       }
-      channelIds = rawChannelIds
-    } else if (this.sourceChannelId) {
-      channelIds = [this.sourceChannelId]
+      channelIds = rawChannelIds as string[]
+    } else if (action === 'add' && this.trustedNotifyChannels.length > 0) {
+      channelIds = this.trustedNotifyChannels.map((channel) => channel.id)
     }
 
-    const task = application.get('AgentJobsService').createTask(this.agentId, {
+    // Task targets have the same live ownership and turn authority requirements as immediate notifications.
+    for (const channelId of channelIds ?? []) {
+      const access = this.getNotifyChannelAccess(channelId)
+      if (access === 'not-owned') throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+      if (access === 'not-granted') {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Channel "${channelId}" is not a configured notification recipient for this turn`
+        )
+      }
+    }
+
+    const service = application.get('AgentJobsService')
+    const patch = {
       name,
       prompt: message,
       trigger,
-      workspace: this.workspace,
-      timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
-      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
-    })
+      timeoutMinutes,
+      channelIds,
+      ...(reuseSession !== undefined ? { reuseSession } : {})
+    }
+    const task =
+      action === 'add'
+        ? service.createTask(this.agentId, {
+            ...patch,
+            name: name!,
+            prompt: message!,
+            trigger: trigger!,
+            workspace: this.workspace,
+            channelIds: channelIds?.length ? channelIds : undefined
+          })
+        : service.updateTask(this.agentId, id!, patch)
+    if (!task) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
 
-    logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
+    const outcome = action === 'add' ? 'created' : 'updated'
+    logger.info(`Cron job ${outcome} via tool`, { agentId: this.agentId, taskId: task.id })
     return {
-      content: [{ type: 'text' as const, text: `Job created:\n${JSON.stringify(task, null, 2)}` }]
+      content: [{ type: 'text' as const, text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}` }]
     }
   }
 
@@ -732,28 +941,37 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
     }
 
-    const targetChannelId = typeof args.channel_id === 'string' ? args.channel_id : undefined
-    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
-
-    if (targetChannelId) {
-      adapters = adapters.filter((a) => a.channelId === targetChannelId)
+    const explicitChannelId = typeof args.channel_id === 'string' ? args.channel_id.trim() : undefined
+    if (args.channel_id !== undefined && !explicitChannelId) {
+      throw new McpError(ErrorCode.InvalidParams, "'channel_id' must not be empty")
     }
-
-    if (adapters.length === 0) {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: 'No connected channels found. Configure at least one channel in settings.'
-          }
-        ]
+    const targetChannelIds = explicitChannelId
+      ? [explicitChannelId]
+      : this.trustedNotifyChannels.map((channel) => channel.id)
+    const targetChannelIdSet = new Set(targetChannelIds)
+    const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+    for (const channelId of targetChannelIdSet) {
+      if (this.getNotifyChannelAccess(channelId, allAgentAdapters) !== 'allowed') {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Channel "${channelId}" is not a configured notification recipient for this turn`
+        )
       }
     }
 
-    // Resolve the file once before dispatch so a bad path fails fast (one error,
-    // not one per chat). Guard errors surface as a clean isError result via the
-    // CallTool catch. Done after the no-adapters guard so we don't read up to
-    // 100MB off disk only to discover there's nowhere to send it.
+    const adapters = allAgentAdapters.filter((adapter) => targetChannelIdSet.has(adapter.channelId))
+    const availableChannelIds = new Set(adapters.map((adapter) => adapter.channelId))
+    const unavailableChannelIds = [...targetChannelIdSet].filter((channelId) => !availableChannelIds.has(channelId))
+    if (unavailableChannelIds.length > 0) {
+      const recipients = unavailableChannelIds.join(', ')
+      const unavailableMessage =
+        unavailableChannelIds.length === 1
+          ? `Configured notification recipient is unavailable: ${recipients}.`
+          : `Configured notification recipients are unavailable: ${recipients}.`
+      throw new McpError(ErrorCode.InvalidRequest, unavailableMessage)
+    }
+
+    // Resolve the file once after recipient validation so a bad path fails before dispatch.
     const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
     const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
 
@@ -853,7 +1071,7 @@ export class CherryAutonomyTools {
         optional_fields: schema.optional
       })),
       channels: channelSummary,
-      heartbeat_enabled: config?.heartbeat_enabled ?? false
+      heartbeat_enabled: isHeartbeatEnabled(config ?? {})
     }
 
     logger.info('Config status queried', { agentId: this.agentId })
@@ -929,12 +1147,13 @@ export class CherryAutonomyTools {
 
       if (existingChannel) {
         const config = ChannelConfigSchema.parse({ type, ...cfg })
-        channelService.updateChannel(existingChannel.id, {
-          name,
-          config,
-          isActive: true
-        })
-        return await this.configReconnectChannel({ channel_id: existingChannel.id })
+        const { qrUrl } = await updateAgentChannelAndWaitForQr(
+          existingChannel.id,
+          this.agentId,
+          { name, config, isActive: true },
+          30_000
+        )
+        return await this.configReconnectChannel({ channel_id: existingChannel.id }, qrUrl)
       }
     }
     if (authMode === 'credentials') {
@@ -954,26 +1173,6 @@ export class CherryAutonomyTools {
     const needsQr = authMode === 'qr'
 
     if (needsQr) {
-      const newChannel = channelService.createChannel({
-        type: channelType,
-        name,
-        agentId: this.agentId,
-        workspace: this.workspace,
-        config,
-        isActive: enabled ?? true
-      })
-
-      const channelManager = application.get('ChannelManager')
-      const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
-      // Fire-and-forget: syncChannel will complete once the user scans
-      channelManager.syncChannel(newChannel.id).catch((err) => {
-        logger.error(`${type} sync failed`, {
-          agentId: this.agentId,
-          channelId: newChannel.id,
-          error: err instanceof Error ? err.message : String(err)
-        })
-      })
-
       const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
       const scanHint =
         type === 'wechat'
@@ -981,7 +1180,17 @@ export class CherryAutonomyTools {
           : 'scan with Feishu to create a bot app and obtain credentials automatically'
 
       try {
-        const qrUrl = await qrPromise
+        const { channel: newChannel, qrUrl } = await createAgentChannelAndWaitForQr(
+          {
+            type: channelType,
+            name,
+            agentId: this.agentId,
+            workspace: this.workspace,
+            config,
+            isActive: enabled ?? true
+          },
+          30_000
+        )
         const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
         // Extract base64 from data URI: "data:image/png;base64,..."
         const base64 = qrDataUrl.split(',')[1]
@@ -1004,12 +1213,8 @@ export class CherryAutonomyTools {
           ]
         }
       } catch (err) {
-        // QR timed out — remove the orphan channel so it doesn't block future connections
-        await this.removeOrphanChannel(newChannel.id)
-
-        logger.warn(`Failed to get ${channelLabel} QR code, orphan channel removed`, {
+        logger.warn(`Failed to get ${channelLabel} QR code`, {
           agentId: this.agentId,
-          channelId: newChannel.id,
           error: err instanceof Error ? err.message : String(err)
         })
         return {
@@ -1024,7 +1229,7 @@ export class CherryAutonomyTools {
       }
     }
 
-    const newChannel = await agentChannelWorkflowService.createChannel({
+    const newChannel = createAgentChannel({
       type: channelType,
       name,
       agentId: this.agentId,
@@ -1054,13 +1259,13 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
-    if (args.name !== undefined) updates.name = args.name as string
-    if (args.enabled !== undefined) updates.isActive = args.enabled as boolean
+    if (args.name !== undefined) updates.name = args.name
+    if (args.enabled !== undefined) updates.isActive = args.enabled
     if (args.config !== undefined) {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }
 
-    await agentChannelWorkflowService.updateChannel(channelId, updates)
+    updateAgentChannel(channelId, updates)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
     return {
@@ -1077,7 +1282,7 @@ export class CherryAutonomyTools {
     if (channel.agentId !== this.agentId)
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    await agentChannelWorkflowService.deleteChannel(channelId)
+    await deleteAgentChannel(channelId)
 
     logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
@@ -1085,7 +1290,7 @@ export class CherryAutonomyTools {
     }
   }
 
-  private async configReconnectChannel(args: Record<string, unknown>) {
+  private async configReconnectChannel(args: Record<string, unknown>, preparedQrUrl?: string) {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
 
@@ -1097,28 +1302,17 @@ export class CherryAutonomyTools {
     const needsQr =
       channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
 
-    const channelManager = application.get('ChannelManager')
     if (!needsQr) {
-      await channelManager.syncChannel(channelId)
+      await reconnectAgentChannel(channelId)
       return {
         content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
       }
     }
 
-    // QR-based reconnect: sync in background, wait for QR URL
-    const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
-    channelManager.syncChannel(channelId).catch((err) => {
-      logger.error('Reconnect sync failed', {
-        agentId: this.agentId,
-        channelId,
-        error: err instanceof Error ? err.message : String(err)
-      })
-    })
-
     const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
 
     try {
-      const qrUrl = await qrPromise
+      const qrUrl = preparedQrUrl ?? (await reconnectAgentChannelWithQr(this.agentId, channelId, 30_000))
       const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
       const base64 = qrDataUrl.split(',')[1]
 
@@ -1182,22 +1376,6 @@ export class CherryAutonomyTools {
       content: [
         { type: 'text' as const, text: 'Bootstrap has been reset. The next session will run the onboarding flow.' }
       ]
-    }
-  }
-
-  /**
-   * Remove a channel from config that failed to connect (e.g. QR timeout).
-   * Prevents orphaned channels from blocking future connections.
-   */
-  private async removeOrphanChannel(channelId: string): Promise<void> {
-    try {
-      await agentChannelWorkflowService.deleteChannel(channelId)
-    } catch (err) {
-      logger.error('Failed to remove orphan channel', {
-        agentId: this.agentId,
-        channelId,
-        error: err instanceof Error ? err.message : String(err)
-      })
     }
   }
 

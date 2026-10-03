@@ -1,5 +1,10 @@
-import type { WebviewKeyEvent } from '@shared/types/webview'
 import * as z from 'zod'
+
+import {
+  WEBVIEW_ANNOTATION_LIMITS,
+  WebviewAnnotationSchema,
+  WebviewAnnotationTargetSchema
+} from '@shared/types/webviewAnnotation'
 
 import { defineRoute } from '../define'
 
@@ -10,8 +15,6 @@ import { defineRoute } from '../define'
  *
  * `print_to_pdf` / `save_as_html` return the written file path, or `null` when the user
  * cancels the native save dialog (they throw if the guest webContents is gone).
- * `search_hotkey_pressed` is a DIRECTED event: the host forwards a page-find/print/save
- * hotkey the guest pressed to the window that owns it.
  */
 export const webviewRequestSchemas = {
   'webview.set_open_link_external': defineRoute({
@@ -22,10 +25,17 @@ export const webviewRequestSchemas = {
     input: z.object({ webviewId: z.number(), isEnable: z.boolean() }),
     output: z.void()
   }),
+  'webview.export_annotations': defineRoute({
+    input: z
+      .object({
+        webviewId: z.number().int().positive(),
+        documentSessionId: z.uuid(),
+        target: WebviewAnnotationTargetSchema,
+        annotations: z.array(WebviewAnnotationSchema).min(1).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
+      })
+      .strict(),
+    output: z.string().max(WEBVIEW_ANNOTATION_LIMITS.exportMarkdown)
+  }),
   'webview.print_to_pdf': defineRoute({ input: z.object({ webviewId: z.number() }), output: z.string().nullable() }),
   'webview.save_as_html': defineRoute({ input: z.object({ webviewId: z.number() }), output: z.string().nullable() })
-}
-
-export type WebviewEventSchemas = {
-  'webview.search_hotkey_pressed': WebviewKeyEvent
 }

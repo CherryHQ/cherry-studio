@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
-import type { ReactNode } from 'react'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'

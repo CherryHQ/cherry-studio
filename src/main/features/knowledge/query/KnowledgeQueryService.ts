@@ -1,14 +1,15 @@
+import { estimateTokenCount } from 'tokenx'
+
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { TraceMethod } from '@main/ai/observability'
 import { extractFtsTokens } from '@main/utils/trigramFtsQuery'
-import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItem, KnowledgeItemChunk, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { estimateTokenCount } from 'tokenx'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import { getKnowledgeBaseFilePath } from '../pathStorage'

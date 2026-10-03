@@ -1,5 +1,6 @@
 import type { PathReadability } from '@main/utils/file'
 import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { probeKnowledgeFile, probeKnowledgeSourcePath } from './pathStorage'
 
@@ -52,14 +53,16 @@ const toSourceState = (probe: PathReadability): KnowledgeItemSourceState =>
   probe === 'readable' ? 'rebuildable' : probe
 
 /**
- * Classify a knowledge item's rebuild source: a directory from its original folder (`data.source`), a
- * file leaf from its own material file (`indexedRelativePath ?? relativePath`); note/url always
- * rebuild from the DB / network. The `unverifiable` state (a transient/permission error rather than
- * a genuine ENOENT) lets the admission gate avoid telling the user to delete a source that may still
- * exist. Reindex deletes a subtree's vectors before re-reading, so neither `missing` nor
- * `unverifiable` may proceed — both would wipe vectors with nothing to rebuild from.
+ * Classify what a *restore* would copy out of this base: a file leaf's own material file
+ * (`indexedRelativePath ?? relativePath`, copied into the new base), a directory's original folder
+ * (`data.source`, rescanned by the new base); note/url carry their content or snapshot. The
+ * `unverifiable` state (a transient/permission error rather than a genuine ENOENT) lets restore
+ * avoid dropping a source it could not confirm is gone.
+ *
+ * Deliberately *not* the reindex question — see {@link classifyKnowledgeItemReacquireSource}. A file
+ * whose original was deleted still restores perfectly from this base's copy.
  */
-export async function classifyKnowledgeItemSource(
+export async function classifyKnowledgeItemRestoreSource(
   baseId: string,
   item: KnowledgeItem
 ): Promise<KnowledgeItemSourceState> {
@@ -73,11 +76,32 @@ export async function classifyKnowledgeItemSource(
 }
 
 /**
- * Whether a knowledge item can rebuild from a still-readable source. Gates reindex both at admission
- * (`KnowledgeIngestionService.assertSubtreesCanReindex`) and inside the reindex job's mutation lock right
- * before the delete — a vanished or unverifiable source must never wipe vectors with nothing to
- * rebuild from. Admission additionally distinguishes the two via {@link classifyKnowledgeItemSource}.
+ * Classify what a *reindex* would re-acquire from: reindex is "re-acquire from the real source, then
+ * rebuild", so a file and a directory are both probed at their original on-disk path (`data.source`)
+ * — never at this base's copy, which is the thing being overwritten. A note re-acquires from
+ * `data.content` and a url from the network, neither of which the filesystem can answer for.
+ *
+ * A `data.source` that is not even a well-formed absolute path (a v1 row carrying a stale or
+ * cross-platform value) is reported `missing` rather than thrown: the user's remedy is the same
+ * delete-and-re-add, and a raw parse error would surface as an opaque reindex failure instead.
  */
-export async function canKnowledgeItemRebuildSource(baseId: string, item: KnowledgeItem): Promise<boolean> {
-  return (await classifyKnowledgeItemSource(baseId, item)) === 'rebuildable'
+export async function classifyKnowledgeItemReacquireSource(item: KnowledgeItem): Promise<KnowledgeItemSourceState> {
+  if (item.type !== 'file' && item.type !== 'directory') {
+    return 'rebuildable'
+  }
+  if (!AbsoluteFilePathSchema.safeParse(item.data.source).success) {
+    return 'missing'
+  }
+  return toSourceState(await probeKnowledgeSourcePath(item.data.source))
+}
+
+/**
+ * Whether a knowledge item can re-acquire from a still-readable source. Gates reindex both at
+ * admission (`KnowledgeIngestionService.assertSubtreesCanReindex`) and inside the reindex job's
+ * mutation lock right before the delete — a vanished or unverifiable source must never wipe vectors
+ * with nothing to rebuild from. Admission additionally distinguishes the two via
+ * {@link classifyKnowledgeItemReacquireSource}.
+ */
+export async function canKnowledgeItemReacquireSource(item: KnowledgeItem): Promise<boolean> {
+  return (await classifyKnowledgeItemReacquireSource(item)) === 'rebuildable'
 }

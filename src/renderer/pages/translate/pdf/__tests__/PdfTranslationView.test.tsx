@@ -1,10 +1,11 @@
+import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { PdfTranslationProgress } from '@shared/ipc/schemas/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PdfTranslationView, { type PdfTranslationHandle } from '../PdfTranslationView'
 
@@ -146,7 +147,7 @@ describe('PdfTranslationView', () => {
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.checking_assets' })).toHaveAttribute(
       'aria-valuenow',
-      '1'
+      '50'
     )
     expect(screen.queryByText('translate.pdf.progress.preparing_hint')).not.toBeInTheDocument()
 
@@ -160,7 +161,7 @@ describe('PdfTranslationView', () => {
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.downloading_assets' })).toHaveAttribute(
       'aria-valuenow',
-      '2'
+      '42'
     )
 
     act(() => {

@@ -27,7 +27,6 @@ export function buildHostEndpointPreviews(params: {
     formattedHost = formatApiHost(anthropicApiHost || apiHost, appendVersion)
   } else if (
     provider.id === 'copilot' ||
-    provider.id === 'github' ||
     isCherryAIProvider(provider) ||
     isPerplexityProvider(provider) ||
     isNewApiProvider(provider) ||

@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq, sql } from 'drizzle-orm'
+import { validate as isUuid } from 'uuid'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import {
@@ -7,10 +12,6 @@ import {
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq, sql } from 'drizzle-orm'
-import { validate as isUuid } from 'uuid'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { importLegacySessionMessages } from '../AgentsMigrator'
 import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'

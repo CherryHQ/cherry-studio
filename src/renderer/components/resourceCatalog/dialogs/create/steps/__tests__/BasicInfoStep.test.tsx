@@ -1,11 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { Form } from '@cherrystudio/ui'
-import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Form } from '@cherrystudio/ui'
+import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
+import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { BasicInfoStep } from '../BasicInfoStep'
@@ -56,7 +59,7 @@ function Harness({
       name: '',
       description: '',
       agentType: 'claude-code',
-      permissionMode: 'default',
+      permissionMode: 'auto',
       modelId,
       prompt: '',
       knowledgeBaseIds: [],
@@ -94,22 +97,36 @@ describe('BasicInfoStep', () => {
     )
   })
 
-  it('exposes every supported runtime as a selectable card and marks the choice immutable', () => {
+  it('integrates the avatar picker into the name field', () => {
+    render(<Harness />)
+
+    expect(screen.getByText('library.config.dialogs.create.avatar_name_label')).toBeVisible()
+    const avatarButton = screen.getByRole('button', { name: 'library.config.dialogs.create.avatar_aria' })
+    const inputGroup = avatarButton.closest('[data-slot="input-group"]')
+
+    expect(inputGroup).not.toBeNull()
+    expect(
+      within(inputGroup as HTMLElement).getByPlaceholderText('library.config.dialogs.create.name_placeholder')
+    ).toBeVisible()
+  })
+
+  it('offers Claude and Pi for creation without exposing DeepSeek Harness', () => {
     render(<Harness runtimeSelectable />)
 
-    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeInTheDocument()
+    expect(screen.getByText('library.config.agent.field.runtime.immutable_hint')).toBeVisible()
+    expect(screen.queryByRole('img', { name: /runtime\.immutable_hint/ })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /runtime.option.pi/ })).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).not.toBeChecked()
+    expect(screen.queryByRole('radio', { name: /runtime.option.dsh/ })).not.toBeInTheDocument()
     expect(screen.queryByText('library.config.agent.field.runtime.pi_hint')).not.toBeInTheDocument()
   })
 
-  it('switches to the selected runtime permission default', async () => {
+  it('uses smart approval when switching between Claude and Pi', async () => {
     const user = userEvent.setup()
     render(<Harness runtimeSelectable />)
 
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.default.title'
+      'agent.settings.tooling.permissionMode.auto.title'
     )
 
     await user.click(screen.getByRole('radio', { name: /runtime.option.pi/ }))
@@ -120,13 +137,26 @@ describe('BasicInfoStep', () => {
     )
     expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
 
-    await user.click(screen.getByRole('radio', { name: /runtime.option.dsh/ }))
+    await user.click(screen.getByRole('radio', { name: /runtime.option.claude_code/ }))
 
-    expect(screen.getByRole('radio', { name: /runtime.option.dsh/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /runtime.option.claude_code/ })).toBeChecked()
     expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.default.title'
+      'agent.settings.tooling.permissionMode.auto.title'
     )
-    expect(screen.getByTestId('permission-mode')).toHaveTextContent('default')
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+  })
+
+  it('still displays the runtime summary for an existing DeepSeek Harness agent', () => {
+    function ExistingAgentRuntime() {
+      const { t } = useTranslation()
+      return <AgentRuntimeSummary value="dsh" t={t} />
+    }
+
+    render(<ExistingAgentRuntime />)
+
+    expect(screen.getByText('library.config.agent.field.runtime.option.dsh')).toBeVisible()
+    expect(screen.getByText('library.config.agent.field.runtime.option_description.dsh')).toBeVisible()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {

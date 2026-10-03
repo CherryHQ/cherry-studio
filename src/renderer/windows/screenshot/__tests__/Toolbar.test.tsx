@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import i18n from 'i18next'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -49,5 +49,26 @@ describe('Toolbar accessible names', () => {
     expect(screen.getByRole('button', { name: 'Rectangle' })).toHaveAttribute('aria-pressed', 'false')
     // An always-off aria-pressed here would announce "Save image" as an unchecked toggle.
     expect(screen.getByRole('button', { name: 'Save image' })).not.toHaveAttribute('aria-pressed')
+  })
+})
+
+describe('Toolbar event containment', () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage('en-US')
+  })
+
+  // A full-screen selection clamps the toolbar inside the selection, where the overlay's
+  // double-click-to-confirm would fire on a button press and capture instead.
+  it('keeps a double-click on a button from reaching the overlay below', () => {
+    const onOverlayDoubleClick = vi.fn()
+    render(
+      <div onDoubleClick={onOverlayDoubleClick}>
+        <Toolbar {...baseProps} activeTool={null} />
+      </div>
+    )
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Rectangle' }))
+
+    expect(onOverlayDoubleClick).not.toHaveBeenCalled()
   })
 })

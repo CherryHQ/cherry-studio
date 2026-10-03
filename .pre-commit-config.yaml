@@ -3,10 +3,10 @@ default_install_hook_types: [pre-commit, post-checkout, post-merge]
 repos:
   - repo: local
     hooks:
-      - id: biome-format-js
-        name: Biome format (JS/TS)
+      - id: oxfmt-format-js
+        name: Oxfmt format (JS/TS)
         language: system
-        entry: pnpm biome format --write --no-errors-on-unmatched
+        entry: pnpm oxfmt --write --no-error-on-unmatched-pattern
         files: '\.(js|jsx|ts|tsx|cjs|mjs|cts|mts)$'
         pass_filenames: true
 
@@ -17,10 +17,10 @@ repos:
         files: '\.(js|jsx|ts|tsx|cjs|mjs|cts|mts)$'
         pass_filenames: true
 
-      - id: biome-format-other
-        name: Biome format (JSON/YAML/CSS/HTML)
+      - id: oxfmt-format-other
+        name: Oxfmt format (JSON/YAML/CSS/HTML)
         language: system
-        entry: pnpm biome format --write --no-errors-on-unmatched
+        entry: pnpm oxfmt --write --no-error-on-unmatched-pattern
         files: '\.(json|yml|yaml|css|html)$'
         pass_filenames: true
 

@@ -1,13 +1,13 @@
+import { Parser } from 'htmlparser2'
+import MagicString from 'magic-string'
 import {
   type JSXAttribute,
   type JSXElementName,
   type JSXOpeningElement,
+  type JSXSpreadAttribute,
   parseSync,
-  type Span,
-  type SpreadElement
-} from '@swc/core'
-import { Parser } from 'htmlparser2'
-import MagicString from 'magic-string'
+  type Span
+} from 'oxc-parser'
 
 import { inferHandlerAction, inferSemanticId } from './semanticId'
 import type { UiNodeDescriptor, UiSourceTransform } from './types'
@@ -45,7 +45,7 @@ const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
 const RUNTIME_MERGE_UI_PROPS = '__cherryUiContractMergeUiProps'
 const RUNTIME_SLOT = '__CherryUiContractSlot'
 
-type AstRecord = Record<string, unknown> & { span?: Span; type?: string }
+type AstRecord = Record<string, unknown> & Partial<Span> & { type?: string }
 
 interface AttributeInfo {
   attribute?: JSXAttribute
@@ -60,7 +60,7 @@ interface OpeningElementInfo {
   handler?: string
   parts: string[]
   requiresDataUiInjection: boolean
-  spreads: SpreadElement[]
+  spreads: JSXSpreadAttribute[]
 }
 
 function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
@@ -91,31 +91,31 @@ function isRecord(value: unknown): value is AstRecord {
 }
 
 function jsxName(name: JSXElementName): string {
-  if (name.type === 'Identifier') return name.value
-  if (name.type === 'JSXNamespacedName') return `${name.namespace.value}:${name.name.value}`
-  return `${jsxName(name.object)}.${name.property.value}`
+  if (name.type === 'JSXIdentifier') return name.name
+  if (name.type === 'JSXNamespacedName') return `${name.namespace.name}:${name.name.name}`
+  return `${jsxName(name.object)}.${name.property.name}`
 }
 
 function directHandlerIdentifier(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
-  if (value.type === 'Identifier' && typeof value.value === 'string') return value.value
-  if (value.type === 'MemberExpression' && isRecord(value.property)) {
+  if (value.type === 'Identifier' && typeof value.name === 'string') return value.name
+  if ((value.type === 'MemberExpression' || value.type === 'OptionalMemberExpression') && isRecord(value.property)) {
     return directHandlerIdentifier(value.property)
   }
-  if (value.type === 'OptionalChainingExpression' && isRecord(value.base)) {
-    return directHandlerIdentifier(value.base)
+  if (value.type === 'ChainExpression' && isRecord(value.expression)) {
+    return directHandlerIdentifier(value.expression)
   }
   return undefined
 }
 
 function staticJsxAttribute(attribute: JSXAttribute): AttributeInfo {
   if (!attribute.value) return { attribute, dynamic: false, value: '' }
-  if (attribute.value.type === 'StringLiteral') {
+  if (attribute.value.type === 'Literal' && typeof attribute.value.value === 'string') {
     return { attribute, dynamic: false, value: attribute.value.value }
   }
   if (attribute.value.type === 'JSXExpressionContainer') {
     const expression = attribute.value.expression
-    if (expression.type === 'StringLiteral') {
+    if (expression.type === 'Literal' && typeof expression.value === 'string') {
       return { attribute, dynamic: false, value: expression.value }
     }
   }
@@ -153,16 +153,16 @@ function staticDataSlot(attributes: Map<string, AttributeInfo>): string | undefi
 
 function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   const attributes = new Map<string, AttributeInfo>()
-  const spreads: SpreadElement[] = []
+  const spreads: JSXSpreadAttribute[] = []
   let handler: string | undefined
 
   for (const attribute of opening.attributes) {
-    if (attribute.type === 'SpreadElement') {
+    if (attribute.type === 'JSXSpreadAttribute') {
       spreads.push(attribute)
       continue
     }
-    if (attribute.type !== 'JSXAttribute' || attribute.name.type !== 'Identifier') continue
-    const name = attribute.name.value
+    if (attribute.type !== 'JSXAttribute' || attribute.name.type !== 'JSXIdentifier') continue
+    const name = attribute.name.name
     const info = staticJsxAttribute(attribute)
     attributes.set(name, info)
     if (/^on[A-Z]/.test(name) && attribute.value?.type === 'JSXExpressionContainer') {
@@ -198,54 +198,13 @@ function explicitSemanticId(dataUi: AttributeInfo | undefined): string | undefin
   return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':'))
 }
 
-function byteOffsetMap(source: string): (byteOffset: number) => number {
-  const offsets = new Map<number, number>([[0, 0]])
-  let bytes = 0
-  let characters = 0
-  for (const character of source) {
-    bytes += Buffer.byteLength(character)
-    characters += character.length
-    offsets.set(bytes, characters)
-  }
-
-  return (byteOffset: number): number => {
-    const exact = offsets.get(byteOffset)
-    if (exact !== undefined) return exact
-    throw new Error(`Invalid UTF-8 byte offset ${byteOffset}`)
-  }
-}
-
-function leadingTriviaByteLength(source: string): number {
-  let index = 0
-
-  while (index < source.length) {
-    if (/\s/u.test(source[index])) {
-      index += 1
-      continue
-    }
-    if (source.startsWith('//', index) || source.startsWith('#!', index)) {
-      const newline = source.indexOf('\n', index + 2)
-      index = newline === -1 ? source.length : newline + 1
-      continue
-    }
-    if (source.startsWith('/*', index)) {
-      const closing = source.indexOf('*/', index + 2)
-      index = closing === -1 ? source.length : closing + 2
-      continue
-    }
-    break
-  }
-
-  return Buffer.byteLength(source.slice(0, index))
-}
-
 function componentNameFromNode(node: AstRecord): string | undefined {
-  if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && isRecord(node.identifier)) {
-    return typeof node.identifier.value === 'string' ? node.identifier.value : undefined
+  if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && isRecord(node.id)) {
+    return typeof node.id.name === 'string' ? node.id.name : undefined
   }
   if (node.type === 'VariableDeclarator' && isRecord(node.id) && node.id.type === 'Identifier' && isRecord(node.init)) {
     if (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression') {
-      return typeof node.id.value === 'string' ? node.id.value : undefined
+      return typeof node.id.name === 'string' ? node.id.name : undefined
     }
   }
   return undefined
@@ -284,19 +243,16 @@ interface TransformJsxOptions {
 }
 
 export function transformJsx(source: string, options: TransformJsxOptions): UiSourceTransform {
-  const module = parseSync(source, {
-    syntax: 'typescript',
-    tsx: true,
-    decorators: true,
-    dynamicImport: true
-  })
+  const parsed = parseSync(options.sourceFile, source, { lang: 'tsx', sourceType: 'unambiguous' })
+  if (parsed.errors.length > 0) {
+    const details = parsed.errors.map((error) => error.codeframe?.trim() || error.message).join('\n')
+    throw new Error(`Failed to parse ${options.sourceFile} with Oxc:\n${details}`)
+  }
+  const program = parsed.program
   const magicString = new MagicString(source)
-  const byteToCharacter = byteOffsetMap(source)
-  // SWC uses process-wide byte positions across parse calls, while module.span.start
-  // points at the first syntax token after leading trivia. Recover this file's base
-  // before translating its byte positions into JavaScript character offsets.
-  const spanBase = module.span.start - leadingTriviaByteLength(source)
-  const spanToCharacter = (value: number) => byteToCharacter(value - spanBase)
+  // oxc-parser exposes ESTree spans as JavaScript string indices, which
+  // MagicString accepts directly. Keep source edits behind one offset helper.
+  const spanToCharacter = (offset: number): number => offset
   const descriptors: UiNodeDescriptor[] = []
   const runtimeImports = new Set<'mergeDataUi' | 'mergeUiProps' | 'UiDataSlot'>()
 
@@ -305,9 +261,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
 
   function requiredSpan(value: unknown, description: string): Span {
-    const span = isRecord(value) ? value.span : undefined
-    if (!span) throw new Error(`Missing ${description} span`)
-    return span
+    if (!isRecord(value) || typeof value.start !== 'number' || typeof value.end !== 'number') {
+      throw new Error(`Missing ${description} span`)
+    }
+    return { start: value.start, end: value.end }
   }
 
   function injectDataUi(opening: JSXOpeningElement, existing: AttributeInfo | undefined, contract: string): void {
@@ -322,11 +279,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     }
 
     if (attribute) {
-      magicString.remove(spanToCharacter(attribute.span.start), spanToCharacter(attribute.span.end))
+      magicString.remove(spanToCharacter(attribute.start), spanToCharacter(attribute.end))
     }
 
-    const nameSpan = (opening.name as unknown as AstRecord).span
-    if (!nameSpan) throw new Error(`Missing JSX element-name span for ${jsxName(opening.name)}`)
+    const nameSpan = requiredSpan(opening.name, `JSX element-name for ${jsxName(opening.name)}`)
     const dataUiValue =
       dynamicExpressions.length > 0
         ? `{${RUNTIME_MERGE_DATA_UI}(${JSON.stringify(contract)}, ${dynamicExpressions.join(', ')})}`
@@ -335,8 +291,8 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     if (dynamicExpressions.length > 0) runtimeImports.add('mergeDataUi')
 
     for (const spread of opening.attributes) {
-      if (spread.type !== 'SpreadElement') continue
-      const spreadSpan = requiredSpan(spread.arguments, 'JSX spread expression')
+      if (spread.type !== 'JSXSpreadAttribute') continue
+      const spreadSpan = requiredSpan(spread.argument, 'JSX spread expression')
       const spreadSource = expressionSource(spreadSpan)
       magicString.overwrite(
         spanToCharacter(spreadSpan.start),
@@ -381,7 +337,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         semanticId: explicitSemantic ?? '',
         semanticSource: 'explicit',
         sourceFile: options.sourceFile,
-        sourceOffset: spanToCharacter(opening.span.start)
+        sourceOffset: spanToCharacter(opening.start)
       })
       return explicitSemantic
     }
@@ -412,7 +368,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       semanticId,
       semanticSource: explicitSemantic ? 'explicit' : 'inferred',
       sourceFile: options.sourceFile,
-      sourceOffset: spanToCharacter(opening.span.start)
+      sourceOffset: spanToCharacter(opening.start)
     }
     descriptors.push(descriptor)
 
@@ -425,14 +381,16 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   function shouldWrapAsChildContent(opening: JSXOpeningElement): boolean {
     const attribute = opening.attributes.find(
       (attribute) =>
-        attribute.type === 'JSXAttribute' && attribute.name.type === 'Identifier' && attribute.name.value === 'asChild'
+        attribute.type === 'JSXAttribute' &&
+        attribute.name.type === 'JSXIdentifier' &&
+        attribute.name.name === 'asChild'
     )
     if (!attribute || attribute.type !== 'JSXAttribute') return false
     if (!attribute.value) return true
 
     return !(
       attribute.value.type === 'JSXExpressionContainer' &&
-      attribute.value.expression.type === 'BooleanLiteral' &&
+      attribute.value.expression.type === 'Literal' &&
       !attribute.value.expression.value
     )
   }
@@ -451,8 +409,12 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     if (!isRecord(value)) return
 
     const nestedComponent = componentNameFromNode(value) ?? component
-    if (value.type === 'JSXElement' && isRecord(value.opening) && value.opening.type === 'JSXOpeningElement') {
-      const opening = value.opening as unknown as JSXOpeningElement
+    if (
+      value.type === 'JSXElement' &&
+      isRecord(value.openingElement) &&
+      value.openingElement.type === 'JSXOpeningElement'
+    ) {
+      const opening = value.openingElement as unknown as JSXOpeningElement
       const element = jsxName(opening.name)
       const isIntrinsicElement = /^[a-z]/.test(element)
       const semanticId = processOpening(opening, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
@@ -472,11 +434,11 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         shouldWrapAsChildContent(opening) &&
         Array.isArray(value.children) &&
         value.children.length > 0 &&
-        isRecord(value.closing) &&
-        value.closing.span
+        isRecord(value.closingElement)
       ) {
-        magicString.appendLeft(spanToCharacter(opening.span.end), `<${RUNTIME_SLOT}>`)
-        magicString.appendLeft(spanToCharacter(value.closing.span.start), `</${RUNTIME_SLOT}>`)
+        const closingSpan = requiredSpan(value.closingElement, 'JSX closing element')
+        magicString.appendLeft(spanToCharacter(opening.end), `<${RUNTIME_SLOT}>`)
+        magicString.appendLeft(spanToCharacter(closingSpan.start), `</${RUNTIME_SLOT}>`)
         runtimeImports.add('UiDataSlot')
       }
       if (Array.isArray(value.children)) {
@@ -497,12 +459,12 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     }
 
     for (const [key, child] of Object.entries(value)) {
-      if (key === 'span' || key === 'ctxt' || key === 'type') continue
+      if (key === 'start' || key === 'end' || key === 'parent' || key === 'type') continue
       walk(child, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
     }
   }
 
-  walk(module, defaultComponentName(options.sourceFile))
+  walk(program, defaultComponentName(options.sourceFile))
 
   if (options.injectDataUi && runtimeImports.size > 0) {
     const imports = [...runtimeImports]
@@ -515,15 +477,16 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       .join(', ')
     const statement = `import { ${imports} } from ${JSON.stringify(UI_CONTRACT_RUNTIME_MODULE_ID)}\n`
     let insertAt = 0
-    for (const item of module.body) {
+    for (const item of program.body) {
       if (
         item.type !== 'ExpressionStatement' ||
         !isRecord(item.expression) ||
-        item.expression.type !== 'StringLiteral'
+        item.expression.type !== 'Literal' ||
+        typeof item.expression.value !== 'string'
       ) {
         break
       }
-      insertAt = spanToCharacter(item.span.end)
+      insertAt = spanToCharacter(item.end)
     }
     if (insertAt === 0) magicString.prepend(statement)
     else magicString.appendLeft(insertAt, `\n${statement}`)

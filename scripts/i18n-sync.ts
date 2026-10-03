@@ -11,76 +11,28 @@ const catalogDirectories = [
   path.join(__dirname, '../src/main/i18n/locales')
 ]
 
-type I18NValue = string | { [key: string]: I18NValue }
-type I18N = { [key: string]: I18NValue }
+/** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
+type I18N = { [key: string]: string }
 
 /**
- * Recursively sync target object to match template object structure
+ * Sync target catalog to match the template's key set
  * 1. Add keys that exist in template but missing in target (with '[to be translated]')
  * 2. Remove keys that exist in target but not in template
- * 3. Recursively sync nested objects
- *
- * @param target Target object (language object to be updated)
- * @param template Base locale object
- * @returns Returns whether target was updated
  */
-function syncRecursively(target: I18N, template: I18N): void {
-  // Add keys that exist in template but missing in target
+function sync(target: I18N, template: I18N): void {
   for (const key in template) {
     if (!(key in target)) {
-      target[key] =
-        typeof template[key] === 'object' && template[key] !== null ? {} : `[to be translated]:${template[key]}`
+      target[key] = `[to be translated]:${template[key]}`
       console.log(`Added new property: ${key}`)
-    }
-    if (typeof template[key] === 'object' && template[key] !== null) {
-      if (typeof target[key] !== 'object' || target[key] === null) {
-        target[key] = {}
-      }
-      // Recursively sync nested objects
-      syncRecursively(target[key], template[key])
     }
   }
 
-  // Remove keys that exist in target but not in template
   for (const targetKey in target) {
     if (!(targetKey in template)) {
       console.log(`Removed excess property: ${targetKey}`)
       delete target[targetKey]
     }
   }
-}
-
-/**
- * Check JSON object for duplicate keys and collect all duplicates
- * @param obj Object to check
- * @returns Returns array of duplicate keys (empty array if no duplicates)
- */
-function checkDuplicateKeys(obj: I18N): string[] {
-  const keys = new Set<string>()
-  const duplicateKeys: string[] = []
-
-  const checkObject = (obj: I18N, path: string = '') => {
-    for (const key in obj) {
-      const fullPath = path ? `${path}.${key}` : key
-
-      if (keys.has(fullPath)) {
-        // When duplicate key found, add to array (avoid duplicate additions)
-        if (!duplicateKeys.includes(fullPath)) {
-          duplicateKeys.push(fullPath)
-        }
-      } else {
-        keys.add(fullPath)
-      }
-
-      // Recursively check nested objects
-      if (typeof obj[key] === 'object' && obj[key] !== null) {
-        checkObject(obj[key], fullPath)
-      }
-    }
-  }
-
-  checkObject(obj)
-  return duplicateKeys
 }
 
 function syncCatalog(localesDir: string) {
@@ -97,12 +49,6 @@ function syncCatalog(localesDir: string) {
   } catch (error) {
     console.error(`Error parsing ${baseFileName}. ${error}`)
     return
-  }
-
-  // Check if base locale has duplicate keys
-  const duplicateKeys = checkDuplicateKeys(baseJson)
-  if (duplicateKeys.length > 0) {
-    throw new Error(`Base locale file ${baseFileName} has the following duplicate keys:\n${duplicateKeys.join('\n')}`)
   }
 
   // Sort base locale
@@ -134,7 +80,7 @@ function syncCatalog(localesDir: string) {
       continue
     }
 
-    syncRecursively(targetJson, baseJson)
+    sync(targetJson, baseJson)
 
     const sortedJson = sortedObjectByKeys(targetJson)
 

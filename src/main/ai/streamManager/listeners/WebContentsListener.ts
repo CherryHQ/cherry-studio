@@ -1,9 +1,10 @@
+import type { UIMessageChunk } from 'ai'
+
 import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { UIMessageChunk } from 'ai'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -201,7 +202,7 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
     return chunk as CoalescableChunk
   }
   if (chunk.type === 'tool-input-delta') {
-    return chunk as CoalescableChunk
+    return chunk
   }
   return null
 }
@@ -234,7 +235,7 @@ function normalizePending(
 
 function rebuildChunk(p: PendingDelta): UIMessageChunk {
   if (p.type === 'tool-input-delta') {
-    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text } as UIMessageChunk
+    return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text }
   }
-  return { type: p.type, id: p.identifier, delta: p.text } as UIMessageChunk
+  return { type: p.type, id: p.identifier, delta: p.text }
 }

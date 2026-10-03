@@ -1,5 +1,6 @@
-import type { ScreenshotResultData } from '@shared/types/screenshot'
 import * as z from 'zod'
+
+import type { DetectedWindow, ScreenshotResultData } from '@shared/types/screenshot'
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
@@ -36,28 +37,21 @@ const screenshotResultSchema: z.ZodType<ScreenshotResultData> = z.object({
   )
 })
 
-/** One recognized text run with its box in the capture's physical pixel space. */
-const ocrWord = z.object({
+/** One text line with glyph bounds in physical pixels relative to the OCR crop. */
+const ocrTextLine = z.object({
   text: z.string(),
-  box: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
-  confidence: z.number()
+  box: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 })
 
-/**
- * One recognized text run, as the OCR route reports it.
- *
- * Crosses the IPC boundary, so it lives here rather than in the main-only
- * inference protocol — the renderer has no `@main/*` path to import from.
- */
-export type OcrWord = z.infer<typeof ocrWord>
+export type OcrTextLine = z.infer<typeof ocrTextLine>
 
 // Discriminated on purpose: a bare `lines: []` cannot tell "this region has no text"
 // apart from "the model was deleted" or "this request no longer applies".
 const ocrRecognitionResult = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('ok'),
-    /** Grouped by line, in reading order; the inner array is words on that line. */
-    lines: z.array(z.array(ocrWord))
+    /** Lines in reading order, with engine-specific padding already removed. */
+    lines: z.array(ocrTextLine)
   }),
   /** Local OCR model not ready — never downloaded, or removed just now. */
   z.object({ status: z.literal('unavailable') }),
@@ -102,6 +96,15 @@ export const screenshotRequestSchemas = {
    */
   'screenshot.overlay_ready': defineRoute({ input: z.object({ mediaId: z.string() }), output: z.void() }),
   /**
+   * The text-annotation editor opened (`true`) or closed (`false`) on the calling overlay.
+   *
+   * macOS only in effect. The IME candidate window is placed at a fixed, low window level
+   * for a Chromium client, so an overlay sitting above the Dock and menu bar covers the
+   * candidates completely — text can be composed but nothing can be chosen. Main drops
+   * this overlay below that level while the editor is open and restores it on close.
+   */
+  'screenshot.text_editing': defineRoute({ input: z.object({ editing: z.boolean() }), output: z.void() }),
+  /**
    * OCR a region of the frozen capture. Cropping happens in main so the full-size
    * image never crosses the process boundary.
    *
@@ -130,6 +133,15 @@ export const screenshotRequestSchemas = {
 export type ScreenshotEventSchemas = {
   /** Sent to an overlay that lost the interaction, telling it to drop its selection. */
   'screenshot.reset_overlay': void
+  /**
+   * The hover-to-snap targets for this overlay's display.
+   *
+   * Pushed instead of travelling in the init data: enumerating them costs hundreds
+   * of milliseconds with a normal working set, and paying that before the overlays
+   * open made it the dominant part of the shortcut's latency. An overlay is fully
+   * usable without it — until it arrives, hovering simply snaps to the whole display.
+   */
+  'screenshot.snap_targets': { windows: DetectedWindow[] }
   /**
    * The session is over. A pooled overlay is only hidden, never unmounted, so nothing
    * else tells its renderer to let go of the decoded capture until the next session.

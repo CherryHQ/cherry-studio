@@ -1,5 +1,6 @@
-import type { ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import { vi } from 'vitest'
+
+import type { ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 
 /**
  * Mock DataApiService for testing

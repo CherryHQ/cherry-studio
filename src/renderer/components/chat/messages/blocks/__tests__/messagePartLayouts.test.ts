@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   findOpenTextTailIndex,
@@ -362,6 +363,27 @@ describe('findOpenTextTailIndex', () => {
 })
 
 describe('projectCompletedMessageParts', () => {
+  it.each([
+    [
+      [
+        { type: 'text', text: 'Answer' },
+        { type: 'reasoning', text: 'Trailing thought' }
+      ]
+    ],
+    [[{ type: 'file', url: 'https://example.com/result.png', mediaType: 'image/png' }]]
+  ])('keeps a fork link direct without changing the original result grouping: %j', (parts) => {
+    const original = entries(parts)
+    const marker = {
+      part: { type: 'data-agent-session-fork', data: { sourceSessionId: 'parent' } },
+      index: parts.length
+    } as PartEntry
+    const before = projectCompletedMessageParts(original)
+    expect(projectCompletedMessageParts([...original, marker])).toEqual({
+      ...before,
+      resultEntries: [...before.resultEntries, marker]
+    })
+  })
+
   it('keeps the last substantive answer and associated values outside history despite trailing tools', () => {
     const layout = projectCompletedMessageParts(
       entries([
@@ -487,7 +509,7 @@ describe('projectCompletedMessageParts', () => {
       ]
     ]
   ])('keeps pure %s messages entirely in history', (_label, parts) => {
-    const layout = projectCompletedMessageParts(entries(parts as Record<string, unknown>[]))
+    const layout = projectCompletedMessageParts(entries(parts))
 
     expect(indexes(layout.historyEntries)).toEqual([0, 1])
     expect(layout.resultEntries).toEqual([])
@@ -600,6 +622,89 @@ describe('projectCompletedMessageParts', () => {
 
     expect(indexes(layout.historyEntries)).toEqual([0])
     expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it('keeps a created Agent action outside completed history', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'create-agent',
+          toolName: 'mcp__assistant__create_agent',
+          state: 'output-available',
+          output: {
+            content: [
+              {
+                type: 'text',
+                text: '{"ok":true,"agentId":"agent-created","name":"Reviewer","model":"anthropic::claude-sonnet"}'
+              }
+            ]
+          }
+        },
+        { type: 'text', text: 'Created successfully.' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1, 2])
+  })
+
+  it('keeps only actionable diagnostic report results outside completed history', () => {
+    const successful = projectCompletedMessageParts(
+      entries([
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+    const deferred = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'message-1',
+              toolCallId: 'prepare-report'
+            }
+          }
+        }
+      ])
+    )
+    const failed = projectCompletedMessageParts(
+      entries([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: '{"ok":false,"description":"Unavailable draft"}' }],
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ])
+    )
+
+    expect(indexes(successful.historyEntries)).toEqual([0])
+    expect(indexes(successful.resultEntries)).toEqual([1])
+    expect(indexes(deferred.historyEntries)).toEqual([])
+    expect(indexes(deferred.resultEntries)).toEqual([0])
+    expect(indexes(failed.historyEntries)).toEqual([0])
+    expect(indexes(failed.resultEntries)).toEqual([])
   })
 
   it.each(GENERATED_IMAGE_RESULTS)('keeps %s outside completed history', (_label, toolName, output) => {

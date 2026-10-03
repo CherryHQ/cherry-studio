@@ -5,8 +5,6 @@
  * LAN transfer, and a handful of micro-domains.
  */
 export enum IpcChannel {
-  App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
@@ -16,10 +14,6 @@ export enum IpcChannel {
   Application_Relaunch = 'application:relaunch',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
-
-  // StorageMonitor: main-process disk-space watcher for the user-data volume
-  StorageMonitor_GetHealth = 'storage-monitor:get-health',
-  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   // Python: main→renderer(pyodide)→main reverse RPC
   Python_ExecutionRequest = 'python:execution-request',
@@ -79,7 +73,6 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
-  File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
   // backup
@@ -138,13 +131,6 @@ export enum IpcChannel {
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-
-  // ExternalApps
-  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
-
-  // Global Skills
-  Skill_ReadFile = 'skill:read-file',
-  Skill_ListFiles = 'skill:list-files',
 
   // LAN Transfer
   LanTransfer_StartScan = 'lan-transfer:start-scan',

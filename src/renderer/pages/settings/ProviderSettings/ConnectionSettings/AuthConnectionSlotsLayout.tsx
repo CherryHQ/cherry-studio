@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
-import type { ReactNode } from 'react'
 
 import { authConnectionClasses } from '../primitives/ProviderSettingsPrimitives'
 import ProviderSpecificSettings from '../ProviderSpecific/ProviderSpecificSettings'
@@ -17,7 +18,7 @@ export default function AuthConnectionSlotsLayout({ providerId, children }: Auth
   const isLoginBased = provider ? isLoginBasedProvider(provider) : false
 
   return (
-    <section className="shrink-0 space-y-4">
+    <section id={`setting-provider-auth-${providerId}`} className="shrink-0 space-y-4">
       <ProviderSpecificSettings providerId={providerId} placement="beforeAuth" />
       {!isLoginBased && (
         <div className="flex flex-col gap-3">

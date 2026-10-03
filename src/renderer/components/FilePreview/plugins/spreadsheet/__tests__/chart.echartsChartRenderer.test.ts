@@ -47,7 +47,7 @@ class FakeResizeObserver {
   disconnect = vi.fn()
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback
-    resizeObserverInstances.push(this as any)
+    resizeObserverInstances.push(this)
   }
   unobserve = vi.fn()
 }
@@ -101,20 +101,20 @@ describe('echartsChartRenderer.render', () => {
     setOption.mockClear()
 
     // Still zero-size: resize callback should be a no-op.
-    observer.callback([] as any, observer as any)
+    observer.callback([], observer as any)
     expect(setOption).not.toHaveBeenCalled()
     expect(resize).not.toHaveBeenCalled()
 
     // Container gains a real size: should re-apply option once and call resize.
     Object.defineProperty(container, 'clientWidth', { value: 400, configurable: true })
     Object.defineProperty(container, 'clientHeight', { value: 300, configurable: true })
-    observer.callback([] as any, observer as any)
+    observer.callback([], observer as any)
     expect(setOption).toHaveBeenCalledTimes(1)
     expect(resize).toHaveBeenCalledTimes(1)
 
     // Subsequent resize events should just resize, not re-apply the option again.
     setOption.mockClear()
-    observer.callback([] as any, observer as any)
+    observer.callback([], observer as any)
     expect(setOption).not.toHaveBeenCalled()
     expect(resize).toHaveBeenCalledTimes(2)
 

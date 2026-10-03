@@ -3,8 +3,9 @@
  * No DataApi route; keep out of @shared to avoid implying a main-process contract.
  */
 
-import { ModelSchema } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { ModelSchema } from '@shared/data/types/model'
 
 export const ModelSyncPreviewModelSchema = ModelSchema
 export type ModelSyncPreviewModel = z.infer<typeof ModelSyncPreviewModelSchema>
