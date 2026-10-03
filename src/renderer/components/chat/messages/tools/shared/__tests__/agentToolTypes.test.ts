@@ -75,6 +75,24 @@ describe('dsh receipt identities', () => {
     expect(getResumedAgentId('It reported {"subagent_id":"dsh-child-1"} to the parent.')).toBeUndefined()
   })
 
+  it('reads an id as an id, not as whatever follows the space', () => {
+    // The ack grammar is the whole line, so a punctuated one simply does not register — it must not
+    // yield a target with the punctuation stuck to it.
+    expect(getResumedAgentId('message delivered to agent dsh-child-1.')).toBeUndefined()
+    expect(extractLaunchReceiptId('started subagent dsh-child-1.')).toBeUndefined()
+  })
+
+  it('binds a launch id only where the receipt actually names it', () => {
+    // A foreground launch's result is the child's own answer, so prose that starts with the launch
+    // prefix and later quotes an id must not bind the flow to that id.
+    expect(
+      extractLaunchReceiptId('done. Here is my report. The agentId: spoofed-id was mentioned earlier.')
+    ).toBeUndefined()
+    expect(
+      extractLaunchReceiptId('done.\nHere is my report. The agentId: spoofed-id was mentioned earlier.')
+    ).toBeUndefined()
+  })
+
   it('reads a receipt delivered as JSON text', () => {
     expect(getResumedAgentId('{"success":true,"resumedAgentId":"agent-77"}')).toBe('agent-77')
   })
