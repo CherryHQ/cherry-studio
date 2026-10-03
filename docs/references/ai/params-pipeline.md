@@ -99,6 +99,7 @@ interface RequestScope extends ToolApplyScope {
   request, signal, registry, assistant, model, provider,
   capabilities,            // resolveCapabilities — see capabilities.ts
   sdkConfig, endpointType, aiSdkProviderId,
+  requestedMaxOutputTokens, // model-clamped total shared by context and compaction
   requestContext,          // RequestContext for tool execute()
   mcpToolIds
 }
@@ -123,7 +124,7 @@ buildAgentParams(input)
   ├─ resolveEffectiveEndpoint → endpointType (model > provider default)
   ├─ resolveAiSdkProviderId   → adapter-family routing (see adapter-family.md)
   ├─ extractAiSdkStandardParams → standard params + provider-scoped params
-  ├─ resolveRequestedMaxOutputTokens → raw output limit before reasoning adjustment
+  ├─ resolveRequestedMaxOutputTokens → model-clamped total output budget before reasoning adjustment
   ├─ resolveReasoningInvocation → reasoning wire + explicit thinking budget
   ├─ collectFromFeatures      → plugins + hookParts
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
@@ -148,7 +149,7 @@ they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
 override them, and per-call overrides apply last.
 
-`maxOutputTokens` uses a separate raw-limit resolution before reasoning:
+`maxOutputTokens` uses a shared output-budget resolution before reasoning:
 
 1. `request.callOverrides.maxOutputTokens`
 2. `assistant.customParameters.maxOutputTokens`
@@ -156,14 +157,26 @@ override them, and per-call overrides apply last.
 4. `model.maxOutputTokens`, only for an `anthropic-messages` endpoint
 5. `undefined`
 
-The resolved raw limit is also used to resolve the reasoning invocation;
+The requested value is clamped to `model.maxOutputTokens` when that ceiling is
+finite and positive. Without a trustworthy ceiling, the requested value is
+preserved. An omitted limit stays omitted for endpoints where the field is
+optional. Context truncation and in-loop compaction reuse this clamped total;
+durable compaction resolves the same assistant custom parameter and model ceiling
+before reserving input room.
+
+The resolved total is also used to resolve the reasoning invocation;
 when it is undefined, `model.maxOutputTokens` remains a budget-sizing
 fallback without being forced into `AgentOptions`. For an
 `anthropic-messages` request, `buildAgentOptions` reads the effective thinking
-mode after per-call provider-option overrides. It subtracts an explicit additive
-budget exactly once before passing the non-thinking remainder to the SDK (with a
+mode after per-call provider-option overrides. An enabled Anthropic thinking
+budget defaults to 1,024 when omitted and is bounded to leave at least one output
+token within the total. Budgets below Anthropic's 1,024-token minimum disable
+thinking, including when no total ceiling is known. Canonical Anthropic overrides
+are mirrored into Vertex Anthropic's runtime namespace; Bedrock continues to use
+its own `reasoningConfig` budget. It subtracts the effective additive budget exactly
+once before passing the non-thinking remainder to the SDK (with a
 minimum of one token). Adaptive or disabled thinking has no explicit budget and
-is not subtracted. An undefined raw limit remains omitted, so unknown
+is not subtracted. An undefined total remains omitted, so unknown
 Anthropic-compatible non-Claude models can defer to the endpoint instead of
 inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
 fallback because Anthropic requires `max_tokens`.
