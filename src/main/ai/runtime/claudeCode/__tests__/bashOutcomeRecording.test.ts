@@ -155,7 +155,8 @@ describe('bashOutcomeHook', () => {
   beforeEach(() => {
     applicationMock.get.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeSessionStateService') return svc
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: () => undefined }
+      if (name === 'AgentSessionRuntimeService')
+        return { getInteractionState: () => undefined, recordToolTimingBoundary: vi.fn() }
       throw new Error(`unexpected service: ${name}`)
     })
     vi.mocked(evaluateToolGuards).mockClear()

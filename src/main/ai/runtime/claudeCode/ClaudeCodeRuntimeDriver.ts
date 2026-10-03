@@ -40,6 +40,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { deriveRootSpanId } from '@shared/data/types/trace'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
@@ -461,11 +462,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
     if (!this.input.trace) return undefined
-    return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
+    return application
+      .get('ClaudeCodeTraceBridgeService')
+      .prepareTrace({ ...this.input.trace, rootSpanId: deriveRootSpanId(this.input.trace.traceId) })
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
-    application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
+    application
+      .get('ClaudeCodeTraceBridgeService')
+      .refreshTraceContext({ ...context, rootSpanId: deriveRootSpanId(context.traceId) })
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {

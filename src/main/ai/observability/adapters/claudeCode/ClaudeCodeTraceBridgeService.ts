@@ -27,15 +27,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   private readonly traceContexts = new Map<string, TraceContextEntry>()
 
   protected async onReady(): Promise<void> {
-    const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
-    logger.info(
-      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, Claude Code trace bridge ${
-        enabled ? 'activated' : 'skipped'
-      }`
-    )
-    if (enabled) {
-      await this.activate()
-    }
+    await this.activate()
   }
 
   async onActivate(): Promise<void> {
@@ -56,15 +48,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     if (!normalizedContext) return undefined
 
     const endpoint = await this.ensureServer()
-    // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
-    // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
-    // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
-    // bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
-    // TraceStorageService persists as plaintext JSONL trace files on disk, so they may contain
-    // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
-    // here: redaction would require parsing arbitrary OTLP attribute structures across the
-    // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
-    // developer-gated capture) needs a threat-model decision — see docs/references/ai/observability.md.
+    const detailed = application.get('PreferenceService').get('app.developer_mode.enabled') ? '1' : '0'
     return {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
@@ -80,10 +64,10 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${endpoint}/v1/logs`,
       OTEL_TRACES_EXPORT_INTERVAL: '1000',
       OTEL_LOGS_EXPORT_INTERVAL: '1000',
-      OTEL_LOG_USER_PROMPTS: '1',
-      OTEL_LOG_TOOL_DETAILS: '1',
-      OTEL_LOG_TOOL_CONTENT: '1',
-      OTEL_LOG_RAW_API_BODIES: '1',
+      OTEL_LOG_USER_PROMPTS: detailed,
+      OTEL_LOG_TOOL_DETAILS: detailed,
+      OTEL_LOG_TOOL_CONTENT: detailed,
+      OTEL_LOG_RAW_API_BODIES: detailed,
       TRACEPARENT: `00-${normalizedContext.traceId}-${normalizedContext.rootSpanId}-01`
     }
   }
