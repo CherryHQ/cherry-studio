@@ -11,7 +11,7 @@ const { launchSkillMock, navigateMock, resourceCatalogViewMock, routerState } = 
   launchSkillMock: vi.fn(),
   navigateMock: vi.fn(),
   resourceCatalogViewMock: vi.fn(),
-  routerState: { search: {} as Record<string, unknown> }
+  routerState: { search: {} }
 }))
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
