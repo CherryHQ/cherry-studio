@@ -22,7 +22,7 @@ import {
   stopAllAgentBackgroundTasks
 } from '../backgroundTaskActions'
 import * as tasks from '../backgroundTasks'
-import { getDetachedBackgroundTask, startDetachedBackgroundTask } from '../backgroundTasks'
+import { getDetachedBackgroundTask, startDetachedBackgroundTask, stopDetachedBackgroundTask } from '../backgroundTasks'
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
@@ -86,11 +86,13 @@ describe('stopAllAgentBackgroundTasks', () => {
 
     try {
       await stopAllAgentBackgroundTasks('agent-1')
+      expect(peak).toBe(records.length)
     } finally {
+      // The spy stands in for the sweep, so the three real children it was measuring over are still
+      // running: they are detached, nothing else reaps them, and the suite is what created them.
       stopSpy.mockRestore()
+      await Promise.all(records.map((record) => stopDetachedBackgroundTask(storageDir, record.id, true)))
     }
-
-    expect(peak).toBe(records.length)
   })
 })
 
