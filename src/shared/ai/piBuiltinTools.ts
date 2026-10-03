@@ -13,9 +13,8 @@ export type PiBuiltinToolDescriptor = {
 }
 
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
-export const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
 export const PI_TOOL_CALL_TOOL_NAME = 'tool_call'
-export const PI_TOOL_EXEC_TOOL_NAME = 'tool_exec'
+export const PI_TOOL_EXEC_TOOL_NAME = 'codemode'
 
 export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
@@ -24,15 +23,18 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 
-// Single catalog shared by runtime policy and the edit dialog; code mode is implemented as Pi
-// custom tools but is user-facing and configurable alongside Pi's native built-ins.
+// Single catalog shared by runtime policy and the edit dialog for Pi native tools.
 export const PI_BUILTIN_TOOLS = [
   ...PI_NATIVE_BUILTIN_TOOLS,
   { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
-  { name: PI_TOOL_DESCRIBE_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
-  { name: PI_TOOL_CALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
-  { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'prompt', permissionClass: 'shell' }
+  { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'auto', permissionClass: 'meta' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
+
+/** Keep runtime policy and the edit form aligned with previously stored tool names. */
+export function normalizePiDisabledToolId(name: string): string {
+  if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
+  return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
+}
 
 export const PI_BUILTIN_TOOL_CATEGORIES = [
   'file',
