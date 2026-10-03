@@ -105,7 +105,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
-disabledTools: (agent?.disabledTools ?? []).map((name) =>
+    disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
     ),
     groupId: agent?.groupId ?? null,
