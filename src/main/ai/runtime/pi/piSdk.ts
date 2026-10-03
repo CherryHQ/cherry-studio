@@ -9,12 +9,20 @@
  * Phase 0 bundling spike). Every runtime use of pi values MUST go through here;
  * `import type` elsewhere is compile-only and safe.
  */
+import { createRequire } from 'node:module'
+
 import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
 
 import type { PiApi } from '@shared/ai/piModelCompatibility'
 
 export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')
+}
+
+export function getPiVccExtensionPath(configPath: string): string {
+  // pi-vcc reads this process-wide override on every compaction; all sessions share Cherry's config.
+  process.env.PI_VCC_CONFIG_PATH = configPath
+  return createRequire(import.meta.url).resolve('@sting8k/pi-vcc')
 }
 
 /**

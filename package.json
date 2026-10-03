@@ -137,6 +137,7 @@
     "@node-rs/xxhash": "1.7.6",
     "@paymoapp/electron-shutdown-handler": "1.2.0",
     "@sentry/electron": "7.18.0",
+    "@sting8k/pi-vcc": "0.8.1",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
     "@vectorstores/readers": "^0.1.8",

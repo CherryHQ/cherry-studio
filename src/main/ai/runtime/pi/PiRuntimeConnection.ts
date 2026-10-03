@@ -75,7 +75,7 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension, warmMcpToolCatalogs } from './piMcpExtension'
-import { loadPiAi, loadPiSdk } from './piSdk'
+import { getPiVccExtensionPath, loadPiAi, loadPiSdk } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -375,6 +375,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         noPromptTemplates: true,
         noThemes: true,
         noContextFiles: false,
+        additionalExtensionPaths: [
+          getPiVccExtensionPath(application.getPath('feature.agents.pi.root', 'pi-vcc-config.json'))
+        ],
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),

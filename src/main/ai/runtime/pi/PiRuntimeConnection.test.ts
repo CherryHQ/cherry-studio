@@ -13,6 +13,7 @@ import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
+import type * as PiSdk from './piSdk'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
@@ -181,7 +182,8 @@ vi.mock('./piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.captureConnectionSnapshot,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
-vi.mock('./piSdk', () => ({
+vi.mock('./piSdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof PiSdk>()),
   loadPiSdk: mocks.loadPiSdk,
   loadPiAi: async () => ({ InMemoryCredentialStore: class {} }),
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple

@@ -722,6 +722,16 @@ the live gate applies newly disabled tools immediately, while the spawn-time
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
 after any applicable live tightening has landed.
 
+### Pi conversation compaction
+
+Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
+It replaces the default LLM-generated compaction with algorithmic transcript
+extraction and provides `vcc_recall` to search the current session's raw JSONL
+history after compaction. The existing `/compact` action uses this extension.
+Its shared configuration lives at `feature.agents.pi.root/pi-vcc-config.json`,
+isolated from standalone Pi's configuration. Disk extension discovery remains
+disabled; no runtime package installation is required.
+
 ### Pi code mode
 
 Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
