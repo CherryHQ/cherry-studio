@@ -1378,13 +1378,6 @@ export class SelectionService extends BaseService implements Activatable {
       return
     }
 
-    // [macOS] an UGLY HACKY way for fullscreen override settings
-
-    // FIXME sometimes the dock will be shown when the action window is shown
-    // FIXME if actionWindow show on the fullscreen app, switch to other space will cause the mainWindow to be shown
-    // FIXME When setVisibleOnAllWorkspaces is true, docker icon disappeared when the first action window is shown on the fullscreen app
-    //       use app.dock.show() to show the dock again will cause the action window to be closed when auto hide on blur is enabled
-
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
     // No explicit level: Electron defaults to 'floating' on macOS, and
@@ -1392,31 +1385,11 @@ export class SelectionService extends BaseService implements Activatable {
     // (the pin toggle and this show sequence use the same default path).
     actionWindow.setAlwaysOnTop(true)
 
-    // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
-    // just store the dock icon status, and show it again
-    const isDockShown = app.dock?.isVisible()
-
-    // DO NOT set `skipTransformProcessType: true`,
-    // it will cause the action window to be shown on other space
-    actionWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    })
-
     actionWindow.showInactive()
-
-    // show the dock again if last time it was shown
-    // do not put it after `actionWindow.focus()`, will cause the action window to be closed when auto hide on blur is enabled
-    if (!app.dock?.isVisible() && isDockShown) {
-      void app.dock?.show()
-    }
 
     // unset everything
     setTimeout(() => {
       if (actionWindow.isDestroyed()) return
-      actionWindow.setVisibleOnAllWorkspaces(false, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-      })
       actionWindow.setAlwaysOnTop(false)
 
       actionWindow.setFocusable(true)

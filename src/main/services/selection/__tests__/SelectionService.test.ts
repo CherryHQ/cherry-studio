@@ -1,3 +1,4 @@
+import { screen } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // @application, electron, and @logger are globally mocked in tests/main.setup.ts.
@@ -272,5 +273,44 @@ describe('SelectionService macOS toolbar', () => {
       skipTransformProcessType: true
     })
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()
+  })
+})
+
+describe('SelectionService macOS action window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+    Object.assign(screen, {
+      getDisplayNearestPoint: vi.fn(() => ({
+        workArea: { x: 0, y: 0, width: 1440, height: 900 }
+      })),
+      getCursorScreenPoint: vi.fn(() => ({ x: 500, y: 400 }))
+    })
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it('does not change process-wide workspace behavior when showing over fullscreen', () => {
+    const svc = new SelectionService() as unknown as {
+      showActionWindow(actionWindow: Record<string, ReturnType<typeof vi.fn>>, isFullScreen: boolean): void
+    }
+    const actionWindow = {
+      setPosition: vi.fn(),
+      setBounds: vi.fn(),
+      setFocusable: vi.fn(),
+      setAlwaysOnTop: vi.fn(),
+      setVisibleOnAllWorkspaces: vi.fn(),
+      showInactive: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      focus: vi.fn()
+    }
+
+    svc.showActionWindow(actionWindow, true)
+
+    expect(actionWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+    expect(actionWindow.showInactive).toHaveBeenCalledOnce()
   })
 })

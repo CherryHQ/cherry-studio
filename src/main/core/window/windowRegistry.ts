@@ -459,6 +459,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       thickFrame: false,
       platformOverrides: {
         mac: {
+          // Panels can join fullscreen Spaces without transforming the app process.
+          type: 'panel',
           titleBarStyle: 'hidden', // [macOS]
           trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }

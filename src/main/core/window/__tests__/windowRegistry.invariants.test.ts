@@ -35,6 +35,10 @@ describe('WINDOW_TYPE_REGISTRY behavior invariants', () => {
       skipTransformProcessType: true
     })
   })
+
+  it('uses a macOS panel for selection action windows shown over fullscreen apps', () => {
+    expect(WINDOW_TYPE_REGISTRY[WindowType.SelectionAction]?.windowOptions.platformOverrides?.mac?.type).toBe('panel')
+  })
 })
 
 // The shared preload bundle is code-split, and Electron's sandbox blocks a preload from
