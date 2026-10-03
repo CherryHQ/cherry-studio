@@ -318,6 +318,16 @@ Examples:
 
 ## Components
 
+### JustifiedParagraph
+
+Import `JustifiedParagraph`, `ParagraphText`, and `ParagraphAtomic` from
+`@cherrystudio/ui/components/composites/justified-paragraph`, together with
+`@cherrystudio/ui/styles/paragraph-layout.css`. Wrap text in `ParagraphText` and indivisible inline content in
+`ParagraphAtomic`; pass an `onLayoutError` handler to `JustifiedParagraph`.
+
+The layout engine and font measurement utilities are available from `@cherrystudio/ui/utils/paragraph-layout` as
+`composeParagraph` and `createParagraphMeasure`.
+
 ### Button
 
 A button component with multiple variants and sizes.

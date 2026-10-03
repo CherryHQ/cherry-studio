@@ -2229,6 +2229,9 @@ importers:
       es-toolkit:
         specifier: ^1.49.0
         version: 1.49.0
+      justif:
+        specifier: 0.9.2
+        version: 0.9.2
       katex:
         specifier: 0.16.22
         version: 0.16.22
@@ -12996,6 +12999,9 @@ packages:
 
   jszip@3.10.1:
     resolution: {integrity: sha512-xXDvecyTpGLrqFrvkrUSoxxfJI5AH7U8zxxtVclpsUtMCq4JQ290LY8AW5c7Ggnr/Y/oK+bQMbqK2qmtk3pN4g==}
+
+  justif@0.9.2:
+    resolution: {integrity: sha512-fs2BBnovpOSVOe4ik7Hbsl37ql2c1Nvd6g+z9uTXUGoLK0eGkXvTJP4qqqmtfhFAK092H2aW6uSg2wbv8+W6Cg==}
 
   jwa@2.0.1:
     resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
@@ -29040,6 +29046,8 @@ snapshots:
       pako: 1.0.11
       readable-stream: 2.3.8
       setimmediate: 1.0.5
+
+  justif@0.9.2: {}
 
   jwa@2.0.1:
     dependencies:

@@ -140,6 +140,7 @@ const STYLE_CONTENT = `
 }
 
 .RichEditorContent {
+  min-width: 0;
   flex: 1;
   min-height: 0;
   position: relative;
