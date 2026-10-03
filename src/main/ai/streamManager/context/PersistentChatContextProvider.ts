@@ -21,6 +21,7 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
+import { resolveClearAwareConversationId } from '@main/ai/utils/chatPromptCacheKey'
 import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -470,7 +471,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        clearBoundaryMessageId
+      } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
@@ -491,7 +496,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
-          retainedContext
+          retainedContext,
+          clearBoundaryMessageId
         ),
         rootSpan
       }))
@@ -563,7 +569,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
 
     try {
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        clearBoundaryMessageId
+      } = await this.resolveCompactedHistory(
         parent.id,
         req.topicId,
         [model],
@@ -581,7 +591,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
-        retainedContext
+        retainedContext,
+        clearBoundaryMessageId
       )
       applyTurnInputAttributes(rootSpan, {
         modelId: model.id,
@@ -709,7 +720,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        clearBoundaryMessageId
+      } = await this.resolveCompactedHistory(
         anchor.id,
         req.topicId,
         [model],
@@ -733,7 +748,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
-              retainedContext
+              retainedContext,
+              clearBoundaryMessageId
             ),
             rootSpan
           }
@@ -810,7 +826,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: compactedHistory,
+        retainedContext,
+        clearBoundaryMessageId
+      } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model],
@@ -834,7 +854,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
-              retainedContext
+              retainedContext,
+              clearBoundaryMessageId
             ),
             rootSpan
           }
@@ -907,11 +928,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
     compactionSink?: CompactionSink
-  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+  ): Promise<{
+    messages: CherryUIMessage[]
+    retainedContext: RetainedContext
+    clearBoundaryMessageId: string | null
+  }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    const clearBoundaryMessageId = lastClearIndex >= 0 ? messagePath[lastClearIndex].id : null
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
     // Capability state from the RAW path: compaction folds file parts and tool
     // outputs out of the served view, so scanning served messages downstream
@@ -951,14 +977,22 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    const serve = (rows_: typeof effective) => ({
+      messages: rows_.map((r) => this.toServed(r)),
+      retainedContext,
+      clearBoundaryMessageId
+    })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
       // RAW rows, no compaction state: a summary covers everything up to its
       // boundary, so serving one would carry pre-window content back in.
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
-      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+      return {
+        messages: windowed.map((r) => this.toServed(r)),
+        retainedContext: retainedForWindow(windowed),
+        clearBoundaryMessageId
+      }
     }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
@@ -1093,10 +1127,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
-    retainedContext?: RetainedContext
+    retainedContext: RetainedContext | undefined,
+    clearBoundaryMessageId: string | null
   ): AiStreamRequest {
     return {
-      conversation: { id: topicId, topicId },
+      conversation: { id: resolveClearAwareConversationId(topicId, clearBoundaryMessageId), topicId },
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,

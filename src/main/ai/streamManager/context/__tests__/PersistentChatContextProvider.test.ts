@@ -297,6 +297,23 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'user', text: 'after latest boundary' },
       { role: 'user', text: 'new question' }
     ])
+    // Cache/session identity must follow the latest clear boundary so providers
+    // cannot keep matching a pre-clear prompt-cache entry for this topic.
+    expect(prepared.models[0].request.conversation).toEqual({ id: 'topic-1:clear-2', topicId: 'topic-1' })
+  })
+
+  it('keeps topic-only conversation.id when the selected branch has no clear marker', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        userMessageParts: [{ type: 'text', text: 'fresh' }]
+      },
+      { hasLiveStream: false }
+    )
+    expect(prepared.models[0].request.conversation).toEqual({ id: 'topic-1', topicId: 'topic-1' })
   })
 
   it('keeps the full history when the selected branch does not pass through a clear marker', async () => {
