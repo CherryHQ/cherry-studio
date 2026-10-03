@@ -5,7 +5,7 @@ import { BeatLoader } from 'react-spinners'
 
 import { Accordion, Button, Tooltip } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
-import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
+import { DoctorAgentAccordionItem, DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -146,6 +146,10 @@ export function ErrorDiagnosisPanel({ doctorController, subject }: ErrorDiagnosi
       {showConnectivitySteps ? (
         <div>
           <Accordion type="single" collapsible className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
+            <DoctorAgentAccordionItem
+              scope={doctorController.scope}
+              reportRunId={doctorController.viewModel.report?.runId}
+            />
             <ErrorConnectivitySteps controller={doctorController} />
             {extraFindings}
           </Accordion>
@@ -182,11 +186,13 @@ export function ErrorDiagnosisPanel({ doctorController, subject }: ErrorDiagnosi
               }}
             />
           </p>
-          {extraFindings ? (
-            <Accordion type="single" collapsible>
-              {extraFindings}
-            </Accordion>
-          ) : null}
+          <Accordion type="single" collapsible>
+            <DoctorAgentAccordionItem
+              scope={doctorController.scope}
+              reportRunId={doctorController.viewModel.report?.runId}
+            />
+            {extraFindings}
+          </Accordion>
           {doctorController.viewModel.pendingChecks.length > 0 ? (
             <div className="space-y-3 border-t border-border px-4 py-3">
               {doctorController.viewModel.pendingChecks.map((pending) => (
