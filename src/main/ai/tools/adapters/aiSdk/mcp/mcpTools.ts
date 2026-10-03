@@ -12,7 +12,7 @@ import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
-import { mcpResultToTextSummary } from './utils'
+import { mcpResultToModelOutput, mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
@@ -66,15 +66,17 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       }
 
       // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
-      // parts intact); `toModelOutput` below produces the string view.
+      // parts intact); `toModelOutput` below produces the model's view.
       return {
         ...result,
         metadata
       }
     },
     toModelOutput({ output }) {
-      const result = output as McpCallToolResponse
-      return { type: 'text' as const, value: mcpResultToTextSummary(result) }
+      // Forwards image/audio blocks as structured media (#21306) — the request's
+      // capability pipeline gates them per model + wire; the text summary is the
+      // error path only.
+      return mcpResultToModelOutput(output as McpCallToolResponse)
     }
   }
 }
