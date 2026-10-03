@@ -12,12 +12,13 @@
  * records for the GUI; files preserve process exit evidence across restarts.
  */
 
-import { execFileSync, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import type { SpawnOptions } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
@@ -26,6 +27,7 @@ import type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/back
 export type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/backgroundTask'
 
 const logger = loggerService.withContext('AgentBackgroundTasks')
+const execFileAsync = promisify(execFile)
 const activeTaskPids = new Map<string, number>()
 const recordLocks = new Map<string, Promise<void>>()
 
@@ -199,7 +201,7 @@ export async function startDetachedBackgroundTask(
       try {
         if (!cleaned) {
           if (process.platform === 'win32') {
-            execFileSync('taskkill', ['/PID', String(record.pid), '/T', '/F'], { timeout: 5_000 })
+            await execTaskkill(['/PID', String(record.pid), '/T', '/F'])
           } else {
             process.kill(-record.pid, 'SIGKILL')
           }
@@ -283,7 +285,7 @@ async function stopDetachedBackgroundTaskUnlocked(
   await writeRecord(storageDir, requested)
   try {
     if (process.platform === 'win32') {
-      execFileSync('taskkill', ['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])], { timeout: 5_000 })
+      await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
     } else {
       process.kill(-record.pid, signal)
     }
@@ -304,13 +306,10 @@ async function stopDetachedBackgroundTaskUnlocked(
   }
   const stopped = { ...requested, ...completion, note: undefined }
   await writeRecord(storageDir, stopped)
-  await writeFile(
-    path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),
-    JSON.stringify(completion, null, 2),
-    {
-      mode: 0o600
-    }
-  )
+  // The process is dead and the record says so. A sentinel that cannot be written is only a
+  // degraded restart-time reconciliation, so it must not turn a completed kill into an error or
+  // suppress the one notification this termination path sends.
+  await writeSentinel(storageDir, record.id, completion)
   // A kill ends the task without the child ever reporting an exit, so nothing else will announce
   // it: the configured channels would otherwise stay silent about work the user asked to end.
   onExit?.({
@@ -407,11 +406,7 @@ async function finalizeDetachedBackgroundTask(
       }
       const finished: BackgroundTaskRecord = { ...(current ?? record), ...completion, note: undefined }
       await writeRecord(storageDir, finished)
-      await writeFile(
-        path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),
-        JSON.stringify(completion, null, 2),
-        { mode: 0o600 }
-      )
+      await writeSentinel(storageDir, record.id, completion)
       const summary = t('background_task.summary_finished', {
         name: finished.name,
         id: finished.id,
@@ -426,6 +421,15 @@ async function finalizeDetachedBackgroundTask(
       logger.error('Failed to finalize detached background task', { taskId: record.id, error })
     }
   })
+}
+
+/**
+ * The Windows platform kill, awaited rather than run inline: `taskkill` on a hung process takes its
+ * whole five-second timeout, and the main process drives both the UI and every other detached task,
+ * so one blocking call at a time would serialise the whole sweep onto that timeout.
+ */
+function execTaskkill(args: string[]): Promise<unknown> {
+  return execFileAsync('taskkill', args, { timeout: 5_000 })
 }
 
 function recordPath(storageDir: string, taskId: string): string {
@@ -457,6 +461,23 @@ async function writeRecord(storageDir: string, record: BackgroundTaskRecord): Pr
   } catch (error) {
     await rm(staging, { force: true })
     throw error
+  }
+}
+
+/**
+ * Best-effort. The record is the live state and the sentinel only sharpens what a later restart
+ * infers, so a sentinel that cannot be written degrades reconciliation instead of failing a
+ * completion that has already happened.
+ */
+async function writeSentinel(storageDir: string, taskId: string, completion: BackgroundTaskCompletion): Promise<void> {
+  try {
+    await writeFile(
+      path.join(storageDir, `${taskId}${BACKGROUND_TASK_SENTINEL_EXT}`),
+      JSON.stringify(completion, null, 2),
+      { mode: 0o600 }
+    )
+  } catch (error) {
+    logger.error('Failed to write detached background task completion sentinel', { taskId, error })
   }
 }
 
