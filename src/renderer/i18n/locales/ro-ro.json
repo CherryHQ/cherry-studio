@@ -410,7 +410,6 @@
   "agent.toolPermission.button.run": "Rulează",
   "agent.toolPermission.confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
   "agent.toolPermission.decisionDenied": "Respins",
-  "agent.toolPermission.defaultDenyMessage": "Utilizatorul a refuzat permisiunea pentru acest instrument.",
   "agent.toolPermission.error.sendFailed": "Nu s-a putut trimite decizia ta. Te rugăm să încerci din nou.",
   "agent.toolPermission.inputPreview": "Previzualizare intrare instrument",
   "agent.toolPermission.pendingBadge": "În așteptare",

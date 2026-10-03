@@ -410,7 +410,6 @@
   "agent.toolPermission.button.run": "Çalıştır",
   "agent.toolPermission.confirmation": "Bu Claude aracı çalıştırılsın mı?",
   "agent.toolPermission.decisionDenied": "Reddedildi",
-  "agent.toolPermission.defaultDenyMessage": "Kullanıcı bu araç için izni reddetti.",
   "agent.toolPermission.error.sendFailed": "Karar gönderilemedi. Lütfen tekrar deneyin.",
   "agent.toolPermission.inputPreview": "Araç girdisi önizlemesi",
   "agent.toolPermission.pendingBadge": "Beklemede",
