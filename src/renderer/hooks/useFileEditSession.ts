@@ -87,6 +87,8 @@ export interface FileEditSession {
    * callers must not proceed with operations that would lose it.
    */
   flush: () => Promise<void>
+  /** Drops a scheduled debounced autosave without writing. */
+  cancelPendingAutosave: () => void
   /**
    * A watcher observed a change on this file. Pass the event's mtime (ms) when
    * available so a self-save echo is dismissed without any IPC. Dirty models are
@@ -131,7 +133,12 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  * The hook holds one path's state, so call it at a level stable across the
  * consuming view's remounts.
  */
-export function useFileEditSession(handle: FileHandle | undefined): FileEditSession {
+export function useFileEditSession(
+  handle: FileHandle | undefined,
+  options?: { suppressAutosave?: () => boolean }
+): FileEditSession {
+  const suppressAutosaveRef = useRef(options?.suppressAutosave)
+  suppressAutosaveRef.current = options?.suppressAutosave
   const { mutate } = useSWRConfig()
   const handleKey = handle ? keyOf(handle) : null
   const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
@@ -250,7 +257,10 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
 
   // TaskSequentializer-lite: one running write loop per model; a request while
   // one runs is a no-op because the loop re-reads the latest draft each round.
-  const requestWrite = useCallback((model: FileEditModel) => {
+  const requestWrite = useCallback((model: FileEditModel, writeOptions?: { force?: boolean }) => {
+    if (!writeOptions?.force && suppressAutosaveRef.current?.()) {
+      return
+    }
     if (model.writeRunning || model.conflict) return
     model.writeRunning = true
     model.chain = (async () => {
@@ -394,11 +404,15 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     }
   }, [debouncedWrite, mutate, requestWrite, syncFromModel])
 
+  const cancelPendingAutosave = useCallback(() => {
+    debouncedWrite.cancel()
+  }, [debouncedWrite])
+
   const flush = useCallback(async () => {
     const model = modelRef.current
     debouncedWrite.cancel()
     if (!model) return
-    requestWrite(model)
+    requestWrite(model, { force: true })
     await model.chain
     // The chain resolving is not proof of persistence — an I/O failure or
     // conflict leaves the draft dirty. Reject so callers abort the operation
@@ -479,6 +493,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       reload,
       keepDraft,
       flush,
+      cancelPendingAutosave,
       notifyExternalChange
     }
   }, [
@@ -497,6 +512,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     reload,
     keepDraft,
     flush,
+    cancelPendingAutosave,
     notifyExternalChange
   ])
 }

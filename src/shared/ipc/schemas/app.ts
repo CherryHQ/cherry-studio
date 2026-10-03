@@ -23,6 +23,10 @@ const notesDirectoryStatsSchema = z.object({
   totalBytes: z.number().int().nonnegative()
 })
 
+const notesRelocationSessionEpochSchema = z.object({
+  sessionEpoch: z.number().int().positive()
+})
+
 const notesRelocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({
     valid: z.literal(true),
@@ -89,7 +93,8 @@ export const appRequestSchemas = {
     input: z.object({
       sourcePath: z.string().min(1),
       targetPath: z.string().min(1),
-      merge: z.boolean()
+      merge: z.boolean(),
+      sessionEpoch: z.number().int().positive()
     }),
     output: z.object({
       source: notesDirectoryStatsSchema,
@@ -102,10 +107,22 @@ export const appRequestSchemas = {
     input: z.object({ requestId: z.string().min(1), ok: z.boolean() }),
     output: z.void()
   }),
-  'app.notes_relocation.begin_barrier': defineRoute({ input: z.void(), output: z.void() }),
-  'app.notes_relocation.end_barrier': defineRoute({ input: z.void(), output: z.void() }),
-  'app.notes_relocation.complete': defineRoute({ input: z.void(), output: z.void() }),
-  'app.notes_relocation.release_session': defineRoute({ input: z.void(), output: z.void() }),
+  'app.notes_relocation.begin_barrier': defineRoute({
+    input: z.void(),
+    output: notesRelocationSessionEpochSchema
+  }),
+  'app.notes_relocation.end_barrier': defineRoute({
+    input: notesRelocationSessionEpochSchema,
+    output: z.void()
+  }),
+  'app.notes_relocation.complete': defineRoute({
+    input: notesRelocationSessionEpochSchema,
+    output: z.void()
+  }),
+  'app.notes_relocation.release_session': defineRoute({
+    input: notesRelocationSessionEpochSchema,
+    output: z.void()
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({

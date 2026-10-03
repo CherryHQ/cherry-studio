@@ -5,7 +5,6 @@ import {
   NotesDirectoryMigrationConfirmContent,
   NotesDirectoryMigrationMergeContent
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
-import { lockNotesEditsForRelocation, unlockNotesEditsForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -15,23 +14,23 @@ import type { NotesRelocationValidationReason } from '@shared/types/notesRelocat
 
 const logger = loggerService.withContext('NotesDirectoryMigration')
 
-async function finishNotesRelocationSession(): Promise<void> {
+async function finishNotesRelocationSession(sessionEpoch: number): Promise<void> {
   try {
-    await ipcApi.request('app.notes_relocation.complete')
+    await ipcApi.request('app.notes_relocation.complete', { sessionEpoch })
     return
   } catch (firstError) {
     logger.error('Failed to complete notes relocation session', firstError as Error)
   }
 
   try {
-    await ipcApi.request('app.notes_relocation.complete')
+    await ipcApi.request('app.notes_relocation.complete', { sessionEpoch })
     return
   } catch (retryError) {
     logger.error('Failed to complete notes relocation session after retry', retryError as Error)
   }
 
   try {
-    await ipcApi.request('app.notes_relocation.release_session')
+    await ipcApi.request('app.notes_relocation.release_session', { sessionEpoch })
   } catch (releaseError) {
     logger.error('Failed to release notes relocation session', releaseError as Error)
   }
@@ -119,13 +118,14 @@ export async function migrateNotesDirectoryWithUi(options: {
       return
     }
 
-    lockNotesEditsForRelocation()
+    const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
     let migrateSucceeded = false
     try {
       await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,
-        merge
+        merge,
+        sessionEpoch
       })
       migrateSucceeded = true
 
@@ -140,9 +140,8 @@ export async function migrateNotesDirectoryWithUi(options: {
       toast.success(t('settings.data.notes_relocation.success'))
     } finally {
       if (migrateSucceeded) {
-        await finishNotesRelocationSession()
+        await finishNotesRelocationSession(sessionEpoch)
       }
-      unlockNotesEditsForRelocation()
     }
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)
