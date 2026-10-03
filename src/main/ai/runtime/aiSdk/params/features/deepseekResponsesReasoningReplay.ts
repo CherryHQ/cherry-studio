@@ -11,8 +11,10 @@ import type { RequestFeature } from '../feature'
  * assistant turns ("must be passed back to the API", #18150). Gateway clients
  * echo reasoning as plain text, which `@ai-sdk/openai` would otherwise drop
  * ("Non-OpenAI reasoning parts"). Tag those parts so the patched serializer
- * emits them as raw `reasoning_text` content; parts that already carry an
- * OpenAI `itemId`/`reasoningEncryptedContent` keep their native round-trip.
+ * emits them as raw `reasoning_text` content. DeepSeek streams may still attach
+ * an OpenAI-shaped `itemId`, but that id cannot replay reasoning when
+ * `store:false`; remove it unless encrypted content provides a native replay
+ * payload.
  */
 function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddleware {
   return {
@@ -34,7 +36,7 @@ function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddle
                 ...part,
                 providerOptions: {
                   ...part.providerOptions,
-                  openai: { ...openai, rawReasoningContent: true }
+                  openai: { ...openai, itemId: undefined, rawReasoningContent: true }
                 }
               }
             })
