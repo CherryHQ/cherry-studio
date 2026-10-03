@@ -7,12 +7,7 @@ import type { McpCallToolResponse } from '@main/ai/mcp/types'
 /** A single item in a tool-result `{type:'content'}` output. */
 type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['value'][number]
 
-/**
- * Honest placeholder for media bytes the model never receives. `label` is the
- * bracket text without its closing `]`. Unlike the old "delivered to user"
- * wording, this cannot read to a model as "delivered into this conversation"
- * (#21306).
- */
+/** Describe omitted media without implying the model received it. */
 const unseenByModel = (label: string): string => `${label} — the model cannot see this content]`
 
 /** True if the call produced any image / audio / binary resource. */
@@ -25,13 +20,7 @@ export function hasMultimodalContent(result: McpCallToolResponse): boolean {
   )
 }
 
-/**
- * Flatten for the model's view: text verbatim; image/audio/blob →
- * honest placeholder; text-backed resource → its `text`; unknown → JSON.
- *
- * Error path only since #21306 — the model-facing projection for successful
- * results is {@link mcpResultToModelOutput}, which forwards media instead.
- */
+/** Text summary for errors and results that cannot carry structured content. */
 export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
@@ -71,18 +60,8 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   return parts.join('\n')
 }
 
-/**
- * Model-facing projection of a successful MCP tool result (#21306).
- *
- * Text stays verbatim; image/audio blocks are forwarded as structured media
- * items so the per-request capability pipeline (`routeToolResultMedia`) can
- * gate them by the active model's modalities and the wire's tool-result media
- * support — forwarded when accepted, replaced with an honest omission note
- * when not. Blob-backed resources stay an honest text stub (arbitrary binary
- * has no media slot to forward into); text-backed resources become their
- * `text`; unknown shapes degrade to the text summary.
- */
-export function mcpResultToModelOutput(result: McpCallToolResponse): ToolResultOutput {
+/** Preserve media for request-level routing and expose embedded blobs through the resource reader. */
+export function mcpResultToModelOutput(result: McpCallToolResponse, serverId?: string): ToolResultOutput {
   if (!result || !Array.isArray(result.content)) {
     return { type: 'text', value: mcpResultToTextSummary(result) }
   }
@@ -90,47 +69,31 @@ export function mcpResultToModelOutput(result: McpCallToolResponse): ToolResultO
   const textParts: string[] = []
   const media: ToolResultContentItem[] = []
   for (const item of result.content) {
-    switch (item.type) {
-      case 'text':
-        textParts.push(item.text || '')
-        break
-      case 'image':
-        if (item.data) {
-          media.push({ type: 'image-data', data: item.data, mediaType: item.mimeType || 'image/png' })
-          break
-        }
+    if (item.type === 'image' || item.type === 'audio') {
+      if (item.data) {
+        const isImage = item.type === 'image'
+        media.push({
+          type: isImage ? 'image-data' : 'file-data',
+          data: item.data,
+          mediaType: item.mimeType || (isImage ? 'image/png' : 'audio/mp3')
+        })
+      } else {
         textParts.push(JSON.stringify(item))
-        break
-      case 'audio':
-        if (item.data) {
-          media.push({ type: 'file-data', data: item.data, mediaType: item.mimeType || 'audio/mp3' })
-          break
-        }
-        textParts.push(JSON.stringify(item))
-        break
-      case 'resource':
-        if (item.resource?.blob) {
-          textParts.push(
-            unseenByModel(
-              `[Resource: ${item.resource.mimeType || 'application/octet-stream'}, uri=${
-                item.resource.uri || 'unknown'
-              }`
-            )
-          )
-        } else {
-          textParts.push(item.resource?.text || JSON.stringify(item))
-        }
-        break
-      default:
-        textParts.push(JSON.stringify(item))
-        break
+      }
+    } else if (item.type === 'resource' && item.resource?.blob && serverId && item.resource.uri) {
+      const { uri, mimeType } = item.resource
+      textParts.push(
+        `Resource ${JSON.stringify(uri)} (${mimeType || 'application/octet-stream'}): ` +
+          `read with mcp_resource_read using ${JSON.stringify({ serverId, uri })}.`
+      )
+    } else {
+      textParts.push(mcpResultToTextSummary({ content: [item] }))
     }
   }
 
-  if (media.length === 0) {
-    return { type: 'text', value: textParts.join('\n') }
-  }
   const text = textParts.join('\n')
-  const value: ToolResultContentItem[] = text ? [{ type: 'text', text }, ...media] : media
-  return { type: 'content', value }
+  if (media.length === 0) {
+    return { type: 'text', value: text }
+  }
+  return { type: 'content', value: text ? [{ type: 'text', text }, ...media] : media }
 }

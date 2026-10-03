@@ -3,6 +3,7 @@ import { type JSONSchema7, type Tool } from 'ai'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -65,6 +66,9 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
+      const resources = getRequestContext(options)?.mcpToolResources
+      if (resources) registerMcpToolResources(resources, result, metadata)
+
       // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
       // parts intact); `toModelOutput` below produces the model's view.
       return {
@@ -73,10 +77,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       }
     },
     toModelOutput({ output }) {
-      // Forwards image/audio blocks as structured media (#21306) — the request's
-      // capability pipeline gates them per model + wire; the text summary is the
-      // error path only.
-      return mcpResultToModelOutput(output as McpCallToolResponse)
+      // Model and wire capabilities are applied by the request's media routing.
+      return mcpResultToModelOutput(output as McpCallToolResponse, mcpTool.serverId)
     }
   }
 }
