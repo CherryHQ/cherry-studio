@@ -107,7 +107,6 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
         scope.model.contextWindow,
         resolveRequestedMaxOutputTokens(
           scope.request.callOverrides?.maxOutputTokens,
-          undefined,
           scope.assistant,
           scope.model,
           scope.endpointType
