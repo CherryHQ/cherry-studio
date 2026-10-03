@@ -17,6 +17,7 @@ import {
 import { ComposerContextProvider } from '../ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
+import { createComposerPlainTextContent } from '../composerTokenMarkers'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   editorViewDom: undefined as HTMLElement | undefined,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
+  insertContentAt: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
@@ -50,6 +52,9 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  pasteHandlerOptions: undefined as any,
+  editorIsFocused: false,
+  docTextContent: '',
   fileDragDropOptions: undefined as any,
   setTimeoutTimer: vi.fn(),
   timeoutCleanups: [] as Array<() => void>,
@@ -178,6 +183,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
     const editor = {
       isDestroyed: false,
       isEditable: true,
+      get isFocused() {
+        return mocks.editorIsFocused
+      },
       getJSON: mocks.getJSON,
       commands: {
         focus: mocks.focus,
@@ -185,17 +193,27 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         setHardBreak: mocks.setHardBreak,
         setNodeSelection: mocks.setNodeSelection
       },
-      chain: () => ({
-        focus: () => ({
+      chain: () => {
+        const chain: Record<string, (...args: unknown[]) => any> = {
+          insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: mocks.chainRun }
+          },
+          insertContentAt: (...args: unknown[]) => {
+            mocks.insertContentAt(...args)
+            return { run: mocks.chainRun }
+          },
+          insertComposerToken: (...args: unknown[]) => {
+            mocks.insertComposerToken(...args)
+            return chain
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return chain
+          },
           deleteRange: (...args: unknown[]) => {
             mocks.deleteRange(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
+            return chain
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
@@ -209,32 +227,11 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             mocks.deleteSelection()
             return { run: mocks.chainRun }
           },
-          setMeta: (...args: unknown[]) => {
-            mocks.setMeta(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          },
-          insertContent: (...args: unknown[]) => {
-            mocks.insertContent(...args)
-            return { run: mocks.chainRun }
-          },
-          insertComposerToken: (...args: unknown[]) => {
-            mocks.insertComposerToken(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          }
-        })
-      }),
+          run: mocks.chainRun
+        }
+        chain.focus = () => chain
+        return chain
+      },
       view: {
         get composing() {
           return mocks.editorViewComposing
@@ -256,6 +253,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             get size() {
               return mocks.docContentSize
             }
+          },
+          get textContent() {
+            return mocks.docTextContent
           },
           descendants: mocks.docDescendants,
           textBetween: mocks.docTextBetween
@@ -323,9 +323,12 @@ vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
 }))
 
 vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
-  usePasteHandler: () => ({
-    handlePaste: mocks.pasteHandler
-  })
+  usePasteHandler: (options: any) => {
+    mocks.pasteHandlerOptions = options
+    return {
+      handlePaste: mocks.pasteHandler
+    }
+  }
 }))
 
 vi.mock('@renderer/components/composer/paste/pasteHandling', () => ({
@@ -482,6 +485,10 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.pasteHandlerOptions = undefined
+    mocks.editorIsFocused = false
+    mocks.docTextContent = ''
+    mocks.insertContentAt.mockReset()
     mocks.fileDragDropOptions = undefined
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
@@ -566,6 +573,71 @@ describe('ComposerSurface', () => {
     document.removeEventListener('paste', onDocument)
     viewDom.remove()
     vi.unstubAllGlobals()
+  })
+
+  describe('wildcard path references', () => {
+    const PATH = '/Users/me/models/model.onnx'
+
+    it('inserts a focused paste at the caret with no break of its own', () => {
+      // The user is typing mid-draft, so a leading hard break would split their own sentence.
+      mocks.editorIsFocused = true
+      mocks.docTextContent = 'look at this'
+      render(<ComposerSurface {...baseProps} text="look at this" />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContent).toHaveBeenCalledWith(createComposerPlainTextContent(PATH))
+    })
+
+    it('breaks before a path appended to a draft that no editor holds focus on', () => {
+      // The global-handler route lands at the end, so the path would run on after the last word.
+      mocks.editorIsFocused = false
+      mocks.docTextContent = 'look at this'
+      render(<ComposerSurface {...baseProps} text="look at this" />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).toHaveBeenCalledWith(
+        mocks.docContentSize,
+        createComposerPlainTextContent(`\n${PATH}`)
+      )
+    })
+
+    it('inserts an append into an empty draft with no leading break', () => {
+      mocks.editorIsFocused = false
+      mocks.docTextContent = ''
+      render(<ComposerSurface {...baseProps} text="" />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).toHaveBeenCalledWith(mocks.docContentSize, createComposerPlainTextContent(PATH))
+    })
+
+    it('drops a path that only partly fits instead of truncating it to a real-looking prefix', () => {
+      // `/Users/me` names a directory, not the pasted file, so a near-limit draft takes nothing.
+      const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - PATH.length + 1)
+      mocks.editorIsFocused = false
+      mocks.docTextContent = draft
+      render(<ComposerSurface {...baseProps} text={draft} />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).not.toHaveBeenCalled()
+      expect(mocks.insertContent).not.toHaveBeenCalled()
+    })
+
+    it('drops a path whose only remaining room is the break it needs', () => {
+      // One character short: inserting the bare separator would blank a line and lose the file.
+      const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 1)
+      mocks.editorIsFocused = false
+      mocks.docTextContent = draft
+      render(<ComposerSurface {...baseProps} text={draft} />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).not.toHaveBeenCalled()
+      expect(mocks.insertContent).not.toHaveBeenCalled()
+    })
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {

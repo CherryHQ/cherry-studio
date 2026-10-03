@@ -110,6 +110,15 @@ export function getComposerInputTextWithinLimit(currentText: string, nextText: s
   return nextText.slice(0, remainingLength)
 }
 
+/**
+ * The path text a wildcard paste adds, or '' when it does not fit whole. Unlike text, which fills
+ * the remaining budget and truncates, a path is all-or-nothing: a partial absolute path names a
+ * file that does not exist, and a separator with no path behind it drops the paste entirely.
+ */
+export function getComposerPathReferenceInsertion(currentText: string, body: string, replacedText = ''): string {
+  return getComposerInputTextWithinLimit(currentText, body, replacedText) === body ? body : ''
+}
+
 function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
   return token.id.startsWith(prefix) ? token.id.slice(prefix.length) : token.label
 }
