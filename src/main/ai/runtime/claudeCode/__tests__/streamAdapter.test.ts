@@ -646,6 +646,78 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(text).toBe(`inside${separators}texttail${separators}`)
   })
 
+  it('preserves leading separator candidates after intervening reasoning', () => {
+    const { adapter, parts } = createAdapter()
+    for (const event of [
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'tool-1', name: 'Read', input: {} }
+      },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } },
+      { type: 'content_block_delta', index: 1, delta: { type: 'thinking_delta', thinking: 'plan' } },
+      { type: 'content_block_stop', index: 1 },
+      { type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } },
+      { type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: '\u2050ordinary' } },
+      { type: 'content_block_stop', index: 2 }
+    ]) {
+      adapter.handleMessage(streamEvent(event))
+    }
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('\u2050ordinary')
+  })
+
+  it.each([false, true])('flushes buffered separator suffixes during error cleanup (block stopped: %s)', (stopped) => {
+    const { adapter, parts } = createAdapter()
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'tail\u2050' } })
+    )
+    if (stopped) adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    adapter.finalizeOpenTextParts()
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('tail\u2050')
+    expect(parts.filter((part) => part.type === 'text-end').map((part) => part.id)).toEqual(
+      parts.filter((part) => part.type === 'text-start').map((part) => part.id)
+    )
+  })
+
+  it('keeps reminder filtering when a flow detaches with a buffered marker prefix', () => {
+    const { adapter, statusEvents } = createAdapter()
+    for (const event of [
+      { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before <system-' } }
+    ]) {
+      adapter.handleMessage({ ...streamEvent(event), parent_tool_use_id: 'flow-root' })
+    }
+    adapter.handleMessage(successResult())
+    adapter.handleMessage({
+      ...streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'reminder>hidden context</system-reminder>after' }
+      }),
+      parent_tool_use_id: 'flow-root'
+    })
+    adapter.handleMessage({ ...streamEvent({ type: 'content_block_stop', index: 0 }), parent_tool_use_id: 'flow-root' })
+
+    const text = statusEvents
+      .filter((event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta')
+      .map((event) => event.chunk.delta)
+      .join('')
+    expect(text).toBe('after')
+  })
+
   it('does not emit or persist tagged or synthetic-source reminders from the assistant stream', async () => {
     const { adapter, parts } = createAdapter()
     const reminder = 'The task tools have not been used recently.'

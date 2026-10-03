@@ -176,8 +176,10 @@ type StreamSink = {
   enqueue(part: CherryUIMessageChunk): void
 }
 
+type RedirectableStreamSink = StreamSink & { redirect(sink: StreamSink): void }
+
 type StreamContext = {
-  sink: StreamSink & { redirect(sink: StreamSink): void }
+  sink: RedirectableStreamSink & { flush(): void }
   systemReminderBodies: Set<string>
   options: Parameters<LanguageModelV3['doStream']>[0]
   toolStates: Map<string, ToolStreamState>
@@ -611,7 +613,7 @@ export class ClaudeCodeStreamAdapter {
   private createSystemReminderFilteringSink(
     sink: StreamSink,
     reminderBodies: ReadonlySet<string>
-  ): StreamContext['sink'] {
+  ): RedirectableStreamSink {
     let destination = sink
     const textFilters = new Map<string, SystemReminderTextFilter>()
     return {
@@ -641,8 +643,8 @@ export class ClaudeCodeStreamAdapter {
   }
 
   /** Keep only tool-adjacent separator candidates out of visible text. */
-  private createToolBoundaryFilteringSink(sink: StreamContext['sink']): StreamContext['sink'] {
-    let destination: StreamSink = sink
+  private createToolBoundaryFilteringSink(sink: RedirectableStreamSink): StreamContext['sink'] {
+    const destination = sink
     let pendingLeadingBoundary = false
     const textFilters = new Map<string, ToolBoundaryTextFilter>()
     const pendingTextEnds = new Map<string, Extract<CherryUIMessageChunk, { type: 'text-end' }>>()
@@ -660,8 +662,9 @@ export class ClaudeCodeStreamAdapter {
 
     return {
       redirect: (nextSink) => {
-        destination = nextSink
+        destination.redirect(nextSink)
       },
+      flush: () => flushPendingTextEnds(true),
       enqueue: (chunk) => {
         if (chunk.type === 'text-start') {
           flushPendingTextEnds(true)
@@ -702,6 +705,9 @@ export class ClaudeCodeStreamAdapter {
           pendingLeadingBoundary = true
         } else {
           flushPendingTextEnds(true)
+          if (chunk.type === 'reasoning-start' || chunk.type === 'reasoning-delta' || chunk.type === 'reasoning-end') {
+            pendingLeadingBoundary = false
+          }
         }
         destination.enqueue(chunk)
       }
@@ -825,7 +831,11 @@ export class ClaudeCodeStreamAdapter {
   /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
   finalizeOpenTextParts(): void {
     this.closeActiveTextPart(this.ctx)
-    for (const flow of this.flowContexts) this.closeActiveTextPart(flow.stream)
+    this.ctx.sink.flush()
+    for (const flow of this.flowContexts) {
+      this.closeActiveTextPart(flow.stream)
+      flow.stream.sink.flush()
+    }
   }
 
   handleTruncationError(error: unknown): boolean {
