@@ -820,7 +820,14 @@ export function buildAgentRightPaneStatus(
  * task — and it was asked before that stop, so its rows are older than what is displayed. Applying
  * it would put a stopped task back to `running` until the next tick, and a task the user cannot
  * stop again in the meantime, since the buttons are keyed on that status.
+ *
+ * Two polls can also be in flight at once when one round trip outlasts the interval, and they race
+ * on the same mutation count. Their issue order settles that: the later poll asked a fresher
+ * question, so an earlier response is dropped even though nothing local changed.
  */
-export function isTaskListResponseCurrent(requestedAt: number, currentMutation: number): boolean {
-  return requestedAt === currentMutation
+export function isTaskListResponseCurrent(
+  issued: { mutation: number; seq: number },
+  latest: { mutation: number; appliedSeq: number }
+): boolean {
+  return issued.mutation === latest.mutation && issued.seq >= latest.appliedSeq
 }
