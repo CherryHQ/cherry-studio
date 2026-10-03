@@ -317,6 +317,93 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(injection.apiKey).toBe('no-key-required')
   })
 
+  it('adds a stable opaque session header to copied OpenRouter preset routes', async () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'my-router',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://openrouter.ai/api'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'my-router::anthropic/claude-sonnet-4',
+      providerId: 'my-router',
+      apiModelId: 'anthropic/claude-sonnet-4',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    const first = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+    const repeated = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+    const second = await resolveDshProviderInjectionFromSnapshot('session-2', provider, model)
+
+    const key = first.headers?.['x-session-id']
+    expect(key).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+    expect(key).not.toContain('session-1')
+    expect(repeated.headers?.['x-session-id']).toBe(key)
+    expect(second.headers?.['x-session-id']).not.toBe(key)
+  })
+
+  it('adds the session header to a keyless copied OpenRouter preset route', async () => {
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    const provider = {
+      ...nativeProvider,
+      id: 'keyless-router',
+      presetProviderId: 'openrouter',
+      authOptional: true
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'keyless-router::openai/gpt-5.6',
+      providerId: 'keyless-router',
+      apiModelId: 'openai/gpt-5.6'
+    })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+
+    expect(injection.apiKey).toBe('no-key-required')
+    expect(injection.headers?.['x-session-id']).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+  })
+
+  it('recognizes an OpenRouter adapter and preserves an explicit header regardless of casing', async () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'custom-router',
+      presetProviderId: undefined,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'custom-router::openai/gpt-5.6',
+      providerId: 'custom-router',
+      apiModelId: 'openai/gpt-5.6',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const injected = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+    const explicit = await resolveDshProviderInjectionFromSnapshot(
+      'session-1',
+      {
+        ...provider,
+        settings: { extraHeaders: { 'X-Session-Id': 'chosen-session', 'x-tenant': 'tenant-1' } }
+      },
+      model
+    )
+
+    expect(injected.headers?.['x-session-id']).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+    expect(explicit.headers).toEqual({
+      'X-Session-Id': 'chosen-session',
+      'x-tenant': 'tenant-1'
+    })
+  })
+
   it('falls back to the gateway without consuming native key rotation', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())
 
