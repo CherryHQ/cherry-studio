@@ -161,10 +161,10 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
 
   let keys: string[]
   if (position === 'last') {
-    const largest = selectBoundaryKey(tx, table, 'last', scope)
+    const largest = selectRepairedBoundaryKey(tx, table, 'last', scope)
     keys = generateOrderKeySequenceBetween(largest, null, valuesList.length)
   } else {
-    const smallest = selectBoundaryKey(tx, table, 'first', scope)
+    const smallest = selectRepairedBoundaryKey(tx, table, 'first', scope)
     keys = generateOrderKeySequenceBetween(null, smallest, valuesList.length)
   }
 
@@ -419,6 +419,86 @@ function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' 
     .all()
   const first = rows[0] as { orderKey: string | null } | undefined
   return first?.orderKey ?? null
+}
+
+/**
+ * Probe whether `fractional-indexing` accepts `key` as a generator anchor.
+ * The library's `validateOrderKey` is not exported, so validity is probed by
+ * running a throwaway generation against the key — the generator itself stays
+ * the single source of truth for key syntax.
+ */
+function isValidOrderKey(key: string): boolean {
+  try {
+    generateKeyBetween(key, null)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Walk from the scope extremum towards the interior and collect the run of
+ * distinct invalid order keys up to the first generator-valid one.
+ */
+function collectInvalidBoundaryKeys(
+  tx: TxLike,
+  table: TableWithOrderKey,
+  which: 'first' | 'last',
+  scope?: SQL
+): { invalidKeys: string[]; nearestValid: string | null } {
+  const side = which === 'last' ? 'predecessor' : 'successor'
+  const invalidKeys: string[] = []
+  let cursor = selectBoundaryKey(tx, table, which, scope)
+  while (cursor !== null && !isValidOrderKey(cursor)) {
+    invalidKeys.push(cursor)
+    cursor = selectAdjacentKey(tx, table, side, cursor, scope)
+  }
+  return { invalidKeys, nearestValid: cursor }
+}
+
+/**
+ * Return the scoped boundary key for an insert, repairing legacy rows whose
+ * stored key the generator rejects (#21282): rows written by older releases
+ * (e.g. the `zz` end-of-list sentinel) would otherwise abort the whole insert —
+ * including the boot-time provider registry sync — with `invalid order key`.
+ *
+ * The run of invalid keys between the scope extremum and the nearest valid
+ * neighbour is re-keyed outward from that neighbour, so the replacement keys
+ * are handed out in the rows' original relative order — repairing from the
+ * extremum inward instead would reverse the legacy rows. All rows sharing an
+ * offending value are re-keyed onto the same new key — they were mutually
+ * unordered anyway. A warning is logged per repaired value, and the returned
+ * key is the run's outermost replacement, i.e. the scope's new extremum, so
+ * the insert proceeds normally and lands beyond (or before) every pre-existing
+ * row.
+ */
+function selectRepairedBoundaryKey(
+  tx: TxLike,
+  table: TableWithOrderKey,
+  which: 'first' | 'last',
+  scope?: SQL
+): string | null {
+  const { invalidKeys, nearestValid } = collectInvalidBoundaryKeys(tx, table, which, scope)
+  if (invalidKeys.length === 0) return nearestValid
+
+  // `invalidKeys` was collected extremum-inward; assigning in reverse walks
+  // outward from `nearestValid`, preserving the rows' relative order.
+  let anchor = nearestValid
+  let newKey = ''
+  for (const invalidKey of invalidKeys.reverse()) {
+    newKey = which === 'last' ? generateOrderKeyBetween(anchor, null) : generateOrderKeyBetween(null, anchor)
+    const where = scope ? and(eq(table.orderKey, invalidKey), scope)! : eq(table.orderKey, invalidKey)
+    tx.update(table).set({ orderKey: newKey }).where(where).run()
+    logger.warn('insertManyWithOrderKey: re-keyed legacy invalid order key', {
+      table: getTableName(table),
+      invalidKey,
+      newKey
+    })
+    anchor = newKey
+  }
+  // The last re-keyed value is the outermost of the run, so its replacement is
+  // the scope's new extremum and the batch anchors beyond it.
+  return newKey
 }
 
 /**
