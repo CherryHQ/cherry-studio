@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -188,6 +189,24 @@ export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
 /** The canonical reasoning-effort selection — the same type an assistant persists. */
 export type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+/** User override from a Cherry effort tier to a native effort tier for one scope. */
+export type UserReasoningEffortMap = Partial<Record<ReasoningEffort, ReasoningEffort>>
+
+export type ReasoningEffortProviderMappingScope = {
+  default?: UserReasoningEffortMap
+  families?: Record<string, UserReasoningEffortMap>
+  models?: Record<string, UserReasoningEffortMap>
+}
+
+/**
+ * Persistent reasoning-effort mapping overrides (#20961).
+ * Automatic nearest-tier + registry effortMap remains the fallback when no entry exists.
+ */
+export type ReasoningEffortMappingOverrides = {
+  global?: UserReasoningEffortMap
+  providers?: Record<string, ReasoningEffortProviderMappingScope>
+}
 
 /**
  * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".

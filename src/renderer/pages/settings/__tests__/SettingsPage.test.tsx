@@ -90,6 +90,7 @@ vi.mock('react-i18next', () => ({
         'settings.model': '默认模型',
         'settings.prompts.title': '提示词',
         'settings.quickAssistant.title': '快捷助手',
+        'settings.reasoning_effort_mappings.title': zhCN['settings.reasoning_effort_mappings.title'],
         'settings.scheduledTasks.title': '定时任务',
         'settings.screenshot.title': '截图',
         'settings.shortcuts.title': '快捷键',
@@ -158,10 +159,12 @@ describe('SettingsPage', () => {
     const generalItem = screen.getByRole('button', { name: '通用' })
     const appearanceItem = screen.getByRole('button', { name: '外观' })
     const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
+    const reasoningEffortItem = screen.getByRole('button', { name: '思考强度映射' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
     expect(generalItem.nextElementSibling).toBe(appearanceItem)
-    expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
+    expect(defaultModelItem.nextElementSibling).toBe(reasoningEffortItem)
+    expect(reasoningEffortItem.nextElementSibling).toBe(localModelsItem)
     fireEvent.click(generalItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
