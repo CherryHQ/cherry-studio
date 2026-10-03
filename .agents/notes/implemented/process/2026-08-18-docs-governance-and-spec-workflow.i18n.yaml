@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-08-18-docs-governance-and-spec-workflow.md
+2026-08-18-docs-governance-and-spec-workflow.md: 567eb9d511a350758e5626cd708a52ccc5ecc121
+2026-08-18-docs-governance-and-spec-workflow.zh.md: e286621b69436758ef262c70e5982213a434f69b

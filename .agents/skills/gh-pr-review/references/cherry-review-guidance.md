@@ -278,6 +278,8 @@ violation is migration residue, not precedent.
 | SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
 | UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
 | Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `.agents/skills/gh-pr-review/SKILL.md` |
+| Agent Notes, Specs, lifecycle transitions, or supersession | `.agents/notes/README.md`, `.agents/skills/agent-notes/SKILL.md` |
+| Repository documentation, bilingual pairs, or `sources` impact | `docs/AGENTS.md`, `.agents/skills/docs-governance/SKILL.md`, `docs/i18n/README.md` |
 
 Treat the listed architecture documents as the authority for their scopes.
 Read the relevant sections before judging placement or dependency direction;

@@ -15,6 +15,14 @@
 | [Release Workflow Operations](./contrib/release-workflow.md) | Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches |
 | [Test Plan](./contrib/test-plan.md) | The Test Plan process for beta and rc testing, covering user participation and maintainer PR workflow |
 
+## Documentation Governance
+
+| Document | Description |
+|----------|-------------|
+| [Bilingual Documentation](./i18n/README.md) | Bilingual documentation pairing contract, rollout scope, consistency records, and validation commands |
+| [Documentation Terminology](./i18n/terminology.md) | Generated English and Simplified Chinese terminology used by documentation translation |
+| [Documentation Translation Rules](./i18n/translation-rules.md) | Faithfulness, terminology, structure, and minimal-update rules for English and Simplified Chinese documentation |
+
 ## References
 
 ### AI
