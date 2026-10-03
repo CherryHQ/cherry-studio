@@ -168,6 +168,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
+  const groupHeaderAriaDescription = meta.getGroupHeaderAriaDescription?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -267,6 +268,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <button
             type="button"
             aria-current={showsSelectedSurface ? 'true' : undefined}
+            aria-description={groupHeaderAriaDescription}
             className="flex h-full min-w-0 items-center gap-1.5 text-left text-inherit outline-none"
             onClick={handleClick}>
             {groupHeaderIcon && (
@@ -302,6 +304,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
+          aria-description={groupHeaderAriaDescription}
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
@@ -317,7 +320,9 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           </span>
         </button>
       ) : (
-        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
+        <div
+          aria-description={groupHeaderAriaDescription}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
               {groupHeaderIcon}
