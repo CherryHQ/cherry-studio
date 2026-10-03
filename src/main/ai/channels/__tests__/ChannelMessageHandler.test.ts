@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,8 +12,11 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { t } from '@main/i18n'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -415,6 +419,100 @@ describe('ChannelMessageHandler', () => {
     )
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
+  })
+
+  it.each(['Compare these attachments', ''])('sends structured attachments with unchanged text %j', async (text) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text,
+        images: [{ media_type: 'image/png', data: Buffer.from('image bytes').toString('base64') }],
+        files: ['first file', 'second file'].map((content) => ({
+          filename: 'report #1 中文.txt',
+          media_type: 'text/plain',
+          data: Buffer.from(content).toString('base64'),
+          size: Buffer.byteLength(content)
+        }))
+      })
+
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      expect(parts.filter((part) => part.type === 'text')).toEqual(text ? [{ type: 'text', text }] : [])
+      const files = parts.filter((part) => part.type === 'file')
+      expect(files).toEqual([
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'image/png',
+          filename: expect.stringMatching(/\.png$/)
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        }
+      ])
+      expect(new Set(files.map((file) => file.url)).size).toBe(3)
+      expect(await Promise.all(files.map((file) => readFile(new URL(file.url), 'utf8')))).toEqual([
+        'image bytes',
+        'first file',
+        'second file'
+      ])
+      const content = buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)
+      for (const file of files) {
+        expect(content).toContain(fileURLToPath(file.url))
+        expect(content).toContain(JSON.stringify(file.filename))
+      }
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['images', 'files'] as const)('does not dispatch a turn when saving %s fails', async (kind) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      await writeFile(path.join(workDir, '.cherry-studio'), 'blocks attachment directory creation')
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'should not run' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'Read the attachment',
+        [kind]: [
+          { filename: 'report.txt', media_type: kind === 'images' ? 'image/png' : 'text/plain', data: 'AA==', size: 1 }
+        ]
+      })
+
+      expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+      expect(adapter.sendMessage.mock.calls).toEqual([
+        ['chat-1', t('common.channel_message_processing_error'), { replyToMessageId: undefined }]
+      ])
+    } finally {
+      mockStartAgentSessionRun.mockReset()
+      await rm(workDir, { recursive: true, force: true })
+    }
   })
 
   it('confines an image with a hostile media type to channel-images as .png', async () => {

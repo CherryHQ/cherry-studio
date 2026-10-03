@@ -22,6 +22,7 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
 }))
 
 import type { Topic } from '@renderer/types/topic'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 
@@ -65,24 +66,28 @@ function renderActions(
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
-  const { result } = renderHook(() =>
-    useChatWriteActions({
-      topic: { id: 't1' } as Topic,
-      uiMessages,
-      activeNodeId,
-      regenerate,
-      setMessages,
-      stop,
-      refresh: vi.fn(async () => []),
-      cache,
-      seedReservedMessages,
-      scrollToBottom,
-      startNewContextBlocked
-    })
+  const { result, rerender } = renderHook(
+    ({ composerModelId }) =>
+      useChatWriteActions({
+        topic: { id: 't1' } as Topic,
+        uiMessages,
+        activeNodeId,
+        regenerate,
+        setMessages,
+        stop,
+        refresh: vi.fn(async () => []),
+        cache,
+        seedReservedMessages,
+        scrollToBottom,
+        startNewContextBlocked,
+        composerModelId
+      }),
+    { initialProps: { composerModelId: undefined as UniqueModelId | undefined } }
   )
   return {
     actions: result.current.actions,
     result,
+    rerender,
     cache,
     scrollToBottom,
     regenerate,
@@ -453,6 +458,26 @@ describe('useChatWriteActions — edit message', () => {
 describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('keeps regeneration pending until the request finishes', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+    let finishRegenerate: (() => void) | undefined
+    regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
+
+    let finished = false
+    const request = actions.regenerate('a1').then(() => {
+      finished = true
+    })
+
+    await Promise.resolve()
+    expect(finished).toBe(false)
+
+    finishRegenerate?.()
+    await request
+    expect(finished).toBe(true)
+  })
+
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
     assistantMessage.parts = [{ type: 'text', text: 'answer' }]
@@ -511,13 +536,85 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
-    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
-    nonTextAssistant.metadata.modelId = 'provider::model-a'
-    nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
-    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+  it('uses an explicit model override when retrying a failed assistant with a different provider', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+    rerender({ composerModelId: 'provider::model-c' })
 
-    await actions.regenerate('a1')
+    await result.current.actions.regenerate('a1', { modelId: 'provider::model-b' })
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-b']
+    })
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('retryMessageId')
+  })
+
+  it.each([
+    ['error', 'provider-a::model-x', 'default'],
+    ['error', 'provider-a::model-x', 'explicit'],
+    ['error', 'provider-a::model-x', undefined],
+    ['paused', 'provider-a::model-x', 'explicit'],
+    ['success', 'provider-a::model-x', undefined],
+    ['error', undefined, undefined]
+  ])(
+    'uses the latest composer selection for a retryable %s reply with model %s and source %s',
+    async (status, modelId, modelSelection) => {
+      const assistantMessage = uiMsg('a1', 'assistant', 'u1', false, status)
+      assistantMessage.metadata.modelId = modelId
+      assistantMessage.metadata.modelSelection = modelSelection
+      if (status !== 'success') assistantMessage.parts = [{ type: 'text', text: 'partial answer' }]
+      streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+      const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+      rerender({ composerModelId: 'provider-a::model-x' })
+      rerender({ composerModelId: 'provider-b::model-x' })
+
+      await result.current.actions.regenerate('a1')
+
+      expect(streamOpen).toHaveBeenCalledWith({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: ['provider-b::model-x']
+      })
+    }
+  )
+
+  it('retries in place when the composer still selects the failed model', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    assistantMessage.metadata.modelId = 'provider-a::model-x'
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+    rerender({ composerModelId: 'provider-a::model-x' })
+
+    await result.current.actions.regenerate('a1')
+
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider-a::model-x']
+    })
+  })
+
+  it.each(['success', 'pending'])('does not apply a retry override to a non-retryable %s reply', async (status) => {
+    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, status)
+    nonTextAssistant.metadata.modelId = 'provider::model-a'
+    nonTextAssistant.parts =
+      status === 'pending' ? [] : [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
+    const { result, rerender, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('a1')
 
     expect(streamOpen).not.toHaveBeenCalled()
     expect(regenerate).toHaveBeenCalledWith({
@@ -604,13 +701,14 @@ describe('useChatWriteActions — regenerate', () => {
     replyB.metadata.modelId = 'provider::model-b'
     replyB.parts = [{ type: 'text', text: 'answer b' }]
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { actions, regenerate } = renderActions([
+    const { result, rerender, regenerate } = renderActions([
       uiMsg('u1', 'user', 'vroot'),
       replyA,
       ...(hasSibling ? [replyB] : [])
     ])
+    rerender({ composerModelId: 'provider::model-c' })
 
-    await actions.regenerate('a1')
+    await result.current.actions.regenerate('a1')
 
     expect(regenerate).not.toHaveBeenCalled()
     expect(streamOpen).toHaveBeenCalledWith({

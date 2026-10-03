@@ -669,6 +669,24 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
 const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 'clip_l', 'text_l', 'user_prompt']
 
 /**
+ * The value an If/Else Switch puts on the wire. Both of its value inputs are
+ * lazy and exactly one is ever evaluated — `on_true` when its boolean `switch`
+ * widget is on, `on_false` when it is off — so a walk that follows both can
+ * end up on the branch the run discards. Verified against a live server: a
+ * `ComfySwitchNode` feeding `PreviewAny` returns the selected branch's text for
+ * either setting and never evaluates the other.
+ *
+ * Keyed on the declared input names rather than the class, so the same rule
+ * covers any node that declares this shape.
+ */
+function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_false'; value: unknown } | undefined {
+  const selector = node.inputs.switch
+  if (typeof selector !== 'boolean') return undefined
+  const name = selector ? 'on_true' : 'on_false'
+  return name in node.inputs ? { name, value: node.inputs[name] } : undefined
+}
+
+/**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
  * actually consumes as its positive conditioning. That node may chain the
@@ -738,6 +756,17 @@ export function findPromptTarget(
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
       if (best) return { nodeId, input: best.name, samplerId }
+      // A switch puts one branch on the wire and leaves the other unevaluated,
+      // so only the selected branch is part of the graph the sampler reads.
+      // When that branch carries the text as a literal — the workflow's own
+      // "use this text" side of the switch — the literal is what the consumer
+      // receives, which is where the prompt has to be written.
+      const branch = selectedSwitchBranch(target)
+      if (branch) {
+        if (typeof branch.value === 'string') return { nodeId, input: branch.name, samplerId }
+        if (isReference(branch.value)) queue.push(branch.value[0])
+        continue
+      }
       for (const [name, value] of Object.entries(target.inputs)) {
         // Never follow an intermediate node's negative edge (e.g. a
         // ControlNet apply node carries both streams) — only the sampler's own
