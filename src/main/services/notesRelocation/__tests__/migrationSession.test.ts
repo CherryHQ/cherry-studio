@@ -61,6 +61,12 @@ describe('notes migration session', () => {
     expect(() => beginNotesBatchMarkdownUpload()).toThrow(/migration is in progress/)
   })
 
+  it('allows flush writes after migration begins but before blocked roots are installed', () => {
+    expect(tryBeginNotesDirectoryMigration()).toBe(true)
+    expect(() => beginNotesFilesystemMutation()).not.toThrow()
+    endNotesFilesystemMutation()
+  })
+
   it('waits for in-flight filesystem mutations before installing the write barrier', async () => {
     beginNotesFilesystemMutation()
     const idle = waitForNotesFilesystemMutationsIdle()
