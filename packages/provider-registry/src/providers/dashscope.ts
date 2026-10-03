@@ -1,6 +1,16 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
+import {
+  effortChatWire,
+  highMaxSupport,
+  kimiK3Support,
+  qwen38ChatWire,
+  qwen38PreviewChatWire,
+  qwen38PreviewSupport,
+  qwen38Support,
+  qwenChatWire
+} from './qwenFamily'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
@@ -88,24 +98,6 @@ const qwenImage3Mode: ImageModeDef = {
 
 const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
-const qwenChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  auto: {
-    operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
-    ],
-    budget: { missing: { type: 'omit-value' } }
-  },
-  effort: {
-    operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
-    ],
-    budget: { missing: { type: 'omit-value' } }
-  }
-}
-
 const responsesEffortWire = modeWire(
   'reasoningEffort',
   { off: 'none', auto: EFFORT, effort: EFFORT },
@@ -137,45 +129,6 @@ const qwenResponsesThinkingOnlySupport: ReasoningSupport = {
   supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
-const qwen38Support: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
-  defaultEffort: 'xhigh',
-  supportedEfforts: ['none', 'low', 'medium', 'xhigh'],
-  // NOT a budget knob — Qwen3.8 has no `thinking_budget` (the parameter's model
-  // list stops at Qwen3.7), which is why `controls` carries effort only. The
-  // limits exist so the API gateway can reverse a caller-supplied `budget_tokens`
-  // into the nearest effort tier (`nearestEffortForBudget`).
-  thinkingTokenLimits: { min: 0, max: 262_144 }
-}
-
-/** `qwen3.8-max-preview` serves thinking mode only — no `'none'` tier, so reasoning cannot be disabled. */
-const qwen38PreviewSupport: ReasoningSupport = {
-  ...qwen38Support,
-  controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'], default: 'xhigh' }],
-  supportedEfforts: ['low', 'medium', 'xhigh']
-}
-
-const highMaxSupport: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }],
-  defaultEffort: 'high',
-  supportedEfforts: ['none', 'high', 'max']
-}
-
-const kimiK3Support: ReasoningSupport = {
-  controls: [{ kind: 'effort', values: ['none', 'max'], default: 'max' }],
-  defaultEffort: 'max',
-  supportedEfforts: ['none', 'max']
-}
-
-const effortChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
-}
-
-const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
-
-// Preview variants omit the off mode entirely: thinking is always on there.
-const qwen38PreviewChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { effort: EFFORT })
 const qwen38PreviewResponsesWire: ReasoningWireProfile = modeWire(
   'reasoningEffort',
   { auto: EFFORT, effort: EFFORT },
