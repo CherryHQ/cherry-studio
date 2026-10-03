@@ -48,6 +48,58 @@ export function describeError(error: unknown): string {
   return details.join(' <- caused by ')
 }
 
+/** Substrings (lowercased) identifying a native-module load failure across the cause chain. */
+const NATIVE_RUNTIME_LOAD_PATTERNS = [
+  'dll initialization routine failed',
+  'dynamic link library',
+  'onnxruntime_binding.node',
+  'err_dlopen_failed',
+  'was compiled against a different node.js version',
+  'node_module_version',
+  'libonnxruntime',
+  'onnxruntime.dll',
+  'directml.dll',
+  'dxil.dll',
+  'dxcompiler.dll',
+  'error loading shared library',
+  'is not a valid win32 application',
+  'the specified module could not be found'
+] as const
+
+/**
+ * Whether `error` is a native-runtime load failure (e.g. Windows refusing
+ * `onnxruntime_binding.node` with a DLL error) rather than a download, model or
+ * provider failure. Walks the cause chain the same way {@link describeError} does.
+ */
+export function isNativeRuntimeLoadError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current: any = error
+  for (let depth = 0; current && depth < 8; depth += 1) {
+    if (typeof current === 'object') {
+      if (seen.has(current)) break
+      seen.add(current)
+    }
+    const haystack =
+      `${current?.code ?? ''} ${current?.message ?? (typeof current === 'string' ? current : '')}`.toLowerCase()
+    if (NATIVE_RUNTIME_LOAD_PATTERNS.some((pattern) => haystack.includes(pattern))) return true
+    current = typeof current === 'object' ? current.cause : null
+  }
+  return false
+}
+
+/**
+ * Classified message for a broken native runtime: names the repair (re-download
+ * the runtime) and separates it from a network download failure, which retries
+ * mirrors instead.
+ */
+export function describeNativeRuntimeLoadFailure(error: unknown): string {
+  return (
+    `local inference native runtime failed to load (onnxruntime native module): ${describeError(error)}. ` +
+    `This is a broken or incompatible native runtime, not a network download failure — ` +
+    `re-download the local model runtime to reinstall it.`
+  )
+}
+
 /** Applies the connect-time init data: native binding path and hardware profile. */
 export function applyInitData(initData: InferenceInitData): void {
   appPath = initData.appPath
@@ -120,7 +172,12 @@ export async function withHardwareFallback<T>(
   try {
     return await operation()
   } catch (hardwareError) {
-    if (context.retryOnHardwareFailure === false || runtimeProfile.id === 'cpu') throw hardwareError
+    // A native runtime that cannot load fails identically on every provider,
+    // so report the repair instead of a provider failure the CPU retry cannot fix.
+    if (runtimeProfile.id === 'cpu' || context.retryOnHardwareFailure === false) {
+      if (isNativeRuntimeLoadError(hardwareError)) throw new Error(describeNativeRuntimeLoadFailure(hardwareError))
+      throw hardwareError
+    }
     const provider = runtimeProfile.id
     context.logger.warn(
       `hardware inference failed provider=${provider} ${context.describeRequest()} error=${describeError(hardwareError)}; falling back to cpu`
@@ -130,6 +187,10 @@ export async function withHardwareFallback<T>(
     try {
       return await operation()
     } catch (cpuError) {
+      if (isNativeRuntimeLoadError(hardwareError) || isNativeRuntimeLoadError(cpuError)) {
+        const nativeError = isNativeRuntimeLoadError(hardwareError) ? hardwareError : cpuError
+        throw new Error(describeNativeRuntimeLoadFailure(nativeError))
+      }
       throw new Error(
         `hardware inference failed provider=${provider} error=${describeError(hardwareError)}; CPU fallback failed error=${describeError(cpuError)}`
       )
