@@ -4197,7 +4197,7 @@
   "settings.dependencies.viewErrorDetails": "Xem chi tiết",
   "settings.developer.client_id": "ID khách hàng",
   "settings.developer.enable_developer_mode": "Kích hoạt Chế độ Nhà phát triển",
-  "settings.developer.help": "Sau khi bật chế độ nhà phát triển, bạn có thể sử dụng tính năng dò dữ liệu để xem luồng dữ liệu trong quá trình gọi mô hình.",
+  "settings.developer.help": "Sau khi bật chế độ nhà phát triển, bạn có thể dùng tính năng trace để xem luồng dữ liệu khi gọi mô hình và kiểm tra các yêu cầu API của tiến trình chính trong DevTools, bảng Main Network. Thay đổi có hiệu lực sau khi khởi động lại ứng dụng.",
   "settings.developer.title": "Chế độ Nhà phát triển",
   "settings.display.custom.css.label": "CSS Tùy chỉnh",
   "settings.display.custom.css.migration_notice": "Bảng định kiểu này đã được di chuyển từ v1 và hiện đang bị tắt. Hãy điều chỉnh cho v2, sau đó xóa dòng đầu tiên để bật.",

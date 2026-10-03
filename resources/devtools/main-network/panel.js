@@ -103,12 +103,48 @@ function renderRows(force = false) {
   }
 }
 
+function shellQuoteSingle(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`
+}
+
+function buildCurlCommand(event) {
+  const parts = ['curl', shellQuoteSingle(event.url)]
+  const method = (event.method || 'GET').toUpperCase()
+  if (method !== 'GET') parts.push('-X', shellQuoteSingle(method))
+
+  for (const [key, value] of Object.entries(event.requestHeaders ?? {})) {
+    parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
+  }
+
+  const body = event.requestBody
+  if (body?.text && !body.truncated) {
+    parts.push('--data-raw', shellQuoteSingle(body.text))
+  } else if (body?.truncated) {
+    parts.push('# request body truncated in capture; omit --data-raw for replay')
+  } else if (body?.note) {
+    parts.push(`# request body not captured: ${body.note}`)
+  }
+
+  return parts.join(' \\\n  ')
+}
+
+function appendCurlSection(event) {
+  const curl = buildCurlCommand(event)
+  const content = appendSection('cURL', () => curl)
+  const pre = document.createElement('pre')
+  pre.className = 'body-preview'
+  pre.textContent = curl
+  content.appendChild(pre)
+}
+
 function renderDetails(event, force = false) {
   const nextSignature = JSON.stringify(event)
   if (!force && nextSignature === detailsSignature) return
 
   detailsSignature = nextSignature
   detailsEl.replaceChildren()
+
+  appendCurlSection(event)
 
   appendKeyValueSection('Request', {
     id: event.id,

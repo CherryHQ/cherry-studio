@@ -4197,7 +4197,7 @@
   "settings.dependencies.viewErrorDetails": "Voir les détails",
   "settings.developer.client_id": "ID client",
   "settings.developer.enable_developer_mode": "Activer le mode développeur",
-  "settings.developer.help": "Une fois le mode développeur activé, vous pourrez utiliser la fonctionnalité de chaînage d'appels pour consulter le flux de données du processus d'appel du modèle.",
+  "settings.developer.help": "Une fois le mode développeur activé, vous pouvez utiliser la fonctionnalité de trace pour voir le flux de données lors des appels de modèle et inspecter les requêtes API du processus principal dans DevTools, panneau Main Network. Les changements prennent effet après le redémarrage de l'application.",
   "settings.developer.title": "Mode Développeur",
   "settings.display.custom.css.label": "CSS personnalisé",
   "settings.display.custom.css.migration_notice": "Cette feuille de style a été migrée depuis la v1 et est actuellement désactivée. Adaptez-la à la v2, puis supprimez la première ligne pour l’activer.",
