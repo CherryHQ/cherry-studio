@@ -1597,6 +1597,10 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('keeps the composer text limit at the promised 200,000 characters', () => {
+    expect(COMPOSER_INPUT_MAX_LENGTH).toBe(200_000)
+  })
+
   it('truncates external text updates at the maximum text length', async () => {
     const onTextChange = vi.fn()
 
@@ -1612,10 +1616,10 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
     act(() => {
-      mocks.actions?.onTextChange('a'.repeat(40001))
+      mocks.actions?.onTextChange('a'.repeat(COMPOSER_INPUT_MAX_LENGTH + 1))
     })
 
-    expect(onTextChange).toHaveBeenCalledWith('a'.repeat(40000))
+    expect(onTextChange).toHaveBeenCalledWith('a'.repeat(COMPOSER_INPUT_MAX_LENGTH))
   })
 
   it('exposes a focus action for external composer targeting', async () => {
@@ -1752,7 +1756,7 @@ describe('ComposerSurface', () => {
   })
 
   it('blocks typed input after the composer reaches the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -1762,7 +1766,7 @@ describe('ComposerSurface', () => {
   })
 
   it('truncates typed input to the remaining maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH - 1)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -1783,7 +1787,7 @@ describe('ComposerSurface', () => {
   })
 
   it('allows typed replacement when the composer stays within the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -4530,7 +4534,9 @@ describe('ComposerSurface', () => {
   })
 
   it('prefers a supported clipboard image over long text when the input is full', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} supportedExts={['.png', '.txt']} />)
+    render(
+      <ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} supportedExts={['.png', '.txt']} />
+    )
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -4606,7 +4612,7 @@ describe('ComposerSurface', () => {
   })
 
   it('truncates pasted text to the remaining maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH - 1)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -5139,7 +5145,7 @@ describe('ComposerSurface', () => {
 
   it('blocks a newline that would exceed the maximum composer length', async () => {
     mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(COMPOSER_INPUT_MAX_LENGTH)} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -5147,7 +5153,7 @@ describe('ComposerSurface', () => {
     const view = {
       state: {
         doc: { textBetween: vi.fn(() => '') },
-        selection: { from: 40001, to: 40001 }
+        selection: { from: COMPOSER_INPUT_MAX_LENGTH + 1, to: COMPOSER_INPUT_MAX_LENGTH + 1 }
       }
     }
 
