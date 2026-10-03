@@ -16,7 +16,8 @@ import {
   KnowledgeScopePartDataSchema,
   readCherryMeta,
   withCherryMeta,
-  withKnowledgeScopePart
+  withKnowledgeScopePart,
+  type AgentApiRetryPartData
 } from '../uiParts'
 
 const diagnosis: DiagnosisResult = {
@@ -162,6 +163,39 @@ describe('clear context parts', () => {
     expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
     expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
     expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('durable retry part', () => {
+  // The persisted part is written as `{ ...retry, startedAt }` from the ephemeral SDK contract
+  // (AgentSessionRuntimeService.handleApiRetry), and is now DEFINED as that contract plus the
+  // stamp, so a field added to the ephemeral one cannot be dropped from the stored part.
+  // These assert the fields the renderer depends on; `tsc --noEmit` enforces them.
+  it('keeps the subagent marker optional, as the SDK emits it', () => {
+    const durable: AgentApiRetryPartData = {
+      attempt: 1,
+      maxRetries: 5,
+      retryDelayMs: 2000,
+      errorStatus: 429,
+      errorCategory: 'rate_limit',
+      startedAt: '2026-01-02T03:04:05.000Z'
+    }
+    expect(durable.subagentType).toBeUndefined()
+
+    const withSubagent: AgentApiRetryPartData = { ...durable, subagentType: 'explore' }
+    expect(withSubagent.subagentType).toBe('explore')
+  })
+
+  it('requires the startedAt stamp the durable history needs', () => {
+    // @ts-expect-error startedAt is not on the ephemeral AgentSessionApiRetryInfo
+    const durable: AgentApiRetryPartData = {
+      attempt: 1,
+      maxRetries: 5,
+      retryDelayMs: 2000,
+      errorStatus: null,
+      errorCategory: 'server_error'
+    }
+    expect(durable).toBeDefined()
   })
 })
 

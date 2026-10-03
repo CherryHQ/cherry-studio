@@ -1,6 +1,7 @@
 import { getToolName, isToolUIPart } from 'ai'
 
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
+import { AGENT_SESSION_HIDDEN_PART_TYPES } from '@shared/ai/agentSessionNoResponse'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -36,20 +37,16 @@ export interface CompletedMessagePartLayout {
   reportEntries: readonly PartEntry[]
 }
 
-const HIDDEN_PART_TYPES = new Set([
-  'step-start',
-  'source-url',
-  'source-document',
-  'data-citation',
-  'data-agent-task-event',
-  'data-knowledge-scope',
-  'data-clear'
+const ASSOCIATED_RESULT_PART_TYPES = new Set([
+  'data-error',
+  'data-agent-api-retry',
+  'data-agent-paused',
+  'file',
+  'data-video'
 ])
 
-const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
-
 export function isHiddenPart(part: CherryMessagePart): boolean {
-  return HIDDEN_PART_TYPES.has(part.type)
+  return AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)
 }
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {

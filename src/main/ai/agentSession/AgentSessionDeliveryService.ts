@@ -413,11 +413,20 @@ export class AgentSessionDeliveryService extends BaseService {
   }): Promise<void> {
     const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(event.assistantMessageId)
     if (!request) return
+    // The persisted row is the source of truth: persistence may have downgraded an
+    // empty success to a terminal error, and delivery must finalize to match.
+    let status = event.status
+    try {
+      const assistant = agentSessionMessageService.getSessionMessage(event.sessionId, event.assistantMessageId)
+      if (assistant.status !== 'pending') status = assistant.status
+    } catch (error) {
+      if (!isDataApiError(error) || error.code !== ErrorCode.NOT_FOUND) throw error
+    }
     const result = agentSessionMessageService.finalizeSessionDelivery({
       requestSessionId: event.sessionId,
       requestMessageId: request.id,
       assistantMessageId: event.assistantMessageId,
-      outcome: event.status === 'success' ? 'success' : event.status === 'paused' ? 'interrupted' : 'failed'
+      outcome: status === 'success' ? 'success' : status === 'paused' ? 'interrupted' : 'failed'
     })
     if (result) this.kick(result.sessionId)
   }
