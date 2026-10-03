@@ -38,9 +38,11 @@ export async function warmMcpToolCatalogs(mcpIds: readonly string[]): Promise<vo
 /** Cherry owns server configuration; Pi owns MCP discovery, tool execution, results and teardown. */
 export function createPiMcpExtension(
   pi: Awaited<ReturnType<typeof loadPiSdk>>,
-  servers: Record<string, AgentMcpServer>
+  servers: Record<string, AgentMcpServer>,
+  logPath: string
 ): ExtensionFactory {
   return pi.createMcpExtension({
+    logPath,
     loadConfig: () => ({
       servers: Object.values(servers).map(({ name }) => ({
         name,

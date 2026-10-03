@@ -380,6 +380,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'agent.tools.builtin.bash.description': 'Run shell commands',
           'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.codemode.label': 'Code Mode',
           'agent.tools.builtin.read.description': 'Read files',
           'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
@@ -1706,6 +1707,19 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
+  })
+
+  it('lets users enable Code Mode when its legacy tool was disabled', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+    const toggle = screen.getByRole('switch', { name: 'Code Mode' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
     )
   })
 

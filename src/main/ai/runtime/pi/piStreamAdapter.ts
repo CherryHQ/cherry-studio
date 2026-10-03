@@ -17,6 +17,7 @@
  */
 import type { AgentSessionEvent, AgentToolResult } from '@earendil-works/pi-coding-agent'
 
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -29,8 +30,13 @@ export interface PiStreamSink {
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
+const CHERRY_SERVER_NAMES = new Map<string, string>(
+  Object.values(CHERRY_MCP_SERVER).map((name) => [name.replaceAll('-', '_'), name])
+)
+
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
   const parsed = parseFunctionCallToolName(toolName)
+  const serverName = parsed ? (CHERRY_SERVER_NAMES.get(parsed.serverPart) ?? parsed.serverPart) : undefined
   return {
     cherry: {
       transport: PI_TRANSPORT,
@@ -38,7 +44,8 @@ function toolProviderMetadata(toolName: string, extra: Record<string, unknown> =
         ? {
             type: 'mcp' as const,
             name: parsed.toolPart,
-            serverName: parsed.serverPart === 'cherry_tools' ? 'cherry-tools' : parsed.serverPart
+            serverId: serverName,
+            serverName
           }
         : { type: 'builtin' as const, name: toolName }
     },

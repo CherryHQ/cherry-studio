@@ -45,7 +45,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { PI_NATIVE_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -81,8 +81,6 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
-const PI_BUILTIN_TOOL_ALIASES = new Map(PI_BUILTIN_TOOL_NAMES.map((name) => [name.toLowerCase(), name]))
 
 function quoteShellWord(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`
@@ -378,7 +376,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           createPiApprovalExtension(approvalContext),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
-          createPiMcpExtension(pi, mcpServers)
+          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -606,12 +604,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // closing queue.
     this.unsubscribe?.()
     this.unsubscribe = undefined
-    await this.session?.abort()
-    await this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
-    this.session?.dispose()
-    this.session = undefined
-    this.endOpenTraceSpans('pi connection closed')
-    this.eventQueue.close()
+    try {
+      await this.session?.abort()
+    } finally {
+      try {
+        await this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
+      } finally {
+        this.session?.dispose()
+        this.session = undefined
+        this.endOpenTraceSpans('pi connection closed')
+        this.eventQueue.close()
+      }
+    }
   }
 
   private handlePiEvent(event: AgentSessionEvent): void {
@@ -980,15 +984,11 @@ function normalizeDisabledTools(
   disabledTools: string[] | undefined | null,
   snapshot: PiConnectionSnapshot
 ): Set<string> {
-  const disabled = new Set(
-    (disabledTools ?? []).map((tool) =>
-      tool === 'tool_exec' ? 'codemode' : (PI_BUILTIN_TOOL_ALIASES.get(tool.toLowerCase()) ?? tool)
-    )
-  )
+  const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
   const catalog = application.get('McpCatalogService')
   for (const server of snapshot.mcpServerSnapshots.values()) {
     if (!server) continue
-    const tools = catalog.listTools(server.id, { includeDisabled: true })
+    const tools = catalog.listTools(server.id, { includeDisabled: false })
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)

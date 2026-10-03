@@ -70,7 +70,7 @@ it('runs native Code Mode through MCP and blocks forbidden nested calls', async 
                 id: 'script',
                 name: 'codemode',
                 arguments: {
-                  code: 'const result = await tools.mcp__fixture__read_value({}); text(result.structuredContent.value); try { await tools.mcp__fixture__forbidden({}) } catch (e) { text(e.message) }'
+                  code: 'const result = await tools.mcp__cherry_tools__read_value({}); text(result.structuredContent.value); try { await tools.mcp__cherry_tools__forbidden({}) } catch (e) { text(e.message) }'
                 }
               }
             ]
@@ -120,7 +120,7 @@ it('runs native Code Mode through MCP and blocks forbidden nested calls', async 
     extensionFactories: [
       createCodemodeExtension({ models: false }),
       createToolSearchExtension(),
-      createPiMcpExtension(pi, { fixture: { name: 'fixture', instance: server } }),
+      createPiMcpExtension(pi, { fixture: { name: 'cherry-tools', instance: server } }, join(cwd, 'mcp.log')),
       createPiApprovalExtension({
         sessionId: 'fixture',
         workspacePath: cwd,
@@ -131,7 +131,7 @@ it('runs native Code Mode through MCP and blocks forbidden nested calls', async 
         },
         getInteractionState: () => ({ userResponse: 'unavailable' }),
         getPermissionMode: () => 'bypassPermissions',
-        isDisabled: (name) => name === 'mcp__fixture__forbidden',
+        isDisabled: (name) => name === 'mcp__cherry_tools__forbidden',
         autoApprovedTools: new Set(),
         approvalRequiredTools: new Set(),
         nonBypassableApprovalTools: new Set()
@@ -169,10 +169,21 @@ it('runs native Code Mode through MCP and blocks forbidden nested calls', async 
       })
     )
     expect(chunks).toContainEqual(
-      expect.objectContaining({ type: 'tool-output-available', toolCallId: 'script/1', output: { value: 42 } })
+      expect.objectContaining({
+        type: 'tool-output-available',
+        toolCallId: 'script/1',
+        output: { value: 42 },
+        providerMetadata: expect.objectContaining({
+          cherry: expect.objectContaining({
+            tool: expect.objectContaining({ serverId: 'cherry-tools', serverName: 'cherry-tools' })
+          })
+        })
+      })
     )
     expect(
-      events.some((event) => event.type === 'tool_execution_start' && event.toolName === 'mcp__fixture__read_value')
+      events.some(
+        (event) => event.type === 'tool_execution_start' && event.toolName === 'mcp__cherry_tools__read_value'
+      )
     ).toBe(true)
   } finally {
     await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })

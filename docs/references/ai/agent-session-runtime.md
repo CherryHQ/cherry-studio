@@ -739,6 +739,11 @@ approval extension, including disabled-tool, SQLite, global-install, and
 permission-mode policies. The script itself needs no separate approval because
 all outward effects pass through those tool calls.
 
+Scripts have no default time limit. An explicit `timeout_ms` includes time spent
+waiting for tool approval and cancels pending calls when it expires. Native MCP
+may save large text results to a temporary file; reading that file outside the
+workspace follows the normal approval policy.
+
 Pi sanitizes MCP identifiers to `[A-Za-z0-9_]`; Cherry uses those identifiers for
 policy and disabled-tool lookups. A stored `tool_exec` disable applies to
 `codemode`. Historical `tool_call`/`tool_exec` results remain readable, while new

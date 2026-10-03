@@ -83,6 +83,32 @@ describe('MessageMetaTool', () => {
     expect(screen.getByText('参数')).toBeInTheDocument()
   })
 
+  it('shows tools loaded by native Pi search instead of an empty result', async () => {
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({ response: { loaded: ['mcp__cherry_tools__web_search'] } })}
+      />
+    )
+    await expandCard(/tool_search/)
+    expect(await screen.findByText('mcp__cherry_tools__web_search')).toBeInTheDocument()
+    expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
+  })
+
+  it('shows the native Code Mode script and its output', async () => {
+    render(
+      <MessageMetaTool
+        toolResponse={createMetaToolResponse({
+          tool: { id: 'codemode', name: 'codemode', type: 'builtin' },
+          arguments: { code: 'text(42)' },
+          response: 'Script completed\n42'
+        })}
+      />
+    )
+    await expandCard(/codemode/)
+    expect(await screen.findByText('text(42)')).toBeInTheDocument()
+    expect(screen.getByText(/Script completed/)).toBeInTheDocument()
+  })
+
   it('localizes a missing tool_invoke name instead of hardcoding English', async () => {
     render(
       <MessageMetaTool
