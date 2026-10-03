@@ -352,7 +352,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
           'library.config.agent.field.model.hint': 'Primary agent model.',
+          'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
+          'library.config.agent.field.model.label.claude_code': 'Model (Opus)',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
           'library.config.agent.field.name.label': 'Name',
           'library.config.agent.field.name.placeholder': 'Name this agent',
@@ -378,6 +380,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
           'agent.tools.builtin.bash.description': 'Run shell commands',
           'agent.tools.builtin.bash.label': 'Run shell commands',
+          'agent.tools.builtin.codemode.label': 'Code Mode',
           'agent.tools.builtin.read.description': 'Read files',
           'agent.tools.builtin.read.label': 'Read files',
           'library.config.agent.model_config': 'Model',
@@ -1089,7 +1092,8 @@ describe('edit dialogs', () => {
     })
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
-    const modelTrigger = screen.getByRole('button', { name: 'Model' })
+    // The trigger is named by its visible label, which is Claude Code's opus slot on this agent.
+    const modelTrigger = screen.getByRole('button', { name: 'Model (Opus)' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
@@ -1110,6 +1114,30 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  // The three model tiers pin Claude Code's opus / sonnet / haiku aliases rather than
+  // being three parallel work tiers, and the sonnet slot has nothing to do with Plan mode.
+  // Each label therefore carries a help trigger naming the variable it becomes.
+  it('explains what each agent model slot is wired to', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model (Opus)', 'Pins the opus alias (ANTHROPIC_MODEL).')
+    expectHelpTrigger('Plan model', 'Plan model.')
+    expectHelpTrigger('Small model', 'Small model.')
+  })
+
+  // Only Claude Code reads ANTHROPIC_DEFAULT_*_MODEL, so a Pi agent must not be told
+  // that its primary model pins an `opus` alias it does not have.
+  it('names no Claude Code alias on a runtime that has no model tiers', () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type: 'pi' }} onOpenChange={vi.fn()} />)
+
+    selectTab('Basic')
+    expectHelpTrigger('Model', 'Primary agent model.')
+    expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
   })
 
   // The heartbeat is turned off by its switch, so an emptied interval is a retype,
@@ -1694,6 +1722,19 @@ describe('edit dialogs', () => {
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['bash'] }) })
+    )
+  })
+
+  it('lets users enable Code Mode when its legacy tool was disabled', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
+    const toggle = screen.getByRole('switch', { name: 'Code Mode' })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: [] }) })
     )
   })
 

@@ -428,6 +428,12 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
     output: z.boolean()
   }),
+  // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
+  // main owns that resolution, so the renderer never joins paths itself.
+  'ai.agent.session.open_path': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), path: z.string().min(1) }),
+    output: z.void()
+  }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──
   // Mixed-effect mutations (schedule row + channel subscriptions + timer) belong on

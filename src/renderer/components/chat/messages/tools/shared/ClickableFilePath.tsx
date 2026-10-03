@@ -68,14 +68,16 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      await openFileTarget(targetPath, {
+      // Each action takes the unresolved path and resolves it itself — the pane and `isDirectory`
+      // against the workspace, `openPath` in main. `targetPath` is left for the menu and the toast.
+      await openFileTarget(unresolvedTargetPath, {
         openArtifactFile,
         openPath,
         isDirectory,
         onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       })
     },
-    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath, unresolvedTargetPath]
   )
 
   const handleKeyDown = useCallback(

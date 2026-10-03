@@ -14,6 +14,7 @@ import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -677,7 +678,7 @@ export class MainWindowService extends BaseService {
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
-          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+          openRequestPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
         void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))

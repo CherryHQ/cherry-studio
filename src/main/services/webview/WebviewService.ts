@@ -161,6 +161,14 @@ export class WebviewService extends BaseService {
   }
 
   private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
+    if (contents.isDestroyed()) return
+    // Apply before the webview-only guard so popup windows on these sessions are covered too.
+    if (
+      contents.session === session.fromPartition(WEBVIEW_PARTITION) ||
+      contents.session === session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    ) {
+      contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
+    }
     if (contents.getType?.() !== 'webview' || !isAnnotationCapableSession(contents.session)) {
       return
     }
