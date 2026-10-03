@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
+import { Code, FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
 
 import { type ComposerToolScope, type ToolComposerToolbarContribution, TopicType } from './types'
 
@@ -79,10 +79,17 @@ export const PERMISSION_MODE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition
   visibleInScopes: [TopicType.Session]
 }
 
+export const NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
+  toolbar: { id: 'native-code-execution', kind: 'command', order: 35, icon: <Code size={18} /> },
+  label: (t) => t('chat.input.native_code_execution'),
+  visibleInScopes: [TopicType.Chat]
+}
+
 const COMPOSER_TOOLBAR_MANIFESTS: ComposerToolbarManifestDefinition[] = [
   ATTACHMENT_TOOLBAR_MANIFEST,
   GENERATE_IMAGE_TOOLBAR_MANIFEST,
   WEB_SEARCH_TOOLBAR_MANIFEST,
+  NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST,
   KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
   QUICK_PHRASES_TOOLBAR_MANIFEST,
   PERMISSION_MODE_TOOLBAR_MANIFEST
