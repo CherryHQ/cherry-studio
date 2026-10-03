@@ -179,6 +179,34 @@ describe('doubao (Ark) endpoint matrix', () => {
  * chat endpoint when the requested endpoint has no `baseUrl`, so a placeholder host on a
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
+describe('aionly New API multiplexing', () => {
+  const multiplexingEndpoints = [
+    'anthropic-messages',
+    'openai-chat-completions',
+    'openai-responses',
+    'google-generate-content'
+  ] as const
+
+  it('declares every New API multiplexing endpoint', () => {
+    expect(Object.keys(provider('aionly').endpointConfigs ?? {}).toSorted()).toEqual(
+      [...multiplexingEndpoints].toSorted()
+    )
+  })
+
+  it('routes every declared endpoint through the newapi adapter family', () => {
+    for (const endpointType of multiplexingEndpoints) {
+      expect(provider('aionly').endpointConfigs?.[endpointType]?.adapterFamily, endpointType).toBe('newapi')
+    }
+  })
+
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
+  })
+})
+
 describe('new-api single-host endpoints', () => {
   it('carries a placeholder baseUrl on the default chat endpoint only', () => {
     const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
@@ -195,30 +223,5 @@ describe('new-api single-host endpoints', () => {
    */
   it('declares no per-model overrides', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
-  })
-})
-
-describe('aionly NewAPI relay endpoints (#21168)', () => {
-  const AIONLY_ENDPOINT_TYPES = [
-    'anthropic-messages',
-    'google-generate-content',
-    'openai-responses',
-    'openai-chat-completions'
-  ]
-
-  it('declares all four New API relay protocols', () => {
-    expect(Object.keys(provider('aionly').endpointConfigs ?? {})).toEqual(AIONLY_ENDPOINT_TYPES)
-  })
-
-  it('routes every protocol through the newapi adapter family', () => {
-    const families = Object.values(provider('aionly').endpointConfigs ?? {}).map((config) => config?.adapterFamily)
-    expect(families.every((family) => family === 'newapi')).toBe(true)
-  })
-
-  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
-    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
-      .filter(([, config]) => config?.baseUrl)
-      .map(([endpointType]) => endpointType)
-    expect(withBaseUrl).toEqual(['openai-chat-completions'])
   })
 })
