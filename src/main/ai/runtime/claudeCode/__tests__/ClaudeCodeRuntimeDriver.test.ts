@@ -1124,19 +1124,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'user',
         message: {
           role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
-            },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
-          ]
+          content:
+            'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png, mislabelled.png'
         }
       },
       done: false
     })
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
-      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+      attachments: ['missing.png', 'empty.png', 'missing-url.png', 'mislabelled.png']
     })
     expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
     void connection.close()

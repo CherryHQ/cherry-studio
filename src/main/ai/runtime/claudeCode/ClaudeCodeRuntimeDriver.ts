@@ -32,6 +32,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
+import { isDecodableImage } from '@main/utils/image'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -1228,10 +1229,15 @@ async function materializeUserContent(
 
     const claudeType = toClaudeImageMediaType(parsed.mediaType)
     if (claudeType) {
-      images.push({
-        type: 'image',
-        source: { type: 'base64', media_type: claudeType, data: parsed.data }
-      })
+      const bytes = Buffer.from(parsed.data, 'base64')
+      if (await isDecodableImage(bytes)) {
+        images.push({
+          type: 'image',
+          source: { type: 'base64', media_type: claudeType, data: parsed.data }
+        })
+      } else {
+        unavailableParts.push(originalPart)
+      }
       continue
     }
 

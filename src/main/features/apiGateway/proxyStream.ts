@@ -35,6 +35,7 @@ import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
+import { sanitizeAnthropicRequestImages } from './utils/sanitizeAnthropicImages'
 import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
@@ -170,7 +171,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   if (isInternalAnthropicAgentRequest) {
     const anthropicParams = params as MessageCreateParams
-    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
+    let messages = anthropicParams.messages
+    const normalization = normalizeAnthropicToolHistory(messages)
 
     if (normalization.status === 'conflict') {
       logger.warn('Rejected conflicting tool history in internal Agent request', {
@@ -185,13 +187,27 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     }
 
     if (normalization.status === 'repaired') {
-      effectiveParams = { ...anthropicParams, messages: normalization.messages }
+      messages = normalization.messages
       logger.warn('Repaired duplicate tool history in internal Agent request', {
         providerId,
         modelId,
         duplicateToolUseCount: normalization.duplicateToolUseCount,
         duplicateToolResultCount: normalization.duplicateToolResultCount
       })
+    }
+
+    const imageSanitization = await sanitizeAnthropicRequestImages(messages)
+    if (imageSanitization.replacedCount > 0) {
+      messages = imageSanitization.messages
+      logger.warn('Replaced undecodable image blocks in internal Agent request', {
+        providerId,
+        modelId,
+        replacedCount: imageSanitization.replacedCount
+      })
+    }
+
+    if (messages !== anthropicParams.messages) {
+      effectiveParams = { ...anthropicParams, messages }
     }
   }
 

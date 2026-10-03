@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { clampImageForModel, cropPng, transcodeToEntityWebp } from '../image'
+import { clampImageForModel, cropPng, isDecodableImage, transcodeToEntityWebp } from '../image'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
@@ -37,6 +37,18 @@ describe('transcodeToEntityWebp', () => {
 
   it('throws on undecodable input', async () => {
     await expect(transcodeToEntityWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
+  })
+})
+
+describe('isDecodableImage', () => {
+  it('accepts a valid PNG and rejects truncated pixel data that still exposes IHDR', async () => {
+    const valid = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const truncated = valid.subarray(0, Math.floor(valid.length / 2))
+
+    await expect(isDecodableImage(new Uint8Array(PNG_1X1))).resolves.toBe(true)
+    await expect(isDecodableImage(truncated)).resolves.toBe(false)
   })
 })
 
