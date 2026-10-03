@@ -1447,6 +1447,7 @@
   "file_preview.markdown.mode.label": "Modo de vista Markdown",
   "file_preview.markdown.mode.preview": "Vista previa",
   "file_preview.markdown.mode.source": "Fuente",
+  "file_preview.markdown.plain_fallback.description": "Este archivo se muestra como texto plano porque renderizarlo ralentizaría la aplicación.",
   "file_preview.markdown.read_error.title": "No se pudo leer este archivo",
   "file_preview.markdown.too_large.description": "Los archivos Markdown de más de {{limit}} MiB no se pueden previsualizar.",
   "file_preview.markdown.too_large.title": "El archivo es demasiado grande",

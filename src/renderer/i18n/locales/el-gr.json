@@ -1447,6 +1447,7 @@
   "file_preview.markdown.mode.label": "Λειτουργία προβολής Markdown",
   "file_preview.markdown.mode.preview": "Προεπισκόπηση",
   "file_preview.markdown.mode.source": "Πηγή",
+  "file_preview.markdown.plain_fallback.description": "Αυτό το αρχείο εμφανίζεται ως απλό κείμενο, επειδή η απόδοσή του θα αργοπορούσε την εφαρμογή.",
   "file_preview.markdown.read_error.title": "Δεν ήταν δυνατή η ανάγνωση αυτού του αρχείου",
   "file_preview.markdown.too_large.description": "Αρχεία Markdown μεγαλύτερα από {{limit}} MiB δεν μπορούν να προεπισκοπηθούν.",
   "file_preview.markdown.too_large.title": "Το αρχείο είναι πολύ μεγάλο",

@@ -1447,6 +1447,7 @@
   "file_preview.markdown.mode.label": "Markdown view mode",
   "file_preview.markdown.mode.preview": "Preview",
   "file_preview.markdown.mode.source": "Source",
+  "file_preview.markdown.plain_fallback.description": "This file is shown as plain text because rendering it would slow down the app.",
   "file_preview.markdown.read_error.title": "Couldn't read this file",
   "file_preview.markdown.too_large.description": "Markdown files larger than {{limit}} MiB cannot be previewed.",
   "file_preview.markdown.too_large.title": "File is too large",
