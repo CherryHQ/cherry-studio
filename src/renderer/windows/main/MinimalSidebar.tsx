@@ -122,7 +122,7 @@ export function MinimalSidebarFooter() {
         <div className="flex shrink-0 items-center gap-0.5 border-t-[0.5px] border-border px-2 py-1.5">
           <Button
             variant="ghost"
-            className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1"
+            className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1 text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!"
             aria-label={name}
             onClick={() => UserPopup.show()}>
             <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" ring={false} />
