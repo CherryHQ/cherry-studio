@@ -230,7 +230,19 @@ function error(msg: string): SerializedError {
 }
 
 function req(topicId: string): AiStreamRequest {
-  return { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
+  const request: AiStreamRequest = { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
+  // Production agent-session turns carry their runtime identity on the
+  // request (AgentSessionRuntimeService) plus the empty-success opt-in the
+  // terminal classification reads.
+  if (topicId.startsWith('agent-session:')) {
+    request.runtime = {
+      kind: 'agent-session',
+      sessionId: topicId.slice('agent-session:'.length),
+      turnId: 'turn-test'
+    }
+    request.allowEmptySuccess = true
+  }
+  return request
 }
 
 /**
@@ -307,6 +319,18 @@ describe('AiStreamManager', () => {
           contextOwner: 'caller'
         })
       )
+    })
+
+    it('forwards the empty-success terminal policy to AiService.streamText', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1'),
+        allowEmptySuccess: true
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ allowEmptySuccess: true }))
     })
 
     it('makes an anonymous prompt stream its own conversation', () => {
@@ -585,6 +609,138 @@ describe('AiStreamManager', () => {
 
       current.close()
       await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+    })
+
+    it('converts an empty successful ordinary turn into a no-response error', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:ordinary-empty')
+      startSingle(mgr, {
+        topicId: 'ordinary-empty',
+        modelId: 'provider-a::model-a',
+        request: req('ordinary-empty'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.doneResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        status: 'error',
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('ordinary-empty')?.status).toBe('error')
+    })
+
+    it('keeps a gateway turn of only caller-defined tool calls as success', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:gateway-tools')
+      startSingle(mgr, {
+        topicId: 'gateway-tools',
+        modelId: 'provider-a::model-a',
+        request: req('gateway-tools'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.enqueue({ type: 'start', messageId: 'm1' })
+      feed.enqueue({
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'myGatewayTool',
+        input: { query: 'hi' },
+        dynamic: true
+      } as unknown as UIMessageChunk)
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(mgr.inspect('gateway-tools')?.status).toBe('done')
+    })
+
+    it('converts a static-tool-only ordinary turn into a no-response error', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:ordinary-static-tools')
+      startSingle(mgr, {
+        topicId: 'ordinary-static-tools',
+        modelId: 'provider-a::model-a',
+        request: req('ordinary-static-tools'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.enqueue({ type: 'start', messageId: 'm1' })
+      feed.enqueue({
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'get_weather',
+        input: { city: 'SF' }
+      } as unknown as UIMessageChunk)
+      feed.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.doneResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        status: 'error',
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('ordinary-static-tools')?.status).toBe('error')
+    })
+
+    it('keeps a static-tool-only turn as success when the owner allows empty success', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:gateway-static-tools')
+      const request = req('gateway-static-tools')
+      request.allowEmptySuccess = true
+      startSingle(mgr, {
+        topicId: 'gateway-static-tools',
+        modelId: 'provider-a::model-a',
+        request,
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.enqueue({ type: 'start', messageId: 'm1' })
+      feed.enqueue({
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'get_weather',
+        input: { city: 'SF' }
+      } as unknown as UIMessageChunk)
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(mgr.inspect('gateway-static-tools')?.status).toBe('done')
+    })
+
+    it('keeps an empty successful agent-session turn as success', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:agent-empty')
+      startSingle(mgr, {
+        topicId: 'agent-session:s-empty',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s-empty'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(mgr.inspect('agent-session:s-empty')?.status).toBe('done')
     })
   })
 

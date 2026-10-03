@@ -384,6 +384,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             listener,
             callOverrides,
             contextOwner: 'caller',
+            // Protocol translator: caller-defined tools are valid completions for
+            // external clients even when Cherry's renderer has no card for them.
+            allowEmptySuccess: true,
             ...(usageContext ? { usageContext } : {}),
             ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
@@ -468,6 +471,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       listener,
       callOverrides,
       contextOwner: 'caller',
+      // Same owner policy as the streaming path above: caller-defined
+      // tool-only completions are valid upstream output for API clients.
+      allowEmptySuccess: true,
       ...(usageContext ? { usageContext } : {}),
       ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
