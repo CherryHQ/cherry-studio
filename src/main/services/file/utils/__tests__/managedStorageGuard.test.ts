@@ -34,6 +34,7 @@ describe('managed storage mutation path resolution', () => {
   beforeEach(async () => {
     fsMocks.realpath.mockImplementation((...args: Parameters<typeof realpath>) => fsMocks.originalRealpath!(...args))
     root = await mkdtemp(path.join(tmpdir(), 'cherry-managed-storage-guard-'))
+    root = await fsMocks.originalRealpath!(root)
     managedRoot = path.join(root, 'Data', 'Files')
     await mkdir(managedRoot, { recursive: true })
     vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
