@@ -162,6 +162,7 @@ const GeneralSettings: FC = () => {
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
+        <SettingDescription>{t('settings.proxy.mode.description')}</SettingDescription>
         <SettingDivider />
         <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
