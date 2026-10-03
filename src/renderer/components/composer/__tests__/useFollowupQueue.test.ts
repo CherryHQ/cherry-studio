@@ -24,7 +24,7 @@ describe('useFollowupQueue', () => {
 
   it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({ scopeKey: 's1', isComplete: false, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -40,7 +40,7 @@ describe('useFollowupQueue', () => {
 
   it('reorders the queue and persists the new order', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({ scopeKey: 's1', isComplete: false, lastCompletedAt: null, onDrain: vi.fn() })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -56,7 +56,7 @@ describe('useFollowupQueue', () => {
   it('reloads the queue from the cache when the scopeKey changes', () => {
     store.set('followup-queue.s2', [item('x', 'queued')])
     const { result, rerender } = renderHook(
-      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, isComplete: false, lastCompletedAt: null, onDrain: vi.fn() }),
       { initialProps: { scopeKey: 's1' } }
     )
 
@@ -67,43 +67,49 @@ describe('useFollowupQueue', () => {
 
   it('drains the head on the live→idle edge, then dequeues on success', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
-    const markSeen = vi.fn()
     const headPayload = payload('head')
     store.set('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: headPayload }])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
-      { initialProps: { isFulfilled: false } }
+      ({ isComplete, lastCompletedAt }) => useFollowupQueue({ scopeKey: 's1', isComplete, lastCompletedAt, onDrain }),
+      { initialProps: { isComplete: false, lastCompletedAt: null as number | null } }
     )
 
     expect(onDrain).not.toHaveBeenCalled()
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ isComplete: true, lastCompletedAt: 100 })
     })
 
-    expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(headPayload)
     expect(result.current.items).toEqual([])
+  })
+
+  it('does not drain a carried completion identity while the next turn is still live', () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    store.set('followup-queue.s1', [item('h', 'head')])
+
+    renderHook(() => useFollowupQueue({ scopeKey: 's1', isComplete: false, lastCompletedAt: 100, onDrain }))
+
+    expect(onDrain).not.toHaveBeenCalled()
   })
 
   it('keeps the head queued and reports failure when auto-drain fails', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
     const head = item('h', 'head')
     store.set('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
+      ({ isComplete, lastCompletedAt }) =>
+        useFollowupQueue({ scopeKey: 's1', isComplete, lastCompletedAt, onDrain, onDrainFailed }),
+      { initialProps: { isComplete: false, lastCompletedAt: null as number | null } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ isComplete: true, lastCompletedAt: 100 })
     })
 
-    expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(result.current.items).toEqual([head])
@@ -112,17 +118,17 @@ describe('useFollowupQueue', () => {
   it('keeps the head queued and reports failure when auto-drain rejects', async () => {
     const onDrain = vi.fn().mockRejectedValue(new Error('drain blew up'))
     const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
     const head = item('h', 'head')
     store.set('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
+      ({ isComplete, lastCompletedAt }) =>
+        useFollowupQueue({ scopeKey: 's1', isComplete, lastCompletedAt, onDrain, onDrainFailed }),
+      { initialProps: { isComplete: false, lastCompletedAt: null as number | null } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ isComplete: true, lastCompletedAt: 100 })
     })
 
     expect(onDrain).toHaveBeenCalledWith(head.payload)
@@ -135,13 +141,13 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { isFulfilled: false } }
+      ({ isComplete, lastCompletedAt }) => useFollowupQueue({ scopeKey: 's1', isComplete, lastCompletedAt, onDrain }),
+      { initialProps: { isComplete: false, lastCompletedAt: null as number | null } }
     )
 
     act(() => result.current.setPaused(true))
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ isComplete: true, lastCompletedAt: 100 })
     })
 
     expect(onDrain).not.toHaveBeenCalled()
@@ -153,14 +159,15 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+      ({ scopeKey, isComplete, lastCompletedAt }) =>
+        useFollowupQueue({ scopeKey, isComplete, lastCompletedAt, onDrain }),
+      { initialProps: { scopeKey: 's1', isComplete: false, lastCompletedAt: null as number | null } }
     )
 
     act(() => result.current.setPaused(true))
-    act(() => rerender({ scopeKey: 's2', isFulfilled: false }))
+    act(() => rerender({ scopeKey: 's2', isComplete: false, lastCompletedAt: null }))
     expect(result.current.paused).toBe(false)
-    await act(async () => rerender({ scopeKey: 's1', isFulfilled: true }))
+    await act(async () => rerender({ scopeKey: 's1', isComplete: true, lastCompletedAt: 100 }))
 
     expect(result.current.paused).toBe(true)
     expect(onDrain).not.toHaveBeenCalled()
