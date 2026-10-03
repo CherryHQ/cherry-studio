@@ -30,6 +30,7 @@ import type { ArchiveSchemas } from './archives'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
 import type { DiagnosticReportSchemas } from './diagnosticReports'
+import type { ExternalKnowledgeConnectionSchemas } from './externalKnowledgeConnections'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
@@ -64,6 +65,7 @@ import type { TranslateSchemas } from './translate'
  */
 export type ApiSchemas = AssertValidSchemas<
   BrowserVisitSchemas &
+    ExternalKnowledgeConnectionSchemas &
     ApiGatewayPairedDeviceSchemas &
     TopicSchemas &
     MessageSchemas &
