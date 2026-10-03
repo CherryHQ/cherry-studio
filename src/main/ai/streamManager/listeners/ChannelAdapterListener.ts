@@ -13,7 +13,7 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
-  /** A listener can see more than one topic settle (chain hold + close); deliver the reply once. */
+  /** Whether the text accumulated so far has been handed to the adapter; re-armed by new output. */
   private delivered = false
 
   constructor(
@@ -49,6 +49,9 @@ export class ChannelAdapterListener implements StreamListener {
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
+      // Fresh output owes the channel a delivery — a listener outlives one settle (a chain-hold gap
+      // keeps the topic alive so the next turn carries this same listener).
+      this.delivered = false
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
@@ -71,6 +74,11 @@ export class ChannelAdapterListener implements StreamListener {
     }
 
     this.delivered = true
+    if (!result.isTopicDone) {
+      // Chain-hold gap: this turn is over but the topic lives on, so the next turn starts its own
+      // message rather than re-posting this one alongside it.
+      this.accumulatedText = ''
+    }
     try {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.completeStream(text)
