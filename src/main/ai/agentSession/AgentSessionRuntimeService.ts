@@ -2314,40 +2314,58 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Recover the persisted host row for a detached root and replay its buffered chunks. Used by
-   * the chunk path and by teardown, which must give recovery-buffered chunks a last chance.
+   * Hold one detached chunk under the policy both buffers share: a fresh stream start re-opens its
+   * key, an overflowed key stays closed, and a key over its own cap — or the session over its
+   * budget — gives up its whole buffered prefix, since a stream cannot resume from a dropped start.
+   * Returns the chunks the hold added and the prefix a drop discarded.
    */
+  private holdDetachedFlowChunk(
+    buffers: Map<string, UIMessageChunk[]>,
+    overflowKeys: Set<string>,
+    key: string,
+    chunk: UIMessageChunk,
+    sessionHeld: number,
+    limits: { perKey: number; perSession: number }
+  ): { held: number; dropped: number } {
+    if (startsFlowStream(chunk)) overflowKeys.delete(key)
+    else if (overflowKeys.has(key)) return { held: 0, dropped: 0 }
+    const chunks = buffers.get(key) ?? []
+    if (chunks.length >= limits.perKey || sessionHeld >= limits.perSession) {
+      buffers.delete(key)
+      overflowKeys.add(key)
+      return { held: 0, dropped: chunks.length }
+    }
+    chunks.push(chunk)
+    buffers.set(key, chunks)
+    return { held: 1, dropped: 0 }
+  }
+
   /** Buffer a detached chunk whose root is not resolvable yet, so a later look-up can deliver it. */
   private bufferRecoveryChunk(entry: AgentSessionRuntimeEntry, rootToolCallId: string, chunk: UIMessageChunk): void {
-    // A chunk stream cannot drop its oldest chunk: the accumulator aborts on a delta whose start is
-    // gone. An overflowing root therefore gives up its whole buffer and waits for a fresh start.
-    if (startsFlowStream(chunk)) {
-      entry.recoveryFlowOverflowRoots?.delete(rootToolCallId)
-    } else if (entry.recoveryFlowOverflowRoots?.has(rootToolCallId)) {
-      return
-    }
-    const buffered = entry.pendingRecoveryFlowChunks ?? new Map<string, UIMessageChunk[]>()
-    entry.pendingRecoveryFlowChunks = buffered
-    const chunks = buffered.get(rootToolCallId) ?? []
-    if (
-      chunks.length >= MAX_RECOVERY_FLOW_CHUNKS ||
-      (entry.pendingRecoveryFlowChunkCount ?? 0) >= MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION
-    ) {
-      buffered.delete(rootToolCallId)
-      entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - chunks.length)
-      ;(entry.recoveryFlowOverflowRoots ??= new Set()).add(rootToolCallId)
+    const buffered = (entry.pendingRecoveryFlowChunks ??= new Map<string, UIMessageChunk[]>())
+    const overflowRoots = (entry.recoveryFlowOverflowRoots ??= new Set<string>())
+    const { held, dropped } = this.holdDetachedFlowChunk(
+      buffered,
+      overflowRoots,
+      rootToolCallId,
+      chunk,
+      entry.pendingRecoveryFlowChunkCount ?? 0,
+      { perKey: MAX_RECOVERY_FLOW_CHUNKS, perSession: MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION }
+    )
+    entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - dropped) + held
+    if (dropped > 0) {
       logger.warn('Detached flow recovery buffer overflowed; dropped its buffered prefix', {
         sessionId: entry.sessionId,
         rootToolCallId,
-        chunkCount: chunks.length
+        chunkCount: dropped
       })
-      return
     }
-    chunks.push(chunk)
-    buffered.set(rootToolCallId, chunks)
-    entry.pendingRecoveryFlowChunkCount = (entry.pendingRecoveryFlowChunkCount ?? 0) + 1
   }
 
+  /**
+   * Recover the persisted host row for a detached root and replay its buffered chunks. Used by
+   * the chunk path and by teardown, which must give recovery-buffered chunks a last chance.
+   */
   private recoverDetachedFlowHost(entry: AgentSessionRuntimeEntry, rootToolCallId: string): string | undefined {
     const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
     if (!hostMessageId) return undefined
@@ -2378,28 +2396,24 @@ export class AgentSessionRuntimeService extends BaseService {
    * stream, and a purged prefix can never be replayed, so the message waits for a fresh start.
    */
   private bufferByMessageId(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
-    if (startsFlowStream(chunk)) entry.pendingBackgroundFlowOverflowIds?.delete(messageId)
-    else if (entry.pendingBackgroundFlowOverflowIds?.has(messageId)) return
-    const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
-    entry.pendingBackgroundFlowChunks = pending
-    const chunks = pending.get(messageId) ?? []
-    if (
-      chunks.length >= MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE ||
-      (entry.pendingBackgroundFlowChunkCount ?? 0) >= MAX_PENDING_FLOW_CHUNKS_PER_SESSION
-    ) {
-      pending.delete(messageId)
-      entry.pendingBackgroundFlowChunkCount = Math.max(0, (entry.pendingBackgroundFlowChunkCount ?? 0) - chunks.length)
-      ;(entry.pendingBackgroundFlowOverflowIds ??= new Set()).add(messageId)
+    const pending = (entry.pendingBackgroundFlowChunks ??= new Map<string, UIMessageChunk[]>())
+    const overflowIds = (entry.pendingBackgroundFlowOverflowIds ??= new Set<string>())
+    const { held, dropped } = this.holdDetachedFlowChunk(
+      pending,
+      overflowIds,
+      messageId,
+      chunk,
+      entry.pendingBackgroundFlowChunkCount ?? 0,
+      { perKey: MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE, perSession: MAX_PENDING_FLOW_CHUNKS_PER_SESSION }
+    )
+    entry.pendingBackgroundFlowChunkCount = Math.max(0, (entry.pendingBackgroundFlowChunkCount ?? 0) - dropped) + held
+    if (dropped > 0) {
       logger.warn('Detached flow message buffer overflowed; dropped its buffered prefix', {
         sessionId: entry.sessionId,
         messageId,
-        chunkCount: chunks.length
+        chunkCount: dropped
       })
-      return
     }
-    chunks.push(chunk)
-    pending.set(messageId, chunks)
-    entry.pendingBackgroundFlowChunkCount = (entry.pendingBackgroundFlowChunkCount ?? 0) + 1
   }
 
   /** Take a message's held chunks, keeping the session-wide count in step with them. */
@@ -3719,7 +3733,7 @@ export class AgentSessionRuntimeService extends BaseService {
         for (const [messageId, chunks] of pending) {
           if (!chunks.length) continue
           let seedParts: CherryMessagePart[] = []
-          let rowAbsent = false
+          let seedable = true
           try {
             const row = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
             seedParts = row.data.parts ?? []
@@ -3727,9 +3741,9 @@ export class AgentSessionRuntimeService extends BaseService {
             // Only a row that is genuinely gone may be rebuilt from the buffer alone: another read
             // failure may hide a row that exists, and publishing a seed-less snapshot would replace
             // the flow's cached content with nothing but its tail.
-            rowAbsent = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+            seedable = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
           }
-          if (!rowAbsent) {
+          if (!seedable) {
             logger.warn('Teardown flow snapshot skipped: its row could not be read', {
               sessionId: entry.sessionId,
               messageId
