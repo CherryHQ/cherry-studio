@@ -275,52 +275,40 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('interactivity gating', () => {
-    it('stays clickable mid-fade with a hit strip confined to the yielded gutter', () => {
-      const { container } = renderRail({ messages, railOpacity: 0.5 })
+    it('keeps continuous width and opacity updates in inherited CSS variables', () => {
+      const { container } = renderRail({ messages })
 
       const rail = container.firstElementChild as HTMLElement
-      // Visible means clickable — the strip is never a dead layer…
       expect(rail).not.toHaveClass('pointer-events-none')
       expect(rail).not.toHaveAttribute('inert')
-      // …because its width only spans space the content has yielded
-      // (8px inset margin + railOpacity × 24 gutter), so message text left of
-      // it keeps its clicks and selection.
-      expect(rail.style.width).toBe('20px')
-      // The visual fade lives on the tick strip (railOpacity × the resting 70%
-      // dim) so the hover preview card itself stays fully opaque.
+      expect(rail.style.width).toBe('calc(8px + var(--chat-rail-gutter, 24px))')
       const strip = rail.querySelector<HTMLElement>('.overflow-y-auto')
-      expect(strip?.style.opacity).toBe('0.35')
+      expect(strip?.style.getPropertyValue('--chat-anchor-opacity')).toBe('var(--chat-rail-rest-opacity, 0.7)')
       expect(rail.style.opacity).toBe('')
     })
 
-    it('spans the full 32px strip once the gutter has fully yielded', () => {
-      const { container } = renderRail({ messages, railOpacity: 1 })
-
-      const strip = container.firstElementChild as HTMLElement
-      expect(strip).not.toHaveClass('pointer-events-none')
-      expect(strip.style.width).toBe('32px')
-    })
-
-    it('goes fully inert once the rail fades out', () => {
-      const { container } = renderRail({ messages, railOpacity: 0.01 })
+    it('goes fully inert once the rail is hidden', () => {
+      const { container } = renderRail({ messages, railVisible: false })
 
       const strip = container.firstElementChild as HTMLElement
       expect(strip).toHaveClass('pointer-events-none')
       expect(strip).toHaveAttribute('inert')
-      expect(strip.querySelector<HTMLElement>('.overflow-y-auto')?.style.opacity).toBe('0')
+      expect(
+        strip.querySelector<HTMLElement>('.overflow-y-auto')?.style.getPropertyValue('--chat-anchor-opacity')
+      ).toBe('0')
     })
 
-    it('clears the hover preview when the rail fades out mid-hover', () => {
+    it('clears the hover preview when the rail is hidden mid-hover', () => {
       restoreGeometry = installRailGeometry({ scrollHeight: RAIL_VIEWPORT_PX, clientHeight: RAIL_VIEWPORT_PX })
       const animationFrame = installDeferredAnimationFrame()
       partsMap['user-2'] = [textPart('Question two')]
-      const { container, rerender, queryByText } = renderRail({ messages, railOpacity: 1 })
+      const { container, rerender, queryByText } = renderRail({ messages })
 
       fireEvent.mouseMove(container.firstElementChild as HTMLElement, { clientY: tickCenterOf5(1) })
       animationFrame.flushNext()
       expect(queryByText('Question two')).toBeInTheDocument()
 
-      rerender(rail({ messages, railOpacity: 0.01 }))
+      rerender(rail({ messages, railVisible: false }))
       expect(queryByText('Question two')).not.toBeInTheDocument()
     })
   })
