@@ -3214,6 +3214,106 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.replaceMessageParts).not.toHaveBeenCalled()
     })
 
+    // The seed retry can fail while the fold's own read succeeds — the row was merely unreadable
+    // for a moment — and those chunks are still the only copy of the output.
+    it('folds buffered chunks when the row becomes readable again at teardown', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        // The round's seed and teardown's last-chance retry both fail; the fold's own read works.
+        if (seedCalls <= 2) throw new Error('db busy')
+        return { id: 'assistant-1', role: 'assistant', data: { parts: [] } }
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'orphan-text' },
+        { type: 'text-delta', id: 'orphan-text', delta: 'Orphaned findings' },
+        { type: 'text-end', id: 'orphan-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await service.closeSession('session-1')
+
+      const call = mocks.cacheSetShared.mock.calls.find(
+        ([key, parts]) =>
+          typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Orphaned findings')
+      )
+      expect(call).toBeDefined()
+    })
+
+    // A row that was never written is rebuilt from the buffer alone: those chunks are the only copy
+    // of the output, so a missing row must still fold rather than be treated as unreadable.
+    it('folds buffered chunks when the row was never written', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit' }
+        }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      let seedCalls = 0
+      mocks.getSessionMessage.mockImplementation(() => {
+        seedCalls += 1
+        // The round's seed and teardown's last-chance retry fail; the row is simply not there.
+        if (seedCalls <= 2) throw new Error('db busy')
+        throw DataApiErrorFactory.notFound('Message', 'assistant-1')
+      })
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (const chunk of [
+        { type: 'text-start', id: 'orphan-text' },
+        { type: 'text-delta', id: 'orphan-text', delta: 'Orphaned findings' },
+        { type: 'text-end', id: 'orphan-text' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await service.closeSession('session-1')
+
+      const call = mocks.cacheSetShared.mock.calls.find(
+        ([key, parts]) =>
+          typeof key === 'string' && key.includes('flow_parts') && JSON.stringify(parts).includes('Orphaned findings')
+      )
+      expect(call).toBeDefined()
+    })
+
     // A read that failed for any other reason may be hiding a row that exists; folding the
     // buffered tail into the cache then would replace the flow's content with its last few chunks.
     it('does not publish a seed-less snapshot when the row read fails', async () => {
