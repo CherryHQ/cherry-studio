@@ -2164,7 +2164,7 @@ describe('CherryAutonomyTools', () => {
 
     // IPC-boundary seam (the twin of the MCP layer's best-effort indexing): the disk and process
     // work has already succeeded by the time the panel index write runs, so a DB failure must not
-    // turn the completed operation into an error response.
+    // turn the completed listing into an error response or a different answer.
     it('lists detached tasks even when indexing them into the panel store fails', async () => {
       // Dynamic: a static import would hoist @application's mock factory above the const mocks.
       const { listAgentBackgroundTasks, startAgentBackgroundTask } =
@@ -2173,7 +2173,7 @@ describe('CherryAutonomyTools', () => {
       const { withWriteTx } = MockMainDbServiceExport.dbService
       const original = withWriteTx.getMockImplementation()
       mockGetAgent.mockReturnValue({ id: 'agent_test', configuration: {} })
-      await startAgentBackgroundTask({
+      const started = await startAgentBackgroundTask({
         agentId: 'agent_test',
         storageDir: path.join(agentsDataDir, 'agent_test', 'background-tasks'),
         command: `${nodeBin} -e "setTimeout(() => process.exit(0), 800)"`,
@@ -2183,10 +2183,11 @@ describe('CherryAutonomyTools', () => {
         throw new Error('database is locked')
       })
       try {
-        // The contract under test is "does not error": the disk listing and reconciliation already
-        // succeeded, and the DB-backed result may legitimately be stale while writes fail.
+        // The panel and the agent's own list tool must not disagree: the MCP `list_background_tasks`
+        // returns the reconciled disk records, so a failed index write may not hand the panel a
+        // stale (here: empty) SQLite read instead.
         const tasks = await listAgentBackgroundTasks('agent_test')
-        expect(Array.isArray(tasks)).toBe(true)
+        expect(tasks.map((task) => task.id)).toContain(started.id)
       } finally {
         withWriteTx.mockImplementation(original!)
       }
