@@ -4170,7 +4170,7 @@
   "settings.dependencies.viewErrorDetails": "Просмотреть детали",
   "settings.developer.client_id": "ID клиента",
   "settings.developer.enable_developer_mode": "Включить разработчик",
-  "settings.developer.help": "После включения режима разработчика можно использовать функцию трассировки вызовов для просмотра потока данных в процессе вызова модели.",
+  "settings.developer.help": "После включения режима разработчика можно использовать трассировку для просмотра потока данных при вызове модели и проверять API-запросы основного процесса в DevTools на панели Main Network. Изменения вступают в силу после перезапуска приложения.",
   "settings.developer.title": "Разработчик",
   "settings.display.custom.css.label": "Пользовательский CSS",
   "settings.display.custom.css.migration_notice": "Эта таблица стилей перенесена из v1 и сейчас отключена. Адаптируйте её для v2, затем удалите первую строку, чтобы включить её.",

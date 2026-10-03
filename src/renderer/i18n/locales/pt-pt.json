@@ -4170,7 +4170,7 @@
   "settings.dependencies.viewErrorDetails": "Ver detalhes",
   "settings.developer.client_id": "ID do Cliente",
   "settings.developer.enable_developer_mode": "Ativar modo de desenvolvedor",
-  "settings.developer.help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
+  "settings.developer.help": "Após ativar o modo de programador, pode usar a função de trace para ver o fluxo de dados durante a invocação do modelo e inspecionar pedidos API do processo principal no DevTools, no painel Main Network. As alterações entram em vigor após reiniciar a aplicação.",
   "settings.developer.title": "Modo de Desenvolvedor",
   "settings.display.custom.css.label": "CSS personalizado",
   "settings.display.custom.css.migration_notice": "Esta folha de estilos foi migrada da v1 e está atualmente desativada. Adapte-a à v2 e, em seguida, remova a primeira linha para a ativar.",

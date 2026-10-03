@@ -4170,7 +4170,7 @@
   "settings.dependencies.viewErrorDetails": "Ver detalles",
   "settings.developer.client_id": "ID de cliente",
   "settings.developer.enable_developer_mode": "Habilitar modo de desarrollador",
-  "settings.developer.help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
+  "settings.developer.help": "Tras habilitar el modo de desarrollador, puede usar la función de traza para ver el flujo de datos durante la invocación del modelo e inspeccionar las solicitudes API del proceso principal en DevTools, en el panel Main Network. Los cambios surten efecto al reiniciar la aplicación.",
   "settings.developer.title": "Modo de Desarrollador",
   "settings.display.custom.css.label": "CSS personalizado",
   "settings.display.custom.css.migration_notice": "Esta hoja de estilos se migró desde v1 y está deshabilitada. Adáptala para v2 y, después, elimina la primera línea para habilitarla.",

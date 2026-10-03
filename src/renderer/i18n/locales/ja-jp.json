@@ -4170,7 +4170,7 @@
   "settings.dependencies.viewErrorDetails": "詳細を表示",
   "settings.developer.client_id": "クライアントID",
   "settings.developer.enable_developer_mode": "開発者モードを有効にする",
-  "settings.developer.help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
+  "settings.developer.help": "開発者モードを有効にすると、トレース機能でモデル呼び出し時のデータフローを確認でき、DevTools の Main Network パネルでメインプロセスの API リクエストを調べられます。変更はアプリの再起動後に反映されます。",
   "settings.developer.title": "開発者モード",
   "settings.display.custom.css.label": "カスタムCSS",
   "settings.display.custom.css.migration_notice": "このスタイルシートは v1 から移行されたため、現在は無効です。v2 向けに調整してから、最初の行を削除して有効にしてください。",
