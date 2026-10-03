@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -208,6 +209,39 @@ describe('backgroundTasks', () => {
         expect(onExit.mock.calls[0][0].summary).toContain(running.id)
       } finally {
         await vi.waitFor(() => expect(isPidAlive(running.pid)).toBe(false), { timeout: 10_000 })
+      }
+    })
+
+    it.skipIf(process.platform === 'win32')('does not show a recycled pid as a running task', async () => {
+      // Simulate the app restarting and the OS handing the task's old pid to something else: the
+      // pid is alive, but the recorded start stamp is the only proof it is no longer this task.
+      const unrelated = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], { stdio: 'ignore' })
+      try {
+        expect(isPidAlive(unrelated.pid!)).toBe(true)
+        await writeFile(
+          path.join(storageDir, 'bt-recycled.json'),
+          JSON.stringify({
+            id: 'bt-recycled',
+            name: 'recycled',
+            command: okCommand,
+            pid: unrelated.pid,
+            pidStartTime: 'Mon Jan  1 00:00:00 2001',
+            cwd: storageDir,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(storageDir, 'bt-recycled.log'),
+            status: 'running',
+            exitCode: null,
+            signal: null
+          })
+        )
+
+        const reconciled = await getDetachedBackgroundTask(storageDir, 'bt-recycled')
+        expect(reconciled?.status).toBe('unknown')
+        // Uncontrollable and unidentifiable: the stop path must still refuse to signal it.
+        await expect(stopDetachedBackgroundTask(storageDir, 'bt-recycled', true)).resolves.toBeUndefined()
+        expect(isPidAlive(unrelated.pid!)).toBe(true)
+      } finally {
+        unrelated.kill('SIGKILL')
       }
     })
 
