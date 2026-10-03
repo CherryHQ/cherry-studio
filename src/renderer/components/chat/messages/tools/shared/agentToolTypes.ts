@@ -299,8 +299,9 @@ export type SendMessageToolOutput =
 export function getResumedAgentId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
-    // The whole output must be that line: a child's own prose must not name a target.
-    const dshAck = /^message delivered to agent[ \t]+(\S+)$/.exec(output.trim())?.[1]
+    // The whole output must be that line — a child's own prose must not name a target — and the id
+    // is read as an id, so trailing punctuation cannot ride along as part of the target.
+    const dshAck = /^message delivered to agent[ \t]+([A-Za-z0-9_-]+)$/.exec(output.trim())?.[1]
     if (dshAck) return dshAck
     // A JSON receipt is the whole output — both adapters parse all-text results — so prose that
     // merely quotes a receipt-shaped fragment must not register as a continuation.
@@ -341,15 +342,16 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     // dsh acknowledges a continuable launch with exactly `started subagent <childId>` and no other
     // prose; the whole output must match, or a child's own answer naming the phrase would register.
-    const dshLaunch = /^started subagent[ \t]+(\S+)$/.exec(output.trim())?.[1]
+    const dshLaunch = /^started subagent[ \t]+([A-Za-z0-9_-]+)$/.exec(output.trim())?.[1]
     if (dshLaunch) return dshLaunch
-    // The id trailer alone is spoofable: prose that quotes a launch instruction and happens to
-    // name an id would register. Every real receipt opens with the SDK's launch prefix, so the
-    // trailer is only read from an output that starts there.
-    if (!/^(?:Async agent launched successfully|done\.)/.test(output.trim())) return undefined
-    // Older receipts name the id `Internal id:` before `output_file`; the id spellings share
-    // the same trailer grammar, so extract them all through one regex.
-    return /\b(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
+    // The id trailer alone is spoofable, and so is a trailer that merely appears somewhere after the
+    // prefix: a foreground launch's result is the child's own answer, and prose that quotes an id
+    // must not bind the flow to it. Every real receipt opens with the SDK's launch prefix and names
+    // the id in the same breath — on the same line, or on the next one (`Internal id:` before
+    // `output_file` on older receipts) — so one adjacency-anchored grammar reads them all.
+    return /^(?:Async agent launched successfully\.?|done\.)\s*(?:\r?\n\s*)?(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(
+      output.trim()
+    )?.[1]
   }
   if (isRecord(output)) {
     // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools);

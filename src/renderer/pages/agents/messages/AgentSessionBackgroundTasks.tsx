@@ -30,6 +30,7 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
         // its receipt: the index covering the whole map is what makes the capsule disappear.
         (launchIndex?.toolCallIds.has(task.toolCallId) === true ||
           launchIndex?.childRootCallIds.has(task.toolCallId) === true ||
+          launchIndex?.dshTaskRootCallIds.has(task.toolCallId) === true ||
           parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId))
       )
   )
