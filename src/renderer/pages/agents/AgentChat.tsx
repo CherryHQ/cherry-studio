@@ -308,7 +308,12 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel) return
+      const clearingOverrideToDefault =
+        sessionSnapshot.modelId != null &&
+        nextModel.id === activeAgent?.model &&
+        nextModel.id === activeModel?.id
+      if (nextModel.id === activeModel?.id && !clearingOverrideToDefault) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
         setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: sessionSnapshot.agentId, model: nextModel })
         setSkipModelSwitchConfirmation(false)
@@ -579,12 +584,16 @@ const AgentChat = ({
         confirmText={t('agent.session.model_switch_confirm.confirm')}
         cancelText={t('common.cancel')}
         onConfirm={async () => {
+          const clearingOverrideToDefault =
+            sessionSnapshot?.modelId != null &&
+            modelSwitchTarget?.model.id === activeAgent?.model &&
+            modelSwitchTarget.model.id === activeModel?.id
           if (
             !sessionSnapshot ||
             !modelSwitchTarget ||
             modelSwitchTarget.sessionId !== sessionSnapshot.id ||
             modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
-            modelSwitchTarget.model.id === activeModel?.id
+            (modelSwitchTarget.model.id === activeModel?.id && !clearingOverrideToDefault)
           ) {
             return
           }

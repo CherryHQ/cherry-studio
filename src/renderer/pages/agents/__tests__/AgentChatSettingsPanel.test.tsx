@@ -709,6 +709,32 @@ describe('AgentChat settings panel', () => {
     expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
   })
 
+  it('clears a stale session override from the top bar when it matches the agent default', async () => {
+    activeAgentMock.value = { id: 'agent-1', model: 'provider::model-2' }
+    activeModelMock.value = { id: 'provider::model-2', name: 'Model 2' }
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'provider::model-2',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+    } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        {
+          id: 'session-1',
+          modelId: null
+        },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
   it('asks for confirmation before switching the model when the session has messages', async () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]
