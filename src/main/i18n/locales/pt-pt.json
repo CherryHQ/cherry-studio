@@ -64,6 +64,7 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Ampliar",
   "appMenu.zoomOut": "Reduzir Zoom",
+  "background_task.name.unnamed": "tarefa em segundo plano",
   "background_task.note.gone_no_marker": "O processo desapareceu e não existe marcador de conclusão — a aplicação provavelmente terminou enquanto a tarefa decorria. Consulte o ficheiro de registo.",
   "background_task.note.kill_requested": "Pedido de paragem forçada.",
   "background_task.note.stop_requested": "Pedido de paragem; use a paragem forçada se o processo não terminar.",

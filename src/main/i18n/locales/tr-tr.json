@@ -64,6 +64,7 @@
   "appMenu.zoom": "Yakınlaştırma",
   "appMenu.zoomIn": "Yakınlaştır",
   "appMenu.zoomOut": "Uzaklaştır",
+  "background_task.name.unnamed": "arka plan görevi",
   "background_task.note.gone_no_marker": "Süreç kayboldu ve tamamlanma işareti yok — uygulama görev çalışırken kapandı olabilir. Günlük dosyasını kontrol edin.",
   "background_task.note.kill_requested": "Zorla sonlandırma istendi.",
   "background_task.note.stop_requested": "Durdurma istendi; süreç sonlanmazsa zorla sonlandırmayı kullanın.",

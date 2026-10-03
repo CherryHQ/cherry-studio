@@ -64,6 +64,7 @@
   "appMenu.zoom": "Thu phóng",
   "appMenu.zoomIn": "Phóng to",
   "appMenu.zoomOut": "Thu nhỏ",
+  "background_task.name.unnamed": "tác vụ chạy nền",
   "background_task.note.gone_no_marker": "Tiến trình đã biến mất và không có dấu hoàn tất — ứng dụng có thể đã thoát khi tác vụ đang chạy. Hãy kiểm tra tệp nhật ký.",
   "background_task.note.kill_requested": "Đã yêu cầu buộc dừng.",
   "background_task.note.stop_requested": "Đã yêu cầu dừng; nếu tiến trình không kết thúc, hãy dùng buộc dừng.",

@@ -64,6 +64,7 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Heranzoomen",
   "appMenu.zoomOut": "Herauszoomen",
+  "background_task.name.unnamed": "Hintergrundaufgabe",
   "background_task.note.gone_no_marker": "Der Prozess ist weg und es gibt keine Abschlussmarkierung — die App wurde während der Aufgabe vermutlich beendet. Siehe die Protokolldatei.",
   "background_task.note.kill_requested": "Beenden erzwungen angefordert.",
   "background_task.note.stop_requested": "Stoppen angefordert; Beenden erzwingen, falls der Prozess nicht endet.",

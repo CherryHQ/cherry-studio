@@ -64,6 +64,7 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Acercar",
   "appMenu.zoomOut": "Alejar",
+  "background_task.name.unnamed": "tarea en segundo plano",
   "background_task.note.gone_no_marker": "El proceso desapareció y no hay marcador de finalización: la aplicación probablemente se cerró mientras la tarea se ejecutaba. Consulta el archivo de registro.",
   "background_task.note.kill_requested": "Solicitud de detención forzada.",
   "background_task.note.stop_requested": "Solicitud de detención; usa la detención forzada si el proceso no termina.",

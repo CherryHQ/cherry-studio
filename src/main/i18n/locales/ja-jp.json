@@ -64,6 +64,7 @@
   "appMenu.zoom": "ズーム",
   "appMenu.zoomIn": "ズームイン",
   "appMenu.zoomOut": "ズームアウト",
+  "background_task.name.unnamed": "バックグラウンドタスク",
   "background_task.note.gone_no_marker": "プロセスが消滅し、完了マーカーも存在しません。アプリがタスクの実行中に終了した可能性があります。ログファイルを確認してください。",
   "background_task.note.kill_requested": "強制終了を要求しました。",
   "background_task.note.stop_requested": "停止を要求しました。プロセスが終了しない場合は強制終了を使用してください。",

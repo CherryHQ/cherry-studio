@@ -64,6 +64,7 @@
   "appMenu.zoom": "縮放",
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "縮小",
+  "background_task.name.unnamed": "背景工作",
   "background_task.note.gone_no_marker": "行程已消失且沒有完成標記 —— 應用程式可能在該工作執行期間結束了。請查看記錄檔。",
   "background_task.note.kill_requested": "已請求強制結束。",
   "background_task.note.stop_requested": "已請求停止；若行程未結束，請使用強制結束。",

@@ -64,6 +64,7 @@
   "appMenu.zoom": "缩放",
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "缩小",
+  "background_task.name.unnamed": "后台任务",
   "background_task.note.gone_no_marker": "进程已消失且没有完成标记 —— 应用可能在该任务运行期间退出了。请查看日志文件。",
   "background_task.note.kill_requested": "已请求强制结束。",
   "background_task.note.stop_requested": "已请求停止；若进程未退出，请使用强制结束。",

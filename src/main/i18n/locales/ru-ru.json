@@ -64,6 +64,7 @@
   "appMenu.zoom": "Масштаб",
   "appMenu.zoomIn": "Увеличить",
   "appMenu.zoomOut": "Уменьшить",
+  "background_task.name.unnamed": "фоновая задача",
   "background_task.note.gone_no_marker": "Процесс исчез и нет метки завершения — вероятно, приложение вышло во время выполнения задачи. Проверьте файл журнала.",
   "background_task.note.kill_requested": "Запрошено принудительное завершение.",
   "background_task.note.stop_requested": "Запрошена остановка; если процесс не завершится, используйте принудительное завершение.",

@@ -64,6 +64,7 @@
   "appMenu.zoom": "Ζουμ",
   "appMenu.zoomIn": "Μεγέθυνση",
   "appMenu.zoomOut": "Σμίκρυνση",
+  "background_task.name.unnamed": "εργασία στο παρασκήνιο",
   "background_task.note.gone_no_marker": "Η διεργασία εξαφάνισε και δεν υπάρχει σήμα ολοκλήρωσης — η εφαρμογή πιθανότατα έκλεισε όσο η εργασία εκτελούνταν. Δείτε το αρχείο καταγραφής.",
   "background_task.note.kill_requested": "Ζητήθηκε αναγκαστικός τερματισμός.",
   "background_task.note.stop_requested": "Ζητήθηκε διακοπή· χρησιμοποιήστε τον αναγκαστικό τερματισμό αν η διεργασία δεν τελειώνει.",
