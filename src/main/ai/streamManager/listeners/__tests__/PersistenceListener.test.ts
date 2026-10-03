@@ -10,6 +10,7 @@
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -534,5 +535,73 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
       runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('message artifact ownership handoff', () => {
+  it.each(['success', 'paused', 'error'] as const)('holds artifacts until %s persistence finishes', async (status) => {
+    const release = vi.fn()
+    messageArtifactRetentionService.retainMessageArtifact('artifact-message', release)
+    let finish!: () => void
+    const listener = new PersistenceListener({
+      topicId: 'artifacts',
+      backend: {
+        kind: 'sqlite',
+        persistAssistant: () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          })
+      },
+      onPersistFailed: vi.fn()
+    })
+    const result = {
+      status,
+      finalMessage: { id: 'artifact-message', role: 'assistant' as const, parts: [] },
+      error: { name: 'Error', message: 'interrupted', stack: '' }
+    }
+    const pending =
+      status === 'success'
+        ? listener.onDone({ ...result, status: 'success' })
+        : status === 'paused'
+          ? listener.onPaused({ ...result, status: 'paused' })
+          : listener.onError({ ...result, status: 'error' })
+    expect(release).not.toHaveBeenCalled()
+    finish()
+    await pending
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('releases artifacts after a failed terminal write even when no output reached the accumulator', async () => {
+    const release = vi.fn()
+    messageArtifactRetentionService.retainMessageArtifact('unpublished-image', release)
+    const listener = new PersistenceListener({
+      topicId: 'artifacts',
+      backend: {
+        kind: 'sqlite',
+        canPersistEmptyTerminal: true,
+        persistAssistant: () => {
+          throw new Error('disk full')
+        }
+      },
+      onPersistFailed: vi.fn()
+    })
+    await expect(listener.onPaused({ status: 'paused', anchorMessageId: 'unpublished-image' })).rejects.toThrow(
+      TerminalPersistenceError
+    )
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('keeps temporary-chat artifacts after terminal persistence until their in-memory owner is discarded', async () => {
+    const release = vi.fn()
+    messageArtifactRetentionService.retainMessageArtifact('temporary-image', release)
+    const listener = new PersistenceListener({
+      topicId: 'temporary-artifacts',
+      backend: { kind: 'temp', persistAssistant: () => {} },
+      onPersistFailed: vi.fn()
+    })
+    await listener.onDone({ status: 'success', finalMessage: { id: 'temporary-image', role: 'assistant', parts: [] } })
+    expect(release).not.toHaveBeenCalled()
+    messageArtifactRetentionService.releaseMessageArtifacts('temporary-image')
+    expect(release).toHaveBeenCalledOnce()
   })
 })

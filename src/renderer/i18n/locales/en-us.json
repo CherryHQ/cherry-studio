@@ -647,6 +647,7 @@
   "chat.input.followup_queue.steer": "steer",
   "chat.input.followup_queue.title": "Queued ({{count}})",
   "chat.input.generate_image": "Generate image",
+  "chat.input.generate_image_native": "Generate image with Grok",
   "chat.input.generate_image_no_model": "Configure a painting model in Settings › Default Model",
   "chat.input.image_preview_failed": "Image preview failed",
   "chat.input.knowledge_base": "Knowledge Base",

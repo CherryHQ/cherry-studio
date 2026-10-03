@@ -121,6 +121,7 @@ patchedDependencies:
   docx-preview@0.3.7: patches/docx-preview@0.3.7.patch
   "@elysia/node@1.4.6": patches/@elysia__node@1.4.6.patch
   bonjour-service@1.3.0: patches/bonjour-service@1.3.0.patch
+  "@ai-sdk/xai@3.0.126": patches/@ai-sdk__xai@3.0.126.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true

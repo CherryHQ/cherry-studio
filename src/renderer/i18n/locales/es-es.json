@@ -647,6 +647,7 @@
   "chat.input.followup_queue.steer": "Enviar al turno actual",
   "chat.input.followup_queue.title": "En cola ({{count}})",
   "chat.input.generate_image": "Generar imagen",
+  "chat.input.generate_image_native": "Generar imagen con Grok",
   "chat.input.generate_image_no_model": "Configura un modelo de pintura en Configuración › Modelo predeterminado",
   "chat.input.image_preview_failed": "La vista previa de la imagen falló",
   "chat.input.knowledge_base": "Base de conocimientos",

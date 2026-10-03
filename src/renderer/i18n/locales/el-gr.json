@@ -647,6 +647,7 @@
   "chat.input.followup_queue.steer": "Στείλε στην τρέχουσα σειρά",
   "chat.input.followup_queue.title": "Σε ουρά ({{count}})",
   "chat.input.generate_image": "Δημιουργία εικόνας",
+  "chat.input.generate_image_native": "Δημιουργία εικόνας με το Grok",
   "chat.input.generate_image_no_model": "Ρυθμίστε ένα μοντέλο ζωγραφικής στις Ρυθμίσεις › Προεπιλεγμένο Μοντέλο",
   "chat.input.image_preview_failed": "Η προεπισκόπηση της εικόνας απέτυχε",
   "chat.input.knowledge_base": "Βάση γνώσεων",

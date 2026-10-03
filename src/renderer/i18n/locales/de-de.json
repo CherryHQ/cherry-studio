@@ -647,6 +647,7 @@
   "chat.input.followup_queue.steer": "In aktuelle Runde senden",
   "chat.input.followup_queue.title": "In Warteschlange ({{count}})",
   "chat.input.generate_image": "Bild generieren",
+  "chat.input.generate_image_native": "Bild mit Grok generieren",
   "chat.input.generate_image_no_model": "Konfigurieren Sie ein Malmodell unter Einstellungen › Standardmodell",
   "chat.input.image_preview_failed": "Bildvorschau fehlgeschlagen",
   "chat.input.knowledge_base": "Wissensdatenbank",

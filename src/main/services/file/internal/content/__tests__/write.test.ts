@@ -76,7 +76,8 @@ describe('internal/content/write', () => {
         }),
         clear: vi.fn(() => cacheStore.clear())
       },
-      contentWriteLock: new KeyedMutex()
+      contentWriteLock: new KeyedMutex(),
+      isEntryRetained: () => false
     }
   })
 

@@ -451,6 +451,9 @@ export interface IFileManager {
    */
   createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
+  /** Protect an in-flight entry until its caller hands off ownership. */
+  retainEntry(id: FileEntryId): () => void
+
   /**
    * Ensure an entry exists for a user-provided absolute path.
    *
@@ -709,13 +712,27 @@ export class FileManager extends BaseService implements IFileManager {
   private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
   private readonly _contentWriteLock = new KeyedMutex()
   private readonly activeWriteStreams = new Set<AtomicWriteStream>()
+  private readonly retainedEntries = new Map<FileEntryId, number>()
+
+  retainEntry(id: FileEntryId): () => void {
+    this.retainedEntries.set(id, (this.retainedEntries.get(id) ?? 0) + 1)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      const count = this.retainedEntries.get(id) ?? 0
+      if (count <= 1) this.retainedEntries.delete(id)
+      else this.retainedEntries.set(id, count - 1)
+    }
+  }
 
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
     versionCache: this._versionCache,
-    contentWriteLock: this._contentWriteLock
+    contentWriteLock: this._contentWriteLock,
+    isEntryRetained: (id) => this.retainedEntries.has(id)
   }
 
   private readonly contentHashBackfillJobHandler = createContentHashBackfillJobHandler(this.deps)

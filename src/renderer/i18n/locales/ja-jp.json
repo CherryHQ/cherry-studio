@@ -647,6 +647,7 @@
   "chat.input.followup_queue.steer": "現在のターンに送る",
   "chat.input.followup_queue.title": "キューに追加済み（{{count}}）",
   "chat.input.generate_image": "画像を生成する",
+  "chat.input.generate_image_native": "Grok で画像を生成",
   "chat.input.generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
   "chat.input.image_preview_failed": "画像プレビューに失敗しました",
   "chat.input.knowledge_base": "ナレッジベース",
