@@ -8,6 +8,8 @@ sources:
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
+  - src/shared/ai/piBuiltinTools.ts
+  - patches/@sting8k__pi-vcc@0.8.1.patch
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
@@ -725,17 +727,90 @@ after any applicable live tightening has landed.
 ### Pi conversation compaction
 
 Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
-It replaces the default LLM-generated compaction with algorithmic transcript
-extraction and provides `vcc_recall` to search the current session's raw JSONL
-history after compaction. Recall is auto-approved, including unattended turns,
-and remains available in the tool settings for explicit disabling.
-Bare `/compact` and automatic compaction use this extension. `/compact <instructions>`
-uses Pi's native LLM summarizer so the instructions still guide the summary.
-CLI-only `/pi-vcc` and `/pi-vcc-recall` commands are not registered; Cherry owns
-turn completion through its `/compact` action and the `vcc_recall` tool.
-Its shared configuration lives at `feature.agents.pi.root/pi-vcc-config.json`,
-isolated from standalone Pi's configuration. Disk extension discovery remains
-disabled; no runtime package installation is required.
+Users do not need to install the npm package or enable disk extension discovery.
+Cherry resolves the bundled entry point through `getPiVccExtensionPath` and
+passes it to `DefaultResourceLoader.additionalExtensionPaths`; `noExtensions`
+remains enabled to prevent discovery of unrelated executable extensions.
+
+#### User-visible behavior
+
+With the default pi-vcc configuration, compaction works as follows:
+
+| Input | Compaction behavior |
+|---|---|
+| Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
+| `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
+| `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
+| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` or the `vcc_recall` tool. |
+
+Compaction reduces the model's active context; it does not erase the persisted
+session transcript. The `vcc_recall` tool searches the current session's raw
+JSONL history, so the model can retrieve details omitted from the compacted
+context, including after reopening that session. It cannot choose another
+session file or an arbitrary filesystem path.
+
+Cherry lists recall in the agent's tool settings. It is auto-approved in default
+and acceptEdits permission modes, including unattended turns, because it reads
+only the current session history. Explicitly disabling it still blocks access;
+disabling recall does not disable compaction.
+
+#### Why the bundled dependency is patched
+
+The version-pinned
+[pnpm patch](../../../patches/@sting8k__pi-vcc@0.8.1.patch) changes two integration
+behaviors. pnpm applies it during installation; there is no runtime source rewrite.
+
+First, unpatched pi-vcc does not interpret `/compact` text the same way as Pi's
+native summarizer. For `/compact Focus on the API decisions`, the call chain is:
+
+1. Cherry passes the text unchanged to `session.compact(customInstructions)`.
+2. pi-vcc intercepts the compaction and treats that text as a follow-up user
+   message, rather than instructions for the summary.
+3. Its `session_compact` handler calls `pi.sendUserMessage` with that text.
+4. Pi emits this event before clearing its manual-compaction state, so the
+   resulting prompt is rejected because compaction is still in progress. The
+   text neither guides the summary nor reaches the model as a follow-up.
+
+This failure occurs between pi-vcc and the Pi SDK; Cherry does not discard or
+rewrite the instructions. A thin wrapper that makes the same SDK call encounters
+the same failure. The patch makes pi-vcc defer to native compaction when ordinary
+nonempty custom instructions are present. Bare `/compact` and automatic
+compaction still use VCC. Merely delaying the follow-up would not preserve the
+original contract: summary instructions would still become a new user turn.
+
+Second, the patch removes registration of `/pi-vcc` and `/pi-vcc-recall`, while
+retaining the compaction hook and recall tool. Cherry tracks `/compact` as a
+manual compaction turn and closes that turn from compaction events. An extension
+command invoked through `session.prompt()` can return before its work completes,
+causing Cherry to finish the turn before the later compaction events arrive.
+Removing these command entry points keeps operations on the existing tracked
+paths without adding another command lifecycle to Cherry.
+
+The patch does not implement compaction or recall in Cherry. Pi and pi-vcc still
+own those operations; Cherry owns loading, permissions, and UI turn completion.
+Recall's tool-catalog entry and auto-approval are Cherry code, separate from the
+dependency patch. Remove the corresponding patch changes when an upstream
+version preserves native instruction semantics and offers a way to omit these
+commands, after verifying the same integration contracts.
+
+#### Configuration and verification
+
+All Cherry Pi sessions share
+`application.getPath('feature.agents.pi.root', 'pi-vcc-config.json')`, supplied to
+pi-vcc through `PI_VCC_CONFIG_PATH`. This is isolated from standalone Pi's
+configuration. Setting `overrideDefaultCompaction` to `false` restores native
+LLM compaction for bare `/compact` and automatic compaction; instruction-bearing
+`/compact` already uses native compaction. No separate compaction toggle is added
+to Cherry's UI.
+
+The real-SDK integration tests in
+[piVcc.test.ts](../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
+compaction without an LLM call, native instruction-guided compaction, recall
+after reopening, unattended approval, explicit disabling, command exclusion,
+and production file filtering. The connection tests cover default loading and
+the configuration path. File filtering and SDK tests do not prove that jiti loads
+the TypeScript extension inside an installed Electron/asar package; that remains
+a separate packaging smoke test.
 
 ### Pi code mode
 
