@@ -54,7 +54,6 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
-  modelAcceptsSamplingParam,
   stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
 import {
@@ -587,40 +586,27 @@ function buildAgentOptions(
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
+  let bodyParams: Record<string, unknown> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant.settings, model, reasoning)
-    const topP = getTopP(assistant.settings, model, reasoning)
-    // Custom parameters may carry sampling the model rejects — gate them like the values above.
-    const { temperature: customTemperature, topP: customTopP, ...customRest } = customParameters.standardParams
+    const {
+      temperature = getTemperature(assistant.settings, model, reasoning),
+      topP = getTopP(assistant.settings, model, reasoning),
+      ...customRest
+    } = customParameters.standardParams
     standardParams = {
-      ...(temperature !== undefined && { temperature }),
-      ...(topP !== undefined && { topP }),
       ...customRest,
-      ...(customTemperature !== undefined &&
-        modelAcceptsSamplingParam(model, 'temperature') && { temperature: customTemperature }),
-      ...(customTopP !== undefined && modelAcceptsSamplingParam(model, 'topP') && { topP: customTopP })
+      ...(temperature !== undefined && { temperature }),
+      ...(topP !== undefined && { topP })
     }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
-      // Wire-named sampling (`top_p`) bypasses the camelCase standard params — gate it before
-      // it reaches either the body passthrough or the providerOptions merge.
-      const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-      const providerParams = acceptsTopP
-        ? customParameters.providerParams
-        : Object.fromEntries(Object.entries(customParameters.providerParams).filter(([k]) => k !== 'top_p'))
-      const customBodyParams = selectCustomBodyParameters(providerParams, providerOptions, provider.id)
+      bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        providerParams,
+        customParameters.providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
-      if (Object.keys(customBodyParams).length > 0) {
-        sdkConfig.providerSettings.fetch = createCustomParamsFetch(
-          sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-          customBodyParams
-        )
-      }
     }
   }
 
@@ -632,31 +618,26 @@ function buildAgentOptions(
       request.serviceTier ?? assistant?.settings.service_tier
     )
     if (serviceTierControl.wire.delivery.type === 'request-body') {
-      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+      bodyParams = {
+        ...bodyParams,
         [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
           serviceTierControl,
           request.serviceTier ?? assistant?.settings.service_tier
         )
-      })
+      }
     }
   }
 
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
-  // Terminal gate: whatever path injected them, strip rejected sampling keys at the final
-  // surfaces — covers assistant settings, flat/namespaced custom params, and overrides alike.
-  const sanitized = stripRejectedSamplingParams(overridden.standardParams, overridden.providerOptions, model)
-  standardParams = sanitized.standardParams
+  standardParams = overridden.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
-    sanitized.providerOptions,
+    overridden.providerOptions,
     request.fastMode === true
   )
-  // A namespace that ended up empty carries nothing; emitting it would ship a bare
-  // `providerOptions` for callers that opted into nothing.
-  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -671,6 +652,19 @@ function buildAgentOptions(
     standardParams = { ...standardParams }
     delete standardParams.maxOutputTokens
   }
+
+  const sanitized = stripRejectedSamplingParams(
+    { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
+    model
+  )
+  // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
+  if (Object.keys(sanitized.bodyParams).length > 0) {
+    sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      sanitized.bodyParams
+    )
+  }
+  const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
 
   const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
   // A provider that keys on the conversation declared the header; the caller's own headers win.
@@ -687,9 +681,9 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(hasProviderOptions && { providerOptions: effectiveProviderOptions }),
+    ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
-    ...standardParams,
+    ...sanitized.standardParams,
     context: requestContext,
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
@@ -719,11 +713,8 @@ function resolveEffectiveThinkingBudget(
 /**
  * Merge per-request `callOverrides` (highest precedence) onto base sampling params +
  * providerOptions. Sampling passes through `filterStandardParams` for model-capability
- * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); temperature/topP additionally
- * respect the fixed-sampling family gates (Gemini 3.x / Claude 4.7, mirroring the
- * assistant path's getTemperature/getTopP) and the model's `parameterSupport`;
- * providerOptions merge per-provider so other providers' keys aren't clobbered.
- * Exported for unit testing.
+ * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); providerOptions merge
+ * per-provider so other providers' keys aren't clobbered. Exported for unit testing.
  */
 export function applyCallOverrides(
   base: { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions },
@@ -733,14 +724,9 @@ export function applyCallOverrides(
   if (!callOverrides) return base
 
   const sampling: Partial<Record<string, unknown>> = {}
-  // Caller-supplied sampling honors the same accept-gates as the assistant path.
-  if (callOverrides.temperature !== undefined && modelAcceptsSamplingParam(model, 'temperature')) {
-    sampling.temperature = callOverrides.temperature
-  }
+  if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
-  if (callOverrides.topP !== undefined && modelAcceptsSamplingParam(model, 'topP')) {
-    sampling.topP = callOverrides.topP
-  }
+  if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
   const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }

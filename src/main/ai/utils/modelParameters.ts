@@ -4,6 +4,8 @@
  * that keeps its own (translate).
  */
 
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { SamplingSettings } from '@main/ai/types'
@@ -27,51 +29,41 @@ const logger = loggerService.withContext('modelParameters')
 /** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
 export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
 
-/**
- * Whether the model accepts this sampling parameter on the wire at all — false means any
- * explicit value (from assistant settings, custom parameters, or gateway overrides) gets a
- * provider-side 400: the fixed-sampling families (Gemini 3.x / Claude 4.7) and registry
- * `parameterSupport: supported: false` declarations both lock sampling server-side.
- */
-export function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
+/** Registry support plus the existing family policies for omitting explicit sampling. */
+function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
   if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
   return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
 }
 
-/**
- * Terminal sampling sanitize — the single choke point at the request's final surfaces.
- * Whatever injected the values (assistant settings, custom parameters flat or namespaced,
- * gateway overrides), strip the sampling keys the model rejects from the standard params
- * and every providerOptions namespace before they reach the wire.
- */
-export function stripRejectedSamplingParams(
-  standardParams: Record<string, any>,
-  providerOptions: Record<string, Record<string, any>>,
-  model: Model
-): { standardParams: Record<string, any>; providerOptions: Record<string, Record<string, any>> } {
+type SamplingParams = {
+  standardParams: Record<string, unknown>
+  providerOptions: ProviderOptions
+  bodyParams: Record<string, unknown>
+}
+
+/** Omit rejected sampling from all merged parameters before SDK serialization or body passthrough. */
+export function stripRejectedSamplingParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-  if (acceptsTemperature && acceptsTopP) return { standardParams, providerOptions }
+  if (acceptsTemperature && acceptsTopP) return params
 
-  const nextStandard = { ...standardParams }
-  if (!acceptsTemperature && 'temperature' in nextStandard) delete nextStandard.temperature
-  if (!acceptsTopP && 'topP' in nextStandard) delete nextStandard.topP
-
-  let nextOptions = providerOptions
-  for (const [namespace, options] of Object.entries(providerOptions)) {
-    if (!options) continue
-    const carriesRejected =
-      (!acceptsTemperature && 'temperature' in options) || (!acceptsTopP && ('top_p' in options || 'topP' in options))
-    if (!carriesRejected) continue
-    const cleaned = { ...options }
+  function strip<T>(values: Record<string, T>): Record<string, T> {
+    const cleaned = { ...values }
     if (!acceptsTemperature) delete cleaned.temperature
     if (!acceptsTopP) {
-      delete cleaned.top_p
       delete cleaned.topP
+      delete cleaned.top_p
     }
-    nextOptions = { ...nextOptions, [namespace]: cleaned }
+    return cleaned
   }
-  return { standardParams: nextStandard, providerOptions: nextOptions }
+
+  return {
+    standardParams: strip(params.standardParams),
+    providerOptions: Object.fromEntries(
+      Object.entries(params.providerOptions).map(([namespace, options]) => [namespace, strip(options)])
+    ),
+    bodyParams: strip(params.bodyParams)
+  }
 }
 
 /** `undefined` falls back to the provider default. */
