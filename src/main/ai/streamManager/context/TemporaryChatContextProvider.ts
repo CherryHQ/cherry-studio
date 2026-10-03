@@ -134,7 +134,10 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
       serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
-      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
+      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {}),
+      // Assistant-less scratch chats (e.g. Quick Assist with no configured
+      // assistant) opt into globally active MCP tools — see `fallbackGlobalMcpTools`.
+      ...(assistantId ? {} : { fallbackGlobalMcpTools: true })
     }
 
     return {

@@ -78,6 +78,15 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /**
+   * Opt-in: when the request has no explicit `mcpToolIds` and no assistant to
+   * derive them from, fall back to every globally active MCP server's tools.
+   * Stamped by assistant-less chat surfaces (Quick Assist, selection toolbar,
+   * HomePage) whose scratch topics flow through `TemporaryChatContextProvider`
+   * — never by prompt-only callers like the API gateway, which bring their own
+   * tool definitions via `callOverrides` and must not inherit MCP tools.
+   */
+  fallbackGlobalMcpTools?: boolean
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
