@@ -15,8 +15,8 @@
 import { execFileSync, spawn } from 'node:child_process'
 import type { SpawnOptions } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
-import { mkdir, open, readdir, readFile, writeFile } from 'node:fs/promises'
+import { renameSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -428,16 +428,36 @@ async function finalizeDetachedBackgroundTask(
   })
 }
 
+function recordPath(storageDir: string, taskId: string): string {
+  return path.join(storageDir, `${taskId}${BACKGROUND_TASK_RECORD_EXT}`)
+}
+
+/**
+ * Written to a sibling and renamed, never truncated in place: a rewrite that is interrupted leaves
+ * the previous record readable, so a live task cannot become undiscoverable while it still runs.
+ */
 function writeRecordSync(storageDir: string, record: BackgroundTaskRecord): void {
-  writeFileSync(path.join(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`), JSON.stringify(record, null, 2), {
-    mode: 0o600
-  })
+  const target = recordPath(storageDir, record.id)
+  const staging = `${target}.${process.pid}.tmp`
+  try {
+    writeFileSync(staging, JSON.stringify(record, null, 2), { mode: 0o600 })
+    renameSync(staging, target)
+  } catch (error) {
+    rmSync(staging, { force: true })
+    throw error
+  }
 }
 
 async function writeRecord(storageDir: string, record: BackgroundTaskRecord): Promise<void> {
-  await writeFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`), JSON.stringify(record, null, 2), {
-    mode: 0o600
-  })
+  const target = recordPath(storageDir, record.id)
+  const staging = `${target}.${process.pid}.tmp`
+  try {
+    await writeFile(staging, JSON.stringify(record, null, 2), { mode: 0o600 })
+    await rename(staging, target)
+  } catch (error) {
+    await rm(staging, { force: true })
+    throw error
+  }
 }
 
 async function readRecord(storageDir: string, entry: string): Promise<BackgroundTaskRecord | undefined> {
