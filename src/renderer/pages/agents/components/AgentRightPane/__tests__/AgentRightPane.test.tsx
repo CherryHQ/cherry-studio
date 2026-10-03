@@ -481,6 +481,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: stableT })
 }))
 
+import { useAgentLaunchIndex } from '@renderer/components/chat/messages/tools/agent'
+
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
@@ -530,6 +532,11 @@ function TestAgentRightPane({
       {children}
     </AgentRightPane.Scope>
   )
+}
+
+function LaunchIndexProbe() {
+  const index = useAgentLaunchIndex()
+  return <div data-testid="launch-index-roots">{[...(index?.dshTaskRootCallIds ?? [])].join(',')}</div>
 }
 
 function OpenFlowButton({
@@ -2190,6 +2197,39 @@ describe('AgentRightPane', () => {
 
     expect(loadOlder).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // The pane's own index feeds the rows inside its flow panel, so it has to see the same live edges
+  // the message list does — otherwise a receipt there still falls back to the launch root.
+  it('publishes live task edges through the pane launch index', () => {
+    const eventsKey = AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a')
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{ m1: [receipt] }}>
+        <LaunchIndexProbe />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByTestId('launch-index-roots').textContent).toBe('call-send')
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {})
   })
 
   // The resume edge can exist only in the runtime's live task-event cache, and the click must still
