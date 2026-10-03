@@ -11,15 +11,76 @@
 !include x64.nsh
 !include FileFunc.nsh
 
+; Microsoft requires a redist at least as new as the MSVC toolset used to build the app.
+; Windows rebuilds native modules from source without a pinned MSVC toolset; these values must track the actual build toolset.
+!define VC_RUNTIME_MIN_MAJOR 14
+!define VC_RUNTIME_MIN_MINOR 40
+!define /math VC_RUNTIME_MIN_MAJOR_BITS ${VC_RUNTIME_MIN_MAJOR} << 16
+!define /math VC_RUNTIME_MIN_VERSION ${VC_RUNTIME_MIN_MAJOR_BITS} | ${VC_RUNTIME_MIN_MINOR}
+
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
+  !macro checkVCRedistRegistryView
+    ClearErrors
+    ReadRegDWORD $3 HKLM "$2" "Major"
+    ${IfNot} ${Errors}
+      ClearErrors
+      ReadRegDWORD $4 HKLM "$2" "Minor"
+      ${IfNot} ${Errors}
+        IntOp $3 $3 << 16
+        IntOp $3 $3 | $4
+        ${If} $3 >= ${VC_RUNTIME_MIN_VERSION}
+          StrCpy $0 "1"
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  !macroend
+
   ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
+    Push $2
+    Push $3
+    Push $4
+    StrCpy $0 "0"
     ${If} $1 == "arm64"
-      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64" "Installed"
+      StrCpy $2 "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64"
     ${Else}
-      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+      StrCpy $2 "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
     ${EndIf}
+
+    ${If} ${RunningX64}
+    ${OrIf} ${IsNativeARM64}
+      SetRegView 64
+      !insertmacro checkVCRedistRegistryView
+      ${If} $0 == "1"
+        Goto vcRedistRestoreView
+      ${EndIf}
+    ${EndIf}
+
+    SetRegView 32
+    !insertmacro checkVCRedistRegistryView
+    ${If} $0 == "1"
+      Goto vcRedistRestoreView
+    ${EndIf}
+
+  vcRedistRestoreView:
+    ; Match electron-builder's registry view before later installer code runs.
+    SetRegView 32
+    !ifdef APP_ARM64
+      ${If} ${RunningX64}
+      ${OrIf} ${IsNativeARM64}
+        SetRegView 64
+      ${EndIf}
+    !else
+      !ifdef APP_64
+        ${If} ${RunningX64}
+          SetRegView 64
+        ${EndIf}
+      !endif
+    !endif
+    Pop $4
+    Pop $3
+    Pop $2
   FunctionEnd
 
   Function checkArchitectureCompatibility
@@ -123,7 +184,6 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    ; VC++ is required - install automatically since declining would abort anyway
     ; Select download URL based on system architecture (stored in $1)
     ${If} $1 == "arm64"
       StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
@@ -141,27 +201,37 @@
         Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
         Error: $0$\r$\n$\r$\n\
         Would you like to open the download page in your browser?$\r$\n\
-        $2" IDYES openDownloadUrl IDNO skipDownloadUrl
+        $2" /SD IDNO IDYES openDownloadUrl IDNO skipDownloadUrl
       openDownloadUrl:
         ExecShell "open" $2
       skipDownloadUrl:
       Abort
-    ${EndIf}
+    ${Else}
+      StrCpy $4 "0"
+      ClearErrors
+      ExecWait "$3 /install /quiet /norestart" $4
+      ${If} ${Errors}
+        StrCpy $4 "0"
+      ${EndIf}
+      ; The exit code only identifies another installed version; success still needs the runtime recheck.
+      ; 0x80070666 can appear as signed -2147023258 or unsigned 2147944038.
 
-    ExecWait "$3 /install /quiet /norestart"
-    ; Note: vc_redist exit code is unreliable, verify via registry check instead
-
-    Call checkVCRedist
-    ${If} $0 != "1"
-      MessageBox MB_ICONSTOP|MB_YESNO "\
-        Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
-        Would you like to open the download page in your browser?$\r$\n\
-        $2$\r$\n$\r$\n\
-        The installation of ${PRODUCT_NAME} cannot continue." IDYES openInstallUrl IDNO skipInstallUrl
-      openInstallUrl:
-        ExecShell "open" $2
-      skipInstallUrl:
-      Abort
+      Call checkVCRedist
+      ${If} $0 != "1"
+        ${If} $4 != "1638"
+        ${AndIf} $4 != "-2147023258"
+        ${AndIf} $4 != "2147944038"
+          MessageBox MB_ICONSTOP|MB_YESNO "\
+            Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
+            Would you like to open the download page in your browser?$\r$\n\
+            $2$\r$\n$\r$\n\
+            The installation of ${PRODUCT_NAME} cannot continue." /SD IDNO IDYES openInstallUrl IDNO skipInstallUrl
+          openInstallUrl:
+            ExecShell "open" $2
+          skipInstallUrl:
+          Abort
+        ${EndIf}
+      ${EndIf}
     ${EndIf}
   ${EndIf}
     Pop $4
