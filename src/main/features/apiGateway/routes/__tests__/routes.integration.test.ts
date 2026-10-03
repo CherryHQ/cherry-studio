@@ -11,22 +11,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockGetModels, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } = vi.hoisted(() => ({
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
-  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
-  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
-    async () =>
-      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
-  )
-}))
+const { mockGetModels, mockIsInternalAgentRequest, mockIsInternalRequestToken, mockPreferenceGet, mockProcessMessage } =
+  vi.hoisted(() => ({
+    mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+    mockIsInternalAgentRequest: vi.fn(() => false),
+    mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token'),
+    mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+    mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
+    )
+  }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+    ApiGatewayService: {
+      isInternalAgentRequest: mockIsInternalAgentRequest,
+      isInternalRequestToken: mockIsInternalRequestToken
+    }
   }
   return mockApplicationFactory(overrides)
 })

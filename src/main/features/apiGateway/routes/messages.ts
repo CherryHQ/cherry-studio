@@ -49,8 +49,15 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/count_tokens',
     async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
+      // Same internal-agent contract as generation: agent-only models resolve here exactly
+      // when they would resolve for generation.
+      const allowAgentOnly = application.get('ApiGatewayService').isInternalAgentRequest(request.headers)
       return {
-        input_tokens: await estimateAnthropicRequestTokens(body as unknown as MessageCreateParams, request.signal)
+        input_tokens: await estimateAnthropicRequestTokens(
+          body as unknown as MessageCreateParams,
+          request.signal,
+          allowAgentOnly
+        )
       }
     },
     {
