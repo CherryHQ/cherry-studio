@@ -378,8 +378,12 @@ export function splitMarkdownChunks(
       definitions.push(line)
       continue
     }
-    if (FOOTNOTE_DEFINITION_START.test(line)) {
-      definitions.push(line)
+    // A definition behind a quote or list item is carried without that container, which belongs to
+    // the chunk it was written in: carrying it would render an empty quote or list in every other.
+    const container = DEFINITION_CONTAINER.exec(line)
+    const uncontained = container ? line.slice(container[0].length) : line
+    if (FOOTNOTE_DEFINITION_START.test(uncontained)) {
+      definitions.push(uncontained)
       inDefinition = true
       footnoteDefinition = true
       continue

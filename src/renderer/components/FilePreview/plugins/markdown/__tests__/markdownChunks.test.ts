@@ -294,6 +294,33 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a footnote definition out of the block quote that holds it, without the quote', () => {
+    // The parser registers a definition written in a quote for the whole document, so a reference in
+    // another chunk needs it too — but the quote is a block of the chunk it was written in, and
+    // carrying it would render an empty one.
+    const content = ['> [^1]: the note', '', 'para one', '', 'see the note[^1]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^1]: the note')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('> [^1]'))).toHaveLength(1)
+  })
+
+  it('carries a footnote definition out of the list item that holds it, without the marker', () => {
+    const content = ['- [^1]: the note', '', 'para one', '', 'see the note[^1]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^1]: the note')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('- [^1]'))).toHaveLength(1)
+  })
+
   it('carries a definition with an indented continuation line', () => {
     const content = ['[^1]: first line', '    second line', '', 'see [^1]'].join('\n')
 
