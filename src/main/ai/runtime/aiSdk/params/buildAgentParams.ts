@@ -48,7 +48,7 @@ import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiChatRequest, CallOverrides } from '../../../types'
+import type { AiChatRequest, CallOverrides, ModelUsageFeature } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -98,6 +98,7 @@ export interface BuildAgentParamsInput {
   provider: Provider
   model: Model
   assistant?: Assistant
+  modelUsageFeature?: ModelUsageFeature
   /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
   extraFeatures?: readonly RequestFeature[]
   /** Late-bound request usage middleware for nested tool-repair calls. */
@@ -122,14 +123,24 @@ export interface BuiltAgentParams {
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
-  const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
+  const {
+    request,
+    signal,
+    provider,
+    model,
+    assistant,
+    modelUsageFeature = 'chat',
+    extraFeatures,
+    compactionSink
+  } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    modelUsageFeature
   )
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: request.conversation.topicId,
