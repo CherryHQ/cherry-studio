@@ -36,6 +36,7 @@ import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persisted
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { resolveInvokedToolName } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
@@ -114,6 +115,8 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,
       storage: resolveTruncateStorage(scope),
+      // Deferred tools run through `tool_invoke`: key their policy by the tool it ran.
+      resolveToolName: resolveInvokedToolName,
       // Lane rules per entry: `truncatable: false` → bare-string preserve
       // (unconditional — fs_read's loop protection, even if a codec exists);
       // codec-bearing entries → entity-level trimming via the codec closure;

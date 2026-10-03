@@ -190,6 +190,24 @@ describe('buildContextOptions → createMiddleware', () => {
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
   })
 
+  it('keeps that exemption when the tool is dispatched through tool_invoke', async () => {
+    const scope = makeScope({ entries: [{ name: 'kb__search', truncatable: false }] })
+    const prompt = makePrompt('tool_invoke', BIG).map((m) =>
+      m.role === 'assistant'
+        ? {
+            ...m,
+            content: m.content.map((p) =>
+              p.type === 'tool-call' && p.toolCallId === 'c1'
+                ? { ...p, input: { name: 'kb__search', params: { q: 'x' } } }
+                : p
+            )
+          }
+        : m
+    ) as LanguageModelV3Prompt
+    const out = await runTransform(prompt, scope)
+    expect(toolOutput(out).value).toBe('x'.repeat(BIG))
+  })
+
   it('round-trips a user-ending prompt under the threshold losslessly, including historical reasoning', async () => {
     // Deep equality over the WHOLE prompt: system string content, tool-call
     // input, historical reasoning, part-level and message-level providerOptions,
