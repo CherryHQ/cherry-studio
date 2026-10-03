@@ -1,16 +1,17 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCatalogViewProps } from '@renderer/components/resourceCatalog/catalog/ResourceCatalogView'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { SkillsSettings } from '../SkillsSettings'
 
-const { launchSkillMock, navigateMock, resourceCatalogViewMock } = vi.hoisted(() => ({
+const { launchSkillMock, navigateMock, resourceCatalogViewMock, routerState } = vi.hoisted(() => ({
   launchSkillMock: vi.fn(),
   navigateMock: vi.fn(),
-  resourceCatalogViewMock: vi.fn()
+  resourceCatalogViewMock: vi.fn(),
+  routerState: { search: {} as Record<string, unknown> }
 }))
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
@@ -44,29 +45,72 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+  useNavigate: () => navigateMock,
+  useSearch: () => routerState.search
 }))
 
 describe('SkillsSettings', () => {
-  it('filters the supplied catalog by physical scope rather than import provenance', async () => {
+  beforeEach(() => {
+    routerState.search = {}
+    navigateMock.mockImplementation(
+      (options: {
+        search?: Record<string, unknown> | ((previous: Record<string, unknown>) => Record<string, unknown>)
+      }) => {
+        if (typeof options.search === 'function') routerState.search = options.search(routerState.search)
+        else if (options.search) routerState.search = options.search
+      }
+    )
+  })
+
+  it('filters the supplied catalog by physical scope and round-trips the tab through the route search', async () => {
     const user = userEvent.setup()
-    render(<SkillsSettings />)
+    const view = render(<SkillsSettings />)
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['全部', '系统', '内置'])
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
 
     await user.click(screen.getByRole('tab', { name: '系统' }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: 'system' } })
+    view.rerender(<SkillsSettings />)
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'System import',
+      'Local system import',
+      'Online import'
+    ])
+    expect(screen.getByRole('tab', { name: '系统' })).toHaveAttribute('aria-selected', 'true')
+
+    await user.click(screen.getByRole('tab', { name: '内置' }))
+    expect(navigateMock).toHaveBeenLastCalledWith({ to: '/settings/skills', search: { scope: 'builtin' } })
+    view.rerender(<SkillsSettings />)
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Builtin skill'])
+
+    await user.click(screen.getByRole('tab', { name: '全部' }))
+    expect(navigateMock).toHaveBeenLastCalledWith({ to: '/settings/skills', search: { scope: 'all' } })
+    view.rerender(<SkillsSettings />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+  })
+
+  it('restores the active tab from the route search and carries it into the detail route', () => {
+    routerState.search = { scope: 'system' }
+    render(<SkillsSettings />)
+
+    expect(screen.getByRole('tab', { name: '系统' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       'System import',
       'Local system import',
       'Online import'
     ])
 
-    await user.click(screen.getByRole('tab', { name: '内置' }))
-    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Builtin skill'])
+    const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
+    expect(props.onLaunchSkill).toBe(launchSkillMock)
+    expect(props.allowColumnToggle).toBe(true)
 
-    await user.click(screen.getByRole('tab', { name: '全部' }))
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/settings/skills/$skillId',
+      params: { skillId: 'skill-1' },
+      search: { scope: 'system' }
+    })
   })
 
   it('opens the dedicated Skill route and exposes the shared launch action', () => {
@@ -79,7 +123,8 @@ describe('SkillsSettings', () => {
     props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/settings/skills/$skillId',
-      params: { skillId: 'skill-1' }
+      params: { skillId: 'skill-1' },
+      search: { scope: 'all' }
     })
   })
 })
