@@ -440,12 +440,14 @@ describe('buildMcpServers', () => {
 })
 
 describe('prepareClaudeCodeWorkspaceDirectory', () => {
+  const managedRoot = path.resolve('/tmp/managed-workspaces')
+
   beforeEach(() => {
     mockGetPathStatus.mockReset()
     mockMkdir.mockReset()
     mockRealpath.mockReset()
     mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
-    mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+    mockGetPath.mockReturnValue(managedRoot)
     mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
       const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
       const relative = path.relative(resolvedRoot, resolvedTarget)
@@ -467,7 +469,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('creates a missing system workspace before asserting it', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-workspace'
+    const workspacePath = path.join(managedRoot, 'sess-workspace')
     mockGetPathStatus.mockResolvedValueOnce({ ok: true, kind: 'directory' })
     mockMkdir.mockResolvedValueOnce(undefined)
 
@@ -486,10 +488,10 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('rejects system workspace symlinks that resolve outside the managed root', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-link'
+    const workspacePath = path.join(managedRoot, 'sess-link')
     mockRealpath.mockImplementation(async (targetPath: string) => {
-      if (targetPath === '/tmp/managed-workspaces') return '/tmp/managed-workspaces'
-      if (targetPath === workspacePath) return '/tmp/outside-workspace'
+      if (targetPath === managedRoot) return managedRoot
+      if (targetPath === workspacePath) return path.resolve('/tmp/outside-workspace')
       return targetPath
     })
 

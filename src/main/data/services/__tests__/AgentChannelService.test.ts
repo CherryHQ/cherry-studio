@@ -63,6 +63,7 @@ describe('AgentChannelService', () => {
       expect(channel.isActive).toBe(true)
       expect(channel.config).toMatchObject({ bot_token: 'test-token-123' })
       expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/agent-workspaces', kind: 'membership' },
         { endpoint: '/agent-channels', kind: 'membership', entityIds: [channel.id] },
         {
           endpoint: '/agent-channels/:channelId',

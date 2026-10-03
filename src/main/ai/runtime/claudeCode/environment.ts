@@ -11,6 +11,12 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import {
+  type Environment,
+  hasStaleCherryProxyMarkers,
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
+} from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
@@ -20,13 +26,6 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
-
-import {
-  type Environment,
-  hasStaleCherryProxyMarkers,
-  mergeAgentLoopbackProxyBypass,
-  stripInheritedCherryProxyMarkers
-} from './agentProxyEnvironment'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 

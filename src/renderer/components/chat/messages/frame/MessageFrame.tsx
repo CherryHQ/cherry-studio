@@ -12,7 +12,7 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
-import ImageBlock from '../blocks/ImageBlock'
+import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -38,7 +38,7 @@ import MessageMenuBar from './MessageMenuBar'
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS = 'flex items-center gap-2'
 
 const MESSAGE_TIMESTAMP_CLASS =
-  'shrink-0 opacity-0 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100'
+  'shrink-0 opacity-0 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -96,7 +96,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =
-    canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating))
+    actions.canEditMessage?.(message) ??
+    (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
   const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
@@ -120,6 +121,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
+  const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
+  const assistantFooterVisibilityClass = keepAssistantFooterVisible
+    ? 'opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -233,7 +238,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           variant="header"
         />
@@ -255,11 +260,14 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
+          onMenuOpenChange={setIsMessageMenuOpen}
           onSelectContext={onSelectContext}
         />
       </HorizontalScrollContainer>
-      <SiblingNavigator messageId={message.id} />
+      <div className={assistantFooterVisibilityClass}>
+        <SiblingNavigator messageId={message.id} />
+      </div>
     </div>
   ) : undefined
 
@@ -285,7 +293,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           isGrouped={isGrouped}
           isProcessing={isProcessing}
           messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={handleStartEditing}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
           onSelectContext={onSelectContext}
           messageFont={messageFont}
           fontSize={fontSize}
@@ -364,7 +372,7 @@ const UserBubbleMessage = ({
           {(attachments.images.length > 0 || attachments.files.length > 0) && (
             <div className="flex max-w-full flex-col items-end">
               {attachments.images.length > 0 && (
-                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
+                <MessageImageBlock sources={attachments.images} thumbnail className="mb-2 justify-end" />
               )}
               {attachments.files.map((file) => (
                 <MessageAttachments

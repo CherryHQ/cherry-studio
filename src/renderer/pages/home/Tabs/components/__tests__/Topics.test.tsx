@@ -1614,7 +1614,7 @@ describe('Topics', () => {
     })
   })
 
-  it('groups topic context menu actions and exposes one destructive Delete action', () => {
+  it('offers Archive instead of permanent deletion in the topic context menu', () => {
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1624,28 +1624,10 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Edit Assistant')
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate conversation name',
-      'Edit conversation name',
-      'Pin Conversation',
-      'Add to sidebar',
-      expect.stringMatching(/^Move to/),
-      'Open in New Window',
-      'Conversation positionLeftRight',
-      'Clear messages',
-      '',
-      'Save to notes',
-      'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
-      'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
-      '',
-      'Archive',
-      'Delete Permanently'
-    ])
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute(
-      'variant',
-      'destructive'
-    )
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeEnabled()
+    expect(
+      within(menuContent as HTMLElement).queryByRole('button', { name: 'Delete Permanently' })
+    ).not.toBeInTheDocument()
   })
 
   it('adds a topic shortcut without changing its conversation pin', async () => {
@@ -1890,7 +1872,8 @@ describe('Topics', () => {
   })
 
   it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    vi.useRealTimers()
+    const user = userEvent.setup()
     const pendingUpdate = createDeferred<void>()
     topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
     const { getByText } = renderTopicList()
@@ -1903,12 +1886,10 @@ describe('Topics', () => {
     })
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
-    await act(async () => {
-      await user.clear(input)
-    })
-    await act(async () => {
-      await user.type(input, 'Renamed topic')
-    })
+    await vi.waitFor(() => expect(input).toHaveValue('Alpha topic'))
+    await user.clear(input)
+    expect(input).toHaveValue('')
+    await user.type(input, 'Renamed topic')
     expect(input).toHaveValue('Renamed topic')
     await act(async () => {
       await user.keyboard('{Enter}')
@@ -3712,6 +3693,7 @@ describe('Topics', () => {
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
+    expect(screen.queryByRole('button', { name: 'Delete Permanently' })).not.toBeInTheDocument()
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Archive'
     })

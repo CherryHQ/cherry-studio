@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
 
+describe('classifyErrorCategory HTTP 400', () => {
+  it('identifies a provider request failure without guessing its cause', () => {
+    expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
+  })
+
+  it.each([
+    ['insufficient balance', 'quota'],
+    ['content_filter triggered', 'content'],
+    ['prompt is too long', 'context_length']
+  ] as const)('preserves the specific diagnosis for %s', (text, category) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+})
+
 // Transport failures from #19926 must reach a recovery category (network /
 // stream / proxy) instead of falling through to 'unknown', which hides the
 // settings recovery action and triggers a needless AI diagnosis call.
@@ -54,6 +68,23 @@ describe('classifyErrorCategory transport failures', () => {
 
   it('keeps proxy failures out of the network branch', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_PROXY_CONNECTION_FAILED' })).toBe('proxy')
+  })
+
+  // Provider requests go through Electron net.fetch, which wraps a rejected certificate in
+  // `Cannot connect to API: net::ERR_CERT_*` — the cert code, not a `certificate` word, is
+  // the only signal, and it must beat the generic network branch that matches the wrapper.
+  it('maps Chromium certificate failures to proxy', () => {
+    expect(classifyErrorCategory({ text: 'Cannot connect to API: net::ERR_CERT_AUTHORITY_INVALID' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'net::ERR_CERT_COMMON_NAME_INVALID' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'net::ERR_CERT_DATE_INVALID' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'net::ERR_CERT_REVOKED' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'net::ERR_SSL_PROTOCOL_ERROR' })).toBe('proxy')
+  })
+
+  it('maps Node OpenSSL certificate failures to proxy', () => {
+    expect(classifyErrorCategory({ text: 'SELF_SIGNED_CERT_IN_CHAIN' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'unable to verify the first certificate' })).toBe('proxy')
+    expect(classifyErrorCategory({ text: 'certificate has expired' })).toBe('proxy')
   })
 
   it('leaves unrelated failures unclassified', () => {
