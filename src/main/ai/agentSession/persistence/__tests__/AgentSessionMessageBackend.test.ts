@@ -53,6 +53,24 @@ describe('AgentSessionMessageBackend', () => {
     expect(afterPersist).not.toHaveBeenCalled()
   })
 
+  it('runs the success hook for a reply that has a visible part', async () => {
+    // The negative case above also holds when `persistedSuccess` never gets set at all, so only
+    // this direction proves the assignment actually runs.
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: 'done' }]
+      } as never
+    })
+
+    expect(afterPersist).toHaveBeenCalledWith(expect.objectContaining({ id: assistantMessageId }))
+  })
+
   it('keeps an empty paused turn paused and persists a visible resume hint', async () => {
     const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
