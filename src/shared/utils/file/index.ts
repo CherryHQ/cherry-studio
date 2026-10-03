@@ -6,6 +6,7 @@ export {
   customTextExts,
   documentExts,
   imageExts,
+  isKnowledgeSupportedFileName,
   knowledgeFileProcessingExts,
   knowledgeSupportedFileExts,
   textExts,
