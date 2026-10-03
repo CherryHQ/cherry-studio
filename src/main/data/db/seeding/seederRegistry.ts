@@ -5,6 +5,7 @@ import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { KnowledgeBaseOrderSeeder } from './seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from './seeders/legacyFileCleanupPolicySeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
@@ -25,6 +26,7 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new KnowledgeBaseOrderSeeder(),
   new BrowserCapabilityUpgradeSeeder(),
   new LegacyFileCleanupPolicySeeder(),
   new CherryAiDefaultModelSeeder(),

@@ -217,6 +217,7 @@ const PROCESSING_NOTE_ITEM_ID = '0198f3f2-7d1e-7abc-8def-123456789abc'
 const EMBEDDING_NOTE_ITEM_ID = '0198f3f2-7d1f-7abc-8def-123456789abc'
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,

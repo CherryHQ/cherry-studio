@@ -23,6 +23,7 @@ import {
 } from '@shared/data/types/knowledge'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
+import { keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
@@ -52,6 +53,37 @@ type KnowledgeItemListCursor = {
   directoryRank: number
   createdAt: number
   id: string
+}
+
+type SortedKnowledgeItemCursor = {
+  sortBy: NonNullable<ListKnowledgeItemsQuery['sortBy']>
+  sortOrder: 'asc' | 'desc'
+  key: string | number
+  id: string
+}
+
+function decodeSortedKnowledgeItemCursor(
+  raw: string | undefined,
+  sortBy: SortedKnowledgeItemCursor['sortBy'],
+  sortOrder: SortedKnowledgeItemCursor['sortOrder']
+): SortedKnowledgeItemCursor | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as SortedKnowledgeItemCursor
+    if (
+      value.sortBy !== sortBy ||
+      value.sortOrder !== sortOrder ||
+      !value.id ||
+      typeof value.id !== 'string' ||
+      (sortBy === 'name' ? typeof value.key !== 'string' : typeof value.key !== 'number' || !Number.isFinite(value.key))
+    ) {
+      throw new Error('Invalid knowledge item sort cursor')
+    }
+    return value
+  } catch {
+    logger.warn('Knowledge item sort cursor is unparseable; falling back to the first page', { cursor: raw })
+    return null
+  }
 }
 
 type KnowledgeItemsByBaseOptions = {
@@ -84,7 +116,7 @@ function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   })
 }
 
-function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor): string {
+function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor | SortedKnowledgeItemCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString('base64url')
 }
 
@@ -115,7 +147,8 @@ export class KnowledgeItemService {
 
   list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
     knowledgeBaseService.getById(baseId)
-    const { limit, type, groupId } = query
+    const { limit, type, groupId, sortBy } = query
+    const sortOrder = query.sortOrder ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')
 
     const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
 
@@ -133,7 +166,18 @@ export class KnowledgeItemService {
     // pagination cannot surface a later-page directory after an earlier-page file.
     const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
     const conditions = [...filterConditions]
-    const cursor = decodeKnowledgeItemListCursor(query.cursor)
+    const sortColumn =
+      sortBy === 'name'
+        ? sql<string>`knowledge_item_name(${knowledgeItemTable.type}, ${knowledgeItemTable.data})`
+        : sortBy === 'type'
+          ? sql<number>`case ${knowledgeItemTable.type} when 'directory' then 0 when 'file' then 1 when 'note' then 2 else 3 end`
+          : sortBy === 'status'
+            ? sql<number>`case ${knowledgeItemTable.status} when 'idle' then 0 when 'preparing' then 1 when 'processing' then 2 when 'reading' then 3 when 'embedding' then 4 when 'completed' then 5 else 6 end`
+            : knowledgeItemTable.updatedAt
+    const ordering = keysetOrdering(sortColumn, knowledgeItemTable.id, { major: sortOrder, tie: 'asc' })
+    const sortedCursor = sortBy ? decodeSortedKnowledgeItemCursor(query.cursor, sortBy, sortOrder) : null
+    if (sortedCursor) conditions.push(ordering.where(sortedCursor))
+    const cursor = sortBy ? null : decodeKnowledgeItemListCursor(query.cursor)
     if (cursor) {
       conditions.push(
         or(
@@ -149,10 +193,14 @@ export class KnowledgeItemService {
     }
 
     const rows = this.db
-      .select()
+      .select({ item: knowledgeItemTable, sortValue: sortColumn })
       .from(knowledgeItemTable)
       .where(and(...conditions))
-      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
+      .orderBy(
+        ...(sortBy
+          ? ordering.orderBy
+          : [asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id)])
+      )
       .limit(limit + 1)
       .all()
     const [{ count }] = this.db
@@ -164,15 +212,22 @@ export class KnowledgeItemService {
     const pageRows = rows.slice(0, limit)
 
     return {
-      items: pageRows.map((row) => rowToKnowledgeItem(row)),
+      items: pageRows.map((row) => rowToKnowledgeItem(row.item)),
       total: count,
       nextCursor:
         rows.length > limit
-          ? encodeKnowledgeItemListCursor({
-              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
-              createdAt: pageRows[pageRows.length - 1].createdAt,
-              id: pageRows[pageRows.length - 1].id
-            })
+          ? sortBy
+            ? encodeKnowledgeItemListCursor({
+                sortBy,
+                sortOrder,
+                key: pageRows[pageRows.length - 1].sortValue,
+                id: pageRows[pageRows.length - 1].item.id
+              })
+            : encodeKnowledgeItemListCursor({
+                directoryRank: pageRows[pageRows.length - 1].item.type === 'directory' ? 0 : 1,
+                createdAt: pageRows[pageRows.length - 1].item.createdAt,
+                id: pageRows[pageRows.length - 1].item.id
+              })
           : undefined
     }
   }

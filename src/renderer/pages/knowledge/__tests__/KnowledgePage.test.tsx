@@ -590,6 +590,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   itemCount: 0,
