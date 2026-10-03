@@ -97,6 +97,46 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
   })
 
+  it('publishes installed status as soon as the snapshot arrives while latest lookup is pending', async () => {
+    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
+    let releaseLatest!: (versions: Record<string, string>) => void
+    ipcMocks.latestVersions
+      .mockResolvedValueOnce({})
+      .mockImplementationOnce(() => new Promise((resolve) => (releaseLatest = resolve)))
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      installed: true,
+      source: 'mise',
+      current: '1.0.0',
+      canUpgrade: false
+    })
+    expect(result.current.resolved).toBe(true)
+    expect(result.current.versionsResolved).toBe(false)
+
+    await act(async () => releaseLatest({ claude: '1.1.0' }))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    expect(result.current.versionsResolved).toBe(true)
+  })
+
+  it('keeps an installed tool when latest lookup fails permanently', async () => {
+    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('403 Forbidden'))
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+
+    await waitFor(() => expect(result.current.versionsResolved).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      installed: true,
+      source: 'mise',
+      current: '1.0.0',
+      canUpgrade: false
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.latest).toBeUndefined()
+  })
+
   it('treats a system PATH tool as installed without managed upgrades', async () => {
     setSnapshots({ claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } } })
 

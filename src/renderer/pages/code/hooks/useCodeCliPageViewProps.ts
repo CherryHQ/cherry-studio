@@ -177,7 +177,7 @@ export function useCodeCliPageViewProps(
     apiGatewayProvider: apiGatewayBundle
   })
 
-  const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const { statuses, resolved: statusesResolved, versionsResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
   const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const isCliSidebarPinned = useCallback(
     (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
@@ -350,6 +350,8 @@ export function useCodeCliPageViewProps(
           versionStatus,
           versionCard: {
             visible: true,
+            statusPending: !statusesResolved,
+            updatesPending: !versionsResolved,
             canLaunch,
             launching:
               launchDialog.launching ||
