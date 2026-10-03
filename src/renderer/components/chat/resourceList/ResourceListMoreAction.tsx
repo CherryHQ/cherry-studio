@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { executeResourceListAction } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
-import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 
 import { ResourceList } from './base'
 
@@ -19,24 +19,7 @@ export function ResourceListMoreAction<TContext>({ actions, onAction }: Resource
   const { t } = useTranslation()
 
   const runAction = useCallback(
-    async (action: ResolvedAction<TContext>) => {
-      if (!action.availability.enabled) return
-
-      const confirm = action.confirm
-      if (confirm) {
-        await ConfirmActionPopup.show({
-          title: confirm.title,
-          content: confirm.description ?? confirm.content,
-          okText: confirm.confirmText,
-          cancelText: confirm.cancelText,
-          danger: confirm.destructive,
-          action: () => onAction(action)
-        })
-        return
-      }
-
-      await onAction(action)
-    },
+    (action: ResolvedAction<TContext>) => executeResourceListAction(action, onAction),
     [onAction]
   )
 

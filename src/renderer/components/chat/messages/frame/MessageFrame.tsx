@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import React, { memo, useCallback, useEffect, useRef } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Scrollbar } from '@cherrystudio/ui'
@@ -90,6 +90,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const messageParts = useMessageParts(message.id)
+  const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
