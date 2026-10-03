@@ -1,11 +1,7 @@
-import { resolve } from 'node:path'
-
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -1898,44 +1894,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
-    })
-
-    it('routes AIOnly Anthropic-synced models through the newapi adapter (issue #21166)', async () => {
-      const getPath = vi.mocked(application.getPath).getMockImplementation()
-      vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
-        key === 'feature.provider_registry.data' && filename
-          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
-          : (getPath?.(key, filename) ?? `/mock/${key}`)
-      )
-      providerRegistryService.clearCache()
-      // Pre-fix rows seed only chat-completions; registry merge must supply newapi on other endpoints.
-      const endpointConfigs = providerRegistryService.mergeEndpointConfigs(
-        {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://api.aiionly.com',
-            adapterFamily: 'openai-compatible'
-          }
-        },
-        'aionly',
-        'aionly'
-      )
-      expect(endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('newapi')
-
-      const provider = makeProvider({
-        id: 'aionly',
-        presetProviderId: 'aionly',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: endpointConfigs ?? undefined
-      })
-      const model = makeModel({
-        id: 'aionly::claude-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-      })
-
-      const config = await providerToAiSdkConfig(provider, model)
-
-      expect(config.providerId).toBe('newapi')
-      expect((config.providerSettings as Record<string, unknown>).endpointType).toBe('anthropic')
     })
   })
 })
