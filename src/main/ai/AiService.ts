@@ -991,14 +991,29 @@ export class AiService extends BaseService {
     const dataUrls: Base64String[] = []
     let filteredCount = 0
     for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+      const payload = image?.base64
+      if (typeof payload === 'string' && payload) {
+        dataUrls.push(`data:${image?.mediaType || 'image/png'};base64,${payload}`)
         continue
       }
 
       filteredCount += 1
     }
 
+    if (dataUrls.length === 0) {
+      logger.warn('Image generation returned no images', {
+        uniqueModelId: request.uniqueModelId,
+        providerId: sdkConfig.providerId,
+        modelId: sdkConfig.modelId,
+        filteredCount
+      })
+      const emptyError = new Error(
+        `Image generation returned no images for ${sdkConfig.modelId}. The provider may have filtered the request; try a different prompt or try again.`
+      ) as Error & { providerId: string; modelId: string }
+      emptyError.providerId = sdkConfig.providerId
+      emptyError.modelId = sdkConfig.modelId
+      throw emptyError
+    }
     if (filteredCount > 0) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
