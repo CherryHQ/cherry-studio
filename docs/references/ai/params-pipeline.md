@@ -154,7 +154,9 @@ override them, and per-call overrides apply last.
 2. `assistant.customParameters.maxOutputTokens`
 3. the enabled assistant max-token setting
 4. `model.maxOutputTokens`, only for an `anthropic-messages` endpoint
-5. `undefined`
+5. the endpoint's required fallback when its dialect sets
+   `requiresMaxOutputTokens`
+6. `undefined`
 
 The resolved raw limit is also used to resolve the reasoning invocation;
 when it is undefined, `model.maxOutputTokens` remains a budget-sizing
@@ -163,10 +165,12 @@ fallback without being forced into `AgentOptions`. For an
 mode after per-call provider-option overrides. It subtracts an explicit additive
 budget exactly once before passing the non-thinking remainder to the SDK (with a
 minimum of one token). Adaptive or disabled thinking has no explicit budget and
-is not subtracted. An undefined raw limit remains omitted, so unknown
-Anthropic-compatible non-Claude models can defer to the endpoint instead of
-inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
-fallback because Anthropic requires `max_tokens`.
+is not subtracted. An undefined raw limit remains omitted unless the endpoint
+dialect requires `max_tokens`, in which case Cherry sends
+`DEFAULT_MAX_TOKENS` (8192). Unknown Anthropic-compatible non-Claude models on
+relaxed endpoints can still defer to the endpoint instead of inheriting an SDK
+fallback; unrecognized Claude aliases retain the SDK's Claude fallback because
+Anthropic requires `max_tokens`.
 
 Flat provider params also pass through a request-local fetch wrapper after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names

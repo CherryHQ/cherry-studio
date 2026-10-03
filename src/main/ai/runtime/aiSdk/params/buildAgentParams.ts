@@ -224,7 +224,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     customParameters.standardParams.maxOutputTokens,
     assistant,
     model,
-    endpointType
+    endpointType,
+    provider
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
   const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
