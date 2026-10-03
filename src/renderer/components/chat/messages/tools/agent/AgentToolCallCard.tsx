@@ -9,6 +9,7 @@ import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/age
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
+  getAgentToolInputIdentity,
   TO_MARKDOWN_RUNTIME_TOOL_NAME,
   type ToolInput,
   type ToolOutput
@@ -31,26 +32,9 @@ export function getAgentToolFlowTitle(
   toolName: string | undefined,
   input: ToolInput | Record<string, unknown> | undefined
 ) {
-  if (typeof input === 'string') return input.trim() || toolName
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
-
-  const inputEntries = Object.entries(input)
-  // `message` is the sent request itself — the only title a receipt-owned flow has to offer.
-  for (const key of ['description', 'subject', 'title', 'name', 'summary', 'message']) {
-    const value = inputEntries.find(([field]) => field === key)?.[1]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-
-  const prompt = inputEntries.find(([field]) => field === 'prompt')?.[1]
-  if (typeof prompt === 'string')
-    return (
-      prompt
-        .split(/\r?\n/)
-        .find((line) => line.trim())
-        ?.trim() || toolName
-    )
-
-  return toolName
+  // The identity grammar is shared with the continuation label, so a launch and its receipts
+  // cannot name the same agent differently; only the fallback is the card's own.
+  return getAgentToolInputIdentity(input) ?? toolName
 }
 
 export function AgentToolCallCard({

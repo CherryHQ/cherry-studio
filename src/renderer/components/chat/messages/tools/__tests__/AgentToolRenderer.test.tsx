@@ -45,9 +45,28 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('../agent/AgentLaunchIndexContext', async () => {
   const agentToolTypes = await import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
+  const { buildResumeToolHeader } = await import('../agent/agentResumeHeader')
+  const { getPartLaunchToolCallId } = await import('../toolParentMetadata')
+  const { useTranslation } = await import('react-i18next')
+  const index = () => agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   return {
-    useAgentLaunchIndex: () =>
-      agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
+    useAgentLaunchIndex: () => index(),
+    // The host seam, assembled from the same pieces the provider uses, so a resume receipt still
+    // heads its group through the real chain in these tests.
+    useAgentResumePresentation: () => {
+      const { t } = useTranslation()
+      return {
+        renderResumeHeader: (toolResponse: Record<string, unknown>, canNavigate: boolean) => {
+          const state = agentToolTypes.resolveResumeReceiptState(
+            toolResponse.response,
+            getPartLaunchToolCallId(toolResponse),
+            index(),
+            canNavigate
+          )
+          return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse as never, t)?.header
+        }
+      }
+    }
   }
 })
 
