@@ -36,12 +36,15 @@ const EMBEDDING_HASH_QUERY_BATCH = 500
 
 /**
  * How long {@link KnowledgeIndexStore.deleteMaterials} may run consecutive
- * per-material transactions before handing the main-process event loop back to
- * the OS message pump (see the method doc for why). Tuned well under the
+ * transactions before handing the main-process event loop back to the
+ * OS message pump (see the method doc for why). Tuned well under the
  * multi-second window that surfaces the macOS beachball, while large enough
  * that the yields add no measurable overhead to a small delete.
  */
 const DELETE_YIELD_BUDGET_MS = 50
+
+/** Bound each resumable delete transaction before returning to Electron's event loop. */
+const DELETE_BATCH_SIZE = 50
 
 /**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
@@ -218,62 +221,130 @@ export class KnowledgeIndexStore {
   }
 
   /**
-   * Delete many materials — each in its OWN short transaction — then sweep
-   * orphaned `embedding` / `content` rows with a SINGLE {@link collectIndexGarbage}
-   * pass in a final transaction.
-   *
-   * Removing each material row cascades to its `search_unit`; the units' body
-   * `search_text` is deleted explicitly first (no FK), which also clears the FTS
-   * index via the delete trigger.
-   *
-   * collectIndexGarbage runs two FULL-TABLE anti-join scans, so calling it once
-   * per material (an old per-material delete+GC loop) made a bulk delete
-   * O(materials × table): deleting a folder of N files scanned the whole
-   * `embedding`/`content` table N times. With a large index (e.g. a folder of
-   * PDFs chunked into tens of thousands of rows) that blocked the main-process
-   * event loop for seconds — the folder-delete UI freeze. Deleting the rows up
-   * front and GCing once makes it O(N + table).
-   *
-   * Batching the GC removes the super-linear cost, but the per-material row
-   * deletes are still linear in chunks: each `search_text` delete fires the FTS
-   * delete trigger, which the driver runs synchronously on the main process.
-   * Tens of thousands of rows still sum to a multi-second block, and because
-   * Electron drives the window from this same loop that block IS the macOS
-   * beachball (the renderer thread never stalls). A driver transaction must run
-   * fully synchronously (no event-loop yield inside `BEGIN`..`COMMIT` — see
-   * {@link SqliteDriver.transaction}), so each material gets its own transaction
-   * and the loop yields to the OS message pump BETWEEN them whenever it has run
-   * for {@link DELETE_YIELD_BUDGET_MS}: the total work is unchanged, but no single
-   * uninterrupted block is long enough to freeze the window.
-   *
-   * This is no longer one all-or-nothing batch — a failure partway leaves the
-   * materials deleted so far committed. That is safe: every caller (subtreePurge.ts)
-   * deletes vectors before the corresponding `knowledge_item` DB rows, so those rows
-   * still exist after a partial failure and a retry re-discovers exactly the
-   * materials still left (re-deleting an already-gone one is a harmless no-op).
+   * Delete materials and their derived rows, yielding between transactions. Each
+   * material is atomic by default so callers without durable recovery never expose
+   * a partial material. Callers whose owning rows are `deleting` may opt into bounded
+   * per-material batches because their delete job safely resumes partial progress.
    */
-  async deleteMaterials(materialIds: string[]): Promise<void> {
+  async deleteMaterials(
+    materialIds: string[],
+    options: { allowPartialMaterialProgress?: boolean } = {}
+  ): Promise<void> {
     const uniqueMaterialIds = [...new Set(materialIds)]
     if (uniqueMaterialIds.length === 0) {
       return
     }
-    // performance.now() is monotonic — a wall-clock step (NTP/manual) mid-batch
-    // must not make the delta negative and silently disable the yields for the
-    // rest of a large delete, reintroducing the freeze this loop prevents.
+
     let lastYieldAt = performance.now()
-    for (const materialId of uniqueMaterialIds) {
-      this.driver.transaction((tx) => {
-        this.deleteMaterialSearchText(tx, materialId)
-        tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
-      })
-      if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
-        await new Promise<void>((resolve) => setImmediate(resolve))
-        lastYieldAt = performance.now()
-      }
+    const yieldIfNeeded = async () => {
+      if (performance.now() - lastYieldAt < DELETE_YIELD_BUDGET_MS) return
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      lastYieldAt = performance.now()
     }
-    this.driver.transaction((tx) => {
-      this.collectIndexGarbage(tx)
+
+    for (const materialId of uniqueMaterialIds) {
+      if (options.allowPartialMaterialProgress) {
+        while (this.deleteMaterialUnitsBatch(materialId) === DELETE_BATCH_SIZE) {
+          await yieldIfNeeded()
+        }
+        this.driver.transaction((tx) => tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId]))
+      } else {
+        this.driver.transaction((tx) => {
+          this.deleteMaterialSearchText(tx, materialId)
+          tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+        })
+      }
+      await yieldIfNeeded()
+    }
+
+    await this.collectIndexGarbageInBatches(yieldIfNeeded)
+  }
+
+  private deleteMaterialUnitsBatch(materialId: string): number {
+    return this.driver.transaction((tx) => {
+      const unitIds = tx
+        .execute(
+          `SELECT unit_id FROM search_unit
+           WHERE material_id = ?
+           ORDER BY unit_id
+           LIMIT ?`,
+          [materialId, DELETE_BATCH_SIZE]
+        )
+        .rows.map((row) => row.unit_id as string)
+      if (unitIds.length === 0) {
+        return 0
+      }
+
+      const placeholders = unitIds.map(() => '?').join(', ')
+      tx.execute(
+        `DELETE FROM search_text
+         WHERE target_type = 'search_unit' AND target_id IN (${placeholders})`,
+        unitIds
+      )
+      tx.execute(`DELETE FROM search_unit WHERE unit_id IN (${placeholders})`, unitIds)
+      return unitIds.length
     })
+  }
+
+  private async collectIndexGarbageInBatches(yieldIfNeeded: () => Promise<void>): Promise<void> {
+    let embeddingCursor = ''
+    while (true) {
+      const page = this.driver.transaction((tx) => {
+        const rows = tx.execute(
+          `SELECT e.embedding_text_hash,
+                  EXISTS (
+                    SELECT 1 FROM search_text st
+                    WHERE st.embedding_text_hash = e.embedding_text_hash
+                  ) AS referenced
+           FROM embedding e
+           WHERE e.embedding_text_hash > ?
+           ORDER BY e.embedding_text_hash
+           LIMIT ?`,
+          [embeddingCursor, DELETE_BATCH_SIZE]
+        ).rows
+        const orphanIds = rows
+          .filter((row) => Number(row.referenced) === 0)
+          .map((row) => row.embedding_text_hash as string)
+        if (orphanIds.length > 0) {
+          tx.execute(
+            `DELETE FROM embedding WHERE embedding_text_hash IN (${orphanIds.map(() => '?').join(', ')})`,
+            orphanIds
+          )
+        }
+        return rows
+      })
+      if (page.length < DELETE_BATCH_SIZE) break
+      const lastRow = page.at(-1)
+      if (!lastRow) break
+      embeddingCursor = lastRow.embedding_text_hash as string
+      await yieldIfNeeded()
+    }
+
+    let contentCursor = ''
+    while (true) {
+      const page = this.driver.transaction((tx) => {
+        const rows = tx.execute(
+          `SELECT c.content_hash,
+                  EXISTS (SELECT 1 FROM material m WHERE m.current_content_hash = c.content_hash)
+                    OR EXISTS (SELECT 1 FROM search_unit su WHERE su.content_hash = c.content_hash) AS referenced
+           FROM content c
+           WHERE c.content_hash > ?
+           ORDER BY c.content_hash
+           LIMIT ?`,
+          [contentCursor, DELETE_BATCH_SIZE]
+        ).rows
+        const orphanIds = rows.filter((row) => Number(row.referenced) === 0).map((row) => row.content_hash as string)
+        if (orphanIds.length > 0) {
+          tx.execute(`DELETE FROM content WHERE content_hash IN (${orphanIds.map(() => '?').join(', ')})`, orphanIds)
+        }
+        return rows
+      })
+      if (page.length < DELETE_BATCH_SIZE) break
+      const lastRow = page.at(-1)
+      if (!lastRow) break
+      contentCursor = lastRow.content_hash as string
+      await yieldIfNeeded()
+    }
   }
 
   /**

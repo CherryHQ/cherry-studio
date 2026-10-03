@@ -14,11 +14,14 @@ import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanu
  * delete job keeps only `deleting` rows; replace passes the conflicting roots'
  * subtrees), then run vector cleanup before DB deletion so a retry can still
  * discover affected ids.
+ * `allowPartialMaterialProgress` is only safe when every row is already
+ * `deleting` and a durable delete job will retry an interrupted purge.
  */
 export async function purgeKnowledgeSubtreeWithinLock(
   base: KnowledgeBase,
   subtreeItems: KnowledgeItem[],
-  logContext: Record<string, unknown>
+  logContext: Record<string, unknown>,
+  options: { allowPartialMaterialProgress?: boolean } = {}
 ): Promise<void> {
   const subtreeItemIds = subtreeItems.map((item) => item.id)
   if (subtreeItemIds.length === 0) {
@@ -27,7 +30,7 @@ export async function purgeKnowledgeSubtreeWithinLock(
   const leafItemIds = subtreeItems.filter((item) => isIndexableKnowledgeItem(item)).map((item) => item.id)
 
   // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.
-  await deleteKnowledgeItemVectors(base, leafItemIds)
+  await deleteKnowledgeItemVectors(base, leafItemIds, options)
   // Best-effort: a file-removal failure must not abort the row deletion below,
   // which would otherwise strand rows after their vectors are gone.
   await deleteKnowledgeItemFilesBestEffort(base.id, subtreeItems, logContext)
