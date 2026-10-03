@@ -1,5 +1,6 @@
 import type {
   LanguageModelV3,
+  LanguageModelV3CallOptions,
   LanguageModelV3Content,
   LanguageModelV3FinishReason,
   LanguageModelV3GenerateResult
@@ -47,6 +48,24 @@ function createSummarizerModel(summaryText = 'SUMMARY'): LanguageModelV3 {
   }
 }
 
+/** Summarizer stub that also records the text it was asked to summarize. */
+function createRecordingModel(): { model: LanguageModelV3; sentText: () => string } {
+  let prompt: LanguageModelV3CallOptions['prompt'] = []
+  const model = createSummarizerModel()
+  const inner = model.doGenerate.bind(model)
+  model.doGenerate = async (opts) => {
+    prompt = opts.prompt
+    return inner(opts)
+  }
+  const sentText = () =>
+    prompt
+      .flatMap((m) =>
+        typeof m.content === 'string' ? [m.content] : m.content.flatMap((p) => ('text' in p ? [p.text] : []))
+      )
+      .join('\n')
+  return { model, sentText }
+}
+
 describe('summarizeModelMessages', () => {
   it('summarizes a ModelMessage slice into a string, dropping system messages', async () => {
     const messages: ModelMessage[] = [
@@ -87,6 +106,83 @@ describe('summarizeModelMessages', () => {
 
     await summarizeModelMessages([{ role: 'user', content: 'q' }], model, { maxOutputTokens: 12_345 })
     expect(seenMaxOutputTokens).toBe(12_345)
+  })
+})
+
+// Whatever the summarize call omits is still folded away behind the summary, so
+// an over-counted budget loses history for good.
+describe('summarizeModelMessages — input budget', () => {
+  // The budget both compaction lanes hand a 128k compressor.
+  const maxOutputTokens = resolveCompressionOutputTokens(128_000)
+  const budget = { maxOutputTokens, maxInputTokens: Math.floor((128_000 - maxOutputTokens) * 0.85) }
+  const OMITTED = /earlier message\(s\) omitted/
+
+  it('sends every message of a slice that fits the budget', async () => {
+    const body = 'lorem ipsum dolor sit amet '.repeat(75)
+    const messages = Array.from(
+      { length: 110 },
+      (_, i): ModelMessage =>
+        i % 2 ? { role: 'assistant', content: `#${i} ${body}` } : { role: 'user', content: `#${i} ${body}` }
+    )
+    const { model, sentText } = createRecordingModel()
+
+    await summarizeModelMessages(messages, model, budget)
+
+    expect(sentText()).not.toMatch(OMITTED)
+    expect(sentText()).toContain('#0 ')
+    expect(sentText()).toContain('#109 ')
+  })
+
+  it('does not let an attached image crowd the conversation out', async () => {
+    const messages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'what is in this picture?' },
+          { type: 'image', image: 'A'.repeat(1_000_000), mediaType: 'image/png' }
+        ]
+      },
+      ...Array.from(
+        { length: 20 },
+        (_, i): ModelMessage =>
+          i % 2 ? { role: 'user', content: `follow-up ${i}` } : { role: 'assistant', content: `answer ${i}` }
+      )
+    ]
+    const { model, sentText } = createRecordingModel()
+
+    await summarizeModelMessages(messages, model, budget)
+
+    expect(sentText()).not.toMatch(OMITTED)
+    expect(sentText()).toContain('what is in this picture?')
+    expect(sentText()).toContain('answer 0')
+  })
+
+  it('fits an agentic slice by stubbing its tool output instead of dropping turns', async () => {
+    const messages: ModelMessage[] = [{ role: 'user', content: 'audit the repo' }]
+    for (let i = 0; i < 25; i++) {
+      messages.push({
+        role: 'assistant',
+        content: [{ type: 'tool-call', toolCallId: `c${i}`, toolName: 'read', input: { path: `f${i}` } }]
+      })
+      messages.push({
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: `c${i}`,
+            toolName: 'read',
+            output: { type: 'text', value: 'x'.repeat(20_000) }
+          }
+        ]
+      })
+    }
+    const { model, sentText } = createRecordingModel()
+
+    await summarizeModelMessages(messages, model, budget)
+
+    expect(sentText()).not.toMatch(OMITTED)
+    expect(sentText()).toContain('omitted before summarization')
+    expect(sentText()).toContain('read({"path":"f0"})')
   })
 })
 

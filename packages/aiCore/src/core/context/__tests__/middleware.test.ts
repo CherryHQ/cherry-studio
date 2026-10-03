@@ -500,6 +500,31 @@ describe('onBeforeCompress flow', () => {
     expect(onBeforeCompress).not.toHaveBeenCalled()
     expect(result.prompt).toEqual(longPrompt)
   })
+
+  it('does not price an attached image by its payload size', async () => {
+    const onBeforeCompress = vi.fn().mockReturnValue(null)
+    const middleware = createContextMiddleware({ contextWindow: 5_000, onBeforeCompress })
+    const prompt: LanguageModelV3Prompt = [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'earlier answer' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'what is this?' },
+          { type: 'file', data: 'A'.repeat(1_000_000), mediaType: 'image/png' }
+        ]
+      }
+    ]
+
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({ params: { prompt }, type: 'generate', model: createMockModel() })
+
+    expect(onBeforeCompress).not.toHaveBeenCalled()
+    expect(result.prompt).toEqual(prompt)
+  })
 })
 
 describe('compact', () => {

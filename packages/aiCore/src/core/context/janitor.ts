@@ -5,7 +5,7 @@
  * Vendored from @context-chef/core 3.8.0 (MIT, same author), trimmed to the
  * paths Cherry Studio exercises:
  * - No tokenizer path — budget evaluation uses fed usage or the built-in
- *   character heuristic (`estimateObject`).
+ *   character heuristic (`estimateMessages`).
  * - No in-flight compression model — over-budget histories are handled by the
  *   caller's `onBeforeCompress` hook (sliding-window fallback) and, failing
  *   that, a mechanical drop with a placeholder summary. LLM summarization
@@ -13,7 +13,7 @@
  *   (`summarizeModelMessages` / `compactModelMessages`).
  */
 import { ContextPrompts } from './prompts'
-import { estimateObject } from './tokenUtils'
+import { estimateMessages } from './tokenUtils'
 import type { Attachment, ContextLogger, ContextMessage } from './types'
 
 const DEFAULT_PRESERVE_RECENT_MESSAGES = 1
@@ -185,10 +185,10 @@ function clampToInputBudget(messages: ContextMessage[], maxInputTokens: number):
   const instruction = messages[messages.length - 1]
   const middle = messages.slice(1, -1)
 
-  let used = estimateObject([first, instruction])
+  let used = estimateMessages([first, instruction])
   const kept: ContextMessage[] = []
   for (let i = middle.length - 1; i >= 0; i--) {
-    const cost = estimateObject(middle[i])
+    const cost = estimateMessages([middle[i]])
     if (used + cost > maxInputTokens) break
     kept.unshift(middle[i])
     used += cost
@@ -252,11 +252,11 @@ export async function summarizeHistory(
   // the oldest middle messages — so the request is bounded either way.
   if (opts.maxInputTokens !== undefined) {
     for (const threshold of STUB_ESCALATION) {
-      if (estimateObject(compressionMessages) <= opts.maxInputTokens) break
+      if (estimateMessages(compressionMessages) <= opts.maxInputTokens) break
       if (opts.toolResultStubThreshold !== undefined && threshold >= opts.toolResultStubThreshold) continue
       compressionMessages = assemble(threshold)
     }
-    if (estimateObject(compressionMessages) > opts.maxInputTokens) {
+    if (estimateMessages(compressionMessages) > opts.maxInputTokens) {
       compressionMessages = clampToInputBudget(compressionMessages, opts.maxInputTokens)
     }
   }
@@ -324,7 +324,7 @@ export interface JanitorConfig {
  * Tracks token usage across calls and shrinks over-budget histories.
  *
  * Budget source: an externally fed usage value (`feedTokenUsage`, consumed
- * once) or the character heuristic (`estimateObject`). When over budget the
+ * once) or the character heuristic (`estimateMessages`). When over budget the
  * caller's `onBeforeCompress` hook gets the first chance to shrink the
  * history; if the result is still over budget, everything but the last
  * `preserveRecentMessages` turns is dropped behind a placeholder summary.
@@ -394,7 +394,7 @@ export class Janitor {
       return null
     }
 
-    const currentTokens = this._externalTokenUsage ?? estimateObject(history)
+    const currentTokens = this._externalTokenUsage ?? estimateMessages(history)
     this._externalTokenUsage = null
 
     if (currentTokens <= this.config.contextWindow) {
