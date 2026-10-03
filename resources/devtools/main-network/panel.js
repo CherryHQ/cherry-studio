@@ -110,17 +110,19 @@ function shellQuoteSingle(value) {
 function buildCurlCommand(event) {
   const parts = ['curl', shellQuoteSingle(event.url)]
   const method = (event.method || 'GET').toUpperCase()
-  if (method !== 'GET') parts.push('-X', method)
+  if (method !== 'GET') parts.push('-X', shellQuoteSingle(method))
 
   for (const [key, value] of Object.entries(event.requestHeaders ?? {})) {
     parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
   }
 
-  const bodyText = event.requestBody?.text
-  if (bodyText) {
-    parts.push('--data-raw', shellQuoteSingle(bodyText))
-  } else if (event.requestBody?.note) {
-    parts.push(`# request body not captured: ${event.requestBody.note}`)
+  const body = event.requestBody
+  if (body?.text && !body.truncated) {
+    parts.push('--data-raw', shellQuoteSingle(body.text))
+  } else if (body?.truncated) {
+    parts.push('# request body truncated in capture; omit --data-raw for replay')
+  } else if (body?.note) {
+    parts.push(`# request body not captured: ${body.note}`)
   }
 
   return parts.join(' \\\n  ')
