@@ -716,6 +716,53 @@ describe('orderKey', () => {
       expect(rows.find((r) => r.id === 'keep-a')!.orderKey).toBe('a5')
     })
 
+    it('preserves the relative order of multiple repaired tail rows', async () => {
+      // z0 < zy < zz are all legacy-invalid and sort above every valid key:
+      // re-keying them must keep their original relative order instead of
+      // handing the new keys out extremum-first (zz → zy → z0).
+      seedRawKeys([
+        { id: 'keep-a', orderKey: 'a0' },
+        { id: 'legacy-z0', orderKey: 'z0' },
+        { id: 'legacy-zy', orderKey: 'zy' },
+        { id: 'legacy-zz', orderKey: 'zz' }
+      ])
+
+      const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
+        pkColumn: fxTable.id
+      }) as Array<{ id: string; orderKey: string }>
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(rows).toHaveLength(6)
+      // Repaired legacy rows stay in their pre-repair order; the batch is the tail.
+      expect(rows.map((r) => r.id)).toEqual(['keep-a', 'legacy-z0', 'legacy-zy', 'legacy-zz', 'new-1', 'new-2'])
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+      expect(rows.find((r) => r.id === 'keep-a')!.orderKey).toBe('a0')
+      expect(inserted.map((r) => r.id)).toEqual(['new-1', 'new-2'])
+    })
+
+    it('preserves the relative order of multiple repaired head rows', async () => {
+      // Mirror case for position='first': 1x < 2y < 3z are all legacy-invalid
+      // and sort below every valid key; their relative order must survive.
+      seedRawKeys([
+        { id: 'legacy-1x', orderKey: '1x' },
+        { id: 'legacy-2y', orderKey: '2y' },
+        { id: 'legacy-3z', orderKey: '3z' },
+        { id: 'keep-a', orderKey: 'a5' }
+      ])
+
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'new-1' }, { id: 'new-2' }], {
+        pkColumn: fxTable.id,
+        position: 'first'
+      })
+
+      const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
+      expect(rows).toHaveLength(6)
+      // The batch is the head; the repaired legacy rows keep 1x < 2y < 3z.
+      expect(rows.map((r) => r.id)).toEqual(['new-1', 'new-2', 'legacy-1x', 'legacy-2y', 'legacy-3z', 'keep-a'])
+      for (const row of rows) expectValidOrderKey(row.orderKey)
+      expect(rows.find((r) => r.id === 'keep-a')!.orderKey).toBe('a5')
+    })
+
     it('with scope: repairs and appends only within the target scope', async () => {
       seedRawKeys([
         { id: 's1-keep', orderKey: 'a0', scope: 's1' },

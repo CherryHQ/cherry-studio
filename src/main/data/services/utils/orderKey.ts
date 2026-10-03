@@ -437,24 +437,23 @@ function isValidOrderKey(key: string): boolean {
 }
 
 /**
- * Walk from `fromKey` towards the scope interior (down for `predecessor`, up
- * for `successor`) and return the first generator-valid key; `null` when the
- * remaining neighbourhood is empty or entirely invalid.
+ * Walk from the scope extremum towards the interior and collect the run of
+ * distinct invalid order keys up to the first generator-valid one.
  */
-function findNearestValidOrderKey(
+function collectInvalidBoundaryKeys(
   tx: TxLike,
   table: TableWithOrderKey,
-  side: 'predecessor' | 'successor',
-  fromKey: string,
+  which: 'first' | 'last',
   scope?: SQL
-): string | null {
-  let cursor = fromKey
-  for (;;) {
-    const candidate = selectAdjacentKey(tx, table, side, cursor, scope)
-    if (candidate === null) return null
-    if (isValidOrderKey(candidate)) return candidate
-    cursor = candidate
+): { invalidKeys: string[]; nearestValid: string | null } {
+  const side = which === 'last' ? 'predecessor' : 'successor'
+  const invalidKeys: string[] = []
+  let cursor = selectBoundaryKey(tx, table, which, scope)
+  while (cursor !== null && !isValidOrderKey(cursor)) {
+    invalidKeys.push(cursor)
+    cursor = selectAdjacentKey(tx, table, side, cursor, scope)
   }
+  return { invalidKeys, nearestValid: cursor }
 }
 
 /**
@@ -463,16 +462,15 @@ function findNearestValidOrderKey(
  * (e.g. the `zz` end-of-list sentinel) would otherwise abort the whole insert —
  * including the boot-time provider registry sync — with `invalid order key`.
  *
- * Each offending boundary value is re-keyed just past the nearest valid
- * neighbour (or to a fresh start key when none exists) and a warning logged.
- * All rows sharing the offending value are re-keyed onto the same new key —
- * they were mutually unordered anyway. Repairing one value can expose another
- * invalid value still sorting beyond the repaired key (for `'last'`) or before
- * it (for `'first'`), so the boundary is re-read from the table after every
- * pass and the loop only ends once the scope extremum itself is valid — the
- * insert then proceeds normally and lands beyond (or before) every
- * pre-existing row. The loop terminates because every pass removes one
- * distinct invalid value.
+ * The run of invalid keys between the scope extremum and the nearest valid
+ * neighbour is re-keyed outward from that neighbour, so the replacement keys
+ * are handed out in the rows' original relative order — repairing from the
+ * extremum inward instead would reverse the legacy rows. All rows sharing an
+ * offending value are re-keyed onto the same new key — they were mutually
+ * unordered anyway. A warning is logged per repaired value, and the returned
+ * key is the run's outermost replacement, i.e. the scope's new extremum, so
+ * the insert proceeds normally and lands beyond (or before) every pre-existing
+ * row.
  */
 function selectRepairedBoundaryKey(
   tx: TxLike,
@@ -480,30 +478,27 @@ function selectRepairedBoundaryKey(
   which: 'first' | 'last',
   scope?: SQL
 ): string | null {
-  let boundary = selectBoundaryKey(tx, table, which, scope)
-  while (boundary !== null && !isValidOrderKey(boundary)) {
-    const nearestValid = findNearestValidOrderKey(
-      tx,
-      table,
-      which === 'last' ? 'predecessor' : 'successor',
-      boundary,
-      scope
-    )
-    const newKey =
-      which === 'last' ? generateOrderKeyBetween(nearestValid, null) : generateOrderKeyBetween(null, nearestValid)
-    const where = scope ? and(eq(table.orderKey, boundary), scope)! : eq(table.orderKey, boundary)
+  const { invalidKeys, nearestValid } = collectInvalidBoundaryKeys(tx, table, which, scope)
+  if (invalidKeys.length === 0) return nearestValid
+
+  // `invalidKeys` was collected extremum-inward; assigning in reverse walks
+  // outward from `nearestValid`, preserving the rows' relative order.
+  let anchor = nearestValid
+  let newKey = ''
+  for (const invalidKey of invalidKeys.reverse()) {
+    newKey = which === 'last' ? generateOrderKeyBetween(anchor, null) : generateOrderKeyBetween(null, anchor)
+    const where = scope ? and(eq(table.orderKey, invalidKey), scope)! : eq(table.orderKey, invalidKey)
     tx.update(table).set({ orderKey: newKey }).where(where).run()
     logger.warn('insertManyWithOrderKey: re-keyed legacy invalid order key', {
       table: getTableName(table),
-      invalidKey: boundary,
+      invalidKey,
       newKey
     })
-    // Re-select instead of trusting `newKey`: `newKey` is always valid, so
-    // assigning it here would end the loop while further invalid values may
-    // still sort beyond the repaired extremum.
-    boundary = selectBoundaryKey(tx, table, which, scope)
+    anchor = newKey
   }
-  return boundary
+  // The last re-keyed value is the outermost of the run, so its replacement is
+  // the scope's new extremum and the batch anchors beyond it.
+  return newKey
 }
 
 /**
