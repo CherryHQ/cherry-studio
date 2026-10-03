@@ -53,6 +53,8 @@ const mocks = vi.hoisted(() => ({
   getPhysicalPath: vi.fn(),
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
+  persistCache: new Map<string, unknown>(),
+  casualCache: new Map<string, unknown>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
   updateAgent: vi.fn(),
@@ -291,9 +293,17 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     has: vi.fn(() => false),
     set: vi.fn(),
-    getCasual: vi.fn(() => ''),
-    hasCasual: vi.fn(() => false),
-    setCasual: vi.fn(),
+    getCasual: vi.fn((key: string) => mocks.casualCache.get(key)),
+    hasCasual: vi.fn((key: string) => mocks.casualCache.has(key)),
+    setCasual: vi.fn((key: string, value: unknown) => {
+      mocks.casualCache.set(key, value)
+    }),
+    getPersist: vi.fn((key: string) => mocks.persistCache.get(key) ?? {}),
+    setPersist: vi.fn((key: string, value: unknown) => {
+      const prev = mocks.persistCache.get(key) ?? {}
+      const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(prev) : value
+      mocks.persistCache.set(key, next)
+    }),
     subscribe: vi.fn(() => () => {})
   }
 }))
@@ -803,6 +813,8 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
+    mocks.persistCache.clear()
+    mocks.casualCache.clear()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
@@ -814,11 +826,16 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.has).mockReturnValue(false)
     vi.mocked(cacheService.set).mockReset()
+    // Map-backed so the follow-up queue's entry checks read back what the hook
+    // persisted (the production casual-cache contract).
     vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) => mocks.casualCache.get(key))
     vi.mocked(cacheService.hasCasual).mockReset()
-    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
+    vi.mocked(cacheService.hasCasual).mockImplementation((key: string) => mocks.casualCache.has(key))
     vi.mocked(cacheService.setCasual).mockReset()
+    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
+      mocks.casualCache.set(key, value)
+    })
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
@@ -4701,6 +4718,33 @@ describe('AgentComposer', () => {
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
     expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues a follow-up instead of sending directly while a queue drain is still in flight', async () => {
+    // The auto-drain send never settles, so the queue keeps a send in flight while idle.
+    // A dedicated session keeps the stranded drain + queued items out of other tests' scope.
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(() => undefined))
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-drain-guard',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+
+    // Idle, but the drain is still in flight: the next send must queue behind it
+    // instead of running a second send concurrently.
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(2))
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
