@@ -183,6 +183,12 @@ export interface CacheAskUserQuestionDraft {
   currentIndex: number
 }
 
+/**
+ * One recalled composer input-history entry: plain text, or text plus the skill chips it was
+ * sent with, so history recall restores the attachment instead of an orphaned `Use the X skill.`.
+ */
+export type CacheInputHistoryEntry = string | { text: string; skillTokens: CacheComposerSerializedToken[] }
+
 export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {

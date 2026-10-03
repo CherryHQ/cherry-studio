@@ -7,6 +7,7 @@ import {
   agentComposerTokenId,
   agentFileToComposerToken,
   agentSkillToComposerToken,
+  findSkillByTokenId,
   getAgentComposerTokenIds
 } from '../agentComposerTokens'
 
@@ -54,6 +55,16 @@ describe('agent composer token mapping', () => {
       promptText: 'Use the pdf skill.',
       payload: skill
     })
+  })
+
+  it('resolves a token to the skill with the exact id, never a same-name twin', () => {
+    const twinA = { name: 'PDF', filename: 'a-pdf' } satisfies LocalSkill
+    const twinB = { name: 'PDF', filename: 'b-pdf' } satisfies LocalSkill
+
+    // The editor chip carries B's id but A's display name also matches the label —
+    // only the exact id may resolve.
+    expect(findSkillByTokenId({ id: 'skill:b-pdf' }, [twinA, twinB])).toBe(twinB)
+    expect(findSkillByTokenId({ id: 'skill:unknown' }, [twinA, twinB])).toBeUndefined()
   })
 
   it('prompts with the skill directory name when the display name differs', () => {
