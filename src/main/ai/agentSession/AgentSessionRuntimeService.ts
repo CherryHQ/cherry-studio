@@ -129,6 +129,10 @@ const FLOW_HOST_RECOVERY_RETRY_MS = 5_000
 const MAX_RECOVERY_FLOW_CHUNKS = 1_000
 /** Session-wide cap across unresolved roots, so many roots cannot retain one stream each. */
 const MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION = 4_000
+/** Cap on remembered flow anchors: above the concurrent flows of a session, below a leak. */
+const MAX_FLOW_ANCHOR_ENTRIES = 1_024
+/** Cap on seed-failure stamps; an evicted id costs one extra seed attempt, not one per chunk. */
+const MAX_SEED_FAILURE_ENTRIES = 256
 /** Per-message and per-session caps for chunks buffered while no accumulator can be seeded. */
 const MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE = 1_000
 const MAX_PENDING_FLOW_CHUNKS_PER_SESSION = 4_000
@@ -2262,6 +2266,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
     let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
+    if (messageId) this.rememberFlowAnchor(entry, rootToolCallId, messageId)
     // A fresh entry (restart or session reopen) has no in-memory anchor: look the host row up and
     // retry on a throttle. Neither a query error nor a miss is terminal — a rebuild that starts
     // while `closeEntry`'s flush tail is still writing legitimately sees no row yet, and teardown
@@ -2296,7 +2301,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
-      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, messageId)
+      this.rememberFlowAnchor(entry, chunk.toolCallId, messageId)
     }
 
     const owner = this.liveTurnOwningMessage(entry, messageId)
@@ -2363,13 +2368,35 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Remember which row a detached call streams under, least-recently-used first. A warm entry
+   * outlives many turns, so the map is bounded; an evicted call is not lost — its chunks fall back
+   * to the recovery buffer, whose look-up re-anchors them from the persisted row.
+   */
+  private rememberFlowAnchor(entry: AgentSessionRuntimeEntry, callId: string, messageId: string): void {
+    const anchors = (entry.flowMessageIdsByToolCallId ??= new Map<string, string>())
+    anchors.delete(callId)
+    anchors.set(callId, messageId)
+    if (anchors.size <= MAX_FLOW_ANCHOR_ENTRIES) return
+    // A live turn's row is not persisted yet, so its anchor is the only route for its chunks.
+    const liveMessageId = this.liveTurn(entry)?.assistantMessageId
+    for (const [candidate, candidateMessageId] of anchors) {
+      if (candidate === callId) continue
+      if (liveMessageId !== undefined && candidateMessageId === liveMessageId) continue
+      anchors.delete(candidate)
+      // The stamp would otherwise delay the look-up that re-anchors it.
+      entry.recoveryLookupAt?.delete(candidate)
+      if (anchors.size <= MAX_FLOW_ANCHOR_ENTRIES) break
+    }
+  }
+
+  /**
    * Recover the persisted host row for a detached root and replay its buffered chunks. Used by
    * the chunk path and by teardown, which must give recovery-buffered chunks a last chance.
    */
   private recoverDetachedFlowHost(entry: AgentSessionRuntimeEntry, rootToolCallId: string): string | undefined {
     const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
     if (!hostMessageId) return undefined
-    ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
+    this.rememberFlowAnchor(entry, rootToolCallId, hostMessageId)
     // The throttle exists for unresolved roots only: once the anchor is in place this root never
     // consults it again, so its timestamp would be retained for the rest of the session for nothing.
     entry.recoveryLookupAt?.delete(rootToolCallId)
@@ -2381,7 +2408,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.pendingRecoveryFlowChunkCount = Math.max(0, (entry.pendingRecoveryFlowChunkCount ?? 0) - buffered.length)
       for (const replayed of buffered) {
         if ((replayed.type === 'tool-input-start' || replayed.type === 'tool-input-available') && replayed.toolCallId) {
-          ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(replayed.toolCallId, hostMessageId)
+          this.rememberFlowAnchor(entry, replayed.toolCallId, hostMessageId)
         }
         const owner = this.liveTurnOwningMessage(entry, hostMessageId)
         if (owner) this.enqueueTurnChunk(entry, owner, replayed)
@@ -2497,7 +2524,14 @@ export class AgentSessionRuntimeService extends BaseService {
           })
           return null
         }
-        ;(entry.backgroundFlowSeedFailedAt ??= new Map()).set(messageId, Date.now())
+        const failures = (entry.backgroundFlowSeedFailedAt ??= new Map<string, number>())
+        failures.delete(messageId)
+        failures.set(messageId, Date.now())
+        while (failures.size > MAX_SEED_FAILURE_ENTRIES) {
+          const oldest = failures.keys().next().value
+          if (oldest === undefined) break
+          failures.delete(oldest)
+        }
         logger.warn('Detached subagent flow accumulator seed failed', {
           sessionId: entry.sessionId,
           messageId,
@@ -2924,7 +2958,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // Register the anchor before buffering: a detached flow chunk for this call can arrive
       // while the chunk that introduces it is still waiting here, and the anchor is what routes it.
       if (turn && (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
-        ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+        this.rememberFlowAnchor(entry, chunk.toolCallId, turn.assistantMessageId)
         entry.recoveryLookupAt?.delete(chunk.toolCallId)
       }
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
@@ -2938,7 +2972,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
-      ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+      this.rememberFlowAnchor(entry, chunk.toolCallId, turn.assistantMessageId)
       entry.recoveryLookupAt?.delete(chunk.toolCallId)
     } else if (
       (chunk.type === 'tool-output-available' ||
