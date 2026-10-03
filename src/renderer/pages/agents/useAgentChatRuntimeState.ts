@@ -122,6 +122,8 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  /** The failure of the last older-history fetch — a paging request that never resolved. */
+  loadOlderError?: Error
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
   stop: () => Promise<void>
@@ -187,6 +189,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    loadOlderError,
     selectAllPagination,
     refresh,
     seedReservedMessages,
@@ -429,6 +432,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    loadOlderError,
     selectAllPagination,
     isPending,
     stop,

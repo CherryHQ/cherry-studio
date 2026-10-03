@@ -168,6 +168,7 @@
   "agent.preview_pane.tree_error.load_error.description": "Убедитесь, что рабочий каталог всё ещё существует и доступен, затем попробуйте снова.",
   "agent.preview_pane.tree_error.load_error.title": "Не удалось загрузить файлы рабочего пространства",
   "agent.right_pane.flow.child_subtasks": "Вложенные подзадачи",
+  "agent.right_pane.flow.history_load_failed": "Не удалось загрузить более раннюю историю, поэтому этот поток не удалось открыть. Попробуйте ещё раз.",
   "agent.right_pane.flow.main_task": "Основная задача",
   "agent.right_pane.flow.no_messages.description": "У этого вызова инструмента нет захваченного дочернего потока сообщений.",
   "agent.right_pane.flow.no_messages.title": "Нет сообщений",

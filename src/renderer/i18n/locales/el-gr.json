@@ -168,6 +168,7 @@
   "agent.preview_pane.tree_error.load_error.description": "Βεβαιωθείτε ότι ο φάκελος εργασίας υπάρχει ακόμα και είναι προσβάσιμος, στη συνέχεια προσπαθήστε ξανά.",
   "agent.preview_pane.tree_error.load_error.title": "Δεν ήταν δυνατή η φόρτωση των αρχείων του χώρου εργασίας",
   "agent.right_pane.flow.child_subtasks": "Υποεργασίες επόμενου επιπέδου",
+  "agent.right_pane.flow.history_load_failed": "Δεν ήταν δυνατή η φόρτωση παλαιότερου ιστορικού, οπότε αυτή η ροή δεν μπόρεσε να ανοίξει. Δοκιμάστε ξανά.",
   "agent.right_pane.flow.main_task": "Κύρια εργασία",
   "agent.right_pane.flow.no_messages.description": "Αυτή η κλήση εργαλείου δεν έχει καταγεγραμμένη ροή θυγατρικών μηνυμάτων.",
   "agent.right_pane.flow.no_messages.title": "Κανένα μήνυμα",
