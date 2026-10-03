@@ -375,16 +375,23 @@ const BasicDataSettings: React.FC = () => {
               </Button>
               <Button
                 onClick={() => {
-                  if (!resolvedNotesPath) {
-                    return
-                  }
-                  void startNotesDirectoryMigration({
-                    t,
-                    sourcePath: resolvedNotesPath,
-                    onSuccess: async (path) => {
-                      await updateNotesPath(path)
+                  void (async () => {
+                    try {
+                      const resolved = await resolveNotesPath(notesPath || '')
+                      if (!resolved.path) {
+                        return
+                      }
+                      await startNotesDirectoryMigration({
+                        t,
+                        sourcePath: resolved.path,
+                        onSuccess: async (path) => {
+                          await updateNotesPath(path)
+                        }
+                      })
+                    } catch (error) {
+                      logger.warn('Failed to resolve notes path for migration', error as Error)
                     }
-                  })
+                  })()
                 }}
                 variant="outline">
                 {t('settings.data.notes_relocation.migrate')}
