@@ -741,7 +741,7 @@ With the default pi-vcc configuration, compaction works as follows:
 | Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
 | `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
 | `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
-| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` or the `vcc_recall` tool. |
+| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` to compact; the model can call `vcc_recall` to retrieve history. |
 
 Compaction reduces the model's active context; it does not erase the persisted
 session transcript. The `vcc_recall` tool searches the current session's raw
