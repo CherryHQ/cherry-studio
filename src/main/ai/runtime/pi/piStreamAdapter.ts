@@ -35,7 +35,11 @@ function toolProviderMetadata(toolName: string, extra: Record<string, unknown> =
     cherry: {
       transport: PI_TRANSPORT,
       tool: parsed
-        ? { type: 'mcp' as const, name: parsed.toolPart, serverName: parsed.serverPart }
+        ? {
+            type: 'mcp' as const,
+            name: parsed.toolPart,
+            serverName: parsed.serverPart === 'cherry_tools' ? 'cherry-tools' : parsed.serverPart
+          }
         : { type: 'builtin' as const, name: toolName }
     },
     pi: { toolName, ...extra }
@@ -217,8 +221,13 @@ function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
 function projectPiToolOutput(toolName: string, result: unknown): unknown {
   const toolResult = asToolResult(result)
   if (!toolResult) return result ?? null
-  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === PI_TOOL_EXEC_TOOL_NAME) {
+  if (toolName === PI_TOOL_EXEC_TOOL_NAME) return unwrapMcpContent(toolResult)
+  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
     return toolResult.details ?? toolResult
+  }
+  if (toolName.startsWith('mcp__')) {
+    const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+    return mcpResult?.structuredContent ?? unwrapMcpContent(toolResult)
   }
   return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
 }

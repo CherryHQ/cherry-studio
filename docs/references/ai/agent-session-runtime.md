@@ -724,29 +724,26 @@ after any applicable live tightening has landed.
 
 ### Pi code mode
 
-Pi exposes only `read`, `write`, `edit`, and `bash` directly. Its complete bridged
-MCP catalog, including Cherry autonomy tools, is exposed through four native custom tools:
+Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
+injects only its managed Bash definition and mounts the session's complete MCP
+server set through an in-memory transport. Pi owns discovery, tool definitions,
+structured results, cancellation, and MCP connection teardown. Disk-discovered
+Pi MCP configuration stays disabled; Cherry remains the configuration owner.
 
-- `tool_search` ranks tool names and descriptions with BM25 and returns each match as a
-  TypeScript declaration for `tools.invoke(name, params)`. The declarations are
-  model guidance; they are not compiled or type-checked.
-- `tool_describe` returns the complete description and TypeScript declaration for one
-  discovered tool.
-- `tool_call` calls one discovered tool, applying that target tool's live disabled-tool
-  and approval policy before execution.
-- `tool_exec` runs JavaScript in the existing worker-thread executor and routes
-  `tools.invoke` calls back to the Pi MCP definitions. The outer `tool_exec` call
-  always uses Pi's approval flow (except the explicit `bypassPermissions` mode),
-  and every nested call re-enters the same live permission/approval policy. Nested
-  approvals are presented one at a time because the outer Pi tool part carries one
-  active approval card; accepted calls may still execute concurrently.
+`codemode` runs JavaScript in QuickJS with no Node, filesystem, or network
+access. Scripts call `tools.<identifier>(args)` and discover deferred MCP tools
+through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
+Native file and shell tools remain available both directly and from scripts.
+Every nested call emits its own tool events and passes Cherry's `tool_call`
+approval extension, including disabled-tool, SQLite, global-install, and
+permission-mode policies. The script itself needs no separate approval because
+all outward effects pass through those tool calls.
 
-This executor is an orchestration boundary, not a security sandbox:
-`worker_threads` isolates scheduling but retains the app's Node.js authority.
-Move it to a capability-isolated executor before allowing untrusted code without
-an outer approval prompt. Pi's native file and shell tools are not in the code-mode
-catalog; `read`, `write`, `edit`, and `bash` remain direct tools with their existing
-path and command policy.
+Pi sanitizes MCP identifiers to `[A-Za-z0-9_]`; Cherry uses those identifiers for
+policy and disabled-tool lookups. A stored `tool_exec` disable applies to
+`codemode`. Historical `tool_call`/`tool_exec` results remain readable, while new
+MCP tool results retain their structured payloads and Cherry citation metadata.
+Closing a connection emits `session_shutdown` before disposing the SDK session.
 
 ## DSH driver boundary
 
