@@ -2,6 +2,23 @@ import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
+
+/**
+ * Whether the bytes decode as a raster image providers accept. Uses strict libvips
+ * decode (not header-only checks): truncated PNGs can expose a plausible IHDR yet
+ * fail on IDAT. Entity transcoding keeps `failOn: 'none'` for slightly malformed
+ * user uploads; model-bound paths must not pass undecodable bytes upstream.
+ */
+export async function isDecodableImage(bytes: Uint8Array): Promise<boolean> {
+  if (bytes.byteLength === 0) return false
+  try {
+    const sharp = (await import('sharp')).default
+    await sharp(bytes).stats()
+    return true
+  } catch {
+    return false
+  }
+}
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
 const MAX_ENTITY_INPUT_PIXELS = 100_000_000
 /** Longest edge for model-bound images. Every vision provider downscales below this on its own
@@ -47,6 +64,7 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
  * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
  */
 export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
+  if (!(await isDecodableImage(bytes))) throw new Error('could not decode image')
   const sharp = (await import('sharp')).default
   const image = sharp(bytes, { failOn: 'none' })
   const { width, height } = await image.metadata()
