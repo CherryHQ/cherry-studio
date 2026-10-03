@@ -142,8 +142,8 @@ describe('useAgentModelDisabled', () => {
     const cloud = cloudModel('deepseek-go')
     const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
 
-    expect(result.current(cloud)).toBe(true)
-    expect(result.current(model())).toBe(false)
+    expect(result.current.isModelDisabled(cloud)).toBe(true)
+    expect(result.current.isModelDisabled(model())).toBe(false)
   })
 
   it('applies entitlements and quota exhaustion from the synchronized snapshot', async () => {
@@ -155,8 +155,27 @@ describe('useAgentModelDisabled', () => {
     }
     const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
 
-    await waitFor(() => expect(result.current(available)).toBe(false))
-    expect(result.current(exhausted)).toBe(true)
+    await waitFor(() => expect(result.current.isModelDisabled(available)).toBe(false))
+    expect(result.current.isModelDisabled(exhausted)).toBe(true)
+  })
+
+  it('reports hydration while the first snapshot is in flight, then settles', async () => {
+    const pending = deferred<typeof mocks.availability>()
+    mocks.ipcRequest.mockImplementation(() => pending.promise)
+    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
+
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+    await act(async () => pending.resolve({ entitledModelIds: [], quotaExhaustedModelIds: [] }))
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+  })
+
+  it('stops reporting hydration when the snapshot request fails', async () => {
+    mocks.ipcRequest.mockRejectedValue(new Error('offline'))
+    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
   })
 
   it('does not synchronize while disabled', async () => {
@@ -174,7 +193,7 @@ describe('useAgentModelDisabled', () => {
     }
     const pendingRefresh = deferred<typeof mocks.availability>()
     const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
-    await waitFor(() => expect(result.current(cloud)).toBe(false))
+    await waitFor(() => expect(result.current.isModelDisabled(cloud)).toBe(false))
 
     mocks.ipcRequest.mockImplementationOnce(() => pendingRefresh.promise)
     act(() => mocks.statusChanged?.())
@@ -185,6 +204,6 @@ describe('useAgentModelDisabled', () => {
       quotaExhaustedModelIds: []
     })
 
-    await waitFor(() => expect(result.current(cloud)).toBe(true))
+    await waitFor(() => expect(result.current.isModelDisabled(cloud)).toBe(true))
   })
 })

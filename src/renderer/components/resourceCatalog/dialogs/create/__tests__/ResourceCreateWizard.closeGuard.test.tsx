@@ -31,7 +31,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => () => true,
-  useAgentModelDisabled: () => () => false
+  useAgentModelDisabled: () => ({ isModelDisabled: () => false, isLoading: false })
 }))
 
 vi.mock('@renderer/ipc', () => ({

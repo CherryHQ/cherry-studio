@@ -212,7 +212,7 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
-  const isModelDisabled = useAgentModelDisabled()
+  const { isModelDisabled } = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
