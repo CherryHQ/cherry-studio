@@ -6,6 +6,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { listAgentBackgroundTasks, stopAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
@@ -294,6 +295,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.background_task.list': ({ agentId }) => listAgentBackgroundTasks(agentId),
+  'ai.agent.background_task.stop': ({ agentId, taskId, force }) =>
+    stopAgentBackgroundTask(agentId, taskId, force === true),
   'ai.agent.session.open_path': async ({ sessionId, path }) => {
     const workspacePath = agentSessionService.getById(sessionId).workspace.path
     await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
