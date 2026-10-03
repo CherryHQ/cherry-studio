@@ -5,6 +5,14 @@ import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 
+const NOTIFICATION_PREF_KEYS = [
+  'app.notification.assistant.enabled',
+  'app.notification.backup.enabled',
+  'app.notification.knowledge.enabled',
+  'app.notification.update.enabled',
+  'app.notification.mini_app.enabled'
+] as const
+
 const mocks = vi.hoisted(() => ({
   agentSessionGetById: vi.fn(),
   agentApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
@@ -21,9 +29,12 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
   preferenceGet: vi.fn(),
+  preferenceValues: {} as Record<string, boolean>,
   send: vi.fn(),
+  setBadgeCount: vi.fn(() => true),
   showMainWindow: vi.fn(),
   streamApprovalListener: undefined as ((event: ApprovalRequestedEvent) => void) | undefined,
+  subscribeMultipleChanges: vi.fn(),
   topicGetById: vi.fn()
 }))
 
@@ -47,6 +58,9 @@ vi.mock('@main/i18n', () => ({
     })[key] ?? key
 }))
 vi.mock('electron', () => ({
+  app: {
+    setBadgeCount: (...args: Parameters<typeof mocks.setBadgeCount>) => mocks.setBadgeCount(...args)
+  },
   Notification: class {
     private readonly state: (typeof mocks.electronNotifications)[number]
 
@@ -99,6 +113,12 @@ function emitApproval(overrides: Partial<ApprovalRequestedEvent> = {}, source: '
 
 describe('NotificationService', () => {
   let service: InstanceType<typeof NotificationService>
+  let notificationPrefListener: ((key: string, newValue: boolean, oldValue: boolean) => void) | undefined
+
+  async function initService(): Promise<void> {
+    service = new NotificationService()
+    await service._doInit()
+  }
 
   beforeEach(async () => {
     BaseService.resetInstances()
@@ -107,8 +127,14 @@ describe('NotificationService', () => {
     mocks.agentApprovalListener = undefined
     mocks.completionListener = undefined
     mocks.streamApprovalListener = undefined
+    notificationPrefListener = undefined
     mocks.getWindowInfosByType.mockReturnValue([])
-    mocks.preferenceGet.mockReturnValue(true)
+    mocks.preferenceValues = Object.fromEntries(NOTIFICATION_PREF_KEYS.map((key) => [key, true]))
+    mocks.preferenceGet.mockImplementation((key: string) => mocks.preferenceValues[key] ?? true)
+    mocks.subscribeMultipleChanges.mockImplementation((_keys, listener) => {
+      notificationPrefListener = listener
+      return vi.fn()
+    })
     mocks.topicGetById.mockReturnValue({ name: 'Research notes' })
     mocks.agentSessionGetById.mockReturnValue({ name: 'Refactor project' })
     mocks.applicationGet.mockImplementation((name: string) => {
@@ -136,12 +162,16 @@ describe('NotificationService', () => {
       if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
+      if (name === 'PreferenceService') {
+        return { get: mocks.preferenceGet, subscribeMultipleChanges: mocks.subscribeMultipleChanges }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
 
-    service = new NotificationService()
-    await service._doInit()
+    await initService()
+    // Init reads notification prefs for Dock-badge sync; action tests care about later calls only.
+    mocks.preferenceGet.mockClear()
+    mocks.setBadgeCount.mockClear()
   })
 
   it('sends one presentation-ready event to the focused full-chrome window', () => {
@@ -284,5 +314,38 @@ describe('NotificationService', () => {
     mocks.electronNotifications[0].click?.()
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
     expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'notification.clicked', notification)
+  })
+
+  it('clears the Dock badge on init when every notification preference is already off', async () => {
+    // Catches #20709 relaunch/init path: prefs already false, badge still shows "3".
+    BaseService.resetInstances()
+    for (const key of NOTIFICATION_PREF_KEYS) mocks.preferenceValues[key] = false
+    mocks.setBadgeCount.mockClear()
+    mocks.subscribeMultipleChanges.mockClear()
+
+    await initService()
+
+    expect(mocks.subscribeMultipleChanges).toHaveBeenCalledWith([...NOTIFICATION_PREF_KEYS], expect.any(Function))
+    expect(mocks.setBadgeCount).toHaveBeenCalledWith(0)
+  })
+
+  it('clears the Dock badge when the last remaining notification preference is turned off', () => {
+    // Catches #20709 settings path: turning off the final switch must clear a leftover badge.
+    expect(notificationPrefListener).toBeTypeOf('function')
+
+    for (const key of NOTIFICATION_PREF_KEYS.slice(0, -1)) mocks.preferenceValues[key] = false
+    notificationPrefListener?.(NOTIFICATION_PREF_KEYS[0], false, true)
+    expect(mocks.setBadgeCount).not.toHaveBeenCalled()
+
+    const lastKey = NOTIFICATION_PREF_KEYS[NOTIFICATION_PREF_KEYS.length - 1]
+    mocks.preferenceValues[lastKey] = false
+    notificationPrefListener?.(lastKey, false, true)
+    expect(mocks.setBadgeCount).toHaveBeenCalledWith(0)
+  })
+
+  it('does not clear the Dock badge while any notification preference remains enabled', () => {
+    mocks.preferenceValues['app.notification.assistant.enabled'] = false
+    notificationPrefListener?.('app.notification.assistant.enabled', false, true)
+    expect(mocks.setBadgeCount).not.toHaveBeenCalled()
   })
 })
