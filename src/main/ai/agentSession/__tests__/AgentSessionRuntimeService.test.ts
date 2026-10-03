@@ -2847,6 +2847,31 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingBackgroundFlowChunks).toBeUndefined()
     })
 
+    // The lookup throttle only serves unresolved roots: once the anchor is found its timestamp is
+    // dropped, or a long session would keep one entry for every root it ever paged in.
+    it('drops the recovery lookup timestamp once a root resolves', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      // The first chunk's lookup misses, which stamps the throttle and buffers the chunk.
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-start', id: 'task-root-text' }
+      })
+      expect(entry.recoveryLookupAt?.has('task-root')).toBe(true)
+
+      // The host row appears; teardown's last look-up resolves it, and the timestamp goes with it.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      await service.closeSession('session-1')
+
+      expect(entry.recoveryLookupAt?.has('task-root')).toBe(false)
+    })
+
     it('gives up a whole recovery buffer instead of dropping its oldest chunks', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
