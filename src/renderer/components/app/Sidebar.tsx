@@ -1,18 +1,28 @@
 import { arrayMove } from '@dnd-kit/sortable'
 import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
-import type { Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { startTransition, useOptimistic } from 'react'
+import type { ReactElement, Ref } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useOptimistic,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 
-import { SidebarShellActions } from '../layout/ShellTabBarActions'
+import { HelpMenu } from '../layout/HelpMenu'
+import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -21,14 +31,13 @@ import {
   type SidebarIconPresentation,
   type SidebarUser,
   type SidebarVisibleLayout,
-  Sidebar as UISidebar,
-  UserAvatar
+  Sidebar as UISidebar
 } from '../Sidebar'
-import UserPopup from '../UserPopup'
+import { UserAccountPanel } from '../UserAccountPanel'
 import {
   useResolvedSidebarShortcuts,
-  useSidebarShortcutActivation,
   useSidebarNavigationSnapshot,
+  useSidebarShortcutActivation,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
 
@@ -46,13 +55,7 @@ function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly 
   ]
 }
 
-export default function Sidebar({
-  ref,
-  isFullscreen = false
-}: {
-  ref?: Ref<HTMLDivElement | null>
-  isFullscreen?: boolean
-}) {
+export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
@@ -65,7 +68,10 @@ export default function Sidebar({
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [hoverVisible, setHoverVisible] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
+  const layout = getSidebarLayout(activeSidebarWidth)
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
@@ -77,22 +83,47 @@ export default function Sidebar({
     if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
+  useEffect(() => {
+    if (layout === 'hidden') setUserMenuOpen(false)
+  }, [layout])
+
   const avatar = useAvatar()
+  const handleUserMenuOpenChange = useCallback(
+    (open: boolean) => {
+      setUserMenuOpen(open)
+      if (!open && layout === 'hidden') setHoverVisible(false)
+    },
+    [layout]
+  )
+  const handleUserMenuToggle = useCallback(
+    () => handleUserMenuOpenChange(!userMenuOpen),
+    [handleUserMenuOpenChange, userMenuOpen]
+  )
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
       name: userName || t('chat.user', { defaultValue: t('export.user', { defaultValue: 'User' }) }),
       avatar: avatar || undefined,
-      onClick: () => UserPopup.show()
+      onClick: handleUserMenuToggle
     }),
-    [avatar, t, userName]
+    [avatar, handleUserMenuToggle, t, userName]
   )
-  const sidebarLogo = useMemo(
-    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
-    [sidebarUser]
+  const renderSidebarUserTrigger = useCallback(
+    (trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>,
+    []
   )
+  const renderUserMenu = () =>
+    userMenuOpen ? (
+      <PopoverContent
+        aria-label={t('settings.general.user_name.label')}
+        align="start"
+        side="top"
+        sideOffset={8}
+        className="w-56 rounded-md p-0"
+        onClick={(event) => event.stopPropagation()}>
+        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)} />
+      </PopoverContent>
+    ) : null
 
-  const [hoverVisible, setHoverVisible] = useState(false)
-  const layout = getSidebarLayout(activeSidebarWidth)
   const resolvedEntries = useMemo(
     () =>
       resolutions.map((resolution) => {
@@ -180,46 +211,60 @@ export default function Sidebar({
     [entries, reorder, setOptimisticEntryOrder, shortcuts]
   )
 
-  const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
     setFeedbackOpen(true)
   }, [])
 
   const sidebarProps = {
-    isFullscreen,
     entries,
-    title: sidebarUser.name,
-    logo: sidebarLogo,
-    onHeaderClick: sidebarUser.onClick,
-    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
-      <SidebarShellActions
-        layout={footerLayout}
-        onFeedbackClick={handleOpenFeedback}
-        onSettingsClick={handleOpenSettingsTab}
-        onOverlayOpenChange={onOverlayOpenChange}
-      />
+    user: sidebarUser,
+    userAction: (_footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <>
+        <SidebarSettingsButton />
+        <HelpMenu layout="icon" onFeedbackClick={handleOpenFeedback} onOverlayOpenChange={onOverlayOpenChange} />
+        {layout === 'full' ? <AppUpdateButton placement="top" /> : null}
+      </>
     ),
+    renderUserTrigger: renderSidebarUserTrigger,
     onEntriesReorder: handleReorder
   }
 
   return (
     <div ref={ref} id="app-sidebar" data-ui="app.sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar
-        width={activeSidebarWidth}
-        setWidth={setSidebarWidth}
-        onHoverChange={setHoverVisible}
-        onResizePreview={setPreviewSidebarWidth}
-        {...sidebarProps}
-      />
-      {hoverVisible && layout === 'hidden' && (
+      {layout === 'hidden' ? (
         <UISidebar
           width={activeSidebarWidth}
           setWidth={setSidebarWidth}
-          isFloating
-          onDismiss={() => setHoverVisible(false)}
+          onHoverChange={setHoverVisible}
+          onResizePreview={setPreviewSidebarWidth}
           {...sidebarProps}
         />
+      ) : (
+        <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
+          <UISidebar
+            width={activeSidebarWidth}
+            setWidth={setSidebarWidth}
+            onHoverChange={setHoverVisible}
+            onResizePreview={setPreviewSidebarWidth}
+            {...sidebarProps}
+          />
+          {renderUserMenu()}
+        </Popover>
+      )}
+      {hoverVisible && layout === 'hidden' && (
+        <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
+          <UISidebar
+            width={activeSidebarWidth}
+            setWidth={setSidebarWidth}
+            isFloating
+            onDismiss={() => {
+              if (!userMenuOpen) setHoverVisible(false)
+            }}
+            {...sidebarProps}
+          />
+          {renderUserMenu()}
+        </Popover>
       )}
       {feedbackDialogMounted ? (
         <Suspense fallback={null}>

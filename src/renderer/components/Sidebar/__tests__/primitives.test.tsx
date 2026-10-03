@@ -9,7 +9,9 @@ describe('UserAvatar', () => {
 
     render(<UserAvatar user={{ name: 'User', avatar }} />)
 
-    expect(screen.getByRole('img', { name: 'User' })).toHaveAttribute('src', avatar)
+    const image = screen.getByRole('img', { name: 'User' })
+    expect(image).toHaveAttribute('src', avatar)
+    expect(image.parentElement).not.toHaveClass('ring-1')
     expect(screen.queryByText(avatar)).not.toBeInTheDocument()
   })
 

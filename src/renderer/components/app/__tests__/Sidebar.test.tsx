@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
@@ -9,37 +11,66 @@ import { createSidebarShortcutTarget } from '../../../utils/sidebar'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
+  openSettingsTab: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
   resolutions: [] as any[],
-  shortcuts: [] as any[]
+  sidebarWidth: 170,
+  shortcuts: [] as any[],
+  showUpdatePopup: vi.fn()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [170, vi.fn()] }))
+vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [mocks.sidebarWidth, vi.fn()] }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
-vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ activeTab: { url: '/app/chat' } }) }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({ shortcuts: mocks.shortcuts, remove: mocks.remove, reorder: mocks.reorder })
 }))
-vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 vi.mock('../sidebarShortcuts', () => ({
   useSidebarNavigationSnapshot: () => ({ url: '/' }),
   useResolvedSidebarShortcuts: () => mocks.resolutions,
   useSidebarShortcutActivation: () => mocks.activate,
   useSidebarShortcutRegistry: () => ({ resolve: mocks.registryResolve })
 }))
-vi.mock('../../layout/ShellTabBarActions', () => ({ SidebarShellActions: () => null }))
-vi.mock('../../UserPopup', () => ({ default: { show: vi.fn() } }))
+vi.mock('../../UserAccountPanel', () => ({
+  UserAccountPanel: ({ onRequestClose }: { onRequestClose?: () => void }) => (
+    <button type="button" data-testid="account-menu" onClick={onRequestClose}>
+      account-menu
+    </button>
+  )
+}))
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  AppUpdateButton: () => (
+    <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
+      update
+    </button>
+  ),
+  SidebarSettingsButton: () => (
+    <button type="button" aria-label="Settings" onClick={mocks.openSettingsTab}>
+      settings
+    </button>
+  )
+}))
+vi.mock('../../layout/HelpMenu', () => ({
+  HelpMenu: () => (
+    <button type="button" aria-label="Help">
+      help
+    </button>
+  )
+}))
 vi.mock('../../Sidebar', () => ({
   getSidebarDisplayWidth: (width: number) => width,
-  getSidebarLayout: () => 'full',
+  getSidebarLayout: (width: number) => (width === 0 ? 'hidden' : 'full'),
   normalizeSidebarWidth: (width: number) => width,
-  UserAvatar: () => <span />,
   Sidebar: ({
     entries,
-    onEntriesReorder
+    isFloating = false,
+    onEntriesReorder,
+    onHoverChange,
+    renderUserTrigger,
+    user,
+    userAction
   }: {
     entries: Array<{
       key: string
@@ -48,31 +79,50 @@ vi.mock('../../Sidebar', () => ({
       onOpen: () => void
       contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
     }>
+    isFloating?: boolean
     onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
-  }) => (
-    <div>
-      <ol aria-label="shortcuts">
-        {entries.map((entry) => (
-          <li key={entry.key} aria-label={entry.label}>
-            <button
-              type="button"
-              aria-disabled={entry.disabled || undefined}
-              onClick={() => !entry.disabled && entry.onOpen()}>
-              {entry.label}
-            </button>
-            {entry.contextMenuItems.map((item) => (
-              <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
-                {item.label}
-              </button>
-            ))}
-          </li>
-        ))}
-      </ol>
-      <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
-        reorder
+    onHoverChange?: (visible: boolean) => void
+    renderUserTrigger?: (trigger: ReactElement) => ReactElement
+    user?: { name: string; onClick?: () => void }
+    userAction?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+  }) => {
+    const accountButton = user ? (
+      <button type="button" aria-label={user.name} onClick={user.onClick}>
+        {user.name}
       </button>
-    </div>
-  )
+    ) : null
+    const accountTrigger = accountButton ? (renderUserTrigger?.(accountButton) ?? accountButton) : null
+    const resolvedUserAction = typeof userAction === 'function' ? userAction('full', vi.fn()) : userAction
+
+    return (
+      <div data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'} onMouseEnter={() => onHoverChange?.(true)}>
+        <div data-testid="sidebar-footer-user">
+          {accountTrigger}
+          {resolvedUserAction}
+        </div>
+        <ol aria-label="shortcuts">
+          {entries.map((entry) => (
+            <li key={entry.key} aria-label={entry.label}>
+              <button
+                type="button"
+                aria-disabled={entry.disabled || undefined}
+                onClick={() => !entry.disabled && entry.onOpen()}>
+                {entry.label}
+              </button>
+              {entry.contextMenuItems.map((item) => (
+                <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
+                  {item.label}
+                </button>
+              ))}
+            </li>
+          ))}
+        </ol>
+        <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
+          reorder
+        </button>
+      </div>
+    )
+  }
 }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
@@ -89,13 +139,55 @@ function renderedShortcutLabels(): Array<string | null> {
     .map((item) => item.getAttribute('aria-label'))
 }
 
-describe('app Sidebar shortcuts', () => {
+describe('app Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.shortcuts = []
     mocks.resolutions = []
+    mocks.sidebarWidth = 170
     mocks.registryResolve.mockReturnValue({ activate: mocks.activate })
     mocks.reorder.mockResolvedValue(undefined)
+  })
+
+  it('opens and closes the anchored account menu from the footer identity', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+
+    await user.click(screen.getByTestId('account-menu'))
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('does not reopen the account menu after resizing the sidebar to hidden', async () => {
+    const user = userEvent.setup()
+    const view = render(<Sidebar />)
+
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
+    expect(screen.getByTestId('account-menu')).toBeVisible()
+
+    mocks.sidebarWidth = 0
+    view.rerender(<Sidebar />)
+    fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+
+    expect(screen.getByTestId('floating-sidebar')).toBeVisible()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps settings and update actions independent from the account menu', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+    const footer = screen.getByTestId('sidebar-footer-user')
+
+    await user.click(within(footer).getByRole('button', { name: 'Settings' }))
+    await user.click(within(footer).getByRole('button', { name: 'Install update' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
+    expect(mocks.showUpdatePopup).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
