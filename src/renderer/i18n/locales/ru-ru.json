@@ -4534,7 +4534,7 @@
   "settings.mcp.builtinServersDescriptions.memory": "реализация постоянной памяти на основе локального графа знаний. Это позволяет модели запоминать информацию о пользователе между различными диалогами. Требуется настроить переменную среды MEMORY_FILE_PATH.",
   "settings.mcp.builtinServersDescriptions.no": "без описания",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Требуется запущенное локально приложение Nowledge Mem. Хранит чаты ИИ, инструменты, заметки, агентов и файлы в приватной памяти на вашем компьютере. Скачать можно на https://mem.nowledge.co/",
-  "settings.mcp.builtinServersDescriptions.python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",
+  "settings.mcp.builtinServersDescriptions.python": "Выполняйте код Python в безопасной песочнице браузера. Запускайте Python с помощью Pyodide; поддерживается большинство стандартных библиотек и пакетов для научных вычислений. Доступ к файлам на хост-компьютере и локальному диску невозможен.",
   "settings.mcp.builtinServersDescriptions.qveris": "Подключитесь к QVeris, чтобы находить, просматривать и вызывать возможности ИИ-агентов. Требуется настроить переменную окружения QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP серверная реализация, предоставляющая инструменты для динамического и рефлексивного решения проблем посредством структурированного мыслительного процесса",
   "settings.mcp.command": "Команда",
