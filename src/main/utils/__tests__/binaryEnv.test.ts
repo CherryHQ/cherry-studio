@@ -6,7 +6,8 @@ import {
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
   mergePathPrefixes,
-  mergePathSuffixes
+  mergePathSuffixes,
+  pickSystemEnvironment
 } from '../binaryEnv'
 
 // Real `node:path` (posix on CI) — the dedup's canonicalization runs against
@@ -81,5 +82,14 @@ describe('getBinaryIsolatedHomeEnv', () => {
     expect(env['HOME']).toBe('/mock/feature.binary.data/home')
     expect(env['LOCALAPPDATA']).toBeUndefined()
     expect(env['APPDATA']).toBeUndefined()
+  })
+})
+
+describe('pickSystemEnvironment', () => {
+  it('adds nothing off Windows, where the child inherits no comparable baseline', () => {
+    // Posix children need no baseline beyond what their caller already builds, so
+    // the replacement env must come back untouched even if the host happens to
+    // carry Windows-shaped keys. The Windows side lives in binaryEnv.windows.test.ts.
+    expect(pickSystemEnvironment({ SystemRoot: 'C:_WINDOWS', HOME: '/Users/tester' })).toEqual({})
   })
 })
