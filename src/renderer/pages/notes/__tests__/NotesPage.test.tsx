@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@renderer/data/CacheService'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 
@@ -64,6 +65,7 @@ const mocks = vi.hoisted(() => {
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
+    notesPath: '/notes',
     activeFilePath: ['/notes/note.md'].at(0),
     noteNode
   }
@@ -159,8 +161,14 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+const setCacheValue = (value: unknown) => {
+  const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(mocks.activeFilePath) : value
+  mocks.activeFilePath = next as string | undefined
+  mocks.setActiveFilePath(next)
+}
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [mocks.activeFilePath, mocks.setActiveFilePath]
+  useCache: () => [mocks.activeFilePath, setCacheValue]
 }))
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
@@ -174,7 +182,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({
     settings: mocks.settings,
     updateSettings: mocks.updateSettings,
-    notesPath: '/notes',
+    notesPath: mocks.notesPath,
     updateNotesPath: mocks.updateNotesPath,
     sortType: 'sort_a2z',
     updateSortType: mocks.updateSortType
@@ -221,8 +229,8 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useFileEditSession', () => ({
-  useFileEditSession: () => ({
+vi.mock('@renderer/pages/notes/NotesFileEditSessionProvider', () => ({
+  useNotesFileEditSession: () => ({
     status: mocks.sessionStatus,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
@@ -379,6 +387,7 @@ describe('NotesPage print payloads', () => {
     mocks.treeIsLoading = false
     mocks.projectedNodes = [mocks.noteNode]
     mocks.activeFilePath = '/notes/note.md'
+    mocks.notesPath = '/notes'
 
     Object.assign(window, {
       api: {
@@ -667,5 +676,37 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Untitled Note.md')
     })
+  })
+
+  it('follows the active note into the new directory after a notes-root change', async () => {
+    const oldNode = { ...mocks.noteNode, externalPath: '/old/notes/note.md', treePath: '/note' }
+    mocks.activeFilePath = '/old/notes/note.md'
+    mocks.notesPath = '/old/notes'
+    mocks.projectedNodes = [oldNode]
+    const { rerender } = await renderReadyNotesPage()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+
+    const newNode = { ...mocks.noteNode, externalPath: '/new/notes/note.md', treePath: '/note' }
+    cacheService.setShared('notes.directory_root_transition', { from: '/old/notes', to: '/new/notes' })
+    mocks.notesPath = '/new/notes'
+    mocks.projectedNodes = [newNode]
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/new/notes/note.md'))
+    // the selection follows the migration instead of being cleared
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('clears the active note when the notes root changes without the same relative note', async () => {
+    mocks.activeFilePath = '/old/notes/note.md'
+    mocks.notesPath = '/old/notes'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/old/notes/note.md', treePath: '/note' }]
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.notesPath = '/new/notes'
+    mocks.projectedNodes = []
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(undefined))
   })
 })

@@ -10,6 +10,7 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { NotesFileEditSessionProvider } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 
@@ -41,7 +42,11 @@ function SubWindowApp(): React.ReactElement {
           <CommandContextKeyProvider>
             <CommandProvider>
               <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
+                {/* Same route tree as main, so detached tabs can render NotesPage —
+                    which requires the notes file-edit session provider. */}
+                <NotesFileEditSessionProvider>
+                  <SubWindowAppShell />
+                </NotesFileEditSessionProvider>
                 <SubWindowRuntime />
                 <ConversationNotificationRuntime />
                 <PopupHost />

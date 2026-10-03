@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
 import {
   SettingDivider,
   SettingGroup,
@@ -24,8 +25,10 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -62,6 +65,9 @@ const BasicDataSettings: React.FC = () => {
   const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
     () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
   )
+  const { notesPath, updateNotesPath } = useNotesSettings()
+  const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
+  const [isNotesPathFallback, setIsNotesPathFallback] = useState(false)
 
   useEffect(() => {
     if (hasV1MigrationSource) return
@@ -97,6 +103,29 @@ const BasicDataSettings: React.FC = () => {
     void ipcApi.request('app.get_info').then(setAppInfo)
     void refreshCacheSize()
   }, [refreshCacheSize])
+
+  useEffect(() => {
+    let active = true
+    void resolveNotesPath(notesPath || '')
+      .then((resolved) => {
+        if (!active) {
+          return
+        }
+        setResolvedNotesPath(resolved.path)
+        setIsNotesPathFallback(resolved.isFallback)
+      })
+      .catch((error) => {
+        if (!active) {
+          return
+        }
+        logger.warn('Failed to resolve notes path', error as Error)
+        setResolvedNotesPath(undefined)
+        setIsNotesPathFallback(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [notesPath])
 
   const handleSelectAppDataPath = async () => {
     if (!appInfo || !appInfo.appDataPath) {
@@ -331,6 +360,55 @@ const BasicDataSettings: React.FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-data-data-notes-data" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.notes_data.label')}</SettingRowTitle>
+          <PathRow>
+            <PathText
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
+              onClick={() => handleOpenPath(resolvedNotesPath)}>
+              {resolvedNotesPath ?? notesPath}
+            </PathText>
+            <RowFlex className="ml-2 gap-1.25">
+              <Button onClick={() => handleOpenPath(resolvedNotesPath)} variant="outline">
+                {t('settings.data.notes_data.open')}
+              </Button>
+              <Button
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const resolved = await resolveNotesPath(notesPath || '')
+                      if (!resolved.path) {
+                        return
+                      }
+                      await startNotesDirectoryMigration({
+                        t,
+                        sourcePath: resolved.path,
+                        onSuccess: async (path) => {
+                          await updateNotesPath(path)
+                        }
+                      })
+                    } catch (error) {
+                      logger.warn('Failed to resolve notes path for migration', error as Error)
+                    }
+                  })()
+                }}
+                variant="outline">
+                {t('settings.data.notes_relocation.migrate')}
+              </Button>
+            </RowFlex>
+          </PathRow>
+        </SettingRow>
+        {isNotesPathFallback && (
+          <SettingRow>
+            <SettingHelpText>
+              {t('notes.directory_unavailable_fallback', { path: resolvedNotesPath ?? notesPath })}
+            </SettingHelpText>
+          </SettingRow>
+        )}
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.notes_data.help')}</SettingHelpText>
+        </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>

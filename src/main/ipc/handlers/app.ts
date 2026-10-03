@@ -7,9 +7,22 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import {
+  completeNotesMigrationCommit,
+  getNotesMigrationSessionId,
+  inspectNotesRelocation,
+  migrateNotesDirectory,
+  releaseNotesMigrationSession,
+  rendererEditFlushCoordinator,
+  scheduleAwaitingMigrationCommit,
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration,
+  waitForNotesFilesystemMutationsIdle
+} from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -38,6 +51,47 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
     }
     requestUserDataRelocation(path, copy)
+  },
+  'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, ctx) => {
+    if (!tryBeginNotesDirectoryMigration()) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+        'another notes directory migration is already in progress'
+      )
+    }
+    try {
+      const prepared = await rendererEditFlushCoordinator.prepareForMigration()
+      if (!prepared) {
+        releaseNotesMigrationSession()
+        throw new IpcError(
+          notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+          'a renderer window failed to prepare for notes directory migration'
+        )
+      }
+      await waitForNotesFilesystemMutationsIdle()
+      setNotesMigrationBlockedRoots(sourcePath, targetPath)
+      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      const sessionId = getNotesMigrationSessionId()
+      if (!sessionId) {
+        releaseNotesMigrationSession()
+        throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FAILED, 'notes migration session is missing')
+      }
+      scheduleAwaitingMigrationCommit(ctx.senderId)
+      return { ...result, sessionId }
+    } catch (error) {
+      releaseNotesMigrationSession()
+      throw error
+    }
+  },
+  'app.notes_relocation.commit': async ({ sessionId }) => {
+    completeNotesMigrationCommit(sessionId)
+  },
+  'app.notes_relocation.migration_lock_ack': async ({ batchId, ok }, ctx) => {
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(batchId, ctx.senderId, ok)
+  },
+  'app.notes_relocation.flush_ack': async ({ batchId, ok }, ctx) => {
+    rendererEditFlushCoordinator.acknowledgeFlush(batchId, ctx.senderId, ok)
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),

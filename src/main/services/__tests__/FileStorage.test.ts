@@ -9,6 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
+import {
+  releaseNotesMigrationSession,
+  setNotesMigrationBlockedRoots,
+  tryBeginNotesDirectoryMigration,
+  waitForNotesFilesystemMutationsIdle
+} from '@main/services/notesRelocation/migrationSession'
+
 import { fileStorage } from '../FileStorage'
 
 const event = {} as Electron.IpcMainInvokeEvent
@@ -23,6 +30,21 @@ describe('FileStorage', () => {
   })
 
   describe('save', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('rejects writes into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-save-tgt-'))
+      const dest = path.join(target, 'export.md')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.save(event, 'note.md', 'content')).rejects.toMatch(/migration is in progress/)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns null (does not throw) when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
@@ -181,6 +203,21 @@ describe('FileStorage', () => {
   // Catches an inverted canceled/filePath check (cancel writing a file, confirm
   // returning false) and a lost 'base64' encoding (literal base64 text on disk).
   describe('saveImage', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('returns false when saving into a notes root blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-image-tgt-'))
+      const dest = path.join(target, 'image.png')
+      setNotesMigrationBlockedRoots(source, target)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: dest })
+
+      await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+      expect(fs.existsSync(dest)).toBe(false)
+    })
+
     it('returns false and writes nothing when the save dialog is canceled', async () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
@@ -198,6 +235,86 @@ describe('FileStorage', () => {
       } finally {
         fs.rmSync(tmpFile, { force: true })
       }
+    })
+  })
+
+  describe('batchUploadMarkdownFiles', () => {
+    afterEach(() => {
+      releaseNotesMigrationSession()
+    })
+
+    it('rejects uploads into notes roots blocked during directory migration', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      setNotesMigrationBlockedRoots(source, target)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+
+    it('rejects batch uploads while migration prepare is already in flight', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-flight-tgt-'))
+      const markdown = path.join(source, 'note.md')
+      fs.writeFileSync(markdown, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [markdown], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+    })
+
+    it('waits for an in-flight external write before migration can install the write barrier', async () => {
+      const notesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-write-flight-'))
+      const dest = path.join(notesDir, 'note.md')
+      const originalWrite = fs.promises.writeFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'writeFile').mockImplementation(async (filePath, data, ...args) => {
+        await originalWrite(filePath, data, ...(args as [BufferEncoding]))
+        if (String(filePath) === dest) {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+      })
+
+      const write = fileStorage.writeFile(event, dest, '# hello')
+      expect(tryBeginNotesDirectoryMigration()).toBe(true)
+      const idle = waitForNotesFilesystemMutationsIdle()
+      let barrierReady = false
+      void idle.then(() => {
+        barrierReady = true
+      })
+      await Promise.resolve()
+      expect(barrierReady).toBe(false)
+
+      await write
+      await idle
+      expect(barrierReady).toBe(true)
+    })
+
+    it('aborts an in-flight batch upload when migration starts before a write', async () => {
+      const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-src-'))
+      const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-batch-mid-tgt-'))
+      const first = path.join(source, 'first.md')
+      const second = path.join(source, 'second.md')
+      fs.writeFileSync(first, '# one')
+      fs.writeFileSync(second, '# two')
+
+      const originalRead = fs.promises.readFile.bind(fs.promises)
+      vi.spyOn(fs.promises, 'readFile').mockImplementation(async (filePath, ...args) => {
+        const content = await originalRead(filePath, ...(args as [BufferEncoding]))
+        if (String(filePath).endsWith('first.md')) {
+          setNotesMigrationBlockedRoots(source, target)
+        }
+        return content
+      })
+
+      await expect(fileStorage.batchUploadMarkdownFiles(event, [first, second], target)).rejects.toThrow(
+        /migration is in progress/
+      )
+      expect(fs.existsSync(path.join(target, 'first.md'))).toBe(false)
+      expect(fs.existsSync(path.join(target, 'second.md'))).toBe(false)
     })
   })
 })
