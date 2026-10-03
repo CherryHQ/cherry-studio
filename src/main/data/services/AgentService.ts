@@ -10,10 +10,11 @@ import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/a
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { groupService } from '@data/services/GroupService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
@@ -65,6 +66,7 @@ type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
+  groupId?: string | null
   skillIds?: string[]
 }
 
@@ -175,6 +177,24 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
+function validateAgentGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
+
+  const group = groupService.findByIdTx(tx, groupId)
+
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Agent group not found: ${groupId}`]
+    })
+  }
+
+  if (group.entityType !== 'agent') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Agent group must have entityType 'agent': ${groupId}`]
+    })
+  }
+}
+
 function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
@@ -186,6 +206,7 @@ function rowToAgent(
     ...clean,
     mcps,
     knowledgeBaseIds,
+    groupId: row.groupId ?? null,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -315,7 +336,8 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
-      configuration: req.configuration
+      configuration: req.configuration,
+      groupId: req.groupId
     }
 
     // Validate referenced skills before opening the write tx so the main path
@@ -337,6 +359,7 @@ export class AgentService {
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
+          validateAgentGroupTx(tx, req.groupId)
           const result = this.createAgentTx(tx, id, insertData, 'first')
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -577,7 +600,7 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
+  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean; groupId?: string } = {}): {
     agents: AgentEntity[]
     total: number
   } {
@@ -591,6 +614,9 @@ export class AgentService {
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
+    }
+    if (options.groupId !== undefined) {
+      conditions.push(eq(agentsTable.groupId, options.groupId))
     }
     const whereClause = and(...conditions)
 
@@ -721,6 +747,7 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
+    let groupMembershipChanged = false
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -782,6 +809,10 @@ export class AgentService {
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }
+          if (updates.groupId !== undefined) {
+            validateAgentGroupTx(tx, updates.groupId)
+            groupMembershipChanged = (updates.groupId ?? null) !== (current.groupId ?? null)
+          }
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
@@ -809,6 +840,10 @@ export class AgentService {
     )
 
     const updated = this.getAgent(id)
+    if (groupMembershipChanged) {
+      // Moves the agent between group-filtered /agents buckets in every window.
+      notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
+    }
     if (updated) {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }

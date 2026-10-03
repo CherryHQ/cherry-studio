@@ -367,6 +367,13 @@
       "description": "Agent session resource pane position (left/right), independent of the Home topic pane"
     },
     {
+      "targetKey": "agent.tab.sort_type",
+      "type": "PreferenceTypes.AgentTabSortType",
+      "defaultValue": "list",
+      "status": "classified",
+      "description": "Agent rail entity grouping mode (tags = group by Group rows, list = flat)"
+    },
+    {
       "targetKey": "feature.quick_assistant.model_id",
       "type": "string",
       "defaultValue": null,

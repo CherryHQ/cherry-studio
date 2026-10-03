@@ -13,12 +13,14 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
-  deleteGroupMock: vi.fn(),
-  updateGroupMock: vi.fn(),
-  updateAssistantMock: vi.fn(),
-  updateSkillGlobalEnabledMock: vi.fn()
-}))
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateAgentMock, updateSkillGlobalEnabledMock } =
+  vi.hoisted(() => ({
+    deleteGroupMock: vi.fn(),
+    updateGroupMock: vi.fn(),
+    updateAssistantMock: vi.fn(),
+    updateAgentMock: vi.fn(),
+    updateSkillGlobalEnabledMock: vi.fn()
+  }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -357,6 +359,9 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
   }),
+  useAgentMutationsById: () => ({
+    updateAgent: updateAgentMock
+  }),
   useSkillMutationsById: () => ({
     updateGlobalEnabled: updateSkillGlobalEnabledMock,
     isUpdating: false
@@ -413,7 +418,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(): ResourceItem {
+function createAgentResource(overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}): ResourceItem {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -422,7 +427,8 @@ function createAgentResource(): ResourceItem {
     avatar: 'A',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw'],
+    ...overrides
   }
 }
 
@@ -906,6 +912,7 @@ describe('ResourceGrid card actions', () => {
 
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
+    // Prompts have no overflow menu — agent cards gained one for group actions.
     const resource = createPromptResource()
     const onDelete = vi.fn()
 
@@ -1114,7 +1121,7 @@ describe('ResourceCardMenu group binding', () => {
     })
   })
 
-  it('does not expose group management for agent, skill, or prompt resources', async () => {
+  it('does not expose group management for skill or prompt resources', async () => {
     const user = userEvent.setup()
     const menuProps = {
       onClose: vi.fn(),
@@ -1124,7 +1131,7 @@ describe('ResourceCardMenu group binding', () => {
       allGroups: assistantGroups
     }
 
-    for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
+    for (const resource of [createSkillResource(), createPromptResource()]) {
       const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
 
       await user.click(screen.getByRole('button', { name: /common.more/ }))
@@ -1132,6 +1139,30 @@ describe('ResourceCardMenu group binding', () => {
 
       unmount()
     }
+  })
+
+  it('binds an agent resource through the agent PATCH endpoint', async () => {
+    const user = userEvent.setup()
+    updateAgentMock.mockResolvedValue({})
+
+    render(
+      <ResourceCardMenu
+        resource={createAgentResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={assistantGroups}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'beta' }))
+
+    await waitFor(() => {
+      expect(updateAgentMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
+    })
   })
 
   it('keeps uninstall available for skill resources without extra menu actions', async () => {
