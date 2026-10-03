@@ -8,21 +8,23 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 const {
   appGetMock,
-  assertOutsideManagedStorageMutationMock,
   copyNewMock,
   getMetadataByPathMock,
   readByPathMock,
   readChunkByPathMock,
+  resolveOutsideManagedStorageEntryMutationsMock,
+  resolveOutsideManagedStorageMutationMock,
   safeOpenMock,
   showPathInFolderMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  assertOutsideManagedStorageMutationMock: vi.fn(),
   copyNewMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
   readByPathMock: vi.fn(),
   readChunkByPathMock: vi.fn(),
+  resolveOutsideManagedStorageEntryMutationsMock: vi.fn(),
+  resolveOutsideManagedStorageMutationMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
@@ -57,11 +59,12 @@ vi.mock('@main/services/file', async () => {
         super('DirectoryTreeManager stopped during in-flight builder creation')
       }
     },
-    assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
     readByPath: readByPathMock,
     readChunkByPath: readChunkByPathMock,
+    resolveOutsideManagedStorageEntryMutations: resolveOutsideManagedStorageEntryMutationsMock,
+    resolveOutsideManagedStorageMutation: resolveOutsideManagedStorageMutationMock,
     safeOpen: safeOpenMock,
     showInFolder: showPathInFolderMock,
     writeIfUnchangedByPath: writeIfUnchangedByPathMock
@@ -118,6 +121,8 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resolveOutsideManagedStorageEntryMutationsMock.mockImplementation(async (...paths: string[]) => paths)
+  resolveOutsideManagedStorageMutationMock.mockImplementation(async (path: string) => path)
   windowManager.getWindow.mockImplementation((id: string) =>
     id === 'win-1' ? { webContents: senderWebContents } : undefined
   )
@@ -217,6 +222,7 @@ describe('fileHandlers', () => {
     const data = new Uint8Array([5, 6])
     const expectedVersion = { mtime: 1, size: 4 }
     const nextVersion = { mtime: 2, size: 2 }
+    resolveOutsideManagedStorageMutationMock.mockResolvedValueOnce('/physical/report.md')
     writeIfUnchangedByPathMock.mockResolvedValueOnce(nextVersion)
 
     await expect(
@@ -230,8 +236,8 @@ describe('fileHandlers', () => {
       )
     ).resolves.toBe(nextVersion)
 
-    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/report.md')
-    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion, undefined)
+    expect(resolveOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/physical/report.md', data, expectedVersion, undefined)
   })
 
   it('writes a managed entry through FileManager', async () => {
@@ -252,7 +258,7 @@ describe('fileHandlers', () => {
     ).resolves.toBe(nextVersion)
 
     expect(fileManager.writeIfUnchanged).toHaveBeenCalledWith(ids[0], data, expectedVersion, undefined)
-    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(resolveOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
   })
 
   it('maps path version conflicts to FILE_STALE_VERSION', async () => {
@@ -300,7 +306,9 @@ describe('fileHandlers', () => {
     })
   })
 
-  it('copy guards only the destination and delegates to the create-only primitive', async () => {
+  it('copy resolves only the destination and delegates to the create-only primitive', async () => {
+    resolveOutsideManagedStorageEntryMutationsMock.mockResolvedValueOnce(['/physical/exports/img-a.png'])
+
     await fileHandlers['file.copy'](
       {
         sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
@@ -310,9 +318,9 @@ describe('fileHandlers', () => {
     )
 
     // source lives in managed storage legitimately — guarding it would refuse attachments
-    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledTimes(1)
-    expect(assertOutsideManagedStorageMutationMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
-    expect(copyNewMock).toHaveBeenCalledWith('/data/Files/a.png', '/tmp/exports/assets/img-a.png')
+    expect(resolveOutsideManagedStorageEntryMutationsMock).toHaveBeenCalledTimes(1)
+    expect(resolveOutsideManagedStorageEntryMutationsMock).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png')
+    expect(copyNewMock).toHaveBeenCalledWith('/data/Files/a.png', '/physical/exports/img-a.png')
   })
 
   it('copy refuses a trusted-but-unmanaged sender before touching anything', async () => {
@@ -325,12 +333,12 @@ describe('fileHandlers', () => {
         ctx
       )
     ).rejects.toThrow('requires a managed window sender')
-    expect(assertOutsideManagedStorageMutationMock).not.toHaveBeenCalled()
+    expect(resolveOutsideManagedStorageEntryMutationsMock).not.toHaveBeenCalled()
     expect(copyNewMock).not.toHaveBeenCalled()
   })
 
   it('copy does not touch the filesystem when the destination guard rejects', async () => {
-    assertOutsideManagedStorageMutationMock.mockRejectedValueOnce(new Error('managed storage'))
+    resolveOutsideManagedStorageEntryMutationsMock.mockRejectedValueOnce(new Error('managed storage'))
 
     await expect(
       fileHandlers['file.copy'](

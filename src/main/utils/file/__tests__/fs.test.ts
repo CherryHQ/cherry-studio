@@ -489,22 +489,15 @@ describe('atomicWriteFile', () => {
   })
 
   it('cleans up the tmp file when rename fails', async () => {
-    // Make the target directory read-only after pre-creating an existing file there,
-    // then attempt to overwrite — rename(tmp → target) cannot succeed because the
-    // directory is read-only on POSIX. Skip on Windows where chmod semantics differ.
-    if (process.platform === 'win32') return
     const target = path.join(tmp, 'd.txt') as AbsoluteFilePath
-    await atomicWriteFile(target, 'baseline')
-    const { chmod } = await import('node:fs/promises')
-    await chmod(tmp, 0o555)
-    try {
-      await expect(atomicWriteFile(target, 'second')).rejects.toThrow()
-    } finally {
-      await chmod(tmp, 0o755)
-    }
-    const entries = await readdir(tmp)
-    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
-    expect(await readFile(target, 'utf-8')).toBe('baseline')
+    await mkdir(target)
+    const original = path.join(target, 'baseline.txt')
+    await writeFile(original, 'baseline')
+
+    await expect(atomicWriteFile(target, 'second')).rejects.toThrow()
+
+    expect(await readdir(tmp)).toEqual(['d.txt'])
+    expect(await readFile(original, 'utf-8')).toBe('baseline')
   })
 })
 
