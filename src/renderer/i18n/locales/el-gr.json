@@ -4201,7 +4201,6 @@
   "settings.dependencies.viewErrorDetails": "Δείτε λεπτομέρειες",
   "settings.developer.cdp.description": "Έμπιστα τοπικά εργαλεία μπορούν να ελέγχουν την εφαρμογή μέσω {{address}}. Απαιτείται επανεκκίνηση.",
   "settings.developer.cdp.port": "Θύρα CDP",
-  "settings.developer.cdp.restart": "Επανεκκίνηση για εφαρμογή",
   "settings.developer.cdp.title": "Τοπικός αυτοματισμός (CDP)",
   "settings.developer.client_id": "Αναγνωριστικό Πελάτη",
   "settings.developer.enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",

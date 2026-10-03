@@ -4201,7 +4201,6 @@
   "settings.dependencies.viewErrorDetails": "Ayrıntıları görüntüle",
   "settings.developer.cdp.description": "Güvenilir yerel araçların {{address}} üzerinden uygulamayı denetlemesine izin verir. Yeniden başlatma gerekir.",
   "settings.developer.cdp.port": "CDP bağlantı noktası",
-  "settings.developer.cdp.restart": "Uygulamak için yeniden başlat",
   "settings.developer.cdp.title": "Yerel otomasyon (CDP)",
   "settings.developer.client_id": "İstemci Kimliği",
   "settings.developer.enable_developer_mode": "Geliştirici Modunu Etkinleştir",

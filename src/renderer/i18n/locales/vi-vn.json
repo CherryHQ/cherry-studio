@@ -4201,7 +4201,6 @@
   "settings.dependencies.viewErrorDetails": "Xem chi tiết",
   "settings.developer.cdp.description": "Cho phép công cụ cục bộ đáng tin cậy điều khiển ứng dụng qua {{address}}. Cần khởi động lại.",
   "settings.developer.cdp.port": "Cổng CDP",
-  "settings.developer.cdp.restart": "Khởi động lại để áp dụng",
   "settings.developer.cdp.title": "Tự động hóa cục bộ (CDP)",
   "settings.developer.client_id": "ID khách hàng",
   "settings.developer.enable_developer_mode": "Kích hoạt Chế độ Nhà phát triển",

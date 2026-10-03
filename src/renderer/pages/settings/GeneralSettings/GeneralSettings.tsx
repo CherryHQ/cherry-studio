@@ -58,7 +58,6 @@ const GeneralSettings: FC = () => {
   const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
     optimistic: false
   })
-  const [remoteDebuggingRestartRequired, setRemoteDebuggingRestartRequired] = useState(false)
   const [remoteDebuggingPort, setRemoteDebuggingPort] = usePreference('BootConfig.app.remote_debugging.port', {
     optimistic: false
   })
@@ -139,15 +138,15 @@ const GeneralSettings: FC = () => {
   const handleRemoteDebuggingChange = async (checked: boolean) => {
     try {
       await setRemoteDebuggingEnabled(checked)
-      setRemoteDebuggingRestartRequired(true)
     } catch (error) {
       toast.error(formatErrorMessage(error))
     }
   }
 
-  const handleRemoteDebuggingRestart = async () => {
+  const handleDeveloperModeChange = async (checked: boolean) => {
     try {
-      await window.api.application.relaunch()
+      if (!checked && remoteDebuggingEnabled) await setRemoteDebuggingEnabled(false)
+      await setEnableDeveloperMode(checked)
     } catch (error) {
       toast.error(formatErrorMessage(error))
     }
@@ -156,7 +155,6 @@ const GeneralSettings: FC = () => {
   const handleRemoteDebuggingPortChange = async (port: number | null) => {
     try {
       await setRemoteDebuggingPort(port ?? 9222)
-      setRemoteDebuggingRestartRequired(true)
     } catch (error) {
       toast.error(formatErrorMessage(error))
     }
@@ -388,44 +386,45 @@ const GeneralSettings: FC = () => {
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
-          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+          <Switch
+            checked={enableDeveloperMode}
+            onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
+            aria-label={t('settings.developer.enable_developer_mode')}
+          />
         </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">
-              {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
-            </SettingDescription>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {remoteDebuggingRestartRequired && (
-              <Button variant="outline" size="sm" onClick={() => void handleRemoteDebuggingRestart()}>
-                {t('settings.developer.cdp.restart')}
-              </Button>
-            )}
-            <Switch
-              checked={remoteDebuggingEnabled}
-              onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
-              aria-label={t('settings.developer.cdp.title')}
-            />
-          </div>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
-          <div className="w-28 shrink-0">
-            <InputNumber
-              min={1}
-              max={65535}
-              step={1}
-              value={remoteDebuggingPort}
-              disabled={!remoteDebuggingEnabled}
-              aria-label={t('settings.developer.cdp.port')}
-              onBlur={handleRemoteDebuggingPortChange}
-            />
-          </div>
-        </SettingRow>
+        {enableDeveloperMode && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={remoteDebuggingEnabled}
+                onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
+                aria-label={t('settings.developer.cdp.title')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
+              <div className="w-28 shrink-0">
+                <InputNumber
+                  min={1}
+                  max={65535}
+                  step={1}
+                  value={remoteDebuggingPort}
+                  disabled={!remoteDebuggingEnabled}
+                  aria-label={t('settings.developer.cdp.port')}
+                  onBlur={handleRemoteDebuggingPortChange}
+                />
+              </div>
+            </SettingRow>
+          </>
+        )}
         {enableDeveloperMode && clientId ? (
           <>
             <SettingDivider />

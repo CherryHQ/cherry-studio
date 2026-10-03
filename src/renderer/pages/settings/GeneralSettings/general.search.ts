@@ -62,18 +62,6 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.developer.title'
   },
   {
-    anchorId: 'remote-debugging',
-    titleKey: 'settings.developer.cdp.title',
-    groupKey: 'settings.developer.title',
-    aliases: ['CDP', 'remote debugging', 'automation', '远程调试', '自动化']
-  },
-  {
-    anchorId: 'remote-debugging-port',
-    titleKey: 'settings.developer.cdp.port',
-    groupKey: 'settings.developer.title',
-    aliases: ['CDP port', 'debug port', '调试端口']
-  },
-  {
     anchorId: 'context-max-messages',
     titleKey: 'settings.models.context_management.max_messages',
     groupKey: 'settings.models.context_management.title',

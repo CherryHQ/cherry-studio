@@ -4201,7 +4201,6 @@
   "settings.dependencies.viewErrorDetails": "Voir les détails",
   "settings.developer.cdp.description": "Autorise les outils locaux de confiance à contrôler l’application via {{address}}. Redémarrage nécessaire.",
   "settings.developer.cdp.port": "Port CDP",
-  "settings.developer.cdp.restart": "Redémarrer pour appliquer",
   "settings.developer.cdp.title": "Automatisation locale (CDP)",
   "settings.developer.client_id": "ID client",
   "settings.developer.enable_developer_mode": "Activer le mode développeur",
