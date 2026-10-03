@@ -102,6 +102,11 @@ export class ChannelAdapterListener implements StreamListener {
   async onError(result: StreamErrorResult): Promise<void> {
     if (this.delivered) return
     this.delivered = true
+    if (!result.isTopicDone) {
+      // Same chain-hold gap as `finish`: a live sibling keeps the topic alive, so the successor turn
+      // must not inherit this turn's un-delivered text.
+      this.accumulatedText = ''
+    }
     try {
       const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {

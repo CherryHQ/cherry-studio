@@ -118,6 +118,24 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual(['On it.', 'Found it: 42'])
   })
 
+  it('does not carry an errored turn’s partial text into the successor turn on the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('Half a reply that'))
+    // A live sibling execution keeps the topic out of the terminal broadcast, so an error can land
+    // with isTopicDone:false — a successor turn then arrives on this same listener.
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'boom' },
+      isTopicDone: false
+    })
+    listener.onChunk(delta('the successor continues'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.at(-1)?.[1]).toBe('the successor continues')
+  })
+
   it('finalizes an empty turn without sending an empty fallback', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
