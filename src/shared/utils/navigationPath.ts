@@ -53,6 +53,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/settings/appearance',
   '/settings/notifications',
   '/settings/data',
+  '/settings/archive',
   '/settings/mcp',
   '/settings/websearch',
   '/settings/api-gateway',

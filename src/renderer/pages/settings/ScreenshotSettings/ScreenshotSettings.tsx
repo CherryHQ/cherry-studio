@@ -16,7 +16,7 @@ import {
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { OutputFor } from '@shared/ipc/types'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
@@ -124,7 +124,8 @@ const ScreenshotSettings: FC = () => {
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
-  const ocrReady = ocrModel.status === 'ready'
+  const systemOcrAvailable = isMac || isWin
+  const ocrReady = systemOcrAvailable || ocrModel.status === 'ready'
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -221,7 +222,9 @@ const ScreenshotSettings: FC = () => {
         />
 
         <div className="mt-2 px-2">
-          {ocrReady ? (
+          {systemOcrAvailable ? (
+            <Badge variant="secondary">{t('provider.system')}</Badge>
+          ) : ocrReady ? (
             <Badge variant="secondary">{t('settings.screenshot.ocr.model.ready')}</Badge>
           ) : ocrModel.status === 'downloading' ? (
             <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">

@@ -462,6 +462,48 @@ describe('TraceStorageService', () => {
     expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
   })
 
+  // Agent-session topicIds (`agent-session:<uuid>`) carry a colon that NTFS rejects, so an
+  // unencoded topic dir made every Windows flush fail with ENOENT and no history was ever written.
+  it('persists a colon topicId to an encoded directory and reads it back (REGRESSION windows-colon-topic)', async () => {
+    await service._doInit()
+    const topicId = 'agent-session:2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'
+
+    service.saveEntity(span({ id: 'agent-span', traceId: 'trace-agent', topicId }))
+    await service.saveSpans(topicId)
+
+    const entries = await fs.readdir(traceDir)
+    expect(entries).toEqual(['agent-session%3A2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'])
+    // saveSpans clears memory, so this read comes from the history file via the same mapping.
+    await expect(service.getSpans(topicId, 'trace-agent')).resolves.toMatchObject([{ id: 'agent-span' }])
+  })
+
+  // Histories written before Windows-safe encoding live at the raw colon dir on POSIX. They must
+  // stay visible after the upgrade, and the next flush must carry them into the encoded file.
+  // POSIX-only: the legacy colon dir cannot exist on NTFS, which is why the encoding was needed.
+  it.skipIf(process.platform === 'win32')(
+    'reads pre-encoding colon history and merges it forward on flush (REGRESSION colon-topic-upgrade)',
+    async () => {
+      await service._doInit()
+      const topicId = 'agent-session:2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'
+      const traceId = 'trace-agent'
+
+      const legacyDir = path.join(traceDir, topicId)
+      await fs.mkdir(legacyDir, { recursive: true })
+      await fs.writeFile(
+        path.join(legacyDir, traceId),
+        `${JSON.stringify(span({ id: 'old-span', traceId, topicId }))}\n`
+      )
+
+      expect((await service.getSpans(topicId, traceId)).map((s) => s.id)).toEqual(['old-span'])
+
+      service.saveEntity(span({ id: 'new-span', traceId, topicId }))
+      await service.saveSpans(topicId)
+
+      expect(await fs.readdir(traceDir)).toEqual(['agent-session%3A2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'])
+      expect((await service.getSpans(topicId, traceId)).map((s) => s.id)).toEqual(['old-span', 'new-span'])
+    }
+  )
+
   // A second /v1/traces export of the same span must not drop log events already drained onto it.
   it('preserves drained log events when a later span update arrives with empty or extra events', async () => {
     await service._doInit()

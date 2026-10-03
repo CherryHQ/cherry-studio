@@ -64,6 +64,7 @@ interface UseChatRuntimeStateParams {
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
+  composerModelId?: UniqueModelId
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
 }
 
@@ -112,6 +113,7 @@ export function useChatRuntimeState({
   activeNodeId,
   messagesCacheMutate,
   assistant,
+  composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
@@ -237,8 +239,13 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
+  const persistedPartsByMessageId = useMemo(
+    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
+    [uiMessages]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })
@@ -452,7 +459,8 @@ export function useChatRuntimeState({
       isTopicAwaitingApproval ||
       turnPhase === 'persisting' ||
       turnPhase === 'opening',
-    assistant
+    assistant,
+    composerModelId
   })
 
   const sendMessage = useCallback(

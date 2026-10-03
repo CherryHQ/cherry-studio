@@ -17,11 +17,13 @@ import type {
   OrphanSessionReclaimOptions
 } from '../types'
 import { assertPiProviderUsable } from './modelInjection'
+import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
   readonly capabilities = ['agent-session'] as const
+  readonly fork = forkPiSession
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path

@@ -557,6 +557,12 @@ The driver converts Claude SDK messages into runtime events:
   stays the authoritative reading;
 - a successful `result` -> flush pending per-request usage, then `resume-token`, a
   cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
+- a `result` stamped `origin.kind === 'task-notification'` -> resume token only, never
+  turn settlement. A resumed CLI replays pending background-task notifications as their
+  own zero-turn query before it pulls the host's input
+  ([claude-agent-sdk#383](https://github.com/anthropics/claude-agent-sdk-typescript/issues/383)),
+  so that result belongs to the task, not to the open turn, which keeps waiting for the
+  user query's own result (a CLI death in between surfaces through the normal error path);
 - a failed `result` -> preserve its final usage and resume token, then emit `error` and
   tear down the connection. This includes SDK envelopes whose subtype is `success` but
   whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
@@ -608,8 +614,9 @@ old policy.
 ## pi driver resource boundary
 
 pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
-The driver must not import the user's standalone pi setup from `~/.pi/agent`,
-and must not silently trust executable or prompt resources from a workspace.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`
+(apart from the Windows `shellPath` field below), and must not silently trust
+executable or prompt resources from a workspace.
 
 Allowed in v1:
 
@@ -658,11 +665,19 @@ Allowed in v1:
   Context files are workspace **text**, a different trust class than executable
   extensions (which stay off). This is the only project-discovered resource pi
   loads; everything else below is still disabled.
+- On Windows, the top-level `shellPath` from the user's global pi
+  `settings.json` — read as a single field, validated to name an available
+  `bash.exe`, and passed to the in-memory settings manager and the managed Bash
+  tool. Without it pi resolves `bash` from PATH and silently lands in the WSL
+  shim. An invalid configured path fails startup rather than switching
+  execution environments behind the user's back; an absent one falls back to
+  Cherry's own Git Bash discovery.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
-- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
-  skill folders such as `~/.agents/skills`.
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) other
+  than the `shellPath` field above, or user skill folders such as
+  `~/.agents/skills`.
 - Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
   `APPEND_SYSTEM.md`; Cherry's `PromptBuilder` is the only persona source.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
@@ -759,6 +774,19 @@ and terminal reasons into `AgentRuntimeEvent`s. DSH child-session lifecycle is
 coordinated separately so nested content is either attached to the current host
 turn or persisted as background flow without corrupting the main transcript.
 
+### Approval feedback and Full Access shell validation
+
+When an approval is rejected with a reason, the bridge injects that feedback into
+the current Agent turn so the harness can respond to it. Agent tool calls without
+a verified workspace directory are denied.
+
+In Full Access mode, the bridge removes `sandbox_permissions` and `justification`
+from the native `bash` and `pwsh` tool schemas. A runtime guard also rejects calls
+that still supply either field, before executing the command, and tells the Agent
+to retry using its current permissions. This validation does not terminate the
+conversation or add a general retry limit. No setup is required; repeated invalid
+requests can be corrected by removing those fields or stopping the run.
+
 ## Internal Agent continuation normalization
 
 When a Cherry-internal Agent Session request enters the API gateway in Anthropic
@@ -772,21 +800,17 @@ transcript's user-visible history, or the renderer. Direct Anthropic requests do
 not enter the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
-## Corrupt resume history recovery
+## Native resume failures
 
-Each Claude Code connection may recover once from either a missing resumed
-conversation (`No conversation found with session ID`) or a request-time duplicate
-tool-use id failure (`tool_use ids must be unique`). The driver discards the failed
-resume token, rebuilds the SDK input queue and query without `resume`, and replays the
-pending user input with an empty SDK `session_id`. The replacement query's next
-`system/init` advances the normal resume-token persistence path to the new session id.
+Claude Code surfaces native resume failures, including missing conversations and
+duplicate tool-use IDs. The adapter does not discard the resume token and replay
+the pending input into a fresh conversation. Native history and its recovery
+semantics belong to the harness.
 
-Duplicate-id recovery is allowed only before the current turn emits any non-metadata
-chunk. Text, reasoning, tool calls, tool results, and background-flow chunks all close
-that safety gate because replay could repeat visible output or a tool side effect. If
-the gate has closed, the driver does not rebuild or replay; it surfaces the original
-error. Missing-conversation recovery keeps its existing compatibility behavior and is
-not activity-gated, but both reasons share the same one-attempt connection budget.
+Forked sessions use the same persisted native resume-token path as other Agent
+sessions. Cherry does not rebuild their context from visible messages when native
+history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
+separate publication and file-resource recovery path.
 
 ## Idle and shutdown
 

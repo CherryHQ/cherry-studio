@@ -1229,8 +1229,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string): Promise<void> {
+  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
     await this.withDispatchLock(topicId, async () => {
+      beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
@@ -1587,7 +1588,7 @@ export class AiStreamManager extends BaseService {
       isTopicDone
     }
     for (const listener of stream.listeners.values()) {
-      if (listener.id.startsWith('persistence:')) continue
+      if (listener.terminalPhase) continue
       try {
         void listener.onError(result)
       } catch (err) {
