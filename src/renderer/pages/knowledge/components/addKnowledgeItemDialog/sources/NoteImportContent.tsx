@@ -1,11 +1,11 @@
 import { NotebookPen } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { projectNotesTree } from '@renderer/services/NotesService'
+import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 
 import type { NoteItem } from '../types'
@@ -19,21 +19,43 @@ interface NoteImportContentProps {
 const NoteImportContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteImportContentProps) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const { root, isLoading, error } = useDirectoryTree(notesPath || undefined)
+  // The synced pref may hold another machine's path after a backup restore —
+  // resolve through this PC's stamped choice before listing anything.
+  const [resolvedNotesPath, setResolvedNotesPath] = useState<string | null>(null)
+  useEffect(() => {
+    if (!notesPath) {
+      setResolvedNotesPath(null)
+      return
+    }
+    let cancelled = false
+    resolveNotesPath(notesPath).then(
+      (resolved) => {
+        if (!cancelled) setResolvedNotesPath(resolved.path)
+      },
+      () => {
+        if (!cancelled) setResolvedNotesPath(notesPath)
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [notesPath])
+  const { root, isLoading, error } = useDirectoryTree(resolvedNotesPath ?? undefined)
 
   const noteFiles = useMemo(() => {
-    if (!root || !notesPath) {
+    if (!root || !resolvedNotesPath) {
       return []
     }
-    return flattenTreeToFiles(projectNotesTree(root, notesPath))
-  }, [root, notesPath])
+    return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
+  }, [root, resolvedNotesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])
   const allNotesSelected = noteFiles.every((note) => selectedPaths.has(note.externalPath))
+  const resolvingDevicePath = Boolean(notesPath && !resolvedNotesPath)
   const someNotesSelected = noteFiles.some((note) => selectedPaths.has(note.externalPath))
 
   const renderBody = () => {
-    if (isLoading) {
+    if (isLoading || resolvingDevicePath) {
       return (
         <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center text-foreground-tertiary text-xs leading-4">
           {t('knowledge.data_source.add_dialog.note.loading')}

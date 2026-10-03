@@ -19,6 +19,7 @@ import {
   addDir,
   addNote,
   delNode,
+  normalizePath,
   projectNotesTree,
   renameNode as renameEntry,
   resolveNotesPath,
@@ -299,10 +300,10 @@ const NotesPage: FC = () => {
   useEffect(() => {
     async function initialize() {
       if (!notesPath) {
-        // 首次启动，获取默认路径
-        const info = await ipcApi.request('app.get_info')
-        const defaultPath = info.notesPath
-        updateNotesPath(defaultPath)
+        // An empty synced pref must not bypass this PC's stamped choice:
+        // resolve through the device sidecar first (falls back to default).
+        const resolved = await resolveNotesPath('')
+        updateNotesPath(resolved.path)
         return
       }
 
@@ -310,6 +311,11 @@ const NotesPage: FC = () => {
       try {
         const resolved = await resolveNotesPath(notesPath)
         if (!resolved.isFallback) {
+          // Device path won over a foreign synced pref: converge the pref so
+          // future backups stop propagating the other machine's path.
+          if (normalizePath(notesPath) !== resolved.path) {
+            updateNotesPath(resolved.path)
+          }
           return
         }
         const defaultPath = resolved.path
