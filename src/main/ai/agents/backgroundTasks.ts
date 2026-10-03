@@ -159,7 +159,7 @@ export async function startDetachedBackgroundTask(
 
     const record: BackgroundTaskRecord = {
       id,
-      name: input.name?.trim() || 'background task',
+      name: input.name?.trim() || t('background_task.name.unnamed'),
       command,
       pid: child.pid ?? -1,
       pidStartTime: child.pid ? getPidStartTime(child.pid) : undefined,
