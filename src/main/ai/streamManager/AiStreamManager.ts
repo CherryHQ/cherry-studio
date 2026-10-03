@@ -74,6 +74,11 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
+
+function serializeStreamError(error: unknown, request: ManagedAiStreamRequest) {
+  return serializeError(error, request.streamErrorSerialization)
+}
+
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
@@ -1936,7 +1941,7 @@ export class AiStreamManager extends BaseService {
 
     exec.loopPromise = launchLoop().catch((err) => {
       // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-      return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      return this.onExecutionError(topicId, modelId, serializeStreamError(err, request), exec)
     })
 
     return exec
@@ -1950,6 +1955,7 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+    request.streamErrorSerialization ??= {}
 
     let rawStream: ReadableStream<UIMessageChunk>
     try {
@@ -1979,7 +1985,7 @@ export class AiStreamManager extends BaseService {
       if (!signal.aborted) {
         logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      await this.onExecutionError(topicId, modelId, serializeStreamError(err, request), exec)
       return
     }
 
@@ -2018,7 +2024,7 @@ export class AiStreamManager extends BaseService {
     exec.timings.completedAt = result.broadcastCompletedAt
 
     if (result.threw !== undefined) {
-      const fromThrow = serializeError(result.threw.error)
+      const fromThrow = serializeStreamError(result.threw.error, request)
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {

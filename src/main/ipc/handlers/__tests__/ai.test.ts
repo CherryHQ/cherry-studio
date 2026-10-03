@@ -58,7 +58,8 @@ const aiService = {
   runImageRequest: vi.fn(),
   abortRequest: vi.fn(),
   listModels: vi.fn(),
-  respondToolApproval: vi.fn()
+  respondToolApproval: vi.fn(),
+  lowerOllamaNumCtxCap: vi.fn()
 }
 
 const aiStreamManager = {
@@ -149,6 +150,11 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates Ollama num_ctx cap writes to AiService', async () => {
+    await aiHandlers['ai.ollama.set_num_ctx_cap']({ uniqueModelId: 'ollama::qwen3', numCtxCap: 32_768 }, ctx)
+    expect(aiService.lowerOllamaNumCtxCap).toHaveBeenCalledWith('ollama::qwen3', 32_768)
+  })
+
   it('forwards a native fork request with only the source session and checkpoint message', async () => {
     agentSessionRuntimeService.forkSession.mockResolvedValue('child')
     await expect(

@@ -8,9 +8,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import { suggestReducedOllamaNumCtx } from '@shared/ai/ollamaNumCtx'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -18,6 +22,19 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 504]
+
+function readOllamaRetryNumCtx(error: SerializedError | undefined): number | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  if (typeof bag?.ollamaEffectiveNumCtx === 'number') return bag.ollamaEffectiveNumCtx
+  if (typeof bag?.ollamaTrainedNumCtx === 'number') return bag.ollamaTrainedNumCtx
+  return undefined
+}
+
+function readOllamaRetryModelId(error: SerializedError | undefined): UniqueModelId | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  const modelId = bag?.ollamaNumCtxModelId
+  return isUniqueModelId(modelId) ? modelId : undefined
+}
 const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
 const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
@@ -51,6 +68,12 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       : undefined
 
   if (i18n.exists(i18nKey)) {
+    if (i18nKey === 'error.ollama_context_memory') {
+      const bag = error as Record<string, unknown> | undefined
+      const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
+      const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
+      return t(i18nKey, { trained, effective, detail: providerErrorText(error) })
+    }
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
     if (providerId && typeof providerId === 'string') {
@@ -87,8 +110,15 @@ const MessageErrorInfo: React.FC<{
   error: Props['error']
   message: MessageListItem
 }> = ({ partId, error, message }) => {
-  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
-    useMessageListActions()
+  const {
+    diagnoseMessageError,
+    removeMessageErrorPart,
+    openErrorDetail,
+    navigateErrorTarget,
+    notifyError,
+    notifyInfo,
+    regenerateMessage
+  } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -101,10 +131,15 @@ const MessageErrorInfo: React.FC<{
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
-  const localizedErrorMessage = useMemo(
-    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
-    [classification.i18nKey, providerId, t]
-  )
+  const localizedErrorMessage = useMemo(() => {
+    if (errorI18nKey === 'ollama_context_memory' && i18n.exists('error.ollama_context_memory')) {
+      const bag = error as Record<string, unknown> | undefined
+      const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
+      const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
+      return t('error.ollama_context_memory', { trained, effective, detail: providerErrorText(error) })
+    }
+    return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
+  }, [classification.i18nKey, error, errorI18nKey, i18n, providerId, t])
 
   useEffect(() => {
     if (
@@ -183,6 +218,62 @@ const MessageErrorInfo: React.FC<{
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const modelForRetry = getMessageListItemModel(message)
+  const ollamaRetryCurrentCtx = readOllamaRetryNumCtx(error)
+  const ollamaRetryReducedCtx =
+    ollamaRetryCurrentCtx != null ? suggestReducedOllamaNumCtx(ollamaRetryCurrentCtx) : undefined
+  const canRetryOllamaContext =
+    errorI18nKey === 'ollama_context_memory' &&
+    ollamaRetryCurrentCtx != null &&
+    ollamaRetryReducedCtx != null &&
+    ollamaRetryReducedCtx < ollamaRetryCurrentCtx
+
+  const onRetryOllamaReducedContext = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      // The cap keys to the model that actually failed — a cross-model fallback's
+      // OOM error carries its own model id, not the message's primary model.
+      const uniqueModelId = readOllamaRetryModelId(error) ?? resolveUniqueModelId(message.modelId, modelForRetry)
+      const current = readOllamaRetryNumCtx(error)
+      if (!uniqueModelId || current == null) return
+      const cap = suggestReducedOllamaNumCtx(current)
+      if (cap >= current) return
+      setTimeoutTimer(
+        'retryOllamaReducedContext',
+        async () => {
+          try {
+            await ipcApi.request('ai.ollama.set_num_ctx_cap', { uniqueModelId, numCtxCap: cap })
+            if (regenerateMessage) {
+              await regenerateMessage(message.id)
+            } else {
+              notifyInfo?.(t('error.ollama_context_retry_toast'))
+            }
+            await removeMessageErrorPart?.({ messageId: message.id, partId })
+          } catch (retryError) {
+            logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
+              messageId: message.id,
+              partId
+            })
+            notifyError?.(formatErrorMessageWithPrefix(retryError, t('message.error.unknown')))
+          }
+        },
+        0
+      )
+    },
+    [
+      error,
+      message.id,
+      message.modelId,
+      modelForRetry,
+      notifyError,
+      notifyInfo,
+      partId,
+      regenerateMessage,
+      removeMessageErrorPart,
+      setTimeoutTimer,
+      t
+    ]
+  )
 
   return (
     <div
@@ -220,6 +311,16 @@ const MessageErrorInfo: React.FC<{
 
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+        {canRetryOllamaContext && (
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+            onClick={onRetryOllamaReducedContext}>
+            {t('error.ollama_context_retry')}
+          </Button>
+        )}
         {canNavigate && (
           <Button
             size="sm"

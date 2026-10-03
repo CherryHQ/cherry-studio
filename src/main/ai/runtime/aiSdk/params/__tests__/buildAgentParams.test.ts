@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -1376,6 +1377,11 @@ describe('buildAgentParams assistant-less reasoning', () => {
   }
 
   it('applies the Ollama context-window default without an assistant', async () => {
+    const freeMemoryBytes = 8_000_000_000
+    const totalMemoryBytes = 16_000_000_000
+    vi.spyOn(os, 'freemem').mockReturnValue(freeMemoryBytes)
+    vi.spyOn(os, 'totalmem').mockReturnValue(totalMemoryBytes)
+
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'ollama', providerSettings: {} },
       credentialReceipt: { attribution: 'unknown' }
@@ -1400,7 +1406,14 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+    // 8 GiB free × 50% → 4 GiB budget → floor(4e9 / 96_000) tokens → round down to 32_768.
+    const expectedNumCtx = 32_768
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
+    expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
+      uniqueModelId: 'ollama::qwen3',
+      trainedContextWindow: 131072,
+      numCtx: expectedNumCtx
+    })
   })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {

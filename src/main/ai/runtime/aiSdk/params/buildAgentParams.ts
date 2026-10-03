@@ -28,6 +28,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -55,6 +56,7 @@ import {
   getTemperature,
   getTopP
 } from '../../../utils/modelParameters'
+import { resolveOllamaRequestNumCtx } from '../../../utils/ollamaRequestNumCtx'
 import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
@@ -241,6 +243,18 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
+  const ollamaNumCtxResolution =
+    sdkConfig.providerId === SystemProviderIds.ollama
+      ? resolveOllamaRequestNumCtx(model, provider, endpointType)
+      : undefined
+  const ollamaNumCtx = ollamaNumCtxResolution
+    ? {
+        uniqueModelId: model.id,
+        trainedContextWindow: ollamaNumCtxResolution.trainedContextWindow,
+        numCtx: ollamaNumCtxResolution.numCtx
+      }
+    : undefined
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -255,7 +269,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     persistedOutputPaths: new Set(retained.persistedOutputPaths),
     // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
     mcpResourceServerIds,
-    toolOutputCharCap: contextSettings.truncateThreshold
+    toolOutputCharCap: contextSettings.truncateThreshold,
+    ollamaNumCtx
   }
 
   const scope: RequestScope = {
@@ -581,7 +596,8 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning,
+      ollamaNumCtx: requestContext.ollamaNumCtx
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
