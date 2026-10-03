@@ -367,7 +367,11 @@ async function reconcileDetachedBackgroundTask(
   if (completion) {
     return { ...record, ...completion, status: completion.status }
   }
-  if (record.pid > 0 && isPidAlive(record.pid)) return record
+  if (record.pid > 0 && isPidAlive(record.pid)) {
+    return isRecycledPid(record)
+      ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') }
+      : record
+  }
   if (record.stopRequestedAt) {
     return {
       ...record,
@@ -382,6 +386,17 @@ async function reconcileDetachedBackgroundTask(
     status: 'unknown',
     note: t('background_task.note.gone_no_marker')
   }
+}
+
+/**
+ * A live pid is only this task's pid while its recorded start stamp still matches. After a restart
+ * the in-memory ownership is gone, so a pid the OS has since handed to something else is what makes
+ * a dead record read as running — and the stop path then refuses it as unsafe to signal.
+ */
+function isRecycledPid(record: BackgroundTaskRecord): boolean {
+  if (!record.pidStartTime || activeTaskPids.get(record.id) === record.pid) return false
+  const observed = getPidStartTime(record.pid)
+  return observed !== undefined && observed !== record.pidStartTime
 }
 
 async function finalizeDetachedBackgroundTask(
