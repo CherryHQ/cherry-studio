@@ -250,7 +250,11 @@ export const useImageTools = (
         }
       } catch (error) {
         logger.error('Download failed:', error as Error)
-        toast.error(t('message.download.failed'))
+        const message =
+          error instanceof DOMException && error.name === 'SecurityError'
+            ? `${t('message.download.failed')}: ${error.message}`
+            : t('message.download.failed')
+        toast.error(message)
       }
     },
     [getCleanImgElement, prefix, t]

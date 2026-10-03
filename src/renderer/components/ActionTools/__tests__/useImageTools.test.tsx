@@ -276,4 +276,16 @@ describe('useImageTools', () => {
     expect(toast.error).toHaveBeenCalledWith('message.download.failed')
     expect(toast.error).toHaveBeenCalledWith('message.dialog.failed')
   })
+
+  it('shows the canvas security reason when PNG export is blocked', async () => {
+    const { containerRef } = createImageFixture()
+    const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'diagram', imgSelector: 'svg' }))
+    mocks.svgToPngBlob.mockRejectedValue(new DOMException('Tainted canvases may not be exported.', 'SecurityError'))
+
+    await act(async () => {
+      await result.current.download('png')
+    })
+
+    expect(toast.error).toHaveBeenCalledWith('message.download.failed: Tainted canvases may not be exported.')
+  })
 })
