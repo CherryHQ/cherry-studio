@@ -26,6 +26,12 @@ export const entries: SettingsSearchEntry[] = [
     descriptionKey: 'settings.models.translate_model_description'
   },
   {
+    anchorId: 'plan-execution-model',
+    titleKey: 'settings.models.plan_execution_model.label',
+    groupKey: 'settings.model',
+    descriptionKey: 'settings.models.plan_execution_model.description'
+  },
+  {
     anchorId: 'painting-model',
     titleKey: 'settings.models.painting_model',
     groupKey: 'settings.model',

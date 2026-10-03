@@ -138,7 +138,8 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => vi.fn(),
   useMutation: () => ({
     trigger: vi.fn(),

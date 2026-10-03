@@ -315,9 +315,14 @@ export const aiRequestSchemas = {
       reason: z.string().optional(),
       updatedInput: z.record(z.string(), z.unknown()).optional(),
       topicId: z.string().optional(),
-      anchorId: z.string().optional()
+      anchorId: z.string().optional(),
+      executionModelId: UniqueModelIdSchema.optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.object({
+      ok: z.boolean(),
+      executionModelId: z.string().optional(),
+      handoff: z.enum(['not-requested', 'started', 'already-current', 'refused']).optional()
+    })
   }),
 
   // ── Agent session warm-connection lifecycle ──

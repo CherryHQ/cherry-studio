@@ -25,6 +25,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
@@ -182,6 +183,8 @@ export interface MessageToolApprovalInput {
   approved: boolean
   reason?: string
   updatedInput?: Record<string, unknown>
+  /** Plan approval only: execute the approved plan with this model (turn restarts on it). */
+  executionModelId?: UniqueModelId
 }
 
 export interface MessageErrorDetailInput {

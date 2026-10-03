@@ -80,6 +80,15 @@ describe('useAgentModelFilter', () => {
     expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(true)
   })
 
+  it('rejects every model while the agent runtime is unknown', () => {
+    // An unresolved agent must not widen the gate to "every chat model fits".
+    const unresolved = renderHook(() => useAgentModelFilter(undefined, false)).result
+    const unresolvedWithHint = renderHook(() => useAgentModelFilter('claude-code', false)).result
+
+    expect(unresolved.current(model())).toBe(false)
+    expect(unresolvedWithHint.current(model())).toBe(false)
+  })
+
   it('continues to reject non-chat model classes for regular agents', () => {
     const { result } = renderHook(() => useAgentModelFilter(undefined))
 

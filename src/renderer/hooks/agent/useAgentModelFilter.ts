@@ -34,15 +34,20 @@ type ModelPredicate = (model: Model, provider?: Provider) => boolean
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
+ *
+ * @param isAgentRuntimeKnown - Whether the agent has resolved. `agentType` is `undefined` both for
+ * an agent with no runtime constraints and for one that has not loaded; pass `false` in the latter
+ * window so the gate rejects everything instead of offering models nobody has validated.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
+export function useAgentModelFilter(agentType: AgentType | undefined, isAgentRuntimeKnown = true): ModelPredicate {
   return useMemo<ModelPredicate>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
     return (model, provider) => {
+      if (!isAgentRuntimeKnown) return false
       if (!baseAgentFilter(model)) return false
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
-  }, [agentType])
+  }, [agentType, isAgentRuntimeKnown])
 }
 
 /** Returns the Agent selector rule for models that stay visible but cannot be selected. */
