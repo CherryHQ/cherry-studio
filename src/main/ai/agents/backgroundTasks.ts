@@ -208,16 +208,18 @@ export async function startDetachedBackgroundTask(
           cleaned = true
         }
       } catch (stopError) {
-        // The process is still alive with no record to stop it through, so write one: a task the
-        // panel cannot see or kill is worse than one the model was told about and that survives
-        // until it exits on its own.
+        // The process is still alive with no record to stop it through, so write one. It stays
+        // `running`, which is what it is: `unknown` is the one status every control path excludes,
+        // so an untracked record marked that way could be seen but never stopped, and a permanent
+        // agent deletion would sweep past it.
         logger.error('Could not stop unrecorded detached task; recording it so it stays controllable', {
           taskId: id,
           pid: record.pid,
           stopError
         })
         try {
-          writeRecordSync(input.storageDir, { ...record, status: 'unknown', note: t('background_task.note.untracked') })
+          writeRecordSync(input.storageDir, { ...record, note: t('background_task.note.untracked') })
+          activeTaskPids.set(id, record.pid)
         } catch (recordError) {
           logger.error('Detached background task is untracked and could not be recorded', {
             taskId: id,

@@ -68,7 +68,7 @@
   "background_task.note.kill_requested": "已请求强制结束。",
   "background_task.note.stop_requested": "已请求停止；若进程未退出，请使用强制结束。",
   "background_task.note.stopped_no_event": "已停止的进程已不再运行，但未捕获到完成事件。",
-  "background_task.note.untracked": "任务记录写入失败且进程未能停止，此任务处于失联状态。若它仍在运行，请手动结束。",
+  "background_task.note.untracked": "任务记录写入失败且进程未能停止，已改为写入这条恢复记录，因此该任务正在运行，但其启动被报告为失败。",
   "background_task.summary_exit_code": "退出码 {{code}}",
   "background_task.summary_finished": "后台任务「{{name}}」（{{id}}）已结束，{{outcome}}。日志：{{log}}",
   "background_task.summary_killed": "后台任务「{{name}}」（{{id}}）已被强制结束。日志：{{log}}",

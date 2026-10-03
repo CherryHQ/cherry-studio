@@ -68,7 +68,7 @@
   "background_task.note.kill_requested": "Solicitud de detención forzada.",
   "background_task.note.stop_requested": "Solicitud de detención; usa la detención forzada si el proceso no termina.",
   "background_task.note.stopped_no_event": "El proceso detenido ya no se está ejecutando; no se capturó ningún evento de finalización.",
-  "background_task.note.untracked": "No se pudo escribir el registro de la tarea ni detener el proceso, por lo que esta tarea no está registrada. Deténla manualmente si sigue en ejecución.",
+  "background_task.note.untracked": "No se pudo escribir el registro de la tarea ni detener el proceso; en su lugar se escribió este registro de recuperación, por lo que la tarea está en ejecución pero su inicio se informó como fallido.",
   "background_task.summary_exit_code": "código de salida {{code}}",
   "background_task.summary_finished": "La tarea en segundo plano «{{name}}» ({{id}}) terminó con {{outcome}}. Registro: {{log}}",
   "background_task.summary_killed": "La tarea en segundo plano «{{name}}» ({{id}}) fue terminada. Registro: {{log}}",

@@ -68,7 +68,7 @@
   "background_task.note.kill_requested": "Zorla sonlandırma istendi.",
   "background_task.note.stop_requested": "Durdurma istendi; süreç sonlanmazsa zorla sonlandırmayı kullanın.",
   "background_task.note.stopped_no_event": "Durdurulan süreç artık çalışmıyor; hiçbir tamamlanma olayı yakalanmadı.",
-  "background_task.note.untracked": "Görev kaydı yazılamadı ve süreç durdurulamadı; bu görev izlenmiyor. Hâlâ çalışıyorsa elle sonlandırın.",
+  "background_task.note.untracked": "Görev kaydı yazılamadı ve süreç durdurulamadı; bunun yerine bu kurtarma kaydı yazıldı, böylece görev çalışıyor ancak başlatılması başarısız olarak bildirildi.",
   "background_task.summary_exit_code": "çıkış kodu {{code}}",
   "background_task.summary_finished": "Arka plan görevi \"{{name}}\" ({{id}}) {{outcome}} ile bitti. Günlük: {{log}}",
   "background_task.summary_killed": "Arka plan görevi \"{{name}}\" ({{id}}) zorla sonlandırıldı. Günlük: {{log}}",
