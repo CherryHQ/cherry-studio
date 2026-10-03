@@ -41,7 +41,8 @@ const runtimeMocks = vi.hoisted(() => ({
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn(),
-  resolveBun: vi.fn()
+  resolveBun: vi.fn(),
+  getGatewayConfig: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -163,6 +164,16 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'ApiGatewayService') return { getCurrentConfig: runtimeMocks.getGatewayConfig }
+    return get(name)
+  })
+  return result
+})
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
@@ -210,6 +221,7 @@ beforeEach(() => {
   runtimeMocks.forkDshSession.mockReset().mockResolvedValue({ resumeToken: 'child', checkpoints: [], publish: [] })
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
+  runtimeMocks.getGatewayConfig.mockReset().mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()
@@ -246,7 +258,7 @@ describe('DshRuntimeConnection tracing', () => {
       await vi.waitFor(() =>
         expect(events.find((event) => event.type === 'turn-complete')).toEqual({
           type: 'turn-complete',
-          forkAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: 'session-1', boundary: 7 } }
+          forkAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: 'session-1', boundary: 7, formatVersion: 4 } }
         })
       )
       expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
@@ -393,7 +405,7 @@ describe('DshRuntimeConnection tracing', () => {
       return {}
     })
     const controller = new AbortController()
-    const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7 }
+    const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7, formatVersion: 4 }
     const input: RuntimeForkInput = {
       sourceSessionId: 'session-1',
       targetSessionId: 'child',

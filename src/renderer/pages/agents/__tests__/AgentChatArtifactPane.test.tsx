@@ -153,7 +153,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
-    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
