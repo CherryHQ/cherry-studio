@@ -37,7 +37,8 @@ export {
   MODEL_SCRATCHPAD_TAG_NAMES,
   stripKnownModelScratchpadBlocks,
   stripModelScratchpadBlocks,
-  textStartsWithModelScratchpadTag
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
 } from './scratchpadText'
 export { getContextTokens } from './usage'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'

@@ -82,7 +82,8 @@ export {
   stripKnownModelScratchpadBlocks,
   stripModelScratchpadBlocks,
   summarizeModelMessages,
-  textStartsWithModelScratchpadTag
+  textStartsWithModelScratchpadTag,
+  textStartsWithNonScratchpadOpeningTag
 } from './core/context'
 
 // ==================== 错误处理 ====================

@@ -3,7 +3,11 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
-const SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})(?:(?=\\s[^/]*>)|(?=>))`, 'i')
+const SCRATCHPAD_OPENING_TAG = new RegExp(
+  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})(?:>(?!/)|\\s[^>/][^>]*>)`,
+  'i'
+)
+const NON_SCRATCHPAD_OPENING_TAG = /^\s*<([a-z][a-z0-9-]*)(?:>(?!\/)|\s[^>/][^>]*>)/i
 const CODE_FENCE_PATTERN = /```[\s\S]*?```/g
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
@@ -30,6 +34,18 @@ function isModelScratchpadTagName(tag: string): boolean {
 export function textStartsWithModelScratchpadTag(text: string): boolean {
   const match = text.match(SCRATCHPAD_OPENING_TAG)
   return match ? isModelScratchpadTagName(match[1]) : false
+}
+
+/** Opening markup that is not a known model scratchpad wrapper (e.g. `<p>`, `<thinking-note>`). */
+export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith('<') || !trimmed.includes('>')) {
+    return false
+  }
+  if (textStartsWithModelScratchpadTag(trimmed)) {
+    return false
+  }
+  return NON_SCRATCHPAD_OPENING_TAG.test(trimmed)
 }
 
 /** Strips only known model scratchpad wrappers; leaves other markup intact. */
