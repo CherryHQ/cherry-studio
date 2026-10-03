@@ -1,5 +1,5 @@
 import type * as NodeFs from 'node:fs'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -12,7 +12,12 @@ vi.mock('node:fs', async (importOriginal) => ({
   writeFileSync: writeFileSyncMock
 }))
 
-import { startDetachedBackgroundTask } from '../backgroundTasks'
+import {
+  isPidAlive,
+  listDetachedBackgroundTasks,
+  startDetachedBackgroundTask,
+  stopDetachedBackgroundTask
+} from '../backgroundTasks'
 
 const nodeBin = `"${process.execPath}"`
 
@@ -35,22 +40,42 @@ describe('a task whose record write fails', () => {
     await rm(storageDir, { recursive: true, force: true })
   })
 
-  it.skipIf(process.platform === 'win32')('still records the task when the cleanup kill also fails', async () => {
-    // The first record write fails, so the child is running untracked; the cleanup then fails too,
-    // which is the Windows `taskkill` case. With no record the panel cannot see or stop it at all.
-    vi.spyOn(process, 'kill').mockImplementation(() => {
-      throw new Error('ESRCH')
-    })
-
-    await expect(
-      startDetachedBackgroundTask({
-        storageDir,
-        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
-        cwd: storageDir
+  it.skipIf(process.platform === 'win32')(
+    'records the task so it stays stoppable when the cleanup kill also fails',
+    async () => {
+      // The first record write fails, so the child is running untracked; the cleanup then fails too,
+      // which is the Windows `taskkill` case. The record written afterwards is the only handle on a
+      // process nobody is tracking, so it has to be one every control path — including the sweep a
+      // permanent agent deletion runs — still accepts.
+      const realKill = process.kill.bind(process)
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw new Error('ESRCH')
       })
-    ).rejects.toThrow()
 
-    const records = (await readdir(storageDir)).filter((entry) => entry.endsWith('.json'))
-    expect(records).toHaveLength(1)
-  })
+      await expect(
+        startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+          cwd: storageDir
+        })
+      ).rejects.toThrow()
+      killSpy.mockRestore()
+
+      const [record] = await listDetachedBackgroundTasks(storageDir)
+      try {
+        expect(record.status).toBe('running')
+        expect(isPidAlive(record.pid)).toBe(true)
+
+        const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+        expect(stopped?.status).toBe('stopped')
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+      } finally {
+        try {
+          if (isPidAlive(record.pid)) realKill(-record.pid, 'SIGKILL')
+        } catch {
+          // already reaped
+        }
+      }
+    }
+  )
 })
