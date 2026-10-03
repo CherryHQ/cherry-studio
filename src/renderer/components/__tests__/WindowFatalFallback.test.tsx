@@ -36,7 +36,9 @@ describe('WindowFatalFallback', () => {
       configurable: true,
       value: { writeText }
     })
-    render(<WindowFatalFallback error={new Error(errorMessage)} resetErrorBoundary={vi.fn()} />)
+    const error = new Error(errorMessage)
+    error.cause = error
+    render(<WindowFatalFallback error={error} resetErrorBoundary={vi.fn()} />)
 
     const details = screen.getByText((_, element) => element?.textContent === errorMessage)
     // The global body rule disables selection; this class is the user-visible bug contract.
