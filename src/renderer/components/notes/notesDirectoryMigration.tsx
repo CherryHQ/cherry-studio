@@ -5,11 +5,7 @@ import {
   NotesDirectoryMigrationConfirmContent,
   NotesDirectoryMigrationMergeContent
 } from '@renderer/components/notes/NotesDirectoryMigrationConfirmContent'
-import {
-  lockNotesEditsForRelocation,
-  unlockNotesEditsForRelocation,
-  waitForStructuralNotesWritesToSettle
-} from '@renderer/hooks/notesFileEditFlush'
+import { lockNotesEditsForRelocation, unlockNotesEditsForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -126,7 +122,6 @@ export async function migrateNotesDirectoryWithUi(options: {
     lockNotesEditsForRelocation()
     let migrateSucceeded = false
     try {
-      await waitForStructuralNotesWritesToSettle()
       await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,

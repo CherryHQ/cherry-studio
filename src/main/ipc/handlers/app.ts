@@ -94,6 +94,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       await requestRendererNotesEditsFlush()
     } catch (error) {
       releaseNotesRelocationSession(senderId)
+      broadcastNotesRelocationMigrateComplete()
       throw error
     }
   },
