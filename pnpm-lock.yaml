@@ -326,9 +326,6 @@ importers:
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6
-      dingtalk-stream:
-        specifier: 2.1.7-beta.1
-        version: 2.1.7-beta.1(patch_hash=b81b5999ab52fb82bc76c6c7599eb74137cf8c6304b84aa5e8d3c3c562049172)(supports-color@8.1.1)
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -993,6 +990,9 @@ importers:
       diff:
         specifier: ^8.0.3
         version: 8.0.4
+      dingtalk-stream:
+        specifier: 2.1.7-beta.1
+        version: 2.1.7-beta.1(patch_hash=b81b5999ab52fb82bc76c6c7599eb74137cf8c6304b84aa5e8d3c3c562049172)(supports-color@8.1.1)
       docx:
         specifier: ^9.0.2
         version: 9.5.1
