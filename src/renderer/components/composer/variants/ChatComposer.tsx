@@ -59,6 +59,7 @@ import {
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -1001,7 +1002,11 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const selectedKnowledgeBasesScopeKey = buildTopicFollowupScopeKey(scopeKey, selectedAssistantId)
+  // Live queue scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected conversation's draft.
+  const queueScopeRef = useRef(selectedKnowledgeBasesScopeKey)
+  queueScopeRef.current = selectedKnowledgeBasesScopeKey
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
@@ -1500,7 +1505,9 @@ const ChatComposerInner = ({
     removeId: removeFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup,
+    takeForEdit: takeFollowupForEdit
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1727,8 +1734,9 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const enqueueScope = selectedKnowledgeBasesScopeKey
+        const queued = await enqueueFollowup(draft, payload)
+        if (queued && queueScopeRef.current === enqueueScope) clearCurrentDraft()
         return
       }
 
@@ -1759,6 +1767,7 @@ const ChatComposerInner = ({
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedKnowledgeBasesScopeKey,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
@@ -1914,18 +1923,17 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  // Claim-guarded send: only the window whose claim wins sends,
+                  // so a manual steer racing another window's auto-drain cannot
+                  // deliver the same queued message twice.
+                  await steerFollowup(id, sendQueuedPayload)
                 }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
+                onEdit={async (id) => {
+                  // Atomic take: undefined when the item is owned by an
+                  // in-flight drain, so an edit can never race its send.
+                  const item = await takeFollowupForEdit(id)
                   if (!item) return
                   restoreFollowupDraft(item)
-                  removeFollowup(id)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
