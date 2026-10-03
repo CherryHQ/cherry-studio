@@ -277,3 +277,12 @@ describe('WINDOW_TYPE_REGISTRY SubWindow — must not keep the Dock icon alive',
     expect(metadata?.behavior?.macShowInDock).toBe(false)
   })
 })
+
+// 'active' keeps sidebar vibrancy bright after the window loses key focus;
+// Electron flattens native material only when this is 'followWindow'.
+describe('WINDOW_TYPE_REGISTRY Main and SubWindow — visualEffectState contract', () => {
+  it('follows the window key state so macOS vibrancy flattens when unfocused', () => {
+    expect(WINDOW_TYPE_REGISTRY[WindowType.Main]?.windowOptions.visualEffectState).toBe('followWindow')
+    expect(WINDOW_TYPE_REGISTRY[WindowType.SubWindow]?.windowOptions.visualEffectState).toBe('followWindow')
+  })
+})
