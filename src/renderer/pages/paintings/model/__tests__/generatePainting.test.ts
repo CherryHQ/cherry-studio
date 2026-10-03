@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileMetadata } from '@renderer/types/file'
 
-const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>) => {
+type RunPaintingContext = { hasInputImages?: boolean }
+
+const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>, _context?: RunPaintingContext) => {
+  void _context
   await generate()
   return [] as FileMetadata[]
 })
 
 vi.mock('../runPainting', () => ({
-  runPainting: (generate: () => Promise<unknown>) => runPaintingMock(generate)
+  runPainting: (generate: () => Promise<unknown>, context?: RunPaintingContext) => runPaintingMock(generate, context)
 }))
 
 // Image generation goes through ipcApi.request('ai.image.generate', { requestId, payload }).
@@ -76,6 +79,12 @@ describe('generatePainting', () => {
     const payload = imagePayload()
     expect((payload as { paramValues: Record<string, unknown> }).paramValues).toEqual({ size: '1024x1024' })
     expect(payload).not.toHaveProperty('size')
+  })
+
+  it('passes reference-image context to the error wrapper', async () => {
+    await generatePainting({ ...makeOptions(), inputImages: ['data:image/png;base64,AA'] })
+
+    expect(runPaintingMock.mock.calls[0]?.[1]).toEqual({ hasInputImages: true })
   })
 
   // The pipeline awaits model-support prefetch, provider checks and input-image reads before
