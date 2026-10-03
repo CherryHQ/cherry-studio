@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -107,7 +108,8 @@ const {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
+  const { default: nodePath } = await import('node:path')
+  const mocked = mockApplicationFactory({
     FileProcessingService: {
       startJob: fileProcessingStartJobMock
     },
@@ -128,6 +130,10 @@ vi.mock('@application', async () => {
       embedMany: aiEmbedManyMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
+  // The shared `/mock/<key>` stub has no drive, so `path.join` on Windows yields `\mock\…`, which
+  // AbsoluteFilePathSchema rejects; resolve it to a host-absolute root instead.
+  mocked.application.getPath = vi.fn((key: string, filename?: string) => nodePath.resolve('/mock', key, filename ?? ''))
+  return mocked
 })
 
 vi.mock('@logger', () => ({
@@ -218,6 +224,8 @@ const ripgrepModule = await import('@main/ai/mcp/servers/filesystem/types')
 // Unit-test CI does not download the bundled binaries; the real-ripgrep cases run wherever `pnpm dev` fetched them.
 const hasBundledRipgrep = existsSync(await ripgrepModule.getRipgrepBinaryPath())
 const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
+
+const knowledgeDataPath = (...segments: string[]) => path.resolve('/mock/feature.knowledgebase.data', ...segments)
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -978,8 +986,8 @@ describe('KnowledgeService', () => {
 
     // Both the source file and its already-processed artifact are copied into the restored base.
     expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.pdf', 'report.pdf'],
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.md', 'report.md']
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.pdf'), 'report.pdf'],
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.md'), 'report.md']
     ])
     // The created item carries the artifact path.
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
@@ -1030,7 +1038,7 @@ describe('KnowledgeService', () => {
     // The snapshot markdown is copied into the restored base under the same name.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'restored-kb',
-      '/mock/feature.knowledgebase.data/source-kb/raw/example-page.md',
+      knowledgeDataPath('source-kb', 'raw', 'example-page.md'),
       'example-page.md'
     )
     // The created url item is pinned to the copied snapshot so first index reads it offline.
@@ -1212,8 +1220,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -1547,7 +1555,7 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemClearIndexedRelativePathMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') }
       }),
       expect.anything()
     )
@@ -1571,8 +1579,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -2013,7 +2021,7 @@ describe('KnowledgeService', () => {
       }
     })
 
-    expect(service.getFilePath('file-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/stored-report.pdf')
+    expect(service.getFilePath('file-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'stored-report.pdf'))
   })
 
   it('resolves a URL preview to the captured knowledge snapshot', () => {
@@ -2034,7 +2042,7 @@ describe('KnowledgeService', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(service.getFilePath('url-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/Product Docs.md')
+    expect(service.getFilePath('url-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'Product Docs.md'))
   })
 
   it('rejects URL preview path resolution before a snapshot is captured', () => {
