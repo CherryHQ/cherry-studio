@@ -46,7 +46,6 @@ renderer-side transport that connects to them.
 | [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
 | [Browser Use Design](./browser-use-design.md) | Browser automation ownership, capability gaps, and delivery roadmap |
 | [Browser Use Implementation](./browser-use-implementation.md) | Session engine, MCP contracts, and implementation plan |
-| [企业微信 Channel 接入方案](./wecom-channel-design.md) | Proposed WeCom integration, session bindings, stream lifecycle, attachments, delivery limits, and acceptance criteria |
 
 ### Renderer-side glue
 
