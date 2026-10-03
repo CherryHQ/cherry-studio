@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseKeyValueString } from '../env'
+import { parseKeyValueString, serializeKeyValueString } from '../env'
 
 describe('parseKeyValueString', () => {
   it('should parse empty string', () => {
@@ -94,5 +94,29 @@ KEY=third`
     expect(parseKeyValueString('API-URL_123=https://api.example.com/v1/users')).toEqual({
       'API-URL_123': 'https://api.example.com/v1/users'
     })
+  })
+})
+
+describe('serializeKeyValueString', () => {
+  it('round-trips through parseKeyValueString the values a bare KEY=value line would corrupt', () => {
+    const vars = {
+      HASH: 'abc#123',
+      MULTILINE: 'line1\nline2',
+      PADDED: '  padded  ',
+      APOSTROPHE: "it's #1",
+      WRAPPED: '"wrapped"',
+      BACKTICKED: '`wrapped`',
+      MIXED_QUOTES: "it's `code` #1",
+      MIXED_MULTILINE: "it's\n`code`",
+      PLAIN: 'plain'
+    }
+
+    expect(parseKeyValueString(serializeKeyValueString(vars))).toEqual(vars)
+  })
+
+  it('serializes a non-string value from legacy data instead of throwing', () => {
+    const legacy = { PORT: 5432 } as unknown as Record<string, string>
+
+    expect(parseKeyValueString(serializeKeyValueString(legacy))).toEqual({ PORT: '5432' })
   })
 })
