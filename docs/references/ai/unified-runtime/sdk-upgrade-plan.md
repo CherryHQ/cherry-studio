@@ -19,7 +19,10 @@ sources:
 
 This is the first implementation phase of the [migration sequence](./migration-plan.md#implementation-sequence).
 Its deliverable is Cherry running on v7 with its existing behavior preserved. Tool Search, Code Mode,
-Harness, automatic stream retries, image Batch jobs, and new media features are subsequent work.
+Harness, FilesV4 upload adoption, automatic stream retries, image Batch jobs, and new media features are
+subsequent work. Existing attachments, image generation/editing, custom image jobs, embedding/rerank,
+structured output, compaction and UI streams are part of this upgrade, not optional follow-ups. See the
+[complete coverage matrix](./migration-plan.md#research-coverage) for their adoption and retention records.
 
 ## 1.1 Freeze dependencies and reproduce the v6 baseline
 
@@ -144,14 +147,20 @@ Sources: [fixed migration guide](https://github.com/vercel/ai/blob/ai%407.0.123/
 | Approval host and tool adapters | Migrate `needsApproval` policy to core `toolApproval` where appropriate; preserve Main authority, schema-transformed inputs, and continuation identity | Denial causes no effect; valid approval resumes the intended call once; stale/cross-session decisions fail |
 | `buildTelemetry.ts`, `observability/adapters/aiSdk/aiSdkSpanAdapter.ts` | Use per-call OTel integration and map new attributes; retain developer-mode opt-in and parent spans | Disabled tracing emits no spans; enabled tracing attributes tool/model attempts to their owner |
 | Provider construction and `retry/` | Preserve endpoint family, unify reasoning options without conflicting legacy provider fields, retain failover/error classification, and audit xAI Responses-default changes | Existing chosen endpoints and retry semantics remain explicit; v7 `streamRetries` stays off in this phase |
+| `messages/attachmentRouting.ts`, `fileProcessor.ts`, native-file support and `ReadFileTool` | Preserve native/extracted/OCR routing, file allow-lists and input materialization across model/key fallback | F-01: inspect actual image/PDF/text/audio/video inputs and errors, not only displayed attachment chips |
+| `AiService.generateImage`, ai-core image wrapper, custom image models/transports/jobs, painting/tool callers | Migrate existing file/mask inputs, canonical parameters, download/result contracts and usage on both SDK and Job paths | I-01–07: correct requests, image bytes, consumer ownership, cancellation and readable saved results |
+| `AiService.embedMany/rerank`, ai-core and knowledge/local-model consumers | Preserve model-specific vector dimensions, item order, rerank indices/scores, retry and invocation usage | SDK-10: independently known vector/ranking fixtures reach the real consumer without unsafe cross-model substitution |
+| ai-core generation wrappers and structured-output consumers | Read the final tool-loop result with the selected v7 schema/array constraints | SDK-11: valid final data, invalid output and abort are distinguished after real tool steps |
+| `packages/aiCore/src/core/context/compaction.ts`, `params/features/inLoopCompaction.ts` | Preserve existing summaries, tool/result pairing, attachment access and runtime-owned compaction distinctions | SDK-12: long multi-turn/tool/media context remains usable after compaction and history reload |
 | `src/renderer/services/aiTransport`, stream persistence, Gateway SSE | Adapt v7 UI stream surface without changing transport ownership | Partial reasoning/tool input, disconnect/reconnect, approval, cancellation, and restored transcripts render consistently |
 | Electron build and workspace exports | Resolve ESM externalization and actual embedded Node support | Development and packaged app load SDK/providers; exported package consumer smoke passes |
 
-`generateImage` remains a wait-for-result API. Cover the current image downloader, editing inputs,
-capability unknown/false handling, cancellation, and saved artifacts as regression cases. Async image
-Batch is separate: [official Batch](https://ai-sdk.dev/docs/ai-sdk-core/batch) exposes serialized job
-references and provider/model-specific support (the inspected table lists Google and xAI for images).
-Do not add job persistence, polling, cancellation UI, or recovery as a side effect of upgrading the SDK.
+The [image workstream](./capability-migration-plan.md#i--image-generation-and-editing) expands the image
+cases and separately tracks capability integration and restart recovery. Preserve existing Job
+submit/poll/cancel behavior, including its current `abandon` recovery policy, during this phase.
+`generateImage` remains a wait-for-result API; adopting image Batch or durable recovery needs the M1/I4
+contracts rather than being smuggled into the dependency change. Likewise, F1/R1 preserve existing file
+and stream behavior before F2/R2 add new upstream capabilities.
 
 ## 1.4 Verification and exit gate
 
@@ -166,9 +175,13 @@ that with real-provider smoke and packaged Electron runs. At minimum record:
 | SDK-03 | Stop, provider error, partial stream disconnect, model/key fallback | Existing terminal/retry behavior preserved; no duplicated committed tool effect |
 | SDK-04 | Reload v6-created messages with media and tool outputs | History readable; tool/result pairs and partial UI parts remain coherent |
 | SDK-05 | Multi-step usage/cache/reasoning, tracing on/off | Per-invocation and aggregate accounting agree; opt-out respected |
-| SDK-06 | Image generation/edit/download, embed and rerank | Existing capability and provider paths still work; artifacts/usage/errors mapped correctly |
+| SDK-06 | I-01–07: image generation/edit/masks, SDK and custom Job delivery, painting and image-tool callers | Correct wire inputs and saved bytes; capability policy, usage, cancellation, result ownership and old history preserved |
 | SDK-07 | Large streaming response and mutable nested parts | No snapshot aliasing; latency/memory measured against the pinned baseline with agreed budgets |
 | SDK-08 | Production package startup and workspace exports | ESM/native loading works on supported packaged targets; no accidental environment dependency |
+| SDK-09 | F-01: native/extracted/OCR inputs, external parts, large text and provider/model/key changes | Actual request contains supported content; existing per-file error policy and scoped overflow access preserved |
+| SDK-10 | Embed/rerank through knowledge and local/custom provider consumers | Vector dimensions and source ordering preserved; rerank indices/scores map correctly; batch size, cancellation, retry and usage meet the caller contract |
+| SDK-11 | Structured output after tool steps, array bounds, invalid/aborted output | Final result satisfies the independently defined schema; incomplete or invalid data is not reported as success |
+| SDK-12 | Context overflow, compaction, long tool/media history and reload | Tool-call/result pairs, retained summaries and attachment access survive; no new generic compaction assumption |
 
 Use existing suites as entry points: `loop/__tests__/agentLoop.test.ts`, `toolLoopTermination.test.ts`,
 `params/__tests__/buildAgentParams.test.ts`, message-rule tests, usage/observability tests, and ai-core
@@ -181,8 +194,8 @@ Run `pnpm docs:check` for accompanying docs. Record real-provider and packaged r
 unit/CI success; use the repository Electron test workflows for app validation.
 
 **Exit:** compatible dependency closure, all patch decisions evidenced, codemod diffs reviewed, manual
-contract work complete, and SDK-01–08 passed for the declared support matrix. Tool Search / Code Mode /
-Harness replacements cannot merge past this gate with unresolved SDK regressions.
+contract work complete, and SDK-01–12 passed for the declared support matrix. Downstream files, images,
+recovery, tools, media and Harness workstreams cannot pass this gate with unresolved SDK regressions.
 
 Deliver in reviewable commits: dependency/patch and codemod changes, manual contract repairs, then
 black-box/packaging evidence. The resulting PR must be complete and green; intermediate commits are not

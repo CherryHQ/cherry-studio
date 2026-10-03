@@ -1,5 +1,5 @@
 ---
-description: SDK-first phased implementation tracker for AI SDK v7, Tool Search, Code Mode, and Harness, with black-box cutover gates
+description: AI SDK v7 research coverage and migration tracker for baseline compatibility, files, images, recovery, tools, media, Harness, and cleanup gates
 sources:
   - src/main/ai
   - packages/aiCore/src/core/context/compaction.ts
@@ -11,12 +11,14 @@ sources:
 
 > Updated 2026-10-02. SDK target baseline: `ai@7.0.123`; Cherry baseline: `1b799934263`, `ai@6.0.185`.
 > This is a proposed work breakdown. No dependency, runtime, schema, or permission behavior is changed by this document.
+> Coverage corrected 2026-10-04 against Cherry `a6104715d0d`: files, images, recovery and every researched
+> media/evaluation capability now have explicit work records. The pinned upstream research is unchanged.
 
 ## Current baseline
 
 The chat runtime already uses `ToolLoopAgent`. Agent sessions have a host/driver boundary with Claude
 Code, Pi, and DSH drivers; they are not a Claude-Code-only stack. Cherry also has
-`compactModelMessages` and `src/main/ai/runtime/aiSdk/params/features/contextCompaction.ts`.
+`compactModelMessages` and `src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts`.
 Use the [current runtime reference](../agent-session-runtime.md) for ownership and lifecycle details.
 
 The original June plan and its measurements are preserved below. Its "locked" statuses do not apply to
@@ -26,7 +28,7 @@ the revised assessment; old paths and code counts must be rechecked before imple
 
 | Original decision | Current assessment | Next verification |
 |---|---|---|
-| D1: stay on v6 | Upgrade to a pinned v7 baseline as phase 1, before feature migrations | Close dependencies/patches, codemods, manual semantic work, and SDK-01–08 |
+| D1: stay on v6 | Upgrade to a pinned v7 baseline as phase 1, before feature migrations | Close dependencies/patches, codemods, manual semantic work, and SDK-01–12 |
 | D2: reject Harness | Target Harness for all Agent execution backends, with replacement gated separately for each runtime | Prove the Cherry contract through real runtime black-box tests; close upstream adapter gaps before cutover |
 | D3–D4: context/safety model and prepareStep limits | Retain as design principles for the proposed shared loop, not a description of every driver | Identify concrete product requirements before changing orchestration |
 | D5: collapse drivers, stores, and permission logic | Not a prerequisite for the SDK upgrade | Audit current data/lifecycle owners; propose each change separately if needed |
@@ -35,24 +37,75 @@ the revised assessment; old paths and code counts must be rechecked before imple
 
 ## Implementation sequence
 
-**Upgrade AI SDK first.** Feature adoption is downstream of a working, verified v7 baseline. The
-implementation plans below supersede the earlier loose list of experiments. Every stage is currently
-`planned`: the documents exist, but no dependencies, runtime code, or black-box tests have been migrated.
+**Upgrade AI SDK first, preserving every existing capability.** The old linear summary — SDK → Tool
+Search → Code Mode → Harness → cleanup — only described the tool/runtime branch. It was incomplete as
+the program plan. Files, images and stream recovery are peer workstreams with their own owners and
+cutover gates; media/evaluation opportunities require explicit adoption decisions, not silent omission.
 
-| Phase | Deliverable and implementation record | Entry requirement | Exit gate / status |
+Before implementation, complete the source/caller/provider inventory below and establish the existing
+behavior baseline. That planning step is not a dependency upgrade. SDK phase 1 remains the first code
+change. Existing attachment, image/edit, embedding/rerank, structured-output and UI behavior are required
+in that phase, even when new capabilities in the same domain ship later.
+
+| Workstream | Deliverable and implementation record | Entry requirement | Exit gate / status |
 |---|---|---|---|
-| 1. AI SDK upgrade | [Version/patch audit, all 32 codemods, manual semantic migration, regression plan](./sdk-upgrade-plan.md) | Exact Cherry baseline and supported provider/platform matrix | SDK-01–08 plus compatible peers, reviewed patches and package builds; **planned** |
+| 1. AI SDK upgrade | [Version/patch audit, all 32 codemods, manual semantic migration, regression plan](./sdk-upgrade-plan.md) | Exact Cherry baseline and supported provider/platform/caller matrix | SDK-01–12, including detailed file/image/UI cases, compatible peers, reviewed patches and package builds; **planned** |
+| F. FilesV4 | [Attachment/upload/reference lifecycle plan](./large-file-upload-port.md#f--implementation-slices) | Existing attachment gate in phase 1; provider reference support and lifecycle decisions | F-01–06: usable content, scoped references, expiry, cancellation, cleanup, replay; **planned**, store/policy decisions unresolved |
+| I. Images | [Generation/editing, capabilities, custom transports, result ownership](./capability-migration-plan.md#i--image-generation-and-editing) | I1 baseline in phase 1; capability conflicts resolved before I2; destination/reconciliation design before recovery | I-01–07 for current paths and capability adoption; I-08 separately for restart recovery; **planned** |
+| R. Recovery and UI | [Provider retry, partial UI parts, reconnect, SSE and patch disposition](./capability-migration-plan.md#r--stream-recovery-and-ui-delivery) | R1 baseline in phase 1; effect/output/attempt policy before enabling retries | R-01–06 as applicable; **planned**, new retries disabled until accepted |
 | 2. Tool Search | [Request binding, direct dispatch, prompt/UI/history changes, deletion map](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path) | Phase 1 accepted | TS-01–08, real-provider and Electron validation; **planned** |
 | 3. Code Mode | [QuickJS engine replacement, Pi approval parity, Core caller integration](./tool-discovery-plan.md#phase-3--replace-code-mode-execution-then-integrate-discovery) | Phase 1 accepted; Phase 2 accepted for native search integration | CM-01–10 for adopted routes; Pi engine replacement and chat feature activation recorded separately; **planned** |
-| 4. Harness | Common integration, then Pi / Claude Code / DSH adapter cutovers below | Phase 1 accepted; relevant tool/approval contracts from phases 2–3 stabilized | Each runtime passes the Harness matrix with native capability gaps closed; **planned** |
-| 5. Cleanup and rollout | Remove superseded live code and temporary selection paths, retain historical readers | Applicable replacements validated and rollback tested | All promised runtimes covered, no abandoned callers/patches, upgrade regression lane established; **planned** |
+| M. Batch/audio/video/Realtime | [M1–M5 product, provider, lifecycle and acceptance records](./capability-migration-plan.md#m--batch-audio-video-and-realtime) | Phase 1; relevant file/result/approval contracts for each selected feature | M-01–05 if adopted; each item otherwise needs reason, tracking record and revisit trigger; **decision pending** |
+| Q. Structured output/evaluation | [Existing-output migration and experimental evaluation adoption](./capability-migration-plan.md#q--structured-output-and-evaluation) | Existing structured output in phase 1; evaluation consumer/dataset before Q2 | SDK-11 mandatory; Q-01 if evaluation adopted; **Q1 planned, Q2 decision pending** |
+| 4. Harness | Common integration, then Pi / Claude Code / DSH adapter cutovers below | Phase 1 accepted; applicable tool, file/image, approval and delivery contracts stabilized | Each runtime passes the complete product matrix, including attachments and image-tool outputs; **planned** |
+| 5. Cleanup and rollout | Per-surface replacement/removal records, historical readers and rollback | Applicable capability replacements validated, all callers accounted for | [Cleanup gate](#cleanup-and-rollout-gate); **planned**, Harness completion alone is insufficient |
 
 Dependency and codemod work in phase 1 is one coherent SDK upgrade, not a separately shippable feature.
 Do not begin with `tool_search`, turn on Code Mode while fixing compiler errors, or use a successful
-upgrade as evidence that the later phases already pass. Static research can proceed in parallel;
-production replacements obey the gates. Chat does not gain Code Mode implicitly through this sequence.
+upgrade as evidence that the later workstreams already pass. F/I/R and tools can progress independently
+after their shared baseline; neither file upload nor image migration waits for Harness. Harness only
+depends on capabilities its runtime actually consumes, not on every new media feature. The retained
+phase numbers identify existing detailed plans, not a total ordering of all work. Chat does not gain
+Code Mode implicitly through this sequence.
 
-### Phase 4 implementation slices
+## Research coverage
+
+Every capability or migration boundary in [research](./aisdk-v7-research.md) and its
+[feature inventory](./aisdk-v7-feature-inventory.md) has a disposition below. **Required** means existing
+behavior must survive the upgrade; **planned adoption** means implementation is still pending;
+**decision pending** means the product/architecture choice has not been made. None means validated.
+
+| Research item | Cherry surface / required work | Record and acceptance |
+|---|---|---|
+| Dependency closure, V2/V3/V4 providers, community providers, ESM/ES2022 | Root/workspace exports, peers, overrides, patched native/compatible endpoints and packaged Electron | Required: SDK §§1.1–1.3, SDK-08; per-provider native/compatibility/blocked disposition |
+| Every core/React/provider patch | Hunk-by-hunk protected behavior and upstream equivalent; image downloads and UI snapshots are separate | Required: SDK patch ledger, SDK-01–12 as applicable; deletion needs evidence |
+| Context and instructions | `Agent`, ai-core executor, tool context, prompt features/repair; shared runtime vs tool contexts and trusted system history | Required: SDK-01–02, SDK-12 |
+| Approval, reasons, transformed input, signed continuation | Main approval authority, stored pending decisions, nested execution and resumed inputs | Required: SDK-02/04; TS/CM and per-runtime Harness approval cases |
+| Lifecycle callbacks, results, aggregate/final-step usage | Hook composition, usage/cost persistence, retry/model/tool parentage | Required: SDK-01/03/05; no duplicated terminal or billing records |
+| Telemetry / separate OTel | Per-call instrumentation, opt-in policy and retry/approval spans | Required: SDK-05; R-06 and Q-01 if adopted |
+| Reasoning, provider options and prompt/media parts | Message conversion/replay, endpoint-specific options, native/compatible wire contracts | Required: SDK-01/04/09/12; old provider acceptance is not new-feature parity |
+| Structured output, arrays, final tool-loop result | Real final-step extraction and schema constraints through ai-core/callers | Required: Q1, SDK-11 |
+| Embedding and rerank | `AiService.embedMany/rerank`, knowledge indexing/search and local/custom providers | Required: SDK-10; ordering, dimensions, scores, retry and usage preserved |
+| Existing attachment inputs and FilesV4 lifecycle | Local ingestion, native vs extraction/OCR, upload/reference readiness, expiry/account scoping, cleanup, replay | Required F1/SDK-09; planned adoption F2–F5, F-02–06 |
+| Image generation/editing and SDK image capabilities | Painting UI and tools, SDK/custom transports, parameters, file/mask inputs, downloads, usage and durable results | Required I1/SDK-06; planned capability adoption I2–I3; I4 recovery needs destination decision; I-01–08 |
+| Provider streaming errors / retries | Key/model failover vs mid-stream provider retries; partial output and side effects | Required existing behavior SDK-03; planned R2 adoption, R-02–04 |
+| UI snapshots, active partial parts, cancellation/approval continuation, SSE heartbeat | Main stream/persistence, renderer overlay, Gateway SSE consumers | Required R1/SDK-04/07; R-01/05/06; new heartbeat activation tracked in R3 |
+| Native Tool Search / deferred loading | Request-selected catalogs, direct invocation, UI/history compatibility | Planned phase 2, TS-01–08 |
+| Code Mode / conversation catalogs / caller routing | Engine, Pi nested approval, signatures/results, prompt/catalog cache behavior | Planned phase 3, CM-01–10; chat activation remains a separate choice |
+| Harness adapters, sandbox, native auth, per-turn settings, steering, questions/callbacks, history | Existing host/driver boundary; Pi/Claude/DSH capability and lifecycle parity | Planned H1–H4 and full Harness matrix; resume is not transcript access or exactly-once recovery |
+| Compaction and custom-loop boundaries | Reuse `compactModelMessages` / `inLoopCompaction`; tool pairing, summaries, attachment access and context budget | Required SDK-12; no new compaction subsystem or unpublished API assumption |
+| Batch: tools, per-request models, image jobs, list/cancel/webhooks | Job identity, item/result correlation, durable destination and provider support | M1 decision pending; M-01 if adopted |
+| Speech / transcription, including streaming | Inventory existing wrappers; new capture/playback and transcript/file lifecycle | Existing callers required if found; M2 decision pending, M-02 |
+| Speech translation | Source/target audio/text, ordering and interruption | M3 decision pending, M-03; distinct from existing text translation |
+| Async video and reference inputs | Task identity, poll/webhook, cancellation, download and persistence | M4 decision pending, M-04 |
+| Realtime Live | Transport, credentials, media permissions, queues, host tools/approval/context | M5 decision pending, M-05 |
+| Evaluation and evaluation telemetry | Dataset/consumer, typed questions, shared state, result records and tracing | Q2 decision pending, Q-01; does not replace black-box validation |
+
+Before starting a workstream, expand its provider/caller matrix against the implementation SHA. Before
+closing the program, resolve every decision-pending row as adopted or explicitly deferred with a reason,
+tracking record and revisit trigger. An unresolved row cannot disappear into a cleanup milestone.
+
+## Phase 4 implementation slices
 
 | Slice | Concrete work at the existing runtime boundary | Removal / acceptance |
 |---|---|---|
@@ -65,18 +118,30 @@ Pi is the proposed first slice because it avoids the Claude sandbox-bridge integ
 fork/policy/event gaps still block cutover. Resolve upstream gaps before downstream workarounds. No
 runtime may silently lose a shipped capability to make the shared interface smaller.
 
-### Deferred SDK opportunities
-
-Streaming recovery, FilesV4 lifecycle, image Batch jobs, and new audio/video/realtime APIs get separate
-implementation records after phase 1 if selected. Keep `streamRetries` off during baseline migration;
-provider retry, UI reconnect and cross-model fallback remain distinct. Async image Batch does not turn
-all `generateImage` providers into resumable background jobs. See the
-[SDK plan](./sdk-upgrade-plan.md#13-complete-the-manual-semantic-migration) and [feature inventory](./aisdk-v7-feature-inventory.md).
+## Workstream evidence
 
 For each phase record implementation PR/SHA, exact dependency lock, changed/retained/deleted surfaces,
 commands and observed outcomes, unresolved gaps, real-provider/platform coverage and rollback evidence.
 Advance from `planned` to `implementing`, `blocked on capability`, `validated`, and `rolled out` using
 actual evidence. Documentation completion, CI success, and production cutover are separate states.
+
+## Cleanup and rollout gate
+
+Maintain a per-surface ledger: old caller/module/patch → replacement or retention reason → affected
+provider/runtime/operation → acceptance evidence → rollback/history requirements → removal PR.
+
+- Tool/runtime completion does not authorize removing file materialization, image transports, Job
+  handlers, retry wrappers, media adapters or their patches. Each needs its own replacement evidence.
+- Inventory both live and persisted consumers: ordinary/temporary chat, Agent/Assistant tools,
+  painting UI, Gateway, channels and exported workspace packages where applicable. An untested caller
+  is an open gate, not evidence that a module is unused.
+- Preserve stored message/tool/painting readers and outstanding file/job references. Use appended
+  migrations if a selected feature needs new durable state; do not rewrite shipped migrations.
+- Roll out per provider/runtime route with one execution path per request. Verify rollback can still
+  read data and settle work created by the new path; uncertain paid submissions must not be replayed.
+- Close all required parity and adopted-capability gates, account for intentional retained code, and
+  record every deferral explicitly. A local slice can ship while an independent slice remains open;
+  the whole migration cannot be declared complete on the basis of Harness alone.
 
 ## Harness migration direction
 
@@ -161,6 +226,8 @@ Use three complementary levels:
 | Scenario / injected fault | Observable acceptance condition |
 |---|---|
 | Multi-turn conversation, tools, MCP, skills, attachments | Correct workspace artifacts and tool results; one durable user admission; transcript survives reopening; no cross-session content |
+| Native/remote file inputs, workspace copies and image-tool output across runtime cutover | Inputs remain accessible only to their intended session; returned images remain readable/reusable after reopening; adapter changes do not discard file parts or relax attachment access |
+| User questions, structured output, per-turn settings and lifecycle callbacks | Questions bind to the right pending turn and settle on answer/cancel; supported final schemas and setting changes survive mapping; unsupported adapter capabilities remain explicit |
 | Denied approval, disabled tool, stale/duplicate approval reply | Zero prohibited effects; approval binds to the intended session, tool, and input; duplicate responses cannot execute twice; pending UI resolves correctly |
 | Policy changes during an active turn; update failure | Tool-policy changes and turn-frozen permission mode follow the existing reconcile contract; failed application prevents execution under stale policy |
 | Steer during tool execution and just before completion | No abort caused by steer; consumed input appears between pre/post-steer assistant output; accepted-but-unconsumed input becomes the next turn exactly once |

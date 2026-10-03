@@ -106,5 +106,7 @@ compaction remains an [open proposal](https://github.com/vercel/ai/issues/14017)
 own compaction implementation. Neither issue examples nor provider-native compaction establish a
 published generic compaction API.
 
-See the [upgrade assessment](./aisdk-v7-research.md) and [revised migration plan](./migration-plan.md)
-for the implications and validation order.
+See the [upgrade assessment](./aisdk-v7-research.md) and
+[research coverage matrix](./migration-plan.md#research-coverage) for every row's migration/adoption
+disposition and acceptance. The [file lifecycle plan](./large-file-upload-port.md) and
+[image, recovery and media plan](./capability-migration-plan.md) carry the work beyond the tool/runtime branch.

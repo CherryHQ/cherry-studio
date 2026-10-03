@@ -10,6 +10,10 @@ sources:
 
 # Phases 2–3 — Tool Search and Code Mode
 
+This is the tool branch of the [complete migration program](./migration-plan.md#research-coverage).
+Files, image generation/editing and stream recovery have peer workstreams. The phase numbers here
+identify tool dependencies; they do not require those capabilities to wait until Code Mode or Harness.
+
 > Written 2026-10-02 against Cherry `1b799934263`; upstream comparison `ai@7.0.123` and
 > `@ai-sdk/code-mode@1.0.80`. **Planned; no migration or black-box test has run.**
 

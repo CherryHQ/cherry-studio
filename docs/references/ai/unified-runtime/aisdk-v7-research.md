@@ -12,6 +12,9 @@ sources:
 > SDK baseline verified 2026-10-01; implementation plan and Code Mode approval correction updated 2026-10-02. Published baseline: **`ai@7.0.123`**, released 2026-09-30.
 > Cherry baseline: **`e51a3ad0643`**, `ai@6.0.185`. This is research, not an SDK upgrade or a runtime migration approval.
 > The [June report](https://github.com/CherryHQ/cherry-studio/blob/e51a3ad0643e6d15e76b7720b8739e4fb4f77c6b/docs/references/ai/unified-runtime/aisdk-v7-research.md) remains available in Git history.
+> Planning coverage corrected 2026-10-04: the [research coverage matrix](./migration-plan.md#research-coverage)
+> maps every item below and in the feature inventory to implementation, acceptance or an explicit pending
+> decision. This correction does not re-date the upstream version research.
 
 ## Recommendation
 
@@ -22,6 +25,11 @@ Code Mode is a later gated phase. The [migration plan](./migration-plan.md#harne
 now targets Harness for all Agent execution backends, gated by per-runtime black-box acceptance;
 completing that migration is not a prerequisite for upgrading `ai`. The previous blanket recommendations
 to stay on v6 and reject Harness are superseded by this capability-based assessment.
+
+The earlier SDK → Tool Search → Code Mode → Harness summary was not a complete migration plan.
+[FilesV4](./large-file-upload-port.md) and [images, stream recovery and media](./capability-migration-plan.md)
+are explicit workstreams. Existing capabilities must survive phase 1; new capabilities need their own
+adoption and lifecycle decisions. Runtime replacement does not cover them automatically.
 
 ## Reproducible baseline
 
@@ -113,19 +121,29 @@ message-store unification, and driver removal are separate decisions.
 
 `ToolLoopAgent` still has no published top-level `compact()` / `compactWhen` facility;
 [the proposal remains open](https://github.com/vercel/ai/issues/14017). Cherry already has
-`packages/aiCore/src/core/context/compaction.ts` and the aiSdk `contextCompaction` feature. Evaluate and reuse
+`packages/aiCore/src/core/context/compaction.ts` and the aiSdk compaction feature (currently
+`params/features/inLoopCompaction.ts`, rechecked 2026-10-04). Evaluate and reuse
 that implementation; do not plan a second compaction subsystem from scratch. Provider-native compaction,
 Harness session compaction, message pruning, and application-owned summarization are different contracts.
 
 ## Suggested validation order
 
-1. Inventory resolved SDK/provider versions and every applicable patch; reproduce the behavior each patch protects.
-2. Prototype the core API migration, usage semantics, approval round trips, and ESM packaging without changing runtime ownership.
-3. Compare native tool search and stream recovery with Cherry's existing implementations using real tool-heavy and interrupted streams.
+1. Map every research item to its current callers, provider/runtime matrix, migration/adoption decision,
+   acceptance and removal record. Inventory resolved versions and every patch; reproduce protected behavior.
+2. Complete the core API, usage, approval and packaging migration together with existing attachments,
+   image generation/editing, custom image jobs, embedding/rerank, structured output, compaction and UI
+   regression gates. Keep runtime ownership unchanged during this SDK baseline.
+3. Run the independent FilesV4, image-capability/result-lifecycle, stream-recovery and Tool Search workstreams
+   through their detailed acceptance plans. Do not treat their completion as a consequence of an SDK upgrade.
 4. Migrate Code Mode separately; initially keep approval-required tools direct on the Core route, and
    verify the published callback/continuation APIs before replacing Pi's existing nested approvals.
-5. Execute the Harness migration acceptance plan per runtime, including real adapters, failure injection,
-   real providers, and packaged Electron, before replacing direct drivers.
+5. Resolve the explicit Batch, audio/transcription/translation, async-video, Realtime and evaluation
+   adoption records. Selected features follow their own provider/lifecycle gates; unresolved items remain open.
+6. Execute Harness acceptance per runtime with its consumed file/image/tool/delivery contracts, real
+   adapters, failure injection, real providers and packaged Electron. Independent new-media decisions
+   do not block a runtime that does not consume them.
+7. Remove superseded code per capability only after caller coverage, historical data and rollback pass;
+   Harness completion is not the cleanup gate for files, images, recovery or other media.
 
 No compatibility prototype, SDK upgrade, real-provider run, or Electron packaging test was performed as
 part of this documentation refresh.
