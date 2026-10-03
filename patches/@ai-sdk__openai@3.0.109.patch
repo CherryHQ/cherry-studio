@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3eba35f9da 100644
+index 48ea06e..5b7bc32 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
@@ -47,27 +47,26 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3280,6 +3289,10 @@ function isFileId(data, prefixes) {
+@@ -3280,6 +3289,9 @@ function isFileId(data, prefixes) {
    if (!prefixes) return false;
    return prefixes.some((prefix) => data.startsWith(prefix));
  }
-+const localUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-+function getProviderItemId(itemId) {
-+  return itemId != null && !localUuidPattern.test(itemId) ? itemId : void 0;
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
 +}
  async function convertToOpenAIResponsesInput({
    prompt,
    toolNameMapping,
-@@ -3433,7 +3446,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3433,7 +3445,7 @@ async function convertToOpenAIResponsesInput({
            switch (part.type) {
              case "text": {
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = getProviderItemId(providerOpts == null ? void 0 : providerOpts.itemId);
++              const id = toResponsesItemId(providerOpts == null ? void 0 : providerOpts.itemId, "msg");
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
-@@ -3443,9 +3456,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3443,9 +3455,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -79,16 +78,16 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
                  ...phase != null && { phase }
                });
                break;
-@@ -3666,7 +3681,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3666,7 +3680,7 @@ async function convertToOpenAIResponsesInput({
                  providerOptions: part.providerOptions,
                  schema: openaiResponsesReasoningProviderOptionsSchema
                });
 -              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
-+              const reasoningId = getProviderItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId);
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
                if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
                  break;
                }
-@@ -3681,6 +3696,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3681,6 +3695,12 @@ async function convertToOpenAIResponsesInput({
                        summary: []
                      };
                    }
@@ -101,7 +100,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
                  } else {
                    const summaryParts = [];
                    if (part.text.length > 0) {
-@@ -3724,6 +3745,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3724,6 +3744,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
@@ -114,7 +113,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
                  } else {
                    warnings.push({
                      type: "other",
-@@ -4006,21 +4033,22 @@ ${text}`,
+@@ -4006,21 +4032,22 @@ ${text}`,
      }
    }
    if (!store && input.some(
@@ -140,7 +139,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -4658,6 +4686,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+@@ -4658,6 +4685,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
          summary_index: import_v422.z.number(),
          delta: import_v422.z.string()
        }),
@@ -152,7 +151,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
        import_v422.z.object({
          type: import_v422.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v422.z.string(),
-@@ -4752,7 +4785,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+@@ -4752,7 +4784,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
                        index: import_v422.z.number()
                      })
                    ])
@@ -161,7 +160,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
                })
              )
            }),
-@@ -5960,7 +5993,7 @@ var OpenAIResponsesLanguageModel = class {
+@@ -5960,7 +5992,7 @@ var OpenAIResponsesLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
      }
@@ -170,7 +169,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7411,6 +7444,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7411,6 +7443,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -189,7 +188,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..cd004e58697a5b2842bbc351b93a5c3e
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd6a357238 100644
+index 2648382..872c410 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
@@ -237,27 +236,26 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3378,6 +3387,10 @@ function isFileId(data, prefixes) {
+@@ -3378,6 +3387,9 @@ function isFileId(data, prefixes) {
    if (!prefixes) return false;
    return prefixes.some((prefix) => data.startsWith(prefix));
  }
-+const localUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-+function getProviderItemId(itemId) {
-+  return itemId != null && !localUuidPattern.test(itemId) ? itemId : void 0;
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
 +}
  async function convertToOpenAIResponsesInput({
    prompt,
    toolNameMapping,
-@@ -3531,7 +3544,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3531,7 +3543,7 @@ async function convertToOpenAIResponsesInput({
            switch (part.type) {
              case "text": {
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = getProviderItemId(providerOpts == null ? void 0 : providerOpts.itemId);
++              const id = toResponsesItemId(providerOpts == null ? void 0 : providerOpts.itemId, "msg");
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
-@@ -3541,9 +3554,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3541,9 +3553,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -269,16 +267,16 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
                  ...phase != null && { phase }
                });
                break;
-@@ -3764,7 +3779,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3764,7 +3778,7 @@ async function convertToOpenAIResponsesInput({
                  providerOptions: part.providerOptions,
                  schema: openaiResponsesReasoningProviderOptionsSchema
                });
 -              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
-+              const reasoningId = getProviderItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId);
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
                if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
                  break;
                }
-@@ -3779,6 +3794,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3779,6 +3793,12 @@ async function convertToOpenAIResponsesInput({
                        summary: []
                      };
                    }
@@ -291,7 +289,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
                  } else {
                    const summaryParts = [];
                    if (part.text.length > 0) {
-@@ -3822,6 +3843,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3822,6 +3842,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
@@ -304,7 +302,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
                  } else {
                    warnings.push({
                      type: "other",
-@@ -4104,21 +4131,22 @@ ${text}`,
+@@ -4104,21 +4130,22 @@ ${text}`,
      }
    }
    if (!store && input.some(
@@ -330,7 +328,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -4759,6 +4787,11 @@ var openaiResponsesChunkSchema = lazySchema20(
+@@ -4759,6 +4786,11 @@ var openaiResponsesChunkSchema = lazySchema20(
          summary_index: z22.number(),
          delta: z22.string()
        }),
@@ -342,7 +340,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
        z22.object({
          type: z22.literal("response.reasoning_summary_part.done"),
          item_id: z22.string(),
-@@ -4853,7 +4886,7 @@ var openaiResponsesResponseSchema = lazySchema20(
+@@ -4853,7 +4885,7 @@ var openaiResponsesResponseSchema = lazySchema20(
                        index: z22.number()
                      })
                    ])
@@ -351,7 +349,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
                })
              )
            }),
-@@ -6066,7 +6099,7 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6066,7 +6098,7 @@ var OpenAIResponsesLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
      }
@@ -360,7 +358,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7517,6 +7550,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7517,6 +7549,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -379,7 +377,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..84b988135639a8081c6002e607ebcebd
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4e6519ca4 100644
+index e5b1f96..eae8eb5 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
@@ -427,27 +425,26 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3224,6 +3233,10 @@ function isFileId(data, prefixes) {
+@@ -3224,6 +3233,9 @@ function isFileId(data, prefixes) {
    if (!prefixes) return false;
    return prefixes.some((prefix) => data.startsWith(prefix));
  }
-+const localUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-+function getProviderItemId(itemId) {
-+  return itemId != null && !localUuidPattern.test(itemId) ? itemId : void 0;
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
 +}
  async function convertToOpenAIResponsesInput({
    prompt,
    toolNameMapping,
-@@ -3377,7 +3390,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3377,7 +3389,7 @@ async function convertToOpenAIResponsesInput({
            switch (part.type) {
              case "text": {
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = getProviderItemId(providerOpts == null ? void 0 : providerOpts.itemId);
++              const id = toResponsesItemId(providerOpts == null ? void 0 : providerOpts.itemId, "msg");
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
-@@ -3387,9 +3400,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3387,9 +3399,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -459,16 +456,16 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
                  ...phase != null && { phase }
                });
                break;
-@@ -3610,7 +3625,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3610,7 +3624,7 @@ async function convertToOpenAIResponsesInput({
                  providerOptions: part.providerOptions,
                  schema: openaiResponsesReasoningProviderOptionsSchema
                });
 -              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
-+              const reasoningId = getProviderItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId);
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
                if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
                  break;
                }
-@@ -3625,6 +3640,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3625,6 +3639,12 @@ async function convertToOpenAIResponsesInput({
                        summary: []
                      };
                    }
@@ -481,7 +478,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
                  } else {
                    const summaryParts = [];
                    if (part.text.length > 0) {
-@@ -3668,6 +3689,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3668,6 +3688,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
@@ -494,7 +491,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3950,21 +3977,22 @@ ${text}`,
+@@ -3950,21 +3976,22 @@ ${text}`,
      }
    }
    if (!store && input.some(
@@ -520,7 +517,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -4602,6 +4630,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+@@ -4602,6 +4629,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v418.z.number(),
          delta: import_v418.z.string()
        }),
@@ -532,7 +529,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
        import_v418.z.object({
          type: import_v418.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v418.z.string(),
-@@ -4696,7 +4729,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
+@@ -4696,7 +4728,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
                        index: import_v418.z.number()
                      })
                    ])
@@ -541,7 +538,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
                })
              )
            }),
-@@ -6228,7 +6261,7 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6228,7 +6260,7 @@ var OpenAIResponsesLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
      }
@@ -550,7 +547,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7679,6 +7712,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7679,6 +7711,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -569,7 +566,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..8f8ed05e5d588c1f2dc421b7e081d7d4
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228f6d9bf8e 100644
+index 714e237..8d7fcce 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
@@ -617,27 +614,26 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
        warnings,
        usage: response.usage != null ? {
          inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
-@@ -3269,6 +3278,10 @@ function isFileId(data, prefixes) {
+@@ -3269,6 +3278,9 @@ function isFileId(data, prefixes) {
    if (!prefixes) return false;
    return prefixes.some((prefix) => data.startsWith(prefix));
  }
-+const localUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-+function getProviderItemId(itemId) {
-+  return itemId != null && !localUuidPattern.test(itemId) ? itemId : void 0;
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
 +}
  async function convertToOpenAIResponsesInput({
    prompt,
    toolNameMapping,
-@@ -3422,7 +3435,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3422,7 +3434,7 @@ async function convertToOpenAIResponsesInput({
            switch (part.type) {
              case "text": {
                const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
 -              const id = providerOpts == null ? void 0 : providerOpts.itemId;
-+              const id = getProviderItemId(providerOpts == null ? void 0 : providerOpts.itemId);
++              const id = toResponsesItemId(providerOpts == null ? void 0 : providerOpts.itemId, "msg");
                const phase = providerOpts == null ? void 0 : providerOpts.phase;
                if (hasConversation && id != null) {
                  break;
-@@ -3432,9 +3445,11 @@ async function convertToOpenAIResponsesInput({
+@@ -3432,9 +3444,11 @@ async function convertToOpenAIResponsesInput({
                  break;
                }
                input.push({
@@ -649,16 +645,16 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
                  ...phase != null && { phase }
                });
                break;
-@@ -3655,7 +3670,7 @@ async function convertToOpenAIResponsesInput({
+@@ -3655,7 +3669,7 @@ async function convertToOpenAIResponsesInput({
                  providerOptions: part.providerOptions,
                  schema: openaiResponsesReasoningProviderOptionsSchema
                });
 -              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
-+              const reasoningId = getProviderItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId);
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
                if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
                  break;
                }
-@@ -3670,6 +3685,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3670,6 +3684,12 @@ async function convertToOpenAIResponsesInput({
                        summary: []
                      };
                    }
@@ -671,7 +667,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
                  } else {
                    const summaryParts = [];
                    if (part.text.length > 0) {
-@@ -3713,6 +3734,12 @@ async function convertToOpenAIResponsesInput({
+@@ -3713,6 +3733,12 @@ async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts
                    });
@@ -684,7 +680,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
                  } else {
                    warnings.push({
                      type: "other",
-@@ -3995,21 +4022,22 @@ ${text}`,
+@@ -3995,21 +4021,22 @@ ${text}`,
      }
    }
    if (!store && input.some(
@@ -710,7 +706,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
  });
  
  // src/responses/map-openai-responses-finish-reason.ts
-@@ -4650,6 +4678,11 @@ var openaiResponsesChunkSchema = lazySchema16(
+@@ -4650,6 +4677,11 @@ var openaiResponsesChunkSchema = lazySchema16(
          summary_index: z18.number(),
          delta: z18.string()
        }),
@@ -722,7 +718,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
        z18.object({
          type: z18.literal("response.reasoning_summary_part.done"),
          item_id: z18.string(),
-@@ -4744,7 +4777,7 @@ var openaiResponsesResponseSchema = lazySchema16(
+@@ -4744,7 +4776,7 @@ var openaiResponsesResponseSchema = lazySchema16(
                        index: z18.number()
                      })
                    ])
@@ -731,7 +727,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
                })
              )
            }),
-@@ -6309,7 +6342,7 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6309,7 +6341,7 @@ var OpenAIResponsesLanguageModel = class {
          details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
        });
      }
@@ -740,7 +736,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
        if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
          if (baseArgs.temperature != null) {
            baseArgs.temperature = void 0;
-@@ -7760,6 +7793,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -7760,6 +7792,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -759,7 +755,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..d7290e66b4e6d5bab082a9ce10bb1228
                if (store) {
                  controller.enqueue({
 diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
-index e5bda94b0f26b69796d74900f975cb1f1b9ac234..f31c9ff0665366dcbd8e0dda83d15ac076749f9d 100644
+index e5bda94..f31c9ff 100644
 --- a/src/chat/openai-chat-language-model.ts
 +++ b/src/chat/openai-chat-language-model.ts
 @@ -211,7 +211,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
@@ -772,7 +768,7 @@ index e5bda94b0f26b69796d74900f975cb1f1b9ac234..f31c9ff0665366dcbd8e0dda83d15ac0
        //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
        if (
 diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
-index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+index de779ca..14b7247 100644
 --- a/src/image/openai-image-api.ts
 +++ b/src/image/openai-image-api.ts
 @@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
@@ -786,7 +782,7 @@ index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2
          }),
        ),
 diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
-index 41b81b27ccc1cd2e821573dab1e28517def1ea95..f0858ff8d6f53ef0ba1bdf898d881d01dae517c5 100644
+index 41b81b2..f0858ff 100644
 --- a/src/image/openai-image-model.ts
 +++ b/src/image/openai-image-model.ts
 @@ -132,7 +132,11 @@ export class OpenAIImageModel implements ImageModelV3 {
@@ -816,35 +812,34 @@ index 41b81b27ccc1cd2e821573dab1e28517def1ea95..f0858ff8d6f53ef0ba1bdf898d881d01
        usage:
          response.usage != null
 diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
-index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c80639cf9 100644
+index 5c27d8f..703956b 100644
 --- a/src/responses/convert-to-openai-responses-input.ts
 +++ b/src/responses/convert-to-openai-responses-input.ts
-@@ -291,6 +291,13 @@ function isFileId(data: string, prefixes?: readonly string[]): boolean {
+@@ -291,6 +291,14 @@ function isFileId(data: string, prefixes?: readonly string[]): boolean {
    return prefixes.some(prefix => data.startsWith(prefix));
  }
  
-+const localUuidPattern =
-+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-+
-+function getProviderItemId(itemId: string | undefined): string | undefined {
-+  return itemId != null && !localUuidPattern.test(itemId) ? itemId : undefined;
++/** Responses item ids are prefix-tagged (`msg_…`, `rs_…`); UUIDs 400. */
++function toResponsesItemId(
++  id: unknown,
++  prefix: 'msg' | 'rs',
++): string | undefined {
++  return typeof id === 'string' && id.startsWith(prefix) ? id : undefined;
 +}
 +
  export async function convertToOpenAIResponsesInput({
    prompt,
    toolNameMapping,
-@@ -495,7 +502,9 @@ export async function convertToOpenAIResponsesInput({
+@@ -495,7 +503,7 @@ export async function convertToOpenAIResponsesInput({
            switch (part.type) {
              case 'text': {
                const providerOpts = part.providerOptions?.[providerOptionsName];
 -              const id = providerOpts?.itemId as string | undefined;
-+              const id = getProviderItemId(
-+                providerOpts?.itemId as string | undefined,
-+              );
++              const id = toResponsesItemId(providerOpts?.itemId, 'msg');
                const phase = providerOpts?.phase as
                  | 'commentary'
                  | 'final_answer'
-@@ -514,9 +523,14 @@ export async function convertToOpenAIResponsesInput({
+@@ -514,9 +522,14 @@ export async function convertToOpenAIResponsesInput({
                }
  
                input.push({
@@ -859,16 +854,16 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
                  ...(phase != null && { phase }),
                });
  
-@@ -868,7 +882,7 @@ export async function convertToOpenAIResponsesInput({
+@@ -868,7 +881,7 @@ export async function convertToOpenAIResponsesInput({
                  schema: openaiResponsesReasoningProviderOptionsSchema,
                });
  
 -              const reasoningId = providerOptions?.itemId;
-+              const reasoningId = getProviderItemId(providerOptions?.itemId);
++              const reasoningId = toResponsesItemId(providerOptions?.itemId, 'rs');
  
                if (
                  (hasConversation || hasPreviousResponseId) &&
-@@ -893,6 +907,15 @@ export async function convertToOpenAIResponsesInput({
+@@ -893,6 +906,15 @@ export async function convertToOpenAIResponsesInput({
                        summary: [],
                      };
                    }
@@ -884,7 +879,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
                  } else {
                    const summaryParts: Array<{
                      type: 'summary_text';
-@@ -955,6 +978,17 @@ export async function convertToOpenAIResponsesInput({
+@@ -955,6 +977,17 @@ export async function convertToOpenAIResponsesInput({
                      encrypted_content: encryptedContent,
                      summary: summaryParts,
                    });
@@ -902,7 +897,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
                  } else {
                    warnings.push({
                      type: 'other',
-@@ -1313,7 +1347,8 @@ export async function convertToOpenAIResponsesInput({
+@@ -1313,7 +1346,8 @@ export async function convertToOpenAIResponsesInput({
        item =>
          'type' in item &&
          item.type === 'reasoning' &&
@@ -912,7 +907,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
      )
    ) {
      warnings.push({
-@@ -1325,7 +1360,8 @@ export async function convertToOpenAIResponsesInput({
+@@ -1325,7 +1359,8 @@ export async function convertToOpenAIResponsesInput({
        item =>
          !('type' in item) ||
          item.type !== 'reasoning' ||
@@ -922,7 +917,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
      );
    }
  
-@@ -1335,6 +1371,7 @@ export async function convertToOpenAIResponsesInput({
+@@ -1335,6 +1370,7 @@ export async function convertToOpenAIResponsesInput({
  const openaiResponsesReasoningProviderOptionsSchema = z.object({
    itemId: z.string().nullish(),
    reasoningEncryptedContent: z.string().nullish(),
@@ -931,7 +926,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..748acc2548f155d8e15b33d1b218b71c
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index aef872bfbed2218f104c6cf864cde8005173ff6d..b34fcfd8c530c7cfc33e04ffe2ec5efbd3bc435c 100644
+index aef872b..b34fcfd 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
 @@ -1206,6 +1206,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
@@ -956,7 +951,7 @@ index aef872bfbed2218f104c6cf864cde8005173ff6d..b34fcfd8c530c7cfc33e04ffe2ec5efb
                ),
              }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
-index 485880b51bbb55f9bf2b563afe24330f5a309c37..e25dd4f5cc5f793bbcc71d1c70983bb0c122221f 100644
+index 485880b..e25dd4f 100644
 --- a/src/responses/openai-responses-language-model.ts
 +++ b/src/responses/openai-responses-language-model.ts
 @@ -436,7 +436,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {

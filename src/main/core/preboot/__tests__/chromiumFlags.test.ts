@@ -43,6 +43,7 @@ function stubElectron() {
 function stubConstants(flags: PlatformFlags) {
   vi.doMock('@main/core/platform', () => ({
     isLinux: flags.isLinux,
+    isLinuxWayland: flags.isLinux && process.env.XDG_SESSION_TYPE === 'wayland',
     isWin: flags.isWin,
     isPortable: false,
     isMac: !flags.isLinux && !flags.isWin,

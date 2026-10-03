@@ -18,8 +18,10 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
-  '@deepseek-ai/node-addon-landlock-run-linux-arm64',
-  '@deepseek-ai/node-addon-landlock-run-linux-x64',
+  '@deepseek-ai/node-addon-system-darwin-arm64',
+  '@deepseek-ai/node-addon-system-darwin-x64',
+  '@deepseek-ai/node-addon-system-linux-arm64',
+  '@deepseek-ai/node-addon-system-linux-x64',
   // anydoc converts binary office documents to markdown for the knowledge base.
   // It ships no win32-arm64 build and no wasm fallback, so existing formats use
   // their legacy readers there while newly supported .ppt fails visibly.
@@ -178,6 +180,19 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
+const getNativeModuleFilters = (platform, arch) => {
+  const keptPackages = keepPackages(platform, arch)
+  const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
+  return [
+    ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
+    `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
+    `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
+    `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
+    `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
+  ]
+}
+exports.getNativeModuleFilters = getNativeModuleFilters
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
@@ -205,16 +220,6 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = keepPackages(platform, 'arm64')
-  const arm64ExcludePackages = packages
-    .filter((p) => !arm64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
-  const x64KeepPackages = keepPackages(platform, 'x64')
-  const x64ExcludePackages = packages
-    .filter((p) => !x64KeepPackages.includes(p))
-    .map((p) => '!node_modules/' + p + '/**')
-
   const currentPlatformKey = `${platform}-${arch}`
   // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
   // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
@@ -224,9 +229,5 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
-  if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
-  } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
-  }
+  await excludePackages([...getNativeModuleFilters(platform, arch), ...excludeBundledBinaryFilters])
 }

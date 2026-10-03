@@ -1,11 +1,4 @@
-/**
- * Keyboard relay between a MiniApp `<webview>` guest and its host window.
- *
- * A guest's keydown never reaches the host window's listener, so renderer-scope
- * shortcuts would silently die inside a MiniApp. The guest preload forwards
- * shortcut-shaped keydowns over {@link MINI_APP_KEYDOWN_CHANNEL} and the host
- * re-dispatches them, letting the normal keybinding resolution decide what runs.
- */
+/** Keyboard relay between a webview guest and its host window. */
 
 import {
   canonicalTriggerToken,
@@ -14,11 +7,11 @@ import {
   type KeyboardEventLike
 } from './shortcut'
 
-/** `sendToHost` channel the MiniApp guest preload uses to reach its host window. */
-export const MINI_APP_KEYDOWN_CHANNEL = 'miniapp:keydown'
+/** `sendToHost` channel the shared webview preload uses to reach its host window. */
+export const WEBVIEW_KEYDOWN_CHANNEL = 'webview:keydown'
 
-/** Keyboard data forwarded from a MiniApp guest, shaped for `new KeyboardEvent()`. */
-export type MiniAppKeyPayload = {
+/** Keyboard data forwarded from a webview guest, shaped for `new KeyboardEvent()`. */
+export type WebviewKeyPayload = {
   key: string
   code: string
   ctrlKey: boolean
@@ -29,11 +22,11 @@ export type MiniAppKeyPayload = {
   isTrusted: boolean
 }
 
-// The host owns find/print/save inside MiniApps, so the guest page must not also
+// The host owns find/print/save inside webviews, so the guest page must not also
 // run the browser default for them.
 const HOST_OWNED_KEYS = new Set(['f', 'p', 's'])
 
-export const isHostOwnedGuestKey = (event: Pick<MiniAppKeyPayload, 'key' | 'ctrlKey' | 'metaKey'>): boolean =>
+export const isHostOwnedGuestKey = (event: Pick<WebviewKeyPayload, 'key' | 'ctrlKey' | 'metaKey'>): boolean =>
   (event.ctrlKey || event.metaKey) && HOST_OWNED_KEYS.has(event.key.toLowerCase())
 
 /**
@@ -52,7 +45,7 @@ export const isForwardableGuestKey = (event: KeyboardEventLike): boolean => {
   return isValidShortcut(binding) || (binding.length === 1 && canonicalTriggerToken(binding[0]) === 'Enter')
 }
 
-export const toMiniAppKeyPayload = (event: KeyboardEvent): MiniAppKeyPayload => ({
+export const toWebviewKeyPayload = (event: KeyboardEvent): WebviewKeyPayload => ({
   key: event.key,
   code: event.code,
   ctrlKey: event.ctrlKey,

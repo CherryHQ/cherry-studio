@@ -435,6 +435,15 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command } })
     })
 
+    it('asks before running a destructive command that rtk rewrote', async () => {
+      mocks.rtkRewrite.mockResolvedValueOnce('rtk git push --force')
+      const { handler, emitted } = buildAutoGate()
+      void handler(toolEvent('bash', { command: 'git push --force' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'rtk git push --force' } })
+    })
+
     it('asks before writing outside the workspace', async () => {
       const { handler, emitted } = buildAutoGate()
       void handler(toolEvent('write', { path: join(outside, 'new.txt'), content: 'x' }), extCtx)
@@ -650,4 +659,20 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].type).toBe('tool-approval-request')
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'rechecks the persistent browser grant in %s mode',
+    async (mode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      const call = () => handler(toolEvent('mcp__browser__click', {}), extCtx)
+      await expect(call()).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+      await pref.set('app.browser.agent_control.enabled', false)
+      await expect(call()).resolves.toMatchObject({ block: true })
+    }
+  )
 })

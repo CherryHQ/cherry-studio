@@ -958,9 +958,7 @@ describe('Agent', () => {
     expect(onError.mock.calls[0][0].error).toBeInstanceOf(Error)
     expect(onError.mock.calls[0][0].error).toMatchObject({ message: 'You have no credits remaining.' })
     expect(mockMainLoggerService.error).toHaveBeenCalledWith('agentLoop error', {
-      name: null,
-      message: 'You have no credits remaining.',
-      stack: null
+      errorMessage: 'You have no credits remaining.'
     })
     expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
   })
@@ -1018,10 +1016,10 @@ describe('Agent', () => {
     expect(onError).toHaveBeenCalledTimes(1)
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'agentLoop onError returned retry; retry not implemented — aborting',
-      err
+      expect.objectContaining({ errorMessage: 'stream blew up' })
     )
     // The retry branch must not also log an error for the same outcome.
-    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', err)
+    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', expect.anything())
   })
 
   it('projects a structured stream failure before logging an unimplemented retry', async () => {
@@ -1051,7 +1049,7 @@ describe('Agent', () => {
 
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'agentLoop onError returned retry; retry not implemented — aborting',
-      { name: null, message: 'You have no credits remaining.', stack: null }
+      { errorMessage: 'You have no credits remaining.' }
     )
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toMatch(/object-secret|private prompt/)
   })
