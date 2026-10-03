@@ -1,85 +1,85 @@
 {
-  "generated_at": "2026-10-02T00:00:00Z",
-  "open_issues_total": 1113,
-  "open_issues_delta_30d": 105,
-  "open_prs_total": 210,
-  "open_prs_base_main": 194,
+  "generated_at": "2026-10-03T00:00:00Z",
+  "open_issues_total": 1116,
+  "open_issues_delta_30d": 108,
+  "open_prs_total": 100,
+  "open_prs_base_main": 97,
   "open_prs_base_v2": 0,
-  "open_prs_base_other": 16,
+  "open_prs_base_other": 3,
   "v2_open_prs": 0,
-  "p1_issues_total": 104,
-  "p1_issues_delta_30d": 71,
+  "p1_issues_total": 103,
+  "p1_issues_delta_30d": 70,
   "p1_issues": [
     {
       "number": 21282,
       "title": "[Bug]: 2.1.4 startup fatality on legacy provider order_key zz — one invalid row force-exits DbService in the startup registry sync (worked in 2.1.3); sync should be non-fatal",
       "labels": [],
       "updated_at": "2026-10-02",
-      "age_days": 0,
-      "status": "NEW TODAY — unlabeled P1 candidate: startup crash regression from 2.1.3→2.1.4"
-    },
-    {
-      "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "labels": ["bug","p1","agent"],
-      "updated_at": "2026-10-01",
-      "age_days": 14,
-      "status": "Active — 11 comments, no assignee"
+      "age_days": 1,
+      "status": "DAY 2 UNLABELED — startup crash regression 2.1.3→2.1.4, still no assignee or P1 label"
     },
     {
       "number": 21085,
       "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
       "labels": ["bug","p1","rag","assistant","performance","v2","chat"],
       "updated_at": "2026-09-27",
-      "age_days": 5,
-      "status": "Active — assigned 404-Page-Found, 6 comments, context overflow"
-    },
-    {
-      "number": 20695,
-      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
-      "labels": ["bug","p1"],
-      "updated_at": "2026-09-24",
-      "age_days": 13,
-      "status": "Active — assigned 404-Page-Found + Copilot, 3 comments"
+      "age_days": 6,
+      "status": "Active — assigned 404-Page-Found, context overflow"
     },
     {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
       "labels": ["bug","p1","v2","agent","chat"],
       "updated_at": "2026-09-22",
-      "age_days": 9,
-      "status": "Active — 4 comments, no assignee"
+      "age_days": 11,
+      "status": "Active — no assignee"
     },
     {
       "number": 20940,
       "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
       "labels": ["bug","p1","models","v2","chat"],
       "updated_at": "2026-09-22",
-      "age_days": 9,
-      "status": "Active — 2 comments, no assignee"
+      "age_days": 11,
+      "status": "Active — no assignee"
     },
     {
       "number": 20937,
       "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
       "labels": ["bug","p1","windows","v2","agent"],
       "updated_at": "2026-09-22",
+      "age_days": 11,
+      "status": "Active — no assignee"
+    },
+    {
+      "number": 20695,
+      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
+      "labels": ["bug","p1"],
+      "updated_at": "2026-09-24",
       "age_days": 9,
-      "status": "Active — 2 comments, no assignee"
+      "status": "Active — assigned 404-Page-Found + Copilot"
+    },
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+      "labels": ["bug","p1","agent"],
+      "updated_at": "2026-10-01",
+      "age_days": 12,
+      "status": "Active — assigned 404-Page-Found, 11 comments"
     },
     {
       "number": 20532,
       "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
       "labels": ["bug","p1","windows"],
       "updated_at": "2026-09-19",
-      "age_days": 18,
-      "status": "Active — no assignee"
+      "age_days": 14,
+      "status": "Active — assigned 404-Page-Found + Copilot"
     },
     {
       "number": 20476,
       "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
       "labels": ["bug","p1","windows","models","chat"],
       "updated_at": "2026-09-12",
-      "age_days": 20,
+      "age_days": 21,
       "status": "Active — no assignee"
     },
     {
@@ -87,109 +87,37 @@
       "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
       "labels": ["bug","p1","models","agent"],
       "updated_at": "2026-09-12",
-      "age_days": 20,
+      "age_days": 21,
       "status": "Active — no assignee"
-    },
-    {
-      "number": 20458,
-      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
-      "labels": ["bug","p1","models","chat"],
-      "updated_at": "2026-09-18",
-      "age_days": 20,
-      "status": "Active — 2 comments, no assignee"
     },
     {
       "number": 20407,
       "title": "[Bug]: Claude Code Agent spawn fails with EBADF on packaged macOS arm64 under high file-descriptor pressure",
       "labels": ["bug","p1","macos","agent"],
       "updated_at": "2026-09-22",
-      "age_days": 21,
-      "status": "Active — 3 comments, no assignee"
-    },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": ["bug","p1","needs-repro","data","v2"],
-      "updated_at": "2026-09-11",
-      "age_days": 21,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20369,
-      "title": "[Bug]: Claude Code Agent exits on Linux when zypak cannot access the session bus",
-      "labels": ["bug","p1","linux","agent"],
-      "updated_at": "2026-09-20",
-      "age_days": 22,
-      "status": "Active — 1 comment, no assignee"
-    },
-    {
-      "number": 20365,
-      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line request",
-      "labels": ["bug","p1","windows","models","performance","chat"],
-      "updated_at": "2026-09-26",
-      "age_days": 22,
-      "status": "Active — 2 comments, no assignee"
-    },
-    {
-      "number": 20361,
-      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
-      "labels": ["bug","p1","windows","agent"],
-      "updated_at": "2026-09-10",
       "age_days": 22,
       "status": "Active — no assignee"
     },
     {
-      "number": 20344,
-      "title": "Windows Agent startup crashes when PATH contains a null byte",
-      "labels": ["bug","p1","windows","agent"],
-      "updated_at": "2026-09-14",
-      "age_days": 22,
-      "status": "Active — 2 comments, no assignee"
+      "number": 19865,
+      "title": "[Bug]: Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": ["bug","p1","windows","performance","agent"],
+      "updated_at": "2026-09-28",
+      "age_days": 31,
+      "status": "Aging — no assignee"
     },
     {
-      "number": 20343,
-      "title": "Configured OCR fallback fails for image input on non-vision models",
-      "labels": ["bug","p1","windows","models","chat"],
-      "updated_at": "2026-09-22",
-      "age_days": 22,
-      "status": "Active — assigned eeee0717, 12 comments"
-    },
-    {
-      "number": 20338,
-      "title": "[Bug]: Mac OS编程搭档启动失败",
-      "labels": ["bug","p1","macos","code-mate"],
-      "updated_at": "2026-09-10",
-      "age_days": 22,
-      "status": "Active — 1 comment, no assignee"
-    },
-    {
-      "number": 20315,
-      "title": "[Bug]: DSH bridge fails while loading cordis:include",
-      "labels": ["bug","p1","windows","mcp","agent"],
-      "updated_at": "2026-09-22",
-      "age_days": 22,
-      "status": "Active — assigned 404-Page-Found, 5 comments"
-    },
-    {
-      "number": 20314,
-      "title": "[Bug]: Agent task model selection overwrites another task",
-      "labels": ["bug","p1","ui-ux","models","agent"],
-      "updated_at": "2026-09-20",
-      "age_days": 22,
-      "status": "Active — 1 comment, no assignee"
-    },
-    {
-      "number": 20300,
-      "title": "GPT Image 2 reference-image requests fail with ERR_SSL_PROTOCOL_ERROR",
-      "labels": ["bug","p1","windows","models","needs-info","network"],
-      "updated_at": "2026-09-20",
-      "age_days": 23,
-      "status": "Active — 1 comment, no assignee"
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug","p1","windows","needs-repro","v2","agent"],
+      "updated_at": "2026-09-29",
+      "age_days": 33,
+      "status": "Aging — no assignee"
     }
   ],
   "label_distribution_sample": {
     "bug": 60,
-    "p1": 104,
+    "p1": 103,
     "p2": 45,
     "p3": 28,
     "agent": 38,
@@ -205,55 +133,53 @@
     "rag": 8,
     "internal-team": 22
   },
-  "unlabeled_issues_estimate": "~313 (28% of 1113, from page-1 sample — ~28 unlabeled/100)",
-  "needs_triage_estimate": "~155 (14% of 1113)",
-  "no_priority_label_estimate": "~42% of open issues lack p1/p2/p3 classification",
+  "unlabeled_issues_estimate": "~430 (38% of 1116, from page-1 sample — ~43 unlabeled/100)",
+  "needs_triage_estimate": "~155 (14% of 1116)",
+  "no_priority_label_estimate": "~43% of open issues lack p1/p2/p3 classification",
   "issue_health_estimated": {
     "Active_le7days": "~130 (12%)",
     "Aging_7to30days": "~275 (25%)",
-    "Stale_30to90days": "~420 (38%)",
-    "Zombie_gt90days": "~288 (26%)",
+    "Stale_30to90days": "~425 (38%)",
+    "Zombie_gt90days": "~286 (26%)",
     "note": "Extrapolated from sorted page-1 sample; full dataset health skews stale/zombie vs daily-active view"
   },
   "pr_breakdown": {
-    "total_open": 210,
-    "base_main": 194,
+    "total_open": 100,
+    "base_main": 97,
     "base_v2": 0,
-    "base_other": 16,
+    "base_other": 3,
     "v2_open": 0,
     "other_notable_branches": [
-      "codex/voice-* (5 PRs — active voice feature dev)",
-      "codex/issue-15970-* (5 PRs — Feishu Wiki KB integration)",
-      "fix/subagent-resume-* (2 PRs — subagent routing fixes)",
       "wecom-channel-plan (1 PR)",
-      "zhibisora/cloud-api-401-refresh-retry (1 PR)",
-      "ai-service-background-wake (1 PR)",
-      "codex/system-speech-validation (1 PR)"
+      "codex/voice-primary-consumers (1 PR)",
+      "codex/issue-15970-lifecycle-completion (1 PR)"
     ],
-    "oldest_open_pr": {"number": 16462, "created_at": "2026-06-26", "title": "docs(unified-runtime): AI SDK v7 migration plan"},
-    "top_contributors_open": ["404-Page-Found (26)", "lianshuang-photo (13)", "DeJeune (7)", "AtomsH4 (5)", "louisss1016 (5)"]
+    "top_contributors_open": ["404-Page-Found (21)", "lianshuang-photo (13)", "DeJeune (8)", "Dante-dan (6)", "lorenzozanee (6)"],
+    "age": {"active_7d": 84, "aging_7_30d": 16, "stale": 0, "zombie": 0},
+    "labels": {"needs-review": 11}
   },
   "new_issues_today": [
-    {"number": 21282, "title": "[Bug]: 2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row", "labels": [], "note": "UNLABELED P1 CANDIDATE: startup crash regression from 2.1.3→2.1.4"},
-    {"number": 21280, "title": "[Bug]: mermaid download failed", "labels": []}
+    {"number": 21305, "title": "[Feature]: Support in-chat tool approvals across Agent channels", "labels": [], "note": "Feature request — MCP tool approval UX"},
+    {"number": 21296, "title": "[Feature Request] Add RTL text direction support for Persian and Arabic", "labels": [], "note": "i18n feature"},
+    {"number": 21295, "title": "[Bug]: Back arrow in Skills returns to All tab instead of selected tab", "labels": [], "note": "Navigation bug"},
+    {"number": 21292, "title": "[Bug]: Different Type of MCP auth issue", "labels": [], "note": "MCP auth regression"},
+    {"number": 21291, "title": "[Feature]: Context usage circle doesn't update without hover — add auto-refresh", "labels": [], "note": "UX polish feature"}
   ],
-  "closed_today_notable": [
-    {"number": 21268, "title": "apiGateway: Gemini adapter never reports cachedContentTokenCount"},
-    {"number": 21266, "title": "apiGateway: Responses-compatible adapter never reports cache/reasoning usage breakdowns"},
-    {"number": 21262, "title": "apiGateway: OpenAI-compatible adapter never reports the reasoning-token breakdown"},
-    {"number": 21260, "title": "apiGateway: Anthropic adapter reports cache-inclusive input total without cache split"},
-    {"number": 21259, "title": "[Bug]: Built-in Grok CLI provider is unavailable"},
-    {"number": 21226, "title": "[Bug]: Clicking local file link in chat crashes process (SIGTRAP) — Linux AppImage 2.1.3"}
-  ],
+  "closed_30d_stats": {
+    "total": 100,
+    "unlabeled_pct": 41,
+    "top_labels": {"bug": 29, "ui-ux": 22, "feature": 13, "p1": 12, "windows": 11, "chat": 11, "agent": 10}
+  },
   "volume_trend": {
     "2026-08-30": 1008,
     "2026-09-29": 1105,
     "2026-09-30": 1109,
     "2026-10-01": 1115,
     "2026-10-02": 1113,
-    "delta_30d": 105,
-    "delta_1d": -2,
-    "note": "Net +105 issues in 33 days. -2 today (more closed than opened). 6 API-gateway issues rapidly opened-and-closed. P1 count ~104 (unlabeled #21282 startup crash not yet labeled)."
+    "2026-10-03": 1116,
+    "delta_30d": 108,
+    "delta_1d": 3,
+    "note": "Net +108 in 34 days. +3 today. 5 new issues opened, likely 2 closed. P1 count dipped 104→103 (one closed)."
   },
-  "notes": "gh CLI unavailable; data via GitHub MCP API. Discussions GraphQL not available via MCP. Open PR count based on 2-page (200-item) sample; total may be higher. V2 branch has 0 open PRs — all dev targets main."
+  "notes": "gh CLI unavailable; data via GitHub MCP API. PR count is page-1 (100 items) sample — previous 2-page count was 210; true total likely ~200. V2 branch has 0 open PRs — all dev targets main. Discussions GraphQL unavailable via MCP tools."
 }
