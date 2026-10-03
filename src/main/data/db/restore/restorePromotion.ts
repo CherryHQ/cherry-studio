@@ -9,6 +9,11 @@ import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
+import {
+  chromiumRuntimeDirForQuiesce,
+  promoteChromiumRuntimeOverwrite,
+  quarantinedChromiumLiveMayBeReinstalled
+} from './chromiumStorageQuiesce'
 import { hashDbFile } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
@@ -21,6 +26,7 @@ function assertNever(x: never): never {
 
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
+type FailedJournal = Extract<RestoreJournal, { state: 'failed' }>
 type FileResource = RestoreJournal['fileResources'][number]
 
 /**
@@ -29,6 +35,11 @@ type FileResource = RestoreJournal['fileResources'][number]
  * PROMOTION_STEP_ORDER.indexOf — see the warning on that constant.
  */
 const COMMIT_STEP: PromotionStep = 'work-promoted'
+
+const TRANSIENT_FS_LOCK_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FS_RETRY_MAX_ATTEMPTS = 8
+const FS_RETRY_BASE_DELAY_MS = 100
+const FS_RETRY_MAX_DELAY_MS = 1500
 
 interface PromotionContext {
   readonly journal: StagedJournal | PromotingJournal
@@ -76,6 +87,15 @@ export async function runRestorePromotion(): Promise<void> {
 /**
  * Consume terminal restore artifacts after the gate has proved that no live
  * database is stranded. Active and corrupt journals remain untouched.
+ *
+ * For failed journals this is also the recovery owner of the aside
+ * quarantine (see preserveUnrestoredAsides): a quarantined aside whose live
+ * path went missing during the failed promotion is reinstalled on this fresh
+ * boot — pre-Chromium, so the handles that blocked the original promotion
+ * are gone. The journal and quarantine are consumed only once every
+ * quarantined aside is reinstalled; a live path that exists again counts as
+ * unresolved, keeping the quarantined copy for the next boot or manual
+ * recovery rather than destroying it while unreinstalled.
  */
 export function cleanupTerminalRestoreArtifacts(): void {
   const read = readRestoreJournal()
@@ -88,6 +108,18 @@ export function cleanupTerminalRestoreArtifacts(): void {
   }
 
   try {
+    if (journal.state === 'failed') {
+      if (!reinstallQuarantinedAsides(journal)) {
+        logger.warn(
+          'Quarantined restore asides not fully reinstalled — keeping the journal and quarantine for the next boot',
+          {
+            restoreId: journal.restoreId
+          }
+        )
+        return
+      }
+      fs.rmSync(asideQuarantineRoot(journal.restoreId), { recursive: true, force: true })
+    }
     const stagingRoot = application.getPath('feature.backup.restore.staging')
     fs.rmSync(path.join(stagingRoot, journal.restoreId), { recursive: true, force: true })
     removeRestoreJournal()
@@ -103,6 +135,79 @@ export function cleanupTerminalRestoreArtifacts(): void {
       error
     })
   }
+}
+
+function asideQuarantineRoot(restoreId: string): string {
+  return path.join(application.getPath('feature.backup.restore.aside_quarantine'), restoreId)
+}
+
+/**
+ * Whether an entry's original content is preserved aside for rollback — the
+ * kinds applyEntry moves out of the way before an overwrite lands.
+ */
+function isOverwriteEntry(entry: FileResource): entry is FileResource & { asidePath: string } {
+  return (entry.kind === 'overwrite' || entry.kind === 'note-overwrite') && !!entry.asidePath
+}
+
+/**
+ * Reinstall quarantined asides whose live path is still missing after the
+ * failed restore (e.g. quiesce cleared it and a persistent Windows lock kept
+ * the staged move from landing). Live paths that exist again with substantive
+ * content are left untouched — this boot's data must never be clobbered with
+ * the quarantined copy. Chromium runtime dirs that exist only as a cleared
+ * shell after quiesce are reinstalled from the quarantine. Returns whether
+ * every entry is resolved.
+ */
+function reinstallQuarantinedAsides(journal: FailedJournal): boolean {
+  const quarantineRoot = asideQuarantineRoot(journal.restoreId)
+  let allResolved = true
+  for (const entry of journal.fileResources) {
+    if (!isOverwriteEntry(entry)) {
+      continue
+    }
+    const live = path.resolve(application.getPath('app.userdata'), entry.livePath)
+    const quarantined = path.join(quarantineRoot, entry.livePath)
+    if (!fs.existsSync(quarantined)) {
+      continue
+    }
+    if (fs.existsSync(live)) {
+      if (quarantinedChromiumLiveMayBeReinstalled(live, quarantined, entry.livePath)) {
+        try {
+          fs.rmSync(live, { recursive: true, force: true })
+          renameDurable(quarantined, live)
+          logger.warn('Quarantined Chromium aside reinstalled over a cleared live shell', {
+            restoreId: journal.restoreId,
+            livePath: entry.livePath,
+            quarantined
+          })
+          continue
+        } catch (error) {
+          allResolved = false
+          logger.error(`Failed to reinstall quarantined Chromium aside for '${entry.livePath}'`, error as Error)
+          continue
+        }
+      }
+      logger.warn('Quarantined aside kept — the live path exists again and must not be clobbered', {
+        restoreId: journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+      allResolved = false
+      continue
+    }
+    try {
+      renameDurable(quarantined, live)
+      logger.warn('Quarantined aside reinstalled into the missing live path', {
+        restoreId: journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+    } catch (error) {
+      allResolved = false
+      logger.error(`Failed to reinstall quarantined aside for '${entry.livePath}'`, error as Error)
+    }
+  }
+  return allResolved
 }
 
 /**
@@ -182,6 +287,31 @@ export function isLiveDbStranded(): boolean {
   const livePath = application.getPath('app.database.file')
   const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
+}
+
+/**
+ * Whether Chromium runtime storage is stranded after a failed restore: the
+ * quarantine still holds the intact aside but the live path is only a cleared
+ * shell (including an empty `leveldb/` tree). Booting on would keep using the
+ * shell while the user's data stays quarantined.
+ */
+export function isChromiumStorageStranded(): boolean {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok' || read.journal.state !== 'failed') {
+    return false
+  }
+  const quarantineRoot = asideQuarantineRoot(read.journal.restoreId)
+  for (const entry of read.journal.fileResources) {
+    if (!isOverwriteEntry(entry)) {
+      continue
+    }
+    const live = path.resolve(application.getPath('app.userdata'), entry.livePath)
+    const quarantined = path.join(quarantineRoot, entry.livePath)
+    if (quarantinedChromiumLiveMayBeReinstalled(live, quarantined, entry.livePath)) {
+      return true
+    }
+  }
+  return false
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
@@ -393,7 +523,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   for (let i = PROMOTION_STEP_ORDER.indexOf(current.step) + 1; i < PROMOTION_STEP_ORDER.length; i++) {
     const step = PROMOTION_STEP_ORDER[i]
     try {
-      runStep(ctx, step)
+      await runStep(ctx, step)
     } catch (error) {
       // The commit step's rename is the point of no return, and renameDurable
       // fsyncs the affected directories AFTER renaming — so this throw can
@@ -436,7 +566,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
   finalize(ctx, 'completed', current.step)
 }
 
-function runStep(ctx: PromotionContext, step: PromotionStep): void {
+async function runStep(ctx: PromotionContext, step: PromotionStep): Promise<void> {
   switch (step) {
     case 'gate-passed':
       // Admission marker only — no filesystem action.
@@ -462,7 +592,7 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
       return
     case 'entries-applied':
       for (const entry of ctx.journal.fileResources) {
-        applyEntry(ctx, entry)
+        await applyEntry(ctx, entry)
       }
       return
     case 'integrity-ok': {
@@ -494,7 +624,7 @@ function integrityCheck(dbPath: string): string {
   }
 }
 
-function applyEntry(ctx: PromotionContext, entry: FileResource): void {
+async function applyEntry(ctx: PromotionContext, entry: FileResource): Promise<void> {
   switch (entry.kind) {
     case 'blob-add':
     case 'dir-add':
@@ -506,12 +636,31 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
     case 'note-overwrite':
     case 'overwrite': {
       const live = resolveEntry(ctx, entry.livePath)
+      const staging = resolveEntry(ctx, entry.stagingPath)
       const aside = entry.asidePath ? resolveEntry(ctx, entry.asidePath) : undefined
+      const chromiumLivePath = chromiumRuntimeDirForQuiesce(entry)
+      if (chromiumLivePath) {
+        await promoteChromiumRuntimeOverwrite(
+          ctx.journal.restoreId,
+          chromiumLivePath,
+          live,
+          staging,
+          aside,
+          fs.existsSync(staging),
+          {
+            copyAsideDurable,
+            moveIdempotent,
+            rmLiveWithRetry: (livePath) =>
+              retrySyncOnTransientFsLock(() => fs.rmSync(livePath, { recursive: true, force: true }))
+          }
+        )
+        return
+      }
       // Aside-first: the original must be parked before the overwrite lands.
       if (aside && fs.existsSync(live) && !fs.existsSync(aside)) {
         renameDurable(live, aside)
       }
-      moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
+      moveIdempotent(staging, live)
       return
     }
     default:
@@ -620,11 +769,67 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
  * The gate shell removes the terminal journal only after its stranded-DB
  * safety check, so the crash net can still locate the parked aside.
+ *
+ * On failure the staging tree still hosts per-entry asides that rollback
+ * could not restore (best-effort inverse) — those hold the user's original
+ * data, so they are moved out of staging BEFORE the terminal journal is
+ * written: the journal is what authorizes the next boot to delete the
+ * staging tree, so publishing it first would leave a crash window that
+ * destroys the only intact aside. If preservation itself fails, the journal
+ * stays active (promoting) and the staging tree is kept — the next boot
+ * re-runs the rollback with fresh file locks instead of terminating.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
+  if (state === 'failed' && !preserveUnrestoredAsides(ctx)) {
+    logger.error(
+      'Unrestored asides remain in the staging tree — keeping it and the active journal for the next boot to retry',
+      {
+        restoreId: ctx.journal.restoreId
+      }
+    )
+    return
+  }
   writeRestoreJournal({ ...ctx.journal, state, step })
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
+}
+
+/**
+ * Move asides that rollback failed to reinstall out of the staging tree
+ * (deleted below) into the quarantine dir under
+ * `feature.backup.restore.aside_quarantine`, where they stay recoverable and
+ * the preboot shell reinstalls them on the next boot (see
+ * reinstallQuarantinedAsides). Restored asides no longer exist and are
+ * skipped; the only cost of a missed restore is a stranded-but-intact copy,
+ * never deletion. Returns whether every aside is now out of staging —
+ * restored or quarantined; a false return is fail-closed.
+ */
+function preserveUnrestoredAsides(ctx: PromotionContext): boolean {
+  const quarantineRoot = asideQuarantineRoot(ctx.journal.restoreId)
+  let allPreserved = true
+  for (const entry of ctx.journal.fileResources) {
+    if (!isOverwriteEntry(entry)) {
+      continue
+    }
+    const aside = resolveEntry(ctx, entry.asidePath)
+    if (!fs.existsSync(aside)) {
+      continue
+    }
+    // Mirror the live hierarchy — entry basenames can collide across entries.
+    const quarantined = path.join(quarantineRoot, entry.livePath)
+    try {
+      renameDurable(aside, quarantined)
+      logger.warn('Unrestored aside moved out of staging for recovery', {
+        restoreId: ctx.journal.restoreId,
+        livePath: entry.livePath,
+        quarantined
+      })
+    } catch (error) {
+      allPreserved = false
+      logger.error(`Failed to preserve unrestored aside for '${entry.livePath}'`, error as Error)
+    }
+  }
+  return allPreserved
 }
 
 function quarantineCorruptJournal(error: string): void {
@@ -688,12 +893,58 @@ function renameOnceIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  retrySyncOnTransientFsLock(() => {
+    fs.renameSync(source, target)
+  })
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
   }
+}
+
+/**
+ * Atomic-by-rename aside copy: cpSync into a temp sibling, then rename the
+ * finished tree into the aside slot. An interrupted copy must never leave a
+ * partial aside at the final path — rollback treats "aside exists" as "the
+ * original data is complete", so only the rename exposes the copy.
+ */
+function copyAsideDurable(source: string, target: string): void {
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  const pending = `${target}.copying`
+  fs.rmSync(pending, { recursive: true, force: true })
+  retrySyncOnTransientFsLock(() => {
+    fs.cpSync(source, pending, { recursive: true, force: true })
+  })
+  renameDurable(pending, target)
+  fsyncDir(path.dirname(source))
+}
+
+function retrySyncOnTransientFsLock(operation: () => void): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      operation()
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      const retriable =
+        process.platform === 'win32' &&
+        code !== undefined &&
+        TRANSIENT_FS_LOCK_CODES.has(code) &&
+        attempt < FS_RETRY_MAX_ATTEMPTS
+      if (!retriable) {
+        throw error
+      }
+      sleepSync(Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS))
+    }
+  }
+}
+
+function sleepSync(ms: number): void {
+  if (ms <= 0) {
+    return
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
 function fsyncDir(dir: string): void {

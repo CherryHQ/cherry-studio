@@ -41,6 +41,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 | Terminal-journal deletion (after the stranded-DB check) | Preboot gate shell |
 | Quarantined corrupt journals (`restore-journal.json.corrupt-<epoch>`) GC | BackupService (kept for forensics, alongside terminal journals) |
 | Undo-aside retention/GC | BackupService |
+| Failed-restore aside quarantine (`feature.backup.restore.aside_quarantine/<restoreId>`) | Preboot gate shell: reinstalls quarantined asides into missing live paths, then GCs the quarantine with the terminal journal (see `cleanupTerminalRestoreArtifacts`) |
 
 ## Writer requirements (staging side)
 

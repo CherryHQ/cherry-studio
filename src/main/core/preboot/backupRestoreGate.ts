@@ -1,5 +1,6 @@
 import {
   cleanupTerminalRestoreArtifacts,
+  isChromiumStorageStranded,
   isLiveDbStranded,
   markRestoreFailedAfterCrash,
   runRestorePromotion
@@ -51,4 +52,9 @@ export async function runBackupRestoreGate(): Promise<void> {
     }
   }
   cleanupTerminalRestoreArtifacts()
+  if (isChromiumStorageStranded()) {
+    throw new Error(
+      'Restore recovery failed: Chromium Local Storage or IndexedDB remains unusable while the previous data is still quarantined — refusing to boot into an empty storage shell'
+    )
+  }
 }

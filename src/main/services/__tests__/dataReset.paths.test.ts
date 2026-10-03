@@ -54,6 +54,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['app.userdata.data'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
+    expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.backup.restore.aside_quarantine'], userData))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.cherry_account.credentials_file'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
