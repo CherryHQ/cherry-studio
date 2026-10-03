@@ -90,8 +90,8 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/tool_search/)
-    expect(await screen.findByText('mcp__cherry_tools__web_search')).toBeInTheDocument()
-    expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
+    expect(await screen.findByText('mcp__cherry_tools__web_search')).toBeTruthy()
+    expect(screen.queryByText('没有匹配的工具。')).toBeNull()
   })
 
   it('shows the native Code Mode script and its output', async () => {
@@ -105,8 +105,8 @@ describe('MessageMetaTool', () => {
       />
     )
     await expandCard(/codemode/)
-    expect(await screen.findByText('text(42)')).toBeInTheDocument()
-    expect(screen.getByText(/Script completed/)).toBeInTheDocument()
+    expect(await screen.findByText('text(42)')).toBeTruthy()
+    expect(screen.getByText(/Script completed/)).toBeTruthy()
   })
 
   it('localizes a missing tool_invoke name instead of hardcoding English', async () => {

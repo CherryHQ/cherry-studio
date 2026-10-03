@@ -33,7 +33,7 @@ export const PI_BUILTIN_TOOLS = [
 /** Keep runtime policy and the edit form aligned with previously stored tool names. */
 export function normalizePiDisabledToolId(name: string): string {
   if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
-  return PI_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
+  return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
 }
 
 export const PI_BUILTIN_TOOL_CATEGORIES = [

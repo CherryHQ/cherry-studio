@@ -1715,7 +1715,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)
     await user.click(screen.getByRole('tab', { name: 'Built-in tools' }))
     const toggle = screen.getByRole('switch', { name: 'Code Mode' })
-    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(updateAgentMock).not.toHaveBeenCalled()
     await user.click(toggle)
     await waitFor(() =>
