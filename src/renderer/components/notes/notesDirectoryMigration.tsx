@@ -137,7 +137,7 @@ export async function migrateNotesDirectoryWithUi(options: {
       try {
         await onSuccess(targetPath)
       } catch (error) {
-        logger.error('Notes migrated but notes path preference update failed', error)
+        logger.error('Notes migrated but notes path preference update failed', error as Error)
         toast.error(t('settings.data.notes_relocation.error.preference_update_failed'))
         return
       }
@@ -150,7 +150,7 @@ export async function migrateNotesDirectoryWithUi(options: {
       unlockNotesEditsForRelocation()
     }
   } catch (error) {
-    logger.error('Notes directory migration failed', error)
+    logger.error('Notes directory migration failed', error as Error)
     if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_FLUSH_FAILED) {
       toast.error(t('settings.data.notes_relocation.error.flush_failed'))
       return
@@ -183,7 +183,7 @@ export async function startNotesDirectoryMigration(options: {
     }
     await migrateNotesDirectoryWithUi({ ...options, targetPath })
   } catch (error) {
-    logger.error('Failed to start notes directory migration', error)
+    logger.error('Failed to start notes directory migration', error as Error)
     toast.error(options.t('settings.data.notes_relocation.error.generic'))
   }
 }

@@ -27,11 +27,11 @@ describe('notesRelocationSession', () => {
 
   it('only releases the session for the owning window', () => {
     acquireNotesRelocationSession('window-a')
-    releaseNotesRelocationSession('window-b')
+    expect(releaseNotesRelocationSession('window-b')).toBe(false)
 
     expect(() => acquireNotesRelocationSession('window-c')).toThrow(IpcError)
 
-    releaseNotesRelocationSession('window-a')
+    expect(releaseNotesRelocationSession('window-a')).toBe(true)
   })
 
   it('abandons the session only for the owning window', () => {
