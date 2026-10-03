@@ -100,7 +100,7 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
 }
 
 export function beginNotesFilesystemMutation(): void {
-  if (migrationInFlight) {
+  if (blockedRoots) {
     throw new NotesMigrationWriteBlockedError()
   }
   activeNotesFilesystemMutations++
@@ -130,6 +130,9 @@ export function waitForNotesFilesystemMutationsIdle(): Promise<void> {
 }
 
 export function beginNotesBatchMarkdownUpload(): void {
+  if (migrationInFlight) {
+    throw new NotesMigrationWriteBlockedError()
+  }
   beginNotesFilesystemMutation()
 }
 
