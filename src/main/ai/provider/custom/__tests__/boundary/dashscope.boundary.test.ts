@@ -109,7 +109,7 @@ const CASES: Case[] = [
       prompt: 'a fox',
       modelDescriptor: descriptor('qwen-image-3-0', 'generate'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -225,7 +225,7 @@ describe('DashScope request boundary', () => {
     const proxiedTransport = createDashScopeTransport({
       apiKey: 'ds-key',
       imageBaseURL: host,
-      fetch: fetchSpy as unknown as typeof globalThis.fetch,
+      fetch: fetchSpy,
       headers: { 'X-Custom': 'on' }
     })
 
@@ -235,11 +235,11 @@ describe('DashScope request boundary', () => {
       prompt: 'a fox',
       modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
       providerParams: {}
-    } as ImageGenerationSubmitInput)
+    })
 
     expect(submit).toEqual({ taskId: 't-1' })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchSpy.mock.calls[0] as [URL | RequestInfo | string, RequestInit]
+    const [url, init] = fetchSpy.mock.calls[0]
     expect(String(url)).toBe(`${host}/api/v1/services/aigc/image`)
     const headers = new Headers(init.headers as HeadersInit)
     expect(headers.get('authorization')).toBe('Bearer ds-key')

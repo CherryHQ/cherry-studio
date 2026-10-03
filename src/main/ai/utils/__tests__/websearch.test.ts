@@ -238,7 +238,7 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   })
 
   it('serves a copied QwenCloud provider identically (preset link, not runtime id)', () => {
-    const copy = { ...qwencloudPreset, id: 'user-copy-1' } as unknown as Provider
+    const copy = { ...qwencloudPreset, id: 'user-copy-1' }
     expect(getWebSearchParams(qwencloud('qwen3.7-max'), copy)).toMatchObject({
       enable_search: true
     })
