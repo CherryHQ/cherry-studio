@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Τα αρχεία δεν πρέπει να είναι κενά και πρέπει να είναι έως 20 MiB.",
   "common.dingtalk_file_type": "Το όνομα αρχείου χρειάζεται επέκταση που υποστηρίζει το DingTalk.",
   "common.dingtalk_processing": "Επεξεργασία…",
-  "common.dingtalk_unsupported_message": "Μη υποστηριζόμενος τύπος μηνύματος. Στείλτε κείμενο, εικόνες ή αρχεία.",
+  "common.dingtalk_unsupported_message": "Αυτός ο τύπος μηνύματος δεν υποστηρίζεται. Στείλτε κείμενο, φωνητικά μηνύματα, εικόνες, βίντεο ή αρχεία.",
   "common.inspect": "Επιθεώρηση",
   "common.paste": "Επικόλληση",
   "common.wecom_attachment_failed": "Αδυναμία ανάγνωσης συνημμένων. Στείλτε τα ξανά (20 MB ανά αρχείο, 40 MB συνολικά).",

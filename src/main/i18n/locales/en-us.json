@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "DingTalk files must be non-empty and at most 20 MiB.",
   "common.dingtalk_file_type": "Include a file extension supported by DingTalk in the filename.",
   "common.dingtalk_processing": "Processing…",
-  "common.dingtalk_unsupported_message": "This message type is not supported. Send text, images or files.",
+  "common.dingtalk_unsupported_message": "This message type is not supported. Send text, voice, images, videos or files.",
   "common.inspect": "Inspect",
   "common.paste": "Paste",
   "common.wecom_attachment_failed": "Could not read the attachments. Send them again (20 MB per file, 40 MB total).",

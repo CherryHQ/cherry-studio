@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "檔案不可為空，且不能超過 20 MiB。",
   "common.dingtalk_file_type": "檔案名稱需要包含釘釘支援的副檔名。",
   "common.dingtalk_processing": "處理中…",
-  "common.dingtalk_unsupported_message": "不支援此訊息類型，請傳送文字、圖片或檔案。",
+  "common.dingtalk_unsupported_message": "暫不支援此訊息類型，請傳送文字、語音、圖片、影片或檔案。",
   "common.inspect": "檢查",
   "common.paste": "貼上",
   "common.wecom_attachment_failed": "附件讀取失敗，請重新傳送（單檔 20 MB，總計 40 MB）。",

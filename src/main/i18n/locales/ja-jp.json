@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "空のファイルは送信できません。上限は 20 MiB です。",
   "common.dingtalk_file_type": "DingTalk が対応する拡張子をファイル名に含めてください。",
   "common.dingtalk_processing": "処理中…",
-  "common.dingtalk_unsupported_message": "この形式には対応していません。テキスト、画像、ファイルを送信してください。",
+  "common.dingtalk_unsupported_message": "このメッセージ形式には対応していません。テキスト、音声、画像、動画、ファイルを送信してください。",
   "common.inspect": "要素を調査",
   "common.paste": "貼り付け",
   "common.wecom_attachment_failed": "添付を読み込めません。再送してください（1 件 20 MB、合計 40 MB）。",

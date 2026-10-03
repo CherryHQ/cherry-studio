@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Os ficheiros não podem estar vazios nem exceder 20 MiB.",
   "common.dingtalk_file_type": "O nome do ficheiro deve incluir uma extensão suportada pelo DingTalk.",
   "common.dingtalk_processing": "A processar…",
-  "common.dingtalk_unsupported_message": "Tipo de mensagem não suportado. Envie texto, imagens ou ficheiros.",
+  "common.dingtalk_unsupported_message": "Este tipo de mensagem não é suportado. Envie texto, mensagens de voz, imagens, vídeos ou ficheiros.",
   "common.inspect": "Verificar",
   "common.paste": "Colar",
   "common.wecom_attachment_failed": "Não foi possível ler os anexos. Reenvie-os (20 MB por ficheiro, 40 MB no total).",

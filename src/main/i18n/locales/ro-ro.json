@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Fișierele nu pot fi goale și nu pot depăși 20 MiB.",
   "common.dingtalk_file_type": "Numele fișierului trebuie să includă o extensie acceptată de DingTalk.",
   "common.dingtalk_processing": "Se procesează…",
-  "common.dingtalk_unsupported_message": "Tip de mesaj neacceptat. Trimiteți text, imagini sau fișiere.",
+  "common.dingtalk_unsupported_message": "Acest tip de mesaj nu este acceptat. Trimiteți text, mesaje vocale, imagini, videoclipuri sau fișiere.",
   "common.inspect": "Inspectează",
   "common.paste": "Lipește",
   "common.wecom_attachment_failed": "Atașamentele nu au putut fi citite. Retrimiteți-le (20 MB pe fișier, 40 MB în total).",

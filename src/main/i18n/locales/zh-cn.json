@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "文件不能为空，且不能超过 20 MiB。",
   "common.dingtalk_file_type": "文件名需要包含钉钉支持的扩展名。",
   "common.dingtalk_processing": "处理中…",
-  "common.dingtalk_unsupported_message": "暂不支持此消息类型，请发送文字、图片或文件。",
+  "common.dingtalk_unsupported_message": "暂不支持此消息类型，请发送文字、语音、图片、视频或文件。",
   "common.inspect": "检查",
   "common.paste": "粘贴",
   "common.wecom_attachment_failed": "附件读取失败，请重新发送（单文件不超过 20 MB，总计不超过 40 MB）。",

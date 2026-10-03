@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Файлы не должны быть пустыми или превышать 20 МиБ.",
   "common.dingtalk_file_type": "Имя файла должно содержать расширение, поддерживаемое DingTalk.",
   "common.dingtalk_processing": "Обработка…",
-  "common.dingtalk_unsupported_message": "Тип сообщения не поддерживается. Отправьте текст, изображения или файлы.",
+  "common.dingtalk_unsupported_message": "Этот тип сообщения не поддерживается. Отправьте текст, голосовое сообщение, изображение, видео или файл.",
   "common.inspect": "Проверить",
   "common.paste": "Вставить",
   "common.wecom_attachment_failed": "Не удалось прочитать вложения. Повторите отправку (20 МБ на файл, всего 40 МБ).",

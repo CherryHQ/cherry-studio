@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Les fichiers doivent être non vides et ne pas dépasser 20 MiB.",
   "common.dingtalk_file_type": "Le nom du fichier doit comporter une extension prise en charge par DingTalk.",
   "common.dingtalk_processing": "Traitement…",
-  "common.dingtalk_unsupported_message": "Type de message non pris en charge. Envoyez du texte, des images ou des fichiers.",
+  "common.dingtalk_unsupported_message": "Ce type de message n’est pas pris en charge. Envoyez du texte, des messages vocaux, des images, des vidéos ou des fichiers.",
   "common.inspect": "Vérifier",
   "common.paste": "Coller",
   "common.wecom_attachment_failed": "Lecture des pièces jointes impossible. Renvoyez-les (20 Mo par fichier, 40 Mo au total).",

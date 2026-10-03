@@ -110,6 +110,75 @@ afterEach(async () => {
 })
 
 describe('DingTalk channel contract', () => {
+  it.each(['Summarize the meeting', '/new'])('forwards audio transcription %j as user text once', async (text) => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    const commands: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    instance.on('command', (event) => commands.push(event))
+    const incoming = frame('voice', { msgtype: 'audio', content: { recognition: text, downloadCode: 'audio-code' } })
+    client.callback(incoming)
+    client.callback(incoming)
+    await tick()
+    expect(messages).toMatchObject([{ text, messageId: 'voice', chatId: 'dm:alice', images: [], files: [] }])
+    expect(commands).toEqual([])
+    expect(fetchRemoteBytes).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, '', '   ', 123])(
+    'reports missing audio transcription %j without invoking the Agent',
+    async (recognition) => {
+      const { instance, client } = await adapter()
+      const messages: unknown[] = []
+      instance.on('message', (event) => messages.push(event))
+      client.callback(frame('voice', { msgtype: 'audio', content: { recognition } }))
+      await tick()
+      expect(messages).toEqual([])
+      expect(requests.at(-1)?.body.text.content).toBe(t('common.channel_voice_transcription_missing'))
+    }
+  )
+
+  it('downloads a video into a typed attachment using its detected extension', async () => {
+    const { instance, client } = await adapter()
+    const raw = Buffer.from('00000018667479706d703432000000006d70343269736f6d', 'hex')
+    vi.mocked(fetchRemoteBytes).mockResolvedValueOnce({ body: raw, headers: {} })
+    const messages: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.callback(
+      frame('video', { msgtype: 'video', content: { downloadCode: 'video-code', videoType: 'untrusted' } })
+    )
+    await tick()
+    expect(messages).toMatchObject([
+      {
+        text: '',
+        messageId: 'video',
+        files: [
+          {
+            filename: 'attachment.mp4',
+            media_type: 'video/mp4',
+            data: raw.toString('base64'),
+            size: raw.length
+          }
+        ]
+      }
+    ])
+    expect(requests.find((request) => request.url.endsWith('/download'))?.body).toEqual({
+      downloadCode: 'video-code',
+      robotCode: 'robot'
+    })
+  })
+
+  it('rejects a non-video response to a video message', async () => {
+    const { instance, client } = await adapter()
+    vi.mocked(fetchRemoteBytes).mockResolvedValueOnce({ body: Buffer.from('not a video'), headers: {} })
+    const messages: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.callback(frame('video', { msgtype: 'video', content: { downloadCode: 'video-code' } }))
+    await tick()
+    expect(messages).toEqual([])
+    expect(requests.at(-1)?.body.text.content).toBe(t('common.dingtalk_attachment_failed'))
+  })
+
   it('acknowledges transport redelivery without running the Agent twice and isolates DM/group identities', async () => {
     const { instance, client } = await adapter()
     const messages: unknown[] = []
@@ -236,7 +305,7 @@ describe('DingTalk channel contract', () => {
     expect(instance.connected).toBe(false)
   })
 
-  it('does not emit late downloads after disable', async () => {
+  it.each(['file', 'video'])('does not emit late %s downloads after disable', async (kind) => {
     const { instance, client } = await adapter()
     let release!: (value: { body: Buffer; headers: {} }) => void
     vi.mocked(fetchRemoteBytes).mockReturnValue(
@@ -246,7 +315,7 @@ describe('DingTalk channel contract', () => {
     )
     const messages: unknown[] = []
     instance.on('message', (message) => messages.push(message))
-    client.callback(frame('1', { msgtype: 'file', content: { downloadCode: 'code', fileName: 'x.txt' } }))
+    client.callback(frame('1', { msgtype: kind, content: { downloadCode: 'code', fileName: 'x.txt' } }))
     await tick()
     await instance.disconnect()
     release({ body: Buffer.from('late bytes'), headers: {} })

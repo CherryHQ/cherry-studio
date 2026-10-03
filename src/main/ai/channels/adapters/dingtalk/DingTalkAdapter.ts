@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { setMaxListeners } from 'node:events'
 
-import { DWClient, TOPIC_ROBOT, type DWClientDownStream } from 'dingtalk-stream'
+import { DWClient, TOPIC_ROBOT, type DWClientDownStream, type RobotTextMessage } from 'dingtalk-stream'
 import { fileTypeFromBuffer } from 'file-type'
 import { LRUCache } from 'lru-cache'
 import PQueue from 'p-queue'
@@ -21,6 +21,8 @@ import {
 } from '../../ChannelAdapter'
 import { FlushController } from '../../FlushController'
 import { DINGTALK_FILE_BYTES, DingTalkApi, type DingTalkWebhook } from './DingTalkApi'
+
+const TextContentSchema = z.object({ content: z.string() }) satisfies z.ZodType<RobotTextMessage['text']>
 
 const IdentitySchema = z.object({
   msgId: z.string().min(1),
@@ -245,9 +247,19 @@ export class DingTalkAdapter extends ChannelAdapter {
     try {
       switch (message.msgtype) {
         case 'text':
-          text = z.object({ content: z.string() }).parse(message.text).content
+          text = TextContentSchema.parse(message.text).content
           break
+        case 'audio': {
+          const content = z.object({ recognition: z.string().trim().min(1) }).safeParse(message.content)
+          if (!content.success) {
+            await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'), options)
+            return
+          }
+          text = content.data.recognition
+          break
+        }
         case 'picture':
+        case 'video':
         case 'file': {
           const item = codeSchema.parse(message.content)
           media.push({ downloadCode: item.downloadCode, image: message.msgtype === 'picture', filename: item.fileName })
@@ -290,12 +302,15 @@ export class DingTalkAdapter extends ChannelAdapter {
         bytes += result.body.length
         if (!result.body.length) throw new Error('Empty attachment')
         const detected = await fileTypeFromBuffer(result.body)
+        if (message.msgtype === 'video' && !detected?.mime.startsWith('video/')) throw new Error('Invalid video')
         if (item.image) {
           if (!detected?.mime.startsWith('image/')) throw new Error('Invalid image')
           images.push({ data: result.body.toString('base64'), media_type: detected.mime })
         } else {
           files.push({
-            filename: sanitizeFilename(item.filename || 'attachment'),
+            filename: sanitizeFilename(
+              item.filename || (message.msgtype === 'video' ? `attachment.${detected!.ext}` : 'attachment')
+            ),
             data: result.body.toString('base64'),
             media_type: detected?.mime ?? 'application/octet-stream',
             size: result.body.length
@@ -316,7 +331,7 @@ export class DingTalkAdapter extends ChannelAdapter {
       messageId: message.msgId
     }
     const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text)
-    if (command && !media.length) {
+    if (command && message.msgtype !== 'audio' && !media.length) {
       const context = this.replies.get(this.key(chatId, message.msgId))
       if (context) this.closeContext(context)
       this.emit('command', {

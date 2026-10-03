@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Los archivos no deben estar vacíos ni superar los 20 MiB.",
   "common.dingtalk_file_type": "El nombre del archivo debe incluir una extensión compatible con DingTalk.",
   "common.dingtalk_processing": "Procesando…",
-  "common.dingtalk_unsupported_message": "Tipo de mensaje no compatible. Envía texto, imágenes o archivos.",
+  "common.dingtalk_unsupported_message": "Este tipo de mensaje no es compatible. Envíe texto, mensajes de voz, imágenes, vídeos o archivos.",
   "common.inspect": "Inspeccionar",
   "common.paste": "Pegar",
   "common.wecom_attachment_failed": "No se pudieron leer los adjuntos. Reenvíalos (20 MB por archivo, 40 MB en total).",

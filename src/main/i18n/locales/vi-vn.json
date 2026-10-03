@@ -87,7 +87,7 @@
   "common.dingtalk_file_size": "Tệp không được rỗng và không được vượt quá 20 MiB.",
   "common.dingtalk_file_type": "Tên tệp phải có phần mở rộng được DingTalk hỗ trợ.",
   "common.dingtalk_processing": "Đang xử lý…",
-  "common.dingtalk_unsupported_message": "Không hỗ trợ loại tin nhắn này. Hãy gửi văn bản, ảnh hoặc tệp.",
+  "common.dingtalk_unsupported_message": "Loại tin nhắn này chưa được hỗ trợ. Hãy gửi văn bản, tin nhắn thoại, hình ảnh, video hoặc tệp.",
   "common.inspect": "Kiểm tra",
   "common.paste": "Dán",
   "common.wecom_attachment_failed": "Không đọc được tệp đính kèm. Hãy gửi lại (20 MB mỗi tệp, tổng 40 MB).",
