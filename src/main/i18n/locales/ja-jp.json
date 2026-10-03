@@ -22,6 +22,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
   "apiGateway.docs.operations.list_mcp_servers": "Cherry Studio で有効になっている MCP サーバーを、接続用 URL とともに一覧表示します。",
   "apiGateway.docs.operations.list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
+  "apiGateway.docs.operations.manage_knowledge_bases": "永続的な Knowledge ワークフローを通じてナレッジベースを作成または削除し、テキスト文書を一覧表示または変更します。",
   "apiGateway.docs.operations.mcp_proxy": "MCP サーバー用の Model Context Protocol エンドポイント (Streamable HTTP)。任意の MCP クライアントでこの URL を指定すると、Cherry Studio 経由でサーバーを使用できます。",
   "apiGateway.docs.operations.messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
   "apiGateway.docs.operations.responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",

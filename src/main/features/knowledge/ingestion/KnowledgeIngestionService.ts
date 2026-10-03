@@ -5,7 +5,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
@@ -13,6 +13,7 @@ import {
   DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeAddConflictStrategy,
+  type KnowledgeAddItemConflict,
   type KnowledgeAddItemInput,
   type KnowledgeAddItemsResult,
   type KnowledgeBase,
@@ -60,6 +61,16 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
+export interface KnowledgeAddItemAdmission {
+  id: string
+  status: KnowledgeItemStatus
+  error: string | null
+}
+
+export type KnowledgeAddItemsAdmissionResult =
+  | { status: 'accepted'; items: KnowledgeAddItemAdmission[] }
+  | { status: 'conflicts'; conflicts: KnowledgeAddItemConflict[] }
+
 /**
  * The workflow re-entry seam job handlers call back into (workflow-architecture.md): expand a
  * container, index a leaf, or poll a file-processing job. Handlers depend on exactly this surface,
@@ -90,10 +101,28 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     inputs: KnowledgeAddItemInput[],
     conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
   ): Promise<KnowledgeAddItemsResult> {
+    const result = await this.addItemsInternal(baseId, inputs, conflictStrategy, false)
+    return result.status === 'conflicts' ? result : { status: 'added' }
+  }
+
+  async addItemsWithAdmission(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
+  ): Promise<KnowledgeAddItemsAdmissionResult> {
+    return await this.addItemsInternal(baseId, inputs, conflictStrategy, true)
+  }
+
+  private async addItemsInternal(
+    baseId: string,
+    inputs: KnowledgeAddItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy,
+    reportAdmission: boolean
+  ): Promise<KnowledgeAddItemsAdmissionResult> {
     const base = assertBaseCanRunRuntimeOperation(baseId, 'addItems')
 
     if (inputs.length === 0) {
-      return { status: 'added' }
+      return { status: 'accepted', items: [] }
     }
 
     // rename (the default, and every internal caller — restore/migrator): keep all,
@@ -173,10 +202,24 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     } catch (error) {
       this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
+      if (reportAdmission) {
+        const unscheduledItemIds = new Set(
+          acceptedItems.filter((item) => !completedSchedulingItemIds.has(item.id)).map((item) => item.id)
+        )
+        throw new DataApiError(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'Some documents could not be queued for indexing',
+          ERROR_STATUS_MAP[ErrorCode.SERVICE_UNAVAILABLE],
+          { documents: this.getItemAdmissions(acceptedItems, unscheduledItemIds) }
+        )
+      }
       throw error
     }
 
-    return { status: 'added' }
+    return {
+      status: 'accepted',
+      items: reportAdmission ? this.getItemAdmissions(acceptedItems) : []
+    }
   }
 
   /**
@@ -224,12 +267,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
 
+    assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
     knowledgeBaseService.getById(baseId)
@@ -674,6 +717,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       failedStatusError: `Failed to schedule knowledge item job: ${message}`,
       logger,
       logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure'
+    })
+  }
+
+  private getItemAdmissions(
+    items: KnowledgeItem[],
+    unscheduledItemIds: ReadonlySet<string> = new Set()
+  ): KnowledgeAddItemAdmission[] {
+    return items.map((item) => {
+      if (unscheduledItemIds.has(item.id)) {
+        return { id: item.id, status: 'failed', error: 'Failed to schedule knowledge item job' }
+      }
+      const current = knowledgeItemService.getById(item.id)
+      return { id: current.id, status: current.status, error: current.error }
     })
   }
 }

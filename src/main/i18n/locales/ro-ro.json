@@ -22,6 +22,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "Listează bazele de cunoștințe disponibile în această instanță Cherry Studio.",
   "apiGateway.docs.operations.list_mcp_servers": "Listează serverele MCP activate în Cherry Studio, fiecare cu URL-ul de conectare.",
   "apiGateway.docs.operations.list_models": "Listează modelele disponibile prin acest gateway, în formatul models al OpenAI.",
+  "apiGateway.docs.operations.manage_knowledge_bases": "Creează sau șterge baze de cunoștințe și listează sau modifică documentele text prin fluxul de lucru persistent Knowledge.",
   "apiGateway.docs.operations.mcp_proxy": "Punct final Model Context Protocol pentru un server MCP (Streamable HTTP). Indică acest URL în orice client MCP pentru a utiliza serverul prin Cherry Studio.",
   "apiGateway.docs.operations.messages": "Creează un mesaj. Corpurile cererii și răspunsului respectă formatul Anthropic Messages; cu `stream: true` rezultatul este transmis incremental.",
   "apiGateway.docs.operations.responses": "Creează un răspuns. Corpurile cererii și răspunsului respectă formatul OpenAI Responses.",

@@ -22,6 +22,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "Liệt kê các cơ sở tri thức có trong phiên bản Cherry Studio này.",
   "apiGateway.docs.operations.list_mcp_servers": "Liệt kê các máy chủ MCP đã bật trong Cherry Studio, kèm URL để kết nối tới từng máy chủ.",
   "apiGateway.docs.operations.list_models": "Liệt kê các mô hình khả dụng qua gateway này, theo định dạng models của OpenAI.",
+  "apiGateway.docs.operations.manage_knowledge_bases": "Tạo hoặc xóa cơ sở tri thức, đồng thời liệt kê hoặc thay đổi tài liệu văn bản qua quy trình Knowledge bền vững.",
   "apiGateway.docs.operations.mcp_proxy": "Điểm cuối Model Context Protocol cho máy chủ MCP (Streamable HTTP). Trỏ bất kỳ máy khách MCP nào tới URL này để dùng máy chủ thông qua Cherry Studio.",
   "apiGateway.docs.operations.messages": "Tạo một tin nhắn. Định dạng yêu cầu và phản hồi giống Anthropic Messages; đặt `stream: true` để nhận kết quả theo luồng.",
   "apiGateway.docs.operations.responses": "Tạo một response. Định dạng yêu cầu và phản hồi giống OpenAI Responses.",
