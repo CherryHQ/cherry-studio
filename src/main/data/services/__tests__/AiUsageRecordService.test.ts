@@ -208,6 +208,40 @@ describe('AiUsageRecordService', () => {
     )
   })
 
+  it('persists flat provider tokens without the gateway normalize middleware', async () => {
+    const capture = createLanguageUsageMiddleware(context())
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 1_000_000,
+        outputTokens: 500_000,
+        totalTokens: 1_500_000,
+        cachedInputTokens: 0
+      }
+    } as unknown as LanguageModelV3StreamPart
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue(flatFinish)
+        controller.close()
+      }
+    })
+    const wrapped = await capture.wrapStream!({ doStream: async () => ({ stream }) } as never)
+
+    await wrapped.stream.pipeTo(new WritableStream())
+
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      totalTokens: 1_500_000,
+      noCacheTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
+  })
+
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
     const capture = createLanguageUsageMiddleware(context())
     const gateway = await getGatewayUsageNormalizeMiddleware()

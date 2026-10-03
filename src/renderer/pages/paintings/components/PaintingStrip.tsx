@@ -1,9 +1,9 @@
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
@@ -19,7 +19,7 @@ interface PaintingStripProps {
   items: PaintingStripEntry[]
   hasMore: boolean
   loadMore: () => void
-  onDeletePainting: (painting: PaintingData) => void
+  onDeletePainting: (painting: PaintingData) => void | Promise<void>
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
   adding?: boolean
@@ -96,7 +96,6 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   adding = false
 }) => {
   const { t } = useTranslation()
-  const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const target = event.currentTarget
@@ -134,7 +133,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             painting={painting}
             selected={painting.id === selectedPaintingId}
             loading={painting.id === runningPaintingId}
-            onDelete={setPendingDelete}
+            onDelete={(painting) => void onDeletePainting(painting)}
             onSelect={onSelectPainting}
             selectLabel={t('paintings.button.select.image')}
             deleteLabel={t('paintings.button.delete.image.label')}
@@ -149,25 +148,6 @@ const PaintingStrip: FC<PaintingStripProps> = ({
           100% { transform: translateX(260%); }
         }
       `}</style>
-
-      <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingDelete(null)
-          }
-        }}
-        title={t('paintings.button.delete.image.confirm')}
-        confirmText={t('common.delete')}
-        cancelText={t('common.cancel')}
-        destructive
-        onConfirm={() => {
-          if (pendingDelete) {
-            onDeletePainting(pendingDelete)
-          }
-          setPendingDelete(null)
-        }}
-      />
     </>
   )
 }

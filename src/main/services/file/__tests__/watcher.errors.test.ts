@@ -72,6 +72,22 @@ describe('DirectoryWatcher error recovery', () => {
     await watcher.close()
   })
 
+  it('falls back to polling instead of reporting a fatal error after a native Windows EBUSY', async () => {
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(true)
+    const watcher = createDirectoryWatcher('C:/Notes' as AbsoluteFilePath)
+    const events: string[] = []
+    watcher.onEvent((event) => events.push(event.kind))
+
+    const error = Object.assign(new Error('EBUSY: resource busy or locked, watch'), { code: 'EBUSY' })
+    mocks.watchers[0].emit('error', error)
+
+    expect(mocks.watch).toHaveBeenCalledTimes(2)
+    expect(mocks.watch.mock.calls[1][1]).toMatchObject({ usePolling: true })
+    expect(events).not.toContain('error')
+
+    await watcher.close()
+  })
+
   it('reports EPERM as fatal on non-Windows platforms', async () => {
     const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
     const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)

@@ -72,6 +72,18 @@ export function isOutsidePath(relativePath: string): boolean {
 }
 
 /**
+ * Key under which case- and normalization-insensitive filesystems (Windows, default macOS volumes)
+ * treat two path segments as one name. Unlike `isPathInside`, it folds on every host, so a check
+ * built on it gives the same answer on every platform.
+ *
+ * `toLowerCase` (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's
+ * I→ı.
+ */
+export function foldPathSegment(segment: string): string {
+  return segment.normalize('NFC').toLowerCase()
+}
+
+/**
  * Resolve `target` through symlinks for a containment check.
  *
  * A missing target resolves through its nearest existing ancestor with the missing suffix

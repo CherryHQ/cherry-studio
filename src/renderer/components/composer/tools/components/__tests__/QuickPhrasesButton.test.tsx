@@ -209,8 +209,9 @@ describe('QuickPhrasesToolRuntime', () => {
         parentPanel,
         queryAnchor: 0,
         symbol: 'quick-phrases',
-        triggerInfo: { type: 'button' },
-        trackInputQuery: true
+        triggerInfo: { type: 'button', position: 0 },
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true
       })
     )
   })
@@ -224,6 +225,9 @@ describe('QuickPhrasesToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(quickPhrasesLauncher.rootSearchItems).toEqual([
+      expect.objectContaining({ label: 'Prompt 1', description: 'Prompt content' })
+    ])
     act(() => {
       quickPhrasesLauncher.action?.({
         parentPanel: { list: [], symbol: '/' },

@@ -321,6 +321,7 @@ export function useChatVirtualizerRuntime<T>({
   const clearFreeze = useCallback(() => {
     freezeAnchorRef.current = null
     freezeBaselineScrollHeightRef.current = null
+    pendingUserInputRef.current = null
     userScrollGestureRef.current = false
     setFreezeSpacerHeight(0)
   }, [setFreezeSpacerHeight])
@@ -463,6 +464,10 @@ export function useChatVirtualizerRuntime<T>({
   // events, ordinary clicks and virtualizer compensation never call this path.
   const takeUserControl = useCallback(
     (reason: ReadingReason, preferredAnchor?: Element | null) => {
+      if (reason !== 'user-scrolled-up') {
+        pendingUserInputRef.current = null
+        userScrollGestureRef.current = false
+      }
       readNavigationActiveRef.current = false
       smoothScroll.cancel()
       const wasFollowing = viewportFollow.isFollowing()
@@ -490,8 +495,6 @@ export function useChatVirtualizerRuntime<T>({
   }, [markUserInput])
 
   const beginUserScrollGesture = useCallback(() => {
-    // A real scroll has claimed the latest input, even when the gesture is already active.
-    pendingUserInputRef.current = null
     if (userScrollGestureRef.current) return
     explicitNavigationBaseRef.current = null
     // Any slack belongs to the old resting position. Once the user moves the
@@ -502,6 +505,8 @@ export function useChatVirtualizerRuntime<T>({
   }, [getNaturalScrollHeight, setFreezeSpacerHeight])
 
   const settleUserScrollGesture = useCallback(() => {
+    // Native wheel/key input can produce several scroll frames before settling.
+    pendingUserInputRef.current = null
     if (viewportFollow.isFollowing() || !userScrollGestureRef.current) {
       userScrollGestureRef.current = false
       return
@@ -798,10 +803,10 @@ export function useChatVirtualizerRuntime<T>({
   const notifyWheelIntent = useCallback(
     (deltaY: number) => {
       const dir = getScrollDirection(deltaY)
-      markUserInput(dir)
       if (readNavigationActiveRef.current && dir !== 'none') {
         takeUserControl('navigation')
       }
+      markUserInput(dir)
       if (smoothScroll.isAnimating() && dir === 'up') {
         smoothScroll.cancel()
       }
@@ -910,11 +915,13 @@ export function useChatVirtualizerRuntime<T>({
     if (!viewportFollow.isFollowing()) {
       if (isUserInitiated) {
         beginUserScrollGesture()
-        // Resuming follow requires this scroll to be tied to fresh real input.
-        // The gesture latch alone is not enough: until scrollend it also covers
-        // virtua's remeasure compensation, which must not hand the wheel back
-        // just because it happened to land on the live bottom.
-        if (hasRecentUserScrollIntent && direction !== 'up' && distanceToBottom <= FREEZE_REASSERT_TOLERANCE_PX) {
+        // A held native thumb remains explicit input after the initial signal is consumed.
+        // The generic gesture latch also covers virtua compensation, so it is not sufficient.
+        if (
+          (hasRecentUserScrollIntent || scrollbarDragActiveRef.current) &&
+          direction !== 'up' &&
+          distanceToBottom <= FREEZE_REASSERT_TOLERANCE_PX
+        ) {
           enterFollowingMode('user-reached-bottom')
           stickToEffectiveBottom()
         }

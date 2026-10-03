@@ -1,10 +1,17 @@
-import { render } from '@testing-library/react'
+import { render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListItem,
+  MessageListProviderValue,
+  MessageListRuntime
+} from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -56,6 +63,8 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
+const navigateMock = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -194,6 +203,110 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
+    'offers completed messages without an availability flag and reports native fork errors: %s',
+    async (scenario) => {
+      let value: MessageListProviderValue | undefined
+      const Probe = () => {
+        value = useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: []
+          } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor'
+        })
+        return null
+      }
+      ipcApiRequest.mockReset()
+      if (scenario === 'success') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      else if (scenario === 'unexpected') ipcApiRequest.mockRejectedValueOnce(new Error('unexpected failure'))
+      else
+        ipcApiRequest.mockRejectedValueOnce(
+          new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', {
+            reason: scenario
+          })
+        )
+      render(<Probe />)
+      const capability = value!.actions.forkSession!
+      const selectedMessage = {
+        id: 'selected-message',
+        role: 'assistant',
+        status: 'success'
+      } as MessageListItem
+      expect(capability.label).toBe('agent_session_fork.label')
+      expect(capability.availability(selectedMessage)).toMatchObject({
+        visible: true,
+        enabled: true
+      })
+      expect(capability.availability({ ...selectedMessage, status: 'pending' })).toEqual({
+        visible: true,
+        enabled: false,
+        reason: 'agent_session_fork.not_turn_boundary'
+      })
+      expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
+      expect(ipcApiRequest).not.toHaveBeenCalled()
+      const action = value!.actions.forkSession!.run('selected-message')
+      if (scenario === 'unexpected') {
+        await expect(action).rejects.toThrow('unexpected failure')
+        expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
+      } else if (scenario !== 'success') {
+        const message = scenario === 'cancelled' ? 'message.tools.cancelled' : `agent_session_fork.${scenario}`
+        await expect(action).resolves.toBeUndefined()
+        expect(leafCapabilitiesMock.notifyError.mock.calls).toEqual([[message]])
+      } else await action
+      expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
+        sourceSessionId: 'source',
+        messageId: 'selected-message'
+      })
+      expect(ipcApiRequest).toHaveBeenCalledTimes(1)
+      if (scenario === 'success') expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
+      else expect(openRouteMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['success', 'not-found', 'failure'] as const)(
+    'opens the fork source only after a successful lookup: %s',
+    async (scenario) => {
+      const lookup = Promise.withResolvers<unknown>()
+      dataApiMocks.get.mockReturnValueOnce(lookup.promise)
+      const { result } = renderHook(() =>
+        useAgentMessageListProviderValue({
+          topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor'
+        })
+      )
+      const opening = result.current.actions.openForkSourceSession!('parent')
+      expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/parent')
+      expect(navigateMock).not.toHaveBeenCalled()
+      if (scenario === 'success') lookup.resolve({ id: 'parent' })
+      else
+        lookup.reject(
+          scenario === 'not-found' ? DataApiErrorFactory.notFound('Session', 'parent') : new Error('Connection failed')
+        )
+      await opening
+      if (scenario === 'success') {
+        expect(navigateMock).toHaveBeenCalledWith({
+          to: '/app/agents',
+          search: { sessionId: 'parent', forkReturnSessionId: 'child' }
+        })
+        expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
+      } else {
+        expect(navigateMock).not.toHaveBeenCalled()
+        expect(leafCapabilitiesMock.notifyError).toHaveBeenCalledWith(
+          scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
+        )
+      }
+    }
+  )
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
       id: 'agent-session-topic',
@@ -271,9 +384,6 @@ describe('useAgentMessageListProviderValue', () => {
       selectAllDisabled: false,
       isSelectAllLoading: false
     })
-    expect(useMessageExportActionsMock).toHaveBeenCalledWith({
-      topicName: 'Agent session'
-    })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
     expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
@@ -326,7 +436,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     void value?.actions.openPath?.('dist/report.md')
-    expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'agent-session-topic',
+      path: 'dist/report.md'
+    })
 
     ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
     await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
@@ -384,7 +497,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
-  it('rejects unresolved relative paths when no workspace root is available', () => {
+  it('sends the raw path to main when the renderer has no workspace root of its own', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -410,7 +523,11 @@ describe('useAgentMessageListProviderValue', () => {
     }
     render(<Probe />)
 
-    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    void value?.actions.openPath?.('dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'session-1',
+      path: 'dist/report.md'
+    })
     expect(window.api.file.openPath).not.toHaveBeenCalled()
   })
 
@@ -445,24 +562,18 @@ describe('useAgentMessageListProviderValue', () => {
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
       diagnosticReport: { location: string }
-      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+      getDoctorSubject: (message?: { model?: { id: string; provider: string; name: string } }) => unknown
     }
-    expect(options.diagnosticReport).toEqual(diagnosticReport)
-    await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
-
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
-              })
-            })
-          ]
-        }
-      }
+    expect(options.getDoctorSubject()).toEqual({ kind: 'agent', agentId: topic.assistantId })
+    expect(
+      options.getDoctorSubject({
+        model: { id: 'deepseek-v4-flash', provider: 'deepseek', name: 'DeepSeek V4 Flash' }
+      })
+    ).toEqual({
+      kind: 'agent',
+      agentId: topic.assistantId,
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash'
     })
   })
 
