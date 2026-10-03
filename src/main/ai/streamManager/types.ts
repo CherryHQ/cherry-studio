@@ -185,6 +185,12 @@ export interface ActiveStream {
   expiresAt?: number
   /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
+  /**
+   * True while a settling execution deliberately kept this stream un-terminalized so an upcoming
+   * continuation can carry its listeners; cleared by `runTerminalLifecycle`. Lets a "no successor is
+   * coming after all" edge settle the stream instead of stranding it.
+   */
+  heldForContinuation?: boolean
 }
 
 // ── Config ──────────────────────────────────────────────────────────

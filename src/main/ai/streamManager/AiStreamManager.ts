@@ -1423,6 +1423,9 @@ export class AiStreamManager extends BaseService {
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
+    // Record the hold so a later "the successor never came" edge can settle this stream instead of
+    // leaving it in `activeStreams` forever (agent sessions: `finalizeHeldTopicStream`).
+    stream.heldForContinuation = chaining
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
@@ -1632,6 +1635,45 @@ export class AiStreamManager extends BaseService {
     this.runTerminalLifecycle(stream)
   }
 
+  /**
+   * Clean twin of `terminateHeldTopicStream`: settle a stream a chaining turn kept alive
+   * (`isTopicDone=false`, terminal lifecycle skipped) when its successor will never arrive — an agent
+   * session held it for a receive-only wake that is not coming (task stopped/killed, headless
+   * responder). The completion that opened the hold already finalised, persisted, and delivered its
+   * bubble, so this only closes the topic through the canonical terminal dispatch with a payload-free
+   * done (no `finalMessage`/timings to replay), skipping only the persistence phase — there is no new
+   * execution to write. Then the terminal status is written and the terminal lifecycle runs so the
+   * status cache settles and the stream is evicted. No-op unless the stream is still held, so one
+   * already in its eviction grace period never gets a duplicate terminal notification.
+   */
+  async finalizeHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream?.heldForContinuation) return
+    // Claim the settle synchronously so a second drain edge racing this dispatch cannot
+    // double-close the topic.
+    stream.heldForContinuation = false
+    const exec = modelId ? stream.executions.get(modelId) : undefined
+    const result: StreamDoneResult = {
+      status: 'success',
+      modelId,
+      attemptId: exec?.attemptId,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      anchorMessageId: exec?.anchorMessageId,
+      isTopicDone: true
+    }
+    await this.dispatchToListeners(
+      stream,
+      'onDone',
+      (listener) => listener.onDone(result),
+      (listener) => listener.terminalPhase === 'persistence'
+    )
+    if (this.activeStreams.get(topicId) !== stream) return
+    // The hold only exists across a `done` topic gap, so this restates the value the settling
+    // execution resolved rather than overriding a live status.
+    stream.status = 'done'
+    this.runTerminalLifecycle(stream)
+  }
+
   /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every
    *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
   private beginTerminalDispatch(topicId: string): () => void {
@@ -1659,6 +1701,7 @@ export class AiStreamManager extends BaseService {
 
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
+    stream.heldForContinuation = false
     stream.lifecycle.onTerminal(stream)
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
@@ -2093,15 +2136,17 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
-   * notification, while cleanup work remains last.
+   * notification, while cleanup work remains last. `skip` opts listeners out while keeping them
+   * registered and uncounted.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (listener: StreamListener) => void | Promise<void>
+    invoke: (listener: StreamListener) => void | Promise<void>,
+    skip?: (listener: StreamListener) => boolean
   ): Promise<void> {
     const dead: string[] = []
-    const listeners = [...stream.listeners]
+    const listeners = [...stream.listeners].filter(([, listener]) => !skip?.(listener))
     const orderedListeners = [
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'persistence'),
       ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),

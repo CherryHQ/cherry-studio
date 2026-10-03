@@ -499,7 +499,6 @@ export class ClaudeCodeStreamAdapter {
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
-  private awaitingBackgroundReply = false
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
@@ -1343,14 +1342,9 @@ export class ClaudeCodeStreamAdapter {
           description: task.description
         }))
         this.publishBackgroundTasks()
-        if (this.hasBackgroundAgents()) this.awaitingBackgroundReply = true
         if (message.tasks.length > 0) {
           this.backgroundWorkReleasePending = false
-          this.statusSink.emit({
-            type: 'background-work-state',
-            active: true,
-            ...(!this.awaitingBackgroundReply ? { awaitingReply: false } : {})
-          })
+          this.statusSink.emit({ type: 'background-work-state', active: true })
         } else {
           this.backgroundWorkReleasePending = true
         }
@@ -1536,22 +1530,12 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private hasBackgroundAgents(): boolean {
-    return this.backgroundTasks.some((task) => task.type === 'subagent' || task.type === 'local_agent')
-  }
-
   private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
     if (message.state !== 'idle') return
     // Idle means held-back results and the background-agent loop have drained, so no detached flow
     // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
     // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
     if (!this.turnActive) this.flowContexts.length = 0
-    if (this.awaitingBackgroundReply && !this.hasBackgroundAgents()) {
-      this.awaitingBackgroundReply = false
-      if (this.backgroundTasks.length > 0) {
-        this.statusSink.emit({ type: 'background-work-state', active: true, awaitingReply: false })
-      }
-    }
     if (!this.backgroundWorkReleasePending) return
     this.backgroundWorkReleasePending = false
     this.statusSink.emit({ type: 'background-work-state', active: false })

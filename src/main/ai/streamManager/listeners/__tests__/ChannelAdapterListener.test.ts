@@ -90,6 +90,35 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
   })
 
+  it('delivers only once when a held topic settles again (chain hold + close)', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('the reply'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // A later topic close (held stream whose wake never came) settles the same listener again —
+    // the reply must not be re-delivered to the channel.
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers the background wake turn that a held topic carries into the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // Background work keeps the topic stream alive across the inter-turn gap precisely so the wake
+    // carries this listener (willContinueTopic) — the wake's own output must reach the channel, and
+    // must not re-post the turn that already settled.
+    listener.onChunk(delta('Found it: 42'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual(['On it.', 'Found it: 42'])
+  })
+
   it('does not deliver when the accumulated text is empty', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
