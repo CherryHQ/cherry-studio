@@ -14,6 +14,7 @@ import type {
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
@@ -175,9 +176,17 @@ const AgentSessionMessages = ({
     }
   }, [sessionId])
 
+  // A resume edge can live only in the runtime's live task-event cache; the index decides whether
+  // a receipt roots its own flow, so it has to see those edges too.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
-      <AgentLaunchIndexProvider value={useMemo(() => buildAgentLaunchIndex(partsByMessageId), [partsByMessageId])}>
+      <AgentLaunchIndexProvider
+        value={useMemo(
+          () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
+          [lateTaskEvents, partsByMessageId]
+        )}>
         <MessageListProvider value={messageList}>
           <MessageList enableSearch />
         </MessageListProvider>
