@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Доступна новая версия {{version}}",
   "miniApp.attention.updating": "Обновление до {{version}} ({{percent}} %)",
   "miniApp.builtin.not_installed": "Ещё не установлено",
+  "miniApp.debugging": "Отладка",
   "miniApp.detail.action_error": "Действие не выполнено: {{message}}",
   "miniApp.detail.check_update": "Проверить обновления",
   "miniApp.detail.clear_data": "Очистить данные",

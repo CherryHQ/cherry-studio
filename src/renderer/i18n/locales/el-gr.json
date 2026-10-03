@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Διαθέσιμη νέα έκδοση {{version}}",
   "miniApp.attention.updating": "Ενημέρωση σε {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "Δεν έχει εγκατασταθεί ακόμα",
+  "miniApp.debugging": "Γίνεται αποσφαλμάτωση",
   "miniApp.detail.action_error": "Η ενέργεια απέτυχε: {{message}}",
   "miniApp.detail.check_update": "Έλεγχος για ενημέρωση",
   "miniApp.detail.clear_data": "Εκκαθάριση δεδομένων",

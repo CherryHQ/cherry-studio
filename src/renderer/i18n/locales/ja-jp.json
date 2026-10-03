@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "新しいバージョン {{version}} があります",
   "miniApp.attention.updating": "{{version}} に更新中（{{percent}}%）",
   "miniApp.builtin.not_installed": "未インストール",
+  "miniApp.debugging": "デバッグ中",
   "miniApp.detail.action_error": "操作に失敗しました：{{message}}",
   "miniApp.detail.check_update": "更新を確認",
   "miniApp.detail.clear_data": "データを消去",

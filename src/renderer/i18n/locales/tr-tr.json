@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Yeni {{version}} sürümü mevcut",
   "miniApp.attention.updating": "{{version}} sürümüne güncelleniyor (%{{percent}})",
   "miniApp.builtin.not_installed": "Henüz yüklenmedi",
+  "miniApp.debugging": "Hata ayıklanıyor",
   "miniApp.detail.action_error": "İşlem başarısız oldu: {{message}}",
   "miniApp.detail.check_update": "Güncellemeleri denetle",
   "miniApp.detail.clear_data": "Verileri temizle",

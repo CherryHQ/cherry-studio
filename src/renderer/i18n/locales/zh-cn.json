@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "有新版本 {{version}}",
   "miniApp.attention.updating": "正在更新到 {{version}}（{{percent}}%）",
   "miniApp.builtin.not_installed": "尚未安装",
+  "miniApp.debugging": "调试中",
   "miniApp.detail.action_error": "操作失败：{{message}}",
   "miniApp.detail.check_update": "检查更新",
   "miniApp.detail.clear_data": "清除数据",

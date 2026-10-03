@@ -1,8 +1,11 @@
 import type * as FsModule from 'fs'
 import { EventEmitter } from 'node:events'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WebSocketServer } from 'ws'
 
 import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
@@ -11,6 +14,7 @@ import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shar
 const {
   getBrowserService,
   guestById,
+  guestByTarget,
   getAllWebContents,
   getWindow,
   getPath,
@@ -21,6 +25,7 @@ const {
   getBrowserService: vi.fn(),
   agentSessions: new Map<string, { setSpellCheckerEnabled: ReturnType<typeof vi.fn> }>(),
   guestById: new Map<number, unknown>(),
+  guestByTarget: new Map<string, unknown>(),
   getAllWebContents: vi.fn(() => [] as unknown[]),
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
@@ -73,7 +78,14 @@ vi.mock('fs', async (importOriginal) => {
   return { ...actual, default: actual, existsSync: () => true }
 })
 vi.mock('electron', () => ({
-  app: { on: vi.fn(), removeListener: vi.fn() },
+  app: {
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    commandLine: {
+      hasSwitch: vi.fn(() => false),
+      getSwitchValue: vi.fn(() => '')
+    }
+  },
   dialog: { showSaveDialog: vi.fn() },
   session: {
     fromPartition: vi.fn((partition: string) => {
@@ -92,7 +104,11 @@ vi.mock('electron', () => ({
     })
   },
   shell: { openExternal: vi.fn() },
-  webContents: { fromId: (id: number) => guestById.get(id), getAllWebContents }
+  webContents: {
+    fromId: (id: number) => guestById.get(id),
+    fromDevToolsTargetId: (id: string) => guestByTarget.get(id),
+    getAllWebContents
+  }
 }))
 
 import { BrowserSessionService } from '@main/features/browser'
@@ -212,10 +228,72 @@ describe('WebviewService webview ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     guestById.clear()
+    guestByTarget.clear()
+    vi.mocked(app.commandLine.hasSwitch).mockReturnValue(false)
     getAllWebContents.mockReturnValue([])
     host = {}
     getWindow.mockReturnValue({ webContents: host })
     service = new WebviewService()
+  })
+
+  it('only discloses debugging state for a guest owned by the calling window', () => {
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+    expect(service.getDebuggingState(7, 'owner')).toEqual({ attached: false, revision: 0 })
+    getWindow.mockReturnValue(undefined)
+    expect(() => service.getDebuggingState(7, 'other')).toThrow('The caller does not own this webview')
+  })
+
+  it('keeps the page indicator until the last attached frame is gone', async () => {
+    let port = 0
+    const server = createServer((_request, response) => {
+      response.setHeader('Content-Type', 'application/json')
+      response.end(JSON.stringify({ webSocketDebuggerUrl: `ws://127.0.0.1:${port}/devtools/browser/test` }))
+    })
+    const sockets = new WebSocketServer({ server })
+    const notify = (method: string, params: unknown) => {
+      for (const socket of sockets.clients) socket.send(JSON.stringify({ method, params }))
+    }
+    sockets.on('connection', (socket) =>
+      socket.on('message', () => {
+        notify('Target.targetCreated', { targetInfo: { targetId: 'main', attached: true } })
+      })
+    )
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    port = (server.address() as AddressInfo).port
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+    guestByTarget.set('main', guest)
+    guestByTarget.set('child', guest)
+    vi.mocked(app.commandLine.hasSwitch).mockReturnValue(true)
+    vi.mocked(app.commandLine.getSwitchValue).mockReturnValue(String(port))
+    const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+    try {
+      await (service as unknown as { onInit(): Promise<void> }).onInit()
+      await vi.waitFor(() => expect(service.getDebuggingState(7, 'owner').attached).toBe(true))
+      notify('Target.targetInfoChanged', { targetInfo: { targetId: 'child', attached: true } })
+      await vi.waitFor(() =>
+        expect(broadcast).toHaveBeenLastCalledWith(
+          'webview.debugging.changed',
+          expect.objectContaining({ webviewId: 7, attached: true })
+        )
+      )
+      notify('Target.targetInfoChanged', { targetInfo: { targetId: 'main', attached: false } })
+      await vi.waitFor(() => expect(service.getDebuggingState(7, 'owner').revision).toBeGreaterThan(2))
+      expect(service.getDebuggingState(7, 'owner').attached).toBe(true)
+      guestByTarget.delete('child')
+      notify('Target.targetDestroyed', { targetId: 'child' })
+      await vi.waitFor(() => expect(service.getDebuggingState(7, 'owner').attached).toBe(false))
+      expect(broadcast).toHaveBeenLastCalledWith(
+        'webview.debugging.changed',
+        expect.objectContaining({ webviewId: 7, attached: false })
+      )
+    } finally {
+      await (service as unknown as { onStop(): Promise<void> }).onStop()
+      for (const socket of sockets.clients) socket.terminate()
+      await new Promise<void>((resolve) => sockets.close(() => resolve()))
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 
   it('protects existing site and browser guests and their popup windows without changing other sessions', async () => {

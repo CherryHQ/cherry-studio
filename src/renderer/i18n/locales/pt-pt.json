@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Nova versão {{version}} disponível",
   "miniApp.attention.updating": "A atualizar para {{version}} ({{percent}} %)",
   "miniApp.builtin.not_installed": "Ainda não instalado",
+  "miniApp.debugging": "Em depuração",
   "miniApp.detail.action_error": "A ação falhou: {{message}}",
   "miniApp.detail.check_update": "Procurar atualização",
   "miniApp.detail.clear_data": "Limpar dados",

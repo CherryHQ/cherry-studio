@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Có phiên bản mới {{version}}",
   "miniApp.attention.updating": "Đang cập nhật lên {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "Chưa cài đặt",
+  "miniApp.debugging": "Đang gỡ lỗi",
   "miniApp.detail.action_error": "Thao tác thất bại: {{message}}",
   "miniApp.detail.check_update": "Kiểm tra cập nhật",
   "miniApp.detail.clear_data": "Xóa dữ liệu",

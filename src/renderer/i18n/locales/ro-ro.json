@@ -2481,6 +2481,7 @@
   "miniApp.attention.update": "Versiune nouă {{version}} disponibilă",
   "miniApp.attention.updating": "Se actualizează la {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "Neinstalat încă",
+  "miniApp.debugging": "Depanare în curs",
   "miniApp.detail.action_error": "Acțiunea a eșuat: {{message}}",
   "miniApp.detail.check_update": "Caută actualizare",
   "miniApp.detail.clear_data": "Șterge datele",
