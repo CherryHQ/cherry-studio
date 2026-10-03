@@ -32,9 +32,8 @@ export const ContextSettingsOverrideSchema = z.object({
   /**
    * Serve only the last N messages (v1 contextCount successor). Three-state:
    * absent inherits the layer below, `null` is an explicit "no limit here" that
-   * overrides a finite global. The UI's empty field maps to `null`, not to
-   * absent — otherwise an assistant showing "unlimited" would silently inherit
-   * a finite global.
+   * overrides a finite global. The dialog's empty field means absent; its
+   * Unlimited switch stores `null`.
    */
   maxMessages: z.number().int().min(1).nullable().optional(),
   compress: ContextSettingsCompressOverrideSchema.partial().optional()

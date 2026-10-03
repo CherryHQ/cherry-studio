@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -392,6 +393,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.context_compress_enabled': 'Compress the context when it fills up',
           'library.config.basic.context_compress_threshold': 'Compression trigger threshold',
           'library.config.basic.context_count_unlimited': 'Unlimited',
+          'library.config.basic.context_count_follow_global': 'Follow global',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
@@ -721,6 +723,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  MockUsePreferenceUtils.resetMocks()
 })
 
 function selectTab(name: string) {
@@ -1471,22 +1474,101 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Recent messages kept')).toBeInTheDocument()
   })
 
-  it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
+  it('leaves an unset message limit empty and enabled, apart from the Unlimited switch', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     selectTab('Model')
 
     const input = await screen.findByLabelText('Recent messages kept')
-    // No stored override → unlimited, shown as an empty field with a placeholder.
+    // No stored limit → inherits the global (unlimited here): an empty field, not an explicit "Unlimited".
     expect(input).toHaveValue('')
+    expect(input).toBeEnabled()
     expect(input).toHaveAttribute('placeholder', 'Unlimited')
-    // The limit is one control, not a switch plus a number.
-    expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Unlimited' })).not.toBeChecked()
 
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
     fireEvent.blur(input)
     expect(input).toHaveValue('5')
+  })
+
+  // An explicit null beats a finite global, so it must neither read as "follow
+  // global" nor be dropped by a save that rewrites the context settings.
+  it('shows a stored unlimited limit over a finite global and keeps it through an override save', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 20)
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: null } } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    expect(await screen.findByRole('switch', { name: 'Unlimited' })).toBeChecked()
+    const input = screen.getByLabelText('Recent messages kept')
+    expect(input).toBeDisabled()
+    expect(input).toHaveAttribute('placeholder', 'Unlimited')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Customize context management' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: { settings: { contextSettings: expect.objectContaining({ maxMessages: null }) } }
+      })
+    )
+  })
+
+  it('stores an explicit no-limit when Unlimited is switched on over a finite limit', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 20)
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 5 } } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    const input = await screen.findByLabelText('Recent messages kept')
+    expect(input).toHaveValue('5')
+    expect(input).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Unlimited' }))
+
+    expect(input).toBeDisabled()
+    expect(input).toHaveValue('')
+    expect(input).toHaveAttribute('placeholder', 'Unlimited')
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: { settings: { contextSettings: { maxMessages: null } } }
+      })
+    )
+  })
+
+  it('returns to following the global when Unlimited is switched off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 20)
+    render(
+      <AssistantEditDialog
+        open
+        resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: null } } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Unlimited' }))
+
+    const input = screen.getByLabelText('Recent messages kept')
+    expect(input).toBeEnabled()
+    expect(input).toHaveValue('')
+    expect(input).toHaveAttribute('placeholder', 'Follow global')
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { contextSettings: null } } })
+    )
   })
 
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
