@@ -4252,6 +4252,39 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).not.toHaveBeenCalled()
   })
 
+  it('delegates an unlisted path-backed file even when a prompt variable token is selected', async () => {
+    // A selected token makes the runtime claim any paste carrying text, and the copied file's
+    // text flavour is its name — so the token swallows the name and the agent never learns the
+    // path. The file handler is the only route that can hand the absolute path over.
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/Users/me/models/${file.name}`)
+    mocks.selection = {
+      empty: false,
+      from: 1,
+      to: 2,
+      node: {
+        type: { name: 'composerToken' },
+        attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
+      },
+      $from: { nodeBefore: null }
+    }
+    render(<ComposerSurface {...baseProps} supportedExts={['*']} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: (type: string) =>
+          type === 'text/plain' ? 'model.onnx' : type === 'text/html' ? '<b>model.onnx</b>' : '',
+        files: [new File(['onnx'], 'model.onnx', { type: '' })]
+      }
+    }
+
+    mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+    expect(mocks.pasteHandler).toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+  })
+
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
     const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
     render(<ComposerSurface {...baseProps} />)

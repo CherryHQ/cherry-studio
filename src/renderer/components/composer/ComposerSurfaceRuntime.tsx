@@ -1712,8 +1712,17 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = (view.dom as TiptapEditorHTMLElement).editor
+      const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
+      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
+      // A wildcard catalog must still see an unlisted path-backed file: its text flavour is only
+      // the file's name, so claiming the paste here would drop a name the agent cannot open. Every
+      // route that claims a paste on the strength of that text flavour — a selected token below
+      // included — has to yield to this one, so it is decided before any of them.
+      const shouldDelegateToFileHandler =
+        (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportedExts)) ||
+        hasWildcardPathReferenceFile(clipboardFiles, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
-      if (editor && selectedPromptVariable && pastedText) {
+      if (editor && selectedPromptVariable && pastedText && !shouldDelegateToFileHandler) {
         event.preventDefault()
         const limitedPastedText = getComposerInputTextWithinLimit(
           textRef.current,
@@ -1738,13 +1747,6 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
-      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
-      // A wildcard catalog must still see an unlisted path-backed file: its text flavour is only
-      // the file's name, so claiming the paste here would drop a name the agent cannot open.
-      const shouldDelegateToFileHandler =
-        (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportedExts)) ||
-        hasWildcardPathReferenceFile(clipboardFiles, supportedExts)
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
