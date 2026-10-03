@@ -80,7 +80,12 @@ import {
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import {
+  ClaudeCodeStreamAdapter,
+  convertClaudeCodeUsage,
+  isSyntheticClaudeCodeModel,
+  v3UsageToStats
+} from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -716,7 +721,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
         if (message.type === 'assistant') {
           this.captureAssistantInvocation(message, messageAssociation)
-          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+          if (message.parent_tool_use_id == null && !isSyntheticClaudeCodeModel(message.message?.model)) {
+            this.lastMainAssistantUuid = message.uuid
+          }
         }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
@@ -881,6 +888,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const capture = this._usageCapture
     if (capture?.owner !== 'agent-sdk') return
 
+    if (isSyntheticClaudeCodeModel(message.message?.model)) return
     if (this.committedInvocationIds.has(message.message.id)) return
 
     const next = pendingInvocationFromAssistant(message, messageAssociation, this.adapterModelId ?? this.input.modelId)
@@ -899,6 +907,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const lane = this.invocationLane(message.parent_tool_use_id)
     if (message.event.type === 'message_start') {
       const sdkMessage = message.event.message
+      if (isSyntheticClaudeCodeModel(sdkMessage.model)) return
       const startUsage = invocationUsageBuckets(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
       this.captureInvocationForLane(lane, {
