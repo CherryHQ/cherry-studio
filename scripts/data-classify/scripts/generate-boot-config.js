@@ -20,7 +20,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     sourceCategory: 'chromium',
     originalKey: 'remoteDebuggingPort',
     targetKey: 'app.remote_debugging.port',
-    zodType: 'z.number().int().min(1).max(65535)',
+    zodType: 'z.number().int().min(1).max(65534)',
     defaultValue: 9222
   },
   {

@@ -104,10 +104,14 @@ describe('configureChromiumFlags', () => {
       expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
     })
 
-    it.each([0, 65536, 1.5, '9222', NaN])('rejects an invalid configured port: %s', (port) => {
+    it.each([0, 65535, 65536, 1.5, '9222', NaN])('rejects an invalid configured port: %s', (port) => {
       expect(bootConfigSchema.safeParse({ ...DefaultBootConfig, 'app.remote_debugging.port': port }).success).toBe(
         false
       )
+    })
+
+    it.each([1, 65534])('accepts a supported port boundary: %s', (port) => {
+      expect(bootConfigSchema.safeParse({ ...DefaultBootConfig, 'app.remote_debugging.port': port }).success).toBe(true)
     })
 
     it('does not enable a listener by default', async () => {

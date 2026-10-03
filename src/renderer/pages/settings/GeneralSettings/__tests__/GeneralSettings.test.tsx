@@ -1,10 +1,14 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+
 import GeneralSettings from '../GeneralSettings'
+
+const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -125,6 +129,7 @@ vi.mock('@cherrystudio/ui', () => ({
 describe('GeneralSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUsePreference.mockImplementation(defaultPreferenceImplementation)
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'BootConfig.app.remote_debugging.enabled': false,
@@ -190,6 +195,7 @@ describe('GeneralSettings', () => {
     rerender(<GeneralSettings />)
     const port = screen.getByLabelText('CDP port')
     expect(port).toBeEnabled()
+    expect(port).toHaveAttribute('max', '65534')
     fireEvent.blur(port, { target: { value: '9342' } })
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.port']).toBe(9342)
@@ -213,6 +219,105 @@ describe('GeneralSettings', () => {
     rerender(<GeneralSettings />)
     expect(screen.queryByRole('switch', { name: 'Local automation (CDP)' })).not.toBeInTheDocument()
     expect(window.api.application.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('prevents a pending CDP enable from racing with disabling developer mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({ 'app.developer_mode.enabled': true })
+    let finishSave!: () => void
+    const pendingSave = new Promise<void>((resolve) => {
+      finishSave = resolve
+    })
+    mockUsePreference.mockImplementation((key, options) => {
+      const [value, save] = defaultPreferenceImplementation(key, options)
+      return [
+        value,
+        async (next) => {
+          if (String(key) === 'BootConfig.app.remote_debugging.enabled') await pendingSave
+          await save(next)
+        }
+      ]
+    })
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    await user.click(screen.getByRole('switch', { name: 'Local automation (CDP)' }))
+    expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeDisabled()
+    await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
+    finishSave()
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(true)
+      expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()
+    })
+    await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(false)
+    })
+  })
+
+  it('blocks a new CDP enable while developer mode is being disabled', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'BootConfig.app.remote_debugging.enabled': true
+    })
+    let finishSave!: () => void
+    const pendingSave = new Promise<void>((resolve) => {
+      finishSave = resolve
+    })
+    mockUsePreference.mockImplementation((key, options) => {
+      const [value, save] = defaultPreferenceImplementation(key, options)
+      return [
+        value,
+        async (next) => {
+          if (key === 'app.developer_mode.enabled') await pendingSave
+          await save(next)
+        }
+      ]
+    })
+    const user = userEvent.setup()
+    const { rerender } = render(<GeneralSettings />)
+    await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
+    )
+    rerender(<GeneralSettings />)
+    const cdp = screen.getByRole('switch', { name: 'Local automation (CDP)' })
+    expect(cdp).toBeDisabled()
+    expect(screen.getByLabelText('CDP port')).toBeDisabled()
+    await user.click(cdp)
+    finishSave()
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(false)
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
+      expect(screen.queryByRole('switch', { name: 'Local automation (CDP)' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('keeps developer mode enabled and unlocks the controls when disabling CDP fails', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'BootConfig.app.remote_debugging.enabled': true
+    })
+    mockUsePreference.mockImplementation((key, options) => {
+      const [value, save] = defaultPreferenceImplementation(key, options)
+      return [
+        value,
+        String(key) === 'BootConfig.app.remote_debugging.enabled'
+          ? async () => {
+              throw new Error('Cannot save CDP setting')
+            }
+          : save
+      ]
+    })
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    await user.click(screen.getByRole('switch', { name: 'Developer mode' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Cannot save CDP setting'))
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')).toBe(true)
+    expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
+    expect(screen.getByRole('switch', { name: 'Developer mode' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeEnabled()
   })
 
   it('places context management directly after proxy settings', () => {

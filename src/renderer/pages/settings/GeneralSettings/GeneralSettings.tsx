@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
@@ -70,6 +70,8 @@ const GeneralSettings: FC = () => {
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
+  const developerSettingsSaving = useRef(false)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -135,22 +137,28 @@ const GeneralSettings: FC = () => {
     )
   }
 
-  const handleRemoteDebuggingChange = async (checked: boolean) => {
+  const saveDeveloperSettings = async (save: () => Promise<void>) => {
+    if (developerSettingsSaving.current) return
+    developerSettingsSaving.current = true
+    setIsSavingDeveloperSettings(true)
     try {
-      await setRemoteDebuggingEnabled(checked)
+      await save()
     } catch (error) {
       toast.error(formatErrorMessage(error))
+    } finally {
+      developerSettingsSaving.current = false
+      setIsSavingDeveloperSettings(false)
     }
   }
 
-  const handleDeveloperModeChange = async (checked: boolean) => {
-    try {
-      if (!checked && remoteDebuggingEnabled) await setRemoteDebuggingEnabled(false)
+  const handleRemoteDebuggingChange = (checked: boolean) =>
+    saveDeveloperSettings(() => setRemoteDebuggingEnabled(checked))
+
+  const handleDeveloperModeChange = (checked: boolean) =>
+    saveDeveloperSettings(async () => {
+      if (!checked) await setRemoteDebuggingEnabled(false)
       await setEnableDeveloperMode(checked)
-    } catch (error) {
-      toast.error(formatErrorMessage(error))
-    }
-  }
+    })
 
   const handleRemoteDebuggingPortChange = async (port: number | null) => {
     try {
@@ -388,6 +396,7 @@ const GeneralSettings: FC = () => {
           </Flex>
           <Switch
             checked={enableDeveloperMode}
+            disabled={isSavingDeveloperSettings}
             onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
             aria-label={t('settings.developer.enable_developer_mode')}
           />
@@ -404,6 +413,7 @@ const GeneralSettings: FC = () => {
               </div>
               <Switch
                 checked={remoteDebuggingEnabled}
+                disabled={isSavingDeveloperSettings}
                 onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
                 aria-label={t('settings.developer.cdp.title')}
               />
@@ -414,10 +424,10 @@ const GeneralSettings: FC = () => {
               <div className="w-28 shrink-0">
                 <InputNumber
                   min={1}
-                  max={65535}
+                  max={65534}
                   step={1}
                   value={remoteDebuggingPort}
-                  disabled={!remoteDebuggingEnabled}
+                  disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
                   aria-label={t('settings.developer.cdp.port')}
                   onBlur={handleRemoteDebuggingPortChange}
                 />
