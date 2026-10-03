@@ -210,7 +210,18 @@ export async function migrateNotesDirectory(
             )
           }
         }
-        await fs.promises.copyFile(from, to)
+        const copyFlags = copyOptions?.failOnExistingDestination ? fs.constants.COPYFILE_EXCL : 0
+        try {
+          await fs.promises.copyFile(from, to, copyFlags)
+        } catch (error) {
+          if (copyOptions?.failOnExistingDestination && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+            throw new IpcError(
+              notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+              'target already contains files'
+            )
+          }
+          throw error
+        }
       }
     }
 

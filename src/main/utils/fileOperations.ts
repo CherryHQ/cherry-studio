@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import { constants as fsConstants } from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -93,7 +94,7 @@ export async function copyDirectoryRecursive(
           if (destStats.isSymbolicLink()) {
             throw new Error(`Destination is a symlink: ${destPath}`)
           }
-          if (options?.skipExistingFiles) {
+          if (options?.skipExistingFiles && destStats.isFile()) {
             logger.debug('Skipping existing file during merge', { path: destPath })
             continue
           }
@@ -105,15 +106,17 @@ export async function copyDirectoryRecursive(
             throw error
           }
         }
-        // Copy file with error handling for race conditions
+        const copyFlags = options?.failOnExistingDestination ? fsConstants.COPYFILE_EXCL : 0
         try {
-          await fs.promises.copyFile(sourcePath, destPath)
-          // Preserve file permissions
+          await fs.promises.copyFile(sourcePath, destPath, copyFlags)
           await fs.promises.chmod(destPath, entryStats.mode)
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
-          // Handle race condition where file was deleted during copy
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          const errno = (error as NodeJS.ErrnoException).code
+          if (options?.failOnExistingDestination && errno === 'EEXIST') {
+            throw new Error(`Destination file already exists: ${destPath}`)
+          }
+          if (errno === 'ENOENT') {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
           }
