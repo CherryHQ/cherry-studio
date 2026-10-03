@@ -1,6 +1,7 @@
 import { jsonSchema, type Tool, type ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { createBrowserToolEntries } from '../../builtin/BrowserTools'
 import { TOOL_INSPECT_TOOL_NAME } from '../../meta/toolInspect'
 import { TOOL_INVOKE_TOOL_NAME } from '../../meta/toolInvoke'
 import { TOOL_SEARCH_TOOL_NAME } from '../../meta/toolSearch'
@@ -121,6 +122,38 @@ describe('applyDeferExposition', () => {
     const result = await invoke.execute!({ name: 'mcp__s1__t', params: {} }, opts)
     expect(result).toBe('ok')
     expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps deferred browser tools discoverable, inspectable, and callable', async () => {
+    const execute = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'opened' }] })
+    const entries = createBrowserToolEntries().map((entry) =>
+      entry.name === 'browser_open' ? { ...entry, tool: { ...entry.tool, execute } } : entry
+    )
+    const { registry, tools } = buildRegistryWith(entries)
+    const exposed = await applyDeferExposition(tools, registry, 1_000_000)
+    const metaTools = exposed.tools!
+    const opts = {
+      toolCallId: 'browser-1',
+      messages: [],
+      experimental_context: { requestId: 'request-1', topicId: 'topic-1', assistant: { id: 'assistant-1' } }
+    } as Parameters<NonNullable<Tool['execute']>>[1]
+
+    expect(metaTools.browser_open).toBeUndefined()
+    expect(exposed.deferredEntries.map((entry) => entry.name)).toContain('browser_open')
+    const found = await metaTools[TOOL_SEARCH_TOOL_NAME].execute!({ query: 'browser_open', namespace: 'browser' }, opts)
+    expect(found.matchedNamespaces[0].tools.map((entry: { name: string }) => entry.name)).toContain('browser_open')
+    const signature = await metaTools[TOOL_INSPECT_TOOL_NAME].execute!({ name: 'browser_open' }, opts)
+    expect(signature).toContain('browser_open')
+    expect(signature).toContain('url')
+    const result = await metaTools[TOOL_INVOKE_TOOL_NAME].execute!(
+      { name: 'browser_open', params: { url: 'https://example.com' } },
+      opts
+    )
+    expect(result).toEqual({ content: [{ type: 'text', text: 'opened' }] })
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'https://example.com' }),
+      expect.objectContaining({ toolCallId: 'browser-1::browser_open' })
+    )
   })
 
   it('skips entries that have a tool but no registry entry', async () => {

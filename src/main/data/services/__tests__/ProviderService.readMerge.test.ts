@@ -9,6 +9,7 @@ import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
 import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ProviderSchema } from '@shared/data/types/provider'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
@@ -40,6 +41,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
         {
           id: 'my-relay',
           description: 'Future registry provider',
+          supplementModelsFromRegistry: true,
           endpointConfigs: {
             'openai-chat-completions': {
               adapterFamily: 'future-registry',
@@ -69,6 +71,23 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+
+  it.each([
+    { providerId: 'my-relay', presetProviderId: 'my-relay', expected: true },
+    { providerId: 'my-relay', presetProviderId: null, expected: undefined },
+    { providerId: 'relay-copy', presetProviderId: 'my-relay', expected: true },
+    { providerId: 'cherryin', presetProviderId: null, expected: undefined },
+    { providerId: 'custom-provider', presetProviderId: null, expected: undefined }
+  ])(
+    'resolves model-list supplementation for $providerId with preset $presetProviderId',
+    ({ providerId, presetProviderId, expected }) => {
+      dbh.db.insert(userProviderTable).values({ providerId, presetProviderId, name: providerId, orderKey: 'a0' }).run()
+
+      const provider = ProviderSchema.parse(providerService.getByProviderId(providerId))
+
+      expect(provider.supplementModelsFromRegistry).toBe(expected)
+    }
+  )
 
   it.each(['github', 'yi'])(
     'makes retired %s providers and copies unavailable without deleting data',
@@ -235,6 +254,35 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
     expect(provider.availableInEditions).toEqual(['global', 'cn'])
+  })
+
+  it('resolves transaction reasoning contexts without decoding unrelated provider fields', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.sqlite.prepare("UPDATE user_provider SET api_keys = 'invalid-json' WHERE provider_id = ?").run('cherryin')
+
+    const context = dbh.db.transaction((tx) =>
+      providerService.getReasoningContextsByProviderIdsTx(tx, ['cherryin']).get('cherryin')
+    )
+
+    expect(context).toMatchObject({
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    expect(context?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toEqual({
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net',
+      modelsApiUrls: { default: 'https://open.cherryin.net/v1/models' }
+    })
   })
 
   it('keeps providers absent from the current registry edition-neutral', async () => {

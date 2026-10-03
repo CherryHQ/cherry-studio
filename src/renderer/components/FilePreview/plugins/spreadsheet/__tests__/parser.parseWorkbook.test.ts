@@ -641,6 +641,34 @@ describe('parseWorkbook — floating images', () => {
   }, 2000)
 })
 
+describe('parseWorkbook — sparse rows reaching the last column', () => {
+  it('reads only the cells present in the file instead of filling the gap up to column XFD', async () => {
+    const rowCount = 100
+    const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    for (let row = 1; row <= rowCount; row++) {
+      // A row-level style makes any gap cell ExcelJS fabricates come back styled, so it would be rendered.
+      ws.getRow(row).fill = fill
+      ws.getCell(row, 1).value = row
+      ws.getCell(row, 3).fill = fill
+      ws.getCell(row, 16384).fill = fill
+    }
+
+    const parsed = await parseWorkbook(await toArrayBuffer(wb), 'sparse-last-column.xlsx')
+    const sheet = parsed.sheets[0]
+
+    expect(Object.keys(sheet.cells).sort()).toEqual(
+      Array.from({ length: rowCount }, (_, i) => [`${i + 1}:1`, `${i + 1}:3`])
+        .flat()
+        .sort()
+    )
+    expect(sheet.cells[`${rowCount}:3`].styleId).toBeDefined()
+    expect(sheet.colCount).toBe(3)
+    expect(parsed.warnings).toContain('sheet-truncated')
+  })
+})
+
 describe('parseWorkbook — corrupted input', () => {
   it('rejects with a readable error message', async () => {
     const garbage = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

@@ -27,8 +27,8 @@ export const WebCitationCard: React.FC<{
   const previewUrl = citation.url && !isXPost ? citation.url : undefined
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
-    openPath: actions?.openPath ?? providerActions?.openPath,
-    openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
+    openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
+    openPath: actions?.openPath ?? providerActions?.openPath
   }
 
   const { content: previewContent, isLoading: isPreviewLoading } = useCitationPreview(previewUrl, previewSession)
@@ -49,7 +49,7 @@ export const WebCitationCard: React.FC<{
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
 
   return (
-    <SelectionContextMenu>
+    <SelectionContextMenu openBrowserUrl={actions?.openBrowserUrl ?? providerActions?.openBrowserUrl}>
       <div className="group relative flex w-full flex-col py-3 transition-all duration-300">
         <div className="relative mb-1.5 flex w-full flex-row items-center gap-2">
           {citation.showFavicon && getCitationHostname(citation) && (
@@ -59,6 +59,7 @@ export const WebCitationCard: React.FC<{
             <a
               className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground no-underline"
               href={citation.url}
+              onAuxClick={(e) => handleLinkClick(citation.url, e, linkActions)}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
               {displayTitle || <span className="text-link">{citation.hostname}</span>}
             </a>
@@ -78,7 +79,7 @@ export const WebCitationCard: React.FC<{
           </div>
         ) : (
           fetchedContent && (
-            <div className="selectable-text cursor-text text-[13px] leading-[1.6] break-all text-muted-foreground select-text">
+            <div className="selectable-text text-muted-foreground cursor-text text-[13px] leading-[1.6] break-all select-text">
               {fetchedContent}
             </div>
           )
@@ -161,7 +162,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
       </a>
       {displayContent && (
         <div
-          className="mb-2 [display:-webkit-box] overflow-hidden text-[13px] leading-normal text-muted-foreground [-webkit-box-orient:vertical] [-webkit-line-clamp:3]"
+          className="text-muted-foreground mb-2 [display:-webkit-box] overflow-hidden text-[13px] leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3]"
           role="article"
           aria-label="Citation content"
           style={{
@@ -177,7 +178,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
         href={citation.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="cursor-pointer overflow-hidden text-xs text-ellipsis whitespace-nowrap text-link hover:underline"
+        className="text-link cursor-pointer overflow-hidden text-xs text-ellipsis whitespace-nowrap hover:underline"
         aria-label={`Visit ${hostname}`}
         onClick={handleClick}>
         {hostname}

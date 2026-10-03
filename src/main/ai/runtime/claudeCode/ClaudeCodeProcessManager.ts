@@ -184,6 +184,12 @@ export class ClaudeCodeProcessManager extends BaseService {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     })
+    diagnostics.exited = new Promise<void>((resolve) => {
+      rawChild.once('exit', () => resolve())
+      rawChild.once('error', () => {
+        if (rawChild.pid === undefined) resolve()
+      })
+    })
     const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
     this.processes.add(child)
     // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
