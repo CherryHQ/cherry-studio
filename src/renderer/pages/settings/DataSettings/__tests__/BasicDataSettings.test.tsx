@@ -62,6 +62,8 @@ vi.mock('../ClearCachePopup', async (importOriginal) => {
   return { ...actual, default: { show: clearCacheShowMock } }
 })
 
+import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
+
 import BasicDataSettings from '../BasicDataSettings'
 import V1RemigrationPopup from '../V1RemigrationPopup'
 
@@ -213,5 +215,18 @@ describe('BasicDataSettings', () => {
     await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalled())
 
     expect(screen.queryByText('notes.directory_unavailable_fallback')).not.toBeInTheDocument()
+  })
+
+  it('re-resolves the notes source path when migration starts', async () => {
+    await renderSettings()
+    await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalled())
+    resolveNotesPathMock.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.data.notes_relocation.migrate' }))
+
+    await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalledWith('/mock/notes'))
+    expect(startNotesDirectoryMigration).toHaveBeenCalledWith(
+      expect.objectContaining({ sourcePath: '/mock/notes' })
+    )
   })
 })

@@ -63,14 +63,22 @@ const NotesSettings: FC = () => {
       return
     }
 
+    const preferencePath = notesPath || ''
+
     try {
       const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
+      if ((notesPath || '') !== preferencePath) {
+        return
+      }
       if (!isValidDir) {
         toast.error(t('notes.settings.data.invalid_directory'))
         return
       }
 
-      const resolvedSource = await resolveNotesPath(notesPath || '')
+      const resolvedSource = await resolveNotesPath(preferencePath)
+      if ((notesPath || '') !== preferencePath) {
+        return
+      }
       await migrateNotesDirectoryWithUi({
         t,
         sourcePath: resolvedSource.path,
