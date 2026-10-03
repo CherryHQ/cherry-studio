@@ -52,6 +52,8 @@ export const AgentConfigurationSchema = z
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
+    /** Agent-specific provider fallback. Empty follows the global chat preference. */
+    fallback_model_ids: z.array(UniqueModelIdSchema).max(1).optional(),
     service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),

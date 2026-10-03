@@ -513,11 +513,17 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /**
+   * An immediate submission failure is both reported in-stream (the error event below, which the
+   * host already settles turns from) and thrown, so a caller such as the fallback wrapper can tell
+   * the prompt was never admitted instead of assuming a swap happened.
+   */
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
     const bridge = this.bridge
     if (!bridge) {
-      this.eventQueue.push({ type: 'error', error: new Error('dsh session is not started') })
-      return
+      const error = new Error('dsh session is not started')
+      this.eventQueue.push({ type: 'error', error })
+      throw error
     }
     const rawContent = buildAgentUserContent(input.message)
     // A systemReminder message is a host-requeued steer, never a command line (pi parity).
@@ -541,6 +547,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       if (this.closed) return
       logger.error('dsh prompt failed', chatErrorContext(error))
       this.eventQueue.push({ type: 'error', error })
+      throw error
     }
   }
 
@@ -923,7 +930,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         return
       case 'error': {
         const message = reason.error.message.trim() || 'dsh agent turn failed'
-        this.eventQueue.push({ type: 'error', error: new Error(message) })
+        // `reason.error` is the structured `LlmFailure`; carry its status/code so downstream retry
+        // routing keeps them. A bare Error(message) drops them before the fallback classifier reads.
+        const error = Object.assign(new Error(message), {
+          status: reason.error.status,
+          code: reason.error.code
+        })
+        this.eventQueue.push({ type: 'error', error })
         return
       }
       default:
