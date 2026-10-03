@@ -6,6 +6,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 export const BuiltinMcpServerNames = {
   flomo: '@cherry/flomo',
   qveris: '@cherry/qveris',
+  zonefoundry: '@cherry/zonefoundry',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
   sequentialThinking: '@cherry/sequentialthinking',

@@ -11,6 +11,7 @@ import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { ZONEFOUNDRY_SETUP_GUIDE_URL } from '@shared/data/presets/zonefoundryMcp'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -117,6 +118,15 @@ const BuiltinMcpServerList: FC = () => {
                           rel="noopener noreferrer"
                           className="wrap-break-word mt-2 block text-link hover:underline">
                           {t('settings.mcp.qveris.get_api_key')}
+                        </a>
+                      )}
+                      {server.name === BuiltinMcpServerNames.zonefoundry && (
+                        <a
+                          href={ZONEFOUNDRY_SETUP_GUIDE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wrap-break-word mt-2 block text-link hover:underline">
+                          {t('settings.mcp.zonefoundry.setup_guide')}
                         </a>
                       )}
                     </div>

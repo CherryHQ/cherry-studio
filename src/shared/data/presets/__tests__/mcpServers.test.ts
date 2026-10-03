@@ -34,6 +34,18 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
+  it('models ZoneFoundry as a configurable hosted built-in server', () => {
+    expect(preset(BuiltinMcpServerNames.zonefoundry)).toEqual(
+      expect.objectContaining({
+        type: 'streamableHttp',
+        baseUrl: 'https://relay.zonefoundry.dev/mcp',
+        env: { ZONEFOUNDRY_API_KEY: '' },
+        shouldConfig: true,
+        isActive: false
+      })
+    )
+  })
+
   it('gives every non in-memory preset what it needs to connect', () => {
     // The seeder copies these fields onto installed rows, so a preset missing them
     // would migrate a working server into an unconnectable one.

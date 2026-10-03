@@ -69,6 +69,23 @@ describe('getBuiltinHttpHeaders', () => {
     expect(() => getBuiltinHttpHeaders(qveris('   '))).toThrow(/QVERIS_API_KEY/)
   })
 
+  const zonefoundry = (apiKey?: string) =>
+    server({
+      name: BuiltinMcpServerNames.zonefoundry,
+      type: 'streamableHttp',
+      installSource: 'builtin',
+      env: { ZONEFOUNDRY_API_KEY: apiKey ?? '' }
+    })
+
+  it('authenticates ZoneFoundry when an API key is configured', () => {
+    expect(getBuiltinHttpHeaders(zonefoundry('zf-key'))).toEqual({ Authorization: 'Bearer zf-key' })
+  })
+
+  it('leaves ZoneFoundry unauthenticated when no API key is set so OAuth can run', () => {
+    expect(getBuiltinHttpHeaders(zonefoundry())).toEqual({})
+    expect(getBuiltinHttpHeaders(zonefoundry('   '))).toEqual({})
+  })
+
   it('adds nothing for any other server', () => {
     expect(getBuiltinHttpHeaders(server({ name: BuiltinMcpServerNames.flomo, type: 'streamableHttp' }))).toEqual({})
     expect(
