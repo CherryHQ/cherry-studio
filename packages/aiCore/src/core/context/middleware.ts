@@ -13,7 +13,7 @@
 import type { LanguageModelV3Message, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { generateText, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, pruneMessages } from 'ai'
 
-import { fromAISDK, toAISDK } from './adapter'
+import { fromAISDK, repairToolResultNames, toAISDK } from './adapter'
 import { Janitor, summarizeHistory, type SummarizeHistoryOptions } from './janitor'
 import { fromModelMessages } from './modelMessageAdapter'
 import { type TruncateOptions, truncateToolResults } from './truncator'
@@ -193,7 +193,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
-      let { prompt } = params
+      let prompt = repairToolResultNames(params.prompt)
 
       // 1. Truncate large tool results
       if (options.truncate) {
