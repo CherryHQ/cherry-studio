@@ -86,6 +86,19 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects non-merge migration when a nested destination file already exists', async () => {
+    const source = path.join(tempRoot, 'source-notes-nested')
+    const target = path.join(tempRoot, 'target-notes-nested')
+    fs.mkdirSync(path.join(source, 'folder-a'), { recursive: true })
+    fs.mkdirSync(path.join(target, 'folder-a'), { recursive: true })
+    fs.writeFileSync(path.join(source, 'folder-a', 'note-b.md'), '# B')
+    fs.writeFileSync(path.join(target, 'folder-a', 'note-b.md'), 'existing')
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
+    })
+  })
+
   it('merges source notes into a target that already has markdown files', async () => {
     const source = path.join(tempRoot, 'source-notes-3')
     const target = path.join(tempRoot, 'target-notes-3')

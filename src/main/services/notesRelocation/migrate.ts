@@ -198,7 +198,7 @@ export async function migrateNotesDirectory(
     }
   }
 
-  const copyOptions = options.merge ? { skipExistingFiles: true as const } : undefined
+  const copyOptions = options.merge ? { skipExistingFiles: true as const } : { exclusiveFileCopies: true as const }
 
   try {
     for (const entry of entries) {
@@ -266,6 +266,12 @@ export async function migrateNotesDirectory(
     })
     if (error instanceof IpcError) {
       throw error
+    }
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+        'target entry appeared during migration'
+      )
     }
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_FAILED, (error as Error).message)
   }
