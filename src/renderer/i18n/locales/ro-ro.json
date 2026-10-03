@@ -4232,7 +4232,7 @@
   "settings.dependencies.viewErrorDetails": "Vizualizați detaliile",
   "settings.developer.client_id": "ID client",
   "settings.developer.enable_developer_mode": "Activează modul dezvoltator",
-  "settings.developer.help": "După activarea modului dezvoltator, poți folosi funcția de urmărire (trace) pentru a vizualiza fluxul de date în timpul invocării modelului.",
+  "settings.developer.help": "După activarea modului dezvoltator, poți folosi funcția de trace pentru a vizualiza fluxul de date în timpul invocării modelului și pentru a inspecta cererile API din procesul principal în DevTools, panoul Main Network. Modificările intră în vigoare după repornirea aplicației.",
   "settings.developer.title": "Mod dezvoltator",
   "settings.display.custom.css.label": "CSS personalizat",
   "settings.display.custom.css.migration_notice": "Această foaie de stil a fost migrată din v1 și este momentan dezactivată. Adaptați-o pentru v2, apoi eliminați primul rând pentru a o activa.",

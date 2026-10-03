@@ -4232,7 +4232,7 @@
   "settings.dependencies.viewErrorDetails": "Ayrıntıları görüntüle",
   "settings.developer.client_id": "İstemci Kimliği",
   "settings.developer.enable_developer_mode": "Geliştirici Modunu Etkinleştir",
-  "settings.developer.help": "Geliştirici modu etkinleştirildikten sonra, model çağrısı sırasındaki veri akışını görüntülemek için izleme özelliği kullanılabilir. Değişiklikler uygulama yeniden başlatıldıktan sonra geçerli olur.",
+  "settings.developer.help": "Geliştirici modu etkinleştirildikten sonra izleme özelliğiyle model çağrısı sırasındaki veri akışını görüntüleyebilir ve DevTools'taki Main Network panelinde ana süreç API isteklerini inceleyebilirsiniz. Değişiklikler uygulama yeniden başlatıldıktan sonra geçerli olur.",
   "settings.developer.title": "Geliştirici Modu",
   "settings.display.custom.css.label": "Özel CSS",
   "settings.display.custom.css.migration_notice": "Bu stil sayfası v1'den taşındı ve şu anda devre dışı. v2'ye uyarlayın, ardından etkinleştirmek için ilk satırı kaldırın.",
