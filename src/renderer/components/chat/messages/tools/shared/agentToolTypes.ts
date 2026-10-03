@@ -51,6 +51,7 @@ import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -413,7 +414,11 @@ export interface AgentLaunchIndex {
   dshTaskRootCallIds: ReadonlySet<string>
 }
 
-export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMessagePart[]> | null): AgentLaunchIndex {
+export function buildAgentLaunchIndex(
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  /** Task edges that live outside the loaded parts — the runtime's live per-task event cache. */
+  lateTaskEvents: AgentSessionTaskEvents = {}
+): AgentLaunchIndex {
   const toolCallIds = new Set<string>()
   const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()
   const descriptionsByToolCallId = new Map<string, string | undefined>()
@@ -464,6 +469,9 @@ export function buildAgentLaunchIndex(partsByMessageId: Record<string, CherryMes
       if (!agentId || launchesByAgentId.has(agentId)) continue
       launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description })
     }
+  }
+  for (const data of Object.values(lateTaskEvents)) {
+    if (data.toolUseId) taskBoundCallIds.add(data.toolUseId)
   }
   for (const callId of taskBoundCallIds) {
     if (dshResumeCallIds.has(callId)) dshTaskRootCallIds.add(callId)

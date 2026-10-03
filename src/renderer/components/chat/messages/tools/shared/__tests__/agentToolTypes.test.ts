@@ -117,6 +117,22 @@ describe('dsh receipt identities', () => {
     })
   })
 
+  it('takes a dsh task edge from the live cache as a flow root', () => {
+    const parts = { m1: [dshSendMessagePart('call-send')] }
+    const liveEdge = {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress'
+      }
+    } as const
+
+    expect([...buildAgentLaunchIndex(parts, liveEdge).dshTaskRootCallIds]).toEqual(['call-send'])
+    // The binding only lives in the cache here, so the loaded parts alone say nothing.
+    expect(buildAgentLaunchIndex(parts).dshTaskRootCallIds.size).toBe(0)
+  })
+
   it('keeps a send that has not returned yet out of the flow entries', () => {
     // Nothing has resumed while the call is in flight, so the row must stay plain rather than
     // offering a flow whose content cannot exist yet.
@@ -141,6 +157,18 @@ describe('dsh receipt identities', () => {
     ).toEqual({ kind: 'self' })
   })
 })
+
+function dshSendMessagePart(toolCallId: string): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId,
+    toolName: 'send_message',
+    state: 'output-available',
+    input: { agent_id: 'dsh-child-1' },
+    output: 'message delivered to agent dsh-child-1',
+    callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+  } as unknown as CherryMessagePart
+}
 
 function launchPart(toolCallId: string, agentId: string, description: string): CherryMessagePart {
   return {
