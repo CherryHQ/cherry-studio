@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn(),
+  platform: { isLinux: false }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -116,6 +117,12 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
+}))
+
+vi.mock('@main/core/platform', () => ({
+  get isLinux() {
+    return mocks.platform.isLinux
+  }
 }))
 
 const {
@@ -1854,5 +1861,84 @@ describe('deriveConnectionConfig', () => {
       throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+})
+
+describe('Linux session-bus preflight', () => {
+  afterEach(() => {
+    mocks.platform.isLinux = false
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.platform.isLinux = true
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
+    mocks.isRegistryProvider.mockReturnValue(false)
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', contextWindow: 128_000 })
+    mocks.resolveEffectiveEndpoint.mockImplementation(resolveTestEffectiveEndpoint)
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
+    mocks.getApiKeys.mockReturnValue([{ key: 'api-key', isEnabled: true }])
+    mocks.buildSkillWhitelist.mockResolvedValue([])
+    mocks.findChannelBySessionId.mockReturnValue(null)
+    mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
+    mocks.preferenceGet.mockReturnValue(undefined)
+    mocks.getProxyEnvironment.mockReturnValue({})
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([])
+  })
+
+  it('fails fast with an actionable error when Linux has no session bus', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin' } })
+
+    const error = await buildClaudeCodeQueryRequestForAgentSession('session-1').then(
+      () => null,
+      (failure: unknown) => failure
+    )
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('ClaudeCodeLinuxSessionBusUnavailableError')
+    expect((error as Error).message).toContain('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('builds the request when Linux provides a session bus', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({
+      env: { PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({ DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus' })
+  })
+
+  it('rejects a whitespace-only session bus on Linux', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin', DBUS_SESSION_BUS_ADDRESS: ' ' } })
+
+    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toThrow('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('ignores a missing session bus outside Linux', async () => {
+    mocks.platform.isLinux = false
+    mocks.buildSessionSettings.mockResolvedValue({ env: { PATH: '/usr/bin' } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request).toBeDefined()
   })
 })
