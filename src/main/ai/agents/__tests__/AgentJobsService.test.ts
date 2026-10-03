@@ -512,6 +512,32 @@ describe('AgentJobsService', () => {
       expect(getIntervalEntry(task.id)).toBe(originalEntry)
     })
 
+    it('refreshes session source projections after a task rename commits', () => {
+      const task = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled session',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        { taskId: task.id }
+      )
+      notifyDataApiDataChangeMock.mockClear()
+
+      service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+
+      expect(agentSessionService.getById(session.id).source).toMatchObject({
+        kind: 'scheduled-task',
+        taskName: 'renamed'
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+    })
+
     it('re-arms the timer after commit when the trigger actually changed', () => {
       const task = service.createTask(AGENT_ID, form)
       const originalEntry = getIntervalEntry(task.id)
@@ -832,12 +858,28 @@ describe('AgentJobsService', () => {
     it('delete removes the row, cascades the subscriptions, and disposes the timer', async () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
       const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+      const session = agentSessionService.create(
+        {
+          agentId: AGENT_ID,
+          name: 'Scheduled session',
+          workspace: { type: 'system' }
+        },
+        'conversation',
+        { taskId: task.id }
+      )
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(await service.deleteTask(AGENT_ID, task.id)).toBe(true)
 
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(0)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+      expect(agentSessionService.getById(session.id).source).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
     })
 
     it('deletes every Agent task through JobManager while preserving other agents tasks', async () => {
@@ -864,6 +906,11 @@ describe('AgentJobsService', () => {
       // bad-workspace row armed on a deleted agent until the next restart.
       seedAgent(OTHER_AGENT_ID)
       const own = service.createTask(AGENT_ID, form)
+      const session = agentSessionService.create(
+        { agentId: AGENT_ID, name: 'Historical task run', workspace: { type: 'system' } },
+        'conversation',
+        { taskId: own.id }
+      )
       const malformed = jobManager.registerJobSchedule({
         type: 'agent.task',
         name: 'task_malformed_template',
@@ -873,10 +920,17 @@ describe('AgentJobsService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
+      notifyDataApiDataChangeMock.mockClear()
       expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
 
       expect(jobScheduleService.getById(own.id)).toBeNull()
       expect(jobScheduleService.getById(malformed.id)).toBeNull()
+      expect(agentSessionService.getById(session.id).source).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection' },
+        { endpoint: '/agent-sessions/:sessionId' },
+        { endpoint: '/agent-sessions/latest' }
+      ])
     })
 
     it('rolls back the Agent, schedules and workspace together before retrying a failed deletion', async () => {

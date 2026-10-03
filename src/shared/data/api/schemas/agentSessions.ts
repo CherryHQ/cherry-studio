@@ -8,6 +8,7 @@ import { TraceIdSchema } from '@shared/data/types/trace'
 
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentChannelTypeSchema } from './agentChannels'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
@@ -25,6 +26,22 @@ import {
  */
 export const SessionNameEntitySchema = z.string().max(255)
 
+export const AgentSessionSourceSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('scheduled-task'),
+    taskId: z.string(),
+    taskName: z.string()
+  }),
+  z.strictObject({
+    kind: z.literal('channel'),
+    channelId: z.string(),
+    channelName: z.string(),
+    channelType: AgentChannelTypeSchema,
+    conversationId: z.string().nullable()
+  })
+])
+export type AgentSessionSource = z.infer<typeof AgentSessionSourceSchema>
+
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
@@ -34,6 +51,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
+  source: AgentSessionSourceSchema.optional(),
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),

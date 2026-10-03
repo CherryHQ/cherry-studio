@@ -283,6 +283,7 @@ export class AgentJobsService extends BaseService {
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
+    const nameChanged = patch.name !== undefined && patch.name !== existing.name
     this.assertPromptNotReserved(patch.prompt)
     this.assertNameNotReserved(patch.name)
     if (patch.channelIds !== undefined) {
@@ -352,6 +353,7 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
+    if (nameChanged) agentSessionService.notifySourceProjectionChange()
     if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
       agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
@@ -394,6 +396,7 @@ export class AgentJobsService extends BaseService {
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
     const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
     if (deleted) {
+      agentSessionService.notifySourceProjectionChange()
       agentTaskService.notifyReadModelChange([taskId], 'membership')
       logger.info('Task deleted', { taskId, agentId })
     }
@@ -414,6 +417,7 @@ export class AgentJobsService extends BaseService {
       reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
       return scheduleIds
     })
+    if (ids.length > 0) agentSessionService.notifySourceProjectionChange()
     for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
     agentTaskService.notifyReadModelChange(ids, 'membership')
     return ids.length
