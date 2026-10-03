@@ -353,6 +353,18 @@ const createStats = (type: 'directory' | 'file' | 'symlink', size = 0) => ({
   isSymbolicLink: () => type === 'symlink'
 })
 
+// Runs `fn` with a temporarily overridden `process.platform`, so platform-gated
+// behavior is deterministic regardless of the OS running the suite.
+const withPlatform = async <T>(platform: NodeJS.Platform, fn: () => Promise<T>): Promise<T> => {
+  const originalPlatform = process.platform
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+  }
+}
+
 describe('BackupManager direct v2 data compatibility', () => {
   let backupManager: BackupManager
   const metadata = {
@@ -996,7 +1008,7 @@ describe('BackupManager direct v2 data compatibility', () => {
   it('commits one crash-safe restore journal without relaunching inside staging', async () => {
     arrangeDirectRestore()
 
-    await (backupManager as any).restoreDirect('/extract')
+    await withPlatform('linux', () => (backupManager as any).restoreDirect('/extract'))
 
     expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1030,6 +1042,23 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).not.toHaveBeenCalled()
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('skips only Local Storage on Windows so promotion never renames the locked directory', async () => {
+    arrangeDirectRestore()
+
+    await withPlatform('win32', () => (backupManager as any).restoreDirect('/extract'))
+
+    const journal = mockWriteRestoreJournal.mock.calls[0][0]
+    const livePaths = journal.fileResources.map((resource: { livePath: string }) => resource.livePath)
+    expect(livePaths).toContain('cache.json')
+    expect(livePaths).toContain('IndexedDB')
+    expect(livePaths).not.toContain('Local Storage')
+    expect((backupManager as any).stageArchiveDirectory).toHaveBeenCalledWith('/extract/IndexedDB', expect.anything())
+    expect((backupManager as any).stageArchiveDirectory).not.toHaveBeenCalledWith(
+      '/extract/Local Storage',
+      expect.anything()
+    )
   })
 
   it('hardens the direct-restore staging root with owner-only permissions', async () => {

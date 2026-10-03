@@ -959,10 +959,24 @@ class BackupManager {
     try {
       const metadata = await this.readDirectBackupMetadata(extractionDir)
       const isSlimBackup = !metadata.resources.indexedDB && !metadata.resources.localStorage
+      // Windows holds the live `Local Storage` LevelDB open (Chromium session
+      // state), so the promotion's aside-first rename of that directory fails
+      // with EPERM. File entries are applied AFTER the DB commit point, so that
+      // failure would roll the entire restore back. `Local Storage` carries only
+      // disposable Chromium UI/session state (v2 keeps real data in SQLite), so
+      // on Windows we leave the live copy untouched and restore everything else,
+      // including IndexedDB (which is not held open at preboot and renames fine).
+      const restoreLocalStorage = process.platform !== 'win32'
 
       if (metadata.platform && metadata.platform !== process.platform) {
         logger.warn(
           `[restoreDirect] Cross-platform restore: backup from ${metadata.platform}, current is ${process.platform}`
+        )
+      }
+
+      if (!restoreLocalStorage && metadata.resources.localStorage) {
+        logger.warn(
+          '[restoreDirect] Windows: leaving the live Local Storage in place — it is held open by the Chromium session and cannot be safely replaced'
         )
       }
 
@@ -981,7 +995,7 @@ class BackupManager {
       if (metadata.resources.indexedDB) {
         await this.stageArchiveDirectory(path.join(extractionDir, 'IndexedDB'), stagedIndexedDB)
       }
-      if (metadata.resources.localStorage) {
+      if (metadata.resources.localStorage && restoreLocalStorage) {
         await this.stageArchiveDirectory(path.join(extractionDir, 'Local Storage'), stagedLocalStorage)
       }
 
@@ -1058,7 +1072,7 @@ class BackupManager {
           })
         )
       }
-      if (metadata.resources.localStorage) {
+      if (metadata.resources.localStorage && restoreLocalStorage) {
         fileResources.push(
           await this.createJournalResource({
             restoreDir,
