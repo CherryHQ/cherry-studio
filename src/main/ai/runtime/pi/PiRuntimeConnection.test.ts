@@ -1538,6 +1538,34 @@ describe('PiRuntimeConnection', () => {
     expect(done).toBe(true)
   })
 
+  it('a repeated close() joins the in-flight teardown instead of resolving early', async () => {
+    let resolveAbort!: () => void
+    mocks.abort.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveAbort = resolve)))
+    const conn = await new PiRuntimeConnection(input).start()
+
+    const closing = conn.close()
+    const repeated = conn.close()
+    let repeatedSettled = false
+    void repeated.then(
+      () => {
+        repeatedSettled = true
+      },
+      () => {
+        repeatedSettled = true
+      }
+    )
+    // Flush microtasks: an early-returning repeat close would have settled by now,
+    // while teardown (session.abort) is still held open.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(repeatedSettled).toBe(false)
+
+    resolveAbort()
+    await Promise.all([closing, repeated])
+    expect(mocks.dispose).toHaveBeenCalledOnce()
+    expect(mocks.closeMcpBridge).toHaveBeenCalledOnce()
+  })
+
   it('does not emit provider usage after close starts', async () => {
     let resolveProviderResult!: (value: typeof mocks.providerResult) => void
     mocks.providerStreamSimple.mockImplementationOnce(() => ({

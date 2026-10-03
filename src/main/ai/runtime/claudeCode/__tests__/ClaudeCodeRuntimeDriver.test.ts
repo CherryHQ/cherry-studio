@@ -777,6 +777,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
   })
 
+  it('interrupts a live turn gracefully and leaves the subprocess running', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => undefined),
+      close: vi.fn(),
+      return: vi.fn(async () => undefined)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+
+    const aborting = connection.abortTurn!()
+    // The CLI answers the interrupt by ending the turn with its interrupt-truncated result.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'session-1' })
+    await expect(aborting).resolves.toBe(true)
+
+    expect(query.interrupt).toHaveBeenCalledOnce()
+    // Graceful: the subprocess survives — no teardown and the shared abort signal stays clean.
+    expect(query.close).not.toHaveBeenCalled()
+    expect(query.return).not.toHaveBeenCalled()
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.abortController.signal.aborted).toBe(false)
+
+    // The session teardown path is untouched by the graceful turn stop.
+    await connection.close()
+    expect(query.close).toHaveBeenCalledOnce()
+  })
+
   it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
     vi.useFakeTimers()
     try {
@@ -813,6 +845,83 @@ describe('ClaudeCodeRuntimeDriver', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('hands the fallback decision back to the host when the interrupt is not acknowledged in time', async () => {
+    vi.useFakeTimers()
+    try {
+      const queryQueue = createAsyncQueue<any>()
+      // A CLI still booting never answers the interrupt control request.
+      const query = {
+        ...queryQueue.iterable,
+        interrupt: vi.fn(() => new Promise<void>(() => {})),
+        close: vi.fn(),
+        return: vi.fn(async () => undefined)
+      }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      await connection.send({ message: userMessage() })
+
+      const aborting = connection.abortTurn!()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(aborting).resolves.toBe(false)
+
+      expect(query.interrupt).toHaveBeenCalledOnce()
+      expect(query.close).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports a rejected interrupt so the host tears the session down', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(async () => {
+        throw new Error('awaitControlResponse: CLI error verdict')
+      }),
+      close: vi.fn(),
+      return: vi.fn(async () => undefined)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+
+    await expect(connection.abortTurn!()).resolves.toBe(false)
+    expect(query.interrupt).toHaveBeenCalledOnce()
+    expect(query.close).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('reports success when a stop lands on a warm connection with no active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => undefined)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    // A re-dispatched user stop finds the turn already gone: there is nothing to interrupt, and
+    // declining here would fall back to the teardown of a runtime a prior stop preserved.
+    await expect(connection.abortTurn!()).resolves.toBe(true)
+    expect(query.interrupt).not.toHaveBeenCalled()
+    expect(query.close).not.toHaveBeenCalled()
+    void connection.close()
   })
 
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {

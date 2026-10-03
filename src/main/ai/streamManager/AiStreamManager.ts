@@ -39,7 +39,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
+import { USER_STOP_ABORT_REASON, extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -1235,14 +1235,25 @@ export class AiStreamManager extends BaseService {
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
+      // Bind the stop to the turn being drained: terminal handling can admit a queued successor
+      // while this lock is held, and the driver cancel is identity-free.
+      const stoppedTurnId = isAgentSessionTopic(topicId)
+        ? application.get('AgentSessionRuntimeService').getLiveTurnId(extractAgentSessionId(topicId))
+        : undefined
 
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
 
       if (isAgentSessionTopic(topicId)) {
-        const runtimeClosing = application
-          .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+        const runtime = application.get('AgentSessionRuntimeService')
+        const sessionId = extractAgentSessionId(topicId)
+        // A UI Stop gives the runtime a chance to gracefully interrupt the turn — the SDK
+        // subprocess (background tasks, subagents) survives — falling back to the session teardown
+        // when the driver cannot. Every other drain reason tears the session down outright.
+        const runtimeClosing =
+          reason === USER_STOP_ABORT_REASON
+            ? runtime.handleUserStop(sessionId, stoppedTurnId)
+            : runtime.closeSession(sessionId)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1259,9 +1270,9 @@ export class AiStreamManager extends BaseService {
           }
         }
 
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
         await runtimeClosing
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
       }
     })
   }
