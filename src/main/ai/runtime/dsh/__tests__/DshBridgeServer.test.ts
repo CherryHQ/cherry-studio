@@ -181,6 +181,79 @@ describe('DshBridgeServer authentication gate', () => {
 })
 
 describe('DshBridgeServer', () => {
+  it.each([undefined, 60_000])(
+    'abandons a cancelled fork flush without closing the connection (timeout %s)',
+    async (timeoutMs) => {
+      const harness = await makeHarness()
+      const controller = new AbortController()
+      const reason = new Error('fork cancelled')
+      const params = { sessionId: SESSION_ID }
+      const pending = harness.server.request('session/flush', params, { timeoutMs, signal: controller.signal })
+      let failure: unknown
+      const settled = pending.catch((error) => {
+        failure = error
+      })
+      const late = await harness.nextRequest()
+      try {
+        controller.abort(reason)
+        await vi.waitFor(() => expect(failure).toBe(reason))
+        late.respond({})
+        const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+        ;(await harness.nextRequest()).respond({})
+        await expect(retry).resolves.toEqual({})
+        expect(harness.socket.destroyed).toBe(false)
+      } finally {
+        late.respond({})
+        await settled
+      }
+    }
+  )
+
+  it('does not dispatch a flush whose signal is already aborted', async () => {
+    const harness = await makeHarness()
+    const reason = new Error('already cancelled')
+    const pending = harness.server.request(
+      'session/flush',
+      { sessionId: SESSION_ID },
+      {
+        signal: AbortSignal.abort(reason),
+        timeoutMs: 60_000
+      }
+    )
+    const failed = pending.catch((error) => error)
+    const retry = harness.server.request('session/flush', { sessionId: 'retry-session' }, { timeoutMs: 2_000 })
+    const retried = retry.catch((error) => error)
+    const request = await harness.nextRequest()
+    try {
+      expect(request.params.sessionId).toBe('retry-session')
+      request.respond({})
+      await expect(failed).resolves.toBe(reason)
+      await expect(retried).resolves.toEqual({})
+    } finally {
+      await harness.server.close()
+      await Promise.all([failed, retried])
+    }
+  })
+
+  it('times out an unanswered fork flush and still accepts a subsequent request', async () => {
+    const harness = await makeHarness()
+    const controller = new AbortController()
+    const params = { sessionId: SESSION_ID }
+    const pending = harness.server.request('session/flush', params, {
+      timeoutMs: 100,
+      signal: controller.signal
+    })
+    const failed = expect(pending).rejects.toThrow('session/flush timed out after 100ms')
+    const late = await harness.nextRequest()
+    await failed
+    late.respond({})
+    const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+    ;(await harness.nextRequest()).respond({})
+    await expect(retry).resolves.toEqual({})
+    expect(harness.socket.destroyed).toBe(false)
+    expect(controller.signal.aborted).toBe(false)
+  })
+
   it('round-trips a context usage query and surfaces error responses', async () => {
     const harness = await makeHarness()
     const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })

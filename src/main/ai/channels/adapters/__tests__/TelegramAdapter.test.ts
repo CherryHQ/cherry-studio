@@ -6,11 +6,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Mock registerAdapterFactory to capture the factory function
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 const mockBot = {
   use: vi.fn(),
   command: vi.fn(),
@@ -41,17 +36,9 @@ vi.mock('grammy', () => {
   }
 })
 
-// Import the module to trigger self-registration side effect
-import '../telegram/TelegramAdapter'
 import { InputFile } from 'grammy'
 
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls[0]
-  if (!call) throw new Error('registerAdapterFactory was not called')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createTelegramAdapter } from '../telegram/TelegramAdapter'
 
 describe('TelegramAdapter', () => {
   beforeEach(() => {
@@ -72,20 +59,16 @@ describe('TelegramAdapter', () => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'telegram',
-        enabled: true,
-        config: {
-          bot_token: (overrides.bot_token as string) ?? 'test-token',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['123']
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createTelegramAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'telegram',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        bot_token: (overrides.bot_token as string) ?? 'test-token',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['123']
+      }
+    })
   }
 
   it('connect() registers middleware, commands, message handler, and starts polling', async () => {

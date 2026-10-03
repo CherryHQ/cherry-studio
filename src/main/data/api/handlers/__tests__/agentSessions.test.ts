@@ -4,6 +4,7 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
+  getConversationByIdMock,
   getLatestActiveMock,
   updateMock,
   setWorkspaceMock,
@@ -13,6 +14,7 @@ const {
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
+  getConversationByIdMock: vi.fn(),
   getLatestActiveMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
+    getConversationById: getConversationByIdMock,
     getLatestActive: getLatestActiveMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
@@ -38,6 +41,8 @@ import { agentSessionHandlers } from '../agentSessions'
 describe('agentSessionHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // `getConversationById` is synchronous; scope violations throw inline.
+    getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions', () => {
@@ -95,6 +100,18 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions/:sessionId', () => {
+    it('reads through the conversation scope so background sessions 404 by id', async () => {
+      const session = { id: 'session-1' }
+      getConversationByIdMock.mockResolvedValueOnce(session)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].GET({ params: { sessionId: 'session-1' } })
+      ).resolves.toBe(session)
+
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
+      expect(getByIdMock).not.toHaveBeenCalled()
+    })
+
     it('forwards manual-name marker updates to AgentSessionService', async () => {
       const response = { id: 'session-1', name: 'Renamed session', isNameManuallyEdited: true }
       updateMock.mockResolvedValueOnce(response)
@@ -107,11 +124,27 @@ describe('agentSessionHandlers', () => {
         }
       })
 
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
       expect(updateMock).toHaveBeenCalledWith('session-1', {
         name: 'Renamed session',
         isNameManuallyEdited: true
       })
       expect(result).toBe(response)
+    })
+
+    it('rejects a mutation for a session outside the conversation scope before touching it', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].PATCH({
+          params: { sessionId: 'session-bg' },
+          body: { name: 'Renamed' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(updateMock).not.toHaveBeenCalled()
     })
   })
 
@@ -128,11 +161,27 @@ describe('agentSessionHandlers', () => {
         }
       } as never)
 
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
       expect(setWorkspaceMock).toHaveBeenCalledWith('session-1', {
         type: 'user',
         workspaceId: 'workspace-1'
       })
       expect(result).toBe(response)
+    })
+
+    it('rejects an out-of-scope session before validating the body', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+          params: { sessionId: 'session-bg' },
+          body: { type: 'nonsense' }
+        } as never)
+      ).rejects.toThrow('not found')
+
+      expect(setWorkspaceMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid workspace body before calling the service', async () => {
@@ -146,6 +195,68 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(setWorkspaceMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-sessions/:id/order', () => {
+    it('scopes the session, then forwards the parsed anchor to reorder', async () => {
+      await agentSessionHandlers['/agent-sessions/:id/order'].PATCH({
+        params: { id: 'session-1' },
+        body: { after: 'session-2' }
+      })
+
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
+      expect(reorderMock).toHaveBeenCalledWith('session-1', { after: 'session-2' })
+    })
+
+    it('rejects an out-of-scope session before reordering', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:id/order'].PATCH({
+          params: { id: 'session-bg' },
+          body: { after: 'session-2' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-sessions/order:batch', () => {
+    it('scopes every moved session, then forwards the moves to reorderBatch', async () => {
+      const moves = [
+        { id: 'session-1', anchor: { after: 'session-2' } },
+        { id: 'session-3', anchor: { before: 'session-2' } }
+      ]
+
+      await agentSessionHandlers['/agent-sessions/order:batch'].PATCH({ body: { moves } })
+
+      expect(getConversationByIdMock).toHaveBeenCalledTimes(2)
+      expect(getConversationByIdMock).toHaveBeenNthCalledWith(1, 'session-1')
+      expect(getConversationByIdMock).toHaveBeenNthCalledWith(2, 'session-3')
+      expect(reorderBatchMock).toHaveBeenCalledWith(moves)
+    })
+
+    it('rejects when any moved session is out of scope and reorders nothing', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/order:batch'].PATCH({
+          body: {
+            moves: [
+              { id: 'session-1', anchor: { after: 'session-2' } },
+              { id: 'session-bg', anchor: { after: 'session-2' } }
+            ]
+          }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderBatchMock).not.toHaveBeenCalled()
     })
   })
 })

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
 import { loggerService } from '@logger'
+import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import {
   type CloseConversationTabs,
@@ -683,7 +684,10 @@ export function TabsProvider({
 
   return (
     <CloseConversationTabsContext value={closeConversationTabs}>
-      <TabsContext value={value}>{children}</TabsContext>
+      <TabsContext value={value}>
+        {children}
+        <AgentBrowserRuntimeHost />
+      </TabsContext>
     </CloseConversationTabsContext>
   )
 }

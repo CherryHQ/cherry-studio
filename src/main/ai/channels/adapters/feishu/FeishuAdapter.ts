@@ -9,7 +9,6 @@ import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
@@ -576,11 +575,8 @@ class FeishuAdapter extends ChannelAdapter {
   }
 }
 
-registerAdapterFactory('feishu', (channel, agentId) => {
+export function createFeishuAdapter(config: ChannelAdapterConfig<'feishu'>) {
   return new FeishuAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}
