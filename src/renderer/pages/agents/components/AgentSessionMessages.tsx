@@ -3,13 +3,18 @@ import { memo, useEffect, useMemo } from 'react'
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import {
+  AgentLaunchIndexProvider,
+  AskUserQuestionOptimisticInputProvider
+} from '@renderer/components/chat/messages/tools/agent'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
@@ -171,11 +176,21 @@ const AgentSessionMessages = ({
     }
   }, [sessionId])
 
+  // A resume edge can live only in the runtime's live task-event cache; the index decides whether
+  // a receipt roots its own flow, so it has to see those edges too.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
-      <MessageListProvider value={messageList}>
-        <MessageList enableSearch />
-      </MessageListProvider>
+      <AgentLaunchIndexProvider
+        value={useMemo(
+          () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
+          [lateTaskEvents, partsByMessageId]
+        )}>
+        <MessageListProvider value={messageList}>
+          <MessageList enableSearch />
+        </MessageListProvider>
+      </AgentLaunchIndexProvider>
     </AskUserQuestionOptimisticInputProvider>
   )
 }

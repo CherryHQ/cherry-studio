@@ -46,10 +46,16 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { isDeferredToolOutput } from '@shared/ai/transport'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { getPartParentToolCallId } from '../toolParentMetadata'
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
 export const AgentToolsType = {
@@ -282,7 +288,285 @@ export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
-export type SendMessageToolOutput = string
+/** A receipt, in whichever shape the runtime delivers it: text, a resume payload, or a queued pin. */
+export type SendMessageToolOutput =
+  | string
+  | {
+      resumedAgentId?: string
+      subagent_id?: string
+      pin?: { id?: string } & Record<string, unknown>
+      messageId?: string
+    }
+
+/** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
+ *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */
+export function getResumedAgentId(output: unknown): string | undefined {
+  if (typeof output === 'string') {
+    // dsh acknowledges a delivered message with exactly this line, echoing the target it woke.
+    // The whole output must be that line — a child's own prose must not name a target — and the id
+    // is read as an id, so trailing punctuation cannot ride along as part of the target.
+    const dshAck = /^message delivered to agent[ \t]+([A-Za-z0-9_-]+)$/.exec(output.trim())?.[1]
+    if (dshAck) return dshAck
+    // A JSON receipt is the whole output — both adapters parse all-text results — so prose that
+    // merely quotes a receipt-shaped fragment must not register as a continuation.
+    const parsed = parseReceiptText(output)
+    return parsed ? getResumedAgentId(parsed) : undefined
+  }
+  if (output && typeof output === 'object') {
+    const record = output as { resumedAgentId?: unknown; pin?: unknown; subagent_id?: unknown }
+    if (typeof record.resumedAgentId === 'string') return record.resumedAgentId
+    // dsh's send_message result names the woken child this way.
+    if (typeof record.subagent_id === 'string') return record.subagent_id
+    if (record.pin && typeof record.pin === 'object' && typeof (record.pin as { id?: unknown }).id === 'string') {
+      return (record.pin as { id: string }).id
+    }
+  }
+  return undefined
+}
+
+/** A receipt delivered as JSON text — the whole output has to parse, not just a fragment of it. */
+function parseReceiptText(output: string): Record<string, unknown> | undefined {
+  const text = output.trim()
+  if (!text.startsWith('{') || !text.endsWith('}')) return undefined
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecord(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Resolve a SendMessage receipt back to the agent run it continues: the resumed agent keeps
+ * streaming under its launch tool-call id, so entries must point at that launch. Returns the
+ * launch's toolCallId and description (which doubles as the agent's identity).
+ */
+/** The launched agent id a launch receipt reports — the text trailer or a structured field. */
+export function extractLaunchReceiptId(output: unknown): string | undefined {
+  if (typeof output === 'string') {
+    // dsh acknowledges a continuable launch with exactly `started subagent <childId>` and no other
+    // prose; the whole output must match, or a child's own answer naming the phrase would register.
+    const dshLaunch = /^started subagent[ \t]+([A-Za-z0-9_-]+)$/.exec(output.trim())?.[1]
+    if (dshLaunch) return dshLaunch
+    // The id trailer alone is spoofable, and so is a trailer that merely appears somewhere after the
+    // prefix: a foreground launch's result is the child's own answer, and prose that quotes an id
+    // must not bind the flow to it. Every real receipt opens with the SDK's launch prefix and names
+    // the id in the same breath — on the same line, or on the next one (`Internal id:` before
+    // `output_file` on older receipts) — so one adjacency-anchored grammar reads them all.
+    return /^(?:Async agent launched successfully\.?|done\.)\s*(?:\r?\n\s*)?(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(
+      output.trim()
+    )?.[1]
+  }
+  if (isRecord(output)) {
+    // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools);
+    // dsh names its children subagentId or subagent_id.
+    const agentId = output.agentId ?? output.agent_id ?? output.subagentId ?? output.subagent_id ?? output.taskId
+    return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined
+  }
+  return undefined
+}
+
+/** dsh's own name for the receipt that resumes a child; other runtimes spell it `SendMessage`. */
+const DSH_SEND_MESSAGE_TOOL_NAME = 'send_message'
+const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
+
+/** The runtime that produced a part, as the transport its adapter stamped onto the call. */
+function getCherryTransport(part: unknown): string | undefined {
+  const metadata = (part as { callProviderMetadata?: unknown } | null)?.callProviderMetadata
+  if (!isRecord(metadata) || !isRecord(metadata.cherry)) return undefined
+  const transport = metadata.cherry.transport
+  return typeof transport === 'string' ? transport : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * The identity a tool call's own input describes — the one grammar behind both a continuation
+ * label and the flow title it opens, so the same agent can never read two different names.
+ */
+export function getAgentToolInputIdentity(input: unknown): string | undefined {
+  if (typeof input === 'string') return input.trim() || undefined
+  if (!isRecord(input)) return undefined
+  // A blank field must fall through to the next spelling, or the identity renders empty.
+  for (const key of ['description', 'subject', 'title', 'name', 'summary', 'message']) {
+    const value = input[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  if (typeof input.prompt !== 'string') return undefined
+  return input.prompt
+    .split(/\r?\n/)
+    .find((line) => line.trim())
+    ?.trim()
+}
+
+function getLaunchDescription(input: unknown): string | undefined {
+  return getAgentToolInputIdentity(input)
+}
+
+/**
+ * Launch-identity index over a parts map, built once per map version by the list-level provider.
+ * Consumers look up in O(1) instead of re-scanning the transcript during streaming.
+ */
+export interface AgentLaunchIndex {
+  /** Agent/Task tool-call ids present in the map — stamped navigation must stay within them. */
+  toolCallIds: ReadonlySet<string>
+  /** Earliest launch identity per agent id, mirroring `resolveResumedAgent`'s first-wins walk. */
+  launchesByAgentId: ReadonlyMap<string, { toolCallId: string; description?: string }>
+  /** Launch call id → the identity its own input describes, so a target and its label stay paired. */
+  descriptionsByToolCallId: ReadonlyMap<string, string | undefined>
+  /**
+   * Tool-call ids that a part is parented under, i.e. calls whose content streams under them. A
+   * cold-resumed child streams under its own `send_message` call, which is therefore a flow root.
+   */
+  childRootCallIds: ReadonlySet<string>
+  /**
+   * Call ids the dsh runtime bound a task to. A cold-resumed child's task names the `send_message`
+   * call that resumed it and its content streams under that call, so the call roots a flow of its
+   * own even before any of that content arrives. Claude task edges can name a resuming call without
+   * owning its content, so only dsh's own binding is trusted here.
+   */
+  dshTaskRootCallIds: ReadonlySet<string>
+}
+
+/** Shared default so every no-argument call reads the same identity and hits the cache below. */
+const EMPTY_TASK_EVENTS: AgentSessionTaskEvents = {}
+const launchIndexCache = new WeakMap<object, { events: AgentSessionTaskEvents; index: AgentLaunchIndex }>()
+
+/**
+ * Build (or reuse) the launch index for a parts map. The list and the pane both index the same map
+ * with the same live-task snapshot, and both memos recompute per parts version, so the second call
+ * is answered from the first.
+ */
+export function buildAgentLaunchIndex(
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  /** Task edges that live outside the loaded parts — the runtime's live per-task event cache. */
+  lateTaskEvents: AgentSessionTaskEvents = EMPTY_TASK_EVENTS
+): AgentLaunchIndex {
+  if (partsByMessageId) {
+    const cached = launchIndexCache.get(partsByMessageId)
+    if (cached && cached.events === lateTaskEvents) return cached.index
+  }
+  const index = computeAgentLaunchIndex(partsByMessageId, lateTaskEvents)
+  if (partsByMessageId) launchIndexCache.set(partsByMessageId, { events: lateTaskEvents, index })
+  return index
+}
+
+function computeAgentLaunchIndex(
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  lateTaskEvents: AgentSessionTaskEvents
+): AgentLaunchIndex {
+  const toolCallIds = new Set<string>()
+  const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()
+  const descriptionsByToolCallId = new Map<string, string | undefined>()
+  const childRootCallIds = new Set<string>()
+  const taskBoundCallIds = new Set<string>()
+  const dshResumeCallIds = new Set<string>()
+  const dshTaskRootCallIds = new Set<string>()
+  if (!partsByMessageId)
+    return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
+  for (const parts of Object.values(partsByMessageId)) {
+    for (const part of parts) {
+      const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
+      // Task events are data parts, so the call a task is bound to is read before the tool-part gate.
+      if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
+        if (part.data.toolUseId) taskBoundCallIds.add(part.data.toolUseId)
+        continue
+      }
+      // Child content is text and reasoning parts, not tool parts, so the parent link is read
+      // before the tool-part gate below.
+      const parentToolCallId = getPartParentToolCallId(part)
+      if (parentToolCallId) childRootCallIds.add(parentToolCallId)
+      // A persisted static tool part carries its name in the part type, not in a `toolName` field,
+      // so the name comes from the SDK helper that understands both shapes.
+      const toolPart = part as unknown as Parameters<typeof getToolName>[0]
+      if (!isToolUIPart(toolPart)) continue
+      const toolName = getToolName(toolPart).trim()
+      if (toolName === DSH_SEND_MESSAGE_TOOL_NAME && getCherryTransport(part) === DSH_TRANSPORT) {
+        if (typeof record.toolCallId === 'string') dshResumeCallIds.add(record.toolCallId)
+      }
+      // DSH launches under its own tool names, so the wire name is matched alongside the shared
+      // ones rather than through a canonicalising import, which would cycle back into this module.
+      if (
+        toolName !== AgentToolsType.Agent &&
+        toolName !== AgentToolsType.Task &&
+        toolName !== AgentToolsType.Workflow &&
+        toolName !== 'subagent' &&
+        toolName !== 'subagent_fork'
+      )
+        continue
+      if (typeof record.toolCallId !== 'string') continue
+      toolCallIds.add(record.toolCallId)
+      const description = getLaunchDescription(record.input)
+      if (!descriptionsByToolCallId.has(record.toolCallId)) descriptionsByToolCallId.set(record.toolCallId, description)
+      // First registration wins, mirroring the task-row binding: the launch receipt is the earliest
+      // part that can reference this id, and later mentions (a quote inside another part's output)
+      // must not redirect the entry.
+      const agentId = extractLaunchReceiptId(record.output)
+      if (!agentId || launchesByAgentId.has(agentId)) continue
+      launchesByAgentId.set(agentId, { toolCallId: record.toolCallId, description })
+    }
+  }
+  for (const data of Object.values(lateTaskEvents)) {
+    if (data.toolUseId) taskBoundCallIds.add(data.toolUseId)
+  }
+  for (const callId of taskBoundCallIds) {
+    if (dshResumeCallIds.has(callId)) dshTaskRootCallIds.add(callId)
+  }
+  return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
+}
+
+/**
+ * How a `SendMessage` receipt reads: nothing special, a label with no destination, or a label that
+ * navigates to the launch root. One decision drives both the label and the click, so they can never
+ * disagree; a host that mounts no launch index (image capture, export) offers no navigation and
+ * keeps the truthful label, while a host that offers navigation degrades an unresolvable receipt to
+ * a plain tool row.
+ */
+export type ResumeReceiptState =
+  | { kind: 'none' }
+  | { kind: 'labelled' }
+  /**
+   * A receipt that owns its own flow: nothing in the loaded window says where it resumed from — no
+   * identity in the output, no adapter stamp — so its own call is the root and its own result (a
+   * foreground answer, or a deferred one once hydrated) is the flow's content.
+   */
+  | { kind: 'self' }
+  | { kind: 'navigable'; toolCallId: string; description?: string }
+
+export function resolveResumeReceiptState(
+  output: unknown,
+  launchToolCallId: string | undefined,
+  launchIndex: AgentLaunchIndex | null,
+  canNavigate: boolean
+): ResumeReceiptState {
+  // No result yet: the send is still in flight, so nothing has resumed and the row stays plain.
+  if (output === undefined || output === null) return { kind: 'none' }
+  // A large receipt is the resumed run's answer, not an edge — a delivery receipt is a few fields —
+  // and only the receipt's own call can hydrate it (the pane hydrates the selected call's result),
+  // so redirecting it to a launch root would leave that answer unhydrated.
+  if (isDeferredToolOutput(output)) return canNavigate ? { kind: 'self' } : { kind: 'labelled' }
+  const resumedAgentId = getResumedAgentId(output)
+  const launch = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
+  // The stamp resolves without scanning, but it must land inside the loaded window — a paged-out
+  // launch root would open an empty flow pane. When the output carries no identity (a receipt
+  // whose result is still a deferred envelope) the stamp is the only correlation there is.
+  const stamped = launchToolCallId && launchIndex?.toolCallIds.has(launchToolCallId) ? launchToolCallId : undefined
+  const toolCallId = stamped ?? launch?.toolCallId
+  if (toolCallId) {
+    // The label comes from the same launch as the target: a stale stamp must not pair one launch's
+    // id with another's description.
+    return { kind: 'navigable', toolCallId, description: launchIndex?.descriptionsByToolCallId.get(toolCallId) }
+  }
+  // Nothing names where this receipt resumed from, so it is the flow: redirecting it to a launch
+  // root would show that launch's flow, which may hold none of this receipt's content.
+  if (!resumedAgentId && !launchToolCallId) return canNavigate ? { kind: 'self' } : { kind: 'labelled' }
+  if (!resumedAgentId) return { kind: 'none' }
+  // Unresolved: a host that cannot navigate keeps the truthful label, while one that can would
+  // otherwise show an affordance it cannot honour.
+  return canNavigate ? { kind: 'none' } : { kind: 'labelled' }
+}
 export type TeamCreateToolInput = Record<string, unknown>
 export type TeamCreateToolOutput = string
 export type TeamDeleteToolInput = Record<string, unknown>

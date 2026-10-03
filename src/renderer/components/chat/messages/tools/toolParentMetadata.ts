@@ -4,8 +4,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function getMetadataRecord(part: CherryMessagePart, field: string): Record<string, unknown> | undefined {
-  const value = (part as unknown as Record<string, unknown>)[field]
+function getMetadataRecord(part: object, field: string): Record<string, unknown> | undefined {
+  const value = (part as Record<string, unknown>)[field]
   return isRecord(value) ? value : undefined
 }
 
@@ -22,6 +22,16 @@ function getParentMetadata(part: CherryMessagePart): Record<string, unknown> | u
         return entry
       }
     }
+  }
+  return undefined
+}
+
+/** The launch root tool-call id stamped onto a SendMessage receipt by the adapter. */
+export function getPartLaunchToolCallId(part: object): string | undefined {
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
+    const metadata = getMetadataRecord(part, field)
+    const entry = metadata?.cherry
+    if (isRecord(entry) && typeof entry.launchToolCallId === 'string') return entry.launchToolCallId
   }
   return undefined
 }

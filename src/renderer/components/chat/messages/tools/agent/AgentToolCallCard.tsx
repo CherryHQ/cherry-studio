@@ -1,4 +1,5 @@
 import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -8,6 +9,7 @@ import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/age
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
+  getAgentToolInputIdentity,
   TO_MARKDOWN_RUNTIME_TOOL_NAME,
   type ToolInput,
   type ToolOutput
@@ -26,26 +28,13 @@ function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: T
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
 }
 
-function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | Record<string, unknown> | undefined) {
-  if (typeof input === 'string') return input.trim() || toolName
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
-
-  const inputEntries = Object.entries(input)
-  for (const key of ['description', 'subject', 'title', 'name']) {
-    const value = inputEntries.find(([field]) => field === key)?.[1]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-
-  const prompt = inputEntries.find(([field]) => field === 'prompt')?.[1]
-  if (typeof prompt === 'string')
-    return (
-      prompt
-        .split(/\r?\n/)
-        .find((line) => line.trim())
-        ?.trim() || toolName
-    )
-
-  return toolName
+export function getAgentToolFlowTitle(
+  toolName: string | undefined,
+  input: ToolInput | Record<string, unknown> | undefined
+) {
+  // The identity grammar is shared with the continuation label, so a launch and its receipts
+  // cannot name the same agent differently; only the fallback is the card's own.
+  return getAgentToolInputIdentity(input) ?? toolName
 }
 
 export function AgentToolCallCard({
@@ -58,6 +47,9 @@ export function AgentToolCallCard({
   hasError = false,
   isCherrySessionTool = false,
   openFlowOnClick = false,
+  flowTargetToolCallId,
+  flowTitle,
+  labelOverride,
   showInlineDetails = true
 }: {
   toolCallId?: string
@@ -69,6 +61,12 @@ export function AgentToolCallCard({
   hasError?: boolean
   isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
+  /** Opens a different flow than this card's own call — e.g. a resume entry pointing at the launch root. */
+  flowTargetToolCallId?: string
+  /** Title for the opened flow; by default derived from this card's input. */
+  flowTitle?: string
+  /** Replaces the renderer's label — used when a caller knows a more identifying one. */
+  labelOverride?: ReactNode
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
@@ -89,13 +87,15 @@ export function AgentToolCallCard({
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
           actions.openAgentToolFlow?.({
-            toolCallId,
+            toolCallId: flowTargetToolCallId ?? toolCallId,
             toolName,
-            title: getAgentToolFlowTitle(toolName, input)
+            title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
+  // Every flow entry — a launch, or a receipt that resumed one — is the same row, titled by the
+  // agent it belongs to.
   if (openToolFlow) {
-    const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
+    const title = flowTitle ?? getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
     const Icon = failed
@@ -116,7 +116,8 @@ export function AgentToolCallCard({
           : status === 'cancelled'
             ? t('message.tools.cancelled')
             : t('message.tools.pending')
-    const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+    // The highlight follows the flow the click opens, which a resume entry redirects to its launch.
+    const selected = actions?.isAgentToolFlowActive?.(flowTargetToolCallId ?? toolCallId ?? '') ?? false
     return (
       <Tooltip content={title} delay={600} asChild>
         <Button
@@ -157,7 +158,7 @@ export function AgentToolCallCard({
       <AgentToolDisclosureLabel
         label={
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="min-w-0">{renderedItem.label}</div>
+            <div className="min-w-0">{labelOverride ?? renderedItem.label}</div>
             {status && (status !== 'done' || hasError || openFlowOnClick) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
             )}
