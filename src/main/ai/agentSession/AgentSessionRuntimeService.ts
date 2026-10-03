@@ -2370,6 +2370,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const hostMessageId = agentSessionMessageService.findFlowHostMessageId(entry.sessionId, rootToolCallId)
     if (!hostMessageId) return undefined
     ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(rootToolCallId, hostMessageId)
+    // The throttle exists for unresolved roots only: once the anchor is in place this root never
+    // consults it again, so its timestamp would be retained for the rest of the session for nothing.
+    entry.recoveryLookupAt?.delete(rootToolCallId)
     ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
     // Chunks buffered while the row was unresolvable flow in first — they are the oldest content.
     const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
@@ -2922,6 +2925,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // while the chunk that introduces it is still waiting here, and the anchor is what routes it.
       if (turn && (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
         ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+        entry.recoveryLookupAt?.delete(chunk.toolCallId)
       }
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
       return true
@@ -2935,6 +2939,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
       ;(entry.flowMessageIdsByToolCallId ??= new Map()).set(chunk.toolCallId, turn.assistantMessageId)
+      entry.recoveryLookupAt?.delete(chunk.toolCallId)
     } else if (
       (chunk.type === 'tool-output-available' ||
         chunk.type === 'tool-output-error' ||
