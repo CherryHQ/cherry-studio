@@ -13,6 +13,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLoopbackAddress } from '@main/features/apiGateway/lanGuard'
 
 import { RemoteAgentHub } from './agentJournal'
 import { loadDesktopIdentity } from './deviceIdentity'
@@ -138,8 +139,21 @@ export class RemoteAccessService extends BaseService {
       socket.close(1008, 'Remote access is disabled')
       return
     }
-    const sameAddress = [...this.connections.values()].filter((value) => value.address === address).length
+    // A loopback peer is either one of the desktop's own consumers or a local forwarder (tunnel /
+    // reverse proxy) dialing 127.0.0.1, and both share a single address. Counting that address as
+    // one device would collapse the per-device budget into a global one: a few unauthenticated
+    // sockets opened through the forwarder would lock out paired devices for the whole invitation
+    // window (remoteLimits.invitationMs). The per-address sub-quota therefore only guards real
+    // LAN peers; the global cap below still bounds everyone, loopback included.
+    const sameAddress = isLoopbackAddress(address)
+      ? 0
+      : [...this.connections.values()].filter((value) => value.address === address).length
     if (this.connections.size >= 32 || sameAddress >= 4) {
+      logger.warn('Remote connection refused: remote connection budget exhausted', {
+        address,
+        active: this.connections.size,
+        sameAddress
+      })
       socket.close(1013, 'Too many remote connections')
       return
     }
