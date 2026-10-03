@@ -172,7 +172,7 @@ export class ChannelRegistration {
             client_id: data.client_id.trim(),
             client_secret: data.client_secret,
             // DING_DWS_CLAW creates app bots; the official connector uses clientId as robotCode.
-            // Source and registration scope: docs/references/ai/dingtalk-channel-design.md#扫码配置
+            // https://github.com/DingTalk-Real-AI/dingtalk-openclaw-connector/blob/5fef12d37377e299e26d18b0145baf646cd17a8b/src/services/media.ts#L779
             robot_code: data.client_id.trim()
           }
         }
