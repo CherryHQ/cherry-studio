@@ -32,7 +32,6 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
@@ -47,6 +46,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
@@ -404,9 +404,18 @@ const Sessions = ({
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition =
     panePosition === undefined ? (onSetPanePosition ?? setStoredPanePosition) : onSetPanePosition
-  const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
-  const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
-  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = usePersistCache('ui.agent.session.expansion.workdir')
+  const [sessionExpansionTime, setSessionExpansionTime] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.time',
+    'ui.window.agent.session.expansion.time'
+  )
+  const [sessionExpansionAgent, setSessionExpansionAgent] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.agent',
+    'ui.window.agent.session.expansion.agent'
+  )
+  const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = useWindowScopedPersistCache(
+    'ui.agent.session.expansion.workdir',
+    'ui.window.agent.session.expansion.workdir'
+  )
   const {
     sessions,
     pinIdBySessionId,
