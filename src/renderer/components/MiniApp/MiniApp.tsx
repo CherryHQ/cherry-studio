@@ -293,7 +293,7 @@ const MiniApp: FC<Props> = ({
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
                   'rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
-                isLaunchpad && (compact ? 'size-[42px]' : 'size-[58px]')
+                isLaunchpad && (compact ? 'size-[46px] rounded-2xl' : 'size-[58px]')
               )}>
               {icon}
               {updating && (
@@ -347,7 +347,8 @@ const MiniApp: FC<Props> = ({
           </Tooltip>
           <div
             className={cn(
-              'w-full select-none text-center text-muted-foreground',
+              'w-full select-none text-center',
+              compact ? 'text-foreground' : 'text-muted-foreground',
               isLaunchpad
                 ? compact
                   ? 'mt-1 truncate text-xs'

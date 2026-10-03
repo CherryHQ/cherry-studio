@@ -4,7 +4,7 @@ export function LaunchpadAppIcon({ src, size = 50, className }: { src: string; s
   return (
     <span
       className={cn(
-        'flex items-center justify-center rounded-2xl border border-border-subtle bg-transparent',
+        'flex items-center justify-center rounded-2xl border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none',
         className
       )}
       style={{ width: size + 6, height: size + 6 }}>

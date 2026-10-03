@@ -26,7 +26,7 @@ const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolean; onOpen: (url: string) => void }) {
   const gridClassName = compact
-    ? 'grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] justify-items-center gap-2'
+    ? 'grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] justify-items-center gap-x-2'
     : LAUNCHPAD_GRID_CLASS
   const itemClassName = compact ? 'w-full min-w-0' : LAUNCHPAD_ITEM_CLASS
   const sidebarAvailable = useSidebarAvailable()
@@ -212,7 +212,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
   return (
     <div className={cn('flex min-h-0 flex-col', !compact && 'h-full bg-background')}>
       <Scrollbar className={compact ? 'max-h-[min(480px,60vh)]' : 'min-h-0 flex-1'}>
-        <div className={cn('mx-auto flex w-full flex-col gap-5', !compact && 'max-w-180 py-12.5')}>
+        <div className={cn('mx-auto flex w-full flex-col', compact ? 'gap-3' : 'max-w-180 gap-5 py-12.5')}>
           <section className="flex flex-col gap-2">
             <h2
               className={cn(
