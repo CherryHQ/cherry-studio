@@ -110,7 +110,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -162,7 +162,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -253,7 +253,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
@@ -267,20 +267,22 @@ describe('useTopicMessages', () => {
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
 
-  it('keeps a retried select-all alive despite a retained query error', () => {
+  it('clears a retained query error and resumes pagination when select-all is retried', async () => {
     // A previous page fetch failed and SWR still holds its error.
-    const retained = new Error('page fetch failed')
-    // One shared spy: the mock factory runs on every render.
-    const mutate = vi.fn().mockResolvedValue(undefined)
+    let error: Error | undefined = new Error('page fetch failed')
+    const loadNext = vi.fn()
+    const mutate = vi.fn(async () => {
+      error = undefined
+    })
     mockUseInfiniteQuery.mockImplementation(
       () =>
         ({
           pages: [{ items: [], nextCursor: 'cursor', activeNodeId: null }],
           isLoading: false,
           isRefreshing: false,
-          error: retained,
+          error,
           hasNext: true,
-          loadNext: vi.fn(),
+          loadNext,
           refresh: vi.fn().mockResolvedValue(undefined),
           reset: vi.fn(),
           mutate
@@ -289,11 +291,11 @@ describe('useTopicMessages', () => {
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
-    act(() => result.current.selectAllPagination.start())
+    await act(async () => {
+      result.current.selectAllPagination.start()
+      await mutate.mock.results[0].value
+    })
 
-    // The pre-existing error must not instantly abandon the retry, and the
-    // retained error is revalidated away so pagination can proceed.
-    expect(result.current.selectAllPagination.isLoading).toBe(true)
-    expect(mutate).toHaveBeenCalled()
+    expect(loadNext).toHaveBeenCalledOnce()
   })
 })

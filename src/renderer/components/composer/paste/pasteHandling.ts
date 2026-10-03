@@ -82,19 +82,24 @@ export const handlePaste = async (
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     const extensionSet = new Set(supportExts)
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
-    // supported image in that case; letting the editor handle the text flavor can render a preview
-    // without ever adding an attachment to composer state. A wildcard surface likewise has to see
-    // an unlisted path-backed file, whose text flavor is only the file's name — otherwise the
-    // filename lands in the draft and the agent is never told where the file is.
+    // supported image when no rich text representation is present; letting the editor handle the
+    // text flavor can render a preview without ever adding an attachment to composer state. A
+    // wildcard surface likewise has to see an unlisted path-backed file, whose text flavor is only
+    // the file's name — otherwise the filename lands in the draft and the agent is never told where
+    // the file is. The two cases cannot overlap: one needs a supported image extension and the
+    // other needs an extension the catalog does not list.
+    const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+    const clipboardHtml = event.clipboardData?.getData('text/html') || ''
+    const hasTextualClipboardRepresentation = Boolean(clipboardText && clipboardHtml)
+    const hasWildcardPathReference = clipboardFiles.some((file) => {
+      const filePath = window.api.file.getPathForFile(file)
+      return Boolean(filePath) && isWildcardPathReference(filePath, extensionSet)
+    })
     const shouldPreferClipboardFile =
-      hasSupportedClipboardImage(clipboardFiles, supportExts) ||
-      clipboardFiles.some((file) => {
-        const filePath = window.api.file.getPathForFile(file)
-        return Boolean(filePath) && isWildcardPathReference(filePath, extensionSet)
-      })
+      (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportExts)) ||
+      hasWildcardPathReference
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
-    const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText && !shouldPreferClipboardFile) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -14,6 +15,7 @@ import type {
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { removeAgentStorageSubdirectory } from './agentDataDirectory'
 import { sweepAgentOrphans } from './agentOrphanSweep'
+import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
 const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
@@ -46,7 +48,7 @@ export class AgentLifecycleService extends BaseService {
   }
 
   protected override onReady(): void {
-    application.get('DbService').withWriteTx((tx) => agentTaskService.reconcileOwnerStatesTx(tx, Date.now()))
+    application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
   }
 
   protected override async onStop(): Promise<void> {
@@ -77,7 +79,7 @@ export class AgentLifecycleService extends BaseService {
       this.agentLocks.runExclusive(agentId, () => {
         const { agent, scheduleIds } = application.get('DbService').withWriteTx((tx) => ({
           agent: agentService.restoreAgentTx(tx, agentId),
-          scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now())
+          scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
         }))
         this.syncSchedules(scheduleIds)
         application.get('ChannelManager').reconcileAgent(agentId)
@@ -146,9 +148,7 @@ export class AgentLifecycleService extends BaseService {
 
   reconcile() {
     return this.runOperation('reconcile-agent-schedules', () => {
-      const ids = application
-        .get('DbService')
-        .withWriteTx((tx) => agentTaskService.reconcileOwnerStatesTx(tx, Date.now()))
+      const ids = application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
       this.syncSchedules(ids)
       return ids.length
     })
@@ -238,6 +238,12 @@ export class AgentLifecycleService extends BaseService {
   private syncSchedules(ids: string[]): void {
     for (const id of ids) application.get('JobManager').syncJobScheduleTimerById(id)
     agentTaskService.notifyReadModelChange(ids, 'membership')
+  }
+
+  private reconcileSchedulesTx(tx: DbOrTx): string[] {
+    const { scheduleIds, deletedSchedules } = agentTaskService.reconcileOwnerStatesTx(tx, Date.now())
+    reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
+    return scheduleIds
   }
 
   private async withOperationLocks<T>(ids: string[], operation: () => T | Promise<T>): Promise<T> {
@@ -356,9 +362,10 @@ export class AgentLifecycleService extends BaseService {
     const deleteAgent = async () => {
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
-        const scheduleIds = result.deleted
+        const { scheduleIds, deletedSchedules } = result.deleted
           ? agentTaskService.setOwnerStateTx(tx, agentId, permanent ? 'missing' : 'trashed', Date.now())
-          : []
+          : { scheduleIds: [], deletedSchedules: [] }
+        reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)

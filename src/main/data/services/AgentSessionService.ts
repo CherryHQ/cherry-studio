@@ -22,6 +22,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -154,6 +155,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
+  readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
@@ -697,6 +701,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
@@ -717,7 +722,15 @@ export class AgentSessionService {
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
         .where(
-          and(conversationFilter, agentFilter, idFilter, activeAgentFilter, isNull(sessionsTable.deletedAt), pinAfter)
+          and(
+            conversationFilter,
+            agentFilter,
+            workspaceFilter,
+            idFilter,
+            activeAgentFilter,
+            isNull(sessionsTable.deletedAt),
+            pinAfter
+          )
         )
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
@@ -770,6 +783,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           agentFilter,
+          workspaceFilter,
           idFilter,
           activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
@@ -816,6 +830,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -862,6 +877,7 @@ export class AgentSessionService {
       ...agentSessionReadModelEffects([id], 'projection'),
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -1392,6 +1408,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -1412,6 +1429,7 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    for (const id of new Set(moves.map((move) => move.id))) this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
