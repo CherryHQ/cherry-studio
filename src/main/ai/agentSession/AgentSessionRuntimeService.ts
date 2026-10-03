@@ -413,12 +413,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionWritable(sessionId: string): void {
-    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
     if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
-    if (!ownEdit || this.failedClosures.has(sessionId)) this.assertSessionWritable(sessionId)
+    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (!ownEdit) this.assertSessionWritable(sessionId)
     const entry = this.entries.get(sessionId)
     if (
       this.isShuttingDown ||
@@ -467,6 +467,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    if (this.failedClosures.has(sourceSessionId)) throw new AgentSessionEditError('close_failed')
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
     return this.forks.fork(sourceSessionId, messageId)
@@ -768,7 +769,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return
+    if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1266,7 +1267,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return true
+    if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)

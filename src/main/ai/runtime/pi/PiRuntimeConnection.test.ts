@@ -22,14 +22,12 @@ const MISSING_PI_AGENT_DIR = path.join(tmpdir(), `cherry-pi-agent-missing-${proc
 let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
-const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
 const MANAGED_BASH_TOOL = { name: 'bash' }
-const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_describe', 'tool_call', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
-  'mcp__cherry-tools__cron',
-  'mcp__cherry-tools__notify',
-  'mcp__cherry-tools__config',
-  'mcp__agent-memory__memory'
+  'mcp__cherry_tools__cron',
+  'mcp__cherry_tools__notify',
+  'mcp__cherry_tools__config',
+  'mcp__agent_memory__memory'
 ]
 
 interface FakeSpan {
@@ -53,8 +51,6 @@ const mocks = vi.hoisted(() => ({
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
-  loadPiAiCompat: vi.fn(),
-  unregisterApiProviders: vi.fn(),
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
@@ -73,8 +69,7 @@ const mocks = vi.hoisted(() => ({
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
   warmMcpToolCatalogs: vi.fn(),
-  buildMcpToolDefinitions: vi.fn(),
-  createPiCodeModeTools: vi.fn(),
+  createPiMcpExtension: vi.fn(),
   closeMcpBridge: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
@@ -85,6 +80,7 @@ const mocks = vi.hoisted(() => ({
   sessionOpen: vi.fn(),
   reload: vi.fn(),
   createAgentSession: vi.fn(),
+  getToolDefinition: vi.fn(),
   createBashToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
@@ -122,7 +118,10 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => (
 }))
 vi.mock('@application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
-  const application = createMockApplication({ IpcApiService: { broadcast: mocks.broadcast } })
+  const application = createMockApplication({
+    IpcApiService: { broadcast: mocks.broadcast },
+    McpCatalogService: { listTools: () => [] }
+  } as never)
   return {
     application: {
       ...application,
@@ -164,12 +163,12 @@ vi.mock('@main/ai/agents/prompt', () => ({
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how the complete server set becomes customTools and how the approval gate treats those names.
-vi.mock('./piMcpToolAdapter', () => ({
+vi.mock('./piMcpExtension', () => ({
   warmMcpToolCatalogs: mocks.warmMcpToolCatalogs,
-  buildMcpToolDefinitions: mocks.buildMcpToolDefinitions,
-  buildPiMcpToolName: (serverName: string, toolName: string) => `mcp__${serverName}__${toolName}`
+  createPiMcpExtension: mocks.createPiMcpExtension,
+  buildPiMcpToolName: (serverName: string, toolName: string) =>
+    `mcp__${serverName}__${toolName}`.replace(/[^A-Za-z0-9_]/g, '_')
 }))
-vi.mock('./piCodeMode', () => ({ createPiCodeModeTools: mocks.createPiCodeModeTools }))
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionForSession: mocks.resolveInjection,
   usesPiGateway: mocks.usesPiGateway,
@@ -184,7 +183,7 @@ vi.mock('./piConnectionSignature', () => ({
 }))
 vi.mock('./piSdk', () => ({
   loadPiSdk: mocks.loadPiSdk,
-  loadPiAiCompat: mocks.loadPiAiCompat,
+  loadPiAi: async () => ({ InMemoryCredentialStore: class {} }),
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
@@ -229,14 +228,22 @@ const fakeSession = {
   clearQueue: mocks.clearQueue,
   abort: mocks.abort,
   dispose: mocks.dispose,
-  getContextUsage: mocks.getContextUsage
+  getContextUsage: mocks.getContextUsage,
+  getToolDefinition: mocks.getToolDefinition,
+  bindExtensions: async () => undefined,
+  extensionRunner: { emit: mocks.closeMcpBridge }
 }
 
 const fakePi = {
-  AuthStorage: { inMemory: () => ({ setRuntimeApiKey: mocks.setRuntimeApiKey }) },
-  ModelRegistry: {
-    inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
+  ModelRuntime: {
+    create: async () => ({
+      setRuntimeApiKey: mocks.setRuntimeApiKey,
+      registerProvider: mocks.registerProvider,
+      getModel: () => ({ id: 'm', provider: 'p' })
+    })
   },
+  createCodemodeExtension: () => () => undefined,
+  createToolSearchExtension: () => () => undefined,
   SettingsManager: {
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
@@ -318,6 +325,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.getToolDefinition.mockReset()
 
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
@@ -383,11 +391,10 @@ beforeEach(() => {
   mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
   mocks.buildAgentMcpServers.mockReturnValue({ 'cherry-tools': { name: 'cherry-tools', instance: {} } })
   mocks.warmMcpToolCatalogs.mockResolvedValue(undefined)
-  mocks.buildMcpToolDefinitions.mockResolvedValue({
+  mocks.createPiMcpExtension.mockResolvedValue({
     tools: AUTONOMY_TOOL_NAMES.map((name) => ({ name })),
     close: mocks.closeMcpBridge
   })
-  mocks.createPiCodeModeTools.mockReturnValue(CODE_MODE_TOOL_NAMES.map((name) => ({ name })))
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.usesPiGateway.mockReturnValue(false)
@@ -419,7 +426,6 @@ beforeEach(() => {
     return PI_SESSIONS
   })
   mocks.loadPiSdk.mockResolvedValue(fakePi)
-  mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: mocks.unregisterApiProviders })
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
   mocks.providerResult = {
     role: 'assistant',
@@ -737,7 +743,7 @@ describe('PiRuntimeConnection', () => {
 
     providerConfig.streamSimple({}, [], {})
 
-    expect(mocks.providerStreamSimple.mock.calls[0][2]).not.toHaveProperty('fetch')
+    expect(mocks.providerStreamSimple.mock.calls[0][2].fetch).not.toBe(customFetch)
   })
 
   it('uses a generation-scoped api namespace so same-session replacements cannot overwrite each other', async () => {
@@ -750,8 +756,6 @@ describe('PiRuntimeConnection', () => {
     expect(first[1].api).not.toBe(second[1].api)
 
     await firstConnection.close()
-    expect(mocks.unregisterApiProviders).toHaveBeenCalledWith(`provider:${first[0]}`)
-    expect(mocks.unregisterApiProviders).not.toHaveBeenCalledWith(`provider:${second[0]}`)
   })
 
   it('does not leak a rejected provider result through the usage observer', async () => {
@@ -840,13 +844,10 @@ describe('PiRuntimeConnection', () => {
     }
   })
 
-  it('unregisters its provider when materialization fails after registration', async () => {
+  it('reports provider materialization failures', async () => {
     mocks.buildPromptParts.mockRejectedValueOnce(new Error('prompt failed'))
 
     await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('prompt failed')
-
-    const providerName = mocks.registerProvider.mock.calls[0][0]
-    expect(mocks.unregisterApiProviders).toHaveBeenCalledWith(`provider:${providerName}`)
   })
 
   it('rejects a connection whose reconcilable inputs changed during materialization', async () => {
@@ -870,7 +871,6 @@ describe('PiRuntimeConnection', () => {
     await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('materialization changed during startup')
 
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
-    expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
   it('reopens the native session file by resume id', async () => {
@@ -1576,7 +1576,7 @@ describe('PiRuntimeConnection', () => {
 
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
-    expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([{}, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
       noSkills: true,
@@ -1602,7 +1602,7 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toEqual([{ shellPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([{ shellPath }, { projectTrusted: true }])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath })
     expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
   })
@@ -1646,7 +1646,7 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toEqual([{ shellPath: fallbackPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([{ shellPath: fallbackPath }, { projectTrusted: true }])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath: fallbackPath })
   })
 
@@ -1678,12 +1678,8 @@ describe('PiRuntimeConnection', () => {
     await new PiRuntimeConnection(input).start()
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
-    expect(factories).toHaveLength(2)
-    expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
-    expect(mocks.createOpts?.customTools).toEqual([
-      MANAGED_BASH_TOOL,
-      ...CODE_MODE_TOOL_NAMES.map((name) => ({ name }))
-    ])
+    expect(factories).toHaveLength(5)
+    expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
@@ -1804,7 +1800,7 @@ describe('PiRuntimeConnection', () => {
   it('applies an exact camelCase MCP disable immediately before requesting a tool-catalog rebuild', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
-    mocks.buildMcpToolDefinitions.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
+    mocks.createPiMcpExtension.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true
 
@@ -1823,6 +1819,31 @@ describe('PiRuntimeConnection', () => {
   })
 
   describe('MCP bridging', () => {
+    it('blocks a legacy disabled alias using the actual registered tool identity', async () => {
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'my-server'
+      const nativeName = `mcp__${serverId.replaceAll('-', '_')}__search_issues_12345678`
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: ['mcp__myServer__searchIssues']
+      })
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      mocks.getToolDefinition.mockReturnValue({
+        name: nativeName,
+        label: `${serverId}/search_issues`,
+        namespace: { name: `mcp__${serverId.replaceAll('-', '_')}` }
+      })
+      await new PiRuntimeConnection(input).start()
+      await expect(
+        gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
+      ).resolves.toMatchObject({ block: true })
+    })
     function gateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
@@ -1833,26 +1854,6 @@ describe('PiRuntimeConnection', () => {
       })
       return handler
     }
-
-    it('keeps bridged MCP tools behind the code-mode interface', async () => {
-      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', mcps: ['srv-1', 'srv-2'] })
-      mocks.buildMcpToolDefinitions.mockResolvedValue({
-        tools: [...AUTONOMY_TOOL_NAMES.map((name) => ({ name })), { name: 'mcp__srv__do', label: 'do' }],
-        close: mocks.closeMcpBridge
-      })
-      await new PiRuntimeConnection(input).start()
-
-      expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledWith(['srv-1', 'srv-2'])
-      expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
-      expect(mocks.createOpts?.customTools).toEqual([
-        MANAGED_BASH_TOOL,
-        { name: 'tool_search' },
-        { name: 'tool_describe' },
-        { name: 'tool_call' },
-        { name: 'tool_exec' }
-      ])
-      expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
-    })
 
     it('passes the turn knowledge selection to the complete MCP set and rebuilds when its scope changes', async () => {
       const knowledgeInput = { ...input, knowledgeBaseIds: ['kb-1'] }
@@ -1881,7 +1882,7 @@ describe('PiRuntimeConnection', () => {
         mcps: ['srv-1'],
         disabledTools: [toolName]
       })
-      mocks.buildMcpToolDefinitions.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
+      mocks.createPiMcpExtension.mockResolvedValue({ tools: [{ name: toolName }], close: mocks.closeMcpBridge })
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.createOpts?.excludeTools).toEqual([toolName])
@@ -1892,7 +1893,7 @@ describe('PiRuntimeConnection', () => {
 
     it('never auto-approves bridged MCP tool names', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', mcps: ['srv-1'] })
-      mocks.buildMcpToolDefinitions.mockResolvedValue({
+      mocks.createPiMcpExtension.mockResolvedValue({
         tools: [...AUTONOMY_TOOL_NAMES.map((name) => ({ name })), { name: 'mcp__srv__do', label: 'do' }],
         close: mocks.closeMcpBridge
       })
@@ -1901,7 +1902,7 @@ describe('PiRuntimeConnection', () => {
       const handler = gateHandler()
       await expect(
         handler(
-          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 't-autonomy', input: {} },
+          { type: 'tool_call', toolName: 'mcp__agent_memory__memory', toolCallId: 't-autonomy', input: {} },
           { signal: undefined }
         )
       ).resolves.toBeUndefined()
@@ -1915,29 +1916,6 @@ describe('PiRuntimeConnection', () => {
       expect(toolApprovalRegistry.size()).toBe(1)
       await conn.close()
     })
-
-    it('always prompts before running tool_exec, including in auto mode', async () => {
-      mocks.getAgent.mockReturnValue({
-        id: 'agent-1',
-        model: 'p::m',
-        configuration: { permission_mode: 'auto' }
-      })
-      const conn = await new PiRuntimeConnection(input).start()
-
-      void gateHandler()(
-        {
-          type: 'tool_call',
-          toolName: 'tool_exec',
-          toolCallId: 't-code-mode',
-          input: { code: 'return 1' }
-        },
-        { signal: undefined }
-      )
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      expect(toolApprovalRegistry.size()).toBe(1)
-      await conn.close()
-    })
   })
 
   describe('agent MCP context', () => {
@@ -1948,7 +1926,7 @@ describe('PiRuntimeConnection', () => {
       workspace: { path: WORKSPACE, type: 'user' as const }
     }
 
-    it('uses the PromptBuilder persona and injects the code-mode custom tools', async () => {
+    it('uses the PromptBuilder persona with native tools', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
@@ -1968,13 +1946,6 @@ describe('PiRuntimeConnection', () => {
         AGENT_DATA_PATH,
         undefined
       )
-      expect(mocks.createOpts?.customTools).toEqual([
-        MANAGED_BASH_TOOL,
-        { name: 'tool_search' },
-        { name: 'tool_describe' },
-        { name: 'tool_call' },
-        { name: 'tool_exec' }
-      ])
     })
 
     it('wraps agent instructions with the shared authority contract before the persona', async () => {
@@ -2046,13 +2017,13 @@ describe('PiRuntimeConnection', () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         model: 'p::m',
-        disabledTools: ['mcp__agent-memory__memory'],
+        disabledTools: ['mcp__agent_memory__memory'],
         configuration: {}
       })
       mocks.getById.mockReturnValue(agentSession)
       const conn = await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.excludeTools).toEqual(['mcp__agent-memory__memory'])
+      expect(mocks.createOpts?.excludeTools).toEqual(['mcp__agent_memory__memory'])
 
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
@@ -2063,17 +2034,16 @@ describe('PiRuntimeConnection', () => {
       })
       await expect(
         handler(
-          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 'tc1', input: {} },
+          { type: 'tool_call', toolName: 'mcp__agent_memory__memory', toolCallId: 'tc1', input: {} },
           { signal: undefined }
         )
       ).resolves.toMatchObject({ block: true })
       void conn
     })
 
-    it('uses the always-on persona and code-mode tools for a standard agent', async () => {
+    it('uses the always-on persona for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(5)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')

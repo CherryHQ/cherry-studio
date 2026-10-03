@@ -1,6 +1,7 @@
 import type * as FsModule from 'fs'
 import { EventEmitter } from 'node:events'
 
+import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -125,6 +126,8 @@ interface MockContents extends EventEmitter {
   isLoadingMainFrame: ReturnType<typeof vi.fn>
   send: ReturnType<typeof vi.fn>
   setWindowOpenHandler: ReturnType<typeof vi.fn>
+  getWebRTCIPHandlingPolicy: () => string
+  setWebRTCIPHandlingPolicy: (policy: string) => void
 }
 
 function createContents(
@@ -153,6 +156,11 @@ function createContents(
   contents.isLoadingMainFrame = vi.fn(() => options.loadingMainFrame ?? false)
   contents.send = vi.fn()
   contents.setWindowOpenHandler = vi.fn()
+  let webRtcPolicy = 'default'
+  contents.getWebRTCIPHandlingPolicy = () => webRtcPolicy
+  contents.setWebRTCIPHandlingPolicy = (policy) => {
+    webRtcPolicy = policy
+  }
   const command = options.sendCommand ?? (async () => ({}))
   contents.debugger = Object.assign(new EventEmitter(), {
     attach: vi.fn(() => {
@@ -208,6 +216,47 @@ describe('WebviewService webview ownership', () => {
     host = {}
     getWindow.mockReturnValue({ webContents: host })
     service = new WebviewService()
+  })
+
+  it('protects existing site and browser guests and their popup windows without changing other sessions', async () => {
+    const site = createContents(7, host)
+    const browser = createContents(8, host, { session: session.fromPartition('persist:agent-browser') })
+    const popup = createContents(9, null, { type: 'window' })
+    const local = createContents(10, host, { session: localSession })
+    const other = createContents(11, host, { session: {} })
+    const destroyed = createContents(12, host)
+    destroyed.isDestroyed.mockReturnValue(true)
+    getAllWebContents.mockReturnValue([site, browser, popup, local, other, destroyed])
+
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+
+    for (const guest of [site, browser, popup]) {
+      expect(guest.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
+    }
+    for (const guest of [local, other, destroyed]) {
+      expect(guest.getWebRTCIPHandlingPolicy()).toBe('default')
+    }
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+  })
+
+  it('protects new guests and browser-session popup windows before dom-ready', async () => {
+    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    const onCreated = (
+      vi.mocked(app.on).mock.calls as unknown as Array<[string, (event: unknown, contents: unknown) => void]>
+    ).find(([event]) => event === 'web-contents-created')![1]
+    const site = createContents(7, host, { loadingMainFrame: true })
+    const browserPopup = createContents(8, null, {
+      type: 'window',
+      session: session.fromPartition('persist:agent-browser')
+    })
+
+    onCreated({}, site)
+    onCreated({}, browserPopup)
+
+    expect(site.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
+    expect(browserPopup.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
+    expect(site.send).not.toHaveBeenCalled()
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
   })
 
   it('owns preload and annotation listeners outside BaseService disposables and cleans them on stop', async () => {
