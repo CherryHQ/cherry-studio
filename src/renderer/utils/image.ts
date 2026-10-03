@@ -835,7 +835,7 @@ export const captureScrollableIframeAsBlob = async (
  * @param scale 缩放比例
  * @returns {Promise<HTMLCanvasElement>} 转换后的 Canvas 元素
  */
-export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
+export const svgToCanvas = async (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
   // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
@@ -859,10 +859,12 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   canvas.width = width * scale
   canvas.height = height * scale
 
+  // Blob URLs containing foreignObject taint Chromium canvases; data URLs preserve HTML labels.
+  const svgUrl = await blobToDataUrl(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
+
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    const svgUrl = URL.createObjectURL(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
     img.onload = () => {
       try {
@@ -871,13 +873,10 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
         resolve(canvas)
       } catch (error) {
         reject(new Error(`Failed to draw image on canvas: ${error}`))
-      } finally {
-        URL.revokeObjectURL(svgUrl)
       }
     }
 
     img.onerror = () => {
-      URL.revokeObjectURL(svgUrl)
       reject(new Error('Failed to load SVG image'))
     }
 
