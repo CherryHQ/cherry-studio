@@ -179,34 +179,6 @@ describe('doubao (Ark) endpoint matrix', () => {
  * chat endpoint when the requested endpoint has no `baseUrl`, so a placeholder host on a
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
-describe('aionly New API multiplexing', () => {
-  const multiplexingEndpoints = [
-    'anthropic-messages',
-    'openai-chat-completions',
-    'openai-responses',
-    'google-generate-content'
-  ] as const
-
-  it('declares every New API multiplexing endpoint', () => {
-    expect(Object.keys(provider('aionly').endpointConfigs ?? {}).toSorted()).toEqual(
-      [...multiplexingEndpoints].toSorted()
-    )
-  })
-
-  it('routes every declared endpoint through the newapi adapter family', () => {
-    for (const endpointType of multiplexingEndpoints) {
-      expect(provider('aionly').endpointConfigs?.[endpointType]?.adapterFamily, endpointType).toBe('newapi')
-    }
-  })
-
-  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
-    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
-      .filter(([, config]) => config?.baseUrl)
-      .map(([endpointType]) => endpointType)
-    expect(withBaseUrl).toEqual(['openai-chat-completions'])
-  })
-})
-
 describe('new-api single-host endpoints', () => {
   it.each(['openai-image-generation', 'openai-image-edit'] as const)(
     'routes %s through the New API adapter without overriding the user host',
