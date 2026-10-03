@@ -1,7 +1,7 @@
 import { createContext, use } from 'react'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { AgentPreviewUrlCandidate } from './agentRightPaneProjection'
 
