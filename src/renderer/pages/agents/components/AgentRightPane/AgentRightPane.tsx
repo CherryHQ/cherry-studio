@@ -1731,6 +1731,10 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
   // Bumped by every local mutation. A poll whose request started before the last mutation is
   // answering a question about state that has since changed, so its rows are dropped.
   const mutationRef = useRef(0)
+  // Polls are also numbered, so that when two overlap — one round trip outlasting the 3s interval —
+  // the slower, older response cannot overwrite the newer snapshot.
+  const issuedRef = useRef(0)
+  const appliedRef = useRef(0)
   const setTasks = (update: (current: BackgroundTaskRecord[]) => BackgroundTaskRecord[]) =>
     setLoaded((current) => (current.agentId === agentId ? { ...current, tasks: update(current.tasks) } : current))
 
@@ -1738,10 +1742,15 @@ function DetachedTaskSection({ agentId, compact }: { agentId?: string; compact: 
     if (!agentId) return
     let active = true
     const refresh = () => {
-      const startedAt = mutationRef.current
+      const issued = { mutation: mutationRef.current, seq: (issuedRef.current += 1) }
       void ipcApi.request('ai.agent.background_task.list', { agentId }).then(
         (records) => {
-          if (active && Array.isArray(records) && isTaskListResponseCurrent(startedAt, mutationRef.current)) {
+          if (
+            active &&
+            Array.isArray(records) &&
+            isTaskListResponseCurrent(issued, { mutation: mutationRef.current, appliedSeq: appliedRef.current })
+          ) {
+            appliedRef.current = issued.seq
             setLoaded({ agentId, tasks: records })
           }
         },
