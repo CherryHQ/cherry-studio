@@ -287,7 +287,9 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
+  /** Get or update a specific agent. Use `ai.agent.delete` on IpcApi for
+      the full agent + session + pin cascade; the data-API DELETE here
+      removes the agent only and is intended for the resource-list UI. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -297,6 +299,10 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+    DELETE: {
+      params: { agentId: string }
+      response: undefined
     }
   }
 
