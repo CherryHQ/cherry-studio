@@ -32,6 +32,7 @@ import { loggerService } from '@logger'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
+import { modelVisibleDenial } from '@main/ai/toolApproval/modelVisibleDenial'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { canonicalizePathForContainment } from '@main/utils/file'
@@ -235,7 +236,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+      return { block: true, reason: modelVisibleDenial(decision, toolName) }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return

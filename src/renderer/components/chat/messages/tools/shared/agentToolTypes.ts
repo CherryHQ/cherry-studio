@@ -223,9 +223,7 @@ export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> &
 export type AskUserQuestionToolOutput = AskUserQuestionOutput
 export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
 
-export function isAskUserQuestionToolName(toolName: unknown): boolean {
-  return toolName === AgentToolsType.AskUserQuestion || toolName === 'builtin_AskUserQuestion'
-}
+export { isAskUserQuestionToolName } from '@shared/ai/askUserQuestionToolName'
 
 /** cherry-tools document converter — an MCP tool, so it is keyed by its runtime wire name. */
 export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_TOOL_NAME}`

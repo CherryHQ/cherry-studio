@@ -1143,7 +1143,7 @@ describe('remote agent access', () => {
     expect(receipt.status).toBe('applied')
     expect(fake.runtime.respondToolApproval).toHaveBeenCalledWith(
       'read-approval',
-      { approved: false, reason: '请勿读取' },
+      { approved: false, source: 'user', reason: '请勿读取' },
       anchor
     )
   })

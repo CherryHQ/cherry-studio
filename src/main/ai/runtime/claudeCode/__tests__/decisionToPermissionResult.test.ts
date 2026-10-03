@@ -19,17 +19,38 @@ describe('decisionToPermissionResult — DispatchDecision → Claude PermissionR
     })
   })
 
-  it('denies with the supplied reason', () => {
-    expect(decisionToPermissionResult({ approved: false, reason: 'nope' }, original)).toEqual({
+  it('identifies the user and preserves quoted, multiline words in the model message', () => {
+    expect(
+      decisionToPermissionResult({ approved: false, source: 'user', reason: '  say "stop"\nfirst  ' }, original, 'Bash')
+    ).toEqual({
       behavior: 'deny',
-      message: 'nope'
+      message:
+        'The user denied permission to use Bash. The tool did not execute. The user\'s exact words are between these markers:\n<<<USER_WORDS>>>\n  say "stop"\nfirst  \n<<<USER_WORDS>>>'
     })
   })
 
-  it('denies with a default message when none is supplied', () => {
-    expect(decisionToPermissionResult({ approved: false }, original)).toEqual({
+  it('uses the fixed no-reason message', () => {
+    expect(decisionToPermissionResult({ approved: false, source: 'user' }, original, 'Bash')).toEqual({
       behavior: 'deny',
-      message: 'User denied permission for this tool'
+      message:
+        'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    })
+  })
+
+  it('tells the model an unanswered question was dismissed', () => {
+    expect(decisionToPermissionResult({ approved: false, source: 'user' }, original, 'AskUserQuestion')).toEqual({
+      behavior: 'deny',
+      message:
+        'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    })
+  })
+
+  it('preserves host reasons without attributing them to the user', () => {
+    expect(
+      decisionToPermissionResult({ approved: false, source: 'host', hostReason: 'aborted' }, original, 'Bash')
+    ).toEqual({
+      behavior: 'deny',
+      message: 'aborted'
     })
   })
 })

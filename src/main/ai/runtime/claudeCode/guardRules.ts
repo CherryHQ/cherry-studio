@@ -15,6 +15,7 @@
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { ASK_USER_QUESTION_TOOL_NAME } from '@main/ai/toolApproval/askUserQuestionToolName'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
   findBuiltinToolPolicy,
@@ -33,7 +34,7 @@ import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
-export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+export { ASK_USER_QUESTION_TOOL_NAME } from '@main/ai/toolApproval/askUserQuestionToolName'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([

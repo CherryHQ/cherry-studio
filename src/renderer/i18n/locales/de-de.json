@@ -410,7 +410,6 @@
   "agent.toolPermission.button.run": "Laufen",
   "agent.toolPermission.confirmation": "Sind Sie sicher, dass Sie dieses Claude-Tool ausführen möchten?",
   "agent.toolPermission.decisionDenied": "Abgelehnt",
-  "agent.toolPermission.defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
   "agent.toolPermission.error.sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
   "agent.toolPermission.inputPreview": "Vorschau der Werkzeugeingabe",
   "agent.toolPermission.pendingBadge": "Ausstehend",

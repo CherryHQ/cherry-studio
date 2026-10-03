@@ -410,7 +410,6 @@
   "agent.toolPermission.button.run": "Chạy",
   "agent.toolPermission.confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
   "agent.toolPermission.decisionDenied": "Đã từ chối",
-  "agent.toolPermission.defaultDenyMessage": "Người dùng đã từ chối cấp quyền cho công cụ này.",
   "agent.toolPermission.error.sendFailed": "Không thể gửi quyết định của bạn. Vui lòng thử lại.",
   "agent.toolPermission.inputPreview": "Xem trước đầu vào công cụ",
   "agent.toolPermission.pendingBadge": "Đang chờ xử lý",

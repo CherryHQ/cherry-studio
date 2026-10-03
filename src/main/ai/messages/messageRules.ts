@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto'
 
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
+import { modelVisibleDenial } from '@main/ai/toolApproval/modelVisibleDenial'
+
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -165,6 +167,26 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
   })
 }
 
+function attributeDeniedApprovals(messages: UIMessage[]): UIMessage[] {
+  return messages.map((message) => {
+    if (message.role !== 'assistant') return message
+    let parts: UIMessage['parts'] | undefined
+    message.parts.forEach((part, index) => {
+      if (!isToolUIPart(part) || part.state !== 'approval-responded' || part.approval?.approved !== false) return
+      const toolName = part.type === 'dynamic-tool' ? part.toolName : part.type.slice('tool-'.length)
+      parts ??= [...message.parts]
+      parts[index] = {
+        ...part,
+        approval: {
+          ...part.approval,
+          reason: modelVisibleDenial({ approved: false, source: 'user', reason: part.approval.reason }, toolName)
+        }
+      }
+    })
+    return parts ? { ...message, parts } : message
+  })
+}
+
 /**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
@@ -187,7 +209,10 @@ export async function toModelMessages(
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  const model = await convertToModelMessages(attributeDeniedApprovals(shaped), {
+    ignoreIncompleteToolCalls: true,
+    tools
+  })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

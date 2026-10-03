@@ -228,6 +228,7 @@ describe('AskUserQuestionComposer', () => {
     await user.click(screen.getByRole('button', { name: /Winston/ }))
     await user.type(screen.getByPlaceholderText('Enter your answer...'), 'Keep my context')
     await user.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledWith({ match: makeRequest().match, approved: false }))
     view.unmount()
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 

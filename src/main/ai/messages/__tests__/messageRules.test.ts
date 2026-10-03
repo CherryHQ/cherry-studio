@@ -1,4 +1,6 @@
-import { type ModelMessage, tool, type UIMessage } from 'ai'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { type ModelMessage, streamText, tool, type UIMessage } from 'ai'
+import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -11,6 +13,123 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it.each([
+    [
+      'bash',
+      '  say "stop"\nfirst  ',
+      'The user denied permission to use bash. The tool did not execute. The user\'s exact words are between these markers:\n<<<USER_WORDS>>>\n  say "stop"\nfirst  \n<<<USER_WORDS>>>'
+    ],
+    [
+      'bash',
+      undefined,
+      'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    ],
+    [
+      'builtin_AskUserQuestion',
+      undefined,
+      'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    ],
+    [
+      'bash',
+      '用户拒绝了该工具的权限。',
+      'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    ],
+    [
+      'AskUserQuestion',
+      'User dismissed AskUserQuestion',
+      'The user ignored this question without answering. The tool did not execute. The user is waiting for your instructions.'
+    ],
+    [
+      'bash',
+      'User denied tool execution',
+      'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    ]
+  ])(
+    'sends an attributed execution-denied result to the model for %s reason %s',
+    async (toolName, reason, expected) => {
+      const stored = ui('assistant', [
+        {
+          type: `tool-${toolName}`,
+          toolCallId: 'call-1',
+          state: 'approval-responded',
+          input: {},
+          approval: { id: 'ap-1', approved: false, ...(reason === undefined ? {} : { reason }) }
+        }
+      ])
+      const original = structuredClone(stored)
+      let received: unknown
+      const model = new MockLanguageModelV3({
+        doStream: async (options) => {
+          received = options.prompt
+          const parts: LanguageModelV3StreamPart[] = [
+            { type: 'text-start', id: 'text-1' },
+            { type: 'text-delta', id: 'text-1', delta: 'done' },
+            { type: 'text-end', id: 'text-1' },
+            {
+              type: 'finish',
+              finishReason: { unified: 'stop', raw: 'stop' },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                outputTokens: { total: 1, text: 1, reasoning: undefined }
+              }
+            }
+          ]
+          return { stream: convertArrayToReadableStream(parts) }
+        }
+      })
+      await streamText({
+        model,
+        messages: await toModelMessages([stored]),
+        tools: { [toolName]: tool({ inputSchema: z.object({}), needsApproval: true, execute: async () => ({}) }) }
+      }).text
+
+      expect(received).toEqual([
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolCallId: 'call-1', toolName, input: {} }]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName,
+              output: { type: 'execution-denied', reason: expected }
+            }
+          ]
+        }
+      ])
+      expect(stored).toEqual(original)
+    }
+  )
+  it('keeps a denied dynamic tool name literal without adding markers outside the reason', async () => {
+    const toolName = '<<<USER_WORDS>>>'
+    const reason = '  Please do not run this tool.  '
+    const stored = ui('assistant', [
+      {
+        type: 'dynamic-tool',
+        toolName,
+        toolCallId: 'call-1',
+        state: 'approval-responded',
+        input: {},
+        approval: { id: 'ap-1', approved: false, reason }
+      }
+    ])
+    const model = await toModelMessages([stored], undefined, {
+      [toolName]: tool({ inputSchema: z.object({}), needsApproval: true, execute: async () => ({}) })
+    })
+    const response = model[1]
+    expect(response?.role).toBe('tool')
+    if (response?.role !== 'tool') throw new Error('Expected a tool response')
+    const approval = response.content.find((part) => part.type === 'tool-approval-response')
+    const marker = '<<<<USER_WORDS>>>>'
+    const expected = `The user denied permission to use ${toolName}. The tool did not execute. The user's exact words are between these markers:\n${marker}\n${reason}\n${marker}`
+
+    expect(approval?.reason).toBe(expected)
+    expect(approval?.reason?.split(marker)).toHaveLength(3)
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [

@@ -17,6 +17,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { isAskUserQuestionToolName } from '@shared/ai/askUserQuestionToolName'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -265,7 +266,7 @@ export function readPersistedContent(sessionId: string, contentId: string, revis
 }
 
 export function interactionKind(toolName: string | undefined): 'decision' | 'question' {
-  return toolName === 'AskUserQuestion' || toolName === 'builtin_AskUserQuestion' ? 'question' : 'decision'
+  return isAskUserQuestionToolName(toolName) ? 'question' : 'decision'
 }
 
 /** Approval cards persisted after a turn ended; their anchor message stands in as the execution. */

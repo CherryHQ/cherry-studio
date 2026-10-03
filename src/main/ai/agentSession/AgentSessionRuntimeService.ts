@@ -1453,7 +1453,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
         approved: decision.approved,
-        ...(decision.reason !== undefined && { reason: decision.reason }),
+        ...(!decision.approved &&
+          decision.source === 'user' &&
+          decision.reason !== undefined && { reason: decision.reason }),
         ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
       })
       if (!applied) {
@@ -2491,7 +2493,8 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         toolApprovalRegistry.dispatch(request.approvalId, {
           approved: false,
-          reason: 'The turn ended before this approval request could be presented'
+          source: 'host',
+          hostReason: 'The turn ended before this approval request could be presented'
         })
       }
       return
@@ -2536,7 +2539,8 @@ export class AgentSessionRuntimeService extends BaseService {
       })
       toolApprovalRegistry.dispatch(request.approvalId, {
         approved: false,
-        reason: 'Unable to present this approval request to the user'
+        source: 'host',
+        hostReason: 'Unable to present this approval request to the user'
       })
     }
   }

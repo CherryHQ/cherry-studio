@@ -14,7 +14,6 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'agent.toolPermission.defaultDenyMessage': 'User denied permission for this tool.',
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
         'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
@@ -114,7 +113,7 @@ describe('PermissionRequestComposer', () => {
     })
   })
 
-  it('submits a denial decision with the default deny reason', async () => {
+  it('submits a denial without inventing a reason', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
@@ -124,11 +123,11 @@ describe('PermissionRequestComposer', () => {
     expect(onRespond).toHaveBeenCalledWith({
       match: makeRequest().match,
       approved: false,
-      reason: 'User denied permission for this tool.'
+      reason: undefined
     })
   })
 
-  it('trims and submits user feedback without changing the denial decision', async () => {
+  it('submits user feedback exactly as written', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
@@ -140,7 +139,7 @@ describe('PermissionRequestComposer', () => {
     expect(onRespond).toHaveBeenCalledWith({
       match: makeRequest().match,
       approved: false,
-      reason: 'use a copy instead'
+      reason: '  use a copy instead  '
     })
   })
 
@@ -291,7 +290,7 @@ describe('PermissionRequestComposer', () => {
     expect(onRespond).toHaveBeenCalledWith({
       match: makeRequest().match,
       approved: false,
-      reason: 'User denied permission for this tool.'
+      reason: undefined
     })
   })
 
