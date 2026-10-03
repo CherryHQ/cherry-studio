@@ -7,11 +7,36 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
+import {
+  abandonNotesRelocationSession,
+  acknowledgeRendererNotesEditsFlush,
+  acquireNotesRelocationSession,
+  assertNotesRelocationSessionOwner,
+  inspectNotesRelocation,
+  isRendererNotesEditsFlushWindowRegistered,
+  migrateNotesDirectory,
+  registerRendererNotesEditsFlushWindow,
+  releaseNotesRelocationSession,
+  requestRendererNotesEditsFlush,
+  setNotesRelocationMigrateInFlight,
+  unregisterRendererNotesEditsFlushWindow
+} from '@main/services/notesRelocation'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+
+function broadcastNotesRelocationMigrateComplete(): void {
+  application.get('IpcApiService').broadcast('app.notes_relocation.migrate_complete', undefined)
+}
+
+function finishNotesRelocationSession(ownerId: string, sessionEpoch: number): void {
+  if (releaseNotesRelocationSession(ownerId, sessionEpoch)) {
+    broadcastNotesRelocationMigrateComplete()
+  }
+}
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
@@ -38,6 +63,88 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
     }
     requestUserDataRelocation(path, copy)
+  },
+  'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
+  'app.notes_relocation.flush_edits_register': async (_input, { senderId }) => {
+    if (senderId != null) {
+      registerRendererNotesEditsFlushWindow(senderId)
+    }
+  },
+  'app.notes_relocation.flush_edits_unregister': async (_input, { senderId }) => {
+    if (senderId == null) {
+      return
+    }
+    const abandonedSession = abandonNotesRelocationSession(senderId)
+    unregisterRendererNotesEditsFlushWindow(senderId)
+    if (abandonedSession) {
+      broadcastNotesRelocationMigrateComplete()
+    }
+  },
+  'app.notes_relocation.flush_edits_ack': async ({ requestId, ok }, { senderId }) => {
+    acknowledgeRendererNotesEditsFlush(requestId, senderId, ok)
+  },
+  'app.notes_relocation.begin_barrier': async (_input, { senderId }) => {
+    if (senderId == null) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+        'notes relocation requires a renderer window'
+      )
+    }
+    const sessionEpoch = acquireNotesRelocationSession(senderId)
+    try {
+      await requestRendererNotesEditsFlush()
+      return { sessionEpoch }
+    } catch (error) {
+      if (releaseNotesRelocationSession(senderId, sessionEpoch)) {
+        broadcastNotesRelocationMigrateComplete()
+      }
+      throw error
+    }
+  },
+  'app.notes_relocation.end_barrier': async ({ sessionEpoch }, { senderId }) => {
+    if (senderId == null) {
+      return
+    }
+    finishNotesRelocationSession(senderId, sessionEpoch)
+  },
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge, sessionEpoch }, { senderId }) => {
+    if (senderId == null) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+        'notes relocation requires a renderer window'
+      )
+    }
+
+    assertNotesRelocationSessionOwner(senderId, sessionEpoch)
+    setNotesRelocationMigrateInFlight(true)
+    try {
+      await requestRendererNotesEditsFlush()
+      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      if (!isRendererNotesEditsFlushWindowRegistered(senderId)) {
+        finishNotesRelocationSession(senderId, sessionEpoch)
+      }
+      return result
+    } catch (error) {
+      finishNotesRelocationSession(senderId, sessionEpoch)
+      throw error
+    } finally {
+      setNotesRelocationMigrateInFlight(false)
+    }
+  },
+  'app.notes_relocation.complete': async ({ sessionEpoch }, { senderId }) => {
+    if (senderId == null) {
+      throw new IpcError(
+        notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
+        'notes relocation requires a renderer window'
+      )
+    }
+    finishNotesRelocationSession(senderId, sessionEpoch)
+  },
+  'app.notes_relocation.release_session': async ({ sessionEpoch }, { senderId }) => {
+    if (senderId == null) {
+      return
+    }
+    finishNotesRelocationSession(senderId, sessionEpoch)
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
   'app.cache_cleanup.run': async ({ groups }) => cacheCleanupService.run(groups),
