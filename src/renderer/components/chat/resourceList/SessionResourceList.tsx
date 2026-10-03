@@ -7,11 +7,13 @@ type SessionResourceListProps<T extends ResourceListItemBase> = Omit<
   'variant'
 > & {
   children: ReactNode
+  className?: string
   presentation: ResourceListPresentation
 }
 
 export function SessionResourceList<T extends ResourceListItemBase>({
   children,
+  className,
   presentation,
   ...props
 }: SessionResourceListProps<T>) {
@@ -20,7 +22,7 @@ export function SessionResourceList<T extends ResourceListItemBase>({
 
   return (
     <Provider {...props} variant="session">
-      <Frame data-testid="resource-list-session" presentation={presentation}>
+      <Frame className={className} data-testid="resource-list-session" presentation={presentation}>
         {children}
       </Frame>
     </Provider>

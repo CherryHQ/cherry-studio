@@ -286,7 +286,7 @@ vi.mock('../list/MessageVirtualList', async () => {
   const React = await import('react')
   return {
     MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX: 12,
-    MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX: 6,
+    MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX: 12,
     MessageVirtualList: ({
       handleRef,
       items,

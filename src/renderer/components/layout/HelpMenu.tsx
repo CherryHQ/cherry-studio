@@ -9,15 +9,20 @@ import { DoctorPopup } from '@renderer/components/doctor'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
+import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('HelpMenu')
 
 export function HelpMenu({
   layout,
+  triggerClassName,
+  tooltipPlacement = 'right',
   onFeedbackClick,
   onOverlayOpenChange
 }: {
   layout: SidebarVisibleLayout
+  triggerClassName?: string
+  tooltipPlacement?: string
   onFeedbackClick: () => void
   onOverlayOpenChange?: (open: boolean) => void
 }) {
@@ -75,7 +80,10 @@ export function HelpMenu({
         variant="ghost"
         size="icon"
         aria-label={t('help.title')}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
+        className={cn(
+          'flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground',
+          triggerClassName
+        )}>
         <CircleQuestionMark size={18} strokeWidth={1.6} />
       </Button>
     ) : (
@@ -94,7 +102,7 @@ export function HelpMenu({
       <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <Tooltip
           content={t('help.title')}
-          placement="right"
+          placement={tooltipPlacement}
           delay={800}
           fullWidthTrigger={layout !== 'icon'}
           isDisabled={layout !== 'icon'}>

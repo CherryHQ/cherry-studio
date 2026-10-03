@@ -454,7 +454,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
           aria-label={t('agent.preview_pane.refresh')}
           onClick={handleRefresh}>
           <RotateCw size={16} />
@@ -473,8 +473,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             variant="ghost"
             size="icon-sm"
             className={cn(
-              'text-muted-foreground hover:bg-accent hover:text-foreground',
-              pickerActive && 'bg-accent text-foreground'
+              'text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!',
+              pickerActive && 'bg-accent text-foreground!'
             )}
             aria-label={t('agent.preview_pane.pick_selection')}
             aria-pressed={pickerActive}
@@ -637,7 +637,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="shrink-0 text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
                 aria-label={t('common.back')}
                 onClick={handleClosePreview}>
                 <ArrowLeft size={16} />
@@ -678,7 +678,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
                   aria-label={modeActionLabel}
                   disabled={editorLoading}
                   onClick={() => handleEditorModeChange(nextEditorMode)}>
@@ -746,7 +746,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
             aria-label={t('agent.preview_pane.close')}
             onClick={handleClosePreview}>
             <X size={16} />
@@ -791,7 +791,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="text-muted-foreground! hover:bg-accent hover:text-foreground! focus-visible:text-foreground!"
                       aria-label={modeActionLabel}
                       disabled={editorLoading}
                       onClick={() => handleEditorModeChange(nextEditorMode)}>

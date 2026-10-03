@@ -3,6 +3,7 @@ import type { CSSProperties, FC } from 'react'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -46,9 +47,13 @@ const HomeTabs: FC<Props> = ({
   revealRequest,
   style
 }) => {
+  const minimalContext = useMinimalMode()
+  const minimalMode = minimalContext?.enabled && minimalContext.isHome ? minimalContext : null
   return (
-    <ConversationNavigationPane style={style}>
+    <ConversationNavigationPane style={style} className={minimalMode ? 'border-r-[0.5px] border-border' : undefined}>
+      {minimalMode?.sidebarHeader}
       <Topics
+        className={minimalMode ? 'border-r-0 bg-transparent pt-1' : undefined}
         activeTopic={activeTopic}
         dataEnabled={dataEnabled}
         historyRecordsActive={historyRecordsActive}
@@ -65,6 +70,7 @@ const HomeTabs: FC<Props> = ({
         panePosition={panePosition}
         revealRequest={revealRequest}
       />
+      {minimalMode?.sidebarFooter}
     </ConversationNavigationPane>
   )
 }
