@@ -95,10 +95,11 @@ export function serializeError(error: unknown): SerializedError {
 
     return serialized
   }
-  const safeMessage = getSafeProviderErrorMessage({ data: error })
+  const safeMessage = getSafeProviderErrorMessage({ data: error, message: typeof error === 'string' ? error : null })
   return {
     name: null,
-    message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
-    stack: null
+    message: safeMessage || null,
+    stack: null,
+    ...(safeMessage ? {} : { i18nKey: 'unknown' })
   }
 }
