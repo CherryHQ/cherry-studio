@@ -62,12 +62,14 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
 export async function listAgentBackgroundTasks(agentId: string): Promise<BackgroundTaskRecord[]> {
   if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
-  // Indexing is best-effort (same seam as the MCP layer): the disk reconciliation has already
-  // happened, so a DB failure must not turn the completed listing into an error response.
+  // SQLite is the panel's index over these records, not a second source of truth. Reading it back
+  // after a failed write would hand the panel a different answer from the agent's own list tool,
+  // which returns the reconciled disk records, so the disk stays the answer either way.
   try {
     saveBackgroundTaskRecords(agentId, records)
   } catch (error) {
     logger.error('Failed to index background tasks after reconcile', { agentId, error })
+    return records
   }
   return listBackgroundTaskRecords(agentId)
 }
