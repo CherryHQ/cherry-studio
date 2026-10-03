@@ -6,7 +6,7 @@ import { createZipBytes } from '../../../__tests__/zipTestBytes'
 import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
-import { parseWorkbook } from '../worker/parseWorkbook'
+import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
@@ -210,6 +210,54 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
 
   it('hidden column width is 0', () => {
     expect(model.sheets[0].colWidthsPx[5]).toBe(0)
+  })
+})
+
+describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', () => {
+  let workbook: ExcelJS.Workbook
+
+  beforeAll(async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    ws.getCell('A1').value = 'value'
+    wb.definedNames.add('S1!$A$1:$Z$100', 'wideRange')
+
+    const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
+    const sheetPath = 'xl/worksheets/sheet1.xml'
+    const sheetXml = await zip.file(sheetPath)!.async('string')
+    const rangeBlocks =
+      '<mergeCells count="1"><mergeCell ref="B2:Z100"/></mergeCells>' +
+      '<dataValidations count="1"><dataValidation type="list" allowBlank="1" sqref="A1:Z100">' +
+      '<formula1>"a,b"</formula1></dataValidation></dataValidations>'
+    zip.file(sheetPath, sheetXml.replace('<pageMargins', `${rangeBlocks}<pageMargins`))
+
+    workbook = await loadExcelJsWorkbook(await zip.generateAsync({ type: 'arraybuffer' }))
+  })
+
+  it('does not create cells covered by a merge', () => {
+    expect(workbook.worksheets[0].findRow(100)).toBeUndefined()
+  })
+
+  it('does not index data validations per address', () => {
+    expect(workbook.worksheets[0].dataValidations.model).toEqual({})
+  })
+
+  it('does not index defined names per address', () => {
+    expect(workbook.definedNames.model).toEqual([])
+  })
+})
+
+describe('parseWorkbook — merges are read from each sheet part', () => {
+  it('assigns every merge to the sheet that declares it', async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.addWorksheet('First').getCell('A1').value = 'first'
+    const second = wb.addWorksheet('Second')
+    second.getCell('B2').value = 'merged'
+    second.mergeCells('B2:D4')
+
+    const parsed = await parseWorkbook(await toArrayBuffer(wb), 'merges-per-sheet.xlsx')
+
+    expect(parsed.sheets.map((sheet) => sheet.merges)).toEqual([[], [{ top: 2, left: 2, bottom: 4, right: 4 }]])
   })
 })
 

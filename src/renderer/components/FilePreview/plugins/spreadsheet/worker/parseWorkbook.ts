@@ -549,6 +549,34 @@ function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, co
   }
 }
 
+interface XlsxWorkbookPartParser {
+  parseWorkbook(stream: unknown): Promise<{ definedNames?: unknown[] }>
+}
+
+const MERGE_CELL_REF_PATTERN = /<mergeCell\b[^>]*?\sref\s*=\s*(["'])(.*?)\1/g
+
+// ExcelJS expands merges, data validations and defined names into one entry per covered cell while loading. The
+// preview reads merges itself and uses neither of the others; ignoreNodes cannot reach workbook.xml's defined names.
+export async function loadExcelJsWorkbook(data: ArrayBuffer): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook()
+  const xlsx = workbook.xlsx as unknown as XlsxWorkbookPartParser
+  const parseWorkbookPart = xlsx.parseWorkbook.bind(xlsx)
+  xlsx.parseWorkbook = async (stream) => ({ ...(await parseWorkbookPart(stream)), definedNames: [] })
+  await workbook.xlsx.load(data, { ignoreNodes: ['mergeCells', 'dataValidations'] })
+  return workbook
+}
+
+async function readMergeRefs(zip: JSZip, sheetPartPath: string): Promise<string[]> {
+  const xml = await zip.file(sheetPartPath)?.async('string')
+  if (!xml) return []
+  const refs: string[] = []
+  for (const match of xml.matchAll(MERGE_CELL_REF_PATTERN)) {
+    refs.push(match[2])
+    if (refs.length > MAX_MERGED_RANGES) break
+  }
+  return refs
+}
+
 /**
  * Main parse entry point. This pure function can be tested directly by Vitest in Node without going through the Worker.
  * Fixed pipeline order: unzip -> ExcelJS cells/styles -> formula evaluation -> charts -> images -> assembly.
@@ -567,17 +595,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
-  const hasDrawingParts = zip.file(/^xl\/drawings\/[a-zA-Z0-9]+\.xml$/).length > 0
-  const chartSheetPartPathsPromise = hasDrawingParts
-    ? createChartSheetPartPathMap(zip).catch((err) => {
-        warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
-        return new Map<string, string>()
-      })
-    : Promise.resolve<ReadonlyMap<string, string>>(new Map())
+  const sheetPartPathsPromise = createChartSheetPartPathMap(zip).catch((err) => {
+    warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
+    return new Map<string, string>()
+  })
 
-  const workbook = new ExcelJS.Workbook()
+  let workbook: ExcelJS.Workbook
   try {
-    await workbook.xlsx.load(dataForExcelJs)
+    workbook = await loadExcelJsWorkbook(dataForExcelJs)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
@@ -614,6 +639,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     return sheetCellsByName.get(sheetName)?.[`${row}:${col}`]?.raw ?? null
   }
 
+  const sheetPartPaths = await sheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const cells: Record<string, CellRenderModel> = {}
     sheetCellsByName.set(worksheet.name, cells)
@@ -738,7 +764,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     // Merged ranges.
     const merges: MergeRange[] = []
-    const mergeRefs = worksheet.model.merges ?? []
+    const sheetPartPath = sheetPartPaths.get(worksheet.name)
+    const mergeRefs = sheetPartPath ? await readMergeRefs(zip, sheetPartPath) : []
     const mergeCount = Math.min(mergeRefs.length, MAX_MERGED_RANGES)
     for (let index = 0; index < mergeCount; index++) {
       const ref = mergeRefs[index]
@@ -939,7 +966,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   }
 
   // Charts must parse after formula evaluation so reference backfill can use evaluated cell values.
-  const chartSheetPartPaths = await chartSheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
     const axisIndexes = axisIndexesBySheet.get(worksheet.name)
@@ -968,7 +994,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         layout,
         dataAccessor,
         MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length,
-        chartSheetPartPaths
+        sheetPartPaths
       )
       sheetModel.charts = charts
       for (const chart of charts) {
