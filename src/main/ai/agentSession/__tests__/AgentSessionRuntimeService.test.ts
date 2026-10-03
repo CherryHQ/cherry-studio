@@ -2872,6 +2872,80 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.recoveryLookupAt?.has('task-root')).toBe(false)
     })
 
+    // A warm entry outlives many turns, so the anchors it remembers are bounded; the newest one is
+    // always kept, and an evicted call recovers its row through the buffer's own look-up.
+    it('bounds the remembered flow anchors', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-old')
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (index: number) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: `root-${index}`,
+          chunk: { type: 'text-start', id: `text-${index}` }
+        })
+
+      for (let index = 0; index < 1_100; index += 1) send(index)
+
+      expect(entry.flowMessageIdsByToolCallId?.size).toBeLessThanOrEqual(1_024)
+      expect(entry.flowMessageIdsByToolCallId?.has('root-1099')).toBe(true)
+      expect(entry.flowMessageIdsByToolCallId?.has('root-0')).toBe(false)
+    })
+
+    // A live turn's row is not persisted yet: its anchor is the only route for its chunks, so the
+    // bound may never give it up.
+    it('never gives up a live turn anchor to the bound', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-old')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'call-live', toolName: 'Bash', input: {} }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (let index = 0; index < 1_100; index += 1) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: `root-${index}`,
+          chunk: { type: 'text-start', id: `text-${index}` }
+        })
+      }
+
+      expect(entry.flowMessageIdsByToolCallId?.get('call-live')).toBe('assistant-1')
+    })
+
+    // The seed-failure stamps space retries for messages whose seed keeps failing; an id that is
+    // never retried again must not sit there for the rest of the session.
+    it('bounds the seed-failure retry stamps', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      let host = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => `assistant-${host++}`)
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (let index = 0; index < 300; index += 1) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: `root-${index}`,
+          chunk: { type: 'text-start', id: `text-${index}` }
+        })
+      }
+
+      expect(entry.backgroundFlowSeedFailedAt?.size).toBeLessThanOrEqual(256)
+    })
+
     it('gives up a whole recovery buffer instead of dropping its oldest chunks', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
