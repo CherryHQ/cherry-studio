@@ -539,6 +539,12 @@ export const KnowledgeChunkMetadataSchema = z.strictObject({
 export type KnowledgeChunkMetadata = z.infer<typeof KnowledgeChunkMetadataSchema>
 export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source'>
 
+export const KnowledgeSearchWarningSchema = z.strictObject({
+  kind: z.literal('rerank_failed'),
+  reason: z.enum(['input_too_large', 'provider_error'])
+})
+export type KnowledgeSearchWarning = z.infer<typeof KnowledgeSearchWarningSchema>
+
 /**
  * Search result returned by retrieval.
  */
@@ -554,7 +560,8 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   // source document, so a hit can be followed up with kb_read. Optional
   // because a not-yet-indexed snapshot has no relativePath to derive the id from.
   conceptId: z.string().optional(),
-  title: z.string().optional()
+  title: z.string().optional(),
+  warning: KnowledgeSearchWarningSchema.optional()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 

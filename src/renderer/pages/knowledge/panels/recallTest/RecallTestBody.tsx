@@ -1,4 +1,4 @@
-import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
+import { CircleAlert, Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -37,14 +37,30 @@ const RecallResultSummary = () => {
 }
 
 const RecallResults = () => {
+  const { t } = useTranslation()
   const {
-    state: { results }
+    state: { results, warning }
   } = useRecallResult()
 
   return (
     <div className="mx-auto h-full w-full max-w-3xl min-w-0 overflow-x-hidden overflow-y-auto rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <RecallResultSummary />
       <div className="min-w-0 space-y-2 p-3">
+        {warning ? (
+          <div className="flex gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
+            <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p>{t('knowledge.recall.rerank_warning')}</p>
+              <p>
+                {t(
+                  warning.reason === 'input_too_large'
+                    ? 'knowledge.recall.rerank_warning_input_too_large'
+                    : 'knowledge.recall.rerank_warning_provider_error'
+                )}
+              </p>
+            </div>
+          </div>
+        ) : null}
         {results.map((item, index) => (
           <RecallResultCard key={item.id} item={item} index={index} />
         ))}

@@ -52,6 +52,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
   const [results, setResults] = useState<RecallResultItem[]>([])
   const [duration, setDuration] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+  const [warning, setWarning] = useState<RecallResultContextValue['state']['warning']>(null)
 
   useEffect(() => {
     latestSearchIdRef.current += 1
@@ -61,6 +62,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     setResults([])
     setDuration(0)
     setIsSearching(false)
+    setWarning(null)
 
     return () => {
       latestSearchIdRef.current += 1
@@ -91,6 +93,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
 
     setIsSearching(true)
     setResults([])
+    setWarning(null)
     const startTime = performance.now()
 
     try {
@@ -104,6 +107,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         return
       }
       setResults(searchResults.map(mapRecallResult))
+      setWarning(searchResults.find((result) => result.warning)?.warning ?? null)
     } catch (error) {
       const normalizedError = normalizeKnowledgeError(error)
       logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
@@ -112,6 +116,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       }
       toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
       setResults([])
+      setWarning(null)
     }
 
     if (!isCurrentSearch()) {
@@ -158,10 +163,11 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         results,
         duration,
         topScore,
-        scoreKind
+        scoreKind,
+        warning
       }
     }),
-    [duration, hasSearched, isSearching, results, scoreKind, topScore]
+    [duration, hasSearched, isSearching, results, scoreKind, topScore, warning]
   )
 
   return (
