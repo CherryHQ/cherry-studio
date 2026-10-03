@@ -65,9 +65,10 @@ renderer-side transport that connects to them.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `channels/`, `skills/`, and
-> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
-> deep-dive docs.
+> tools → persistence → renderer transport). Channel designs cover the WeCom
+> integration and the proposed DingTalk integration with their acceptance checks;
+> the `channels/`, `skills/`, and `mcp/` subsystems are
+> mapped in the tree below but do not yet have complete subsystem references.
 
 ```
 src/main/ai/
@@ -80,7 +81,7 @@ src/main/ai/
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
 ├── agents/                       ← AgentLifecycleService, AgentJobsService, runAgentTask, prompt, heartbeat, builtin/
-├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
+├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat/wecom) + security/
 ├── streamManager/                ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts        ← active-stream registry and dispatch owner
 │   ├── context/                  ← ChatContextProvider implementations + dispatch

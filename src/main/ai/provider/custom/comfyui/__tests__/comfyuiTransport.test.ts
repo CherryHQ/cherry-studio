@@ -25,6 +25,15 @@ const objectInfo: ObjectInfo = {
         denoise: ['FLOAT', { default: 1 }]
       }
     }
+  },
+  ComfySwitchNode: {
+    input: {
+      required: { switch: ['BOOLEAN', { default: false }] },
+      optional: {
+        on_false: ['COMFY_MATCHTYPE_V3', { lazy: true }],
+        on_true: ['COMFY_MATCHTYPE_V3', { lazy: true }]
+      }
+    }
   }
 }
 
@@ -40,6 +49,51 @@ const workflow = {
     }
   ],
   links: [[3, 1, 0, 2, 6]]
+}
+
+/**
+ * The shape the Qwen Image 2.1 templates ship: the sampler's text comes from an
+ * If/Else Switch that is set to the text edited into the workflow, while the
+ * branch it does not take forwards a Generate Text node's output. Both branches
+ * hold a prompt-like string, and only one of them reaches the encoder.
+ */
+const switchWorkflow = {
+  nodes: [
+    {
+      id: 11,
+      type: 'ComfySwitchNode',
+      inputs: [
+        { name: 'switch', link: null },
+        { name: 'on_false', link: null },
+        { name: 'on_true', link: 4 }
+      ],
+      widgets_values: [false],
+      widgets_values_named: { switch: false, on_false: 'the text edited into the workflow' }
+    },
+    {
+      id: 12,
+      type: 'CLIPTextEncode',
+      inputs: [{ name: 'text', link: 3 }],
+      widgets_values: ['']
+    },
+    {
+      id: 13,
+      type: 'CLIPTextEncode',
+      inputs: [{ name: 'text', link: null }],
+      widgets_values: ['the text a Generate Text node would make']
+    },
+    {
+      id: 14,
+      type: 'KSampler',
+      inputs: [{ name: 'positive', link: 5 }],
+      widgets_values: [0, 20, 8, 'euler', 'normal', 1]
+    }
+  ],
+  links: [
+    [3, 11, 0, 12, 0],
+    [4, 13, 0, 11, 2],
+    [5, 12, 0, 14, 0]
+  ]
 }
 
 const submitInput = {
@@ -182,6 +236,26 @@ describe('ComfyuiTransport', () => {
     expect(body.prompt['2'].inputs.seed).toBe(42)
   })
 
+  it('writes the prompt into the branch of an If/Else Switch that reaches the encoder', async () => {
+    const posts: Record<string, any>[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(switchWorkflow)
+      posts.push(JSON.parse(String(init?.body)) as Record<string, any>)
+      return respond({ prompt_id: 'pid-1' })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.submit(submitInput)
+
+    // The switch is off, so the text it holds is what the encoder reads: the
+    // run's prompt replaces that, not the branch the switch never evaluates.
+    expect(posts[0].prompt['1'].inputs.on_false).toBe('a cat')
+    expect(posts[0].prompt['1'].inputs.switch).toBe(false)
+    expect(posts[0].prompt['3'].inputs.text).toBe('the text a Generate Text node would make')
+  })
+
   it('propagates a user abort during the prompt POST as an AbortError', async () => {
     const doFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() => {
       return new Promise((_resolve, reject) => {
@@ -253,6 +327,77 @@ describe('a submit is bounded by the request deadline', () => {
   })
 
   const SUBMIT_TIMEOUT_MS = 60_000
+
+  /** A workflow whose only text is the negative prompt. */
+  const negativeOnlyWorkflow = {
+    nodes: [
+      { id: 1, type: 'CLIPTextEncode', widgets_values: ['blurry, deformed'] },
+      {
+        id: 2,
+        type: 'KSampler',
+        inputs: [{ name: 'negative', link: 3 }],
+        widgets_values: [0, 20, 8, 'euler', 'normal', 1]
+      }
+    ],
+    links: [[3, 1, 0, 2, 1]]
+  }
+
+  /** A workflow with no text at all, e.g. an upscaler. */
+  const textFreeWorkflow = {
+    nodes: [
+      {
+        id: 1,
+        type: 'ComfySwitchNode',
+        inputs: [
+          { name: 'switch', link: null },
+          { name: 'on_false', link: null },
+          { name: 'on_true', link: null }
+        ],
+        widgets_values: [true]
+      },
+      {
+        id: 2,
+        type: 'KSampler',
+        inputs: [{ name: 'latent_image', link: null }],
+        widgets_values: [0, 20, 8, 'euler', 'normal', 1]
+      }
+    ],
+    links: []
+  }
+
+  it('runs a workflow that holds no text as it was saved', async () => {
+    const posts: Record<string, any>[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(textFreeWorkflow)
+      posts.push(JSON.parse(String(init?.body)) as Record<string, any>)
+      return respond({ prompt_id: 'pid-1' })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.submit({ ...submitInput, prompt: 'a cat' })
+
+    // Nothing carries the prompt, and nothing carries the run's seed either:
+    // with no prompt target there is no node the run owns, so the workflow goes
+    // out exactly as it was saved.
+    const graph = posts[0].prompt as Record<string, { inputs: Record<string, unknown> }>
+    expect(Object.values(graph).some((node) => Object.values(node.inputs).includes('a cat'))).toBe(false)
+    expect(graph['2'].inputs.seed).toBe(0)
+  })
+
+  it('refuses a workflow whose text it cannot place', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      return respond(negativeOnlyWorkflow)
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    // The only text is the negative prompt, and writing the run's prompt there
+    // would replace it: refusing beats generating something else.
+    await expect(transport.submit({ ...submitInput, prompt: 'a cat' })).rejects.toThrow(/no_prompt_node/)
+  })
 
   it('bounds a submit whose /prompt body never arrives', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -2,6 +2,7 @@ import type { UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
 import { type ChannelAdapter, sanitizeChannelOutput, type SendMessageOptions } from '@main/ai/channels'
+import { t } from '@main/i18n'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
@@ -13,6 +14,7 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
+  private settled = false
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -39,12 +41,13 @@ export class ChannelAdapterListener implements StreamListener {
     return this.adapter.onTextUpdate(this.platformChatId, text, this.responseOptions)
   }
 
-  private completeStream(text: string): Promise<boolean> {
-    return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions)
+  private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
+    return this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
   }
 
   // oxlint-disable-next-line no-unused-vars
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
+    if (this.settled) return
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
@@ -57,43 +60,26 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
-    if (!text) {
-      logger.warn('ChannelAdapterListener.onDone with empty text', {
-        channelId: this.adapter.channelId,
-        chatId: this.platformChatId,
-        status: result.status
-      })
-      return
-    }
-
-    try {
-      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
-      const handled = await this.completeStream(text)
-      if (!handled) {
-        await this.deliver(text)
-      }
-    } catch (err) {
-      logger.error('Failed to deliver message to channel', {
-        channelId: this.adapter.channelId,
-        chatId: this.platformChatId,
-        err
-      })
-    }
+    await this.finish(result.status)
   }
 
   // oxlint-disable-next-line no-unused-vars
   async onPaused(_result: StreamPausedResult): Promise<void> {
+    await this.finish('paused')
+  }
+
+  private async finish(status: 'success' | 'paused'): Promise<void> {
+    if (this.settled) return
+    this.settled = true
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
-    if (!text) return
 
     try {
-      const handled = await this.completeStream(text)
-      if (!handled) {
-        await this.deliver(text + '\n\n_(stopped)_')
+      const handled = await this.completeStream(text, status)
+      if (!handled && text) {
+        await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
       }
     } catch (err) {
-      logger.error('Failed to deliver paused message to channel', {
+      logger.error('Failed to deliver terminal message to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err
@@ -102,9 +88,16 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
-    if (this.suppressErrorMessage) return
+    if (this.settled) return
+    this.settled = true
     try {
-      await this.deliver(`Error: ${result.error.message ?? 'Unknown error'}`)
+      const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
+      const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
+        suppressDelivery: this.suppressErrorMessage
+      })
+      if (!handled && !this.suppressErrorMessage) {
+        await this.deliver(t('common.channel_error', { error }))
+      }
     } catch (err) {
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,
@@ -115,6 +108,6 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   isAlive(): boolean {
-    return this.adapter.connected
+    return this.adapter.isStreamListenerAlive()
   }
 }
