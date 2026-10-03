@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import { constants } from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -20,7 +21,7 @@ const MAX_RECURSION_DEPTH = 1000
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string; skipExistingFiles?: boolean },
+  options?: { allowedBasePath?: string; skipExistingFiles?: boolean; exclusiveFileCopies?: boolean },
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -92,17 +93,23 @@ export async function copyDirectoryRecursive(
             throw error
           }
         }
-        // Copy file with error handling for race conditions
         try {
-          await fs.promises.copyFile(sourcePath, destPath)
-          // Preserve file permissions
+          if (options?.exclusiveFileCopies) {
+            await fs.promises.copyFile(sourcePath, destPath, constants.COPYFILE_EXCL)
+          } else {
+            await fs.promises.copyFile(sourcePath, destPath)
+          }
           await fs.promises.chmod(destPath, entryStats.mode)
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
-          // Handle race condition where file was deleted during copy
           if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
+          }
+          if (options?.exclusiveFileCopies && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+            const existsError = new Error(`Destination file already exists: ${destPath}`) as NodeJS.ErrnoException
+            existsError.code = 'EEXIST'
+            throw existsError
           }
           throw error
         }
