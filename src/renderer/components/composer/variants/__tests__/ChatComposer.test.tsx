@@ -4999,7 +4999,10 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('drops selected knowledge bases that are no longer configured before sending', async () => {
+  it('keeps a stale-selected base in the chat draft; the main-side scope resolver narrows it', async () => {
+    // Chat scope opts into unconfigured picks (#20238): a selection that outlives the
+    // assistant's binding is no longer pruned renderer-side. The payload keeps the pick and
+    // the main-side resolveKnowledgeBaseScope silently narrows it back into the binding.
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -5027,12 +5030,12 @@ describe('ChatComposer', () => {
     }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
-    expect(mocks.surfaceProps?.tokens).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([staleKnowledgeToken])
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [serializeComposerToken(staleKnowledgeToken)] })
 
     expect(onSend).toHaveBeenCalledWith('hello', expect.any(Object))
-    expect(onSend.mock.calls[0]?.[1]?.userMessageParts).not.toContainEqual(
+    expect(onSend.mock.calls[0]?.[1]?.userMessageParts).toContainEqual(
       expect.objectContaining({ type: 'data-knowledge-scope' })
     )
   })
@@ -5134,6 +5137,31 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+  })
+
+  it('keeps the knowledge-base query enabled after a request was made once', async () => {
+    // useKnowledgeBases empties its list while disabled: if the gate followed the
+    // editing session down to false, a loaded list would collapse to [] and the
+    // knowledge launcher would disable itself with a bogus "no knowledge base".
+    const message = { id: 'msg-1', topicId: topic.id }
+    const parts = [{ type: 'text', text: 'original message' }]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    // Editing a message is one of the data triggers: the query must come up enabled.
+    await waitFor(() => expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: true }]))
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    expect(mocks.knowledgeBaseHookArgs.at(-1)).toEqual([{ enabled: true }])
   })
 })
 
