@@ -55,6 +55,13 @@ const GeneralSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
+    optimistic: false
+  })
+  const [remoteDebuggingRestartRequired, setRemoteDebuggingRestartRequired] = useState(false)
+  const [remoteDebuggingPort, setRemoteDebuggingPort] = usePreference('BootConfig.app.remote_debugging.port', {
+    optimistic: false
+  })
   const [clientId] = usePreference('app.user.id')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
@@ -127,6 +134,32 @@ const GeneralSettings: FC = () => {
       },
       500
     )
+  }
+
+  const handleRemoteDebuggingChange = async (checked: boolean) => {
+    try {
+      await setRemoteDebuggingEnabled(checked)
+      setRemoteDebuggingRestartRequired(true)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
+  const handleRemoteDebuggingRestart = async () => {
+    try {
+      await window.api.application.relaunch()
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
+  const handleRemoteDebuggingPortChange = async (port: number | null) => {
+    try {
+      await setRemoteDebuggingPort(port ?? 9222)
+      setRemoteDebuggingRestartRequired(true)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
   }
 
   return (
@@ -356,6 +389,42 @@ const GeneralSettings: FC = () => {
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
           <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">
+              {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
+            </SettingDescription>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {remoteDebuggingRestartRequired && (
+              <Button variant="outline" size="sm" onClick={() => void handleRemoteDebuggingRestart()}>
+                {t('settings.developer.cdp.restart')}
+              </Button>
+            )}
+            <Switch
+              checked={remoteDebuggingEnabled}
+              onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
+              aria-label={t('settings.developer.cdp.title')}
+            />
+          </div>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
+          <div className="w-28 shrink-0">
+            <InputNumber
+              min={1}
+              max={65535}
+              step={1}
+              value={remoteDebuggingPort}
+              disabled={!remoteDebuggingEnabled}
+              aria-label={t('settings.developer.cdp.port')}
+              onBlur={handleRemoteDebuggingPortChange}
+            />
+          </div>
         </SettingRow>
         {enableDeveloperMode && clientId ? (
           <>

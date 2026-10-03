@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+
 /**
  * Tests for src/main/core/preboot/chromiumFlags.ts
  *
@@ -26,6 +28,7 @@ interface PlatformFlags {
 
 const disableHardwareAccelerationMock = vi.fn()
 const appendSwitchMock = vi.fn()
+const hasSwitchMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 
 function stubElectron() {
@@ -34,7 +37,8 @@ function stubElectron() {
     app: {
       disableHardwareAcceleration: disableHardwareAccelerationMock,
       commandLine: {
-        appendSwitch: appendSwitchMock
+        appendSwitch: appendSwitchMock,
+        hasSwitch: hasSwitchMock
       }
     }
   }))
@@ -51,11 +55,15 @@ function stubConstants(flags: PlatformFlags) {
   }))
 }
 
-function stubBootConfig(opts: { disableHardwareAcceleration?: boolean } = {}) {
+function stubBootConfig(
+  opts: { disableHardwareAcceleration?: boolean; remoteDebuggingEnabled?: boolean; remoteDebuggingPort?: number } = {}
+) {
   bootConfigGetMock.mockImplementation((key: string) => {
     if (key === 'app.disable_hardware_acceleration') {
       return opts.disableHardwareAcceleration ?? false
     }
+    if (key === 'app.remote_debugging.enabled') return opts.remoteDebuggingEnabled ?? false
+    if (key === 'app.remote_debugging.port') return opts.remoteDebuggingPort ?? 9222
     return undefined
   })
   vi.doMock('@main/data/bootConfig', () => ({
@@ -73,6 +81,7 @@ beforeEach(() => {
   vi.resetModules()
   disableHardwareAccelerationMock.mockReset()
   appendSwitchMock.mockReset()
+  hasSwitchMock.mockReset()
   bootConfigGetMock.mockReset()
 })
 
@@ -84,6 +93,54 @@ afterEach(() => {
 })
 
 describe('configureChromiumFlags', () => {
+  describe('local CDP startup setting', () => {
+    it('uses a saved custom port when no startup port is supplied', async () => {
+      stubConstants({ isLinux: false, isWin: true })
+      stubElectron()
+      stubBootConfig({ remoteDebuggingEnabled: true, remoteDebuggingPort: 9342 })
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-port', '9342')
+      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
+    })
+
+    it.each([0, 65536, 1.5, '9222', NaN])('rejects an invalid configured port: %s', (port) => {
+      expect(bootConfigSchema.safeParse({ ...DefaultBootConfig, 'app.remote_debugging.port': port }).success).toBe(
+        false
+      )
+    })
+
+    it('does not enable a listener by default', async () => {
+      stubConstants({ isLinux: false, isWin: true })
+      stubElectron()
+      stubBootConfig()
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+      expect(appendSwitchMock.mock.calls.filter(([name]) => name.startsWith('remote-debugging-'))).toEqual([])
+    })
+
+    it('opens the default port only on loopback when enabled', async () => {
+      stubConstants({ isLinux: false, isWin: true })
+      stubElectron()
+      stubBootConfig({ remoteDebuggingEnabled: true })
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-port', '9222')
+      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
+    })
+
+    it('preserves an explicit startup port and constrains its address to loopback', async () => {
+      stubConstants({ isLinux: true, isWin: false })
+      stubElectron()
+      stubBootConfig({ remoteDebuggingEnabled: true })
+      hasSwitchMock.mockImplementation((name: string) => name === 'remote-debugging-port')
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('remote-debugging-port', expect.anything())
+      expect(appendSwitchMock).toHaveBeenCalledWith('remote-debugging-address', '127.0.0.1')
+    })
+  })
+
   describe('hardware acceleration toggle', () => {
     it('calls disableHardwareAcceleration() when BootConfig flag is true', async () => {
       stubConstants({ isLinux: false, isWin: false })

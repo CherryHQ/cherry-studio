@@ -1,13 +1,26 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import GeneralSettings from '../GeneralSettings'
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { address?: string }) => {
+      const translations: Record<string, string> = {
+        'settings.developer.cdp.title': 'Local automation (CDP)',
+        'settings.developer.cdp.description': `Local tools can connect at ${options?.address}. Requires a restart.`,
+        'settings.developer.cdp.restart': 'Restart to apply',
+        'settings.developer.cdp.port': 'CDP port'
+      }
+      return translations[key] ?? key
+    }
+  })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -113,13 +126,68 @@ vi.mock('@cherrystudio/ui', () => ({
 
 describe('GeneralSettings', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'BootConfig.app.remote_debugging.enabled': false,
+      'BootConfig.app.remote_debugging.port': 9222,
       'app.tray.enabled': true,
       'app.tray.on_close': true,
       'app.tray.on_launch': true,
       'feature.quick_assistant.click_tray_to_show': true
     })
+  })
+
+  it('persists local automation without restarting until the user chooses to restart', async () => {
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    const toggle = screen.getByRole('switch', { name: 'Local automation (CDP)' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText(/127\.0\.0\.1:9222/)).toBeInTheDocument()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(true)
+    )
+    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'Restart to apply' }))
+    expect(window.api.application.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('can persist disabling local automation for the next launch', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({ 'BootConfig.app.remote_debugging.enabled': true })
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    await user.click(screen.getByRole('switch', { name: 'Local automation (CDP)' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.enabled']).toBe(false)
+    )
+    expect(await screen.findByRole('button', { name: 'Restart to apply' })).toBeInTheDocument()
+    expect(window.api.application.relaunch).not.toHaveBeenCalled()
+  })
+
+  it('keeps the port disabled until CDP is enabled and saves a custom port on blur', async () => {
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    expect(screen.getByLabelText('CDP port')).toBeDisabled()
+    await user.click(screen.getByRole('switch', { name: 'Local automation (CDP)' }))
+    const port = await screen.findByLabelText('CDP port')
+    await waitFor(() => expect(port).toBeEnabled())
+    fireEvent.blur(port, { target: { value: '9342' } })
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['BootConfig.app.remote_debugging.port']).toBe(9342)
+    )
+    expect(screen.getByRole('button', { name: 'Restart to apply' })).toBeInTheDocument()
+  })
+
+  it('reports a failed restart without losing the retry action', async () => {
+    const user = userEvent.setup()
+    render(<GeneralSettings />)
+    await user.click(screen.getByRole('switch', { name: 'Local automation (CDP)' }))
+    const restart = await screen.findByRole('button', { name: 'Restart to apply' })
+    vi.mocked(window.api.application.relaunch).mockRejectedValueOnce(new Error('Cannot save startup settings'))
+    await user.click(restart)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Cannot save startup settings'))
+    expect(screen.getByRole('button', { name: 'Restart to apply' })).toBeEnabled()
   })
 
   it('places context management directly after proxy settings', () => {

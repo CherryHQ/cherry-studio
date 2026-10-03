@@ -16,6 +16,22 @@ const path = require('path')
  */
 const MANUAL_BOOT_CONFIG_ITEMS = [
   {
+    source: 'preboot',
+    sourceCategory: 'chromium',
+    originalKey: 'remoteDebuggingPort',
+    targetKey: 'app.remote_debugging.port',
+    zodType: 'z.number().int().min(1).max(65535)',
+    defaultValue: 9222
+  },
+  {
+    source: 'preboot',
+    sourceCategory: 'chromium',
+    originalKey: 'remoteDebuggingEnabled',
+    targetKey: 'app.remote_debugging.enabled',
+    zodType: 'z.boolean()',
+    defaultValue: false
+  },
+  {
     source: 'configfile',
     sourceCategory: 'legacy-home',
     originalKey: 'appDataPath',
