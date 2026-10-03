@@ -3,7 +3,7 @@ import { Bot, Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { EmojiIcon } from '@cherrystudio/ui'
-import { AgentRuntimeModeBadge } from '@renderer/components/agent/AgentRuntimeModeBadge'
+import { AgentRuntimeModeBadge } from '@renderer/components/AgentRuntimeModeBadge'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
