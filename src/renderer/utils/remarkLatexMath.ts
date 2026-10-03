@@ -71,6 +71,18 @@ const ENVIRONMENT_NAMES = new Set([
 
 const DISPLAY_COMMAND_PATTERN = /\\(?:begin|tag)\b/
 
+function hasUnescapedDisplayCommand(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== BACKSLASH) continue
+    if (index + 1 < value.length && value.charCodeAt(index + 1) === BACKSLASH) {
+      index += 1
+      continue
+    }
+    if (/^(?:begin|tag)\b/.test(value.slice(index + 1))) return true
+  }
+  return false
+}
+
 function removeNestedDelimiters(value: string, kind: Exclude<LatexMathKind, 'environment'>): string {
   const open = kind === 'paren' ? OPEN_PAREN : OPEN_BRACKET
   const close = kind === 'paren' ? CLOSE_PAREN : CLOSE_BRACKET
@@ -771,13 +783,16 @@ function demoteEmbeddedEnvironments(tree: Root, source: string): void {
 
 function isDollarDisplayMath(node: InlineMath, source: string): boolean {
   if (getLatexMathKind(node) !== undefined) return false
-  if (!DISPLAY_COMMAND_PATTERN.test(node.value)) return false
+  if (!hasUnescapedDisplayCommand(node.value)) return false
+  if (node.value.includes('\n') || node.value.includes('\r')) return false
   // A bare $ inside single-line $$ is prose or unbalanced input, not a display formula.
   if (node.value.replace(/\\./g, '').includes('$')) return false
   const start = node.position?.start.offset
   const end = node.position?.end.offset
   if (start === undefined || end === undefined) return false
-  return /^(\${2,})[\s\S]*\1$/.test(source.slice(start, end).trim())
+  const raw = source.slice(start, end).trim()
+  if (/[\r\n]/.test(raw)) return false
+  return /^(\${2,})[^\r\n]*\1$/.test(raw)
 }
 
 function isDisplayLatexMath(node: InlineMath, source: string): boolean {
