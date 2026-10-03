@@ -1,8 +1,10 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, sep } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import {
   createAssistantMessageEventStream,
@@ -18,30 +20,70 @@ import {
   type AgentSession,
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
-import { expect, it } from 'vitest'
+import { build } from 'vite'
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
-import { createPiApprovalExtension } from './approvalExtension'
-import { getPiVccExtensionPath } from './piSdk'
+import { application } from '@application'
 
-it('ships the TypeScript runtime without bundling package demos or tests', () => {
+import { piVccBundlePlugin } from '../../../../../scripts/piVccBundle'
+import { createPiApprovalExtension } from './approvalExtension'
+import { loadPiVccExtension } from './piSdk'
+
+let bundleDir: string
+beforeAll(async () => {
+  await mkdir('.context', { recursive: true })
+  bundleDir = await mkdtemp(resolve('.context/pi-vcc-test-'))
+  await build({
+    configFile: false,
+    publicDir: false,
+    logLevel: 'silent',
+    plugins: [piVccBundlePlugin()],
+    build: {
+      ssr: true,
+      ssrEmitAssets: true,
+      outDir: bundleDir,
+      lib: { entry: resolve('src/main/ai/runtime/pi/piSdk.ts'), formats: ['cjs'] },
+      rolldownOptions: {
+        external: (id) => id === '@application' || id.startsWith('@earendil-works/')
+      }
+    }
+  })
+  vi.spyOn(application, 'getPath').mockReturnValue(join(bundleDir, 'pi-vcc.mjs'))
+}, 30_000)
+
+afterAll(async () => {
+  vi.restoreAllMocks()
+  await rm(bundleDir, { recursive: true, force: true })
+})
+
+it('ships an ESM bundle that loads without resolving the source package', () => {
   const require = createRequire(import.meta.url)
   const builderRequire = createRequire(require.resolve('electron-builder'))
   const { FileMatcher } = builderRequire('app-builder-lib/out/fileMatcher')
   const root = process.cwd()
   const config = parse(readFileSync(join(root, 'electron-builder.yml'), 'utf8')) as { files: string[] }
   const filter = new FileMatcher(root, root, (value: string) => value, config.files).createFilter()
-  const packageRoot = dirname(require.resolve('@sting8k/pi-vcc'))
-  for (const file of readdirSync(packageRoot, { recursive: true }) as string[]) {
-    const stat = statSync(join(packageRoot, file))
-    if (!stat.isFile()) continue
-    const runtime =
-      file === 'package.json' || file === 'index.ts' || (file.startsWith(`src${sep}`) && file.endsWith('.ts'))
-    expect(filter(join(root, 'node_modules/@sting8k/pi-vcc', file), stat), file).toBe(runtime)
-  }
+  expect(filter(join(root, 'out/main/pi-vcc.mjs'), statSync(join(bundleDir, 'pi-vcc.mjs')))).toBe(true)
+  execFileSync(process.execPath, [
+    '--input-type=module',
+    '-e',
+    `
+    import { registerHooks } from 'node:module'
+    import { strict as assert } from 'node:assert'
+    registerHooks({
+      resolve(specifier, context, nextResolve) {
+        assert(!specifier.includes('@sting8k/pi-vcc'), 'pi-vcc must be bundled')
+        return nextResolve(specifier, context)
+      }
+    })
+    const extension = await import(${JSON.stringify(pathToFileURL(join(bundleDir, 'pi-vcc.mjs')).href)})
+    assert.equal(typeof extension.default, 'function')
+  `
+  ])
 })
 
-// Catches TS package loading failures, LLM fallback during compaction, and lost raw-history recall.
+// Catches bundle loading failures, LLM fallback during compaction, and lost raw-history recall.
 it.each([
   ['default', false, undefined],
   ['acceptEdits', false, undefined],
@@ -53,7 +95,7 @@ it.each([
     const cwd = await mkdtemp(join(tmpdir(), 'cherry-pi-vcc-'))
     const configPath = join(cwd, 'pi-vcc-config.json')
     const previousConfigPath = process.env.PI_VCC_CONFIG_PATH
-    const additionalExtensionPaths = [getPiVccExtensionPath(configPath)]
+    const piVccExtension = await loadPiVccExtension(configPath)
     let session: AgentSession | undefined
     let providerCalls = 0
     let recallCalls = 0
@@ -133,7 +175,6 @@ it.each([
       cwd,
       agentDir: cwd,
       settingsManager,
-      additionalExtensionPaths,
       noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,
@@ -154,7 +195,8 @@ it.each([
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set()
-        })
+        }),
+        piVccExtension
       ]
     })
     try {

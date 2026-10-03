@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
+  loadPiVccExtension: vi.fn(),
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
@@ -185,6 +186,7 @@ vi.mock('./piConnectionSignature', () => ({
 vi.mock('./piSdk', async (importOriginal) => ({
   ...(await importOriginal<typeof PiSdk>()),
   loadPiSdk: mocks.loadPiSdk,
+  loadPiVccExtension: mocks.loadPiVccExtension,
   loadPiAi: async () => ({ InMemoryCredentialStore: class {} }),
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
@@ -326,7 +328,6 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  vi.stubEnv('PI_VCC_CONFIG_PATH', process.env.PI_VCC_CONFIG_PATH)
   vi.clearAllMocks()
   mocks.getToolDefinition.mockReset()
 
@@ -429,6 +430,7 @@ beforeEach(() => {
     return PI_SESSIONS
   })
   mocks.loadPiSdk.mockResolvedValue(fakePi)
+  mocks.loadPiVccExtension.mockResolvedValue(() => {})
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
   mocks.providerResult = {
     role: 'assistant',
@@ -1587,11 +1589,6 @@ describe('PiRuntimeConnection', () => {
       noThemes: true,
       noContextFiles: false
     })
-    expect(mocks.loaderOpts).toMatchObject({
-      additionalExtensionPaths: [expect.stringMatching(/@sting8k[/\\]pi-vcc[/\\]index\.ts$/)]
-    })
-    expect(process.env.PI_VCC_CONFIG_PATH).toBe(path.join(PI_ROOT, 'pi-vcc-config.json'))
-    expect(mocks.reload).toHaveBeenCalledWith()
   })
 
   it('hands the configured pi shellPath to the settings manager and the managed bash tool', async () => {
@@ -1680,12 +1677,10 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.loaderOpts).toMatchObject({ noSkills: true, additionalSkillPaths: [] })
   })
 
-  it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
+  it('bakes disabledTools into excludeTools while keeping the managed Bash definition', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
-    expect(factories).toHaveLength(5)
     expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })

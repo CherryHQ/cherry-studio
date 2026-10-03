@@ -54,9 +54,6 @@ files:
   - "!**/*.{spec,test}.{js,jsx,ts,tsx}"
   - "!**/*.min.*.map"
   - "!**/*.d.ts"
-  # pi-vcc ships TypeScript runtime sources; keep them without its demos, tests, or benchmarks.
-  - "!node_modules/@sting8k/pi-vcc/**"
-  - "node_modules/@sting8k/pi-vcc/{package.json,index.ts,src/**/*.ts}"
   - "!**/dist/es6/**"
   - "!**/dist/demo/**"
   - "!**/amd/**"

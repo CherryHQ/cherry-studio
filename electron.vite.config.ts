@@ -16,6 +16,7 @@ import { parse } from 'yaml'
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { piVccBundlePlugin } from './scripts/piVccBundle'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
@@ -155,6 +156,7 @@ export default defineConfig({
     define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
     plugins: [
       chunkExportGuardPlugin(),
+      piVccBundlePlugin(),
       miniAppThemeAssetPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')

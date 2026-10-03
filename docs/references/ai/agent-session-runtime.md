@@ -10,6 +10,7 @@ sources:
   - src/main/ai/runtime/pi
   - src/shared/ai/piBuiltinTools.ts
   - patches/@sting8k__pi-vcc@0.8.1.patch
+  - scripts/piVccBundle.ts
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
@@ -728,9 +729,13 @@ after any applicable live tightening has landed.
 
 Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
 Users do not need to install the npm package or enable disk extension discovery.
-Cherry resolves the bundled entry point through `getPiVccExtensionPath` and
-passes it to `DefaultResourceLoader.additionalExtensionPaths`; `noExtensions`
-remains enabled to prevent discovery of unrelated executable extensions.
+The main-process build compiles the extension into `out/main/pi-vcc.mjs`.
+`loadPiVccExtension` imports that ESM bundle and registers it through
+`DefaultResourceLoader.extensionFactories`; `noExtensions` remains enabled to
+prevent discovery of unrelated executable extensions. The source package is a
+build-time dependency; no TypeScript extension sources ship in `node_modules`.
+The separate ESM bundle preserves Pi SDK's import-only entry point while
+Cherry's main bundle remains CommonJS.
 
 #### User-visible behavior
 
@@ -807,10 +812,9 @@ The real-SDK integration tests in
 [piVcc.test.ts](../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
 compaction without an LLM call, native instruction-guided compaction, recall
 after reopening, unattended approval, explicit disabling, command exclusion,
-and production file filtering. The connection tests cover default loading and
-the configuration path. File filtering and SDK tests do not prove that jiti loads
-the TypeScript extension inside an installed Electron/asar package; that remains
-a separate packaging smoke test.
+and production file filtering. They build and load the real ESM artifact,
+including a native Node import with source-package resolution blocked.
+These checks do not replace a full installed Electron/asar smoke test.
 
 ### Pi code mode
 
