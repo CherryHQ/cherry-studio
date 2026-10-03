@@ -48,6 +48,7 @@
 | [Remote Agent Sequences and Modules](./references/ai/remote-agent-sequences.md) | Target remote Agent sequence diagrams, connection states, module ownership, and failure-recovery acceptance scenarios |
 | [Remote Agent Testing Specification](./references/ai/remote-agent-testing.md) | Local WebSocket client acceptance specification for remote protocol conformance, real Desktop execution, recovery, security, and weak-network budgets |
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
+| [Assistant / Agent 工具访问设计（提案）](./references/ai/tool-access-design.md) | Proposed business-driven tool access and approval design for Assistants and Claude Code, Pi, and DSH Agents, separating user choices from runtime availability |
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
