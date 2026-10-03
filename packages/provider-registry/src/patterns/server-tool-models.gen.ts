@@ -36,7 +36,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -47,6 +46,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -119,7 +120,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-image',
           'gemini-3-1-flash-image-preview',
           'gemini-3-1-flash-lite',
@@ -133,6 +133,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -148,6 +150,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
     'web-search': [
       {
         ids: [
+          'claude-fable-5',
+          'claude-fable-5-1',
           'claude-haiku-4-5',
           'claude-opus-4',
           'claude-opus-4-1',
@@ -157,6 +161,10 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'claude-opus-4-7',
           'claude-opus-4-8',
           'claude-opus-4-8-fast',
+          'claude-opus-5',
+          'claude-opus-5-5',
+          'claude-opus-5-5-fast',
+          'claude-opus-5-fast',
           'claude-sonnet-4',
           'claude-sonnet-4-5',
           'claude-sonnet-4-6',
@@ -165,7 +173,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -176,6 +183,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -219,6 +228,14 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gpt-5-mini',
           'gpt-5-nano',
           'gpt-5-pro',
+          'gpt-6-1-sol',
+          'gpt-6-1-sol-pro',
+          'gpt-6-astra',
+          'gpt-6-astra-pro',
+          'gpt-6-luna',
+          'gpt-6-luna-pro',
+          'gpt-6-sol',
+          'gpt-6-sol-pro',
           'o3',
           'o3-mini',
           'o3-pro',
@@ -229,6 +246,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
     'url-context': [
       {
         ids: [
+          'claude-fable-5',
+          'claude-fable-5-1',
           'claude-haiku-4-5',
           'claude-opus-4',
           'claude-opus-4-1',
@@ -238,6 +257,10 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'claude-opus-4-7',
           'claude-opus-4-8',
           'claude-opus-4-8-fast',
+          'claude-opus-5',
+          'claude-opus-5-5',
+          'claude-opus-5-5-fast',
+          'claude-opus-5-fast',
           'claude-sonnet-4',
           'claude-sonnet-4-5',
           'claude-sonnet-4-6',
@@ -248,7 +271,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-image',
           'gemini-3-1-flash-image-preview',
           'gemini-3-1-flash-lite',
@@ -262,6 +284,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -285,6 +309,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-4-5v',
           'glm-4-6',
           'glm-4-6v',
+          'glm-4-6v-flash',
           'glm-4-7',
           'glm-4-7-flash',
           'glm-4-7-flashx',
@@ -299,9 +324,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-5-1',
           'glm-5-2',
           'glm-5-2-fast',
+          'glm-5-2-maas',
           'glm-5-3',
           'glm-5-3-fast',
           'glm-5-3-flash',
+          'glm-5-3-flashx',
+          'glm-5-3-prime',
           'glm-5-maas',
           'glm-5-turbo'
         ]
@@ -311,7 +339,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
   deepseek: {
     'web-search': [
       {
-        ids: ['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'],
+        ids: ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
     ]
@@ -337,7 +365,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -348,6 +375,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -420,7 +449,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-image',
           'gemini-3-1-flash-image-preview',
           'gemini-3-1-flash-lite',
@@ -434,6 +462,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -458,9 +488,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'claude-opus-4-7',
           'claude-opus-4-8',
           'claude-opus-4-8-fast',
+          'claude-opus-5-5',
+          'claude-opus-5-5-fast',
           'claude-sonnet-4',
           'claude-sonnet-4-5',
-          'claude-sonnet-4-6'
+          'claude-sonnet-4-6',
+          'claude-sonnet-5-5'
         ]
       }
     ],
@@ -476,9 +509,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'claude-opus-4-7',
           'claude-opus-4-8',
           'claude-opus-4-8-fast',
+          'claude-opus-5-5',
+          'claude-opus-5-5-fast',
           'claude-sonnet-4',
           'claude-sonnet-4-5',
-          'claude-sonnet-4-6'
+          'claude-sonnet-4-6',
+          'claude-sonnet-5-5'
         ]
       }
     ]
@@ -498,7 +534,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'claude-opus-4-8-fast',
           'claude-sonnet-4',
           'claude-sonnet-4-5',
-          'claude-sonnet-4-6'
+          'claude-sonnet-4-6',
+          'claude-sonnet-5-5'
         ]
       }
     ]
@@ -543,7 +580,10 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gpt-5-mini',
           'gpt-5-nano',
           'gpt-5-pro',
+          'gpt-6-1-sol',
           'gpt-6-astra',
+          'gpt-6-luna',
+          'gpt-6-sol',
           'o3',
           'o3-mini',
           'o3-pro',
@@ -639,7 +679,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -650,6 +689,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -670,7 +711,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-image',
           'gemini-3-1-flash-image-preview',
           'gemini-3-1-flash-lite',
@@ -684,6 +724,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -716,7 +758,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -727,6 +768,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -747,7 +790,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-image',
           'gemini-3-1-flash-image-preview',
           'gemini-3-1-flash-lite',
@@ -761,6 +803,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -781,12 +825,30 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'kimi-k2-6',
           'kimi-k2-7-code',
           'kimi-k2-7-code-highspeed',
-          'kimi-k2-instruct',
           'kimi-k2-thinking-maas',
           'kimi-k3',
           'kimi-k3-fast',
           'kimi-latest'
-        ]
+        ],
+        endpointTypes: ['openai-chat-completions']
+      }
+    ]
+  },
+  'moonshot-global': {
+    'web-search': [
+      {
+        ids: [
+          'kimi-k2',
+          'kimi-k2-5',
+          'kimi-k2-6',
+          'kimi-k2-7-code',
+          'kimi-k2-7-code-highspeed',
+          'kimi-k2-thinking-maas',
+          'kimi-k3',
+          'kimi-k3-fast',
+          'kimi-latest'
+        ],
+        endpointTypes: ['openai-chat-completions']
       }
     ]
   },
@@ -819,6 +881,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-4-5v',
           'glm-4-6',
           'glm-4-6v',
+          'glm-4-6v-flash',
           'glm-4-7',
           'glm-4-7-flash',
           'glm-4-7-flashx',
@@ -833,9 +896,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-5-1',
           'glm-5-2',
           'glm-5-2-fast',
+          'glm-5-2-maas',
           'glm-5-3',
           'glm-5-3-fast',
           'glm-5-3-flash',
+          'glm-5-3-flashx',
+          'glm-5-3-prime',
           'glm-5-maas',
           'glm-5-turbo',
           'kimi-k2',
@@ -843,7 +909,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'kimi-k2-6',
           'kimi-k2-7-code',
           'kimi-k2-7-code-highspeed',
-          'kimi-k2-instruct',
           'kimi-k2-thinking-maas',
           'kimi-k3',
           'kimi-k3-fast',
@@ -867,6 +932,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'qwen3-8-flash-next',
           'qwen3-8-max',
           'qwen3-8-max-preview',
+          'qwen3-8-max-prime',
           'qwen3-max',
           'qwen3-max-preview',
           'qwq-plus'
@@ -893,6 +959,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'qwen3-8-flash-next',
           'qwen3-8-max',
           'qwen3-8-max-preview',
+          'qwen3-8-max-prime',
           'qwen3-max',
           'qwen3-max-preview'
         ]
@@ -915,6 +982,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'qwen3-8-2-4t-a95b',
           'qwen3-8-max',
           'qwen3-8-max-preview',
+          'qwen3-8-max-prime',
           'qwen3-max',
           'qwen3-max-preview'
         ],
@@ -962,6 +1030,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'grok-4-3',
           'grok-4-5',
           'grok-4-6',
+          'grok-4-7',
           'grok-4-fast'
         ]
       }
@@ -1060,7 +1129,6 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-2-5-flash-lite',
           'gemini-2-5-pro',
           'gemini-2-5-pro-preview',
-          'gemini-2-5-pro-preview-05-06',
           'gemini-3-1-flash-lite',
           'gemini-3-1-flash-lite-preview',
           'gemini-3-1-flash-live-preview',
@@ -1071,6 +1139,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-6-flash',
           'gemini-3-7-flash',
           'gemini-3-8-flash',
+          'gemini-3-8-live',
+          'gemini-3-8-live-extended',
           'gemini-3-flash',
           'gemini-3-flash-preview',
           'gemini-3-pro-image',
@@ -1086,6 +1156,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-4-5v',
           'glm-4-6',
           'glm-4-6v',
+          'glm-4-6v-flash',
           'glm-4-7',
           'glm-4-7-flash',
           'glm-4-7-flashx',
@@ -1100,9 +1171,12 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'glm-5-1',
           'glm-5-2',
           'glm-5-2-fast',
+          'glm-5-2-maas',
           'glm-5-3',
           'glm-5-3-fast',
           'glm-5-3-flash',
+          'glm-5-3-flashx',
+          'glm-5-3-prime',
           'glm-5-maas',
           'glm-5-turbo',
           'gpt-4-1',
@@ -1155,13 +1229,13 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'grok-4-3',
           'grok-4-5',
           'grok-4-6',
+          'grok-4-7',
           'grok-4-fast',
           'kimi-k2',
           'kimi-k2-5',
           'kimi-k2-6',
           'kimi-k2-7-code',
           'kimi-k2-7-code-highspeed',
-          'kimi-k2-instruct',
           'kimi-k2-thinking-maas',
           'kimi-k3',
           'kimi-k3-fast',
@@ -1187,6 +1261,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'qwen3-7-plus',
           'qwen3-8-max',
           'qwen3-8-max-preview',
+          'qwen3-8-max-prime',
           'qwen3-max',
           'qwen3-max-preview',
           'qwq-plus',
