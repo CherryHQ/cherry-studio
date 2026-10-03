@@ -12,7 +12,7 @@ const skillsIndexSearchSchema = z.object({
 export const Route = createFileRoute('/settings/skills/')({
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = skillsIndexSearchSchema.safeParse(search)
-    return parsed.success ? parsed.data : {}
+    return parsed.success ? parsed.data : { scope: 'all' as const }
   },
   component: SkillsSettings
 })

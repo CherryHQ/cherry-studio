@@ -12,7 +12,7 @@ const skillDetailsSearchSchema = z.object({
 export const Route = createFileRoute('/settings/skills/$skillId')({
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = skillDetailsSearchSchema.safeParse(search)
-    return parsed.success ? parsed.data : {}
+    return parsed.success ? parsed.data : { scope: 'all' as const }
   },
   component: SkillDetailsRoute
 })
