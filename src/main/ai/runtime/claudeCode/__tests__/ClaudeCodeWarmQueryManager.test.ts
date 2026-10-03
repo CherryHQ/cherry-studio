@@ -7,6 +7,7 @@ const {
   startupMock,
   buildWarmRequestMock,
   applicationGetMock,
+  applicationGetExistingMock,
   traceModeEnabledMock,
   prepareTraceMock,
   ensureTraceIdMock
@@ -14,6 +15,7 @@ const {
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
+  applicationGetExistingMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
   prepareTraceMock: vi.fn(),
   ensureTraceIdMock: vi.fn()
@@ -24,7 +26,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: applicationGetMock }
+  application: { get: applicationGetMock, getExisting: applicationGetExistingMock }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -41,7 +43,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
+const { ClaudeCodeProcessManager, spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
 function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
@@ -64,6 +66,18 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
+function mockProcessManagerWithRelease() {
+  const releaseWarmQueryProcess = vi.fn()
+  applicationGetMock.mockImplementation((name: string) => {
+    if (name === 'ClaudeCodeProcessManager') return { releaseWarmQueryProcess }
+    if (name === 'ClaudeCodeTraceBridgeService') {
+      return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+    }
+    throw new Error(`Unexpected application.get(${name})`)
+  })
+  return { releaseWarmQueryProcess }
+}
+
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
     LifecycleManager.reset()
@@ -71,7 +85,11 @@ describe('ClaudeCodeWarmQueryManager', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
+    applicationGetExistingMock.mockReturnValue(undefined)
     applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') {
+        return { releaseWarmQueryProcess: vi.fn() }
+      }
       if (name === 'ClaudeCodeTraceBridgeService') {
         return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
       }
@@ -129,6 +147,34 @@ describe('ClaudeCodeWarmQueryManager', () => {
     })
     expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
     expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(spawnClaudeCodeProcess)
+  })
+
+  it('refuses to park a warm process while an evicted child keeps the active count at the cap', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const processManager = new ClaudeCodeProcessManager()
+    startupMock.mockResolvedValueOnce(warmQuery())
+    applicationGetMock.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') return processManager
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    applicationGetExistingMock.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') {
+        return { getActiveProcessCount: () => 6, getCapSlotProcessCount: () => 5 }
+      }
+      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery: vi.fn(() => false) }
+      throw new Error(`Unexpected application.getExisting(${name})`)
+    })
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await Promise.resolve()
+
+    // Five children hold cap slots and the sixth is an evicted child still exiting: the park must
+    // be refused, not evict other parks whose slots would not free before their children exit.
+    const seam = startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess as (options: unknown) => unknown
+    expect(() => seam({ env: {} })).toThrow('Claude Code CLI process cap reached')
   })
 
   it('keeps process diagnostics isolated between warm queries', async () => {
@@ -206,6 +252,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes a stale warm query when session options change', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const stale = warmQuery()
     const current = warmQuery()
@@ -218,6 +265,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } })
 
     expect(stale.close).toHaveBeenCalledOnce()
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     expect(consumed?.warmQuery).toBe(current)
   })
 
@@ -405,6 +453,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
@@ -421,6 +470,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     })
 
     expect(consumed).toBeUndefined()
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     await Promise.resolve()
     expect(warm.close).toHaveBeenCalledOnce()
   })
@@ -468,6 +518,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   it('closes unused warm queries after the idle ttl', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     startupMock.mockResolvedValueOnce(warm)
@@ -477,6 +528,32 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.advanceTimersByTime(5 * 60 * 1000)
     await Promise.resolve()
 
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('releases the process cap when warm query startup fails after spawning a child', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
+    const manager = new ClaudeCodeWarmQueryManager()
+    startupMock.mockRejectedValueOnce(new Error('startup failed'))
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await Promise.resolve()
+
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
+  })
+
+  it('releases the process cap when closing a parked warm query', async () => {
+    const { releaseWarmQueryProcess } = mockProcessManagerWithRelease()
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await manager.close('session-1')
+    await Promise.resolve()
+
+    expect(releaseWarmQueryProcess).toHaveBeenCalledOnce()
     expect(warm.close).toHaveBeenCalledOnce()
   })
 

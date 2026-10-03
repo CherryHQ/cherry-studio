@@ -156,6 +156,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
+  applicationGetExisting: vi.fn(),
   getPhysicalPath: vi.fn(),
   probeReadable: vi.fn(),
   consumeWarmQuery: vi.fn(),
@@ -171,7 +172,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
+  application: {
+    get: mocks.applicationGet,
+    getExisting: mocks.applicationGetExisting,
+    getPath: vi.fn(() => '/mock-claude-config')
+  }
 }))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
@@ -487,6 +492,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     vi.clearAllMocks()
 
     mocks.adapterInstances.length = 0
+    mocks.applicationGetExisting.mockReturnValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
         return {

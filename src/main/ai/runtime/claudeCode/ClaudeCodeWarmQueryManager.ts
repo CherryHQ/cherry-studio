@@ -16,6 +16,7 @@ import {
   createSpawnClaudeCodeProcess,
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -214,7 +215,23 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     })
   }
 
+  /**
+   * Close one parked warm query so a live turn can spawn when the global CLI cap is reached.
+   * Returns false when nothing was evicted.
+   */
+  evictOldestWarmQuery(): boolean {
+    const oldestKey = this.entries.keys().next().value
+    if (oldestKey === undefined) return false
+    const entry = this.entries.get(oldestKey)
+    if (!entry) return false
+    this.entries.delete(oldestKey)
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    this.releaseWarmQueryCapAndClose(entry)
+    return true
+  }
+
   async prewarm(request: WarmQueryRequest): Promise<void> {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
@@ -234,17 +251,18 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      void this.closeEntry(existing)
+      this.releaseWarmQueryCapAndClose(existing)
     }
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics, 'warm') },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {
         this.entries.delete(request.key)
       }
+      application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(processDiagnostics.reference)
       logger.warn('Claude warm query startup failed', { key: request.key, error })
       return undefined
     })
@@ -270,7 +288,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      void this.closeEntry(entry)
+      this.releaseWarmQueryCapAndClose(entry)
       return undefined
     }
 
@@ -283,13 +301,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const entry = this.entries.get(key)
     if (!entry) return Promise.resolve()
     this.entries.delete(key)
-    return this.closeEntry(entry)
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    this.releaseWarmQueryCapAndClose(entry)
+    return entry.closePromise ?? Promise.resolve()
   }
 
   closeAll(): Promise<void> {
     const entries = [...this.entries.values()]
     this.entries.clear()
-    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
+    for (const entry of entries) {
+      if (entry.idleTimer) clearTimeout(entry.idleTimer)
+      this.releaseWarmQueryCapAndClose(entry)
+    }
+    return Promise.allSettled(entries.map((entry) => entry.closePromise ?? Promise.resolve())).then(() => undefined)
   }
 
   protected onStop(): Promise<void> {
@@ -305,9 +329,14 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      void this.closeEntry(entry)
+      this.releaseWarmQueryCapAndClose(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
+  }
+
+  private releaseWarmQueryCapAndClose(entry: WarmQueryEntry): void {
+    application.get('ClaudeCodeProcessManager').releaseWarmQueryProcess(entry.processDiagnostics.reference)
+    void this.closeEntry(entry)
   }
 
   private closeEntry(entry: WarmQueryEntry): Promise<void> {

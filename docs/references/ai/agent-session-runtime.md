@@ -830,7 +830,9 @@ When the idle timer expires, the runtime closes the entry:
 
 - clears `pendingTurns`;
 - closes the runtime connection;
-- prewarms Claude Code when a latest resume token is known.
+- prewarms Claude Code when a latest resume token is known **and** a renderer window still holds a warm lease for the session (headless/channel sessions without a warm lease do not reach this prewarm path).
+
+Headless runs with no warm-lease holder tear down the runtime connection once execution is `idle`, the turn queue is empty, and no background work remains active. If background work was still running when the turn settled, the same eager close runs when that work finishes. Channel traffic therefore does not keep Claude CLI children resident across the idle TTL.
 
 Service stop and destroy close all runtime entries.
 Repeated `closeSession()` calls join the in-flight close; if a replacement entry was created meanwhile,

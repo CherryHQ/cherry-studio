@@ -259,6 +259,12 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    */
   onSessionIdle?(sessionId: string): void
   /**
+   * Notified when a session idles out with a resume token but no renderer warm
+   * lease (e.g. channel/headless traffic). Lets a driver drop runtime-specific
+   * warm state without the host calling into another driver's services.
+   */
+  onSessionIdleWithoutWarmLease?(sessionId: string): void
+  /**
    * Reclaim on-disk session state that no surviving session row claims, keyed by
    * the resume tokens the driver itself hands out. The keep-set covers trashed
    * sessions too — their rows and tokens remain until purge so Restore stays
