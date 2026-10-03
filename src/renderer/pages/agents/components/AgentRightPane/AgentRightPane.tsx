@@ -131,11 +131,15 @@ import {
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
-  isAgentPreviewUrlSourceAfterFrontier,
-  isResumeReceiptCall,
-  resolveFlowToolCallId
+  isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
+import {
+  AgentRightPaneRuntimeContext,
+  type AgentRightPaneRuntime,
+  useAgentRightPaneRuntime
+} from './agentRightPaneRuntime'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
+import { useAgentToolFlowActions } from './useAgentToolFlowActions'
 
 const logger = loggerService.withContext('AgentRightPane')
 
@@ -219,24 +223,6 @@ interface AgentRightPaneMeta {
   model?: Model
 }
 
-interface AgentRightPaneRuntime {
-  messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
-  /** Pages older history in so a flow root outside the loaded window can still be opened. */
-  loadOlder?: () => void
-  /** Whether older history remains; false means a missing root cannot be paged in. */
-  hasOlder?: boolean
-  /** The failure of the last older-history fetch, so a chase that cannot finish can report it. */
-  loadOlderError?: Error
-  browserUrl: string | null
-  browserProfile:
-    | typeof WebviewSecurityProfile.AgentBrowser
-    | typeof WebviewSecurityProfile.AgentDevPreview
-    | typeof WebviewSecurityProfile.AgentHtmlArtifact
-  openBrowserUrl: (url: string) => void
-  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlCandidate | null) => void
-}
-
 interface ExplicitBrowserBaseline {
   liveCandidateKeys: Set<string>
   candidateKeys: Set<string>
@@ -313,7 +299,6 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
 }
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
-const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
 const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
 const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
 const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | null>(null)
@@ -321,12 +306,6 @@ const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | nu
 function useAgentRightPaneMeta(): AgentRightPaneMeta {
   const value = use(AgentRightPaneMetaContext)
   if (!value) throw new Error('useAgentRightPaneMeta must be used within <AgentRightPane.Scope>')
-  return value
-}
-
-function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
-  const value = use(AgentRightPaneRuntimeContext)
-  if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
 }
 
@@ -421,101 +400,18 @@ function AgentRightPaneActionsProvider({
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
-  // Read the parts map at call time through a ref so message streaming does not re-create the
-  // actions object (and re-render consumers that only open flows).
-  const runtime = use(AgentRightPaneRuntimeContext)
-  const runtimeRef = useRef(runtime)
-  runtimeRef.current = runtime
-  // Task edges can arrive through the runtime's live cache without ever being a loaded part, and a
-  // dsh resume edge is what decides whether a receipt roots its own flow. Read through a ref so the
-  // actions object stays stable — re-creating it re-renders every tool row on each task-event write.
-  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
-  const lateTaskEventsRef = useRef(lateTaskEvents)
-  lateTaskEventsRef.current = lateTaskEvents
-  // A root outside the loaded window is not a dead click: hold the intent and page older history in
-  // until it arrives, so the flow opens without the user scrolling back by hand. The intent carries
-  // the session and the nesting that asked for it — a later session must not inherit either.
-  const [pendingFlowOpen, setPendingFlowOpen] = useState<{
-    sessionId?: string
-    input: AgentToolFlowOpenInput
-    nested: boolean
-  } | null>(null)
-  const pagedForRef = useRef<string | null>(null)
-  // The paging failure already seen when the current page was requested: only a new one is the
-  // failure of this request, since a stale error survives until a fetch succeeds.
-  const pagedErrorRef = useRef<unknown>(null)
-  const showFlowTab = useCallback(
-    (input: AgentToolFlowOpenInput, nested: boolean) => {
-      // Any flow opening supersedes a chase that is still paging — the user has moved on to it.
-      setPendingFlowOpen(null)
-      pagedForRef.current = null
-      replaceFlowTab(input, nested)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
-    },
-    [panelActions, replaceFlowTab]
+  // Stable identity: the flow actions memo must not churn on every provider render, or every tool
+  // row re-renders with it.
+  const requestOpenFlowTab = useCallback(
+    (toolCallId: string) => panelActions.requestOpen(getFlowTabValue(toolCallId), { userInitiated: true }),
+    [panelActions]
   )
-  const openAgentToolFlow = useCallback(
-    (input: AgentToolFlowOpenInput, nested = false) => {
-      if (!canOpenAgentToolFlow) return
-      // A task bound to its send-message receipt (cold reconnect replay) must still open the flow
-      // its agent actually streams under — the launch root.
-      const partsByMessageId = runtimeRef.current?.partsByMessageId ?? null
-      const lateEvents = lateTaskEventsRef.current
-      const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId, lateEvents)
-      // A receipt whose root is merely paged out is worth waiting for; one that resolves nowhere
-      // must not open an empty pane rooted at the continuation itself.
-      if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId, lateEvents)) {
-        pagedForRef.current = null
-        setPendingFlowOpen({ sessionId, input, nested })
-        return
-      }
-      const flowInput = resolved
-        ? { ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }
-        : input
-      showFlowTab(flowInput, nested)
-    },
-    [canOpenAgentToolFlow, sessionId, showFlowTab]
-  )
-  // A chase belongs to the session that asked for it: leaving that session abandons the click
-  // rather than reopening the flow when the user later wanders back.
-  useEffect(() => {
-    if (pendingFlowOpen && pendingFlowOpen.sessionId !== sessionId) setPendingFlowOpen(null)
-  }, [pendingFlowOpen, sessionId])
-  useEffect(() => {
-    if (!pendingFlowOpen || pendingFlowOpen.sessionId !== sessionId) return
-    const { input, nested } = pendingFlowOpen
-    const partsByMessageId = runtime?.partsByMessageId ?? null
-    const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId, lateTaskEvents)
-    if (resolved) {
-      setPendingFlowOpen(null)
-      pagedForRef.current = null
-      showFlowTab({ ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }, nested)
-      return
-    }
-    if (!runtime?.hasOlder) {
-      // No history is left to page: the root is absent, so say so instead of ignoring the click.
-      setPendingFlowOpen(null)
-      pagedForRef.current = null
-      toast.warning(t('agent.right_pane.flow.no_messages.description'))
-      return
-    }
-    // One page per arrival: the parts map changes with each load, so a repeat cannot spin.
-    const requestKey = `${input.toolCallId}:${Object.keys(partsByMessageId ?? {}).length}`
-    if (pagedForRef.current === requestKey) {
-      // A page that failed leaves the window unchanged, so the chase would wait forever: report it
-      // and drop the intent — the next click arms a fresh attempt.
-      if (runtime.loadOlderError && runtime.loadOlderError !== pagedErrorRef.current) {
-        setPendingFlowOpen(null)
-        pagedForRef.current = null
-        pagedErrorRef.current = null
-        toast.warning(t('agent.right_pane.flow.history_load_failed'))
-      }
-      return
-    }
-    pagedForRef.current = requestKey
-    pagedErrorRef.current = runtime.loadOlderError ?? null
-    runtime.loadOlder?.()
-  }, [lateTaskEvents, pendingFlowOpen, runtime, sessionId, showFlowTab, t])
+  const { openAgentToolFlow } = useAgentToolFlowActions({
+    sessionId,
+    canOpenAgentToolFlow,
+    replaceFlowTab,
+    requestOpenFlowTab
+  })
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
