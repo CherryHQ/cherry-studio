@@ -326,6 +326,7 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  vi.stubEnv('PI_VCC_CONFIG_PATH', process.env.PI_VCC_CONFIG_PATH)
   vi.clearAllMocks()
   mocks.getToolDefinition.mockReset()
 
@@ -417,9 +418,9 @@ beforeEach(() => {
       ]
     }
   })
-  mocks.getPath.mockImplementation((key: string) => {
+  mocks.getPath.mockImplementation((key: string, filename?: string) => {
     if (key === 'external.pi.settings_file') return mocks.piSettingsFile
-    if (key === 'feature.agents.pi.root') return PI_ROOT
+    if (key === 'feature.agents.pi.root') return filename ? path.join(PI_ROOT, filename) : PI_ROOT
     if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
     if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
     if (key === 'feature.binary.data.isolated.rustup') return '/cherry/Toolchain/rustup'
@@ -1586,6 +1587,10 @@ describe('PiRuntimeConnection', () => {
       noThemes: true,
       noContextFiles: false
     })
+    expect(mocks.loaderOpts).toMatchObject({
+      additionalExtensionPaths: [expect.stringMatching(/@sting8k[/\\]pi-vcc[/\\]index\.ts$/)]
+    })
+    expect(process.env.PI_VCC_CONFIG_PATH).toBe(path.join(PI_ROOT, 'pi-vcc-config.json'))
     expect(mocks.reload).toHaveBeenCalledWith()
   })
 

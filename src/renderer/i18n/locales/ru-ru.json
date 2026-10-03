@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Найти инструменты",
   "agent.tools.builtin.update_goal.description": "Обновить состояние или содержание цели сеанса",
   "agent.tools.builtin.update_goal.label": "Обновить цель",
+  "agent.tools.builtin.vcc_recall.description": "Поиск в истории текущего сеанса после сжатия",
+  "agent.tools.builtin.vcc_recall.label": "Восстановить историю сеанса",
   "agent.tools.builtin.write.description": "Записывать файлы",
   "agent.tools.builtin.write.label": "Записывать файлы",
   "agent.unpin.title": "Открепить агента",

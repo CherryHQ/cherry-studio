@@ -727,7 +727,12 @@ after any applicable live tightening has landed.
 Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
 It replaces the default LLM-generated compaction with algorithmic transcript
 extraction and provides `vcc_recall` to search the current session's raw JSONL
-history after compaction. The existing `/compact` action uses this extension.
+history after compaction. Recall is auto-approved, including unattended turns,
+and remains available in the tool settings for explicit disabling.
+Bare `/compact` and automatic compaction use this extension. `/compact <instructions>`
+uses Pi's native LLM summarizer so the instructions still guide the summary.
+CLI-only `/pi-vcc` and `/pi-vcc-recall` commands are not registered; Cherry owns
+turn completion through its `/compact` action and the `vcc_recall` tool.
 Its shared configuration lives at `feature.agents.pi.root/pi-vcc-config.json`,
 isolated from standalone Pi's configuration. Disk extension discovery remains
 disabled; no runtime package installation is required.

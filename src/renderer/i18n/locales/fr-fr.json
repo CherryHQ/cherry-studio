@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Rechercher des outils",
   "agent.tools.builtin.update_goal.description": "Mettre à jour l’état ou le contenu de l’objectif de session",
   "agent.tools.builtin.update_goal.label": "Mettre à jour l’objectif",
+  "agent.tools.builtin.vcc_recall.description": "Recherche dans l’historique de la session actuelle après la compression",
+  "agent.tools.builtin.vcc_recall.label": "Rappeler l’historique de la session",
   "agent.tools.builtin.write.description": "Écrire des fichiers",
   "agent.tools.builtin.write.label": "Écrire des fichiers",
   "agent.unpin.title": "Désépingler l'agent",

@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "搜索工具",
   "agent.tools.builtin.update_goal.description": "更新会话目标的状态或内容",
   "agent.tools.builtin.update_goal.label": "更新目标",
+  "agent.tools.builtin.vcc_recall.description": "压缩后检索当前会话的历史记录",
+  "agent.tools.builtin.vcc_recall.label": "回忆会话历史",
   "agent.tools.builtin.write.description": "写入文件",
   "agent.tools.builtin.write.label": "写入文件",
   "agent.unpin.title": "取消置顶智能体",

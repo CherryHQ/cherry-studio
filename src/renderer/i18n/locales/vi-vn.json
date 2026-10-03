@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Tìm kiếm công cụ",
   "agent.tools.builtin.update_goal.description": "Cập nhật trạng thái hoặc nội dung của mục tiêu phiên",
   "agent.tools.builtin.update_goal.label": "Cập nhật mục tiêu",
+  "agent.tools.builtin.vcc_recall.description": "Tìm kiếm lịch sử phiên hiện tại sau khi nén ngữ cảnh",
+  "agent.tools.builtin.vcc_recall.label": "Truy xuất lịch sử phiên",
   "agent.tools.builtin.write.description": "Ghi tập tin",
   "agent.tools.builtin.write.label": "Ghi tập tin",
   "agent.unpin.title": "Bỏ ghim Agent",

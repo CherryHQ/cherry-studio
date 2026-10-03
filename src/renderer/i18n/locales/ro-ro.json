@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Căutați instrumente",
   "agent.tools.builtin.update_goal.description": "Actualizează starea sau conținutul obiectivului sesiunii",
   "agent.tools.builtin.update_goal.label": "Actualizează obiectivul",
+  "agent.tools.builtin.vcc_recall.description": "Caută în istoricul sesiunii curente după compactare",
+  "agent.tools.builtin.vcc_recall.label": "Recuperează istoricul sesiunii",
   "agent.tools.builtin.write.description": "Scrie fișiere",
   "agent.tools.builtin.write.label": "Scrie fișiere",
   "agent.unpin.title": "Dezactivează agentul",

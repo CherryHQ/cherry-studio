@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "搜尋工具",
   "agent.tools.builtin.update_goal.description": "更新工作階段目標的狀態或內容",
   "agent.tools.builtin.update_goal.label": "更新目標",
+  "agent.tools.builtin.vcc_recall.description": "壓縮後搜尋目前工作階段的歷史記錄",
+  "agent.tools.builtin.vcc_recall.label": "回憶工作階段歷史",
   "agent.tools.builtin.write.description": "寫入檔案",
   "agent.tools.builtin.write.label": "寫入檔案",
   "agent.unpin.title": "取消釘選 Agent",

@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Αναζήτηση εργαλείων",
   "agent.tools.builtin.update_goal.description": "Ενημέρωση της κατάστασης ή του περιεχομένου του στόχου συνεδρίας",
   "agent.tools.builtin.update_goal.label": "Ενημέρωση στόχου",
+  "agent.tools.builtin.vcc_recall.description": "Αναζήτηση στο ιστορικό της τρέχουσας συνεδρίας μετά τη συμπύκνωση",
+  "agent.tools.builtin.vcc_recall.label": "Ανάκληση ιστορικού συνεδρίας",
   "agent.tools.builtin.write.description": "Εγγραφή αρχείων",
   "agent.tools.builtin.write.label": "Εγγραφή αρχείων",
   "agent.unpin.title": "Κατάργηση Πράκτορα από την κορυφή",

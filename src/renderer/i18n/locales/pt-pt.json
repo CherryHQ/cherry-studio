@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Pesquisar ferramentas",
   "agent.tools.builtin.update_goal.description": "Atualizar o estado ou o conteúdo do objetivo da sessão",
   "agent.tools.builtin.update_goal.label": "Atualizar objetivo",
+  "agent.tools.builtin.vcc_recall.description": "Pesquisa o histórico da sessão atual após a compactação",
+  "agent.tools.builtin.vcc_recall.label": "Recuperar histórico da sessão",
   "agent.tools.builtin.write.description": "Escrever ficheiros",
   "agent.tools.builtin.write.label": "Escrever ficheiros",
   "agent.unpin.title": "Desafixar Agente",

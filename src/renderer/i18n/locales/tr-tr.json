@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Araçları ara",
   "agent.tools.builtin.update_goal.description": "Oturum hedefinin durumunu veya amacını günceller",
   "agent.tools.builtin.update_goal.label": "Hedefi güncelle",
+  "agent.tools.builtin.vcc_recall.description": "Sıkıştırmadan sonra geçerli oturum geçmişinde arama yapar",
+  "agent.tools.builtin.vcc_recall.label": "Oturum geçmişini hatırla",
   "agent.tools.builtin.write.description": "Dosyalara yazar",
   "agent.tools.builtin.write.label": "Dosyalara yaz",
   "agent.unpin.title": "Ajanın sabitlemesini kaldır",

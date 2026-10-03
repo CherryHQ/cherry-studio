@@ -499,6 +499,8 @@
   "agent.tools.builtin.tool_search.label": "Search tools",
   "agent.tools.builtin.update_goal.description": "Update the session goal status or objective",
   "agent.tools.builtin.update_goal.label": "Update goal",
+  "agent.tools.builtin.vcc_recall.description": "Search the current session history after compaction",
+  "agent.tools.builtin.vcc_recall.label": "Recall session history",
   "agent.tools.builtin.write.description": "Write files",
   "agent.tools.builtin.write.label": "Write files",
   "agent.unpin.title": "Unpin Agent",
