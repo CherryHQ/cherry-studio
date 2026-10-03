@@ -8,7 +8,12 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
-import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
+import {
+  agentChatContextProvider,
+  finalizeInterruptedParts,
+  ownershipSnapshotFromValidated,
+  type StreamListener
+} from '../streamManager'
 import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
@@ -299,12 +304,11 @@ export class AgentSessionDeliveryService extends BaseService {
       let persisted
       try {
         persisted = application.get('DbService').withWriteTx((tx) => {
-          const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          })
+          const prepared = agentChatContextProvider.persistDispatchTx(
+            tx,
+            validated,
+            ownershipSnapshotFromValidated(validated)
+          )
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(
             tx,
             current.sessionId,

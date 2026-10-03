@@ -18,6 +18,7 @@ vi.mock('@renderer/hooks/tab', () => ({ useCloseConversationTabs: () => vi.fn() 
 const restoredSession: AgentSessionEntity = {
   id: 'restored-session',
   agentId: 'restored-agent',
+  modelId: null,
   name: 'Restored task',
   workspaceId: 'workspace-1',
   workspace: {

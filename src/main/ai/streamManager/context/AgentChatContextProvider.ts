@@ -12,8 +12,13 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService,
+  type ExpectedAgentOwner
+} from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -55,6 +60,10 @@ export type ValidatedAgentDispatch = {
   agentType: string
   agentName: string
   uniqueModelId: UniqueModelId
+  /** The agent default at validation time: the ownership check compares this, not the override. */
+  agentModel: UniqueModelId | null
+  /** The session override at validation time: the ownership check revalidates this. */
+  sessionModelId: UniqueModelId | null
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode?: boolean
@@ -74,6 +83,22 @@ export type PersistedAgentDispatch = {
   traceId: string
   userMessage: AgentSessionMessageEntity
   savedMessages: AgentSessionMessageEntity[]
+}
+
+export function ownershipSnapshotFromValidated(validated: ValidatedAgentDispatch): Extract<ExpectedAgentOwner, object> {
+  return {
+    id: validated.agentId,
+    updatedAt: validated.agentUpdatedAt,
+    model: validated.agentModel,
+    type: validated.agentType,
+    sessionModelId: validated.sessionModelId
+  }
+}
+
+function resolveExpectedAgent(validated: ValidatedAgentDispatch, callerOwner?: string): ExpectedAgentOwner {
+  return callerOwner === undefined || callerOwner === validated.agentId
+    ? ownershipSnapshotFromValidated(validated)
+    : callerOwner
 }
 
 export interface AgentSessionTurnAuthority {
@@ -119,7 +144,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model) {
+    // Per-session override wins; null inherits the agent default so sibling
+    // sessions keep independent selections.
+    const uniqueModelId = session.modelId ?? agent.model
+    if (!uniqueModelId) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
     }
 
@@ -137,8 +165,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelName =
+      uniqueModelId === agent.model
+        ? (agent.modelName ?? rawModelId)
+        : (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
+            .get(uniqueModelId) ?? rawModelId)
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -150,6 +183,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       agentName: agent.name,
       uniqueModelId,
+      agentModel: agent.model ?? null,
+      sessionModelId: session.modelId ?? null,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
@@ -162,7 +197,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         name: agent.name,
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
@@ -174,7 +209,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgentOwner
   ): PersistedAgentDispatch {
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
@@ -316,12 +351,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
       const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        const result = this.persistDispatchTx(tx, validated, {
-          id: validated.agentId,
-          updatedAt: validated.agentUpdatedAt,
-          model: validated.uniqueModelId,
-          type: validated.agentType
-        })
+        const result = this.persistDispatchTx(tx, validated, ownershipSnapshotFromValidated(validated))
         agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
         return result
       })
@@ -341,20 +371,26 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        {
+          expectedAgent: ownershipSnapshotFromValidated(validated)
         }
-      })
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
+        modelId: validated.uniqueModelId,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode
@@ -368,9 +404,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
+    const expectedAgent = resolveExpectedAgent(validated, ctx?.expectedAgentId)
     const persisted = application.get('DbService').withWriteTx((tx) => {
       ctx?.beforePersist?.()
-      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      const reserved = this.persistDispatchTx(tx, validated, expectedAgent)
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })

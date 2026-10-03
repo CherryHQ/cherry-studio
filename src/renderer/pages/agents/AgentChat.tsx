@@ -29,7 +29,6 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -61,7 +60,8 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 interface ModelSwitchTarget {
-  agentId: string
+  sessionId: string
+  agentId: string | null
   model: Model
 }
 
@@ -209,7 +209,6 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const isModelDisabled = useAgentModelDisabled()
@@ -226,6 +225,12 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
+  }, [currentSessionId])
+  useEffect(() => {
+    // A pending model switch belongs to its session: navigating away drops it
+    // instead of confirming against the wrong conversation.
+    setModelSwitchConfirmOpen(false)
+    setModelSwitchTarget(undefined)
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -303,16 +308,30 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel) return
+      const clearingOverrideToDefault =
+        sessionSnapshot.modelId != null &&
+        nextModel.id === activeAgent?.model &&
+        nextModel.id === activeModel?.id
+      if (nextModel.id === activeModel?.id && !clearingOverrideToDefault) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: sessionSnapshot.agentId, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      // Picking the agent default clears the override so the session inherits again.
+      const modelId = nextModel.id === activeAgent?.model ? null : nextModel.id
+      await updateSession({ id: sessionSnapshot.id, modelId }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [
+      activeAgent,
+      activeModel?.id,
+      isEmptyConversation,
+      sessionSnapshot,
+      skipModelSwitchConfirmationsForAppRun,
+      updateSession
+    ]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -565,19 +584,22 @@ const AgentChat = ({
         confirmText={t('agent.session.model_switch_confirm.confirm')}
         cancelText={t('common.cancel')}
         onConfirm={async () => {
-          if (
-            !activeAgent ||
-            !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+          const clearingOverrideToDefault =
+            sessionSnapshot?.modelId != null &&
+            modelSwitchTarget?.model.id === activeAgent?.model &&
             modelSwitchTarget.model.id === activeModel?.id
+          if (
+            !sessionSnapshot ||
+            !modelSwitchTarget ||
+            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
+            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
+            (modelSwitchTarget.model.id === activeModel?.id && !clearingOverrideToDefault)
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
-            { showSuccessToast: false }
-          )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          const modelId = modelSwitchTarget.model.id === activeAgent?.model ? null : modelSwitchTarget.model.id
+          const updatedSession = await updateSession({ id: sessionSnapshot.id, modelId }, { showSuccessToast: false })
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}
