@@ -39,6 +39,18 @@ describe('knowledgeFileEntry', () => {
     })
   })
 
+  it('carries the explicit allowArbitrary opt-in through to the item data, and omits it otherwise', async () => {
+    await expect(resolveKnowledgeFileData('/tmp/notes.unknownext', 'notes.unknownext', true)).resolves.toEqual({
+      source: '/tmp/notes.unknownext',
+      path: '/tmp/notes.unknownext',
+      allowArbitrary: true
+    })
+    // A curated pick never sets the flag, so main keeps enforcing the allow-list for it.
+    await expect(resolveKnowledgeFileData('/tmp/report.pdf', 'report.pdf', false)).resolves.not.toHaveProperty(
+      'allowArbitrary'
+    )
+  })
+
   it('rejects blank paths before creating item data', async () => {
     await expect(resolveKnowledgeFileData('  ', 'report.pdf')).rejects.toThrow(
       'Failed to resolve a local path for "report.pdf"'

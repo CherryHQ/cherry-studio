@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
+import {
+  documentExts,
+  knowledgeFileProcessingExts,
+  knowledgeIndexableFileExtSet,
+  knowledgePlainTextFileExts,
+  knowledgeSupportedFileExts
+} from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: artifact reservation keyed
 // off a different list than routing did, so `.xls`'s processed `.md` artifact was never
@@ -43,5 +49,48 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     // Deliberately absent from documentExts: that list feeds officeparser on the AI
     // attachment path, which does not handle the legacy binary PowerPoint format.
     expect(document.has('.ppt')).toBe(false)
+  })
+
+  it('indexes every curated reader plus the curated plaintext set', () => {
+    for (const ext of knowledgeSupportedFileExts) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+    for (const ext of knowledgePlainTextFileExts) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+    // A representative slice of the curated plaintext additions the feature is about.
+    for (const ext of ['.py', '.go', '.rs', '.yaml', '.toml', '.sql', '.sh', '.rst']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+  })
+
+  it('does not admit binary or no-value extensions by membership (they enter only via explicit opt-in)', () => {
+    // The exact extensions the review flagged as binary/ambiguous despite appearing in a text list.
+    for (const ext of ['.pkl', '.pt', '.plist', '.stl', '.mat', '.msg', '.obj', '.raw']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(false)
+    }
+    // Binary office formats with no local text layer.
+    for (const ext of ['.odt', '.odp', '.ods']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(false)
+    }
+  })
+
+  it('keeps dotfile-style names off the curated set so the renderer/main classifiers cannot disagree', () => {
+    // `.eslintrc`/`.env`/`.bashrc`/`.dockerfile` split-vs-extname differently between renderer and
+    // main (a bare-dotfile basename has no `path.extname`); admitting them by name is what lost
+    // whole batches to rollback, so none may be curated members.
+    const names = [
+      '.env',
+      '.eslintrc',
+      '.bashrc',
+      '.npmrc',
+      '.gitattributes',
+      '.editorconfig',
+      '.prettierrc',
+      '.dockerfile'
+    ]
+    for (const name of names) {
+      expect(knowledgeIndexableFileExtSet.has(name)).toBe(false)
+    }
   })
 })

@@ -901,6 +901,7 @@
         ".markdown",
         ".md",
         ".mdx",
+        ".json",
         ".pdf",
         ".html",
         ".htm",
