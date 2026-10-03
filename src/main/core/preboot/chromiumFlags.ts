@@ -23,6 +23,13 @@ import { bootConfigService } from '@main/data/bootConfig'
  * See core/preboot/README.md for the preboot membership criteria.
  */
 export function configureChromiumFlags(): void {
+  if (bootConfigService.get('app.remote_debugging.enabled')) {
+    if (!app.commandLine.hasSwitch('remote-debugging-port')) {
+      app.commandLine.appendSwitch('remote-debugging-port', String(bootConfigService.get('app.remote_debugging.port')))
+    }
+    app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1')
+  }
+
   // Disable hardware acceleration if the user opted out via BootConfig.
   if (bootConfigService.get('app.disable_hardware_acceleration')) {
     app.disableHardwareAcceleration()
