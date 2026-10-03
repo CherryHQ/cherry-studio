@@ -27,8 +27,10 @@ import { fileStorage } from '../FileStorage'
 const event = {} as Electron.IpcMainInvokeEvent
 
 function createTempPathSwapFixture() {
-  const physicalRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-physical-temp-')))
-  const replacementRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-replacement-temp-')))
+  const physicalRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-physical-temp-')))
+  const replacementRoot = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-replacement-temp-'))
+  )
   const redirectedRoot = `${physicalRoot}-redirected`
   const physicalDir = path.join(physicalRoot, 'CherryStudio')
   const replacementDir = path.join(replacementRoot, 'CherryStudio')
@@ -112,7 +114,9 @@ describe('FileStorage', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
 
       try {
-        await expect(fileStorage.save(event, 'existing.md', 'new content')).resolves.toBe(fs.realpathSync(filePath))
+        await expect(fileStorage.save(event, 'existing.md', 'new content')).resolves.toBe(
+          fs.realpathSync.native(filePath)
+        )
         const after = fs.statSync(filePath)
 
         expect(fs.readFileSync(filePath, 'utf-8')).toBe('new content')
@@ -253,7 +257,7 @@ describe('FileStorage', () => {
 
       await fileStorage.deleteExternalFile(event, portablePath)
 
-      expect(shell.trashItem).toHaveBeenCalledWith(fs.realpathSync(tmpFile))
+      expect(shell.trashItem).toHaveBeenCalledWith(fs.realpathSync.native(tmpFile))
     })
 
     it('resolves the normalized Windows path before moving it to trash', async () => {
@@ -289,7 +293,7 @@ describe('FileStorage', () => {
 
       await fileStorage.deleteExternalDir(event, portablePath)
 
-      expect(shell.trashItem).toHaveBeenCalledWith(fs.realpathSync(tmpDir))
+      expect(shell.trashItem).toHaveBeenCalledWith(fs.realpathSync.native(tmpDir))
     })
 
     it('does not invoke the trash API for an empty path', async () => {
