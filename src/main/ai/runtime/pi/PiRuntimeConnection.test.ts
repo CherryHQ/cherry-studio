@@ -1,19 +1,25 @@
 import type * as NodeFs from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import { forkPiSession } from './piFork'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
 const AGENT_DATA_PATH = '/cherry/Data/Agents/agent-1'
 const WORKSPACE = '/work/space'
+const MISSING_PI_AGENT_DIR = path.join(tmpdir(), `cherry-pi-agent-missing-${process.pid}`)
+let actualReadFileSync: typeof NodeFs.readFileSync
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
@@ -46,7 +52,6 @@ const mocks = vi.hoisted(() => ({
   usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
-  preferenceGet: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -56,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   startSpan: vi.fn(),
   spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
+  readFileSync: vi.fn(),
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
@@ -91,6 +97,9 @@ const mocks = vi.hoisted(() => ({
   bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  piSettingsFile: '',
+  autoDiscoverGitBash: vi.fn(),
+  validateGitBashPath: vi.fn((shellPath?: string | null) => shellPath ?? null),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
   isStreaming: false,
@@ -101,7 +110,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
-  readdirSync: mocks.readdirSync
+  readdirSync: mocks.readdirSync,
+  readFileSync: mocks.readFileSync
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
@@ -110,17 +120,20 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => (
   ...(await importOriginal<typeof UserDataSqliteGuard>()),
   evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
-vi.mock('@application', () => ({
-  application: {
-    getPath: mocks.getPath,
-    get: (name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      return {}
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const application = createMockApplication({ IpcApiService: { broadcast: mocks.broadcast } })
+  return {
+    application: {
+      ...application,
+      getPath: mocks.getPath,
+      get: (name: string) => {
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+        return application.get(name)
+      }
     }
   }
-}))
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -137,6 +150,10 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
 vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/commandResolver', () => ({
+  autoDiscoverGitBash: mocks.autoDiscoverGitBash,
+  validateGitBashPath: mocks.validateGitBashPath
+}))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
@@ -294,14 +311,24 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
   ])
 }
 
+beforeAll(async () => {
+  actualReadFileSync = (await vi.importActual<typeof NodeFs>('node:fs')).readFileSync
+  await rm(MISSING_PI_AGENT_DIR, { recursive: true, force: true })
+})
+
 beforeEach(() => {
   vi.clearAllMocks()
+
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
   mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
+  mocks.piSettingsFile = path.join(MISSING_PI_AGENT_DIR, 'settings.json')
+  mocks.readFileSync.mockImplementation(actualReadFileSync)
+  mocks.autoDiscoverGitBash.mockReturnValue(null)
+  mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) => shellPath ?? null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
@@ -319,7 +346,7 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.preferenceGet.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -382,6 +409,7 @@ beforeEach(() => {
     }
   })
   mocks.getPath.mockImplementation((key: string) => {
+    if (key === 'external.pi.settings_file') return mocks.piSettingsFile
     if (key === 'feature.agents.pi.root') return PI_ROOT
     if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
     if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
@@ -437,6 +465,20 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+})
+
+it('rejects a Pi checkpoint with a missing native leaf before looking for history', async () => {
+  await expect(
+    forkPiSession({
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'native' },
+      checkpoints: [],
+      signal: new AbortController().signal
+    })
+  ).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
 })
 
 describe('PiRuntimeConnection', () => {
@@ -499,8 +541,12 @@ describe('PiRuntimeConnection', () => {
 
     if (process.platform === 'win32') {
       expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+      expect(mocks.bashToolOptions).toMatchObject({ commandPrefix: undefined })
     } else {
       expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+      expect(mocks.bashToolOptions).toMatchObject({
+        commandPrefix: 'export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\''
+      })
     }
     expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
@@ -552,7 +598,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('injects global agent language when agent.language is set', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
 
     await new PiRuntimeConnection(input).start()
 
@@ -560,7 +606,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language overrides the global default', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -575,7 +621,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language set to null suppresses the global language', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -827,16 +873,33 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it('reopens the session file by scanning for the resume session id', async () => {
+  it('reopens the native session file by resume id', async () => {
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+    mocks.readFileSync.mockReturnValue(
+      [
+        JSON.stringify({ type: 'session', id: SESSION_ID }),
+        JSON.stringify({ type: 'message', id: 'leaf', message: { role: 'assistant', content: [] } }),
+        ''
+      ].join('\n')
+    )
+    mocks.sessionOpen.mockReturnValue({ getSessionId: () => SESSION_ID, getLeafId: () => 'leaf' })
 
-    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    await new PiRuntimeConnection({
+      ...input,
+      resumeToken: SESSION_ID
+    }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
       path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
     expect(mocks.sessionCreate).not.toHaveBeenCalled()
+  })
+
+  it('gives an edited first turn an independent native identity', async () => {
+    const connection = await new PiRuntimeConnection({ ...input, nativeSessionId: 'edited-native-session' }).start()
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'edited-native-session' })
+    await connection.close()
   })
 
   it('opens the newest matching session file when a resume id has multiple files', async () => {
@@ -867,14 +930,14 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
-  it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
+  it('initializes an allocated session id whose lazy history has not been written', async () => {
     // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
     // degrade to a new empty session (same id) instead of bricking every future turn.
     mocks.readdirSync.mockReturnValue([])
 
     await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'missing-id' })
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
@@ -1524,6 +1587,69 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.reload).toHaveBeenCalledWith()
   })
 
+  it('hands the configured pi shellPath to the settings manager and the managed bash tool', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
+    const shellPath = path.join(fixtureRoot, 'bin', 'bash.exe')
+    await writeFile(path.join(fixtureRoot, 'settings.json'), JSON.stringify({ shellPath, theme: 'dark' }))
+    mocks.piSettingsFile = path.join(fixtureRoot, 'settings.json')
+    mocks.autoDiscoverGitBash.mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    try {
+      await new PiRuntimeConnection(input).start()
+    } finally {
+      platform.mockRestore()
+      await rm(fixtureRoot, { recursive: true, force: true })
+    }
+
+    expect(mocks.settingsArgs).toEqual([{ shellPath }, { projectTrusted: true }])
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath })
+    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
+  })
+
+  it('fails at startup when the configured pi shell is unavailable', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
+    await writeFile(path.join(fixtureRoot, 'settings.json'), JSON.stringify({ shellPath: 'C:\\missing\\bash.exe' }))
+    mocks.piSettingsFile = path.join(fixtureRoot, 'settings.json')
+    mocks.validateGitBashPath.mockReturnValue(null)
+
+    try {
+      await expect(new PiRuntimeConnection(input).start()).rejects.toThrow(
+        'Configured Pi shellPath is unavailable or is not bash.exe: C:\\missing\\bash.exe'
+      )
+    } finally {
+      platform.mockRestore()
+      await rm(fixtureRoot, { recursive: true, force: true })
+    }
+
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no settings file', undefined],
+    ['malformed JSON', '{'],
+    ['empty shellPath', JSON.stringify({ shellPath: '   ' })],
+    ['non-string shellPath', JSON.stringify({ shellPath: 42 })]
+  ])('falls back to Cherry Git Bash discovery for %s', async (_case, contents) => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
+    const fallbackPath = 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    if (contents !== undefined) await writeFile(path.join(fixtureRoot, 'settings.json'), contents)
+    mocks.piSettingsFile = path.join(fixtureRoot, 'settings.json')
+    mocks.autoDiscoverGitBash.mockReturnValue(fallbackPath)
+
+    try {
+      await new PiRuntimeConnection(input).start()
+    } finally {
+      platform.mockRestore()
+      await rm(fixtureRoot, { recursive: true, force: true })
+    }
+
+    expect(mocks.settingsArgs).toEqual([{ shellPath: fallbackPath }, { projectTrusted: true }])
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath: fallbackPath })
+  })
+
   it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {
     mocks.skillList.mockResolvedValue([
       { folderName: 'pdf-skill', isEnabled: true },
@@ -1737,7 +1863,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -1836,7 +1962,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,

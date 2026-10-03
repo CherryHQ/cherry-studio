@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import stringWidth from 'string-width'
 
-import { Button, Combobox, type ComboboxOption } from '@cherrystudio/ui'
+import { Button, Combobox, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -173,28 +173,34 @@ const TranslateLanguageBar: FC<Props> = ({
       )}
 
       {isBidirectional ? (
-        <Button
-          variant="outline"
-          size="default"
-          type="button"
-          disabled
-          aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
-          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
-          <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>
-            <span className="truncate">{bidirectionalSource.label}</span>
+        <Tooltip content={t('translate.bidirectional_hint')} placement="bottom" asChild>
+          <span
+            tabIndex={0}
+            className="inline-flex rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+            <Button
+              variant="outline"
+              size="default"
+              type="button"
+              disabled
+              aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
+              className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
+              <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>
+                <span className="truncate">{bidirectionalSource.label}</span>
+              </span>
+              <ArrowLeftRight size={14} className="text-foreground-tertiary shrink-0" />
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="text-sm leading-none">{bidirectionalTarget.emoji}</span>
+                <span className="truncate">{bidirectionalTarget.label}</span>
+              </span>
+            </Button>
           </span>
-          <ArrowLeftRight size={14} className="shrink-0 text-foreground-tertiary" />
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="text-sm leading-none">{bidirectionalTarget.emoji}</span>
-            <span className="truncate">{bidirectionalTarget.label}</span>
-          </span>
-        </Button>
+        </Tooltip>
       ) : (
         <>
           {!showSourceControls && (
-            <span aria-hidden="true" className="shrink-0 text-muted-foreground text-sm">
+            <span aria-hidden="true" className="text-muted-foreground shrink-0 text-sm">
               {t('translate.translate_to')}
             </span>
           )}

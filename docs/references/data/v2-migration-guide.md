@@ -15,13 +15,13 @@ The v2 migration system enforces a **linear upgrade path** to ensure
 data integrity:
 
 ```
-v1.old  →  v1.last (≥1.9.12)  →  v2.0.x  →  v2.1+
+v1.old  →  v1.last (≥1.9.12)  →  v2.x  →  v3.0+
 ```
 
 ### Why a linear path?
 
 v2.0.0 introduced the one-shot data migration from Redux/Dexie to SQLite,
-and every v2.0.x patch retains that complete migration while adding fixes.
+and every v2.x patch retains that complete migration while adding fixes.
 Supporting migration from every v1 version would create an O(n²) test
 matrix. By requiring all users to be on the final v1 release first, the
 migration code only needs to handle a single source data format.
@@ -35,15 +35,15 @@ migration code only needs to handle a single source data format.
    `MigrationPaths.versionLogFile` (using the resolved userData path
    that accounts for v1 custom directories).
 3. If the previous version is too old, missing, or if the user skipped
-   the v2.0.x migration line, the gate shows an error dialog and quits.
+   the v2.x migration line, the gate shows an error dialog and quits.
 
 ### Blocking rules
 
 | Scenario | Block reason | User action |
 |----------|-------------|-------------|
-| No `version.log` (v1 < 1.7 user) | `no_version_log` | Install v1.last, run once, then install the latest v2.0.x release |
+| No `version.log` (v1 < 1.7 user) | `no_version_log` | Install v1.last, run once, then install the latest v2.x release |
 | Previous version < 1.9.12 | `v1_too_old` | Upgrade to v1.last first |
-| Previous version is v1.x but current ≥ v2.1.0 | `v2_gateway_skipped` | Install the latest v2.0.x release first |
+| Previous version is v1.x but current ≥ v3.0.0 | `v2_gateway_skipped` | Install the latest v2.x release first |
 
 ### Pre-release versions
 
@@ -53,8 +53,8 @@ per semver ordering. They are allowed as migration targets from v1.last
 passes). Pre-release to pre-release upgrades work because migration
 status is `completed` after the first successful run.
 
-The verified direct migration targets are the complete **v2.0.x** release
-line. Starting with v2.1.0, later versions are blocked as a first migration
+The allowed direct migration targets are the complete **v2.x** release
+line. Starting with v3.0.0, later versions are blocked as a first migration
 target until their migration compatibility is explicitly verified.
 
 ### Relationship with the auto-updater
@@ -80,9 +80,9 @@ src/main/data/migration/v2/
 ## Core Contracts
 
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the only durable migration marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
-- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
+- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `{cherryHome}/config/config.json`. `{cherryHome}` defaults to `~/.cherrystudio`; unpackaged runs with `CS_DEV_PROFILE_ROOT` use `{profileRoot}/.cherrystudio`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
-  - `sources`: `ElectronStoreReader` (electron-store), `ReduxStateReader` (per-category Redux Persist export files), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
+  - `sources`: `ElectronStoreReader` (electron-store), `ReduxStateReader` (per-category Redux Persist export files), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `{cherryHome}/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
   - `paths`: `MigrationPaths` — pre-computed filesystem paths; migrators that need file paths use `ctx.paths` instead of `app.getPath()`
   - `sharedData`: `Map` for passing cross-cutting info between migrators
@@ -129,7 +129,7 @@ src/main/data/migration/v2/
 - `utils/ReduxStateReader.ts`: safe on-demand accessor for categorized Redux Persist export files with dot-path lookup.
 - `utils/DexieFileReader.ts`: reads exported Dexie JSON tables; can stream large tables.
 - `utils/JsonStreamReader.ts`: streaming reader with batching, counting, and sampling helpers for very large arrays.
-- `utils/LegacyHomeConfigReader.ts`: synchronously reads the v1 `~/.cherrystudio/config/config.json` file and normalizes its `appDataPath` field (both the legacy string shape and the current `{ executablePath, dataPath }[]` shape) into a `Record<executablePath, dataPath> | null`. Used exclusively by `BootConfigMigrator`'s `'configfile'` source.
+- `utils/LegacyHomeConfigReader.ts`: synchronously reads the v1 `{cherryHome}/config/config.json` file and normalizes its `appDataPath` field (both the legacy string shape and the current `{ executablePath, dataPath }[]` shape) into a `Record<executablePath, dataPath> | null`. Used exclusively by `BootConfigMigrator`'s `'configfile'` source.
 
 ## Window & IPC Integration
 

@@ -10,7 +10,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext } from '@main/core/job/types'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -23,6 +22,9 @@ const {
   mockStartRun,
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
+  mockUpdateJobScheduleTx,
+  mockSyncJobScheduleTimerById,
+  mockAssertAgentStorageDirectory,
   captured
 } = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
@@ -36,6 +38,9 @@ const {
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
+    mockUpdateJobScheduleTx: vi.fn(),
+    mockSyncJobScheduleTimerById: vi.fn(),
+    mockAssertAgentStorageDirectory: vi.fn(),
     captured
   }
 })
@@ -47,9 +52,15 @@ vi.mock('@application', async () => {
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
+    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
-    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy }
+    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
+    // An untrusted agent directory pauses its heartbeat schedule.
+    JobManager: {
+      ...mod.defaultServiceInstances.JobManager,
+      updateJobScheduleTx: mockUpdateJobScheduleTx,
+      syncJobScheduleTimerById: mockSyncJobScheduleTimerById
+    }
   } as never)
 })
 
@@ -66,9 +77,6 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { create: vi.fn(), getByTaskScheduleId: vi.fn() }
 }))
-vi.mock('@data/services/AgentWorkspaceService', () => ({
-  agentWorkspaceService: { getById: vi.fn() }
-}))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
@@ -79,15 +87,22 @@ vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
 }))
 
+const { syncHeartbeatScheduleMock } = vi.hoisted(() => ({ syncHeartbeatScheduleMock: vi.fn(async () => 'noop') }))
+vi.mock('@main/ai/agents/agentDataDirectory', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentDataDirectoryModule>()),
+  assertAgentStorageDirectory: mockAssertAgentStorageDirectory
+}))
+
+import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 
+import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'
 
 function makeJobSnapshot(scheduleId: string | null = 's1'): JobSnapshot {
@@ -151,7 +166,7 @@ function makeCtx(overrides: TestJobContextOverrides = {}) {
   } as JobContext<TestAgentTaskInput>
 }
 
-function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
+function makeAgent(config: Record<string, unknown> = { heartbeat_enabled: true }): AgentEntity {
   return {
     id: 'a1',
     type: 'claude-code',
@@ -186,13 +201,25 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
   } as AgentSessionEntity
 }
 
-function makeSchedule(name: string | null = 'heartbeat', metadata: Record<string, unknown> = {}) {
+function makeSchedule(
+  name: string | null = 'heartbeat',
+  metadata: Record<string, unknown> = {},
+  jobInputTemplate: Record<string, unknown> = {
+    agentId: 'a1',
+    prompt: '__heartbeat__',
+    timeoutMinutes: 2,
+    workspace: { type: 'user', workspaceId: 'ws-1' },
+    reuseRevision: 0
+  }
+) {
   return {
     id: 's1',
     type: 'agent.task',
     name,
     trigger: { kind: 'interval', ms: 60_000 },
-    jobInputTemplate: {},
+    // The live template the workspace-deleted pause guard checks against —
+    // mirrors the enqueue-time input of makeCtx.
+    jobInputTemplate,
     enabled: true,
     nextRun: null,
     lastRun: null,
@@ -205,6 +232,7 @@ function makeSchedule(name: string | null = 'heartbeat', metadata: Record<string
 
 describe('runAgentTask', () => {
   beforeEach(() => {
+    vi.mocked(application.getPath).mockReturnValue('/agent-data')
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
@@ -213,8 +241,8 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
-    vi.mocked(agentWorkspaceService.getById).mockReset()
     vi.mocked(readHeartbeat).mockReset()
+    mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
@@ -238,17 +266,20 @@ describe('runAgentTask', () => {
   // A disabled heartbeat must short-circuit BEFORE createSession — that call also
   // lazily provisions a workspace on first fire, so creating a session for a fire
   // we're going to drop would accrete a session row (and workspace) every interval.
-  it('skips a disabled heartbeat WITHOUT creating a session', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: false }))
+  it.each([false, undefined])(
+    'skips heartbeat without an opt-in (enabled=%s) WITHOUT creating a session',
+    async (enabled) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: enabled }))
 
-    const out = await runAgentTask(makeCtx())
+      const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (disabled)' })
-    expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).not.toHaveBeenCalled()
-  })
+      expect(out).toEqual({ result: 'Skipped (disabled)' })
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      expect(readHeartbeat).not.toHaveBeenCalled()
+    }
+  )
 
   // v1 gave every agent a `heartbeat` task; v2's job_schedule is UNIQUE on (type, name), so
   // the migration renames all but the first to `task_<v1Id>` — still heartbeats, still gated.
@@ -264,13 +295,30 @@ describe('runAgentTask', () => {
     expect(mockStartRun).not.toHaveBeenCalled()
   })
 
+  // A runtime-type change does not travel through the heartbeat config keys,
+  // so the run side gates on the capability table too — otherwise a row armed
+  // before the change keeps firing model calls for a runtime without support.
+  it('skips a heartbeat when the agent runtime lacks the heartbeat capability', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce({
+      ...makeAgent({ heartbeat_enabled: true }),
+      type: 'dsh'
+    })
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ result: 'Skipped (capability)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
   // Same renamed schedule, heartbeat on: it must run heartbeat.md, not hand the raw
   // sentinel to the model (whose reply then reached every subscribed channel).
   it('runs a disambiguated heartbeat from heartbeat.md rather than the raw sentinel', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task_hb-2'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
     vi.mocked(readHeartbeat).mockResolvedValueOnce('check the inbox')
     vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
 
@@ -289,126 +337,58 @@ describe('runAgentTask', () => {
     )
   })
 
-  it('treats a built-in Assistant heartbeat like any other Agent heartbeat', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(
-      makeAgent({ builtin_role: 'assistant', heartbeat_enabled: true })
-    )
-
-    const out = await runAgentTask(
-      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
-    )
-
-    expect(out).toEqual({ result: 'Skipped (no file)' })
-    expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
-    expect(readHeartbeat).not.toHaveBeenCalled()
-  })
-
-  it('skips an enabled heartbeat with system workspace WITHOUT creating a session', async () => {
+  it('skips an enabled heartbeat whose agent directory fails the run-time storage check', async () => {
+    // A parent directory swapped for a symlink AFTER provisioning must not let
+    // the heartbeat.md read escape managed storage: re-validation happens on
+    // every fire, and a failure skips the tick without creating a session.
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-
-    const out = await runAgentTask(
-      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
-    )
-
-    expect(out).toEqual({ result: 'Skipped (no file)' })
-    expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
-    expect(readHeartbeat).not.toHaveBeenCalled()
-  })
-
-  it('skips an enabled heartbeat when its user workspace was deleted WITHOUT creating a session', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(agentWorkspaceService.getById).mockImplementationOnce(() => {
-      throw DataApiErrorFactory.notFound('Workspace', 'ws-1')
-    })
+    mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ result: 'Skipped (workspace deleted)' })
+    expect(out).toEqual({ result: 'Skipped (untrusted agent data path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
+    // Reconcile immediately so repairing the directory can re-arm the schedule.
+    expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
+    expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+    expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith('a1')
   })
 
-  it('rejects an enabled heartbeat whose user source resolves to a system workspace', async () => {
+  it('does not pause an ordinary task when an old heartbeat job finds an untrusted data path', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({
-      id: 'ws-1',
-      type: 'system',
-      path: '/ws/system'
-    } as never)
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+      makeSchedule(
+        'report',
+        {},
+        {
+          agentId: 'a1',
+          prompt: 'run my report',
+          workspace: { type: 'system' }
+        }
+      )
+    )
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('untrusted path'))
 
-    await expect(runAgentTask(makeCtx())).rejects.toThrow('Heartbeat workspace must be user-owned: ws-1')
-    expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).not.toHaveBeenCalled()
+    expect(await runAgentTask(makeCtx())).toEqual({ result: 'Skipped (untrusted agent data path)' })
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
   })
 
   it('skips an enabled heartbeat with no heartbeat.md WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
     vi.mocked(readHeartbeat).mockResolvedValueOnce(undefined)
 
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
-    expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
-  })
-
-  it('creates a session and runs when an enabled heartbeat has content', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
-    vi.mocked(readHeartbeat).mockResolvedValueOnce('check the inbox')
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-
-    const promise = runAgentTask(makeCtx())
-    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-    captured.listeners[0].onDone({ status: 'completed' })
-    await promise
-
-    expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
-    expect(agentSessionService.create).toHaveBeenCalledWith({
-      agentId: 'a1',
-      name: 'heartbeat',
-      workspace: { type: 'user', workspaceId: 'ws-1' }
-    })
-    // Scheduled runs have no interactive responder — the dispatch must be headless so AskUserQuestion
-    // stays disallowed and the run can't stall on an approval prompt.
-    expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ headless: true }))
-  })
-
-  // Regular tasks carry the workspace bound at creation time (system by
-  // default, since the picker defaults there) straight through to the session.
-  it('binds a non-heartbeat task to the workspace bound on the task', async () => {
-    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
-    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
-
-    const promise = runAgentTask(
-      makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
-    )
-    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-    captured.listeners[0].onDone({ status: 'completed' })
-    await promise
-
-    expect(agentSessionService.create).toHaveBeenCalledWith({
-      agentId: 'a1',
-      name: 'daily-summary',
-      workspace: { type: 'system' }
-    })
+    expect(readHeartbeat).toHaveBeenCalledWith('/agent-data/a1')
   })
 
   describe('session reuse', () => {

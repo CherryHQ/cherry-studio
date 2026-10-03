@@ -57,7 +57,8 @@ describe('native-protocol reasoning dialect', () => {
     ['claude-sonnet-4-5', 'budget'],
     ['claude-opus-4-6', 'effort'],
     ['claude-opus-4-8', 'effort'],
-    ['claude-fable-5', 'effort']
+    ['claude-fable-5', 'effort'],
+    ['claude-sonnet-5-5', 'adaptive-between-tools']
   ])('resolves %s to the %s dialect', (modelId, dialect) => {
     expect(models.find((m) => m.id === modelId)?.reasoning?.wireDialect).toBe(dialect)
   })
@@ -118,7 +119,10 @@ describe('native-protocol reasoning dialect', () => {
     (format) => {
       const profile = REASONING_FORMAT_PROFILES[format]
       expect(profile.budgetWire).toBeUndefined()
-      for (const dialect of [undefined, 'effort', 'budget'] as (ReasoningWireDialect | undefined)[]) {
+      for (const dialect of [undefined, 'effort', 'budget', 'adaptive-between-tools'] as (
+        | ReasoningWireDialect
+        | undefined
+      )[]) {
         expect(selectFormatWire(profile, dialect)).toBe(profile.wire)
       }
     }

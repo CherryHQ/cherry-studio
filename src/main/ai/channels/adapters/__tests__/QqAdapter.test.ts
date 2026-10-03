@@ -6,10 +6,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 const mockNetFetch = vi.fn()
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
@@ -22,14 +18,7 @@ vi.mock('ws', () => {
   return { default: Ctor, WebSocket: Ctor }
 })
 
-import '../qq/QqAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-// Capture the factory at module load — `registerAdapterFactory('qq', …)` runs once on import,
-// and afterEach's restoreAllMocks would otherwise wipe that call history before later tests.
-const qqCall = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'qq')
-if (!qqCall) throw new Error('registerAdapterFactory was not called for qq')
-const qqFactory = qqCall[1] as (channel: any, agentId: string) => any
+import { createQqAdapter } from '../qq/QqAdapter'
 
 function mockBinaryResponse(buf: Buffer, contentType = 'image/png'): Response {
   return {
@@ -64,12 +53,45 @@ function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   }
 }
 
-function createAdapter() {
-  return qqFactory(
-    { id: 'ch-qq-1', type: 'qq', enabled: true, config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] } },
-    'agent-1'
-  )
+function createAdapter(): any {
+  return createQqAdapter({
+    channelId: 'ch-qq-1',
+    channelType: 'qq',
+    agentId: 'agent-1',
+    channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] }
+  })
 }
+
+describe('QqAdapter connection lifecycle', () => {
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('aborts a stalled startup request when disconnected', async () => {
+    let startupSignal: AbortSignal | undefined
+    let rejectStartup!: (error: Error) => void
+    mockNetFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      startupSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        rejectStartup = reject
+        startupSignal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await vi.waitFor(() => expect(mockNetFetch).toHaveBeenCalled())
+
+    const observedSignal = startupSignal
+    await adapter.disconnect()
+    if (!observedSignal) rejectStartup(new Error('test cleanup'))
+    await expect(connecting).resolves.toBeUndefined()
+    expect(observedSignal).toBeInstanceOf(AbortSignal)
+  })
+})
 
 describe('QqAdapter.downloadAttachments', () => {
   beforeEach(() => mockNetFetch.mockReset())
@@ -263,16 +285,13 @@ describe('ChannelAdapter.sendFile default', () => {
 describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  function createAdapterWithConfig(config: Record<string, unknown>) {
-    return qqFactory(
-      {
-        id: 'ch-qq-1',
-        type: 'qq',
-        enabled: true,
-        config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
-      },
-      'agent-1'
-    )
+  function createAdapterWithConfig(config: Record<string, unknown>): any {
+    return createQqAdapter({
+      channelId: 'ch-qq-1',
+      channelType: 'qq',
+      agentId: 'agent-1',
+      channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
+    } as any)
   }
 
   it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {

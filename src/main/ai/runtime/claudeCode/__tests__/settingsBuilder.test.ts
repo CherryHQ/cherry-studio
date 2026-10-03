@@ -3,6 +3,7 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +12,8 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { BrowserSessionService } from '@main/features/browser'
+import type * as FileUtils from '@main/utils/file'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
@@ -212,7 +215,8 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtils>()),
   getPathStatus: mocks.getPathStatus,
   isPathInside: (child: string, parent: string) => {
     const relative = path.relative(path.resolve(parent), path.resolve(child))
@@ -493,6 +497,46 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
+  })
+
+  it('only overrides commit attribution when the preference explicitly turns it off', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    // Route the shared preference mock in so the shipping default decides the first assertion.
+    // The pane browser stays off to match the stub every neighbouring test builds against.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? MockMainPreferenceServiceExport.preferenceService : priorGet(name)
+    )
+
+    try {
+      const attributed = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(attributed.settings).not.toHaveProperty('attribution')
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', false)
+      const hidden = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(hidden.settings).toMatchObject({ attribution: { commit: '', pr: '' } })
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', true)
+    }
   })
 
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
@@ -813,6 +857,45 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
   })
 
+  it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {
+    const service = new BrowserSessionService()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'BrowserSessionService'
+        ? service
+        : name === 'PreferenceService'
+          ? MockMainPreferenceServiceExport.preferenceService
+          : priorGet(name)
+    )
+    const agent = { ...mocks.getAgent(), mcps: ['legacy-browser', 'remote-browser'] }
+    const snapshot = new Map([
+      ['legacy-browser', { id: 'legacy-browser', name: '@cherry/browser', type: 'inMemory' }],
+      [
+        'remote-browser',
+        { id: 'remote-browser', name: '@cherry/browser', type: 'streamableHttp', baseUrl: 'https://example.com/mcp' }
+      ]
+    ])
+    mocks.findByIdOrName.mockReturnValue({ id: 'legacy-browser', name: 'edited', type: 'stdio' })
+    try {
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never,
+        { mcpServerSnapshots: snapshot as never },
+        agent
+      )
+      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
+      expect(settings.mcpServers?.['remote-browser']).toBeDefined()
+      expect(settings.allowedTools).toEqual(
+        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
+      )
+      expect(settings.allowedTools).not.toContain('mcp__browser__*')
+    } finally {
+      await service._doStop()
+    }
+  })
+
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
     const session = {
       id: 'session-1',
@@ -849,6 +932,63 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
     expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
+  it('keeps Task management available on newer models while leaving TodoWrite disabled', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList']))
+    expect(settings.allowedTools).not.toContain('TodoWrite')
+    expect(settings.disallowedTools).toContain('TodoWrite')
+  })
+
+  it('skips SDK-incompatible skill names without renaming or dropping valid skills', async () => {
+    const invalidNames = [
+      '',
+      ' padded',
+      'trailing ',
+      'bad(name)',
+      'bad,name',
+      'bad\nname',
+      'bad\u007fname',
+      '*',
+      'plugin:*',
+      'name *',
+      '/name',
+      'bad\\\\name',
+      'name\\',
+      '\ud800'
+    ]
+    const validNames = ['pdf-tools', 'my skill', '技能', 'plugin:skill', 'emoji-😀']
+    mocks.listSkills.mockResolvedValue([
+      { folderName: 'managed,bad', isEnabled: true },
+      { folderName: 'managed-good', isEnabled: true },
+      { folderName: 'disabled', isEnabled: false }
+    ])
+    mocks.listLocalSkillFolderNames.mockResolvedValue([...invalidNames, ...validNames, 'managed-good'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['managed-good', ...validNames])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping'),
+      expect.objectContaining({ agentId: 'agent-1', cwd: '/workspace/project', skillName: 'managed,bad' })
+    )
+  })
+
+  it('keeps an empty skill whitelist when every discovered name is incompatible', async () => {
+    mocks.listLocalSkillFolderNames.mockResolvedValue(['bad(name)', '*'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual([])
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {

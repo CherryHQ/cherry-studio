@@ -585,6 +585,35 @@ export default defineConfig([
       ]
     }
   },
+  // Seeder write integrity — a seeder runs again whenever its `version` changes
+  // (SeedRunner journal), so an overwrite-style upsert silently rewrites data
+  // the user or a later seeder already established. This is how the legacy
+  // web-search preference upgrade clobbered `chat.web_search.model_tools_
+  // preferred` (fixed in #20686): `onConflictDoUpdate` force-wrote `!legacy`
+  // over the renamed key on every re-run. Seeders must insert-if-absent, guard
+  // on absence, or scope the conflict with `setWhere`. Sanctioned overwrites
+  // are exempted inline with a reason.
+  {
+    files: ['src/main/data/db/seeding/**/*.ts'],
+    ignores: ['src/main/data/db/seeding/**/__tests__/**', 'src/main/data/db/seeding/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        process.env.CI ? 'error' : 'warn',
+        // Flat-config rule arrays replace the earlier src-wide entry instead of
+        // merging, so the LoggerService restriction is restated here to keep
+        // applying to production seeder files.
+        {
+          selector: 'CallExpression[callee.object.name="console"]',
+          message: '❗CherryStudio uses unified LoggerService: 📖 docs/references/logging/README.md\n\n'
+        },
+        {
+          selector: 'CallExpression[callee.property.name="onConflictDoUpdate"]',
+          message:
+            '❗A seeder must not overwrite existing rows — use insert-if-absent (onConflictDoNothing) or scope the conflict with setWhere. If an overwrite is genuinely intended, exempt it inline with a reason.\n\n'
+        }
+      ]
+    }
+  },
   // Path brand integrity — `as AbsoluteFilePath` / `as CanonicalFilePath` forge the
   // brands, skipping the validation each asserts. `AbsoluteFilePath` asserts shape
   // validation (build via AbsoluteFilePathSchema.parse); `CanonicalFilePath` asserts

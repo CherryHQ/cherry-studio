@@ -1,3 +1,4 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
@@ -16,24 +17,23 @@ const mocks = vi.hoisted(() => ({
   findMcp: vi.fn(),
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
-  preferenceGet: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesPiGateway: vi.fn(),
   gatewayFingerprint: 'gateway-1'
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
-      if (name === 'AgentSessionRuntimeService') {
-        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-      }
-      throw new Error(`Unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const get = result.application.getContainer().get.bind(result.application.getContainer())
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+    if (name === 'AgentSessionRuntimeService')
+      return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+    return get(name)
+  })
+  return result
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -84,7 +84,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
-  mocks.preferenceGet.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesPiGateway.mockReturnValue(false)
   mocks.gatewayFingerprint = 'gateway-1'
@@ -126,7 +126,7 @@ describe('capturePiConnectionSnapshot', () => {
         }),
       // Rebuild fact via the global preference alone: the Agent is unchanged, only
       // `agent.language` moves — this input is not hashed through agent.configuration.
-      () => mocks.preferenceGet.mockReturnValueOnce('English')
+      () => MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     ]
 
     for (const mutate of mutations) {
@@ -217,5 +217,16 @@ describe('capturePiConnectionSnapshot', () => {
     mocks.gatewayFingerprint = 'gateway-2'
 
     expect((await captureCloud()).signature).not.toBe(initialSignature)
+  })
+  it('invalidates cached tools when Agent browser control changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    const disabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const enabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(enabled.signature).not.toBe(disabled.signature)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    expect((await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
+      disabled.signature
+    )
   })
 })

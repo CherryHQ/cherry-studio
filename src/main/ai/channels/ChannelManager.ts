@@ -1,68 +1,30 @@
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 
-import type { ChannelAdapter } from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import { loadChannelAdapter } from './channelAdapterLoader'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
+import { ChannelRuntime, type ChannelRuntimeDesired } from './ChannelRuntime'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
-
-// Adapter factory registry -- adapters register themselves here. The factory
-// for a given channel type receives the matching variant of the discriminated
-// `ChannelRow` union, so `channel.config` is strongly typed per adapter.
-type AdapterFactory<T extends AgentChannelType = AgentChannelType> = (
-  channel: Extract<ChannelRow, { type: T }>,
-  agentId: string
-) => ChannelAdapter
-const adapterFactories = new Map<AgentChannelType, AdapterFactory>()
-
-export function registerAdapterFactory<T extends AgentChannelType>(type: T, factory: AdapterFactory<T>): void {
-  // A factory is always stored under, and looked up by, its own channel type
-  // (see `connectChannelFromRow`), so the row handed to it is guaranteed to be
-  // this variant. That invariant is the one thing the type system can't see, so
-  // we narrow the row to the factory's variant here — nothing wider is asserted.
-  adapterFactories.set(type, (channel, agentId) => factory(channel as Extract<ChannelRow, { type: T }>, agentId))
-}
-
-/**
- * Lazy-load map: adapter type → dynamic import of the adapter module.
- * Each module registers itself via `registerAdapterFactory()` as a side effect.
- * This avoids eagerly importing all 6 heavy adapter modules at startup.
- */
-const adapterImportMap: Record<AgentChannelType, () => Promise<unknown>> = {
-  discord: () => import('./adapters/discord/DiscordAdapter'),
-  feishu: () => import('./adapters/feishu/FeishuAdapter'),
-  qq: () => import('./adapters/qq/QqAdapter'),
-  slack: () => import('./adapters/slack/SlackAdapter'),
-  telegram: () => import('./adapters/telegram/TelegramAdapter'),
-  wechat: () => import('./adapters/wechat/WeChatAdapter')
-}
-
-/** Ensure the adapter factory for the given type is loaded (idempotent). */
-async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
-  if (adapterFactories.has(type)) return
-  await adapterImportMap[type]()
-}
 
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
 export class ChannelManager extends BaseService {
-  private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
-  private readonly qrWaiters = new Map<
-    string,
-    { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
-  >()
+  private readonly runtimes = new Map<string, ChannelRuntime>()
   private readonly channelLogs = new ChannelLogBuffer()
+  private acceptingConnections = false
 
   protected async onReady(): Promise<void> {
     await this.start()
@@ -72,28 +34,21 @@ export class ChannelManager extends BaseService {
     await this.stop()
   }
 
-  // ── Write quiesce (backup restore) ───────────────────────────────
-  // Thin delegates so the restore orchestrator reaches the channel writer via
-  // `application.get('ChannelManager')`. State lives on the `channelMessageHandler`
-  // singleton (it owns the debounce buffers); see its docs for the contract.
-
-  /** Stop channel intake and flush buffered debounce batches immediately. */
   pause(reason?: string): Disposable {
     return channelMessageHandler.pause(reason)
   }
 
-  /** Await the flushed batches' agent-turn admissions, bounded by timeoutMs. */
   drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     return channelMessageHandler.drainInFlight(opts)
   }
 
-  /** Advisory pre-flight enumeration for the restore orchestrator. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     return channelMessageHandler.listActiveWork()
   }
 
   async start(): Promise<void> {
-    let channels: Awaited<ReturnType<typeof channelService.listChannels>>
+    this.acceptingConnections = true
+    let channels: ReturnType<typeof channelService.listChannels>
     try {
       channels = channelService.listChannels()
     } catch (error) {
@@ -103,341 +58,210 @@ export class ChannelManager extends BaseService {
       return
     }
 
-    const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
-
-    // Lazy-load only the adapter modules needed for active channels
-    const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
-    await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
-
-    await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
-
-    logger.info('Channel manager started', { adapterCount: this.adapters.size })
+    for (const channel of channels) this.requestReconcile(channel.id)
+    logger.info('Channel manager started', { channelCount: channels.length })
   }
 
   async stop(): Promise<void> {
+    this.acceptingConnections = false
     logger.info('Stopping channel manager')
-    const disconnects = Array.from(this.adapters.values()).map((adapter) =>
-      adapter
-        .disconnect()
-        .catch((err) => {
-          logger.warn('Error disconnecting adapter', {
-            agentId: adapter.agentId,
-            channelId: adapter.channelId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        })
-        .finally(() => {
-          this.publishStatus({ channelId: adapter.channelId, connected: false })
-        })
-    )
-    await Promise.all(disconnects)
-    this.adapters.clear()
+    const runtimes = [...this.runtimes.values()]
+    for (const runtime of runtimes) runtime.requestReconcile()
+    await Promise.allSettled(runtimes.map((runtime) => runtime.flush()))
+    await Promise.allSettled(runtimes.map((runtime) => runtime.dispose()))
+    this.runtimes.clear()
     logger.info('Channel manager stopped')
   }
 
-  /**
-   * Wait for a QR URL from a specific channel adapter during connect.
-   * Resolves when the adapter emits 'qr', or rejects on timeout.
-   */
-  waitForQrUrl(agentId: string, channelId: string, timeoutMs = 30_000): Promise<string> {
-    const key = `${agentId}:${channelId}`
-    return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.qrWaiters.delete(key)
-        reject(new Error('Timed out waiting for QR code'))
-      }, timeoutMs)
-      this.qrWaiters.set(key, { resolve, timer })
-    })
+  requestReconcile(channelId: string): void {
+    this.getOrCreateRuntime(channelId).requestReconcile()
   }
 
-  /** Return connection state for all adapters of an agent. */
+  async reconcileChannel(channelId: string): Promise<void> {
+    await this.getOrCreateRuntime(channelId).reconcile()
+  }
+
+  waitForQrAndReconcile(agentId: string, channelId: string, timeoutMs = 30_000): Promise<string> {
+    const runtime = this.getOrCreateRuntime(channelId)
+    const qrUrl = runtime.waitForQrUrl(agentId, timeoutMs)
+    runtime.requestReconcile()
+    return qrUrl
+  }
+
+  async removeChannel(channelId: string): Promise<void> {
+    const runtime = this.runtimes.get(channelId)
+    this.runtimes.delete(channelId)
+    this.channelLogs.remove(channelId)
+    if (runtime) {
+      runtime.requestReconcile()
+      await runtime.flush().catch((error) => this.logRuntimeError(channelId, error))
+      await runtime.dispose()
+    }
+    application.get('CacheService').deleteShared(`channel.status.${channelId}`)
+  }
+
   getAdapterStatuses(agentId: string): Array<{ channelId: string; connected: boolean }> {
     const result: Array<{ channelId: string; connected: boolean }> = []
-    for (const [key, adapter] of this.adapters) {
-      if (adapter.agentId !== agentId) continue
-      const channelId = key.split(':')[1]
-      result.push({ channelId, connected: adapter.connected })
+    for (const [channelId, runtime] of this.runtimes) {
+      const adapter = runtime.adapter
+      if (adapter?.agentId === agentId) result.push({ channelId, connected: adapter.connected })
     }
     return result
   }
 
-  /** Return all registered adapters for an agent, connected or not (a dropped one stays for reconnect). */
   getAgentAdapters(agentId: string): ChannelAdapter[] {
-    const result: ChannelAdapter[] = []
-    for (const [, adapter] of this.adapters) {
-      if (adapter.agentId !== agentId) continue
-      result.push(adapter)
-    }
-    return result
+    return [...this.runtimes.values()]
+      .map((runtime) => runtime.adapter)
+      .filter((adapter): adapter is ChannelAdapter => adapter?.agentId === agentId)
   }
 
-  /** Return the adapter for a specific channel, if connected. */
   getAdapter(channelId: string): ChannelAdapter | undefined {
-    for (const [, adapter] of this.adapters) {
-      if (adapter.channelId === channelId) return adapter
-    }
-    return undefined
+    return this.runtimes.get(channelId)?.adapter
   }
 
-  /** Get buffered logs for a channel. */
   getChannelLogs(channelId: string): ChannelLogEntry[] {
     return this.channelLogs.get(channelId)
   }
 
-  private sendToRenderer<E extends IpcEventName>(event: E, data: EventPayload<E>): void {
-    application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
+  private getOrCreateRuntime(channelId: string): ChannelRuntime {
+    const existing = this.runtimes.get(channelId)
+    if (existing) return existing
+
+    const runtime = new ChannelRuntime(channelId, {
+      readDesired: (id) => this.readDesired(id),
+      loadAdapter: loadChannelAdapter,
+      onMessage: (adapter, event) => this.handleMessage(adapter, event),
+      onCommand: (adapter, event) => this.handleCommand(adapter, event),
+      onCredentials: (agentId, id, credentials) => this.saveCredentials(agentId, id, credentials),
+      onDynamicChatId: (id, chatId) => this.persistDynamicChatId(id, chatId),
+      onLog: (entry) => this.publishLog(entry),
+      onStatus: (status) => this.publishStatus(status),
+      onError: (id, error) => this.logRuntimeError(id, error)
+    })
+    this.runtimes.set(channelId, runtime)
+    return runtime
+  }
+
+  private readDesired(channelId: string): ChannelRuntimeDesired {
+    if (!this.acceptingConnections) return { kind: 'disconnected' }
+    const channel = channelService.getChannel(channelId)
+    if (!channel?.isActive || !channel.agentId) return { kind: 'disconnected' }
+    if (agentService.getLifecycleState(channel.agentId) !== 'active') return { kind: 'disconnected' }
+    return { kind: 'connected', channel, agentId: channel.agentId }
+  }
+
+  reconcileAgent(agentId: string, clearSessionTracker = false): void {
+    if (clearSessionTracker) channelMessageHandler.clearSessionTracker(agentId)
+    const channelIds = new Set<string>()
+    for (const [channelId, runtime] of this.runtimes) {
+      if (runtime.ownerAgentId === agentId) channelIds.add(channelId)
+    }
+    try {
+      for (const channel of channelService.listChannels({ agentId })) channelIds.add(channel.id)
+    } catch (error) {
+      logger.warn('Failed to list Agent channels during lifecycle reconciliation', {
+        agentId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    for (const channelId of channelIds) this.requestReconcile(channelId)
+  }
+
+  private handleMessage(adapter: ChannelAdapter, event: ChannelMessageEvent): void {
+    if (channelMessageHandler.isWriteQuiesced) {
+      logger.warn('Channel message dropped: intake is write-quiesced', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId
+      })
+      return
+    }
+    this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
+    channelMessageHandler.handleIncoming(adapter, event).catch((error) => {
+      logger.error('Unhandled error in message handler', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      adapter
+        .sendMessage(event.chatId, t('common.channel_message_processing_error'), {
+          replyToMessageId: event.messageId,
+          ...(event.replyInThread && { replyInThread: true })
+        })
+        .catch(() => undefined)
+    })
+  }
+
+  private handleCommand(adapter: ChannelAdapter, event: ChannelCommandEvent): void {
+    if (channelMessageHandler.isWriteQuiesced) {
+      logger.warn('Channel command dropped: intake is write-quiesced', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId
+      })
+      return
+    }
+    this.runtimes.get(adapter.channelId)?.trackDynamicChatId(adapter, event.chatId)
+    channelMessageHandler.handleCommand(adapter, event).catch((error) => {
+      logger.error('Unhandled error in command handler', {
+        agentId: adapter.agentId,
+        channelId: adapter.channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      adapter
+        .sendMessage(event.chatId, t('common.channel_command_processing_error'), {
+          replyToMessageId: event.messageId,
+          ...(event.replyInThread && { replyInThread: true })
+        })
+        .catch(() => undefined)
+    })
+  }
+
+  private persistDynamicChatId(channelId: string, chatId: string): void {
+    try {
+      channelService.addActiveChatId(channelId, chatId)
+    } catch (error) {
+      logger.warn('Failed to persist activeChatId', {
+        channelId,
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private saveCredentials(agentId: string, channelId: string, credentials: { appId: string; appSecret: string }): void {
+    try {
+      const channel = channelService.getChannel(channelId)
+      if (!channel || channel.agentId !== agentId) return
+      const config = channel.config as ChannelConfig & Record<string, unknown>
+      channelService.updateChannel(channelId, {
+        config: { ...config, app_id: credentials.appId, app_secret: credentials.appSecret }
+      })
+      this.requestReconcile(channelId)
+    } catch (error) {
+      logger.error('Failed to save channel credentials', {
+        agentId,
+        channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private publishLog(entry: ChannelLogEntry): void {
+    this.channelLogs.append(entry.channelId, entry)
+    this.sendToRenderer('channel.log', entry)
   }
 
   private publishStatus(status: ChannelStatusEvent): void {
     application.get('CacheService').setShared(`channel.status.${status.channelId}`, status)
   }
 
-  /** Disconnect the adapter for a single channel without reconnecting. */
-  async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
-    const { suppressErrors = true } = options
-    for (const [key, adapter] of this.adapters) {
-      if (adapter.channelId !== channelId) continue
-
-      try {
-        await adapter.disconnect()
-        this.adapters.delete(key)
-      } catch (err) {
-        if (suppressErrors) {
-          logger.warn('Error disconnecting adapter', {
-            key,
-            error: err instanceof Error ? err.message : String(err)
-          })
-          this.adapters.delete(key)
-          continue
-        }
-        throw err
-      } finally {
-        this.publishStatus({ channelId: adapter.channelId, connected: false })
-      }
-    }
+  private sendToRenderer<E extends IpcEventName>(event: E, data: EventPayload<E>): void {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
 
-  /**
-   * Sync a single channel: disconnect its adapter (if any) and reconnect if active.
-   * Use this instead of disconnectAgent() when only one channel changed.
-   */
-  async syncChannel(
-    channelId: string,
-    options: { awaitConnect?: boolean; strictDisconnect?: boolean } = {}
-  ): Promise<void> {
-    const { awaitConnect = false, strictDisconnect = false } = options
-    await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
-
-    // Re-read from DB and reconnect if active
-    const channel = channelService.getChannel(channelId)
-    if (channel && channel.isActive && channel.agentId) {
-      await ensureAdapterLoaded(channel.type)
-      await this.connectChannelFromRow(channel, { awaitConnect })
-    }
-  }
-
-  /**
-   * Disconnect all adapters for an agent without reconnecting.
-   * Use when the agent is deleted or its channels should all be torn down.
-   */
-  async disconnectAgent(agentId: string): Promise<void> {
-    const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
-    await Promise.all(
-      toDisconnect.map(([key, adapter]) =>
-        adapter
-          .disconnect()
-          .catch((err) => {
-            logger.warn('Error disconnecting adapter', {
-              key,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
-          .finally(() => {
-            this.adapters.delete(key)
-            this.publishStatus({ channelId: adapter.channelId, connected: false })
-          })
-      )
-    )
-
-    channelMessageHandler.clearSessionTracker(agentId)
-  }
-
-  /**
-   * Persist credentials obtained from QR registration into the channel config,
-   * then re-sync so a new adapter connects with the saved credentials.
-   */
-  private async saveCredentialsAndReconnect(
-    agentId: string,
-    channelId: string,
-    creds: { appId: string; appSecret: string }
-  ): Promise<void> {
-    const channel = channelService.getChannel(channelId)
-    if (!channel) return
-
-    const config = channel.config as ChannelConfig & Record<string, unknown>
-    channelService.updateChannel(channelId, {
-      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret }
+  private logRuntimeError(channelId: string, error: unknown): void {
+    logger.error('Channel runtime reconciliation failed', {
+      channelId,
+      error: error instanceof Error ? error.message : String(error)
     })
-
-    logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
-    await this.syncChannel(channelId)
-  }
-
-  private async connectChannelFromRow(row: ChannelRow, options: { awaitConnect?: boolean } = {}): Promise<void> {
-    const agentId = row.agentId
-    if (!agentId) return
-
-    const factory = adapterFactories.get(row.type)
-    if (!factory) {
-      logger.warn('No adapter factory for channel type', { type: row.type, agentId })
-      return
-    }
-
-    const key = `${agentId}:${row.id}`
-    try {
-      const adapter = factory(row, agentId)
-
-      // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
-      const hasAllowedIds = adapter.notifyChatIds.length > 0
-      if (!hasAllowedIds) {
-        const dbChatIds = row.activeChatIds ?? []
-        adapter.notifyChatIds = [...dbChatIds]
-      }
-
-      const trackChatId = (chatId: string) => {
-        if (hasAllowedIds) return
-        if (adapter.notifyChatIds.includes(chatId)) return
-        adapter.notifyChatIds.push(chatId)
-        try {
-          channelService.addActiveChatId(row.id, chatId)
-        } catch (err) {
-          logger.warn('Failed to persist activeChatId', {
-            channelId: row.id,
-            chatId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        }
-      }
-
-      adapter.on('message', (msg) => {
-        // Write-quiesce intake gate — also skips trackChatId's `activeChatIds` DB write. The
-        // handler's own gate is defense in depth; this one stops the config write too.
-        if (channelMessageHandler.isWriteQuiesced) {
-          logger.warn('Channel message dropped: intake is write-quiesced', { agentId, channelId: row.id })
-          return
-        }
-        trackChatId(msg.chatId)
-        channelMessageHandler.handleIncoming(adapter, msg).catch((err) => {
-          logger.error('Unhandled error in message handler', {
-            agentId,
-            channelId: row.id,
-            error: err instanceof Error ? err.message : String(err)
-          })
-          adapter
-            .sendMessage(msg.chatId, t('common.channel_message_processing_error'), {
-              replyToMessageId: msg.messageId,
-              ...(msg.replyInThread && { replyInThread: true })
-            })
-            .catch(() => {})
-        })
-      })
-
-      adapter.on('command', (cmd) => {
-        if (channelMessageHandler.isWriteQuiesced) {
-          logger.warn('Channel command dropped: intake is write-quiesced', { agentId, channelId: row.id })
-          return
-        }
-        trackChatId(cmd.chatId)
-        channelMessageHandler.handleCommand(adapter, cmd).catch((err) => {
-          logger.error('Unhandled error in command handler', {
-            agentId,
-            channelId: row.id,
-            error: err instanceof Error ? err.message : String(err)
-          })
-          adapter
-            .sendMessage(cmd.chatId, t('common.channel_command_processing_error'), {
-              replyToMessageId: cmd.messageId,
-              ...(cmd.replyInThread && { replyInThread: true })
-            })
-            .catch(() => {})
-        })
-      })
-
-      // Forward QR events to any pending waiters
-      adapter.on('qr', (url) => {
-        const waiterKey = `${agentId}:${row.id}`
-        const waiter = this.qrWaiters.get(waiterKey)
-        if (waiter) {
-          clearTimeout(waiter.timer)
-          this.qrWaiters.delete(waiterKey)
-          waiter.resolve(url)
-        }
-      })
-
-      // When an adapter obtains credentials via QR registration, persist them
-      // to the channel config and re-sync so a new adapter connects with creds.
-      adapter.on('credentials', (creds) => {
-        this.saveCredentialsAndReconnect(agentId, row.id, creds).catch((err) => {
-          logger.error('Failed to save credentials and reconnect', {
-            agentId,
-            channelId: row.id,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        })
-      })
-
-      // Logs remain event-like; connection status is a main-owned shared snapshot.
-      adapter.on('log', (entry) => {
-        this.channelLogs.append(entry.channelId, entry)
-        this.sendToRenderer('channel.log', entry)
-      })
-
-      adapter.on('statusChange', (status) => {
-        this.publishStatus(status)
-      })
-
-      // Register adapter immediately so it's discoverable. Callers can either
-      // await connect for strict workflows or leave it in the background.
-      this.adapters.set(key, adapter)
-      this.publishStatus({ channelId: row.id, connected: adapter.connected })
-
-      const connect = async () => {
-        try {
-          await adapter.connect()
-          logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
-        } catch (error) {
-          this.adapters.delete(key)
-          logger.error('Failed to connect channel adapter', {
-            agentId,
-            channelId: row.id,
-            type: row.type,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          throw error
-        }
-      }
-
-      if (options.awaitConnect) {
-        await connect()
-      } else {
-        void connect().catch(() => {})
-      }
-    } catch (error) {
-      logger.error('Failed to create channel adapter', {
-        agentId,
-        channelId: row.id,
-        type: row.type,
-        error: error instanceof Error ? error.message : String(error)
-      })
-      const errorStatus: ChannelStatusEvent = {
-        channelId: row.id,
-        connected: false,
-        error: error instanceof Error ? error.message : String(error)
-      }
-      this.publishStatus(errorStatus)
-      if (options.awaitConnect) {
-        throw error
-      }
-    }
   }
 }

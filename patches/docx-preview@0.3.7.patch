@@ -1,0 +1,228 @@
+diff --git a/dist/docx-preview.js b/dist/docx-preview.js
+index d8e0043eace0974e493096d3f7d9f70a0c2afcf7..15bacba0ee88cb2143f043356d7efc293cb573c9 100644
+--- a/dist/docx-preview.js
++++ b/dist/docx-preview.js
+@@ -1,3 +1,20 @@
++/*
++ * Cherry Studio patch — paragraph identity for selection anchors.
++ *
++ * Adds `data-para-id` (w14:paraId), `data-docx-part` and `data-docx-index`
++ * to rendered <p> elements so the DOCX preview can map a DOM selection back to
++ * an OOXML paragraph ordinal.
++ *
++ * INVARIANT 1 — numbering scope: `docxIndex` counts ONLY direct w:body-level
++ * w:p children of the part being parsed. Paragraphs inside w:tbl and inside
++ * body-level w:sdt are deliberately NOT numbered (python-docx semantics).
++ *
++ * INVARIANT 2 — data-para-id is NOT unique in the DOM: headers/footers are
++ * re-rendered on every page and footnotes on every referencing page
++ * (renderHeaderFooter does not de-duplicate), so the same paragraph can appear
++ * many times. NEVER resolve a paraId with a global querySelector — always walk
++ * up from the selection node and require data-docx-part === 'body'.
++ */
+ /*
+  * @license
+  * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
+@@ -794,7 +811,7 @@
+         }
+         parseXml(root) {
+             this.rootElement = this.createRootElement();
+-            this.rootElement.children = this._documentParser.parseBodyElements(root);
++            this.rootElement.children = this._documentParser.parseBodyElements(root, this.rootElement.type);
+         }
+     }
+     class HeaderPart extends BaseHeaderFooterPart {
+@@ -1413,7 +1430,7 @@
+                 const node = new elemClass();
+                 node.id = globalXmlParser.attr(el, "id");
+                 node.noteType = globalXmlParser.attr(el, "type");
+-                node.children = this.parseBodyElements(el);
++                node.children = this.parseBodyElements(el, elemName);
+                 result.push(node);
+             }
+             return result;
+@@ -1426,7 +1443,7 @@
+                 item.author = globalXmlParser.attr(el, "author");
+                 item.initials = globalXmlParser.attr(el, "initials");
+                 item.date = globalXmlParser.attr(el, "date");
+-                item.children = this.parseBodyElements(el);
++                item.children = this.parseBodyElements(el, "comment");
+                 result.push(item);
+             }
+             return result;
+@@ -1437,7 +1454,7 @@
+             var sectPr = globalXmlParser.element(xbody, "sectPr");
+             return {
+                 type: DomType.Document,
+-                children: this.parseBodyElements(xbody),
++                children: this.parseBodyElements(xbody, "body"),
+                 props: sectPr ? parseSectionProperties(sectPr, globalXmlParser) : {},
+                 cssStyle: background ? this.parseBackground(background) : {},
+             };
+@@ -1450,13 +1467,24 @@
+             }
+             return result;
+         }
+-        parseBodyElements(element) {
++        parseBodyElements(element, part) {
+             var children = [];
++            // `ordinal` counts only direct w:p children of this element: w:tbl and w:sdt
++            // take their own cases, so table/sdt paragraphs are never numbered. The "sdt"
++            // case recurses WITHOUT `part` on purpose — do not "fix" it.
++            let ordinal = 0;
+             for (const elem of globalXmlParser.elements(element)) {
+                 switch (elem.localName) {
+-                    case "p":
+-                        children.push(this.parseParagraph(elem));
++                    case "p": {
++                        const p = this.parseParagraph(elem);
++                        if (part) {
++                            p.docxPart = part;
++                            p.docxIndex = ordinal;
++                        }
++                        ordinal++;
++                        children.push(p);
+                         break;
++                    }
+                     case "altChunk":
+                         children.push(this.parseAltChunk(elem));
+                         break;
+@@ -1766,6 +1794,10 @@
+         }
+         parseParagraph(node) {
+             var result = { type: DomType.Paragraph, children: [] };
++            // attr() matches by localName, so the w14: prefix needs no namespace handling.
++            const paraId = globalXmlParser.attr(node, "paraId");
++            if (paraId)
++                result.paraId = paraId;
+             for (let el of globalXmlParser.elements(node)) {
+                 switch (el.localName) {
+                     case "pPr":
+@@ -3459,6 +3491,13 @@ section.${c}>footer { z-index: 1; }
+             if (numbering) {
+                 result.classList.add(this.numberingClass(numbering.id, numbering.level));
+             }
++            if (elem.paraId)
++                result.dataset.paraId = elem.paraId;
++            if (elem.docxPart) {
++                result.dataset.docxPart = elem.docxPart;
++                if (elem.docxIndex !== undefined)
++                    result.dataset.docxIndex = String(elem.docxIndex);
++            }
+             return result;
+         }
+         renderRunProperties(style, props) {
+diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
+index 2691670b0d86c9301e4ffbd99825ee5d75fb111b..e714f5128d556cd5e48199d03b03d0505a367af1 100644
+--- a/dist/docx-preview.mjs
++++ b/dist/docx-preview.mjs
+@@ -1,3 +1,20 @@
++/*
++ * Cherry Studio patch — paragraph identity for selection anchors.
++ *
++ * Adds `data-para-id` (w14:paraId), `data-docx-part` and `data-docx-index`
++ * to rendered <p> elements so the DOCX preview can map a DOM selection back to
++ * an OOXML paragraph ordinal.
++ *
++ * INVARIANT 1 — numbering scope: `docxIndex` counts ONLY direct w:body-level
++ * w:p children of the part being parsed. Paragraphs inside w:tbl and inside
++ * body-level w:sdt are deliberately NOT numbered (python-docx semantics).
++ *
++ * INVARIANT 2 — data-para-id is NOT unique in the DOM: headers/footers are
++ * re-rendered on every page and footnotes on every referencing page
++ * (renderHeaderFooter does not de-duplicate), so the same paragraph can appear
++ * many times. NEVER resolve a paraId with a global querySelector — always walk
++ * up from the selection node and require data-docx-part === 'body'.
++ */
+ /*
+  * @license
+  * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
+@@ -790,7 +807,7 @@ class BaseHeaderFooterPart extends Part {
+     }
+     parseXml(root) {
+         this.rootElement = this.createRootElement();
+-        this.rootElement.children = this._documentParser.parseBodyElements(root);
++        this.rootElement.children = this._documentParser.parseBodyElements(root, this.rootElement.type);
+     }
+ }
+ class HeaderPart extends BaseHeaderFooterPart {
+@@ -1409,7 +1426,7 @@ class DocumentParser {
+             const node = new elemClass();
+             node.id = globalXmlParser.attr(el, "id");
+             node.noteType = globalXmlParser.attr(el, "type");
+-            node.children = this.parseBodyElements(el);
++            node.children = this.parseBodyElements(el, elemName);
+             result.push(node);
+         }
+         return result;
+@@ -1422,7 +1439,7 @@ class DocumentParser {
+             item.author = globalXmlParser.attr(el, "author");
+             item.initials = globalXmlParser.attr(el, "initials");
+             item.date = globalXmlParser.attr(el, "date");
+-            item.children = this.parseBodyElements(el);
++            item.children = this.parseBodyElements(el, "comment");
+             result.push(item);
+         }
+         return result;
+@@ -1433,7 +1450,7 @@ class DocumentParser {
+         var sectPr = globalXmlParser.element(xbody, "sectPr");
+         return {
+             type: DomType.Document,
+-            children: this.parseBodyElements(xbody),
++            children: this.parseBodyElements(xbody, "body"),
+             props: sectPr ? parseSectionProperties(sectPr, globalXmlParser) : {},
+             cssStyle: background ? this.parseBackground(background) : {},
+         };
+@@ -1446,13 +1463,24 @@ class DocumentParser {
+         }
+         return result;
+     }
+-    parseBodyElements(element) {
++    parseBodyElements(element, part) {
+         var children = [];
++        // `ordinal` counts only direct w:p children of this element: w:tbl and w:sdt
++        // take their own cases, so table/sdt paragraphs are never numbered. The "sdt"
++        // case recurses WITHOUT `part` on purpose — do not "fix" it.
++        let ordinal = 0;
+         for (const elem of globalXmlParser.elements(element)) {
+             switch (elem.localName) {
+-                case "p":
+-                    children.push(this.parseParagraph(elem));
++                case "p": {
++                    const p = this.parseParagraph(elem);
++                    if (part) {
++                        p.docxPart = part;
++                        p.docxIndex = ordinal;
++                    }
++                    ordinal++;
++                    children.push(p);
+                     break;
++                }
+                 case "altChunk":
+                     children.push(this.parseAltChunk(elem));
+                     break;
+@@ -1762,6 +1790,10 @@ class DocumentParser {
+     }
+     parseParagraph(node) {
+         var result = { type: DomType.Paragraph, children: [] };
++        // attr() matches by localName, so the w14: prefix needs no namespace handling.
++        const paraId = globalXmlParser.attr(node, "paraId");
++        if (paraId)
++            result.paraId = paraId;
+         for (let el of globalXmlParser.elements(node)) {
+             switch (el.localName) {
+                 case "pPr":
+@@ -3455,6 +3487,13 @@ section.${c}>footer { z-index: 1; }
+         if (numbering) {
+             result.classList.add(this.numberingClass(numbering.id, numbering.level));
+         }
++        if (elem.paraId)
++            result.dataset.paraId = elem.paraId;
++        if (elem.docxPart) {
++            result.dataset.docxPart = elem.docxPart;
++            if (elem.docxIndex !== undefined)
++                result.dataset.docxIndex = String(elem.docxIndex);
++        }
+         return result;
+     }
+     renderRunProperties(style, props) {
