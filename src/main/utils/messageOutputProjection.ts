@@ -8,6 +8,7 @@ import { isToolUIPart } from 'ai'
 
 import {
   CITATION_SNIPPET_MAX_CHARS,
+  citationSnippet,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   type KbGrepMatch,
@@ -43,9 +44,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function toCitationSnippet(content: string): string {
-  const trimmed = content.trim()
-  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
+  return citationSnippet(content)
 }
 
 /** Keep grep matches in order until their joined citation preview reaches its text budget. */
@@ -64,7 +63,9 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
     remainingChars -= separatorChars
     const snippet = match.snippet.trim()
     if (snippet.length > remainingChars) {
-      projected.push({ ...match, snippet: `${snippet.slice(0, remainingChars)}…` })
+      const lastCodeUnit = snippet.charCodeAt(remainingChars - 1)
+      const end = lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff ? remainingChars - 1 : remainingChars
+      projected.push({ ...match, snippet: `${snippet.slice(0, end)}…` })
       break
     }
 

@@ -126,6 +126,8 @@ describe('assembleSystemPrompt', () => {
       hasCitableTools: true
     })
     expect(out).toContain('<citations>')
+    expect(out).toContain('search for relevant passages in more than one source')
+    expect(out).toContain('Match each claim to the results that actually support it')
   })
 
   it('appends citation guidance when kb_read is the only citable tool', async () => {

@@ -88,7 +88,7 @@ export interface ToolEntry {
    * per-entity content fields, never identity/citation skeletons. Preferred
    * over the blanket `truncatable: false` for citable tools. `snippet` is the
    * persist-lane policy for the inline stand-in of a blobbed content field
-   * (~300 chars, byte-aligned with the renderer citation snippet).
+   * (up to 1,000 UTF-16 code units, aligned with the renderer citation snippet).
    */
   codec?: ToolOutputCodec
 
