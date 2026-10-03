@@ -239,7 +239,8 @@ describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', ()
   })
 
   it('does not index data validations per address', () => {
-    expect(workbook.worksheets[0].dataValidations.model).toEqual({})
+    const worksheet = workbook.worksheets[0] as ExcelJS.Worksheet & { dataValidations: { model: object } }
+    expect(worksheet.dataValidations.model).toEqual({})
   })
 
   it('does not index defined names per address', () => {
