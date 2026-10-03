@@ -18,10 +18,12 @@ export function acquireNotesRelocationSession(ownerId: string): void {
   notesRelocationSessionOwnerId = ownerId
 }
 
-export function releaseNotesRelocationSession(ownerId: string): void {
-  if (notesRelocationSessionOwnerId === ownerId) {
-    notesRelocationSessionOwnerId = null
+export function releaseNotesRelocationSession(ownerId: string): boolean {
+  if (notesRelocationSessionOwnerId !== ownerId) {
+    return false
   }
+  notesRelocationSessionOwnerId = null
+  return true
 }
 
 export function abandonNotesRelocationSession(ownerId: string): boolean {

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import fs, { createReadStream } from 'node:fs'
+import fs, { constants, createReadStream } from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -231,6 +231,18 @@ export async function migrateNotesDirectory(
       }
       if (!options.merge) {
         await assertNonMergeDestinationAbsent(to)
+        try {
+          await fs.promises.copyFile(from, to, constants.COPYFILE_EXCL)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+            throw new IpcError(
+              notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+              'target entry appeared during migration'
+            )
+          }
+          throw error
+        }
+        continue
       }
       await fs.promises.copyFile(from, to)
     }

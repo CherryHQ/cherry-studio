@@ -16,18 +16,20 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import {
   flushAllNotesEdits,
   lockNotesEditsForRelocation,
   unlockNotesEditsForRelocation,
   waitForStructuralNotesWritesToSettle
 } from '@renderer/hooks/notesFileEditFlush'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -98,16 +100,25 @@ const NotesSettings: FC = () => {
       const info = await ipcApi.request('app.get_info')
       lockNotesEditsForRelocation()
       try {
-        await waitForStructuralNotesWritesToSettle()
-        await flushAllNotesEdits()
-        setTempPath(info.notesPath)
-        await updateNotesPath(info.notesPath)
-        toast.success(t('notes.settings.data.reset_to_default'))
+        await ipcApi.request('app.notes_relocation.begin_barrier')
+        try {
+          await waitForStructuralNotesWritesToSettle()
+          await flushAllNotesEdits()
+          setTempPath(info.notesPath)
+          await updateNotesPath(info.notesPath)
+          toast.success(t('notes.settings.data.reset_to_default'))
+        } finally {
+          await ipcApi.request('app.notes_relocation.end_barrier')
+        }
       } finally {
         unlockNotesEditsForRelocation()
       }
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
+      if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS) {
+        toast.error(t('settings.data.notes_relocation.error.in_progress'))
+        return
+      }
       toast.error(t('notes.settings.data.reset_failed'))
     }
   }

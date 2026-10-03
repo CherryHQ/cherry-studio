@@ -90,11 +90,7 @@ function isFlushTargetWindowAvailable(windowId: string): boolean {
   })
 }
 
-function rejectPendingFlush(
-  pending: PendingFlush,
-  requestId: string,
-  error: IpcError
-): void {
+function rejectPendingFlush(pending: PendingFlush, requestId: string, error: IpcError): void {
   clearTimeout(pending.timer)
   pendingByRequestId.delete(requestId)
   pending.reject(error)
