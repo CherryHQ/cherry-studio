@@ -80,6 +80,7 @@ const mocks = vi.hoisted(() => ({
   sessionOpen: vi.fn(),
   reload: vi.fn(),
   createAgentSession: vi.fn(),
+  getToolDefinition: vi.fn(),
   createBashToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
@@ -228,6 +229,7 @@ const fakeSession = {
   abort: mocks.abort,
   dispose: mocks.dispose,
   getContextUsage: mocks.getContextUsage,
+  getToolDefinition: mocks.getToolDefinition,
   bindExtensions: async () => undefined,
   extensionRunner: { emit: mocks.closeMcpBridge }
 }
@@ -323,6 +325,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.getToolDefinition.mockReset()
 
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
@@ -1816,6 +1819,31 @@ describe('PiRuntimeConnection', () => {
   })
 
   describe('MCP bridging', () => {
+    it('blocks a legacy disabled alias using the actual registered tool identity', async () => {
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+      const serverName = 'my-server'
+      const nativeName = `mcp__${serverId.replaceAll('-', '_')}__search_issues_12345678`
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        mcps: [serverName],
+        disabledTools: ['mcp__myServer__searchIssues']
+      })
+      const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+      mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+        ...(await snapshotFactory(...args)),
+        mcpServerSnapshots: new Map([[serverName, { id: serverId, name: serverName }]])
+      }))
+      mocks.getToolDefinition.mockReturnValue({
+        name: nativeName,
+        label: `${serverId}/search_issues`,
+        namespace: { name: `mcp__${serverId.replaceAll('-', '_')}` }
+      })
+      await new PiRuntimeConnection(input).start()
+      await expect(
+        gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
+      ).resolves.toMatchObject({ block: true })
+    })
     function gateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>

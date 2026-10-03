@@ -15,12 +15,13 @@
  * Tool parts are stamped with the pi runtime transport tag
  * (D8) so the renderer routes them to the generic pi tool card.
  */
-import type { AgentSessionEvent, AgentToolResult } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent, AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -34,22 +35,41 @@ const CHERRY_SERVER_NAMES = new Map<string, string>(
   Object.values(CHERRY_MCP_SERVER).map((name) => [name.replaceAll('-', '_'), name])
 )
 
-function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
+export function resolvePiMcpToolMetadata(
+  definition: ToolDefinition | undefined,
+  snapshots: ReadonlyMap<string, Pick<McpServer, 'id' | 'name'> | undefined>
+) {
+  if (!definition?.namespace?.name.startsWith('mcp__')) return undefined
+  const separator = definition.label.indexOf('/')
+  if (separator < 0) return undefined
+  const serverId = definition.label.slice(0, separator)
+  const server = [...snapshots.values()].find((candidate) => candidate?.id === serverId)
+  return {
+    type: 'mcp' as const,
+    name: definition.label.slice(separator + 1),
+    serverId,
+    serverName: server?.name ?? serverId
+  }
+}
+
+function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof resolvePiMcpToolMetadata>) {
   const parsed = parseFunctionCallToolName(toolName)
   const serverName = parsed ? (CHERRY_SERVER_NAMES.get(parsed.serverPart) ?? parsed.serverPart) : undefined
   return {
     cherry: {
       transport: PI_TRANSPORT,
-      tool: parsed
-        ? {
-            type: 'mcp' as const,
-            name: parsed.toolPart,
-            serverId: serverName,
-            serverName
-          }
-        : { type: 'builtin' as const, name: toolName }
+      tool:
+        nativeTool ??
+        (parsed
+          ? {
+              type: 'mcp' as const,
+              name: parsed.toolPart,
+              serverId: serverName,
+              serverName
+            }
+          : { type: 'builtin' as const, name: toolName })
     },
-    pi: { toolName, ...extra }
+    pi: { toolName }
   }
 }
 
@@ -67,7 +87,10 @@ export class PiStreamAdapter {
    *  Claude driver, whose SDK `result` usage is already a turn total. */
   private turnUsage = emptyTurnUsage()
 
-  constructor(private readonly sink: PiStreamSink) {}
+  constructor(
+    private readonly sink: PiStreamSink,
+    private readonly resolveToolMetadata?: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata>
+  ) {}
 
   handleEvent(event: AgentSessionEvent): void {
     switch (event.type) {
@@ -144,7 +167,7 @@ export class PiStreamAdapter {
       toolName,
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
     this.sink.enqueue({
       type: 'tool-input-available',
@@ -153,7 +176,7 @@ export class PiStreamAdapter {
       input: args ?? {},
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
   }
 
@@ -167,7 +190,7 @@ export class PiStreamAdapter {
         errorText: stringifyResult(result),
         dynamic: true,
         providerExecuted: true,
-        providerMetadata: toolProviderMetadata(toolName)
+        providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
       })
       return
     }
@@ -177,7 +200,7 @@ export class PiStreamAdapter {
       output: projectPiToolOutput(toolName, result),
       dynamic: true,
       providerExecuted: true,
-      providerMetadata: toolProviderMetadata(toolName)
+      providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))
     })
   }
 

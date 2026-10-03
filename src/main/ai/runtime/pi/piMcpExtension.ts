@@ -41,10 +41,12 @@ export function createPiMcpExtension(
   servers: Record<string, AgentMcpServer>,
   logPath: string
 ): ExtensionFactory {
+  // UUID namespaces prevent display-name collisions and keep stored tool policies stable on rename.
+  const runtimeServers = new Map(Object.values(servers).map((server) => [server.id ?? server.name, server]))
   return pi.createMcpExtension({
     logPath,
     loadConfig: () => ({
-      servers: Object.values(servers).map(({ name }) => ({
+      servers: [...runtimeServers.keys()].map((name) => ({
         name,
         scope: 'extension' as const,
         source: 'Cherry Studio',
@@ -57,7 +59,7 @@ export function createPiMcpExtension(
       errors: []
     }),
     createTransport: (entry) => {
-      const server = Object.values(servers).find((server) => server.name === entry.name)!
+      const server = runtimeServers.get(entry.name)!
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
       return {
         async start() {

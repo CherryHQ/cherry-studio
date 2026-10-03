@@ -77,7 +77,7 @@ import {
 import { buildPiMcpToolName, createPiMcpExtension, warmMcpToolCatalogs } from './piMcpExtension'
 import { loadPiAi, loadPiSdk } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
-import { PiStreamAdapter } from './piStreamAdapter'
+import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -161,7 +161,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly providerSpans = new Set<Span>()
   private readonly toolSpans = new Map<string, Span>()
-  private readonly adapter = new PiStreamAdapter({ enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) })
+  private readonly adapter = new PiStreamAdapter(
+    { enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }) },
+    (name) => this.resolveMcpToolMetadata(name)
+  )
+  private mcpServerSnapshots: PiConnectionSnapshot['mcpServerSnapshots'] = new Map()
   private session?: AgentSession
   private unsubscribe?: () => void
   private resumeToken?: string
@@ -246,6 +250,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
+    this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
     this.disabledTools = normalizeDisabledTools(agent.disabledTools, initialSnapshot)
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
@@ -331,7 +336,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         getPermissionMode: () => this.permissionMode,
-        isDisabled: (toolName: string) => this.disabledTools.has(toolName),
+        isDisabled: (toolName: string) => this.isToolDisabled(toolName),
         additionalReadOnlyRoots: additionalSkillPaths,
         // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
         // disabledTools hard-blocks every class at fire-time.
@@ -439,6 +444,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       throw error
     }
+  }
+
+  private resolveMcpToolMetadata(name: string) {
+    return resolvePiMcpToolMetadata(this.session?.getToolDefinition(name), this.mcpServerSnapshots)
+  }
+
+  private isToolDisabled(name: string): boolean {
+    if (this.disabledTools.has(name)) return true
+    const tool = this.resolveMcpToolMetadata(name)
+    return (
+      tool !== undefined &&
+      (this.disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
+        this.disabledTools.has(`mcp__${tool.serverId}__${tool.name}`))
+    )
   }
 
   /** Pi allocates session IDs before lazily flushing history, so an unflushed ID can still initialize. */
@@ -1000,7 +1019,8 @@ function normalizeDisabledTools(
       }
     }
   }
-  return new Set([...disabled].map((tool) => (tool.startsWith('mcp__') ? tool.replace(/[^A-Za-z0-9_]/g, '_') : tool)))
+  // Sanitizing raw aliases can accidentally block another tool whose name collides.
+  return disabled
 }
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
