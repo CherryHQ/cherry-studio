@@ -425,7 +425,7 @@ export function createCustomModel(
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
-    capabilities: [],
+    capabilities: reasoning ? [MODEL_CAPABILITY.REASONING] : [],
     reasoning,
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     supportsStreaming: true,
