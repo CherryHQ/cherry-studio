@@ -26,7 +26,7 @@ const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolean; onOpen: (url: string) => void }) {
   const gridClassName = compact
-    ? 'grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] justify-items-center gap-x-2'
+    ? 'grid grid-cols-[repeat(auto-fill,80px)] justify-between justify-items-center gap-x-2'
     : LAUNCHPAD_GRID_CLASS
   const itemClassName = compact ? 'w-full min-w-0' : LAUNCHPAD_ITEM_CLASS
   const sidebarAvailable = useSidebarAvailable()
@@ -217,7 +217,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
             <h2
               className={cn(
                 'm-0 py-0 font-semibold text-[14px] text-foreground opacity-80',
-                compact ? 'px-1' : 'px-9'
+                compact ? 'px-[17px]' : 'px-9'
               )}>
               {t('launchpad.apps')}
             </h2>
@@ -258,7 +258,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
               <h2
                 className={cn(
                   'm-0 py-0 font-semibold text-[14px] text-foreground opacity-80',
-                  compact ? 'px-1' : 'px-9'
+                  compact ? 'px-[17px]' : 'px-9'
                 )}>
                 {t('launchpad.miniApps')}
               </h2>
