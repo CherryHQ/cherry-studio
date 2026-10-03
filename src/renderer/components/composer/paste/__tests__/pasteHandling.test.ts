@@ -784,6 +784,111 @@ describe('pasteHandling', () => {
     expect(onInsertPaths).toHaveBeenCalledWith(['/tmp/model.onnx'])
   })
 
+  it('delivers an unlisted path even when the clipboard also exposes its filename as text', async () => {
+    // The OS text flavor is only the file's name, so routing it as a text paste would put
+    // "model.onnx" in the draft and never tell the agent where the file actually is.
+    vi.mocked(window.api.file.getPathForFile).mockReturnValue('/Users/me/models/model.onnx')
+    const setFiles = vi.fn()
+    const onInsertPaths = vi.fn()
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'model.onnx' : ''),
+        files: [{ name: 'model.onnx', type: 'application/octet-stream' } as File]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', anyFileExt],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      onInsertPaths
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(onInsertPaths).toHaveBeenCalledWith(['/Users/me/models/model.onnx'])
+  })
+
+  it('still leaves plain text alone when no wildcard route can claim it', async () => {
+    // The wildcard path route must not swallow a normal text paste: with no files present the
+    // text flavor is all the clipboard has, so it belongs to the editor.
+    const setFiles = vi.fn()
+    const onInsertPaths = vi.fn()
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'just some text' : ''),
+        files: []
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', anyFileExt],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      onInsertPaths
+    )
+
+    expect(handled).toBe(false)
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(onInsertPaths).not.toHaveBeenCalled()
+  })
+
+  it('leaves a listed file with a text flavor to the existing attachment route', async () => {
+    // `.png` is listed, so the wildcard path route does not apply and the image keeps winning over
+    // the text flavor exactly as before.
+    const supportedFile = {
+      ...selectedFile,
+      id: 'file-listed',
+      name: 'shot.png',
+      origin_name: 'shot.png',
+      path: '/tmp/shot.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    vi.mocked(window.api.file.getPathForFile).mockReturnValue('/tmp/shot.png')
+    vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const onInsertPaths = vi.fn()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'shot.png' : ''),
+        files: [{ name: supportedFile.name, type: 'image/png' } as File]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png', anyFileExt],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      onInsertPaths
+    )
+
+    expect(handled).toBe(true)
+    expect(files.map((file) => file.path)).toEqual([supportedFile.path])
+    expect(onInsertPaths).not.toHaveBeenCalled()
+  })
+
   it('delivers the path of an unlisted paste even when the same paste also carries a pathless entry', async () => {
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
       file.name === 'model.onnx' ? '/Users/me/model.onnx' : ''

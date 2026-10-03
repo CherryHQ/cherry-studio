@@ -26,13 +26,17 @@ function deliverPathReferences(paths: string[], onInsertPaths?: (paths: string[]
   if (paths.length > 0 && onInsertPaths) onInsertPaths(paths)
 }
 
+// A wildcard list accepts everything, but a file no catalog lists is not a presentable attachment:
+// hand the agent its absolute path instead of copying the bytes into storage.
+function isWildcardPathReference(filePath: string, extensionSet: Set<string>): boolean {
+  return extensionSet.has(anyFileExt) && !extensionSet.has(getFileExtension(filePath))
+}
+
 async function readPathBackedClipboardEntry(
   filePath: string,
   extensionSet: Set<string>
 ): Promise<PathBackedPasteResult> {
-  // A wildcard list accepts everything, but a file no catalog lists is not a presentable
-  // attachment: hand the agent its absolute path instead of copying the bytes into storage.
-  if (extensionSet.has(anyFileExt) && !extensionSet.has(getFileExtension(filePath))) {
+  if (isWildcardPathReference(filePath, extensionSet)) {
     return { kind: 'pathReference', path: filePath }
   }
 
@@ -76,14 +80,22 @@ export const handlePaste = async (
 ): Promise<boolean> => {
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
+    const extensionSet = new Set(supportExts)
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
     // supported image in that case; letting the editor handle the text flavor can render a preview
-    // without ever adding an attachment to composer state.
-    const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
+    // without ever adding an attachment to composer state. A wildcard surface likewise has to see
+    // an unlisted path-backed file, whose text flavor is only the file's name — otherwise the
+    // filename lands in the draft and the agent is never told where the file is.
+    const shouldPreferClipboardFile =
+      hasSupportedClipboardImage(clipboardFiles, supportExts) ||
+      clipboardFiles.some((file) => {
+        const filePath = window.api.file.getPathForFile(file)
+        return Boolean(filePath) && isWildcardPathReference(filePath, extensionSet)
+      })
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     const clipboardText = event.clipboardData?.getData('text')
-    if (clipboardText && !shouldPreferClipboardImage) {
+    if (clipboardText && !shouldPreferClipboardFile) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
@@ -110,10 +122,9 @@ export const handlePaste = async (
       // 短文本走默认粘贴行为，直接返回
       return false
     }
-    // 2. 文件/图片粘贴（仅在无文本时处理）
+    // 2. 文件/图片粘贴（无文本时，或有本会话愿意接收的文件时）
     if (clipboardFiles.length > 0) {
       event.preventDefault()
-      const extensionSet = new Set(supportExts)
       try {
         const clipboardEntries = clipboardFiles.map((file) => ({
           file,
