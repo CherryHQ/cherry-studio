@@ -378,17 +378,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function getLaunchDescription(input: unknown): string | undefined {
+/**
+ * The identity a tool call's own input describes — the one grammar behind both a continuation
+ * label and the flow title it opens, so the same agent can never read two different names.
+ */
+export function getAgentToolInputIdentity(input: unknown): string | undefined {
+  if (typeof input === 'string') return input.trim() || undefined
   if (!isRecord(input)) return undefined
-  // A blank description must fall through to the prompt, or the continuation identity and
-  // the flow title render empty.
-  const description = typeof input.description === 'string' ? input.description.trim() || undefined : undefined
-  if (description) return description
+  // A blank field must fall through to the next spelling, or the identity renders empty.
+  for (const key of ['description', 'subject', 'title', 'name', 'summary', 'message']) {
+    const value = input[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
   if (typeof input.prompt !== 'string') return undefined
   return input.prompt
     .split(/\r?\n/)
     .find((line) => line.trim())
     ?.trim()
+}
+
+function getLaunchDescription(input: unknown): string | undefined {
+  return getAgentToolInputIdentity(input)
 }
 
 /**
@@ -416,10 +426,32 @@ export interface AgentLaunchIndex {
   dshTaskRootCallIds: ReadonlySet<string>
 }
 
+/** Shared default so every no-argument call reads the same identity and hits the cache below. */
+const EMPTY_TASK_EVENTS: AgentSessionTaskEvents = {}
+const launchIndexCache = new WeakMap<object, { events: AgentSessionTaskEvents; index: AgentLaunchIndex }>()
+
+/**
+ * Build (or reuse) the launch index for a parts map. The list and the pane both index the same map
+ * with the same live-task snapshot, and both memos recompute per parts version, so the second call
+ * is answered from the first.
+ */
 export function buildAgentLaunchIndex(
   partsByMessageId: Record<string, CherryMessagePart[]> | null,
   /** Task edges that live outside the loaded parts — the runtime's live per-task event cache. */
-  lateTaskEvents: AgentSessionTaskEvents = {}
+  lateTaskEvents: AgentSessionTaskEvents = EMPTY_TASK_EVENTS
+): AgentLaunchIndex {
+  if (partsByMessageId) {
+    const cached = launchIndexCache.get(partsByMessageId)
+    if (cached && cached.events === lateTaskEvents) return cached.index
+  }
+  const index = computeAgentLaunchIndex(partsByMessageId, lateTaskEvents)
+  if (partsByMessageId) launchIndexCache.set(partsByMessageId, { events: lateTaskEvents, index })
+  return index
+}
+
+function computeAgentLaunchIndex(
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  lateTaskEvents: AgentSessionTaskEvents
 ): AgentLaunchIndex {
   const toolCallIds = new Set<string>()
   const launchesByAgentId = new Map<string, { toolCallId: string; description?: string }>()

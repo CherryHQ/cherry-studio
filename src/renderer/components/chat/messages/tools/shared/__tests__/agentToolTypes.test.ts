@@ -135,6 +135,26 @@ describe('dsh receipt identities', () => {
     })
   })
 
+  it('reuses one index for the same parts map and live edges', () => {
+    // The list and the pane both index the same map with the same snapshot, and both memos
+    // recompute per parts version — the second call must not pay for the same walk again.
+    const parts = { m1: [launchPart('call-a', 'agent-a', 'Audit the renderer')] }
+    const live = { 'agent-a': { event: 'started', taskId: 'agent-a', toolUseId: 'call-a' } } as const
+
+    expect(buildAgentLaunchIndex(parts, live)).toBe(buildAgentLaunchIndex(parts, live))
+    // A different live snapshot is a different index, or a late edge could never take effect.
+    expect(buildAgentLaunchIndex(parts, live)).not.toBe(buildAgentLaunchIndex(parts, {}))
+  })
+
+  it('names a launch and its continuation with one grammar', () => {
+    // The continuation label and the flow title must not disagree: an input that names itself only
+    // by `name` is the same agent in both places.
+    const parts = { m1: [launchPart('call-a', 'agent-a', undefined, { name: 'review-pr' })] }
+    const index = buildAgentLaunchIndex(parts)
+
+    expect(index.descriptionsByToolCallId.get('call-a')).toBe('review-pr')
+  })
+
   it('takes a dsh task edge from the live cache as a flow root', () => {
     const parts = { m1: [dshSendMessagePart('call-send')] }
     const liveEdge = {
@@ -188,13 +208,18 @@ function dshSendMessagePart(toolCallId: string): CherryMessagePart {
   } as unknown as CherryMessagePart
 }
 
-function launchPart(toolCallId: string, agentId: string, description: string): CherryMessagePart {
+function launchPart(
+  toolCallId: string,
+  agentId: string,
+  description?: string,
+  input?: Record<string, unknown>
+): CherryMessagePart {
   return {
     type: 'dynamic-tool',
     toolCallId,
     toolName: 'Agent',
     state: 'output-available',
-    input: { description, prompt: description },
+    input: input ?? { description, prompt: description },
     output: `done. agentId: ${agentId} (internal metadata. Use SendMessage with to: '${agentId}')`
   } as unknown as CherryMessagePart
 }

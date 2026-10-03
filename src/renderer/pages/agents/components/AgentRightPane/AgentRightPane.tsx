@@ -668,8 +668,13 @@ function AgentRightPaneStateProvider({
     [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
   )
   // The pane renders the same resume receipts as the chat list, so it needs the same index: without
-  // it a receipt cannot resolve to its launch root and stays non-navigable.
-  const launchIndex = useMemo(() => buildAgentLaunchIndex(partsByMessageId), [partsByMessageId])
+  // it a receipt cannot resolve to its launch root and stays non-navigable. Resume edges can live
+  // only in the runtime's live task cache, so they feed the index here exactly as they do there.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const launchIndex = useMemo(
+    () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
+    [lateTaskEvents, partsByMessageId]
+  )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])

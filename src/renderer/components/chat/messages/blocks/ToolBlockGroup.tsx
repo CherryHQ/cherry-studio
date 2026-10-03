@@ -28,12 +28,11 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { useOptionalMessageListActions } from '../MessageListProvider'
-import { buildResumeToolHeader, useAgentLaunchIndex } from '../tools/agent'
+import { useAgentResumePresentation } from '../tools/agent'
 import MessageTools from '../tools/MessageTools'
-import { AgentToolsType, getResumedAgentId, resolveResumeReceiptState } from '../tools/shared/agentToolTypes'
+import { AgentToolsType, getResumedAgentId } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
-import { getPartLaunchToolCallId } from '../tools/toolParentMetadata'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
 import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
@@ -356,7 +355,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
     const partsMap = usePartsMap()
-    const launchIndex = useAgentLaunchIndex()
+    const resumePresentation = useAgentResumePresentation()
     const canOpenFlow = Boolean(useOptionalMessageListActions()?.openAgentToolFlow)
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
@@ -485,21 +484,15 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
       )
     }
 
-    // A send-then-resume receipt heads its group exactly like the launch card: continue-handling
-    // verb + launch identity, in place of the generic SendMessage or semantic title.
-    const resumeReceipt = displayCandidate.item.toolResponse
-    const resumeState = resolveResumeReceiptState(
-      resumeReceipt.response,
-      getPartLaunchToolCallId(resumeReceipt),
-      launchIndex,
-      canOpenFlow
-    )
-    const resumeHeader = resumeState.kind === 'none' ? undefined : buildResumeToolHeader(resumeState, resumeReceipt, t)
+    // A send-then-resume receipt heads its group exactly like the launch card. Which receipts those
+    // are, and what the header says, is the Agent host's policy — this shared group only renders
+    // what the host hands it, and falls back to its own title when no host is mounted.
+    const resumeHeader = resumePresentation?.renderResumeHeader(displayCandidate.item.toolResponse, canOpenFlow)
 
     if (resumeHeader) {
       return renderWithElapsed(
         <div className="min-w-0 max-w-full overflow-hidden" key={displayCandidate.item.id}>
-          {resumeHeader.header}
+          {resumeHeader}
         </div>,
         // A resolved receipt always heads its group with the continuation icon; the result's shape
         // (a deferred envelope names no child) must not sink it back to the generic tool icon.
