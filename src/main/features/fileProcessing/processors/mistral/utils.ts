@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 
+import { transcodeToPng } from '@main/utils/image'
 import type { FileInfo } from '@shared/types/file'
 
 import type { DocumentToMarkdownHandlerOutput, ImageToTextHandlerOutput } from '../types'
@@ -146,11 +147,16 @@ async function createImageDataUrl(file: FileInfo): Promise<string> {
   const filePath = file.path
   const extension = file.ext ? `.${file.ext.toLowerCase()}` : ''
   const mime = IMAGE_MIME_BY_EXTENSION[extension]
-
-  if (!mime) {
-    throw new Error(`Unsupported image type for Mistral OCR: ${extension || file.ext}`)
+  const buffer = await fs.readFile(filePath)
+  if (mime) {
+    return `data:${mime};base64,${buffer.toString('base64')}`
   }
 
-  const buffer = await fs.readFile(filePath)
-  return `data:${mime};base64,${buffer.toString('base64')}`
+  // The shared image catalog is wider than this map (HEIC/AVIF/…): decode locally and hand
+  // Mistral PNG bytes, as the in-app OCR engines already do. Undecodable input keeps throwing.
+  try {
+    return `data:image/png;base64,${Buffer.from(await transcodeToPng(buffer)).toString('base64')}`
+  } catch (error) {
+    throw new Error(`Unsupported image type for Mistral OCR: ${extension || file.ext}`, { cause: error })
+  }
 }

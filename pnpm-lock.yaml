@@ -1207,6 +1207,9 @@ importers:
       mime:
         specifier: ^4.0.4
         version: 4.1.0
+      mime-db:
+        specifier: ^1.54.0
+        version: 1.54.0
       mime-types:
         specifier: ^3.0.1
         version: 3.0.2
@@ -2041,7 +2044,7 @@ importers:
         version: 0.4.0
       lucide-react:
         specifier: ^0.563.0
-        version: 0.563.0(react@19.2.3)
+        version: 0.563.0(react@19.2.7)
       semver:
         specifier: ^7.7.1
         version: 7.7.1
@@ -29448,9 +29451,9 @@ snapshots:
     dependencies:
       react: 19.2.3
 
-  lucide-react@0.563.0(react@19.2.3):
+  lucide-react@0.563.0(react@19.2.7):
     dependencies:
-      react: 19.2.3
+      react: 19.2.7
 
   lz-string@1.5.0: {}
 
