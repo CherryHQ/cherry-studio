@@ -3,10 +3,20 @@ import { setMaxListeners } from 'node:events'
 
 import {
   decryptFile,
+  MessageType,
   WSAuthFailureError,
   WSClient,
   WSReconnectExhaustedError,
   type BaseMessage,
+  type FileContent,
+  type FileMessage,
+  type ImageContent,
+  type ImageMessage,
+  type MixedMessage,
+  type TextMessage,
+  type VideoContent,
+  type VideoMessage,
+  type VoiceMessage,
   type WsFrame
 } from '@wecom/aibot-node-sdk'
 import { delay } from 'es-toolkit'
@@ -35,6 +45,8 @@ const STREAM_WINDOW_MS = 170_000
 const MIN_UPLOAD_FILE_BYTES = 5
 const FILE_BYTES = 20 * 1024 * 1024
 const MESSAGE_BYTES = 40 * 1024 * 1024
+
+type IncomingMessage = TextMessage | ImageMessage | MixedMessage | VoiceMessage | FileMessage | VideoMessage
 
 type ResponseContext = {
   chatId: string
@@ -225,7 +237,7 @@ export class WeComAdapter extends ChannelAdapter {
   }
 
   private async receive(frame: WsFrame<BaseMessage>): Promise<void> {
-    const body = frame.body
+    const body = frame.body as IncomingMessage | undefined
     if (
       !this.alive ||
       !body ||
@@ -284,7 +296,11 @@ export class WeComAdapter extends ChannelAdapter {
     const byteBudget = { remaining: MESSAGE_BYTES + 20 * 32 }
     const controller = new AbortController()
     const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
-    const download = async (media: { url: string; aeskey?: string }, image: boolean, index = 0) => {
+    const download = async (
+      media: ImageContent | FileContent | VideoContent,
+      kind: MessageType.Image | MessageType.File | MessageType.Video,
+      index = 0
+    ) => {
       if (this.downloads.size >= 32) throw new Error('Attachment queue full')
       const result = await this.downloads.add(
         () =>
@@ -301,7 +317,8 @@ export class WeComAdapter extends ChannelAdapter {
       total += bytes.length
       if (bytes.length > FILE_BYTES || total > MESSAGE_BYTES) throw new Error('Attachment limit exceeded')
       const type = await fileTypeFromBuffer(bytes)
-      if (image) {
+      if (kind === MessageType.Video && !type?.mime.startsWith('video/')) throw new Error('Invalid video')
+      if (kind === MessageType.Image) {
         if (!type?.mime.startsWith('image/')) throw new Error('Invalid image')
         images[index] = { data: bytes.toString('base64'), media_type: type.mime }
       } else {
@@ -317,22 +334,33 @@ export class WeComAdapter extends ChannelAdapter {
     }
     try {
       switch (body.msgtype) {
-        case 'text':
+        case MessageType.Text:
           text = body.text.content
           break
-        case 'image':
-          await download(body.image, true)
+        case MessageType.Voice:
+          if (typeof body.voice?.content !== 'string' || !body.voice.content.trim()) {
+            await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'), opts)
+            return
+          }
+          text = body.voice.content
           break
-        case 'file':
-          await download(body.file, false)
+        case MessageType.Image:
+          await download(body.image, MessageType.Image)
           break
-        case 'mixed': {
+        case MessageType.File:
+          await download(body.file, MessageType.File)
+          break
+        case MessageType.Video:
+          await download(body.video, MessageType.Video)
+          break
+        case MessageType.Mixed: {
           if (body.mixed.msg_item.length > 20) throw new Error('Too many attachments')
           let imageIndex = 0
           await Promise.all(
             body.mixed.msg_item.map(async (item) => {
-              if (item.msgtype === 'text') text += item.text.content
-              else if (item.msgtype === 'image') await download(item.image, true, imageIndex++)
+              if (item.msgtype === MessageType.Text && item.text) text += item.text.content
+              else if (item.msgtype === MessageType.Image && item.image)
+                await download(item.image, MessageType.Image, imageIndex++)
               else throw new Error('Unsupported mixed message')
             })
           )
@@ -356,7 +384,7 @@ export class WeComAdapter extends ChannelAdapter {
       messageId: body.msgid
     }
     const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text.trim())
-    if (command && !images.length && !files.length) {
+    if (command && body.msgtype !== MessageType.Voice && !images.length && !files.length) {
       if (command[1] === 'whoami') {
         await this.sendMessage(chatId, t('common.wecom_identity', { chatId, userId: body.from.userid }), opts)
       } else {

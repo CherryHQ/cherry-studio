@@ -75,6 +75,83 @@ afterEach(async () => {
 })
 
 describe('WeCom channel contract', () => {
+  it.each(['Summarize the meeting', '/new'])('forwards voice transcription %j as user text once', async (text) => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    const commands: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    instance.on('command', (event) => commands.push(event))
+    const incoming = frame('voice', { msgtype: 'voice', voice: { content: text } })
+    client.emit('message', incoming)
+    client.emit('message', incoming)
+    await tick()
+    expect(messages).toMatchObject([{ text, messageId: 'voice', chatId: 'dm:alice', images: [], files: [] }])
+    expect(commands).toEqual([])
+    expect(fetchRemoteBytes).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, '', '   ', 123])(
+    'reports missing voice transcription %j without invoking the Agent',
+    async (content) => {
+      const { instance, client } = await adapter()
+      const messages: unknown[] = []
+      instance.on('message', (event) => messages.push(event))
+      client.emit('message', frame('voice', { msgtype: 'voice', voice: { content } }))
+      await tick()
+      expect(messages).toEqual([])
+      expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.[2]).toBe(t('common.channel_voice_transcription_missing'))
+    }
+  )
+
+  it('decrypts a video into a typed attachment without changing its bytes', async () => {
+    const { instance, client } = await adapter()
+    const raw = Buffer.from('00000018667479706d703432000000006d70343269736f6d', 'hex')
+    const key = Buffer.alloc(32, 1)
+    const padding = 32 - (raw.length % 32)
+    const cipher = createCipheriv('aes-256-cbc', key, key.subarray(0, 16))
+    cipher.setAutoPadding(false)
+    const encrypted = Buffer.concat([
+      cipher.update(Buffer.concat([raw, Buffer.alloc(padding, padding)])),
+      cipher.final()
+    ])
+    vi.mocked(fetchRemoteBytes).mockResolvedValueOnce({ body: encrypted, headers: {} })
+    const messages: any[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.emit(
+      'message',
+      frame('video', {
+        msgtype: 'video',
+        video: { url: 'https://example.com/video', aeskey: key.toString('base64') }
+      })
+    )
+    await tick()
+    expect(messages).toMatchObject([
+      {
+        text: '',
+        messageId: 'video',
+        files: [
+          {
+            filename: 'attachment.mp4',
+            media_type: 'video/mp4',
+            data: raw.toString('base64'),
+            size: raw.length
+          }
+        ]
+      }
+    ])
+  })
+
+  it('rejects a non-video response to a video message', async () => {
+    const { instance, client } = await adapter()
+    vi.mocked(fetchRemoteBytes).mockResolvedValueOnce({ body: Buffer.from('not a video'), headers: {} })
+    const messages: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.emit('message', frame('video', { msgtype: 'video', video: { url: 'https://example.com/video' } }))
+    await tick()
+    expect(messages).toEqual([])
+    expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.[2]).toBe(t('common.wecom_attachment_failed'))
+  })
+
   it('admits each message once and keeps private and group conversations separate', async () => {
     const { instance, client } = await adapter()
     const messages: unknown[] = []
@@ -251,33 +328,36 @@ describe('WeCom channel contract', () => {
     expect(client.replyStreamNonBlocking.mock.calls).toHaveLength(completedFrames)
   })
 
-  it('aborts attachment downloads on disconnect without invoking the Agent or replying afterward', async () => {
-    const { instance, client } = await adapter()
-    let aborted = false
-    vi.mocked(fetchRemoteBytes).mockImplementationOnce(
-      (_url, options) =>
-        new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener(
-            'abort',
-            () => {
-              aborted = true
-              reject(new Error('Aborted'))
-            },
-            { once: true }
-          )
-        })
-    )
-    const messages: unknown[] = []
-    instance.on('message', (message) => messages.push(message))
-    client.emit('message', frame('1', { msgtype: 'file', file: { url: 'https://example.com/file' } }))
-    await tick()
-    await instance.disconnect()
-    await tick()
-    expect(aborted).toBe(true)
-    expect(messages).toEqual([])
-    expect(client.replyStreamNonBlocking).not.toHaveBeenCalled()
-    expect(client.sendMessage).not.toHaveBeenCalled()
-  })
+  it.each(['file', 'video'])(
+    'aborts %s downloads on disconnect without invoking the Agent or replying afterward',
+    async (kind) => {
+      const { instance, client } = await adapter()
+      let aborted = false
+      vi.mocked(fetchRemoteBytes).mockImplementationOnce(
+        (_url, options) =>
+          new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener(
+              'abort',
+              () => {
+                aborted = true
+                reject(new Error('Aborted'))
+              },
+              { once: true }
+            )
+          })
+      )
+      const messages: unknown[] = []
+      instance.on('message', (message) => messages.push(message))
+      client.emit('message', frame('1', { msgtype: kind, [kind]: { url: 'https://example.com/media' } }))
+      await tick()
+      await instance.disconnect()
+      await tick()
+      expect(aborted).toBe(true)
+      expect(messages).toEqual([])
+      expect(client.replyStreamNonBlocking).not.toHaveBeenCalled()
+      expect(client.sendMessage).not.toHaveBeenCalled()
+    }
+  )
 
   it('sends task notifications actively without borrowing the latest callback', async () => {
     const { instance, client } = await adapter()
