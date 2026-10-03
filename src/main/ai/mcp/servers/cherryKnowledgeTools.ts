@@ -83,7 +83,11 @@ interface KnowledgeTool {
   description: string
   inputSchema: z.ZodType
   // kb cores take no AbortSignal: KnowledgeService exposes no cancellation plumbing (see knowledgeLookup).
-  run: (args: unknown, baseIds: readonly string[]) => Promise<KnowledgeToolOutput>
+  run: (
+    args: unknown,
+    baseIds: readonly string[],
+    access?: Readonly<Record<string, 'read' | 'read-write'>>
+  ) => Promise<KnowledgeToolOutput>
 }
 
 const KNOWLEDGE_TOOLS: Record<string, KnowledgeTool> = {
@@ -116,9 +120,9 @@ const KNOWLEDGE_TOOLS: Record<string, KnowledgeTool> = {
   [KB_MANAGE_TOOL_NAME]: {
     description: KNOWLEDGE_MANAGE_DESCRIPTION,
     inputSchema: kbManageInputSchema,
-    run: async (args, baseIds) => {
+    run: async (args, baseIds, access) => {
       const input = kbManageInputSchema.parse(args)
-      return knowledgeManageModelOutput(await manageKnowledge(input, baseIds))
+      return knowledgeManageModelOutput(await manageKnowledge(input, baseIds, access))
     }
   }
 }
@@ -143,10 +147,12 @@ function toTextResult(output: KnowledgeToolOutput): CallToolResult {
 
 export class CherryKnowledgeTools {
   private getKnowledgeBaseIds: () => string[]
+  private getKnowledgeBaseAccess?: () => Record<string, 'read' | 'read-write'>
   private canAccessAllKnowledgeBases: () => boolean
 
   constructor(context: CherryAgentContext) {
     this.getKnowledgeBaseIds = context.getKnowledgeBaseIds
+    this.getKnowledgeBaseAccess = context.getKnowledgeBaseAccess
     this.canAccessAllKnowledgeBases = context.canAccessAllKnowledgeBases ?? (() => false)
   }
 
@@ -182,7 +188,13 @@ export class CherryKnowledgeTools {
       }
     }
     try {
-      return toTextResult(await tool.run(args ?? {}, scope.kind === 'unrestricted' ? [] : scope.baseIds))
+      return toTextResult(
+        await tool.run(
+          args ?? {},
+          scope.kind === 'unrestricted' ? [] : scope.baseIds,
+          scope.kind === 'unrestricted' ? undefined : this.getKnowledgeBaseAccess?.()
+        )
+      )
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
       logger.error('cherry-tools knowledge call failed', normalizedError, { tool: toolName })

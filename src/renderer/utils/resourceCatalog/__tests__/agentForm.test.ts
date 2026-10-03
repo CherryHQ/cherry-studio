@@ -158,7 +158,15 @@ describe('diffAgentUpdate', () => {
 
     const result = diffAgentUpdate(baseline, next)
 
-    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'], knowledgeBaseAccess: { 'kb-2': 'read' } })
+  })
+
+  it('emits a permission-only change without replacing the binding set', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'], knowledgeBaseAccess: { 'kb-1': 'read' } })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseAccess: { 'kb-1': 'read-write' as const } }
+
+    expect(diffAgentUpdate(baseline, next)?.dto).toEqual({ knowledgeBaseAccess: { 'kb-1': 'read-write' } })
   })
 
   it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {

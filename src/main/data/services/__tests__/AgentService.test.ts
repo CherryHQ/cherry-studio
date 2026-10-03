@@ -975,6 +975,24 @@ describe('AgentService', () => {
 
       const reloaded = agentService.getAgent(created.id)
       expect([...(reloaded?.knowledgeBaseIds ?? [])].sort()).toEqual(['kb_a', 'kb_b'])
+      expect(reloaded?.knowledgeBaseAccess).toEqual({ kb_a: 'read', kb_b: 'read' })
+    })
+
+    it('updates one binding to read-write and retains it across an ID-only relation update', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Access',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a'],
+        knowledgeBaseAccess: { kb_a: 'read-write' }
+      })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseAccess).toEqual({ kb_a: 'read-write' })
+      agentService.updateAgent(created.id, { knowledgeBaseIds: ['kb_a', 'kb_b'] })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseAccess).toEqual({ kb_a: 'read-write', kb_b: 'read' })
+      agentService.updateAgent(created.id, { knowledgeBaseAccess: { kb_a: 'read' } })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseAccess).toEqual({ kb_a: 'read', kb_b: 'read' })
     })
 
     it('replaces knowledgeBaseIds when update provides a new array', async () => {

@@ -104,7 +104,8 @@ export function buildAgentMcpServers(
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
-      }
+      },
+      getKnowledgeBaseAccess: () => agentService.getAgent(agent.id)?.knowledgeBaseAccess ?? {}
     }).mcpServer
   }
   servers['agent-memory'] = {
