@@ -143,6 +143,20 @@ function* extractFileEntryIds(parts: CherryMessagePart[] | undefined): Iterable<
 }
 
 /**
+ * Parse a v1 timestamp (ISO string or epoch-ms) to epoch-ms. Returns undefined
+ * when the source has no usable value, so callers fall back to a repair value
+ * instead of stamping NaN.
+ */
+function parseDateToMillis(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.length > 0) {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+/**
  * Build a topic's content-less virtual root row (`role = 'root'`, `parentId = null`).
  * Mirrors `MessageService.createRootMessageTx` so migrated topics match freshly created
  * ones. `createdAt` is the topic's creation time so the root sorts before its children.
@@ -174,6 +188,28 @@ function buildVirtualRoot(id: string, topicId: string, createdAt: number): NewMe
 interface AssistantState {
   assistants: OldAssistant[]
   defaultAssistant?: OldAssistant
+}
+
+/**
+ * Shared-data key carrying merged per-topic prompts from ChatMigrator to
+ * PromptMigrator. The v2 `topic` schema has no topic-level prompt field, so
+ * `transformTopic()` cannot store it; PromptMigrator (order 5.5, runs after
+ * ChatMigrator at order 4) preserves each entry as a V2 prompt row instead.
+ */
+export const TOPIC_PROMPT_CANDIDATES_KEY = 'topicPromptCandidates'
+
+/**
+ * One merged non-empty v1 topic prompt, ready for PromptMigrator to validate
+ * and insert. `assistantId` is the remapped v2 id ('' when unresolvable);
+ * timestamps are epoch-ms (or undefined when the source had none).
+ */
+export interface TopicPromptCandidate {
+  topicId: string
+  topicName: string
+  prompt: string
+  assistantId: string
+  createdAt: number | undefined
+  updatedAt: number | undefined
 }
 
 /**
@@ -228,6 +264,10 @@ export class ChatMigrator extends BaseMigrator {
   // repeat them within or across topics. Reserve IDs before building trees so
   // every subsequent reference is computed against the final identity.
   private reservedMessageIds: Set<string> = new Set()
+  // Merged non-empty v1 topic prompts (topicId → candidate), published to
+  // sharedData for PromptMigrator at the end of execute. Keyed by topic id so
+  // each topic contributes exactly one candidate.
+  private collectedTopicPrompts: Map<string, TopicPromptCandidate> = new Map()
 
   override reset(): void {
     this.topicCount = 0
@@ -251,14 +291,15 @@ export class ChatMigrator extends BaseMigrator {
     this.skippedWarnings = new Map()
     this.fileRefInsertCount = 0
     this.reservedMessageIds = new Set()
+    this.collectedTopicPrompts = new Map()
   }
 
   /**
    * Prepare phase - validate source data and count items
    *
    * Steps:
-   * 1. Check if topics.json and message_blocks.json exist
-   * 2. Load assistant data for model and topic metadata lookup
+   * 1. Load assistant data for model and topic metadata lookup
+   * 2. Check if topics.json and message_blocks.json exist
    * 3. Count topics and estimate message count
    * 4. Validate sample data for integrity
    */
@@ -339,23 +380,7 @@ export class ChatMigrator extends BaseMigrator {
     const warnings: string[] = []
 
     try {
-      // Step 1: Verify export files exist
-      const topicsExist = await ctx.sources.dexieExport.tableExists('topics')
-      if (!topicsExist) {
-        logger.warn('topics.json not found, skipping chat migration')
-        return {
-          success: true,
-          itemCount: 0,
-          warnings: ['topics.json not found - no chat data to migrate']
-        }
-      }
-
-      this.blocksExist = await ctx.sources.dexieExport.tableExists('message_blocks')
-      if (!this.blocksExist) {
-        warnings.push('message_blocks.json not found - messages will have empty blocks')
-      }
-
-      // Step 2: Load assistant data for model lookup
+      // Step 1: Load assistant data for model lookup
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[]).
       // `state.defaultAssistant` is a sibling slot (not inside `assistants[]`) and
       // can also carry topics — must be visited too, otherwise its topics show
@@ -397,6 +422,40 @@ export class ChatMigrator extends BaseMigrator {
         )
       } else {
         warnings.push('No assistant data found - topics will have null assistantId and missing names')
+      }
+
+      // Seed topic prompts from Redux meta; Dexie rows merge later without overwriting these.
+      for (const [topicId, meta] of this.topicMetaLookup) {
+        if (
+          typeof meta.prompt === 'string' &&
+          meta.prompt.trim().length > 0 &&
+          !this.collectedTopicPrompts.has(topicId)
+        ) {
+          this.collectedTopicPrompts.set(topicId, {
+            topicId,
+            topicName: meta.name,
+            prompt: meta.prompt,
+            assistantId: this.topicAssistantLookup.get(topicId) ?? '',
+            createdAt: parseDateToMillis(meta.createdAt),
+            updatedAt: parseDateToMillis(meta.updatedAt)
+          })
+        }
+      }
+
+      // Step 2: Verify export files exist
+      const topicsExist = await ctx.sources.dexieExport.tableExists('topics')
+      if (!topicsExist) {
+        logger.warn('topics.json not found, skipping chat migration')
+        return {
+          success: true,
+          itemCount: 0,
+          warnings: ['topics.json not found - no chat data to migrate']
+        }
+      }
+
+      this.blocksExist = await ctx.sources.dexieExport.tableExists('message_blocks')
+      if (!this.blocksExist) {
+        warnings.push('message_blocks.json not found - messages will have empty blocks')
       }
 
       // Step 3: Count topics and estimate messages
@@ -463,6 +522,9 @@ export class ChatMigrator extends BaseMigrator {
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.topicCount === 0) {
       logger.info('No topics to migrate')
+      // Still publish: Redux-only prompts were seeded in prepare with no Dexie rows.
+      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [...this.collectedTopicPrompts.values()])
+      this.collectedTopicPrompts.clear()
       return { success: true, processedCount: 0 }
     }
 
@@ -528,6 +590,13 @@ export class ChatMigrator extends BaseMigrator {
       logger.info('Loaded migrated file entry IDs for chat_message_file_ref backfill', {
         referencedCount: this.migratedFileEntryIds.size
       })
+
+      // Publish merged topic prompts for PromptMigrator (runs after ChatMigrator).
+      // The handoff array is canonical from here; drop the map so it can be freed.
+      const topicPromptCount = this.collectedTopicPrompts.size
+      ctx.sharedData.set(TOPIC_PROMPT_CANDIDATES_KEY, [...this.collectedTopicPrompts.values()])
+      this.collectedTopicPrompts.clear()
+      logger.info('Collected topic prompts for prompt migration', { count: topicPromptCount })
 
       const insertResult = this.insertStagedTopics(ctx)
       processedTopics = insertResult.topicsInserted
@@ -973,7 +1042,8 @@ export class ChatMigrator extends BaseMigrator {
       // Redux topic.name can be empty from ancient migrations (see store/migrate.ts:303-305).
       oldTopic.name = topicMeta.name || oldTopic.name
       oldTopic.pinned = topicMeta.pinned ?? oldTopic.pinned
-      oldTopic.prompt = topicMeta.prompt ?? oldTopic.prompt
+      // A blank Redux prompt means absent (same rule as name above), so it falls back to Dexie.
+      oldTopic.prompt = topicMeta.prompt?.trim() ? topicMeta.prompt : oldTopic.prompt
       oldTopic.isNameManuallyEdited = topicMeta.isNameManuallyEdited ?? oldTopic.isNameManuallyEdited
       if (topicMeta.createdAt && !oldTopic.createdAt) oldTopic.createdAt = topicMeta.createdAt
       if (topicMeta.updatedAt && !oldTopic.updatedAt) oldTopic.updatedAt = topicMeta.updatedAt
@@ -996,14 +1066,9 @@ export class ChatMigrator extends BaseMigrator {
     // missing-timestamp topic with the migration moment.
     if (!oldTopic.createdAt || !oldTopic.updatedAt) {
       // Older v1 versions stored createdAt as numeric epoch-ms; Date.parse returns NaN on those.
-      const toMillis = (createdAt: unknown): number => {
-        if (typeof createdAt === 'number' && Number.isFinite(createdAt)) return createdAt
-        if (typeof createdAt === 'string' && createdAt.length > 0) return Date.parse(createdAt)
-        return NaN
-      }
       const messageMillis = (oldTopic.messages ?? [])
-        .map((m) => toMillis(m.createdAt))
-        .filter((t) => Number.isFinite(t))
+        .map((m) => parseDateToMillis(m.createdAt))
+        .filter((t): t is number => t !== undefined)
       if (messageMillis.length > 0) {
         if (!oldTopic.createdAt) {
           oldTopic.createdAt = new Date(Math.min(...messageMillis)).toISOString()
@@ -1157,6 +1222,23 @@ export class ChatMigrator extends BaseMigrator {
       activeNodeId,
       Number.isFinite(lastActivityAt) ? lastActivityAt : undefined
     )
+
+    // No v2 topic field holds prompt: stage the merged value for
+    // PromptMigrator. Runs only on success, so failed topics leave no orphans.
+    if (
+      typeof oldTopic.prompt === 'string' &&
+      oldTopic.prompt.trim().length > 0 &&
+      !this.collectedTopicPrompts.has(oldTopic.id)
+    ) {
+      this.collectedTopicPrompts.set(oldTopic.id, {
+        topicId: oldTopic.id,
+        topicName: oldTopic.name ?? '',
+        prompt: oldTopic.prompt,
+        assistantId: resolvedAssistantId ?? '',
+        createdAt: parseDateToMillis(oldTopic.createdAt),
+        updatedAt: parseDateToMillis(oldTopic.updatedAt)
+      })
+    }
 
     return {
       topic: newTopic,
