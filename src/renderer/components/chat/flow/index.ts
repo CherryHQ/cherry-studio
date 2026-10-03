@@ -11,6 +11,7 @@ export type {
   TopicMessageFlowGraphNode,
   TopicMessageFlowLayout,
   TopicMessageFlowNodeData,
+  TopicMessageFlowRevealRequest,
   TopicMessageFlowStats
 } from './types'
 export { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'

@@ -332,6 +332,7 @@
   --color-error-subtle: var(--error-subtle);
   --color-error-subtle-foreground: var(--error-subtle-foreground);
   --color-error-border: var(--error-border);
+  --color-chat-user: var(--chat-user);
   --color-resource-list-row-hover: var(--resource-list-row-hover);
   --color-resource-list-row-active: var(--resource-list-row-active);
   --color-resource-list-row-active-foreground: var(--resource-list-row-active-foreground);

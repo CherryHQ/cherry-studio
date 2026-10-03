@@ -3085,7 +3085,7 @@ describe('MessageService', () => {
   })
 
   describe('reserveBranch', () => {
-    it('creates two empty children when the anchor is a leaf', async () => {
+    it('creates a single empty child when the anchor is a leaf', async () => {
       const rootId = await seedTopicWithRoot('topic-reserve-leaf')
       const prompt = messageService.create('topic-reserve-leaf', {
         parentId: rootId,
@@ -3104,7 +3104,7 @@ describe('MessageService', () => {
       const children = messageService.getChildrenByParentId(anchor.id)
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-reserve-leaf'))
 
-      expect(children).toHaveLength(2)
+      expect(children).toHaveLength(1)
       expect(children.every((message) => message.role === 'user')).toBe(true)
       expect(children.every((message) => message.status === 'success')).toBe(true)
       expect(children.every((message) => (message.data.parts?.length ?? 0) === 0)).toBe(true)

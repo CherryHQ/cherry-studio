@@ -16,6 +16,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
  * `ChatContent.tsx`, not to change behaviour.
  */
 import { dataApiService } from '@data/DataApiService'
+import { useReadCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
@@ -25,6 +26,7 @@ import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiSta
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
+import { loadMessageBranch } from '@renderer/utils/message/loadMessageBranch'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -132,6 +134,15 @@ export function useChatWriteActions(params: Params): Result {
   } = cache
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
+  const readCache = useReadCache()
+  const resolveSourceMessages = useCallback(
+    async (messageId?: string) => {
+      if (!messageId || uiMessages.some((message) => message.id === messageId)) return uiMessages
+
+      return loadMessageBranch(topic.id, messageId)
+    },
+    [topic.id, uiMessages]
+  )
 
   const handleStartNewContext = useCallback<ChatWriteActions['startNewContext']>(() => {
     if (startNewContextPromiseRef.current) {
@@ -200,14 +211,17 @@ export function useChatWriteActions(params: Params): Result {
 
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
-      const message = uiMessages.find((item) => item.id === id)
+      const cached = readCache<DbMessage>(`/messages/${id}`)
+      const message =
+        uiMessages.find((item) => item.id === id) ??
+        (cached?.topicId === topic.id ? sharedMessageToUIMessage(cached) : undefined)
       if (!message) return { enabled: false, reason: 'not-loaded' }
       if (message.role === 'assistant' && message.metadata?.status === 'pending') {
         return { enabled: false, reason: 'generating' }
       }
       return { enabled: true }
     },
-    [uiMessages]
+    [readCache, topic.id, uiMessages]
   )
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
@@ -293,7 +307,8 @@ export function useChatWriteActions(params: Params): Result {
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
-      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+      const sourceMessages = await resolveSourceMessages(messageId)
+      const target = messageId ? sourceMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
@@ -313,7 +328,7 @@ export function useChatWriteActions(params: Params): Result {
       // Only a persisted explicit selection pins the model; sibling history cannot establish intent.
       const effectiveRegenerateModelId =
         target?.metadata?.modelSelection === 'explicit' ? retryModelId : regenerateModelId
-      const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
+      const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(sourceMessages, target)
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
@@ -361,7 +376,7 @@ export function useChatWriteActions(params: Params): Result {
       // useChatRuntimeState was the user's banned anti-pattern; this is the
       // single producer that genuinely needs the hydration, so the snapshot
       // lives at the call site.
-      setMessages(uiMessages)
+      setMessages(sourceMessages)
 
       const regeneratePromise = regenerate({
         messageId,
@@ -374,14 +389,15 @@ export function useChatWriteActions(params: Params): Result {
       })
       await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id, composerModelId]
+    [regenerate, capabilityBody, resolveSourceMessages, setMessages, seedReservedMessages, topic.id, composerModelId]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts, turnOptions) => {
-      const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
-      const sourceMessage = uiMessages.find((message) => message.id === messageId)
-      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+      const sourceMessages = await resolveSourceMessages(messageId)
+      const inheritedModelIds = getDirectAssistantModelIds(sourceMessages, messageId)
+      const sourceMessage = sourceMessages.find((message) => message.id === messageId)
+      const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(sourceMessages, sourceMessage)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
@@ -429,12 +445,21 @@ export function useChatWriteActions(params: Params): Result {
         preserveActiveNode: ack.preserveActiveNode
       })
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      seedReservedMessages,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      resolveSourceMessages
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
     async (messageId) => {
-      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+      const sourceMessages = await resolveSourceMessages(messageId)
+      const target = messageId ? sourceMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
@@ -447,7 +472,7 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const turnOptions = getInheritedTurnOptions(uiMessages, target)
+      const turnOptions = getInheritedTurnOptions(sourceMessages, target)
       const ack = await ipcApi.request('ai.stream.open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
@@ -465,7 +490,7 @@ export function useChatWriteActions(params: Params): Result {
         preserveActiveNode: ack.preserveActiveNode
       })
     },
-    [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
+    [regenerateWithCapabilities, seedReservedMessages, topic.id, resolveSourceMessages]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
@@ -514,6 +539,7 @@ export function useChatWriteActions(params: Params): Result {
         }
         throw err
       }
+      return leafId
     },
     [setActiveNodeTrigger, topic.id]
   )
