@@ -332,7 +332,7 @@ describe('translateText (main-driven streaming)', () => {
 
       await promise.catch(() => undefined)
 
-      expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+      expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId, origin: 'translate-cancel' })
     })
 
     it('rejects synchronously when the supplied signal is already aborted', async () => {
