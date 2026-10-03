@@ -16,12 +16,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import {
-  flushAllNotesEdits,
-  lockNotesEditsForRelocation,
-  unlockNotesEditsForRelocation,
-  waitForStructuralNotesWritesToSettle
-} from '@renderer/hooks/notesFileEditFlush'
+import { flushAllNotesEdits, waitForStructuralNotesWritesToSettle } from '@renderer/hooks/notesFileEditFlush'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
@@ -98,20 +93,15 @@ const NotesSettings: FC = () => {
   const handleResetToDefault = async () => {
     try {
       const info = await ipcApi.request('app.get_info')
-      lockNotesEditsForRelocation()
+      const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
       try {
-        await ipcApi.request('app.notes_relocation.begin_barrier')
-        try {
-          await waitForStructuralNotesWritesToSettle()
-          await flushAllNotesEdits()
-          setTempPath(info.notesPath)
-          await updateNotesPath(info.notesPath)
-          toast.success(t('notes.settings.data.reset_to_default'))
-        } finally {
-          await ipcApi.request('app.notes_relocation.end_barrier')
-        }
+        await waitForStructuralNotesWritesToSettle()
+        await flushAllNotesEdits()
+        setTempPath(info.notesPath)
+        await updateNotesPath(info.notesPath)
+        toast.success(t('notes.settings.data.reset_to_default'))
       } finally {
-        unlockNotesEditsForRelocation()
+        await ipcApi.request('app.notes_relocation.end_barrier', { sessionEpoch })
       }
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
