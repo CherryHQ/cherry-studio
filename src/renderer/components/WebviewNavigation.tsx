@@ -405,6 +405,6 @@ export function WebviewNavigation({
 }
 
 const navigationButtonClassName = cn(
-  'rounded text-muted-foreground shadow-none active:scale-95',
-  'hover:text-foreground disabled:cursor-default disabled:active:scale-100 disabled:hover:bg-transparent'
+  'rounded text-muted-foreground! shadow-none active:scale-95',
+  'hover:text-foreground! focus-visible:text-foreground! disabled:cursor-default disabled:active:scale-100 disabled:hover:bg-transparent'
 )
