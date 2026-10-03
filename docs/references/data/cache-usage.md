@@ -17,6 +17,7 @@ Import from `@data/hooks/useCache`.
 | Hook                     | Tier    | Signature                                                                            |
 | ------------------------ | ------- | ------------------------------------------------------------------------------------ |
 | `useCache`               | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |
+| `useCacheSelector`       | Memory  | `(keys: readonly UseCacheKey[], selector: (values) => S, isEqual?) => S` — multi-key read-only aggregate |
 | `useSharedCache`         | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`     |
 | `useSharedCacheValue`    | Shared  | `(key: SharedCacheKey) => V \| undefined` — read-only observer                        |
 | `useSharedCacheSelector` | Shared  | `(keys: SharedCacheKey[], selector: (values) => S, isEqual?) => S` — multi-key read-only aggregate |
@@ -234,6 +235,28 @@ const cached = useSharedCacheValue(key)
 const fallback = useMemo(() => getDefaultStatus(isActive), [isActive])
 return cached ?? fallback // never: cached ?? useMemo(...) — conditional hook call
 ```
+
+### Select renderer memory-cache state (read-only)
+
+Use `useCacheSelector` when a component needs only a derived part of one or more
+memory-cache values. Unrelated changes to the same values do not re-render the
+component when the selected result stays equal:
+
+```typescript
+import { useCacheSelector } from '@data/hooks/useCache'
+
+const isRenaming = useCacheSelector(
+  ['topic.renaming'] as const,
+  ([topicIds]) => topicIds?.includes(topicId) ?? false
+)
+```
+
+The keys are the subscription and snapshot read set; the selector receives the
+matching values tuple in order, with `undefined` on miss. Read only that tuple
+inside the selector, not `cacheService`. The hook neither seeds defaults nor
+pins entries and has no setter. Use non-TTL keys: its memory reader is TTL-aware,
+and expiration is not a UI timer. Equality defaults to shallow comparison;
+provide `isEqual` for `Map`/`Set` or domain-value selections.
 
 ### Aggregate multiple main-owned keys (read-only selector)
 
