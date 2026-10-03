@@ -247,15 +247,16 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'second.md'), '# second')
 
     const originalCopyFile = fs.promises.copyFile.bind(fs.promises)
-    vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to) => {
-      await originalCopyFile(from, to)
-      if (String(from).endsWith('first.md')) {
-        fs.writeFileSync(path.join(target, 'second.md'), 'late arrival')
+    vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to, mode?) => {
+      if (String(from).endsWith('second.md')) {
+        fs.writeFileSync(String(to), 'late arrival')
       }
+      return originalCopyFile(from, to, mode)
     })
 
     await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
+    expect(fs.readFileSync(path.join(target, 'second.md'), 'utf8')).toBe('late arrival')
   })
 })
