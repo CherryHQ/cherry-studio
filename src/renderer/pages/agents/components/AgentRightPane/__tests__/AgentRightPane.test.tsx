@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -24,7 +25,10 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import {
+  AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
+  type AgentSessionBackgroundTask
+} from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
@@ -2186,6 +2190,49 @@ describe('AgentRightPane', () => {
 
     expect(loadOlder).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // The resume edge can exist only in the runtime's live task-event cache, and the click must still
+  // root the flow at the resume call the child streams under rather than page for the launch root.
+  it('opens a dsh task-bound receipt at its own call from the live task-event cache', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const eventsKey = AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a')
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={{ m1: [receipt] }}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open flow" title="Inspect flow" toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
+    expect(loadOlder).not.toHaveBeenCalled()
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {})
   })
 
   // The click belonged to the session it was made in: coming back later must not resurrect it and

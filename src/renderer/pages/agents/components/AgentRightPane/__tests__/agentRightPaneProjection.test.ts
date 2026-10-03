@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -682,6 +683,53 @@ describe('agent right pane projections', () => {
     const messages = [message('m1', parts)]
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'dsh-child-1', toolUseId: 'call-send' })])
+  })
+
+  // The resume edge can arrive through the runtime's live cache without ever being a loaded part:
+  // the row must still follow the call the child's content streams under.
+  it('follows a dsh rebinding that only the live task-event cache carries', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      )
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent',
+        title: 'Audit the renderer'
+      }
+    } as AgentSessionTaskEvents
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts }, lateTaskEvents)
 
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'dsh-child-1', toolUseId: 'call-send' })])
   })

@@ -427,7 +427,8 @@ function isTerminalToolState(state: string | undefined): boolean {
  */
 export function isResumeReceiptCall(
   toolCallId: string,
-  partsByMessageId: Record<string, CherryMessagePart[]> | null
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  lateTaskEvents?: AgentSessionTaskEvents
 ): boolean {
   if (!partsByMessageId) return false
   let isReceipt = false
@@ -443,7 +444,7 @@ export function isResumeReceiptCall(
   }
   // A call the dsh runtime bound a task to streams under itself, so its receipt is the flow's root
   // rather than an edge to chase: paging history for a launch root would end in a dead click.
-  if (buildAgentLaunchIndex(partsByMessageId).dshTaskRootCallIds.has(toolCallId)) return false
+  if (getDshTaskRootCallIds(partsByMessageId, lateTaskEvents).has(toolCallId)) return false
   return isReceipt && !hasChildren
 }
 
@@ -454,12 +455,13 @@ export function isResumeReceiptCall(
  */
 export function resolveFlowToolCallId(
   toolCallId: string,
-  partsByMessageId: Record<string, CherryMessagePart[]> | null
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  lateTaskEvents?: AgentSessionTaskEvents
 ): { toolCallId: string; description?: string } | undefined {
   if (!partsByMessageId) return undefined
   // One index for the whole walk: it gates a stamped root to the loaded window — an absent root
   // would open an empty flow pane — and resolves the unstamped fallback the same way.
-  const launchIndex = buildAgentLaunchIndex(partsByMessageId)
+  const launchIndex = buildAgentLaunchIndex(partsByMessageId, lateTaskEvents)
   // A call the content streams under is a root in its own right — a cold-resumed dsh child streams
   // under its own send_message call — so redirecting it would move the content off its own root.
   if (launchIndex.dshTaskRootCallIds.has(toolCallId)) return undefined
@@ -515,6 +517,14 @@ function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): b
   // reader decides; the wire name alone would miss every settled history row.
   if (getCanonicalToolName(part) !== AgentToolsType.SendMessage) return false
   return getReceiptTarget(part, (part as { output?: unknown }).output) === launchedAgentId
+}
+
+/** Calls the dsh runtime bound a task to, from the loaded parts and the live task-event cache. */
+function getDshTaskRootCallIds(
+  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  lateTaskEvents?: AgentSessionTaskEvents
+): ReadonlySet<string> {
+  return buildAgentLaunchIndex(partsByMessageId, lateTaskEvents).dshTaskRootCallIds
 }
 
 /** Whether a task event describes an agent run — the only kind of task a resume receipt can target. */
@@ -984,8 +994,8 @@ export function buildAgentRightPaneStatus(
   const runTaskMap = new Map<string, AgentRunTask>()
   const runTaskOriginMessageIds = new Map<string, string>()
   // A dsh task rebound to its resume call must follow that call, even when the launch's own task
-  // event is loaded and would otherwise win the row.
-  const dshTaskRootCallIds = buildAgentLaunchIndex(partsByMessageId).dshTaskRootCallIds
+  // event is loaded and would otherwise win the row; the edge may live only in the live cache.
+  const dshTaskRootCallIds = getDshTaskRootCallIds(partsByMessageId, lateTaskEvents)
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {

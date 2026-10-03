@@ -426,6 +426,12 @@ function AgentRightPaneActionsProvider({
   const runtime = use(AgentRightPaneRuntimeContext)
   const runtimeRef = useRef(runtime)
   runtimeRef.current = runtime
+  // Task edges can arrive through the runtime's live cache without ever being a loaded part, and a
+  // dsh resume edge is what decides whether a receipt roots its own flow. Read through a ref so the
+  // actions object stays stable — re-creating it re-renders every tool row on each task-event write.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const lateTaskEventsRef = useRef(lateTaskEvents)
+  lateTaskEventsRef.current = lateTaskEvents
   // A root outside the loaded window is not a dead click: hold the intent and page older history in
   // until it arrives, so the flow opens without the user scrolling back by hand. The intent carries
   // the session and the nesting that asked for it — a later session must not inherit either.
@@ -454,10 +460,11 @@ function AgentRightPaneActionsProvider({
       // A task bound to its send-message receipt (cold reconnect replay) must still open the flow
       // its agent actually streams under — the launch root.
       const partsByMessageId = runtimeRef.current?.partsByMessageId ?? null
-      const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId)
+      const lateEvents = lateTaskEventsRef.current
+      const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId, lateEvents)
       // A receipt whose root is merely paged out is worth waiting for; one that resolves nowhere
       // must not open an empty pane rooted at the continuation itself.
-      if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId)) {
+      if (!resolved && isResumeReceiptCall(input.toolCallId, partsByMessageId, lateEvents)) {
         pagedForRef.current = null
         setPendingFlowOpen({ sessionId, input, nested })
         return
@@ -478,7 +485,7 @@ function AgentRightPaneActionsProvider({
     if (!pendingFlowOpen || pendingFlowOpen.sessionId !== sessionId) return
     const { input, nested } = pendingFlowOpen
     const partsByMessageId = runtime?.partsByMessageId ?? null
-    const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId)
+    const resolved = resolveFlowToolCallId(input.toolCallId, partsByMessageId, lateTaskEvents)
     if (resolved) {
       setPendingFlowOpen(null)
       pagedForRef.current = null
@@ -508,7 +515,7 @@ function AgentRightPaneActionsProvider({
     pagedForRef.current = requestKey
     pagedErrorRef.current = runtime.loadOlderError ?? null
     runtime.loadOlder?.()
-  }, [pendingFlowOpen, runtime, sessionId, showFlowTab, t])
+  }, [lateTaskEvents, pendingFlowOpen, runtime, sessionId, showFlowTab, t])
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return

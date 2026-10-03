@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentToolFlowProjection, isResumeReceiptCall, resolveFlowToolCallId } from '../agentRightPaneProjection'
@@ -738,6 +739,40 @@ describe('agent right pane flow rounds', () => {
 
     expect(resolveFlowToolCallId('call-send', partsByMessageId)).toBeUndefined()
     expect(isResumeReceiptCall('call-send', partsByMessageId)).toBe(false)
+  })
+
+  // The binding can live only in the runtime's live task-event cache; the resolvers must see it
+  // there too, or the click pages history for a launch root the answer never streams under.
+  it('roots a dsh task-bound receipt from the live task-event cache', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      )
+    ]
+    const partsByMessageId = { m1: parts }
+    const lateTaskEvents = {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    } as AgentSessionTaskEvents
+
+    expect(resolveFlowToolCallId('call-send', partsByMessageId, lateTaskEvents)).toBeUndefined()
+    expect(isResumeReceiptCall('call-send', partsByMessageId, lateTaskEvents)).toBe(false)
   })
 
   // A deferred receipt hides its target from the result, so the call's own `to` is what ties it to
