@@ -335,7 +335,10 @@ vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
   }
 }))
 
-vi.mock('@renderer/components/composer/paste/pasteHandling', () => ({
+// Only the default export's side-effecting registration is mocked; the paste-routing predicates
+// stay real so a delegation test exercises the actual decision, not a stand-in for it.
+vi.mock('@renderer/components/composer/paste/pasteHandling', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),
@@ -528,6 +531,11 @@ describe('ComposerSurface', () => {
       value: {
         fs: {
           readText: mocks.fsReadText
+        },
+        // The paste gate resolves each pasted file's absolute path; an empty one means no wildcard
+        // path-reference candidate, which is what every non-wildcard paste here wants.
+        file: {
+          getPathForFile: vi.fn().mockReturnValue('')
         }
       }
     })
@@ -4218,6 +4226,30 @@ describe('ComposerSurface', () => {
     } finally {
       editor.destroy()
     }
+  })
+
+  it('delegates an unlisted path-backed file that carries a filename text flavor', async () => {
+    // The OS hands a copied file both its name (text/plain) and an html flavour, so the runtime's
+    // own text check would claim the paste and drop the filename into the draft — leaving the agent
+    // with a name it cannot open. The wildcard surface must still reach the file handler, which is
+    // the only route that can hand over the absolute path.
+    vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/Users/me/models/${file.name}`)
+    render(<ComposerSurface {...baseProps} supportedExts={['*']} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: (type: string) =>
+          type === 'text/plain' ? 'model.onnx' : type === 'text/html' ? '<b>model.onnx</b>' : '',
+        files: [new File(['onnx'], 'model.onnx', { type: '' })]
+      }
+    }
+
+    mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+    expect(mocks.pasteHandler).toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
   })
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {

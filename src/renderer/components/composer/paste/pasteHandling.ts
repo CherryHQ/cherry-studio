@@ -32,6 +32,19 @@ function isWildcardPathReference(filePath: string, extensionSet: Set<string>): b
   return extensionSet.has(anyFileExt) && !extensionSet.has(getFileExtension(filePath))
 }
 
+/**
+ * Whether any pasted file is one the wildcard catalog accepts but does not list. Both paste gates
+ * — this handler and the focused-editor one in `ComposerSurfaceRuntime` — must agree on it, or the
+ * runtime claims a paste this handler would have turned into a path reference.
+ */
+export function hasWildcardPathReferenceFile(clipboardFiles: File[], supportExts: string[]): boolean {
+  const extensionSet = new Set(supportExts)
+  return clipboardFiles.some((file) => {
+    const filePath = window.api.file.getPathForFile(file)
+    return Boolean(filePath) && isWildcardPathReference(filePath, extensionSet)
+  })
+}
+
 async function readPathBackedClipboardEntry(
   filePath: string,
   extensionSet: Set<string>
@@ -91,13 +104,9 @@ export const handlePaste = async (
     const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
     const clipboardHtml = event.clipboardData?.getData('text/html') || ''
     const hasTextualClipboardRepresentation = Boolean(clipboardText && clipboardHtml)
-    const hasWildcardPathReference = clipboardFiles.some((file) => {
-      const filePath = window.api.file.getPathForFile(file)
-      return Boolean(filePath) && isWildcardPathReference(filePath, extensionSet)
-    })
     const shouldPreferClipboardFile =
       (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportExts)) ||
-      hasWildcardPathReference
+      hasWildcardPathReferenceFile(clipboardFiles, supportExts)
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     if (clipboardText && !shouldPreferClipboardFile) {

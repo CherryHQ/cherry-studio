@@ -53,7 +53,7 @@ import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './Composer
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
-import pasteHandling from './paste/pasteHandling'
+import pasteHandling, { hasWildcardPathReferenceFile } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
@@ -1738,15 +1738,18 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
+      const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
       const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
-      const shouldPreferClipboardImage =
-        !hasTextualClipboardRepresentation &&
-        hasSupportedClipboardImage(Array.from(event.clipboardData?.files ?? []), supportedExts)
+      // A wildcard catalog must still see an unlisted path-backed file: its text flavour is only
+      // the file's name, so claiming the paste here would drop a name the agent cannot open.
+      const shouldDelegateToFileHandler =
+        (!hasTextualClipboardRepresentation && hasSupportedClipboardImage(clipboardFiles, supportedExts)) ||
+        hasWildcardPathReferenceFile(clipboardFiles, supportedExts)
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert && !shouldPreferClipboardImage) {
+        if (!textToInsert && !shouldDelegateToFileHandler) {
           event.preventDefault()
           return true
         }
@@ -1775,7 +1778,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
 
-      if (shouldPreferClipboardImage) {
+      if (shouldDelegateToFileHandler) {
         event.preventDefault()
         void handlePaste(event)
         return true
