@@ -142,6 +142,8 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     const mode = ctx.getPermissionMode() ?? 'default'
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+    // Classify what the model wrote: `rtk git …` hides the real command word from detection.
+    const modelInput = { ...input }
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
@@ -177,7 +179,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       !(await requiresApproval(
         mode,
         toolName,
-        input,
+        modelInput,
         ctx.workspacePath,
         ctx.agentDataPath,
         ctx.additionalReadOnlyRoots,

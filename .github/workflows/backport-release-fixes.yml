@@ -65,6 +65,11 @@ jobs:
 
   backport:
     name: Prepare hotfix backport pull request
+    permissions:
+      # Draft releases are only visible to tokens with push access.
+      contents: write
+      issues: write
+      pull-requests: write
     if: |
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.pull_request.base.ref == 'main' &&

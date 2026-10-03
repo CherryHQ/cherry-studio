@@ -43,10 +43,14 @@ class RegionService {
   }
 
   /** True only when the egress country is successfully detected as China. */
+  async detectIsInChina(signal?: AbortSignal): Promise<boolean> {
+    const country = await this.getDetectedCountry(signal)
+    return country.toLowerCase() === 'cn'
+  }
+
   async isInChina(signal?: AbortSignal): Promise<boolean> {
     try {
-      const country = await this.getDetectedCountry(signal)
-      return country.toLowerCase() === 'cn'
+      return await this.detectIsInChina(signal)
     } catch {
       signal?.throwIfAborted()
       return false
