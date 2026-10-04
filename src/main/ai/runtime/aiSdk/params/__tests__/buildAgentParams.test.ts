@@ -23,10 +23,14 @@ import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
-  preferenceGetMock: vi.fn(),
-  resolveProviderAiSdkConfigMock: vi.fn()
-}))
+const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listMcpTools, getMcpInstructions } =
+  vi.hoisted(() => ({
+    preferenceGetMock: vi.fn(),
+    resolveProviderAiSdkConfigMock: vi.fn(),
+    listMcpServers: vi.fn(),
+    listMcpTools: vi.fn(),
+    getMcpInstructions: vi.fn()
+  }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
@@ -40,7 +44,9 @@ vi.mock('@application', () => ({
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
       // No connected MCP server in these tests, so nothing declares the resources capability.
-      if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
+      if (name === 'McpRuntimeService')
+        return { getConnectedServerCapabilities: () => undefined, getConnectedServerInstructions: getMcpInstructions }
+      if (name === 'McpCatalogService') return { listTools: listMcpTools }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -48,7 +54,7 @@ vi.mock('@application', () => ({
 
 // No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
 vi.mock('@main/data/services/McpServerService', () => ({
-  mcpServerService: { list: () => ({ items: [] }) }
+  mcpServerService: { list: listMcpServers }
 }))
 
 const {
@@ -62,9 +68,82 @@ const {
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
+  listMcpServers.mockReturnValue({ items: [] })
+  getMcpInstructions.mockReturnValue(undefined)
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
+    const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
+    const toolId = 'mcp__docs__read'
+    listMcpServers.mockReturnValue({ items: [server] })
+    listMcpTools.mockReturnValue([
+      { id: toolId, name: 'read', serverId: 'docs', serverName: 'Documents', inputSchema: { type: 'object' } }
+    ])
+    getMcpInstructions.mockImplementation((id) => ({
+      serverId: id,
+      serverName: id,
+      text: id === 'docs' ? 'SELECTED_GUIDANCE' : 'PRIVATE_UNSELECTED_GUIDANCE',
+      truncated: false
+    }))
+    const requests: { messages: { role: string; content: string }[] }[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          name: 'instructions-test',
+          baseURL: 'https://instructions.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            requests.push(JSON.parse(String(init?.body)))
+            return Response.json({
+              id: 'r1',
+              created: 0,
+              model: 'model',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    try {
+      for (const [disableTools, system] of [
+        [false, undefined],
+        [true, undefined],
+        [false, 'REQUEST_SYSTEM']
+      ] as const) {
+        const params = await buildAgentParams({
+          request: { conversation: CONVERSATION, mcpToolIds: [toolId], disableTools, system },
+          assistant: makeAssistant({ prompt: 'USER_SYSTEM_PROMPT', mcpServerIds: [] }),
+          signal: undefined,
+          provider: makeProvider(),
+          model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL], apiModelId: 'model' })
+        })
+        await aiCoreGenerateText<AppProviderSettingsMap>(
+          params.sdkConfig.providerId,
+          params.sdkConfig.providerSettings,
+          {
+            model: params.sdkConfig.modelId,
+            prompt: 'Question',
+            system: params.system,
+            tools: params.tools
+          }
+        )
+      }
+      const first = requests[0].messages.find((message) => message.role === 'system')!.content
+      expect(first).toContain('USER_SYSTEM_PROMPT')
+      expect(first).toContain('SELECTED_GUIDANCE')
+      expect(first).not.toContain('PRIVATE_UNSELECTED_GUIDANCE')
+      expect(requests[1].messages.find((message) => message.role === 'system')!.content).toBe('USER_SYSTEM_PROMPT')
+      const overridden = requests[2].messages.find((message) => message.role === 'system')!.content
+      expect(overridden).toContain('REQUEST_SYSTEM')
+      expect(overridden).toContain('SELECTED_GUIDANCE')
+      expect(overridden).not.toContain('USER_SYSTEM_PROMPT')
+    } finally {
+      registry.deregister(toolId)
+    }
+  })
+
   it('fills the conversation header a provider declares from the request conversation', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openai-compatible', providerSettings: {}, conversationHeader: 'x-opencode-session' },

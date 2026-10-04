@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
+  getInstructions: vi.fn(),
   findBySessionId: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesDshGateway: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@application', async () => {
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
     if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+    if (name === 'McpRuntimeService') return { getConnectedServerInstructions: mocks.getInstructions }
     if (name === 'AgentSessionRuntimeService')
       return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
     return get(name)
@@ -70,6 +72,7 @@ const agent = {
 } as unknown as AgentEntity
 
 beforeEach(() => {
+  mocks.getInstructions.mockReturnValue(undefined)
   mocks.getAgent.mockReturnValue(agent)
   mocks.getSession.mockReturnValue({
     id: 'session-1',
@@ -93,6 +96,23 @@ beforeEach(() => {
 })
 
 describe('captureDshConnectionSnapshot', () => {
+  it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
+    const cold = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getInstructions.mockReturnValue({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Read before writing.',
+      truncated: false
+    })
+    const connected = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(connected.mcpInstructions).toContain('Read before writing.')
+    expect(connected.signature).not.toBe(cold.signature)
+    mocks.getInstructions.mockReturnValue(undefined)
+    const disconnected = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(disconnected.mcpInstructions).toBeUndefined()
+    expect(disconnected.signature).not.toBe(connected.signature)
+  })
+
   it('ignores the live permission mode but covers every reconcilable external input', async () => {
     const baseline = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
     mocks.getAgent.mockReturnValueOnce({

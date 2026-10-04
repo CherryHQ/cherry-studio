@@ -787,6 +787,8 @@ export class AiService extends BaseService {
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
+    // Model messages go directly to generation, not the UI-message context scanner.
+    const { messages, ...parameterRequest } = request
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
@@ -801,7 +803,7 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(parameterRequest, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -882,7 +884,7 @@ export class AiService extends BaseService {
       plugins: [...plugins, usagePlugin],
       wrapModel,
       tools,
-      system: request.system ?? system,
+      system,
       options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
@@ -893,7 +895,7 @@ export class AiService extends BaseService {
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
-    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
+    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
   }
 
   /**
@@ -1513,7 +1515,9 @@ export class AiService extends BaseService {
   }
 
   private async buildAgentParamsFor(
-    request: AsInProcessChat<AiChatRequest> & { messageId?: string },
+    request: AsInProcessChat<AiChatRequest> &
+      Pick<AiStreamRequest, 'messageId' | 'messages' | 'retainedContext'> &
+      Pick<AiGenerateRequest, 'system'>,
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
     getRepairUsagePlugins?: () => AiPlugin[]

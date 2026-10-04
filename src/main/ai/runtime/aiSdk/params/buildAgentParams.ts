@@ -6,6 +6,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import { mergeHeaders } from '@main/utils/http'
@@ -89,6 +90,7 @@ const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' 
 
 export interface BuildAgentParamsInput {
   request: AiChatRequest & {
+    system?: string
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -181,7 +183,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds } = toolSignals
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
         assistant,
@@ -198,7 +200,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         deferredEntries: [] as ToolEntry[],
         hasCitableTools: false,
         mcpToolIds: new Set<string>(),
-        mcpResourceServerIds: new Set<string>()
+        mcpResourceServerIds: new Set<string>(),
+        mcpServerIds: new Set<string>()
       }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
@@ -293,14 +296,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({
-    assistant,
-    model,
-    tools,
-    deferredEntries,
-    hasCitableTools,
-    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
-  })
+  const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
+  const system =
+    request.system !== undefined
+      ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+      : await assembleSystemPrompt({
+          assistant,
+          model,
+          tools,
+          deferredEntries,
+          hasCitableTools,
+          webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+          mcpInstructions
+        })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -415,6 +423,7 @@ export async function resolveTools(
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
+  mcpServerIds: ReadonlySet<string>
 }> {
   const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
@@ -474,7 +483,13 @@ export async function resolveTools(
     deferredEntries: exposed.deferredEntries,
     hasCitableTools,
     mcpToolIds,
-    mcpResourceServerIds
+    mcpResourceServerIds,
+    mcpServerIds: new Set([
+      ...mcpResourceServerIds,
+      ...activeEntries.flatMap((entry) =>
+        entry.namespace.startsWith('mcp:') && !clientToolNames.has(entry.name) ? [entry.namespace.slice(4)] : []
+      )
+    ])
   }
 }
 
