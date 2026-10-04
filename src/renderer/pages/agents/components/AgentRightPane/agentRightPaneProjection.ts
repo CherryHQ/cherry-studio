@@ -1,5 +1,6 @@
 import { getToolName, isToolUIPart } from 'ai'
 
+import { loggerService } from '@logger'
 import {
   type AgentToolOutput,
   AgentToolsType,
@@ -20,6 +21,9 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+
+// TEMPORARY diagnostic — removed once the cold-restart round ordering is diagnosed.
+const probeLogger = loggerService.withContext('AgentFlowOrderProbe')
 
 export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
@@ -593,6 +597,7 @@ export function buildAgentToolFlowProjection(
     // authoritative and restart-safe — the host row usually predates the receipt row, so position
     // alone cannot order them), or — for untagged history — the receipt's own walk position.
     const receiptPrompts = new Map<string, string>()
+    const probeReceipts: Array<Record<string, unknown>> = []
     // Markers belonging to sibling agents' continuations must not split this flow, so the set of
     // this agent's own receipt call ids gates every marker-driven split.
     const ownReceiptCallIds = new Set<string>()
@@ -608,6 +613,11 @@ export function buildAgentToolFlowProjection(
           ownReceiptCallIds.add(toolCallId)
           const prompt = getResumeReceiptPromptText(part)
           if (prompt) receiptPrompts.set(toolCallId, prompt)
+          probeReceipts.push({
+            toolCallId,
+            prompt: Boolean(prompt),
+            inputKeys: Object.keys((part as { input?: object }).input ?? {})
+          })
         }
       }
     }
@@ -647,6 +657,7 @@ export function buildAgentToolFlowProjection(
     let emittedSegments = 0
     let resumeCount = 0
     const consumedMarkers = new Set<string>()
+    const probeBoundaries: Array<Record<string, unknown>> = []
     const emitSegment = (index: number) => {
       const segment = segments[index]
       if (segment.parts.length === 0 && !isFlowActive) return
@@ -663,7 +674,7 @@ export function buildAgentToolFlowProjection(
       flowMessages.push(assistantMessage)
       flowPartsByMessageId[id] = segment.parts
     }
-    for (const { parts } of messageEntries) {
+    for (const { message, parts } of messageEntries) {
       for (const part of parts) {
         // Task events carry no tool-call metadata, so they join the round they fall in and never
         // reach the resume-marker walk below.
@@ -698,6 +709,13 @@ export function buildAgentToolFlowProjection(
           !consumedMarkers.has(marker) &&
           (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
 
+        probeBoundaries.push({
+          messageId: message.id,
+          toolCallId: toolCallId ?? null,
+          marker: marker ?? null,
+          isResumeReceipt: Boolean(isResumeReceipt),
+          markerOwnsThisFlow
+        })
         if (markerOwnsThisFlow || isResumeReceipt) {
           // The receipt's own request wins when it is the part being walked; a marker-split reads
           // the request of the receipt that opened the round.
@@ -741,6 +759,17 @@ export function buildAgentToolFlowProjection(
       }
     }
     for (; emittedSegments < segments.length; emittedSegments += 1) emitSegment(emittedSegments)
+    if (probeBoundaries.length > 1)
+      probeLogger.info('projection', {
+        selectedToolCallId,
+        launchedAgentId,
+        rootTaskId,
+        messageOrder: messageEntries.map(({ message }) => message.id),
+        receipts: probeReceipts,
+        ownReceiptCallIds: [...ownReceiptCallIds],
+        boundaries: probeBoundaries,
+        flowOrder: flowMessages.map((item) => `${item.role}:${item.id}`)
+      })
   }
 
   return {
