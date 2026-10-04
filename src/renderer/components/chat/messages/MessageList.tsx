@@ -177,9 +177,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 
 interface MessageListProps {
   enableSearch?: boolean
+  scrollPositionKey?: string
 }
 
-const MessageList = ({ enableSearch = false }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -819,7 +820,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-            topicId={topic.id}
+            topicId={scrollPositionKey ?? topic.id}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
@@ -944,6 +945,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         }
         onCopy={
           actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
+        }
+        exportMenuOptions={messageUi.menuConfig?.exportMenuOptions}
+        onExport={
+          actions.exportSelectedMessages
+            ? (target) => void actions.exportSelectedMessages?.(selectedMessageIds, target)
+            : undefined
         }
         onDelete={
           actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined

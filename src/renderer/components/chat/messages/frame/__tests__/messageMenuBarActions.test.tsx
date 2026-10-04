@@ -270,26 +270,27 @@ describe('messageMenuBarActions', () => {
     )
   })
 
-  it('keeps user edit toolbar action for root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
+  it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: {
+        editMessage: mode === 'resend' ? undefined : vi.fn(),
+        canEditMessage: mode === 'inline' ? undefined : () => mode === 'resend'
+      },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toEqual(
+      mode === 'blocked' ? ['copy'] : ['copy', 'user-edit']
     )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {

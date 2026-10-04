@@ -50,11 +50,14 @@ See `config.json` for the changeset configuration:
 | `@cherrystudio/ai-core` | Unified AI Provider Interface |
 | `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
 | `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
+| `@cherrystudio/remote-protocol` | Remote access schemas and Agent recovery contracts |
+| `@cherrystudio/remote-transport` | Encrypted Noise XX transport and JSON-RPC |
 
 ### Dependency relationships
 
 ```
 ai-core (peer-depends on) → ai-sdk-provider
+remote-transport → remote-protocol
 ```
 
 Changeset automatically handles updating peer dependency ranges when `ai-sdk-provider` is published.

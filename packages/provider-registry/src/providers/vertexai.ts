@@ -19,6 +19,8 @@ const geminiWebToolModels = [
 export default defineProvider({
   id: 'vertexai',
   name: 'VertexAI',
+  // Publisher discovery excludes Claude models served through the Anthropic adapter.
+  supplementModelsFromRegistry: true,
   availableInEditions: ['global'],
   defaultChatEndpoint: 'google-generate-content',
   endpointConfigs: {

@@ -13,6 +13,7 @@ import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from '.
 import { loadChannelAdapter } from './channelAdapterLoader'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
+import { ChannelRegistration } from './ChannelRegistration'
 import { ChannelRuntime, type ChannelRuntimeDesired } from './ChannelRuntime'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
@@ -22,6 +23,7 @@ const logger = loggerService.withContext('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
 export class ChannelManager extends BaseService {
+  readonly registration = new ChannelRegistration()
   private readonly runtimes = new Map<string, ChannelRuntime>()
   private readonly channelLogs = new ChannelLogBuffer()
   private acceptingConnections = false
@@ -64,6 +66,7 @@ export class ChannelManager extends BaseService {
 
   async stop(): Promise<void> {
     this.acceptingConnections = false
+    this.registration.dispose()
     logger.info('Stopping channel manager')
     const runtimes = [...this.runtimes.values()]
     for (const runtime of runtimes) runtime.requestReconcile()

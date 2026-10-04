@@ -61,6 +61,7 @@ const providerKeyMap = {
   ocoolai: 'provider.ocoolai',
   ovms: 'provider.ovms',
   ollama: 'provider.ollama',
+  omlx: 'provider.omlx',
   openai: 'provider.openai',
   'openai-codex': 'provider.openai-codex',
   openrouter: 'provider.openrouter',
@@ -94,7 +95,8 @@ const providerKeyMap = {
   'moonshot-global': 'provider.moonshot-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
-  opencode: 'provider.opencode'
+  opencode: 'provider.opencode',
+  comfyui: 'provider.comfyui'
 } as const
 
 /**

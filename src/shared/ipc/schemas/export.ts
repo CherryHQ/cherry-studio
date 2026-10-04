@@ -11,7 +11,7 @@ import { defineRoute } from '../define'
 export const exportRequestSchemas = {
   'export.word.from_markdown': defineRoute({
     input: z.object({ markdown: z.string(), fileName: z.string() }),
-    output: z.void()
+    output: z.boolean()
   }),
   'export.obsidian.get_vaults': defineRoute({
     input: z.void(),

@@ -32,7 +32,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 
-import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
+import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
@@ -151,8 +151,11 @@ function extractParamValues(
   return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
 }
 
-async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
-  const ids = limitGenerateImageInputIds(imageIds)
+async function resolveInputImages(
+  imageIds: readonly string[],
+  support: ConfiguredPaintingModel['support']
+): Promise<string[]> {
+  const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
   return Promise.all(
     ids.map(async (id) => {
       const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
@@ -178,7 +181,7 @@ export async function generateImageFromPrompt(
   let inputImages: string[] | undefined
   if (mode === 'edit') {
     try {
-      inputImages = await resolveInputImages(input.image_ids ?? [])
+      inputImages = await resolveInputImages(input.image_ids ?? [], support)
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })
