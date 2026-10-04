@@ -6,20 +6,26 @@
  * with the request's frozen server ids), so neither this file nor the tools decide which servers a
  * request may touch.
  *
- * A resource is addressed by `(serverId, uri)` and must appear in that server's published list. The
+ * A resource is addressed by `(serverId, uri)` and must match that server's published catalog. The
  * id, not the name: `mcp_server` indexes name without a unique constraint, so two active servers can
  * share one and a name-keyed lookup would silently read whichever came first. A uri the server never
- * published is not something the model may ask for either (uri templates are unsupported — they
- * would need `resources/templates/list` and an explicit match rule).
+ * published as a resource or template is not something the model may ask for either.
  */
 
 import { randomUUID } from 'node:crypto'
+
+import { UriTemplate } from '@modelcontextprotocol/client'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { atomicWriteFile, mimeToExt } from '@main/utils/file'
-import type { McpResourceEntry, McpResourceReadResult, McpResourceSavedBlob } from '@shared/ai/builtinTools'
+import type {
+  McpResourceEntry,
+  McpResourceListOutput,
+  McpResourceReadResult,
+  McpResourceSavedBlob
+} from '@shared/ai/builtinTools'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { McpResource } from '@shared/types/mcp'
@@ -48,18 +54,29 @@ function toResourceEntry(resource: McpResource): McpResourceEntry {
 }
 
 /** Every resource the given servers publish. A server that fails to list is logged and skipped. */
-export async function listScopedMcpResources(servers: readonly McpServer[]): Promise<McpResourceEntry[]> {
+export async function listScopedMcpResources(servers: readonly McpServer[]): Promise<McpResourceListOutput> {
   const catalog = application.get('McpCatalogService')
-  const results = await Promise.allSettled(servers.map((server) => catalog.listResources(server.id)))
-
-  return results.flatMap((result, index) => {
-    if (result.status === 'fulfilled') return result.value.map(toResourceEntry)
+  const results = await Promise.allSettled(
+    servers.map(async (server) => {
+      const [resources, resourceTemplates] = await Promise.all([
+        catalog.listResources(server.id),
+        catalog.listResourceTemplates(server.id)
+      ])
+      return { resources: resources.map(toResourceEntry), resourceTemplates }
+    })
+  )
+  const listings = results.flatMap((result, index) => {
+    if (result.status === 'fulfilled') return [result.value]
     logger.warn('Failed to list resources for an MCP server', {
       serverId: servers[index].id,
       error: result.reason
     })
     return []
   })
+  return {
+    resources: listings.flatMap((listing) => listing.resources),
+    resourceTemplates: listings.flatMap((listing) => listing.resourceTemplates)
+  }
 }
 
 async function persistResourceBlob(content: McpResource & { blob: string }): Promise<McpResourceSavedBlob> {
@@ -87,16 +104,26 @@ export async function readScopedMcpResource(
     return { error: `MCP server ${serverId} is not available in this conversation.` }
   }
 
-  // The server's own published list is the allow-list: it is what `mcp_resource_list` showed, so
-  // anything outside it is a uri the model constructed rather than one the user made reachable.
-  let published: readonly McpResource[]
+  let published = false
   try {
-    published = await application.get('McpCatalogService').listResources(server.id)
+    const catalog = application.get('McpCatalogService')
+    const resources = await catalog.listResources(server.id)
+    published = resources.some((resource) => resource.uri === uri)
+    if (!published) {
+      const templates = await catalog.listResourceTemplates(server.id)
+      published = templates.some(({ uriTemplate }) => {
+        try {
+          return new UriTemplate(uriTemplate).match(uri) !== null
+        } catch {
+          return false
+        }
+      })
+    }
   } catch (error) {
     logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
     return { error: `Could not reach ${server.name} to verify ${uri}.` }
   }
-  if (!published.some((resource) => resource.uri === uri)) {
+  if (!published) {
     return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
   }
 

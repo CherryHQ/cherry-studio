@@ -203,7 +203,7 @@ describe('McpCatalogService', () => {
     await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
 
     expect(listServers).toHaveBeenCalledWith({ isActive: true })
-    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'refresh')
+    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'use')
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([expect.objectContaining({ name: 'search' })])
@@ -232,12 +232,13 @@ describe('McpCatalogService', () => {
     expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
-  it('listTools fires a one-shot refresh when the server was never warmed (cache undefined)', async () => {
+  it('returns immediately on a cold read and publishes the warmed tools', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue([sdkTool('search')])
     const service = new McpCatalogService()
-    const refreshSpy = vi.spyOn(service, 'refreshTools').mockResolvedValue(undefined)
-
     expect(service.listTools('server-1')).toEqual([])
-    expect(refreshSpy).toHaveBeenCalledExactlyOnceWith('server-1')
+    await service.warmToolsCache('server-1')
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
   })
 
   it('listTools cold kick shares the warm single-flight instead of opening a second connection', async () => {
@@ -286,57 +287,38 @@ describe('McpCatalogService', () => {
     expect((cacheStore.get('mcp.tools.server-1') as { name: string }[]).map((tool) => tool.name)).toEqual(['search'])
   })
 
-  it('does not re-probe a confirmed empty server on every warm', async () => {
+  it('lets the SDK revalidate a successful empty list instead of imposing an application TTL', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValue([])
+    listTools.mockResolvedValueOnce([]).mockResolvedValueOnce([sdkTool('added')])
     const service = new McpCatalogService()
 
     await service.warmToolsCache('server-1')
     await service.warmToolsCache('server-1')
 
-    expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
-    expect(loggerDebug).toHaveBeenCalledWith('Skipping MCP tools warm during retry backoff', { serverId: 'server-1' })
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['added'])
+    expect(runtimeService.listTools).toHaveBeenLastCalledWith('server-1', 'use')
   })
 
   it('clears the retry deadline when the shared tools cache is explicitly cleared', async () => {
     getById.mockReturnValue(server())
-    listTools.mockResolvedValueOnce({ tools: [] }).mockResolvedValueOnce({ tools: [sdkTool('search')] })
+    listTools.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([sdkTool('search')])
     const service = new McpCatalogService()
 
     await service.warmToolsCache('server-1')
     service.clearSharedToolsCache('server-1')
     await service.warmToolsCache('server-1')
 
-    expect(runtimeService.listTools).toHaveBeenCalledTimes(2)
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
   })
 
-  it('re-probes a confirmed empty server after the retry window', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
-      getById.mockReturnValue(server())
-      listTools.mockResolvedValue([])
-      const service = new McpCatalogService()
-
-      await service.warmToolsCache('server-1')
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
-      await service.warmToolsCache('server-1')
-
-      expect(runtimeService.listTools).toHaveBeenCalledTimes(2)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('warmToolsCache resolves immediately without refreshing when the cache is populated', async () => {
+  it('revalidates populated projections through the SDK', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'search' }])
-
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue([sdkTool('replacement')])
     const service = new McpCatalogService()
-    const refreshSpy = vi.spyOn(service, 'refreshTools')
     await service.warmToolsCache('server-1')
-
-    expect(refreshSpy).not.toHaveBeenCalled()
-    expect(runtimeService.listTools).not.toHaveBeenCalled()
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['replacement'])
+    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'use')
   })
 
   it('warmToolsCache resolves and leaves a warmed-but-empty cache when the refresh fails', async () => {
@@ -368,34 +350,16 @@ describe('McpCatalogService', () => {
     }
   })
 
-  it('backs off after a failed refresh triggered by a tool list change', async () => {
-    vi.useFakeTimers()
-    try {
-      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
-      getById.mockReturnValue(server())
-      listTools.mockRejectedValue(new Error('connection failed'))
-      const service = new McpCatalogService()
-      await (service as unknown as { onInit(): Promise<void> }).onInit()
-      const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
-        (event: { serverId: string }) => void
-      ]
-
-      onToolListChanged({ serverId: 'server-1' })
-      await vi.waitFor(() =>
-        expect(loggerWarn).toHaveBeenCalledWith(
-          'Failed to refresh tools after tool list changed notification',
-          expect.objectContaining({ serverId: 'server-1' })
-        )
-      )
-      await service.warmToolsCache('server-1')
-      expect(runtimeService.listTools).toHaveBeenCalledTimes(1)
-
-      await vi.advanceTimersByTimeAsync(30 * 1000)
-      await service.warmToolsCache('server-1')
-      expect(runtimeService.listTools).toHaveBeenCalledTimes(2)
-    } finally {
-      vi.useRealTimers()
-    }
+  it('projects the SDK listChanged result without a redundant network refresh', async () => {
+    getById.mockReturnValue(server())
+    const service = new McpCatalogService()
+    await (service as unknown as { onInit(): Promise<void> }).onInit()
+    const [onToolListChanged] = runtimeService.onToolListChanged.mock.calls[0] as unknown as [
+      (event: { serverId: string; tools: ReturnType<typeof sdkTool>[] }) => void
+    ]
+    onToolListChanged({ serverId: 'server-1', tools: [sdkTool('new-tool')] })
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['new-tool'])
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('backs off after a failed prewarm', async () => {

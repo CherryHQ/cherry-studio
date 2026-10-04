@@ -97,7 +97,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       if (cancelled) return
       setResources(
         results.flatMap((result, index) => {
-          if (result.status === 'fulfilled') return (result.value as McpResource[] | undefined) ?? []
+          if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP resources', { serverId: servers[index].id, error: result.reason })
           return []
         })

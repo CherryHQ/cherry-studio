@@ -8,6 +8,7 @@ import type {
   ElicitRequest,
   ElicitResult,
   GetPromptResult,
+  ListResourceTemplatesResult,
   Prompt,
   ProtocolEra,
   ReadResourceResult,
@@ -33,8 +34,13 @@ export interface McpConnectionEvents {
   toolsChanged(error: Error | null, tools: Tool[] | null): void
   promptsChanged(error: Error | null, prompts: Prompt[] | null): void
   resourcesChanged(error: Error | null, resources: Resource[] | null): void
-  resourceUpdated(): void
+  resourceUpdated(uri: string): void
   log(level: string, logger: string | undefined, data: unknown): void
+}
+
+export type McpResourceObservationState = 'subscribed' | 'reconnecting' | 'unsupported' | 'closed'
+export interface McpResourceObservation {
+  close(): Promise<void>
 }
 
 export interface McpRequestOptions {
@@ -64,6 +70,7 @@ export interface McpConnection {
   readonly era: ProtocolEra
   readonly serverVersion: string | null
   readonly serverCapabilities: ServerCapabilities | undefined
+  readonly instructions: string | undefined
 
   listTools(cacheMode?: CacheMode): Promise<Tool[]>
   callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult>
@@ -75,7 +82,9 @@ export interface McpConnection {
   listPrompts(cacheMode?: CacheMode): Promise<Prompt[]>
   getPrompt(name: string, args?: Record<string, string>, options?: McpRequestOptions): Promise<GetPromptResult>
   listResources(cacheMode?: CacheMode): Promise<Resource[]>
+  listResourceTemplates(cacheMode?: CacheMode): Promise<ListResourceTemplatesResult['resourceTemplates']>
   readResource(uri: string, cacheMode?: CacheMode, options?: McpRequestOptions): Promise<ReadResourceResult>
+  observeResource(uri: string, onState: (state: McpResourceObservationState) => void): McpResourceObservation
   health(): Promise<void>
   close(): Promise<void>
 }

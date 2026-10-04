@@ -262,6 +262,30 @@ describe('McpRuntimeService connection ownership', () => {
     deleteServerMock.mockReset()
   })
 
+  it('exposes instructions only while the current active configuration owns its connection', async () => {
+    const service = new McpRuntimeService()
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    const connection = {
+      era: 'modern',
+      instructions: 'Search the docs.',
+      listTools: async () => [],
+      close: async () => {}
+    }
+    vi.spyOn(service as any, 'createConnection').mockResolvedValue(connection)
+    await service.listTools(server.id)
+    expect(service.getConnectedServerInstructions(server.id)).toMatchObject({
+      serverId: server.id,
+      text: 'Search the docs.'
+    })
+    getByIdMock.mockReturnValue({ ...server, isActive: false })
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    getByIdMock.mockReturnValue({ ...server, baseUrl: 'https://other.example/mcp' })
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+    getByIdMock.mockReturnValue(server)
+    await service.stopServer(server.id)
+    expect(service.getConnectedServerInstructions(server.id)).toBeUndefined()
+  })
+
   it('shares a failed health probe and creates one replacement for concurrent callers', async () => {
     const service = new McpRuntimeService()
     const health = createDeferred<void>()

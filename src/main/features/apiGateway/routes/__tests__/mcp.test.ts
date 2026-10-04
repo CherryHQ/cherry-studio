@@ -38,6 +38,10 @@ vi.mock('@application', async () => {
     PreferenceService: { get: mockPreferenceGet },
     McpCatalogService: {
       listTools: mockListTools,
+      getCurrentTools: mockListTools,
+      listResourceTemplates: vi.fn(async () => [
+        { name: 'document', uriTemplate: 'docs://documents/{id}', serverId: 'server-1', serverName: 'filesystem' }
+      ]),
       warmToolsCache: mockWarmToolsCache,
       listResources: vi.fn(async () => []),
       listPrompts: vi.fn(async () => []),
@@ -46,7 +50,15 @@ vi.mock('@application', async () => {
         return { dispose: () => toolsCacheListeners.delete(listener) }
       })
     },
-    McpRuntimeService: { callTool: mockCallTool, forwardRequest: mockForwardRequest }
+    McpRuntimeService: {
+      onCatalogChanged: () => ({ dispose: () => undefined }),
+      onResourceUpdated: () => ({ dispose: () => undefined }),
+      getConnectedServerCapabilities: () => undefined,
+      getServerCapabilities: async () => undefined,
+      callTool: mockCallTool,
+      forwardRequest: mockForwardRequest,
+      getConnectedServerInstructions: () => ({ text: 'Read only the requested document.', truncated: false })
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -267,6 +279,10 @@ describe('/v1/mcps', () => {
     )
     try {
       expect(client.getProtocolEra()).toBe('modern')
+      expect(client.getInstructions()).toBe('Read only the requested document.')
+      expect((await client.listResourceTemplates()).resourceTemplates).toEqual([
+        { name: 'document', uriTemplate: 'docs://documents/{id}' }
+      ])
       const progress = vi.fn()
       const result = await client.callTool({ name: 'read_file', arguments: { path: '/a' } }, { onprogress: progress })
       expect(result.structuredContent).toEqual([1, 2, 3])

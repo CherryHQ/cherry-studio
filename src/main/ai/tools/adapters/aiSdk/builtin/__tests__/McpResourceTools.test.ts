@@ -12,6 +12,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
+const listResourceTemplates = vi.fn()
 const getResource = vi.fn()
 const getConnectedServerCapabilities = vi.fn<(serverId: string) => Record<string, unknown> | undefined>()
 const getPath = vi.hoisted(() => vi.fn<(key: string, filename?: string) => string>())
@@ -20,7 +21,7 @@ vi.mock('@application', () => ({
   application: {
     getPath,
     get: (name: string) => {
-      if (name === 'McpCatalogService') return { listResources }
+      if (name === 'McpCatalogService') return { listResources, listResourceTemplates }
       if (name === 'McpRuntimeService') return { getResource, getConnectedServerCapabilities }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -56,6 +57,7 @@ afterAll(async () => {
 })
 
 beforeEach(() => {
+  listResourceTemplates.mockReset().mockResolvedValue([])
   getPath.mockImplementation((_key, filename) =>
     filename ? path.join(resourceOutputDir, filename) : resourceOutputDir
   )
@@ -211,6 +213,23 @@ describe('mcp_resource_read', () => {
     listServers.mockReset()
     listServers.mockReturnValue({ items: [makeServer('s1'), makeServer('s2')] })
     getConnectedServerCapabilities.mockReturnValue({ resources: {} })
+  })
+
+  it('allows a published template only on its originating server', async () => {
+    listResources.mockResolvedValue([])
+    listResourceTemplates.mockImplementation(async (serverId: string) =>
+      serverId === 's1' ? [{ serverId, serverName: 's1-name', name: 'doc', uriTemplate: 'docs://files/{id}' }] : []
+    )
+    getResource.mockResolvedValue({ contents: [{ uri: 'docs://files/42', text: 'template document' }] })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ text: 'template document', serverId: 's1' })
+    expect(
+      await callExecute(readEntry, { serverId: 's2', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://private/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
   })
 
   it('reads through the identified server, not whichever one happens to publish the uri', async () => {

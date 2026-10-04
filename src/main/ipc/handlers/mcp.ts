@@ -14,6 +14,14 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * tool.call_progress / server.log events are emitted by the services, not here.
  */
 export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
+  'mcp.catalog.observe': async ({ serverId, requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP catalog observation requires a managed window')
+    application.get('McpRuntimeService').observeDesktopCatalog(senderId, requestId, serverId)
+  },
+  'mcp.resource.observe': async ({ serverId, requestId, uri }, { senderId }) => {
+    if (!senderId) throw new Error('MCP resource observation requires a managed window')
+    return application.get('McpRuntimeService').observeDesktopResource(senderId, requestId, serverId, uri)
+  },
   // Server lifecycle + per-server queries.
   'mcp.server.remove': async ({ serverId }) => {
     await application.get('McpRuntimeService').removeServer(serverId)
@@ -29,6 +37,10 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
+  'mcp.server.list_resource_templates': async ({ serverId }) =>
+    application.get('McpRuntimeService').listResourceTemplates(serverId),
+  'mcp.server.get_instructions': async ({ serverId }) =>
+    application.get('McpRuntimeService').getConnectedServerInstructions(serverId),
   'mcp.server.get_prompt': async ({ serverId, name, args, requestId = randomUUID(), topicId }, { senderId }) => {
     if (!senderId) throw new Error('MCP prompt request requires a managed window')
     const runtime = application.get('McpRuntimeService')
@@ -43,7 +55,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     )
   },
   'mcp.server.read_resource_preview': async (
-    { serverId, uri, maxChars, requestId = randomUUID(), topicId },
+    { serverId, uri, maxChars, refresh, requestId = randomUUID(), topicId },
     { senderId }
   ) => {
     if (!senderId) throw new Error('MCP resource request requires a managed window')
@@ -52,6 +64,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
         serverId,
         uri,
         maxChars,
+        refresh,
         signal,
         interactionContext: { windowId: senderId, topicId: topicId ?? requestId, requestId }
       })

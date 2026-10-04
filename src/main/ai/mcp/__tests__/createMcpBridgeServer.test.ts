@@ -10,8 +10,10 @@ const mocks = vi.hoisted(() => ({
   onToolsCacheUpdated: vi.fn(),
   onToolsCacheUpdatedDispose: vi.fn(),
   listPrompts: vi.fn(),
+  listResourceTemplates: vi.fn(),
   getPrompt: vi.fn(),
-  callTool: vi.fn()
+  callTool: vi.fn(),
+  getConnectedServerInstructions: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -75,6 +77,8 @@ describe('createMcpBridgeServer', () => {
       return { dispose: mocks.onToolsCacheUpdatedDispose }
     })
     mocks.listPrompts.mockResolvedValue([])
+    mocks.listResourceTemplates.mockResolvedValue([])
+    mocks.getConnectedServerInstructions.mockReturnValue(undefined)
     mocks.getPrompt.mockResolvedValue({
       description: 'Prompt description',
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
@@ -84,9 +88,17 @@ describe('createMcpBridgeServer', () => {
         return {
           listTools: mocks.listTools,
           onToolsCacheUpdated: mocks.onToolsCacheUpdated,
-          listPrompts: mocks.listPrompts
+          listPrompts: mocks.listPrompts,
+          listResourceTemplates: mocks.listResourceTemplates
         }
-      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt, callTool: mocks.callTool }
+      if (name === 'McpRuntimeService')
+        return {
+          getPrompt: mocks.getPrompt,
+          callTool: mocks.callTool,
+          onCatalogChanged: () => ({ dispose: () => undefined }),
+          onResourceUpdated: () => ({ dispose: () => undefined }),
+          getConnectedServerInstructions: mocks.getConnectedServerInstructions
+        }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -119,6 +131,16 @@ describe('createMcpBridgeServer', () => {
       { progress: 1, total: 2 },
       { progress: 2, total: 2 }
     ])
+  })
+
+  it('exposes upstream instructions to the real Claude-compatible client', async () => {
+    mocks.getConnectedServerInstructions.mockReturnValue({ text: 'Use the document URI, not its title.' })
+    const client = await connectClient(createMcpBridgeServer('server-1'))
+    try {
+      expect(client.getInstructions()).toBe('Use the document URI, not its title.')
+    } finally {
+      await client.close()
+    }
   })
 
   it('omits the progress listener when the client sent no progressToken', async () => {
@@ -306,14 +328,18 @@ describe('createMcpBridgeServer', () => {
     await new Promise((resolve) => setImmediate(resolve))
   })
 
-  it('responds to resource template discovery when resources are advertised', async () => {
+  it('forwards resource templates without leaking Cherry catalog metadata', async () => {
+    mocks.listResourceTemplates.mockResolvedValue([
+      { name: 'document', uriTemplate: 'docs://documents/{id}', serverId: 'server-1', serverName: 'Docs MCP' }
+    ])
     const sdkServer = createMcpBridgeServer('server-1')
-    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
-    const handler = handlers.get('resources/templates/list')
-
-    expect(handler).toBeDefined()
-    await expect(handler!({ method: 'resources/templates/list' }, {})).resolves.toEqual({
-      resourceTemplates: []
-    })
+    const client = await connectClient(sdkServer)
+    try {
+      expect(await client.listResourceTemplates()).toEqual({
+        resourceTemplates: [{ name: 'document', uriTemplate: 'docs://documents/{id}' }]
+      })
+    } finally {
+      await client.close()
+    }
   })
 })

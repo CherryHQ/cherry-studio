@@ -25,12 +25,14 @@ import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
-import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import type { McpPrompt, McpResource, McpResourceTemplate } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
+import McpInstructions from './McpInstructions'
 import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
+import McpResourceTemplateView from './McpResourceTemplate'
 import {
   buildMcpSchema,
   McpEndpointField,
@@ -52,7 +54,7 @@ import { toUpdateMcpServerDto } from './utils'
 const logger = loggerService.withContext('McpSettings')
 const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
-type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -95,6 +97,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [resources, setResources] = useState<McpResource[]>([])
+  const [templates, setTemplates] = useState<McpResourceTemplate[]>([])
   const registryState = useMcpRegistryState(form, () => setIsFormChanged(true), server)
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
@@ -162,11 +165,16 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: server.id })
+        const [localResources, localTemplates] = await Promise.all([
+          ipcApi.request('mcp.server.list_resources', { serverId: server.id }),
+          ipcApi.request('mcp.server.list_resource_templates', { serverId: server.id })
+        ])
         setResources(localResources)
+        setTemplates(localTemplates)
       } catch (error) {
         logger.error('Failed to list MCP resources', error as Error)
         setResources([])
+        setTemplates([])
         unmarkCapabilityLoaded('resources')
       } finally {
         setLoadingServer(null)
@@ -186,10 +194,31 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
+  const refreshCatalog = useEffectEvent((kind: 'prompts' | 'resources') => {
+    if (kind === 'prompts') void fetchPrompts()
+    else void fetchResources()
+  })
+  useEffect(() => {
+    if (!server.isActive) return
+    const requestId = crypto.randomUUID()
+    const unsubscribe = ipcApi.on('mcp.catalog.changed', (event) => {
+      if (event.serverId === serverId) refreshCatalog(event.kind)
+    })
+    void ipcApi
+      .request('mcp.catalog.observe', { serverId, requestId })
+      .catch((error) => logger.warn('MCP catalog observation failed', { error }))
+    return () => {
+      unsubscribe()
+      void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
+  }, [serverId, server.isActive])
+
   useEffect(() => {
     if (!server?.isActive) {
       setPrompts([])
       setResources([])
+      setTemplates([])
       setServerVersion(null)
       loadedCapabilityTabsRef.current = null
       return
@@ -325,6 +354,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
           const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: serverForUpdate.id })
           setResources(localResources)
+          setTemplates(await ipcApi.request('mcp.server.list_resource_templates', { serverId: serverForUpdate.id }))
 
           const version = await ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
           setServerVersion(version)
@@ -483,6 +513,14 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   if (server.isActive) {
     tabs.push({
+      key: 'instructions',
+      label: t('settings.mcp.instructions.title'),
+      children:
+        activeTab === 'instructions' ? (
+          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
+        ) : null
+    })
+    tabs.push({
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
@@ -516,7 +554,17 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       {
         key: 'resources',
         label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
-        children: <McpResourcesSection resources={resources} />
+        children: (
+          <>
+            <McpResourcesSection resources={resources} />
+            {templates.length > 0 ? (
+              <h3 className="mt-4 text-sm font-medium">{t('settings.mcp.templates.title')}</h3>
+            ) : null}
+            {templates.map((template) => (
+              <McpResourceTemplateView key={`${template.serverId}:${template.uriTemplate}`} template={template} />
+            ))}
+          </>
+        )
       }
     )
   }

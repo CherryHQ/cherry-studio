@@ -32,7 +32,13 @@ vi.mock('@application', async () => {
       listPrompts: vi.fn(async () => []),
       onToolsCacheUpdated: vi.fn(() => ({ dispose: vi.fn() }))
     },
-    McpRuntimeService: { callTool: mocks.callTool }
+    McpRuntimeService: {
+      callTool: mocks.callTool,
+      getConnectedServerInstructions: () => undefined,
+      onCatalogChanged: () => ({ dispose: () => undefined }),
+      getConnectedServerCapabilities: () => undefined,
+      getServerCapabilities: async () => undefined
+    }
   }
   return mockApplicationFactory(overrides)
 })

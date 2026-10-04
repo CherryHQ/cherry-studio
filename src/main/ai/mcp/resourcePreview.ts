@@ -26,17 +26,19 @@ export async function readMcpResourcePreview({
   uri,
   maxChars,
   signal,
+  refresh,
   interactionContext
 }: {
   serverId: string
   uri: string
   maxChars: number
   signal?: AbortSignal
+  refresh?: boolean
   interactionContext?: McpInteractionContext
 }): Promise<McpResourcePreview> {
   const { contents } = await application
     .get('McpRuntimeService')
-    .getResource({ serverId, uri, signal, interactionContext })
+    .getResource({ serverId, uri, signal, interactionContext, cacheMode: refresh ? 'refresh' : 'use' })
   const text = contents
     .map((content: McpResource) => content.text ?? '')
     .filter(Boolean)

@@ -1,11 +1,24 @@
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
-import { createMcpHandler } from '@modelcontextprotocol/server'
+import { createMcpHandler, type McpHttpHandler } from '@modelcontextprotocol/server'
 
 import type { BuiltinMcpEndpoint } from '../servers/factory'
 import { ClientMcpConnection } from './ClientMcpConnection'
 import type { McpConnection, McpConnectionEvents } from './McpConnection'
 
 const IN_PROCESS_MCP_URL = new URL('http://cherry.internal/mcp')
+
+export async function fetchInProcessMcpRequest(
+  handler: McpHttpHandler,
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const request = input instanceof Request && !init ? input : new Request(input, init)
+  const signal = init?.signal ?? request.signal
+  const response = await handler.fetch(request)
+  if (!response.body) return response
+  // Native fetch cancels its response stream when aborted; the in-process bridge must do the same.
+  return new Response(response.body.pipeThrough(new TransformStream(), { signal }), response)
+}
 
 export async function createInProcessMcpConnection({
   appVersion,
@@ -38,10 +51,7 @@ export async function createInProcessMcpConnection({
   )
 
   const transport = new StreamableHTTPClientTransport(IN_PROCESS_MCP_URL, {
-    fetch: async (input, init) => {
-      const request = input instanceof Request ? input : new Request(input, init)
-      return handler.fetch(request)
-    }
+    fetch: (input, init) => fetchInProcessMcpRequest(handler, input, init)
   })
 
   try {

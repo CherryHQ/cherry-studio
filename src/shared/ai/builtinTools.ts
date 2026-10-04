@@ -614,7 +614,8 @@ export const mcpResourceEntrySchema = z.object({
 })
 
 export const mcpResourceListOutputSchema = z.object({
-  resources: z.array(mcpResourceEntrySchema)
+  resources: z.array(mcpResourceEntrySchema),
+  resourceTemplates: z.array(mcpResourceEntrySchema.omit({ uri: true }).extend({ uriTemplate: z.string() }))
 })
 
 export const mcpResourceReadInputSchema = z.object({
@@ -628,7 +629,7 @@ export const mcpResourceReadInputSchema = z.object({
   uri: z
     .string()
     .min(1)
-    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+    .describe('Resource URI returned by mcp_resource_list, or expanded from a uriTemplate published by that server.'),
   offset: z
     .number()
     .int()

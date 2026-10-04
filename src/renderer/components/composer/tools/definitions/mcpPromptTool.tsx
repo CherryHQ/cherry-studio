@@ -98,7 +98,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       if (cancelled) return
       setPrompts(
         results.flatMap((result, index) => {
-          if (result.status === 'fulfilled') return (result.value as McpPrompt[] | undefined) ?? []
+          if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP prompts', { serverId: servers[index].id, error: result.reason })
           return []
         })

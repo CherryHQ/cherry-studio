@@ -19,6 +19,7 @@ const logger = loggerService.withContext('ModernMcpProxy')
 export class ModernMcpProxy {
   readonly handler
   private readonly subscription
+  private readonly catalogSubscription
   lastActivityAt = Date.now()
 
   constructor(server: McpServer) {
@@ -28,28 +29,50 @@ export class ModernMcpProxy {
       this.lastActivityAt = Date.now()
       this.handler.notify.toolsChanged()
     })
+    this.catalogSubscription = application.get('McpRuntimeService').onCatalogChanged(({ serverId, kind }) => {
+      if (serverId !== server.id) return
+      if (kind === 'prompts') this.handler.notify.promptsChanged()
+      else this.handler.notify.resourcesChanged()
+    })
   }
 
-  private createServer(config: McpServer): Server {
+  private async createServer(config: McpServer): Promise<Server> {
+    await application.get('McpRuntimeService').getServerCapabilities(config.id)
     const server = new Server(
       { name: config.name, version: '2.0.0' },
       {
-        capabilities: { tools: { listChanged: true }, prompts: {}, resources: {} }
+        capabilities: {
+          tools: { listChanged: true },
+          prompts: { listChanged: true },
+          resources: { listChanged: true }
+        },
+        instructions: application.get('McpRuntimeService').getConnectedServerInstructions(config.id)?.text
       }
     )
     server.setRequestHandler('tools/list', async () => ({
-      tools: application
-        .get('McpCatalogService')
-        .listTools(config.id, { includeDisabled: false })
-        .map(stripCatalogMetadata) as Tool[]
+      tools: (await application.get('McpCatalogService').getCurrentTools(config.id)).map(
+        stripCatalogMetadata
+      ) as Tool[],
+      ttlMs: 0,
+      cacheScope: 'private'
     }))
     server.setRequestHandler('prompts/list', async () => ({
-      prompts: (await application.get('McpCatalogService').listPrompts(config.id)).map(stripCatalogMetadata)
+      prompts: (await application.get('McpCatalogService').listPrompts(config.id)).map(stripCatalogMetadata),
+      ttlMs: 0,
+      cacheScope: 'private'
     }))
     server.setRequestHandler('resources/list', async () => ({
-      resources: (await application.get('McpCatalogService').listResources(config.id)).map(stripCatalogMetadata)
+      resources: (await application.get('McpCatalogService').listResources(config.id)).map(stripCatalogMetadata),
+      ttlMs: 0,
+      cacheScope: 'private'
     }))
-
+    server.setRequestHandler('resources/templates/list', async () => ({
+      resourceTemplates: (await application.get('McpCatalogService').listResourceTemplates(config.id)).map(
+        stripCatalogMetadata
+      ),
+      ttlMs: 0,
+      cacheScope: 'private'
+    }))
     const forward = <M extends McpForwardMethod>(
       method: M,
       params: Record<string, unknown>,
@@ -110,6 +133,7 @@ export class ModernMcpProxy {
 
   async close(): Promise<void> {
     this.subscription.dispose()
+    this.catalogSubscription.dispose()
     await this.handler.close()
   }
 }

@@ -3,7 +3,7 @@
  *
  * The model passes a `(serverId, uri)` pair from `mcp_resource_list` (or from a resource the user
  * attached in the composer, whose chip carries both). The server is resolved from the request's
- * frozen scope, and the uri must appear in that server's published list — neither is taken on the
+ * frozen scope, and the uri must match that server's resources or templates — neither is taken on the
  * model's word.
  *
  * Being `truncatable: false`, this tool caps its own output: a page is at most the request's
@@ -33,7 +33,7 @@ import type { ToolEntry } from '../types'
 
 export const MCP_RESOURCE_READ_DESCRIPTION =
   'Read the content of an MCP resource. Pass the serverId and uri exactly as returned by ' +
-  'mcp_resource_list, or as carried by a resource the user attached. Long resources come back one ' +
+  'mcp_resource_list, expanded from that server’s uriTemplate, or as carried by a resource the user attached. Long resources come back one ' +
   'page at a time — continue with the returned nextOffset. Binary blobs are decoded to temporary ' +
   'files and returned as blobSavedTo paths, never as base64.'
 

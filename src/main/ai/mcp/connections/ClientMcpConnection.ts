@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import {
   type CacheMode,
@@ -34,6 +35,8 @@ import type {
   McpRequestOptions
 } from './McpConnection'
 import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './McpConnection'
+import type { McpResourceObservationState } from './McpConnection'
+import { ResourceObservations } from './ResourceObservations'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 const HEALTH_CHECK_TIMEOUT_MS = 5_000
@@ -61,15 +64,16 @@ function requireInteractionContext(active: ActiveInteraction | undefined, capabi
 export class ClientMcpConnection implements McpConnection {
   private readonly client: Client
   private readonly interactionStorage = new AsyncLocalStorage<ActiveInteraction>()
-  private readonly toolDefinitions = new Map<string, Tool>()
   private readonly closeHooks: Array<() => Promise<void>> = []
   private readonly activeRequests = new Map<ActiveInteraction, AbortController>()
   private closePromise: Promise<void> | undefined
+  private readonly resourceObservations: ResourceObservations
+  private readonly subscriptionAbort = new AbortController()
 
   constructor(
     clientInfo: { name: string; version: string },
     options: Omit<ClientOptions, 'listChanged' | 'inputRequired'>,
-    events: McpConnectionEvents
+    private readonly events: McpConnectionEvents
   ) {
     this.client = new Client(clientInfo, {
       ...options,
@@ -77,7 +81,6 @@ export class ClientMcpConnection implements McpConnection {
       listChanged: {
         tools: {
           onChanged: (error, tools) => {
-            if (tools) this.rememberTools(tools)
             events.toolsChanged(error, tools)
           }
         },
@@ -90,8 +93,9 @@ export class ClientMcpConnection implements McpConnection {
       }
     })
 
-    this.client.setNotificationHandler('notifications/resources/updated', async () => {
-      events.resourceUpdated()
+    this.resourceObservations = new ResourceObservations(this.client)
+    this.client.setNotificationHandler('notifications/resources/updated', async (notification) => {
+      events.resourceUpdated(notification.params.uri)
     })
     this.client.setNotificationHandler('notifications/message', async (notification) => {
       events.log(notification.params.level, notification.params.logger, notification.params.data)
@@ -137,6 +141,8 @@ export class ClientMcpConnection implements McpConnection {
 
   public async connect(transport: Transport, options?: ConnectOptions): Promise<void> {
     await this.client.connect(transport, options)
+    const subscriptions = this.recoverCatalogSubscription()
+    this.addCloseHook(() => subscriptions)
     const pending = new Map<string | number, { active: ActiveInteraction; cleanup: () => void }>()
     const send = transport.send.bind(transport)
     const onmessage = transport.onmessage
@@ -175,6 +181,59 @@ export class ClientMcpConnection implements McpConnection {
     this.addCloseHook(async () => {
       for (const request of pending.values()) request.cleanup()
     })
+  }
+
+  private async recoverCatalogSubscription(): Promise<void> {
+    if (this.era !== 'modern') return
+    const capabilities = this.serverCapabilities
+    const filter = {
+      ...(capabilities?.tools?.listChanged ? { toolsListChanged: true } : {}),
+      ...(capabilities?.prompts?.listChanged ? { promptsListChanged: true } : {}),
+      ...(capabilities?.resources?.listChanged ? { resourcesListChanged: true } : {})
+    }
+    if (!Object.keys(filter).length) return
+    const signal = this.subscriptionAbort.signal
+    let subscription = this.client.autoOpenedSubscription
+    const cancel = () => {
+      void subscription?.close().catch(() => undefined)
+    }
+    signal.addEventListener('abort', cancel, { once: true })
+    try {
+      for (let attempt = 0; attempt < 4 && !signal.aborted; attempt++) {
+        try {
+          if (!subscription) {
+            await delay(Math.min(500 * 2 ** attempt, 2_000), undefined, { signal })
+            subscription = await this.client.listen(filter, { signal, timeout: 10_000 })
+            // Re-read after a gap: replay is not guaranteed by subscriptions/listen.
+            await Promise.all([
+              ...(filter.toolsListChanged
+                ? [this.listTools('refresh', signal).then((tools) => this.events.toolsChanged(null, tools))]
+                : []),
+              ...(filter.promptsListChanged
+                ? [this.listPrompts('refresh').then((prompts) => this.events.promptsChanged(null, prompts))]
+                : []),
+              ...(filter.resourcesListChanged
+                ? [this.listResources('refresh').then((resources) => this.events.resourcesChanged(null, resources))]
+                : [])
+            ])
+          }
+          if ((await subscription.closed) === 'local') return
+        } catch {
+          if (signal.aborted) return
+        } finally {
+          await subscription?.close().catch(() => undefined)
+          subscription = undefined
+        }
+      }
+      if (!signal.aborted)
+        this.events.log(
+          'warning',
+          'subscriptions',
+          'MCP catalog subscription could not be restored; refresh manually or reconnect'
+        )
+    } finally {
+      signal.removeEventListener('abort', cancel)
+    }
   }
 
   private async withRequestContext<T>(
@@ -219,9 +278,8 @@ export class ClientMcpConnection implements McpConnection {
     return this.client.getServerCapabilities()
   }
 
-  private rememberTools(tools: Tool[]): void {
-    this.toolDefinitions.clear()
-    for (const tool of tools) this.toolDefinitions.set(tool.name, tool)
+  public get instructions(): string | undefined {
+    return this.client.getInstructions()
   }
 
   private paramsWithLogLevel<T extends { _meta?: Record<string, unknown> }>(params: T): T {
@@ -243,17 +301,12 @@ export class ClientMcpConnection implements McpConnection {
 
   public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {
     const { tools } = await this.client.listTools(this.paramsWithLogLevel({}), { cacheMode, signal })
-    this.rememberTools(tools)
     return tools
   }
 
   public async callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult> {
     return this.withRequestContext(options, async (signal) => {
-      let toolDefinition = this.toolDefinitions.get(name)
-      if (!toolDefinition) {
-        await this.listTools('use', signal)
-        toolDefinition = this.toolDefinitions.get(name)
-      }
+      const toolDefinition = (await this.listTools('use', signal)).find((tool) => tool.name === name)
 
       const params: CallToolRequest['params'] = {
         name,
@@ -311,8 +364,7 @@ export class ClientMcpConnection implements McpConnection {
           requestOptions
         )
       const name = String(params.name)
-      if (!this.toolDefinitions.has(name)) await this.listTools('use', signal)
-      const definition = this.toolDefinitions.get(name)
+      const definition = (await this.listTools('use', signal)).find((tool) => tool.name === name)
       const validate =
         definition?.outputSchema !== undefined
           ? new CfWorkerJsonSchemaValidator().getValidator(definition.outputSchema)
@@ -351,6 +403,11 @@ export class ClientMcpConnection implements McpConnection {
     )
   }
 
+  public async listResourceTemplates(cacheMode: CacheMode = 'use') {
+    const { resourceTemplates } = await this.client.listResourceTemplates(this.paramsWithLogLevel({}), { cacheMode })
+    return resourceTemplates
+  }
+
   public async listResources(cacheMode: CacheMode = 'use'): Promise<Resource[]> {
     // The SDK reads the negotiated server capabilities and returns [] when resources are not advertised.
     const { resources } = await this.client.listResources(this.paramsWithLogLevel({}), { cacheMode })
@@ -382,8 +439,14 @@ export class ClientMcpConnection implements McpConnection {
     await this.client.ping({ timeout: HEALTH_CHECK_TIMEOUT_MS })
   }
 
+  public observeResource(uri: string, onState: (state: McpResourceObservationState) => void) {
+    return this.resourceObservations.observe(uri, onState)
+  }
+
   private async closeOnce(): Promise<void> {
+    this.subscriptionAbort.abort()
     for (const lifetime of this.activeRequests.values()) lifetime.abort()
+    await this.resourceObservations.close()
     let firstError: unknown
     try {
       await this.client.close()
@@ -397,7 +460,6 @@ export class ClientMcpConnection implements McpConnection {
         firstError ??= error
       }
     }
-    this.toolDefinitions.clear()
     if (firstError) throw firstError
   }
 

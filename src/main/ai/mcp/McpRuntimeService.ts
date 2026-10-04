@@ -44,11 +44,13 @@ import { createExternalMcpConnection } from './connections/ExternalMcpConnection
 import { createInProcessMcpConnection } from './connections/InProcessMcpConnection'
 import type { McpConnection, McpConnectionEvents, McpInteractionContext } from './connections/McpConnection'
 import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './connections/McpConnection'
+import type { McpResourceObservationState } from './connections/McpConnection'
 import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
 import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
+import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
@@ -130,6 +132,7 @@ interface PendingInteraction {
 type McpInteractionResponse = InputFor<'mcp.interaction.respond'>
 type McpToolListChangedEvent = {
   serverId: string
+  tools: Tool[]
 }
 
 export function redactSensitive(input: unknown): unknown {
@@ -212,7 +215,14 @@ export class McpRuntimeService extends BaseService {
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
-
+  private readonly connectionGenerations = new Map<string, symbol>()
+  private readonly _onCatalogChanged = this.registerDisposable(
+    new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
+  )
+  readonly onCatalogChanged = this._onCatalogChanged.event
+  private readonly _onResourceUpdated = this.registerDisposable(new Emitter<{ serverId: string; uri: string }>())
+  readonly onResourceUpdated = this._onResourceUpdated.event
+  private readonly resourceObservers = new Map<string, () => Promise<void>>()
   private get mcpPackageService(): McpPackageService {
     return application.get('McpPackageService')
   }
@@ -223,11 +233,13 @@ export class McpRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopping = true
+    this.connectionGenerations.clear()
     this.oauthCoordinator.close()
     this.abortActiveToolCalls()
     for (const controller of this.desktopRequests.values()) controller.abort()
     this.cancelPendingInteractions()
     for (const controller of this.pendingConnectionControllers.values()) controller.abort()
+    await Promise.all([...this.resourceObservers.values()].map((close) => close()))
     await this.waitForPendingConnections()
     await this.closeAllConnections()
     this.pendingConnections.clear()
@@ -289,25 +301,32 @@ export class McpRuntimeService extends BaseService {
     return this.serverLogs.get(this.getServerKey(this.getServerById(serverId)))
   }
 
-  private connectionEvents(server: McpServer): McpConnectionEvents {
+  private connectionEvents(server: McpServer, generation: symbol): McpConnectionEvents {
+    const current = () => this.connectionGenerations.get(this.getServerKey(server)) === generation
     return {
-      toolsChanged: (error) => {
+      toolsChanged: (error, tools) => {
+        if (!current()) return
         if (error) {
           getServerLogger(server).warn('Failed to refresh changed tools', { error })
           return
         }
-        this._onToolListChanged.fire({ serverId: server.id })
+        if (tools) this._onToolListChanged.fire({ serverId: server.id, tools })
       },
       promptsChanged: (error) => {
+        if (!current()) return
         if (error) getServerLogger(server).warn('Failed to refresh changed prompts', { error })
+        else this._onCatalogChanged.fire({ serverId: server.id, kind: 'prompts' })
       },
       resourcesChanged: (error) => {
+        if (!current()) return
         if (error) getServerLogger(server).warn('Failed to refresh changed resources', { error })
+        else this._onCatalogChanged.fire({ serverId: server.id, kind: 'resources' })
       },
-      resourceUpdated: () => {
-        getServerLogger(server).debug('Resource updated')
+      resourceUpdated: (uri) => {
+        if (current()) this._onResourceUpdated.fire({ serverId: server.id, uri })
       },
       log: (level, source, data) => {
+        if (!current()) return
         const redacted = redactSensitive(data)
         this.emitServerLog(server, {
           timestamp: Date.now(),
@@ -326,7 +345,9 @@ export class McpRuntimeService extends BaseService {
     signal?: AbortSignal
   ): Promise<McpConnection> {
     const connectTimeoutMs = Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
-    const events = this.connectionEvents(server)
+    const generation = Symbol()
+    this.connectionGenerations.set(this.getServerKey(server), generation)
+    const events = this.connectionEvents(server, generation)
 
     if (mcpTransportKind(server) === 'inMemory') {
       return createInProcessMcpConnection({
@@ -480,7 +501,79 @@ export class McpRuntimeService extends BaseService {
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
     const server = this.getServerById(serverId)
-    return (await this.getOrCreateConnection(server, null)).listTools(cacheMode)
+    const connection = await this.getOrCreateConnection(server, null)
+    const tools = await connection.listTools(cacheMode)
+    if (this.connections.get(this.getServerKey(server)) !== connection)
+      throw new DOMException('MCP connection replaced', 'AbortError')
+    return tools
+  }
+
+  public async observeResource(serverId: string, uri: string, onState: (state: McpResourceObservationState) => void) {
+    const server = this.getServerById(serverId)
+    return (await this.getOrCreateConnection(server, null)).observeResource(uri, onState)
+  }
+
+  public async observeDesktopResource(
+    windowId: WindowId,
+    requestId: string,
+    serverId: string,
+    uri: string
+  ): Promise<void> {
+    const key = toolCallKey(requestId, windowId)
+    if (this.resourceObservers.has(key)) throw new Error('Duplicate MCP resource observation')
+    if (this.resourceObservers.size >= 256) throw new Error('MCP resource observation limit reached')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP resource observation requires an active window')
+    let ended = false
+    let lease: Awaited<ReturnType<McpRuntimeService['observeResource']>> | undefined
+    const send = (state: McpResourceObservationState | 'updated') => {
+      if (!ended)
+        application.get('IpcApiService').send(windowId, 'mcp.resource.changed', { requestId, serverId, uri, state })
+      if (state === 'closed') void close()
+    }
+    const subscription = this.onResourceUpdated((event) => {
+      if (event.serverId === serverId && event.uri === uri) send('updated')
+    })
+    const close = async () => {
+      ended = true
+      subscription.dispose()
+      window.removeListener('closed', onClose)
+      this.resourceObservers.delete(key)
+      await lease?.close()
+    }
+    const onClose = () => {
+      void close()
+    }
+    this.resourceObservers.set(key, close)
+    window.once('closed', onClose)
+    try {
+      lease = await this.observeResource(serverId, uri, send)
+      if (ended) await lease.close()
+    } catch (error) {
+      await close()
+      throw error
+    }
+  }
+
+  public observeDesktopCatalog(windowId: WindowId, requestId: string, serverId: string): void {
+    const key = toolCallKey(requestId, windowId)
+    if (this.resourceObservers.has(key) || this.resourceObservers.size >= 256)
+      throw new Error('MCP observation limit reached')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP catalog observation requires an active window')
+    const listener = this.onCatalogChanged((event) => {
+      if (event.serverId === serverId) application.get('IpcApiService').send(windowId, 'mcp.catalog.changed', event)
+    })
+    const close = async () => {
+      listener.dispose()
+      window.removeListener('closed', onClose)
+      this.resourceObservers.delete(key)
+    }
+    const onClose = () => {
+      void close()
+    }
+    this.resourceObservers.set(key, close)
+    window.once('closed', onClose)
   }
 
   public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
@@ -491,6 +584,21 @@ export class McpRuntimeService extends BaseService {
       return undefined
     }
     return this.connections.get(this.getServerKey(server))?.serverCapabilities
+  }
+
+  public async getServerCapabilities(serverId: string): Promise<ServerCapabilities | undefined> {
+    return (await this.getOrCreateConnection(this.getServerById(serverId), null)).serverCapabilities
+  }
+
+  public getConnectedServerInstructions(serverId: string) {
+    let server: McpServer
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    if (!server.isActive) return undefined
+    return projectServerInstructions(server, this.connections.get(this.getServerKey(server))?.instructions)
   }
 
   public async callToolById(
@@ -682,6 +790,12 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
+  public async listResourceTemplates(serverId: string, cacheMode: CacheMode = 'use') {
+    const server = this.getServerById(serverId)
+    const templates = await (await this.getOrCreateConnection(server, null)).listResourceTemplates(cacheMode)
+    return templates.map((template) => ({ ...template, serverId: server.id, serverName: server.name }))
+  }
+
   public async listResources(serverId: string, cacheMode: CacheMode = 'use'): Promise<McpResource[]> {
     const server = this.getServerById(serverId)
     try {
@@ -693,7 +807,7 @@ export class McpRuntimeService extends BaseService {
       }))
     } catch (error) {
       getServerLogger(server).error('Failed to list resources', error as Error)
-      return []
+      throw error
     }
   }
 
@@ -702,19 +816,21 @@ export class McpRuntimeService extends BaseService {
     serverId,
     uri,
     signal,
-    interactionContext
+    interactionContext,
+    cacheMode = 'use'
   }: {
     serverId: string
     uri: string
     signal?: AbortSignal
     interactionContext?: McpInteractionContext
+    cacheMode?: CacheMode
   }): Promise<GetResourceResponse> {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)
     const result = await (
       await this.getOrCreateConnection(server, host ?? null, signal)
-    ).readResource(uri, 'use', {
+    ).readResource(uri, cacheMode, {
       signal: signal ?? new AbortController().signal,
       timeoutMs: policy.timeout,
       resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
@@ -787,6 +903,7 @@ export class McpRuntimeService extends BaseService {
 
   public cancelDesktopRequest(windowId: string, requestId: string): void {
     this.desktopRequests.get(toolCallKey(requestId, windowId))?.abort()
+    void this.resourceObservers.get(toolCallKey(requestId, windowId))?.()
   }
 
   private resolveInteractionContext(
@@ -963,6 +1080,7 @@ export class McpRuntimeService extends BaseService {
     const connection = this.connections.get(serverKey)
     if (!connection || (expected && connection !== expected)) return
     this.connections.delete(serverKey)
+    this.connectionGenerations.delete(serverKey)
     await connection.close()
     this.serverLogs.remove(serverKey)
   }
@@ -970,7 +1088,10 @@ export class McpRuntimeService extends BaseService {
   private async closeConnectionsForServer(serverId: string): Promise<void> {
     this.abortActiveToolCalls(serverId)
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
-    for (const key of pendingKeys) this.pendingConnectionControllers.get(key)?.abort()
+    for (const key of pendingKeys) {
+      this.connectionGenerations.delete(key)
+      this.pendingConnectionControllers.get(key)?.abort()
+    }
     const pendingConnections = pendingKeys.flatMap((key) => {
       const pending = this.pendingConnections.get(key)
       return pending ? [pending.catch(() => undefined)] : []

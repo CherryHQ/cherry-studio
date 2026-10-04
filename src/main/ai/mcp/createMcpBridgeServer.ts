@@ -11,6 +11,8 @@ import {
   ReadResourceRequestSchema,
   type ReadResourceResult,
   type Resource as SdkResource,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
 
@@ -23,7 +25,7 @@ import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
-import type { McpInteractionContext } from './connections/McpConnection'
+import type { McpInteractionContext, McpResourceObservation } from './connections/McpConnection'
 import { mcpLegacyResult } from './toolResult'
 
 const logger = loggerService.withContext('McpBridge')
@@ -118,7 +120,14 @@ export function createMcpBridgeServer(
     // throws a capability error without it. Declaring it on a transport that cannot
     // deliver the notification is worse than not declaring it — the client would trust a
     // heal that never comes and serve a stale tool list indefinitely.
-    { capabilities: { tools: listChanged ? { listChanged: true } : {}, resources: {}, prompts: {} } }
+    {
+      capabilities: {
+        tools: listChanged ? { listChanged: true } : {},
+        resources: listChanged ? { listChanged: true, subscribe: true } : {},
+        prompts: listChanged ? { listChanged: true } : {}
+      },
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(serverConfig.id)?.text
+    }
   )
 
   // Use the low-level Server to set raw request handlers because this bridge
@@ -134,12 +143,28 @@ export function createMcpBridgeServer(
   // `initialized` and reads the then-current cache. Unsubscribe when the SDK closes the
   // in-memory transport (driver close() → query.close() → transport.close()).
   let toolsCacheSubscription: { dispose: () => void } | undefined
+  let catalogSubscription: { dispose: () => void } | undefined
+  let resourceSubscription: { dispose: () => void } | undefined
+  const observations = new Map<
+    string,
+    { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation }
+  >()
   const previousOnInitialized = rawServer.oninitialized
   rawServer.oninitialized = () => {
     previousOnInitialized?.()
     // Nothing to relay through on a transport that declared no `listChanged`; subscribing
     // anyway would only build notifications the client never asked for and cannot receive.
     if (!listChanged) return
+    resourceSubscription ??= application.get('McpRuntimeService').onResourceUpdated(({ serverId, uri }) => {
+      if (serverId === serverConfig.id && observations.has(uri)) {
+        void rawServer.sendResourceUpdated({ uri }).catch(() => undefined)
+      }
+    })
+    catalogSubscription ??= application.get('McpRuntimeService').onCatalogChanged(({ serverId, kind }) => {
+      if (serverId !== serverConfig.id) return
+      const notification = kind === 'prompts' ? rawServer.sendPromptListChanged() : rawServer.sendResourceListChanged()
+      void notification.catch((error) => logger.debug('MCP bridge catalog notification failed', { mcpId, error }))
+    })
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
       rawServer.sendToolListChanged().catch((error) => {
@@ -160,6 +185,78 @@ export function createMcpBridgeServer(
     previousOnClose?.()
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
+    catalogSubscription?.dispose()
+    catalogSubscription = undefined
+    resourceSubscription?.dispose()
+    resourceSubscription = undefined
+    for (const entry of observations.values()) {
+      entry.abort.abort()
+      void entry.lease?.close()
+    }
+    observations.clear()
+  }
+
+  if (listChanged) {
+    rawServer.setRequestHandler(SubscribeRequestSchema, async ({ params }, extra) => {
+      const existing = observations.get(params.uri)
+      if (existing) {
+        await existing.ready
+        return {}
+      }
+      if (observations.size >= 128) throw new Error('MCP bridge subscription limit reached')
+      const entry: { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation } = {
+        abort: new AbortController(),
+        ready: Promise.resolve()
+      }
+      observations.set(params.uri, entry)
+      entry.ready = (async () => {
+        const signal = AbortSignal.any([extra.signal, entry.abort.signal, AbortSignal.timeout(10_000)])
+        let acknowledge!: () => void
+        let reject!: (error: Error) => void
+        const ack = new Promise<void>((resolve, fail) => {
+          acknowledge = resolve
+          reject = fail
+        })
+        const cancel = () => reject(new Error('MCP bridge subscription cancelled'))
+        signal.addEventListener('abort', cancel, { once: true })
+        const opening = application
+          .get('McpRuntimeService')
+          .observeResource(serverConfig.id, params.uri, (state) => {
+            if (state === 'subscribed') acknowledge()
+            if (state === 'unsupported' || state === 'closed')
+              reject(new Error('MCP resource subscription unavailable'))
+            if (state === 'closed') {
+              entry.abort.abort()
+              if (observations.get(params.uri) === entry) observations.delete(params.uri)
+              void entry.lease?.close()
+            }
+          })
+          .then(async (lease) => {
+            entry.lease = lease
+            if (signal.aborted) await lease.close()
+          })
+        try {
+          if (signal.aborted) cancel()
+          await Promise.all([opening, ack])
+        } catch (error) {
+          entry.abort.abort()
+          if (observations.get(params.uri) === entry) observations.delete(params.uri)
+          await entry.lease?.close()
+          throw error
+        } finally {
+          signal.removeEventListener('abort', cancel)
+        }
+      })()
+      await entry.ready
+      return {}
+    })
+    rawServer.setRequestHandler(UnsubscribeRequestSchema, async ({ params }) => {
+      const entry = observations.get(params.uri)
+      observations.delete(params.uri)
+      entry?.abort.abort()
+      await entry?.lease?.close()
+      return {}
+    })
   }
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -232,7 +329,15 @@ export function createMcpBridgeServer(
   })
 
   rawServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-    return { resourceTemplates: [] }
+    const templates = await application.get('McpCatalogService').listResourceTemplates(serverConfig.id)
+    return {
+      resourceTemplates: templates.map((template) => {
+        const result = { ...template }
+        Reflect.deleteProperty(result, 'serverId')
+        Reflect.deleteProperty(result, 'serverName')
+        return result
+      })
+    }
   })
 
   rawServer.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
