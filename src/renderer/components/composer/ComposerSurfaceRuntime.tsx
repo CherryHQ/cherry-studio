@@ -705,12 +705,12 @@ export default function ComposerSurfaceRuntime({
       return
     }
     // A global-handler paste lands at the end of the draft rather than at the possibly stale stored
-    // selection, so it needs a break of its own or the path runs on after the last word. Emptiness
-    // is measured on the serialized draft, not on `doc.textContent`: a draft token is an atom whose
-    // text lives in attributes, so a token-only draft reports empty and the path would be appended
-    // straight onto the token.
-    const draftText = serializeComposerDocument(editor).text
-    const body = createComposerPathReferenceText(paths.join('\n'), !draftText)
+    // selection, so it needs a break of its own or the path runs on after the last word. Emptiness is
+    // measured on the serialized draft, not on `doc.textContent`: a draft token is an atom whose text
+    // lives in attributes. A token that carries no prompt text at all — a file chip, whose path the
+    // agent reads itself — serializes to '' while still being content, so the token count decides it.
+    const draft = serializeComposerDocument(editor)
+    const body = createComposerPathReferenceText(paths.join('\n'), !draft.text && draft.tokens.length === 0)
     const addition = getComposerPathReferenceInsertion(textRef.current, body)
     if (!addition) return
     editor

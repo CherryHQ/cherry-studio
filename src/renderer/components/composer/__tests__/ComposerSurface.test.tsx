@@ -664,6 +664,30 @@ describe('ComposerSurface', () => {
       )
     })
 
+    it('breaks before a path appended to a draft that holds only a file chip', () => {
+      // A file chip carries no prompt text — the agent reads the path itself — so it contributes
+      // nothing to the draft's text while still being content the path must not be glued onto.
+      mocks.editorIsFocused = false
+      mocks.docTextContent = ''
+      mocks.getJSON.mockReturnValue({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'composerToken', attrs: { id: 'file:f-1', kind: 'file', label: 'model.onnx' } }]
+          }
+        ]
+      })
+      render(<ComposerSurface {...baseProps} text="" />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).toHaveBeenCalledWith(
+        mocks.docContentSize,
+        createComposerPlainTextContent(`\n${PATH}`)
+      )
+    })
+
     it('drops a path that only partly fits instead of truncating it to a real-looking prefix', () => {
       // `/Users/me` names a directory, not the pasted file, so a near-limit draft takes nothing.
       const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - PATH.length + 1)
