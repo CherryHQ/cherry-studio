@@ -590,10 +590,18 @@ describe('ComposerSurface', () => {
   describe('wildcard path references', () => {
     const PATH = '/Users/me/models/model.onnx'
 
+    // Whether the draft already holds something is read from the serialized document, and a token
+    // contributes to that while contributing nothing to `doc.textContent`.
+    const draftOf = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] }]
+    })
+
     it('inserts a focused paste at the caret with no break of its own', () => {
       // The user is typing mid-draft, so a leading hard break would split their own sentence.
       mocks.editorIsFocused = true
       mocks.docTextContent = 'look at this'
+      mocks.getJSON.mockReturnValue(draftOf('look at this'))
       render(<ComposerSurface {...baseProps} text="look at this" />)
 
       mocks.pasteHandlerOptions.onInsertPaths([PATH])
@@ -605,6 +613,7 @@ describe('ComposerSurface', () => {
       // The global-handler route lands at the end, so the path would run on after the last word.
       mocks.editorIsFocused = false
       mocks.docTextContent = 'look at this'
+      mocks.getJSON.mockReturnValue(draftOf('look at this'))
       render(<ComposerSurface {...baseProps} text="look at this" />)
 
       mocks.pasteHandlerOptions.onInsertPaths([PATH])
@@ -618,6 +627,7 @@ describe('ComposerSurface', () => {
     it('inserts an append into an empty draft with no leading break', () => {
       mocks.editorIsFocused = false
       mocks.docTextContent = ''
+      mocks.getJSON.mockReturnValue(draftOf(''))
       render(<ComposerSurface {...baseProps} text="" />)
 
       mocks.pasteHandlerOptions.onInsertPaths([PATH])
@@ -625,11 +635,41 @@ describe('ComposerSurface', () => {
       expect(mocks.insertContentAt).toHaveBeenCalledWith(mocks.docContentSize, createComposerPlainTextContent(PATH))
     })
 
+    it('breaks before a path appended to a draft that holds only a token', () => {
+      // A token is an atom node, so the document's text content is empty even though the draft is
+      // not: appending without a break would splice the path onto the token's own prompt text.
+      mocks.editorIsFocused = false
+      mocks.docTextContent = ''
+      mocks.getJSON.mockReturnValue({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'composerToken',
+                attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+              }
+            ]
+          }
+        ]
+      })
+      render(<ComposerSurface {...baseProps} text="kb sentence" />)
+
+      mocks.pasteHandlerOptions.onInsertPaths([PATH])
+
+      expect(mocks.insertContentAt).toHaveBeenCalledWith(
+        mocks.docContentSize,
+        createComposerPlainTextContent(`\n${PATH}`)
+      )
+    })
+
     it('drops a path that only partly fits instead of truncating it to a real-looking prefix', () => {
       // `/Users/me` names a directory, not the pasted file, so a near-limit draft takes nothing.
       const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - PATH.length + 1)
       mocks.editorIsFocused = false
       mocks.docTextContent = draft
+      mocks.getJSON.mockReturnValue(draftOf(draft))
       render(<ComposerSurface {...baseProps} text={draft} />)
 
       mocks.pasteHandlerOptions.onInsertPaths([PATH])
@@ -643,6 +683,7 @@ describe('ComposerSurface', () => {
       const draft = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 1)
       mocks.editorIsFocused = false
       mocks.docTextContent = draft
+      mocks.getJSON.mockReturnValue(draftOf(draft))
       render(<ComposerSurface {...baseProps} text={draft} />)
 
       mocks.pasteHandlerOptions.onInsertPaths([PATH])
