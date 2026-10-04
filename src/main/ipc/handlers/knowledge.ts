@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { toExternalKnowledgeConnectionView } from '@data/services/ExternalKnowledgeConnectionService'
 import { ExternalKnowledgeAdmissionError, ExternalKnowledgeRuntimeError } from '@main/features/knowledge'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -152,10 +153,15 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     )
   },
   'knowledge.feishu.authorization.begin': async (input) =>
-    externalKnowledgeCommand(() => application.get('KnowledgeService').beginFeishuUserAuthorization(input)),
+    externalKnowledgeCommand(async () => {
+      const result = await application.get('KnowledgeService').beginFeishuUserAuthorization(input)
+      return { ...result, connection: toExternalKnowledgeConnectionView(result.connection) }
+    }),
   'knowledge.feishu.authorization.complete': async ({ authorizationSessionId }) =>
-    externalKnowledgeCommand(() =>
-      application.get('KnowledgeService').completeFeishuUserAuthorization(authorizationSessionId)
+    externalKnowledgeCommand(async () =>
+      toExternalKnowledgeConnectionView(
+        await application.get('KnowledgeService').completeFeishuUserAuthorization(authorizationSessionId)
+      )
     ),
   'knowledge.feishu.authorization.cancel': async ({ authorizationSessionId }) => {
     await externalKnowledgeCommand(() =>
@@ -163,11 +169,18 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     )
   },
   'knowledge.feishu.connection.reconnect': async ({ connectionId, credentials, includeSpaceDiscovery }) =>
-    externalKnowledgeCommand(() =>
-      application.get('KnowledgeService').reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
-    ),
+    externalKnowledgeCommand(async () => {
+      const result = await application
+        .get('KnowledgeService')
+        .reconnectFeishuConnection(connectionId, credentials, includeSpaceDiscovery)
+      return { ...result, connection: toExternalKnowledgeConnectionView(result.connection) }
+    }),
   'knowledge.feishu.connection.validate': async ({ connectionId }) =>
-    externalKnowledgeCommand(() => application.get('KnowledgeService').validateFeishuConnection(connectionId)),
+    externalKnowledgeCommand(async () =>
+      toExternalKnowledgeConnectionView(
+        await application.get('KnowledgeService').validateFeishuConnection(connectionId)
+      )
+    ),
   'knowledge.feishu.connection.remove': async ({ connectionId }) => {
     await externalKnowledgeCommand(() =>
       application.get('KnowledgeService').removeExternalKnowledgeConnection(connectionId)

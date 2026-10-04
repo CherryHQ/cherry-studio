@@ -8,12 +8,14 @@ export const FEISHU_KNOWLEDGE_USER_SCOPES = [
   'offline_access'
 ] as const
 
-export const FEISHU_IDENTITY_USER_SCOPE = 'auth:user.id:read' as const
+export const FEISHU_IDENTITY_USER_SCOPE = 'contact:user.employee_id:readonly' as const
 export const FEISHU_SPACE_DISCOVERY_USER_SCOPE = 'wiki:space:retrieve' as const
 export const FEISHU_REQUIRED_USER_SCOPES = [...FEISHU_KNOWLEDGE_USER_SCOPES, FEISHU_IDENTITY_USER_SCOPE] as const
 export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>([
   ...FEISHU_REQUIRED_USER_SCOPES,
-  FEISHU_SPACE_DISCOVERY_USER_SCOPE
+  FEISHU_SPACE_DISCOVERY_USER_SCOPE,
+  // Existing applications can retain this historical grant through cumulative user consent.
+  'auth:user.id:read'
 ])
 
 const FEISHU_REQUEST_TIMEOUT_MS = 30_000

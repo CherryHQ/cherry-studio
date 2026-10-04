@@ -33,9 +33,16 @@ does not include the personal `my_library` in this list. The picker retains the
 URL path for connections without discovery permission and for a specific node
 or document. `knowledge.feishu.space.preview` accepts a selected space id and
 rechecks access in main before scanning all of its visible root nodes.
-New PersonalAgent registrations request the discovery scope. A self-built app
-requests it only when the user opts into space selection during authorization;
-its existing URL authorization path remains available without that scope.
+The wizard supports selecting multiple spaces. It previews each space and creates
+an independently named Source for each, using one shared scheduling choice.
+Creation continues after an individual failure; retries skip Sources already
+created in that wizard session, and partial success keeps the confirmed plan fixed.
+New PersonalAgent registrations request the discovery scope. The connection wizard
+also requests it by default for a new self-built app, so authorized users can choose
+spaces or paste a link. If the app cannot grant discovery permission, the user may
+explicitly start a new link-only authorization attempt; the wizard does not silently
+remove the permission or retry consent. The main command keeps discovery opt-in via
+`includeSpaceDiscovery`, and callers that omit it retain link-only authorization.
 An existing connection may explicitly reauthorize with discovery consent. This
 uses the existing reconnect lifecycle, so dependent Sources pause until the
 connection succeeds again. A missing discovery permission alone does not pause
@@ -130,12 +137,29 @@ only with their Document/KnowledgeItem ownership transaction. A complete scan
 reconciles absence in one fenced batch, while a fatal or cancelled run never
 interprets unseen documents as deleted.
 
+Each committed document publication, metadata or warning update, and withdrawal
+emits content read-model notifications before synchronization advances to the
+next document. Rolled-back publication and invisible staging do not emit these
+notifications. The Job also emits a final reconciliation signal on exit.
+The Knowledge Item list must subscribe for its selected base and revalidate all
+loaded pages, so a slow later document does not hold earlier updates off-screen.
+Notifications do not acknowledge renderer refresh: an operation that already
+captured a retired Item id can still fail as unavailable. It must not resolve
+to unrelated content or revive a withdrawn snapshot.
+
 The Job output and metadata contain only validated counts, stable error/warning
 codes, and remote object ids. Credentials, account details, raw provider
 payloads, and provider error messages are not written to Job rows or Source
 summaries. Job settlement updates the Source only while its revision and
 `activeJobId` still match, and DataApi read-model notifications are emitted
 only after the owning transaction commits.
+
+Acceptance must keep the Knowledge page mounted while an existing remote
+document changes, then verify the updated row, local preview, and recall without
+manual list refresh or navigation. A controlled two-document run must also hold
+the second read pending and verify that the first document's committed update
+or withdrawal is observable before the whole run settles. Unchanged-content
+sync and opening the setup wizard alone do not satisfy these cases.
 
 Terminal credential failures mark the Connection `reauthorization-required`,
 pause every dependent Source, and disable their schedules. Successful

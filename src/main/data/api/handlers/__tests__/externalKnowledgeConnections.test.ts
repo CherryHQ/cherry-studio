@@ -23,7 +23,8 @@ describe('externalKnowledgeConnectionHandlers', () => {
 
     const result = await externalKnowledgeConnectionHandlers['/external-knowledge-connections'].GET({})
 
-    expect(result).toEqual([{ ...connection, sourceCount: 0 }])
+    expect(result).toEqual([expect.objectContaining({ id: connection.id, sourceCount: 0 })])
+    expect(result[0]).not.toHaveProperty('credentialReference')
     expect(result[0]).not.toHaveProperty('appSecret')
     expect(result[0]).not.toHaveProperty('accessToken')
     expect(result[0]).not.toHaveProperty('refreshToken')
@@ -75,21 +76,24 @@ describe('externalKnowledgeConnectionHandlers', () => {
       .run()
 
     const list = await externalKnowledgeConnectionHandlers['/external-knowledge-connections'].GET({})
-    expect(list).toContainEqual({ ...used, sourceCount: 2 })
-    expect(list).toContainEqual({ ...unused, sourceCount: 0 })
-    await expect(
-      externalKnowledgeConnectionHandlers['/external-knowledge-connections/:id'].GET({ params: { id: used.id } })
-    ).resolves.toEqual(used)
+    expect(list).toContainEqual(expect.objectContaining({ id: used.id, sourceCount: 2 }))
+    expect(list).toContainEqual(expect.objectContaining({ id: unused.id, sourceCount: 0 }))
+    expect(JSON.stringify(list)).not.toContain('credentialReference')
+    const detail = await externalKnowledgeConnectionHandlers['/external-knowledge-connections/:id'].GET({
+      params: { id: used.id }
+    })
+    expect(detail).toMatchObject({ id: used.id })
+    expect(detail).not.toHaveProperty('credentialReference')
   })
 
   it('reads one Connection by id', async () => {
     const connection = externalKnowledgeConnectionService.create(createInput)
 
-    await expect(
-      externalKnowledgeConnectionHandlers['/external-knowledge-connections/:id'].GET({
-        params: { id: connection.id }
-      })
-    ).resolves.toEqual(connection)
+    const detail = await externalKnowledgeConnectionHandlers['/external-knowledge-connections/:id'].GET({
+      params: { id: connection.id }
+    })
+    expect(detail).toMatchObject({ id: connection.id, authorizationStatus: 'pending-authorization' })
+    expect(detail).not.toHaveProperty('credentialReference')
   })
 
   it('maps a missing Connection to the DataApi not-found contract', async () => {

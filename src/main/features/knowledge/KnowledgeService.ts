@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
@@ -6,7 +7,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ExternalKnowledgeSchedulePolicy, ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeScopePreview,
   ExternalKnowledgeScopeResolution,

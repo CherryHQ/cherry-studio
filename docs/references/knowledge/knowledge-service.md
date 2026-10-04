@@ -1,6 +1,10 @@
 ---
-description: Current Knowledge backend - persistence, IPC, ingestion, retrieval, Concept IDs, and agent tools
+description: Current Knowledge backend - persistence, external authorization, IPC, ingestion, retrieval, Concept IDs, and agent tools
 sources:
+  - src/shared/data/types/externalKnowledgeConnection.ts
+  - src/main/services/feishuAppRegistration.ts
+  - src/main/data/services/ExternalKnowledgeConnectionService.ts
+  - src/main/data/db/schemas/externalKnowledgeConnection.ts
   - src/main/features/knowledge
   - src/main/data/db/schemas/externalKnowledgeSource.ts
   - src/main/data/db/schemas/externalKnowledgeDocument.ts
@@ -217,6 +221,106 @@ means prior content is hidden and its cleanup Job is durably accepted; physical
 artifact deletion may finish later. Stage failure preserves the deleting row as
 the durable artifact locator and attempts cleanup admission separately. A failed
 or cancelled scan never treats unseen documents as deleted.
+
+## External Connection Authorization
+
+`KnowledgeService` owns `ExternalKnowledgeRuntime`, including authorization
+sessions, credential-scoped queues, token refresh, validation, cancellation,
+startup reconciliation, and shutdown drain. `ExternalKnowledgeConnectionService`
+owns the SQLite Connection state and guarded credential-reference replacement.
+`ExternalKnowledgeCredentialStore` owns the Knowledge-private encrypted file;
+`feishuKnowledgeProvider` and the Channel-shared `feishuAppRegistration` remain
+stateless transport boundaries.
+
+Feishu setup supports PersonalAgent registration and a self-built App ID and
+App Secret. Both use user device authorization.
+Connection DataApi and IPC results exclude the main-only credential reference,
+App Secret, tokens, and raw provider payloads.
+
+### Identity and permissions
+
+A connected Connection requires `accountUserId`, `accountOpenId`, `tenantKey`,
+`authorizedAt`, and a non-empty granted scope set. A pending Connection has no
+identity fields; `reauthorization-required` retains the last verified identity.
+The provider requires `user_id`, `open_id`, and `tenant_key`; optional `union_id`
+does not substitute for `user_id`.
+
+The required user scopes are:
+
+```text
+wiki:node:read
+wiki:node:retrieve
+docs:document.content:read
+offline_access
+contact:user.employee_id:readonly
+```
+
+PersonalAgent grants may additionally contain optional space discovery and the
+historical `auth:user.id:read` grant. That historical grant is accepted for
+existing cumulative consent but is never requested and cannot satisfy the
+required identity permission. Self-built apps may grant additional scopes.
+The runtime reports `scope-missing` for missing required scopes and
+`automatic-scope-mismatch` for unexpected PersonalAgent grants.
+See [Feishu Read Adapter](./external-knowledge-feishu-read-adapter.md#trust-and-ipc-boundary)
+for space discovery consent and the link-only path.
+
+Reauthorization compares `tenantKey + accountUserId`; an application-scoped
+`accountOpenId` change alone does not change identity. A tenant or user mismatch
+returns `identity-conflict`; a missing stable user id returns
+`identity-unverifiable`. Neither replaces the existing credentials or application
+metadata.
+
+### Credential replacement and recovery
+
+Reconnect stages a new opaque credential reference while retaining the old
+reference, application metadata, identity, and credential bytes. After token,
+scope, and identity validation, the runtime writes the complete candidate entry,
+then switches the Connection through a SQLite compare-and-swap on the expected
+old reference. The owning reauthorization transaction also restores dependent
+Source and schedule eligibility as described above. A stale or deleted Connection
+cannot commit; generation checks fence every awaited operation. After commit,
+the runtime re-keys its credential state and best-effort revokes and removes the
+old entry.
+
+Before commit, cancellation, authorization failure, identity mismatch, or a
+compare-and-swap miss discards the candidate and preserves the old credential.
+A failed initial authorization also removes its persisted pending, unreferenced
+Connection before credential commit while that generation is current; a
+reconnect failure preserves the existing account.
+
+Startup reconciles referenced credentials and removes valid unreferenced entries
+before opening provider admission. A crash before the reference switch retains
+the old entry and removes the orphan candidate; a crash after the switch retains
+the candidate and removes the old entry. A pending Connection without usable
+credentials requires reauthorization. Files whose top-level schema fails
+validation or whose encryption backend is unavailable are preserved rather than
+rewritten or pruned; orphan enumeration does not decrypt each entry.
+
+Explicit validation invalidates the generation's successful validation cache;
+concurrent validation calls share one request. Ordinary provider work reuses a
+successful generation-level validation. Token acquisition, identity validation,
+and the provider operation share a terminal-error boundary: HTTP 401,
+`invalid_grant`, and missing required scopes require reauthorization; transient
+timeouts and caller or lifecycle cancellation do not change authorization state.
+Stale generations cannot publish success or failure. Startup calls share one
+reconciliation flight; shutdown closes admission, aborts work, and waits for
+startup and tracked operations before clearing runtime state.
+
+### Secure storage and transport
+
+The credential store requires Electron encryption availability and, on Linux,
+a supported keyring backend; `basic_text` and `unknown` are rejected. It uses
+`atomicWriteFile` with file mode `0600` and directory mode `0700`.
+
+Registration checks HTTP success and validates non-empty response fields without
+exposing provider bodies in errors or logs. It prefers positive integer
+`expire_in`, accepts `expires_in`, and otherwise uses 600 seconds; the polling
+interval defaults to 5 seconds. One registration deadline covers delays and
+in-flight requests, and `slow_down` growth is bounded. Registration and Knowledge
+provider requests also have a 30-second timeout combined with caller cancellation.
+A registration session is claimed synchronously before a consumer awaits its
+polling result, so it cannot be consumed twice but remains cancellable while its
+first consumer runs.
 
 ## Caller Contract
 

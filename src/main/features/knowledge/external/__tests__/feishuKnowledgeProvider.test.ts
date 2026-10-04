@@ -54,9 +54,15 @@ describe('feishuKnowledgeProvider', () => {
     })
     const [, init] = vi.mocked(net.fetch).mock.calls[0]
     expect(init?.signal).toEqual(expect.any(AbortSignal))
-    expect(init?.body?.toString()).toBe(
-      new URLSearchParams({ client_id: 'cli_test', scope: FEISHU_REQUIRED_USER_SCOPES.join(' ') }).toString()
-    )
+    const scopes = new URLSearchParams(init?.body?.toString()).get('scope')?.split(' ')
+    expect(scopes).toEqual([
+      'wiki:node:read',
+      'wiki:node:retrieve',
+      'docs:document.content:read',
+      'offline_access',
+      'contact:user.employee_id:readonly'
+    ])
+    expect(scopes).not.toContain('auth:user.id:read')
   })
 
   it('requests space discovery only when selected for authorization', async () => {

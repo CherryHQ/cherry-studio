@@ -1,4 +1,5 @@
 import { and, count, desc, eq } from 'drizzle-orm'
+import { omit } from 'es-toolkit'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -14,9 +15,8 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
 import {
-  type ExternalKnowledgeConnection,
-  ExternalKnowledgeConnectionSchema,
-  ExternalKnowledgeCredentialReferenceSchema,
+  type ExternalKnowledgeConnection as ExternalKnowledgeConnectionView,
+  ExternalKnowledgeConnectionSchema as ExternalKnowledgeConnectionViewSchema,
   ExternalKnowledgeGrantedScopesSchema
 } from '@shared/data/types/externalKnowledgeConnection'
 
@@ -25,6 +25,18 @@ import { timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:ExternalKnowledgeConnectionService')
 
 const NullableNonBlankStringSchema = z.string().trim().min(1).nullable()
+const ExternalKnowledgeCredentialReferenceSchema = z.string().trim().min(1).max(256)
+const ExternalKnowledgeConnectionSchema = ExternalKnowledgeConnectionViewSchema.safeExtend({
+  credentialReference: ExternalKnowledgeCredentialReferenceSchema
+})
+
+export type ExternalKnowledgeConnection = z.infer<typeof ExternalKnowledgeConnectionSchema>
+
+export function toExternalKnowledgeConnectionView(
+  connection: ExternalKnowledgeConnection
+): ExternalKnowledgeConnectionView {
+  return omit(connection, ['credentialReference'])
+}
 
 const CreateExternalKnowledgeConnectionSchema = z.strictObject({
   appId: z.string().trim().min(1).max(256),
@@ -106,7 +118,10 @@ export class ExternalKnowledgeConnectionService {
       .groupBy(externalKnowledgeConnectionTable.id)
       .orderBy(desc(externalKnowledgeConnectionTable.updatedAt), desc(externalKnowledgeConnectionTable.id))
       .all()
-      .map(({ connection, sourceCount }) => ({ ...rowToEntity(connection), sourceCount }))
+      .map(({ connection, sourceCount }) => ({
+        ...toExternalKnowledgeConnectionView(rowToEntity(connection)),
+        sourceCount
+      }))
   }
 
   getById(id: string): ExternalKnowledgeConnection | null {
