@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +18,80 @@ describe('Toast', () => {
       toast.closeAll()
     })
     vi.useRealTimers()
+  })
+
+  it('keeps older actions inaccessible until the stack expands, then restores the chosen item', async () => {
+    const user = userEvent.setup()
+    const archived = new Set(['First', 'Second', 'Third', 'Fourth'])
+    render(<ToastViewport />)
+    act(() => {
+      for (const title of archived) {
+        toast.success({
+          title,
+          action: {
+            label: `Restore ${title}`,
+            onClick: () => {
+              archived.delete(title)
+            }
+          }
+        })
+      }
+    })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+    expect(screen.getByText('Fourth').closest('[inert]')).toBeNull()
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Restore Second' }))
+    expect([...archived]).toEqual(['First', 'Third', 'Fourth'])
+    expect(screen.queryByText('Second')).not.toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
+  })
+
+  it('pauses existing and newly arriving notifications while expanded and resumes the remaining timeout', () => {
+    vi.useFakeTimers()
+    render(<ToastViewport />)
+    act(() => {
+      toast.info({ title: 'First', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.mouseEnter(region)
+    act(() => {
+      toast.info({ title: 'Second', timeout: 1000 })
+    })
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('First')).toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    fireEvent.mouseLeave(region)
+    act(() => {
+      vi.advanceTimersByTime(600)
+    })
+    expect(screen.queryByText('First')).not.toBeInTheDocument()
+    expect(screen.getByText('Second')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('expands for keyboard focus and stays expanded when the pointer leaves', () => {
+    render(<ToastViewport />)
+    act(() => {
+      toast.info('First')
+      toast.info('Second')
+    })
+    const region = screen.getByRole('region', { name: 'notifications' })
+    fireEvent.focus(screen.getAllByRole('button', { name: 'Close' })[0])
+    fireEvent.mouseLeave(region)
+    expect(screen.getByText('First').closest('[inert]')).toBeNull()
+    fireEvent.blur(region, { relatedTarget: document.body })
+    expect(screen.getByText('First').closest('[inert]')).not.toBeNull()
   })
 
   it('renders a string toast in the viewport', () => {

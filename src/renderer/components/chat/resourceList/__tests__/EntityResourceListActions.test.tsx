@@ -564,52 +564,6 @@ describe('classic layout entity resource list actions', () => {
     )
   })
 
-  it('permanently deletes an Assistant through confirmation without offering an archive undo', async () => {
-    render(
-      <TestAssistantResourceList
-        activeAssistantId="assistant-1"
-        activeTopicId="topic-1"
-        onSelectTopic={vi.fn()}
-        onCreateTopic={vi.fn()}
-      />
-    )
-    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
-    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'assistant', permanent: true })
-    )
-    expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledExactlyOnceWith('assistant-1', {
-      deleteTopics: false,
-      permanent: true
-    })
-    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
-  })
-
-  it('permanently deletes an Agent through its dedicated command without offering an archive undo', async () => {
-    render(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        activeSessionId="session-1"
-        agentSessionsSource={createAgentSessionsSource()}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
-    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'agent', permanent: true })
-    )
-    expect(agentDataMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.delete_permanently', {
-      agentId: 'agent-1',
-      deleteSessions: false
-    })
-    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
-  })
-
   it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
     const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
@@ -625,7 +579,9 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('assistant-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('assistant-1-more-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
@@ -633,8 +589,7 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
-        deleteTopics: false,
-        permanent: false
+        deleteTopics: false
       })
     )
     expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
@@ -678,8 +633,7 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
-        deleteTopics: true,
-        permanent: false
+        deleteTopics: true
       })
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
@@ -1348,7 +1302,9 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('common.delete_permanently')
     expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
     expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
 

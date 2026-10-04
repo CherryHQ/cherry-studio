@@ -3,15 +3,15 @@
  *
  * A selection change debounces 200 ms and then asks the main process to OCR that
  * region of the frozen capture; a generation counter drops results whose selection
- * has already moved on. Recognition itself runs in the main-process inference
- * worker, so this hook only ever holds coordinates and text.
+ * has already moved on. Recognition runs through the main process; the hook holds
+ * only coordinates and text.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { OcrWord } from '@shared/ipc/schemas/screenshot'
+import type { OcrTextLine } from '@shared/ipc/schemas/screenshot'
 
 import type { SelectionRect } from '../types'
 
@@ -32,13 +32,6 @@ const DEBOUNCE_MS = 200
  */
 export type OcrStatus = 'idle' | 'pending' | 'recognizing' | 'done' | 'error' | 'unavailable'
 
-/** One detected line, merged into the single span the text layer renders. */
-export interface OcrTextLine {
-  text: string
-  /** Glyph box in physical pixels, relative to the recognized region's origin. */
-  box: { x: number; y: number; width: number; height: number }
-}
-
 export interface OcrState {
   status: OcrStatus
   lines: OcrTextLine[]
@@ -49,61 +42,9 @@ export interface OcrState {
 const INITIAL_STATE: OcrState = { status: 'idle', lines: [] }
 
 /**
- * The detector grows every box by a fixed fraction of its own height before handing
- * it to the recognizer — margin that model needs, not pixels the glyphs occupy.
- */
-const DETECTION_PAD_VERTICAL = 0.4
-const DETECTION_PAD_HORIZONTAL = 0.6
-
-/**
- * Divide the detector's padding back out, approximating the box the glyphs sit in.
- *
- * Approximating, not recovering: the engine reports a box that was padded and rounded in
- * its own 640-px model space, clamped there, scaled back up, then rounded and clamped
- * again. Three things are gone by the time we see it — both roundings (the first magnified
- * by the upscale), the clamping that costs an edge-touching line one side of its padding,
- * and the exact height that the horizontal inset is derived from. Expect a residual around
- * a pixel or two, worst at the image edges.
- *
- * Not fixable from here. `RecognizeOptions` cannot override detection padding per call —
- * only `new PaddleOcrService({ detection })` can, and that instance is shared with the
- * knowledge base and file processing, where the padding is the margin the recognizer wants.
- * A screenshot-only instance would trade an extra inference session, and some recognition
- * accuracy, for those last pixels.
- */
-function unpadBox(box: OcrWord['box']): OcrTextLine['box'] {
-  const height = box.height / (1 + 2 * DETECTION_PAD_VERTICAL)
-  const insetX = height * DETECTION_PAD_HORIZONTAL
-  const insetY = height * DETECTION_PAD_VERTICAL
-  return {
-    x: box.x + insetX,
-    y: box.y + insetY,
-    // Clamped: a box the detector cropped at the image edge lost part of its padding.
-    width: Math.max(0, box.width - 2 * insetX),
-    height
-  }
-}
-
-/**
- * One span per detected line. The engine detects boxes and groups them into lines;
- * the text layer's selection logic is built around one span per line, so merge first.
- */
-export function mergeLine(words: OcrWord[]): OcrTextLine {
-  const boxes = words.map((word) => unpadBox(word.box))
-  const left = Math.min(...boxes.map((b) => b.x))
-  const top = Math.min(...boxes.map((b) => b.y))
-  const right = Math.max(...boxes.map((b) => b.x + b.width))
-  const bottom = Math.max(...boxes.map((b) => b.y + b.height))
-  return {
-    text: words.map((w) => w.text).join(' '),
-    box: { x: left, y: top, width: right - left, height: bottom - top }
-  }
-}
-
-/**
  * @param mediaId - Identifies this overlay's frozen capture to the main process.
  * @param bounds - The settled selection in CSS px, or null when there is nothing to recognize.
- * @param available - Whether the local OCR model was ready when the session started.
+ * @param available - Whether a screenshot OCR engine was available when the session started.
  * @param autoStart - Recognize as soon as the selection settles, rather than on request.
  */
 export function useOcr(
@@ -143,7 +84,7 @@ export function useOcr(
           setState({ status: 'unavailable', lines: [] })
           return
         }
-        setState({ status: 'done', lines: result.lines.filter((words) => words.length > 0).map(mergeLine) })
+        setState({ status: 'done', lines: result.lines })
       } catch (error) {
         if (generationRef.current !== generation) return
         logger.error('Text recognition failed', error as Error)

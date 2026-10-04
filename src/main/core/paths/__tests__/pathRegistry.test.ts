@@ -98,6 +98,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
+    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {
@@ -219,6 +221,13 @@ describe('buildPathRegistry', () => {
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers standalone Pi settings as external data', () => {
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
   })
 
   it('registers the platform-native default Hermes home as external data', () => {

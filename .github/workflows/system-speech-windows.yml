@@ -6,7 +6,7 @@ on:
       - codex/voice-runtime-foundation
     paths:
       - packages/system-speech/**
-      - scripts/before-pack.js
+      - scripts/packaging/before-pack.js
       - scripts/__tests__/before-pack.test.ts
       - electron-builder.yml
       - .github/workflows/system-speech-windows.yml
@@ -14,7 +14,7 @@ on:
   pull_request:
     paths:
       - packages/system-speech/**
-      - scripts/before-pack.js
+      - scripts/packaging/before-pack.js
       - scripts/__tests__/before-pack.test.ts
       - electron-builder.yml
       - .github/workflows/system-speech-windows.yml

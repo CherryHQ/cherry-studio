@@ -108,6 +108,7 @@ describe('filesystem MCP security', () => {
     vi.spyOn(types, 'runRipgrep').mockResolvedValue({
       ok: true,
       stdout: [legitFile, secretFile].join('\n'),
+      stderr: '',
       exitCode: 0
     })
 
@@ -135,6 +136,32 @@ describe('filesystem MCP security', () => {
     expect(text).toContain('legit.txt')
     // The symlink entry itself may appear, but its children should not be listed
     expect(text).not.toContain('secret.txt')
+  })
+
+  describe('ls reports why a path cannot be listed instead of calling it empty', () => {
+    it('rejects a directory that does not exist', async () => {
+      const workspaceRoot = await createTempDir('ls-missing-root-')
+      const missing = path.join(workspaceRoot, 'does-not-exist')
+
+      await expect(handleLsTool({ path: missing }, workspaceRoot)).rejects.toThrow('Directory not found')
+    })
+
+    it('rejects a file path', async () => {
+      const workspaceRoot = await createTempDir('ls-file-root-')
+      const filePath = path.join(workspaceRoot, 'note.txt')
+      await fs.writeFile(filePath, 'not a directory')
+
+      await expect(handleLsTool({ path: filePath }, workspaceRoot)).rejects.toThrow('Path is not a directory')
+    })
+
+    it('still lists a real empty directory as empty', async () => {
+      const workspaceRoot = await createTempDir('ls-empty-root-')
+      await fs.mkdir(path.join(workspaceRoot, 'empty-dir'))
+
+      const result = await handleLsTool({ path: path.join(workspaceRoot, 'empty-dir') }, workspaceRoot)
+
+      expect(result.content[0].text).toContain('(empty directory)')
+    })
   })
 
   describe('write/edit/delete/read reject escapes before mutating the filesystem', () => {
@@ -259,6 +286,88 @@ describe('filesystem MCP security', () => {
       const symlinkPath = path.join(workspaceRoot, 'escape-link')
       await fs.symlink(outsideFile, symlinkPath)
       await expect(handleReadTool({ file_path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+    })
+  })
+
+  describe('edit replacement fidelity', () => {
+    // String.prototype.replaceAll interprets `$`-patterns in its replacement
+    // argument, so a literal `$&`, `$'`, `$`` or `$$` in new_string is rewritten
+    // to the matched text / surrounding text instead of being written verbatim.
+    // The single-match path builds the result by hand and keeps them literal,
+    // so replace_all must agree with it.
+    const DOLLAR_CASES = [
+      ['$& (matched text)', 'job $& done'],
+      ["$' (text after the match)", "job $' done"],
+      ['$` (text before the match)', 'job $` done'],
+      ['$$ (literal dollar)', 'cost $$5'],
+      ['$1 (no capture group in play)', 'arg $1 here'],
+      ['plain $ in shell', 'echo $HOME']
+    ] as const
+
+    it.each(DOLLAR_CASES)('replace_all writes %s verbatim', async (_label, newString) => {
+      const workspaceRoot = await createTempDir('edit-dollar-')
+      const target = path.join(workspaceRoot, 'script.sh')
+      await fs.writeFile(target, 'line TARGET\nline TARGET\n', 'utf-8')
+
+      await handleEditTool(
+        { file_path: 'script.sh', old_string: 'TARGET', new_string: newString, replace_all: true },
+        workspaceRoot
+      )
+
+      await expect(fs.readFile(target, 'utf-8')).resolves.toBe(`line ${newString}\nline ${newString}\n`)
+    })
+
+    it('replace_all and single replace agree on the same new_string', async () => {
+      const newString = 'job $& $1 $$ done'
+
+      const allRoot = await createTempDir('edit-agree-all-')
+      await fs.writeFile(path.join(allRoot, 'f.txt'), 'TARGET\n', 'utf-8')
+      await handleEditTool(
+        { file_path: 'f.txt', old_string: 'TARGET', new_string: newString, replace_all: true },
+        allRoot
+      )
+      const viaReplaceAll = await fs.readFile(path.join(allRoot, 'f.txt'), 'utf-8')
+
+      const oneRoot = await createTempDir('edit-agree-one-')
+      await fs.writeFile(path.join(oneRoot, 'f.txt'), 'TARGET\n', 'utf-8')
+      await handleEditTool({ file_path: 'f.txt', old_string: 'TARGET', new_string: newString }, oneRoot)
+      const viaSingle = await fs.readFile(path.join(oneRoot, 'f.txt'), 'utf-8')
+
+      expect(viaReplaceAll).toBe(viaSingle)
+      expect(viaReplaceAll).toBe(`${newString}\n`)
+    })
+  })
+
+  describe('edit empty fuzzy candidates', () => {
+    // A whitespace-only old_string survives as an empty fuzzy candidate:
+    // TrimmedBoundaryReplacer trims it to '' and content.includes('') is
+    // always true, so indexOf('') === 0 "finds" it. replace_all would then
+    // write new_string between every character (an empty match is never a real
+    // edit); the single-match path only escaped that because
+    // indexOf('') !== lastIndexOf('') skipped the candidate. Neither path
+    // should ever consume an empty candidate.
+    async function editInWorkspace(content: string, oldString: string, replaceAll: boolean) {
+      const root = await createTempDir('edit-empty-')
+      await fs.writeFile(path.join(root, 'f.txt'), content, 'utf-8')
+      await handleEditTool(
+        { file_path: 'f.txt', old_string: oldString, new_string: 'X', replace_all: replaceAll },
+        root
+      )
+      return fs.readFile(path.join(root, 'f.txt'), 'utf-8')
+    }
+
+    it('replace_all reports not-found instead of interleaving new_string between characters', async () => {
+      await expect(editInWorkspace('line1\nline2\n', '   \n  ', true)).rejects.toThrow(
+        'old_string not found in content'
+      )
+    })
+
+    it('single replace reports not-found for the same whitespace-only old_string', async () => {
+      await expect(editInWorkspace('line1\nline2\n', '   ', false)).rejects.toThrow('old_string not found in content')
+    })
+
+    it('still replaces a whitespace old_string that literally appears', async () => {
+      await expect(editInWorkspace('a\n   \nb\n', '   ', true)).resolves.toBe('a\nX\nb\n')
     })
   })
 })

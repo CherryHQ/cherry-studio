@@ -54,7 +54,7 @@ Project-specific tools, paths, and conventions.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
-- **Check what you changed, not the whole repo**: for code, run `pnpm lint` (it covers format + typecheck + `i18n:check`) plus the tests covering your change — per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>` for a few files; full `pnpm test` only when the change is broad or you can't name the affected tests. Never use `pnpm test <path>`: the script chains several vitest invocations with `&&`, CLI args reach only the last one, and earlier projects run their full suites unfiltered. Docs/markdown-only edits need just `pnpm docs:check` (links + structure + frontmatter + index). CI runs the full gate; your job is to not obviously break it.
+- **Check what you changed, not the whole repo**: run `pnpm check --plan` to inspect the affected tasks, then `pnpm check`. It compares the branch against the merge base with `origin/main` and includes staged, unstaged, and untracked changes. Use `--base <ref>` for a stacked branch. For a focused test, use the per-project wrappers (`pnpm test:main <file>`, `test:renderer`, `test:aicore`, `test:shared`, `test:pkg:ui`, `test:scripts`) or `pnpm exec vitest run <file>`. Docs-only changes select format and documentation checks. Unknown inputs or missing history select the full gate; `pnpm check:all` explicitly runs it.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
@@ -65,16 +65,18 @@ Project-specific tools, paths, and conventions.
 
 Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
-- `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
+- `pnpm check` — affected checks and tests; `--plan` explains selection without running tasks
+- `pnpm lint` — read-only Oxlint + ESLint; `pnpm lint:fix` explicitly applies lint fixes
+- `pnpm typecheck` — all typecheck projects, run serially to limit local memory usage
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Oxfmt format (write mode)
-- `pnpm docs:check` — the docs gate (`check-links` + structure closed-set + frontmatter/`sources` existence + generated-index freshness); the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate. Docs under `docs/references/**` and `docs/contrib/**` carry `description`/`sources` frontmatter; `docs/README.md` is generated — edit frontmatter and run `pnpm docs:index`, never the index by hand.
-- `pnpm build:check` — `lint` + `docs:check` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm docs:check` — the docs gate (`check-links` + structure closed-set + frontmatter/`sources` existence + generated-index freshness). Run it for docs/markdown edits instead of the full gate. Docs under `docs/references/**` and `docs/contrib/**` carry `description`/`sources` frontmatter; `docs/README.md` is generated — edit frontmatter and run `pnpm docs:index`, never the index by hand.
+- `pnpm check:all` / `pnpm build:check` — full checks and tests. Fix formatting explicitly with `pnpm format`; sync and translate locale keys with `pnpm i18n:sync`.
 - `pnpm test:lint` — the CI-equivalent lint gate: Oxlint errors and warnings block CI (`--deny-warnings`); ESLint errors block CI while its warnings remain non-blocking.
 
 ### Testing
 
-- Tests run with Vitest 3 (see `vitest.config.*` for project setup).
+- Tests run with Vitest 5 (see `vitest.config.*` for project setup).
 - **No behavior-pinning tests**: a test whose only assertion records what the code currently does — a snapshot of whatever came out, `toHaveBeenCalled` on a mock, an expected value re-derived the way the implementation derives it — has zero value. It cannot fail for a real reason, it breaks on every refactor, and it certifies existing bugs as "expected". Assert the contract instead: real input → the outcome the feature promises, plus the failure and edge cases. Before writing a test, state the bug it would catch; if you cannot, do not write it. **The existing suite is full of these** — delete the ones in a file you are already editing rather than keeping them green; a repo-wide purge is its own task, not a side effect of an unrelated PR.
 - **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md).
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
@@ -127,7 +129,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Locale catalogs live in `src/renderer/i18n/locales/` and `src/main/i18n/locales/`; both use `en-us.json` as the source of truth
-- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. No separate `pnpm i18n:check` run needed — `pnpm lint` includes it, and it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
+- Only when you add or change a key: edit `en-us.json`, run `pnpm i18n:sync` (fills the other locales with `[to be translated]:` placeholders), then translate every one. `pnpm check` selects `i18n:check` for source changes; it rejects leftover placeholders as well as empty values, interpolation/tag mismatches, and unsorted keys.
 
 ### UI Design
 

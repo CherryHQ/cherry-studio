@@ -835,7 +835,7 @@ export const captureScrollableIframeAsBlob = async (
  * @param scale 缩放比例
  * @returns {Promise<HTMLCanvasElement>} 转换后的 Canvas 元素
  */
-export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
+export const svgToCanvas = async (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
   // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
@@ -848,18 +848,6 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
 
-  let svgBase64: string
-  try {
-    // 使用 TextEncoder 处理 Unicode 字符
-    const encoder = new TextEncoder()
-    const encodedData = encoder.encode(svgData)
-    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
-    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
-  } catch (error) {
-    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
-    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
-  }
-
   // 创建 Canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -870,6 +858,9 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
 
   canvas.width = width * scale
   canvas.height = height * scale
+
+  // Blob URLs containing foreignObject taint Chromium canvases; data URLs preserve HTML labels.
+  const svgUrl = await blobToDataUrl(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
@@ -889,7 +880,7 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
       reject(new Error('Failed to load SVG image'))
     }
 
-    img.src = svgBase64
+    img.src = svgUrl
   })
 }
 
