@@ -1,0 +1,327 @@
+diff --git a/dist/index.js b/dist/index.js
+index 4e8b3427efd3be44ad8d856aa21f1640ecdc0afe..817b43d361c11db5fc66a790ce3d834f3dc13e85 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,3 +1,4 @@
++import { APICallError } from "@ai-sdk/provider";
+ import { InvalidPromptError, InvalidResponseDataError, TooManyEmbeddingValuesForCallError, UnsupportedFunctionalityError } from "@ai-sdk/provider";
+ import { StreamingToolCallTracker, WORKFLOW_DESERIALIZE, WORKFLOW_SERIALIZE, combineHeaders, convertBase64ToUint8Array, convertToBase64, convertToFormData, createEventSourceResponseHandler, createJsonErrorResponseHandler, createJsonResponseHandler, createLanguageModelResponseMetadata, createLanguageModelResponseMetadata as getResponseMetadata, createNullLanguageModelUsage, downloadBlob, generateId, getTopLevelMediaType, isCustomReasoning, parseProviderOptions, postFormDataToApi, postJsonToApi, resolveFullMediaType, serializeModelOptions, withUserAgentSuffix, withoutTrailingSlash } from "@ai-sdk/provider-utils";
+ import { z } from "zod/v4";
+@@ -195,7 +196,7 @@ function convertToOpenAICompatibleChatMessages(prompt, { providerOptionsKey = "g
+ 				messages.push({
+ 					role: "assistant",
+ 					content: toolCalls.length > 0 ? text || null : text,
+-					...reasoning.length > 0 ? { reasoning_content: reasoning } : {},
++					reasoning_content: reasoning,
+ 					tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+ 					...metadata
+ 				});
+@@ -475,7 +476,17 @@ var OpenAICompatibleChatLanguageModel = class OpenAICompatibleChatLanguageModel
+ 			type: "reasoning",
+ 			text: reasoning
+ 		});
+-		if (choice.message.tool_calls != null) for (const toolCall of choice.message.tool_calls) {
++		if (choice.message.images) {
++      for (const image of choice.message.images) {
++        const match = image.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
++        content.push({
++          type: 'file',
++          mediaType: match ? match[1] : 'image/jpeg',
++          data: match ? { type: 'data', data: match[2] } : { type: 'url', url: new URL(image.image_url.url) },
++        });
++      }
++    }
++if (choice.message.tool_calls != null) for (const toolCall of choice.message.tool_calls) {
+ 			const thoughtSignature = toolCall.extra_content?.google?.thought_signature;
+ 			content.push({
+ 				type: "tool-call",
+@@ -684,7 +695,17 @@ var OpenAICompatibleChatLanguageModel = class OpenAICompatibleChatLanguageModel
+ 					if (reasoningContent) enqueueReasoningDelta(reasoningContent);
+ 					for (const contentPart of convertOpenAICompatibleContent(delta.content)) if (contentPart.type === "reasoning") enqueueReasoningDelta(contentPart.text);
+ 					else enqueueTextDelta(contentPart.text);
+-					if (delta.tool_calls != null && delta.tool_calls.length > 0) {
++					if (delta.images) {
++      for (const image of delta.images) {
++        const match = image.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
++        controller.enqueue({
++          type: 'file',
++          mediaType: match ? match[1] : 'image/jpeg',
++          data: match ? { type: 'data', data: match[2] } : { type: 'url', url: new URL(image.image_url.url) },
++        });
++      }
++    }
++if (delta.tool_calls != null && delta.tool_calls.length > 0) {
+ 						if (isActiveReasoning) {
+ 							controller.enqueue({
+ 								type: "reasoning-end",
+@@ -786,6 +807,7 @@ const OpenAICompatibleChatResponseSchema = z.looseObject({
+ 			content: openAICompatibleContentSchema,
+ 			reasoning_content: z.string().nullish(),
+ 			reasoning: z.string().nullish(),
++images: z.array(z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) })).nullish(),
+ 			tool_calls: z.array(z.object({
+ 				id: z.string().nullish(),
+ 				function: z.object({
+@@ -809,6 +831,7 @@ const chunkBaseSchema = z.looseObject({
+ 			content: openAICompatibleContentSchema,
+ 			reasoning_content: z.string().nullish(),
+ 			reasoning: z.string().nullish(),
++images: z.array(z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) })).nullish(),
+ 			tool_calls: z.array(z.object({
+ 				index: z.number().nullish(),
+ 				id: z.string().nullish(),
+@@ -1266,7 +1289,7 @@ var OpenAICompatibleEmbeddingModel = class OpenAICompatibleEmbeddingModel {
+ 		return {
+ 			warnings,
+ 			embeddings: response.data.map((item) => item.embedding),
+-			usage: response.usage ? { tokens: response.usage.prompt_tokens } : void 0,
++			usage: response.usage ? { tokens: response.usage.prompt_tokens ?? response.usage.total_tokens } : void 0,
+ 			providerMetadata: response.providerMetadata,
+ 			response: {
+ 				headers: responseHeaders,
+@@ -1277,7 +1300,7 @@ var OpenAICompatibleEmbeddingModel = class OpenAICompatibleEmbeddingModel {
+ };
+ const openaiTextEmbeddingResponseSchema = z.object({
+ 	data: z.array(z.object({ embedding: z.array(z.number()) })),
+-	usage: z.object({ prompt_tokens: z.number() }).nullish(),
++	usage: z.object({ prompt_tokens: z.number().nullish(), total_tokens: z.number().nullish() }).nullish(),
+ 	providerMetadata: z.record(z.string(), z.record(z.string(), z.any())).optional()
+ });
+ //#endregion
+@@ -1355,7 +1378,7 @@ var OpenAICompatibleImageModel = class OpenAICompatibleImageModel {
+ 				fetch: this.config.fetch
+ 			});
+ 			return {
+-				images: response.data.map((item) => item.b64_json),
++				images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 				warnings,
+ 				usage: mapImageUsage(response.usage),
+ 				response: {
+@@ -1365,7 +1388,7 @@ var OpenAICompatibleImageModel = class OpenAICompatibleImageModel {
+ 				}
+ 			};
+ 		}
+-		const { value: response, responseHeaders } = await postJsonToApi({
++		const postImageRequest = (responseFormat) => postJsonToApi({
+ 			url: this.config.url({
+ 				path: "/images/generations",
+ 				modelId: this.modelId
+@@ -1376,15 +1399,31 @@ var OpenAICompatibleImageModel = class OpenAICompatibleImageModel {
+ 				prompt,
+ 				n,
+ 				size,
+-				...args
++				...(responseFormat != null ? { response_format: responseFormat } : {}),
++        ...args
+ 			},
+ 			failedResponseHandler: createJsonErrorResponseHandler(this.config.errorStructure ?? defaultOpenAICompatibleErrorStructure),
+ 			successfulResponseHandler: createJsonResponseHandler(openaiCompatibleImageResponseSchema),
+ 			abortSignal,
+ 			fetch: this.config.fetch
+ 		});
+-		return {
+-			images: response.data.map((item) => item.b64_json),
++		
++    const defaultResponseFormat = ['chatgpt-image-', 'gpt-image-1', 'gpt-image-2'].some(prefix => this.modelId.startsWith(prefix)) || args.response_format !== undefined ? null : 'b64_json';
++    let posted;
++    try {
++      posted = await postImageRequest(defaultResponseFormat);
++    } catch (error) {
++      // Retry only an implicit format, preserving the original rejection if both attempts fail.
++      if (defaultResponseFormat == null || !APICallError.isInstance(error) || (error.statusCode !== 400 && error.statusCode !== 422)) throw error;
++      try {
++        posted = await postImageRequest(null);
++      } catch {
++        throw error;
++      }
++    }
++    const { value: response, responseHeaders } = posted;
++    return {
++			images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 			warnings,
+ 			usage: mapImageUsage(response.usage),
+ 			response: {
+@@ -1403,7 +1442,7 @@ function mapImageUsage(usage) {
+ 	};
+ }
+ const openaiCompatibleImageResponseSchema = z.object({
+-	data: z.array(z.object({ b64_json: z.string() })),
++	data: z.array(z.object({ b64_json: z.string().nullish(), url: z.string().nullish() })),
+ 	usage: z.object({
+ 		input_tokens: z.number().nullish(),
+ 		output_tokens: z.number().nullish(),
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 0b78778d2d14378d82212b02b30d7299aece4ca0..befa67ba358d71bae91edbc646e832869e89a317 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -136,7 +136,7 @@ function convertToOpenAICompatibleChatMessages(prompt, { providerOptionsKey = "g
+ 				messages.push({
+ 					role: "assistant",
+ 					content: toolCalls.length > 0 ? text || null : text,
+-					...reasoning.length > 0 ? { reasoning_content: reasoning } : {},
++					reasoning_content: reasoning,
+ 					tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+ 					...metadata
+ 				});
+diff --git a/src/chat/convert-to-openai-compatible-chat-messages.ts b/src/chat/convert-to-openai-compatible-chat-messages.ts
+index 8ab81ace5e09deb14fffa7d9ba51f9e45c57734e..5b263e594bacc1ad1092fd5a5426bab1c60f8953 100644
+--- a/src/chat/convert-to-openai-compatible-chat-messages.ts
++++ b/src/chat/convert-to-openai-compatible-chat-messages.ts
+@@ -271,7 +271,7 @@ export function convertToOpenAICompatibleChatMessages(
+         messages.push({
+           role: 'assistant',
+           content: toolCalls.length > 0 ? text || null : text,
+-          ...(reasoning.length > 0 ? { reasoning_content: reasoning } : {}),
++          reasoning_content: reasoning,
+           tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+           ...metadata,
+         });
+diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai-compatible-chat-language-model.ts
+index a004cf6ba7ee3e33585d00a003ab48e7354c7792..c70f6decb0d62e850f1e35350c073acfe66268ef 100644
+--- a/src/chat/openai-compatible-chat-language-model.ts
++++ b/src/chat/openai-compatible-chat-language-model.ts
+@@ -382,7 +382,17 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV4 {
+     }
+ 
+     // tool calls:
+-    if (choice.message.tool_calls != null) {
++    if (choice.message.images) {
++      for (const image of choice.message.images) {
++        const match = image.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
++        content.push({
++          type: 'file',
++          mediaType: match ? match[1] : 'image/jpeg',
++          data: match ? { type: 'data', data: match[2] } : { type: 'url', url: new URL(image.image_url.url) },
++        });
++      }
++    }
++if (choice.message.tool_calls != null) {
+       for (const toolCall of choice.message.tool_calls) {
+         const thoughtSignature =
+           toolCall.extra_content?.google?.thought_signature;
+@@ -690,7 +700,17 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV4 {
+               }
+             }
+ 
+-            if (delta.tool_calls != null && delta.tool_calls.length > 0) {
++            if (delta.images) {
++      for (const image of delta.images) {
++        const match = image.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
++        controller.enqueue({
++          type: 'file',
++          mediaType: match ? match[1] : 'image/jpeg',
++          data: match ? { type: 'data', data: match[2] } : { type: 'url', url: new URL(image.image_url.url) },
++        });
++      }
++    }
++if (delta.tool_calls != null && delta.tool_calls.length > 0) {
+               // end active reasoning block before tool calls start
+               if (isActiveReasoning) {
+                 controller.enqueue({
+@@ -862,6 +882,7 @@ const OpenAICompatibleChatResponseSchema = z.looseObject({
+         content: openAICompatibleContentSchema,
+         reasoning_content: z.string().nullish(),
+         reasoning: z.string().nullish(),
++images: z.array(z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) })).nullish(),
+         tool_calls: z
+           .array(
+             z.object({
+@@ -904,6 +925,7 @@ const chunkBaseSchema = z.looseObject({
+           // providers serving `gpt-oss` set `reasoning`. See #7866
+           reasoning_content: z.string().nullish(),
+           reasoning: z.string().nullish(),
++images: z.array(z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) })).nullish(),
+           tool_calls: z
+             .array(
+               z.object({
+diff --git a/src/embedding/openai-compatible-embedding-model.ts b/src/embedding/openai-compatible-embedding-model.ts
+index 3c628ad3af95222416cd67797deeea4773dc82bb..a8025fbb437a09adef99af126f819eb3e7e881ee 100644
+--- a/src/embedding/openai-compatible-embedding-model.ts
++++ b/src/embedding/openai-compatible-embedding-model.ts
+@@ -173,7 +173,7 @@ export class OpenAICompatibleEmbeddingModel implements EmbeddingModelV4 {
+       warnings,
+       embeddings: response.data.map(item => item.embedding),
+       usage: response.usage
+-        ? { tokens: response.usage.prompt_tokens }
++        ? { tokens: response.usage.prompt_tokens ?? response.usage.total_tokens }
+         : undefined,
+       providerMetadata: response.providerMetadata,
+       response: { headers: responseHeaders, body: rawValue },
+@@ -185,7 +185,7 @@ export class OpenAICompatibleEmbeddingModel implements EmbeddingModelV4 {
+ // this approach limits breakages when the API changes and increases efficiency
+ const openaiTextEmbeddingResponseSchema = z.object({
+   data: z.array(z.object({ embedding: z.array(z.number()) })),
+-  usage: z.object({ prompt_tokens: z.number() }).nullish(),
++  usage: z.object({ prompt_tokens: z.number().nullish(), total_tokens: z.number().nullish() }).nullish(),
+   providerMetadata: z
+     .record(z.string(), z.record(z.string(), z.any()))
+     .optional(),
+diff --git a/src/image/openai-compatible-image-model.ts b/src/image/openai-compatible-image-model.ts
+index d630ed272eb6a2041f97424f48eff93612775b72..4d656fbde6769adce77ae93fd0f43a583416bf3a 100644
+--- a/src/image/openai-compatible-image-model.ts
++++ b/src/image/openai-compatible-image-model.ts
+@@ -1,3 +1,4 @@
++import { APICallError } from '@ai-sdk/provider';
+ import type {
+   ImageModelV4,
+   ImageModelV4File,
+@@ -153,7 +154,7 @@ export class OpenAICompatibleImageModel implements ImageModelV4 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+         warnings,
+         usage: mapImageUsage(response.usage),
+         response: {
+@@ -165,7 +166,7 @@ export class OpenAICompatibleImageModel implements ImageModelV4 {
+     }
+ 
+     // Standard image generation mode - use JSON and /images/generations endpoint
+-    const { value: response, responseHeaders } = await postJsonToApi({
++    const postImageRequest = (responseFormat: string | null) => postJsonToApi({
+       url: this.config.url({
+         path: '/images/generations',
+         modelId: this.modelId,
+@@ -176,6 +177,7 @@ export class OpenAICompatibleImageModel implements ImageModelV4 {
+         prompt,
+         n,
+         size,
++        ...(responseFormat != null ? { response_format: responseFormat } : {}),
+         ...args,
+       },
+       failedResponseHandler: createJsonErrorResponseHandler(
+@@ -188,8 +190,23 @@ export class OpenAICompatibleImageModel implements ImageModelV4 {
+       fetch: this.config.fetch,
+     });
+ 
++    
++    const defaultResponseFormat = ['chatgpt-image-', 'gpt-image-1', 'gpt-image-2'].some(prefix => this.modelId.startsWith(prefix)) || args.response_format !== undefined ? null : 'b64_json';
++    let posted;
++    try {
++      posted = await postImageRequest(defaultResponseFormat);
++    } catch (error) {
++      // Retry only an implicit format, preserving the original rejection if both attempts fail.
++      if (defaultResponseFormat == null || !APICallError.isInstance(error) || (error.statusCode !== 400 && error.statusCode !== 422)) throw error;
++      try {
++        posted = await postImageRequest(null);
++      } catch {
++        throw error;
++      }
++    }
++    const { value: response, responseHeaders } = posted;
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+       warnings,
+       usage: mapImageUsage(response.usage),
+       response: {
+@@ -218,7 +235,7 @@ function mapImageUsage(
+ // minimal version of the schema, focussed on what is needed for the implementation
+ // this approach limits breakages when the API changes and increases efficiency
+ const openaiCompatibleImageResponseSchema = z.object({
+-  data: z.array(z.object({ b64_json: z.string() })),
++  data: z.array(z.object({ b64_json: z.string().nullish(), url: z.string().nullish() })),
+   usage: z
+     .object({
+       input_tokens: z.number().nullish(),

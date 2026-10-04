@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  */
 const LOCAL_UUID = '8bfdc98d-13ea-41b8-8825-8a339167ffe8'
 
-async function captureResponsesInput(prompt: LanguageModelV3CallOptions['prompt']) {
+async function captureResponsesInput(prompt: LanguageModelV4CallOptions['prompt']) {
   let body: { input: Array<Record<string, unknown>> } | undefined
   const model = createOpenAI({
     apiKey: 'sk-test',

@@ -1,12 +1,12 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [
+const prompt: LanguageModelV4CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Find the answer.' }] }
 ]
 
-async function send(options: Partial<LanguageModelV3CallOptions>) {
+async function send(options: Partial<LanguageModelV4CallOptions>) {
   let body: Record<string, any> = {}
   let headers = new Headers()
   const model = createAnthropic({

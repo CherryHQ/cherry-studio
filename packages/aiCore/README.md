@@ -70,6 +70,10 @@ Cherry Studio AI Core 是一个基于 Vercel AI SDK 的统一 AI Provider 接口
 
 ## 安装
 
+需要 Node.js >=22 和 `ai@7`。本包仅发布 ESM，使用 `import` 或动态 `import()`；
+不再提供 CommonJS 构建。内置 Provider 与自定义 middleware 使用 V4 协议；尚无 V4 版本的第三方 Provider
+可通过 AI SDK 的 V3 适配边界接入，不能据此推断其支持 FilesV4 等新能力。
+
 ```bash
 npm install @cherrystudio/ai-core ai @ai-sdk/google @ai-sdk/openai
 ```

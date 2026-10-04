@@ -1,4 +1,4 @@
-import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4, ImageModelV4CallOptions } from '@ai-sdk/provider'
 
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
@@ -48,8 +48,8 @@ export interface ImageGenerationSubmitInput {
   size: `${number}x${number}` | undefined
   aspectRatio?: `${number}:${number}`
   seed: number | undefined
-  files: ImageModelV3CallOptions['files']
-  mask: ImageModelV3CallOptions['mask']
+  files: ImageModelV4CallOptions['files']
+  mask: ImageModelV4CallOptions['mask']
   /** Per-model routing, derived in main from the registry (not a user param). */
   modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
@@ -68,7 +68,7 @@ export interface CreateImageGenerationModelOptions {
 }
 
 /**
- * Builds an `ImageModelV3` whose `doGenerate` runs submit→optional-poll→return-urls,
+ * Builds an `ImageModelV4` whose `doGenerate` runs submit→optional-poll→return-urls,
  * parameterized by an injected `ImageGenerationTransport`. It returns image **URLs**;
  * the patched `ai` SDK auto-downloads them (default download function) into a
  * `GeneratedFile` so no AiProvider/convertImageResult change is needed.
@@ -80,13 +80,13 @@ export interface CreateImageGenerationModelOptions {
 export function createImageGenerationModel(
   modelId: string,
   { provider, transport }: CreateImageGenerationModelOptions
-): ImageModelV3 {
+): ImageModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider,
     modelId,
     maxImagesPerCall: 1,
-    async doGenerate(options: ImageModelV3CallOptions) {
+    async doGenerate(options: ImageModelV4CallOptions) {
       const { abortSignal } = options
 
       if (abortSignal?.aborted) {

@@ -15,12 +15,13 @@ import { WEB_FETCH_TOOL_NAME, webFetchInputSchema, webFetchOutputSchema } from '
 
 import { makeEntitiesCodec } from '../../../outputCodec'
 import { fetchWeb, WEB_FETCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 const webFetchResultSchema = z.union([webFetchOutputSchema, webLookupErrorSchema])
 
 const webFetchTool = tool({
+  contextSchema: requestContextSchema,
   description: WEB_FETCH_DESCRIPTION,
   inputSchema: webFetchInputSchema,
   outputSchema: webFetchResultSchema,

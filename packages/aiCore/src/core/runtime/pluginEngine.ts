@@ -1,10 +1,9 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, ImageModelV4, LanguageModelV4 } from '@ai-sdk/provider'
 import type { generateImage, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
-import { isV3Model } from '../models/utils'
 import {
   type AiPlugin,
   type AiRequestContext,
@@ -117,7 +116,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    * - `originalParams` in context will be `{}` since no request params exist at resolution time.
    * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
    */
-  async resolveModel(modelId: string, requestPlugins: AiPlugin<any, any>[] = []): Promise<LanguageModelV3> {
+  async resolveModel(modelId: string, requestPlugins: AiPlugin<any, any>[] = []): Promise<LanguageModelV4> {
     const context = createContext(this.providerId, modelId, {})
     const manager = this.createManager(requestPlugins)
 
@@ -129,23 +128,10 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     if (!resolved) {
       throw new ModelResolutionError(modelId, this.providerId)
     }
-    if (!isV3Model(resolved)) {
-      throw new ModelResolutionError(
-        modelId,
-        this.providerId,
-        new Error(`Provider "${this.providerId}" resolved a non-V3 language model`)
-      )
+    if (typeof resolved === 'string') {
+      throw new ModelResolutionError(modelId, this.providerId)
     }
-
-    // 3. Apply middlewares
-    if (context.middlewares && context.middlewares.length > 0) {
-      return wrapLanguageModel({
-        model: resolved,
-        middleware: context.middlewares
-      })
-    }
-
-    return resolved
+    return wrapLanguageModel({ model: resolved, middleware: context.middlewares ?? [] })
   }
 
   /**
@@ -228,7 +214,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       // 2.5 统一应用 context.middlewares（由各插件在 configureContext 阶段写入）
       if (context.middlewares && context.middlewares.length > 0) {
         resolvedModel = wrapLanguageModel({
-          model: resolvedModel as LanguageModelV3,
+          model: resolvedModel as LanguageModelV4,
           middleware: context.middlewares
         })
       }
@@ -258,17 +244,19 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
    * 提供给AiExecutor使用
    */
   async executeImageWithPlugins<
-    TParams extends Omit<Parameters<typeof generateImage>[0], 'model'> & { model: string | ImageModelV3 },
+    TParams extends Omit<Parameters<typeof generateImage>[0], 'model'> & {
+      model: string | ImageModelV3 | ImageModelV4
+    },
     TResult extends ReturnType<typeof generateImage>
   >(
     methodName: string,
     params: TParams,
-    executor: (model: ImageModelV3, transformedParams: TParams) => TResult,
+    executor: (model: ImageModelV3 | ImageModelV4, transformedParams: TParams) => TResult,
     _context?: AiRequestContext<TParams, TResult>,
     requestPlugins: AiPlugin<any, any>[] = []
   ): Promise<TResult> {
     // 统一处理模型解析
-    let resolvedModel: ImageModelV3 | undefined
+    let resolvedModel: ImageModelV3 | ImageModelV4 | undefined
     let modelId: string
     const { model } = params
     if (typeof model === 'string') {
@@ -322,7 +310,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2. 解析模型（如果是字符串）
       if (typeof model === 'string') {
-        const resolved = await manager.executeFirst<ImageModelV3>('resolveModel', modelId, context)
+        const resolved = await manager.executeFirst<ImageModelV3 | ImageModelV4>('resolveModel', modelId, context)
         if (!resolved) {
           throw new ModelResolutionError(modelId, this.providerId)
         }
@@ -439,7 +427,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
         }
         resolvedModel = wrapLanguageModel({
-          model: resolvedModel as LanguageModelV3,
+          model: resolvedModel,
           middleware: context.middlewares
         })
       }

@@ -1,0 +1,497 @@
+diff --git a/dist/index.js b/dist/index.js
+index c323412678ffcdfd1e3737556a746ba280f37e8b..1e9402daa8f1d982562ca82c320436ece163748d 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -999,7 +999,7 @@ var OpenAIChatLanguageModel = class OpenAIChatLanguageModel {
+ 				details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+ 			});
+ 		}
+-		if (isReasoningModel) {
++		if (modelCapabilities.isReasoningModel) {
+ 			if (resolvedReasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+ 				if (baseArgs.temperature != null) {
+ 					baseArgs.temperature = void 0;
+@@ -1976,7 +1976,8 @@ var OpenAIFiles = class {
+ const openaiImageResponseSchema = lazySchema(() => zodSchema(z.object({
+ 	created: z.number().nullish(),
+ 	data: z.array(z.object({
+-		b64_json: z.string(),
++		b64_json: z.string().nullish(),
++		url: z.string().nullish(),
+ 		revised_prompt: z.string().nullish()
+ 	})),
+ 	background: z.string().nullish(),
+@@ -2168,7 +2169,7 @@ var OpenAIImageModel = class OpenAIImageModel {
+ 				fetch: this.config.fetch
+ 			});
+ 			return {
+-				images: response.data.map((item) => item.b64_json),
++				images: response.data.flatMap((item) => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 				warnings,
+ 				usage: response.usage != null ? {
+ 					inputTokens: response.usage.input_tokens ?? void 0,
+@@ -2222,7 +2223,7 @@ var OpenAIImageModel = class OpenAIImageModel {
+ 			fetch: this.config.fetch
+ 		});
+ 		return {
+-			images: response.data.map((item) => item.b64_json),
++			images: response.data.flatMap((item) => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 			warnings,
+ 			usage: response.usage != null ? {
+ 				inputTokens: response.usage.input_tokens ?? void 0,
+@@ -3154,6 +3155,7 @@ const openaiResponsesModeledChunkTypes = /* @__PURE__ */ new Set([
+ 	"response.output_text.delta",
+ 	"response.reasoning_summary_part.added",
+ 	"response.reasoning_summary_part.done",
++	"response.reasoning_text.delta",
+ 	"response.reasoning_summary_text.delta"
+ ]);
+ /**
+@@ -3710,6 +3712,7 @@ const openaiResponsesChunkSchema = lazySchema(() => zodSchema(z.union([
+ 		summary_index: z.number(),
+ 		delta: z.string()
+ 	}),
++	z.object({ type: z.literal("response.reasoning_text.delta"), item_id: z.string(), delta: z.string() }),
+ 	z.object({
+ 		type: z.literal("response.reasoning_summary_part.done"),
+ 		item_id: z.string(),
+@@ -3790,7 +3793,7 @@ const openaiResponsesResponseSchema = lazySchema(() => zodSchema(z.object({
+ 						file_id: z.string(),
+ 						index: z.number()
+ 					})
+-				]))
++				])).nullish().transform((value) => value ?? [])
+ 			}))
+ 		}),
+ 		z.object({
+@@ -4496,6 +4499,9 @@ function isFileId(data, prefixes) {
+ 	if (!prefixes) return false;
+ 	return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++	return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMessageMode, providerOptionsName, explicitMessageItemType = false, fileIdPrefixes, passThroughUnsupportedFiles = false, store, hasConversation = false, hasPreviousResponseId = false, hasLocalShellTool = false, hasShellTool = false, hasApplyPatchTool = false, hasComputerTool = false, toolSearchToolName, customProviderToolNames, outputSchemaToolNames, configurationUpdateUnsupportedReason }) {
+ 	let input = [];
+ 	const warnings = [];
+@@ -4639,7 +4645,7 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 			for (const part of content) switch (part.type) {
+ 				case "text": {
+ 					const providerOptions = part.providerOptions?.[providerOptionsName];
+-					const id = providerOptions?.itemId;
++					const id = toResponsesItemId(providerOptions?.itemId, "msg");
+ 					const phase = providerOptions?.phase;
+ 					if (hasConversation && id != null) break;
+ 					if (store && id != null) {
+@@ -4650,9 +4656,11 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 						break;
+ 					}
+ 					input.push({
+-						...explicitMessageItemType && { type: "message" },
++						type: "message",
+ 						role: "assistant",
+-						content: part.text,
++						content: [{ type: "output_text", text: part.text }],
++						id,
++						status: "completed",
+ 						...phase != null && { phase }
+ 					});
+ 					break;
+@@ -4946,8 +4954,12 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 						providerOptions: part.providerOptions,
+ 						schema: openaiResponsesReasoningProviderOptionsSchema
+ 					});
+-					const reasoningId = providerOptions?.itemId;
++					const reasoningId = toResponsesItemId(providerOptions?.itemId, "rs");
+ 					if ((hasConversation || hasPreviousResponseId) && reasoningId != null) break;
++					if ((!store || reasoningId == null) && providerOptions?.rawReasoningContent && part.text.length > 0 && providerOptions.reasoningEncryptedContent == null) {
++						input.push({ type: "reasoning", summary: [], content: [{ type: "reasoning_text", text: part.text }] });
++						break;
++					}
+ 					if (reasoningId != null) {
+ 						const reasoningMessage = reasoningMessages[reasoningId];
+ 						if (store) {
+@@ -5280,12 +5292,12 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 			break;
+ 		default: throw new Error(`Unsupported role: ${role}`);
+ 	}
+-	if (!store && input.some((item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null)) {
++	if (!store && input.some((item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null))) {
+ 		warnings.push({
+ 			type: "other",
+ 			message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+ 		});
+-		input = input.filter((item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null);
++		input = input.filter((item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null);
+ 	}
+ 	return {
+ 		input,
+@@ -5294,7 +5306,8 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ }
+ const openaiResponsesReasoningProviderOptionsSchema = z.object({
+ 	itemId: z.string().nullish(),
+-	reasoningEncryptedContent: z.string().nullish()
++	reasoningEncryptedContent: z.string().nullish(),
++	rawReasoningContent: z.boolean().nullish()
+ });
+ //#endregion
+ //#region src/responses/openai-responses-prepare-tools.ts
+@@ -6051,7 +6064,7 @@ var OpenAIResponsesLanguageModel = class OpenAIResponsesLanguageModel {
+ 				details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+ 			});
+ 		}
+-		if (isReasoningModel) {
++		if (modelCapabilities.isReasoningModel) {
+ 			if (!(resolvedReasoningEffort === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+ 				if (baseArgs.temperature != null) {
+ 					baseArgs.temperature = void 0;
+@@ -7405,6 +7418,8 @@ var OpenAIResponsesLanguageModel = class OpenAIResponsesLanguageModel {
+ 							delta: value.delta,
+ 							providerMetadata: { [providerOptionsName]: { itemId } }
+ 						});
++					} else if (value.type === "response.reasoning_text.delta") {
++						controller.enqueue({ type: "reasoning-delta", id: `${value.item_id}:0`, delta: value.delta, providerMetadata: { [providerOptionsName]: { itemId: value.item_id } } });
+ 					} else if (value.type === "response.reasoning_summary_part.done") {
+ 						const itemId = resolveOutputItemId({
+ 							itemId: value.item_id,
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 3cde1f537f2070ddbf5dd0346c576b5e8f79d5ef..917d8d42e65f758890c543cae7bcb150e95a4e4d 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -998,7 +998,7 @@ var OpenAIChatLanguageModel = class OpenAIChatLanguageModel {
+ 				details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+ 			});
+ 		}
+-		if (isReasoningModel) {
++		if (modelCapabilities.isReasoningModel) {
+ 			if (resolvedReasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+ 				if (baseArgs.temperature != null) {
+ 					baseArgs.temperature = void 0;
+@@ -1782,7 +1782,8 @@ var OpenAIEmbeddingModel = class OpenAIEmbeddingModel {
+ const openaiImageResponseSchema = lazySchema(() => zodSchema(z.object({
+ 	created: z.number().nullish(),
+ 	data: z.array(z.object({
+-		b64_json: z.string(),
++		b64_json: z.string().nullish(),
++		url: z.string().nullish(),
+ 		revised_prompt: z.string().nullish()
+ 	})),
+ 	background: z.string().nullish(),
+@@ -1974,7 +1975,7 @@ var OpenAIImageModel = class OpenAIImageModel {
+ 				fetch: this.config.fetch
+ 			});
+ 			return {
+-				images: response.data.map((item) => item.b64_json),
++				images: response.data.flatMap((item) => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 				warnings,
+ 				usage: response.usage != null ? {
+ 					inputTokens: response.usage.input_tokens ?? void 0,
+@@ -2028,7 +2029,7 @@ var OpenAIImageModel = class OpenAIImageModel {
+ 			fetch: this.config.fetch
+ 		});
+ 		return {
+-			images: response.data.map((item) => item.b64_json),
++			images: response.data.flatMap((item) => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+ 			warnings,
+ 			usage: response.usage != null ? {
+ 				inputTokens: response.usage.input_tokens ?? void 0,
+@@ -3443,6 +3444,9 @@ function isFileId(data, prefixes) {
+ 	if (!prefixes) return false;
+ 	return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++	return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMessageMode, providerOptionsName, explicitMessageItemType = false, fileIdPrefixes, passThroughUnsupportedFiles = false, store, hasConversation = false, hasPreviousResponseId = false, hasLocalShellTool = false, hasShellTool = false, hasApplyPatchTool = false, hasComputerTool = false, toolSearchToolName, customProviderToolNames, outputSchemaToolNames, configurationUpdateUnsupportedReason }) {
+ 	let input = [];
+ 	const warnings = [];
+@@ -3586,7 +3590,7 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 			for (const part of content) switch (part.type) {
+ 				case "text": {
+ 					const providerOptions = part.providerOptions?.[providerOptionsName];
+-					const id = providerOptions?.itemId;
++					const id = toResponsesItemId(providerOptions?.itemId, "msg");
+ 					const phase = providerOptions?.phase;
+ 					if (hasConversation && id != null) break;
+ 					if (store && id != null) {
+@@ -3597,9 +3601,11 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 						break;
+ 					}
+ 					input.push({
+-						...explicitMessageItemType && { type: "message" },
++						type: "message",
+ 						role: "assistant",
+-						content: part.text,
++						content: [{ type: "output_text", text: part.text }],
++						id,
++						status: "completed",
+ 						...phase != null && { phase }
+ 					});
+ 					break;
+@@ -3893,8 +3899,12 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 						providerOptions: part.providerOptions,
+ 						schema: openaiResponsesReasoningProviderOptionsSchema
+ 					});
+-					const reasoningId = providerOptions?.itemId;
++					const reasoningId = toResponsesItemId(providerOptions?.itemId, "rs");
+ 					if ((hasConversation || hasPreviousResponseId) && reasoningId != null) break;
++					if ((!store || reasoningId == null) && providerOptions?.rawReasoningContent && part.text.length > 0 && providerOptions.reasoningEncryptedContent == null) {
++						input.push({ type: "reasoning", summary: [], content: [{ type: "reasoning_text", text: part.text }] });
++						break;
++					}
+ 					if (reasoningId != null) {
+ 						const reasoningMessage = reasoningMessages[reasoningId];
+ 						if (store) {
+@@ -4227,12 +4237,12 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ 			break;
+ 		default: throw new Error(`Unsupported role: ${role}`);
+ 	}
+-	if (!store && input.some((item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null)) {
++	if (!store && input.some((item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null))) {
+ 		warnings.push({
+ 			type: "other",
+ 			message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+ 		});
+-		input = input.filter((item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null);
++		input = input.filter((item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null);
+ 	}
+ 	return {
+ 		input,
+@@ -4241,7 +4251,8 @@ async function convertToOpenAIResponsesInput({ prompt, toolNameMapping, systemMe
+ }
+ const openaiResponsesReasoningProviderOptionsSchema = z.object({
+ 	itemId: z.string().nullish(),
+-	reasoningEncryptedContent: z.string().nullish()
++	reasoningEncryptedContent: z.string().nullish(),
++	rawReasoningContent: z.boolean().nullish()
+ });
+ //#endregion
+ //#region src/responses/map-openai-responses-finish-reason.ts
+@@ -4425,6 +4436,7 @@ const openaiResponsesModeledChunkTypes = /* @__PURE__ */ new Set([
+ 	"response.output_text.delta",
+ 	"response.reasoning_summary_part.added",
+ 	"response.reasoning_summary_part.done",
++	"response.reasoning_text.delta",
+ 	"response.reasoning_summary_text.delta"
+ ]);
+ /**
+@@ -4981,6 +4993,7 @@ const openaiResponsesChunkSchema = lazySchema(() => zodSchema(z.union([
+ 		summary_index: z.number(),
+ 		delta: z.string()
+ 	}),
++	z.object({ type: z.literal("response.reasoning_text.delta"), item_id: z.string(), delta: z.string() }),
+ 	z.object({
+ 		type: z.literal("response.reasoning_summary_part.done"),
+ 		item_id: z.string(),
+@@ -5061,7 +5074,7 @@ const openaiResponsesResponseSchema = lazySchema(() => zodSchema(z.object({
+ 						file_id: z.string(),
+ 						index: z.number()
+ 					})
+-				]))
++				])).nullish().transform((value) => value ?? [])
+ 			}))
+ 		}),
+ 		z.object({
+@@ -6303,7 +6316,7 @@ var OpenAIResponsesLanguageModel = class OpenAIResponsesLanguageModel {
+ 				details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+ 			});
+ 		}
+-		if (isReasoningModel) {
++		if (modelCapabilities.isReasoningModel) {
+ 			if (!(resolvedReasoningEffort === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+ 				if (baseArgs.temperature != null) {
+ 					baseArgs.temperature = void 0;
+@@ -7657,6 +7670,8 @@ var OpenAIResponsesLanguageModel = class OpenAIResponsesLanguageModel {
+ 							delta: value.delta,
+ 							providerMetadata: { [providerOptionsName]: { itemId } }
+ 						});
++					} else if (value.type === "response.reasoning_text.delta") {
++						controller.enqueue({ type: "reasoning-delta", id: `${value.item_id}:0`, delta: value.delta, providerMetadata: { [providerOptionsName]: { itemId: value.item_id } } });
+ 					} else if (value.type === "response.reasoning_summary_part.done") {
+ 						const itemId = resolveOutputItemId({
+ 							itemId: value.item_id,
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index 83e07a32126708c07f63310b6388f10184b47b66..6d511fd4617bb628e9c1916caf056d9266e4d3f5 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -247,7 +247,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV4 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
+index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+--- a/src/image/openai-image-api.ts
++++ b/src/image/openai-image-api.ts
+@@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
+       created: z.number().nullish(),
+       data: z.array(
+         z.object({
+-          b64_json: z.string(),
++          b64_json: z.string().nullish(),
++          url: z.string().nullish(),
+           revised_prompt: z.string().nullish(),
+         }),
+       ),
+diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
+index 7038cf059c0f09f9b1d5047aaf708295a7ca0ce9..185ca73737275a579adc637cd3e4f51efccdac1a 100644
+--- a/src/image/openai-image-model.ts
++++ b/src/image/openai-image-model.ts
+@@ -185,7 +185,7 @@ export class OpenAIImageModel implements ImageModelV4 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+         warnings,
+         usage:
+           response.usage != null
+@@ -260,7 +260,7 @@ export class OpenAIImageModel implements ImageModelV4 {
+     });
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => typeof item.b64_json === "string" ? [item.b64_json] : typeof item.url === "string" ? [item.url] : []),
+       warnings,
+       usage:
+         response.usage != null
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+index eea4d97685f3d87c3a512758d60502ac74f15c13..5baa1504a40850e0837b5d42f9178e2c027f88e7 100644
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -363,6 +363,10 @@ function isFileId(data: string, prefixes?: readonly string[]): boolean {
+   return prefixes.some(prefix => data.startsWith(prefix));
+ }
+ 
++function toResponsesItemId(id: unknown, prefix: string): string | undefined {
++  return typeof id === "string" && id.startsWith(prefix) ? id : undefined;
++}
++
+ export async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -655,7 +659,7 @@ export async function convertToOpenAIResponsesInput({
+             case 'text': {
+               const providerOptions =
+                 part.providerOptions?.[providerOptionsName];
+-              const id = providerOptions?.itemId as string | undefined;
++              const id = toResponsesItemId(providerOptions?.itemId, 'msg');
+               const phase = providerOptions?.phase as
+                 | 'commentary'
+                 | 'final_answer'
+@@ -674,9 +678,11 @@ export async function convertToOpenAIResponsesInput({
+               }
+ 
+               input.push({
+-                ...(explicitMessageItemType && { type: 'message' as const }),
++                type: 'message',
+                 role: 'assistant',
+-                content: part.text,
++                content: [{ type: 'output_text', text: part.text }],
++                id,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
+@@ -1155,7 +1161,7 @@ export async function convertToOpenAIResponsesInput({
+                 schema: openaiResponsesReasoningProviderOptionsSchema,
+               });
+ 
+-              const reasoningId = providerOptions?.itemId;
++              const reasoningId = toResponsesItemId(providerOptions?.itemId, 'rs');
+ 
+               if (
+                 (hasConversation || hasPreviousResponseId) &&
+@@ -1164,6 +1170,11 @@ export async function convertToOpenAIResponsesInput({
+                 break;
+               }
+ 
++              if ((!store || reasoningId == null) && providerOptions?.rawReasoningContent && part.text.length > 0 && providerOptions.reasoningEncryptedContent == null) {
++                input.push({ type: 'reasoning', summary: [], content: [{ type: 'reasoning_text', text: part.text }] });
++                break;
++              }
++
+               if (reasoningId != null) {
+                 const reasoningMessage = reasoningMessages[reasoningId];
+ 
+@@ -1700,7 +1711,7 @@ export async function convertToOpenAIResponsesInput({
+       item =>
+         'type' in item &&
+         item.type === 'reasoning' &&
+-        item.encrypted_content == null,
++        item.encrypted_content == null && !('content' in item && item.content != null),
+     )
+   ) {
+     warnings.push({
+@@ -1712,7 +1723,7 @@ export async function convertToOpenAIResponsesInput({
+       item =>
+         !('type' in item) ||
+         item.type !== 'reasoning' ||
+-        item.encrypted_content != null,
++        item.encrypted_content != null || ('content' in item && item.content != null),
+     );
+   }
+ 
+@@ -1722,6 +1733,7 @@ export async function convertToOpenAIResponsesInput({
+ const openaiResponsesReasoningProviderOptionsSchema = z.object({
+   itemId: z.string().nullish(),
+   reasoningEncryptedContent: z.string().nullish(),
++  rawReasoningContent: z.boolean().nullish(),
+ });
+ 
+ export type OpenAIResponsesReasoningProviderOptions = z.infer<
+diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
+index 364dd9aaa7b6e29652cedaac636bb0a1176bab5a..20f4fbb39f3940b5fd9f1b54a3969b9fce5dd0cd 100644
+--- a/src/responses/openai-responses-api.ts
++++ b/src/responses/openai-responses-api.ts
+@@ -812,6 +812,7 @@ const openaiResponsesModeledChunkTypes = new Set([
+   'response.output_text.delta',
+   'response.reasoning_summary_part.added',
+   'response.reasoning_summary_part.done',
++  'response.reasoning_text.delta',
+   'response.reasoning_summary_text.delta',
+ ]);
+ 
+@@ -1408,6 +1409,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         summary_index: z.number(),
+         delta: z.string(),
+       }),
++      z.object({ type: z.literal('response.reasoning_text.delta'), item_id: z.string(), delta: z.string() }),
+       z.object({
+         type: z.literal('response.reasoning_summary_part.done'),
+         item_id: z.string(),
+@@ -1530,7 +1532,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                         index: z.number(),
+                       }),
+                     ]),
+-                  ),
++                  ).nullish().transform(value => value ?? []),
+                 }),
+               ),
+             }),
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+index a6a288c590bb6fb3ae658434da06382eff4d99dd..43fb97742f789e29669d0f8506ac4c3fd51566d3 100644
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -684,7 +684,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV4 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+@@ -2747,6 +2747,8 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV4 {
+                   } satisfies ResponsesReasoningProviderMetadata,
+                 },
+               });
++            } else if (value.type === 'response.reasoning_text.delta') {
++              controller.enqueue({ type: 'reasoning-delta', id: `${value.item_id}:0`, delta: value.delta, providerMetadata: { [providerOptionsName]: { itemId: value.item_id } } });
+             } else if (value.type === 'response.reasoning_summary_part.done') {
+               const itemId = resolveOutputItemId({
+                 itemId: value.item_id,

@@ -156,7 +156,8 @@ describe('mcpTools execute wrapper', () => {
         { name: tool.id, params: { query: 'hello', unexpected: true } },
         {
           toolCallId: 'outer-1',
-          messages: []
+          messages: [],
+          context: undefined
         }
       )
     ).rejects.toThrow(/Invalid params/)

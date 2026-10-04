@@ -1,19 +1,19 @@
+import type { ProviderV4 } from '@ai-sdk/provider'
 /**
  * ProviderExtension 单元测试
  */
-
-import type { ProviderV3 } from '@ai-sdk/provider'
-import { createMockProviderV3, createMockRerankingModel } from '@test-utils'
+import { createMockProviderV4, createMockRerankingModel } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProviderExtension } from '../core/ProviderExtension'
+import type { AiSdkProvider } from '../types'
 
 describe('ProviderExtension', () => {
   describe('Static create() Method', () => {
     it('should create extension with config object', () => {
       const extension = ProviderExtension.create({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension).toBeInstanceOf(ProviderExtension)
@@ -23,7 +23,7 @@ describe('ProviderExtension', () => {
     it('should create extension with config function', () => {
       const configFn = vi.fn(() => ({
         name: 'test-provider',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         defaultOptions: { apiKey: 'test-key' }
       }))
 
@@ -44,7 +44,7 @@ describe('ProviderExtension', () => {
 
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: createMockProviderV3 as any, // Type assertion needed as mock has different signature
+        create: createMockProviderV4 as any, // Type assertion needed as mock has different signature
         defaultOptions: {
           apiKey: 'test-key'
         }
@@ -58,7 +58,7 @@ describe('ProviderExtension', () => {
 
       const extension = ProviderExtension.create(() => ({
         name: 'dynamic-provider',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         defaultOptions: {
           apiKey: envVariable // Captured at creation time
         }
@@ -75,7 +75,7 @@ describe('ProviderExtension', () => {
       expect(() => {
         ProviderExtension.create(() => ({
           name: '', // Invalid
-          create: createMockProviderV3
+          create: createMockProviderV4
         }))
       }).toThrow('name is required')
 
@@ -97,7 +97,7 @@ describe('ProviderExtension', () => {
       expect(() => {
         new ProviderExtension({
           name: '',
-          create: createMockProviderV3
+          create: createMockProviderV4
         })
       }).toThrow('name is required')
     })
@@ -124,7 +124,7 @@ describe('ProviderExtension', () => {
     it('should create extension with valid config', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.config.name).toBe('test-provider')
@@ -135,7 +135,7 @@ describe('ProviderExtension', () => {
     it('should return new instance with merged settings', () => {
       const original = new ProviderExtension<any>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         defaultOptions: { apiKey: 'original-key' }
       })
 
@@ -157,7 +157,7 @@ describe('ProviderExtension', () => {
     it('should override existing options', () => {
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         defaultOptions: { apiKey: 'old-key', timeout: 5000 }
       })
 
@@ -174,7 +174,7 @@ describe('ProviderExtension', () => {
     it('should return only main ID when no aliases or variants', () => {
       const extension = new ProviderExtension({
         name: 'openai',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.getProviderIds()).toEqual(['openai'])
@@ -184,7 +184,7 @@ describe('ProviderExtension', () => {
       const extension = new ProviderExtension({
         name: 'openrouter',
         aliases: ['or', 'open-router'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.getProviderIds()).toEqual(['openrouter', 'or', 'open-router'])
@@ -193,7 +193,7 @@ describe('ProviderExtension', () => {
     it('should include variant IDs', () => {
       const extension = new ProviderExtension({
         name: 'openai',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: [
           {
             suffix: 'chat',
@@ -210,7 +210,7 @@ describe('ProviderExtension', () => {
       const extension = new ProviderExtension({
         name: 'azure',
         aliases: ['az'],
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: [
           {
             suffix: 'chat',
@@ -233,7 +233,7 @@ describe('ProviderExtension', () => {
     it('should return true for main ID', () => {
       const extension = new ProviderExtension({
         name: 'openai',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.hasProviderId('openai')).toBe(true)
@@ -243,7 +243,7 @@ describe('ProviderExtension', () => {
       const extension = new ProviderExtension({
         name: 'openrouter',
         aliases: ['or'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.hasProviderId('or')).toBe(true)
@@ -252,7 +252,7 @@ describe('ProviderExtension', () => {
     it('should return true for variant ID', () => {
       const extension = new ProviderExtension({
         name: 'openai',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: [
           {
             suffix: 'chat',
@@ -268,7 +268,7 @@ describe('ProviderExtension', () => {
     it('should return false for non-existent ID', () => {
       const extension = new ProviderExtension({
         name: 'openai',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.hasProviderId('anthropic')).toBe(false)
@@ -280,12 +280,12 @@ describe('ProviderExtension', () => {
       const chatVariant = {
         suffix: 'chat',
         name: 'Chat Mode',
-        transform: (provider: ProviderV3) => provider
+        transform: (provider: AiSdkProvider) => provider
       }
 
       const extension = new ProviderExtension({
         name: 'test',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: [chatVariant]
       })
 
@@ -295,7 +295,7 @@ describe('ProviderExtension', () => {
     it('should return undefined for non-existent variant', () => {
       const extension = new ProviderExtension({
         name: 'test',
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: []
       })
 
@@ -305,7 +305,7 @@ describe('ProviderExtension', () => {
     it('should return undefined when no variants configured', () => {
       const extension = new ProviderExtension({
         name: 'test',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       expect(extension.getVariant('chat')).toBeUndefined()
@@ -325,7 +325,7 @@ describe('ProviderExtension', () => {
         create: ((settings: any) => {
           // TypeScript should infer settings as TestSettings
           expect(settings?.apiKey).toBeDefined()
-          return createMockProviderV3()
+          return createMockProviderV4()
         }) as any,
         defaultOptions: {
           apiKey: 'test-key',
@@ -352,8 +352,8 @@ describe('ProviderExtension', () => {
       const fallbackModel = createMockRerankingModel({ modelId: 'fallback-reranker' })
       const fallbackFactory = vi.fn(() => fallbackModel)
       const createFn = vi.fn(() => {
-        const provider = createMockProviderV3({ provider: 'test-provider' })
-        delete (provider as Partial<ProviderV3>).rerankingModel
+        const provider = createMockProviderV4({ provider: 'test-provider' })
+        delete (provider as Partial<ProviderV4>).rerankingModel
         return provider
       })
       const extension = new ProviderExtension<TestSettings>({
@@ -379,7 +379,7 @@ describe('ProviderExtension', () => {
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
         create: () =>
-          createMockProviderV3({
+          createMockProviderV4({
             provider: 'test-provider',
             rerankingModel: nativeFactory
           }),
@@ -398,7 +398,7 @@ describe('ProviderExtension', () => {
     it('should return readonly frozen options', () => {
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         defaultOptions: { apiKey: 'test-key', timeout: 5000 }
       })
 
@@ -413,7 +413,7 @@ describe('ProviderExtension', () => {
     it('should deep merge nested objects', () => {
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         defaultOptions: {
           apiKey: 'key1',
           headers: {
@@ -452,7 +452,7 @@ describe('ProviderExtension', () => {
     it('should not mutate original extension', () => {
       const original = new ProviderExtension<any>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         defaultOptions: {
           nested: { value: 'original' }
         }
@@ -478,7 +478,7 @@ describe('ProviderExtension', () => {
     }
 
     it('should cache and reuse instance with same settings', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
         create: createFn as any
@@ -496,7 +496,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should create new instance with different settings', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
         create: createFn as any
@@ -515,7 +515,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should handle undefined settings correctly', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
         create: createFn as any
@@ -532,7 +532,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should compute stable hash for same settings in different order', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -551,7 +551,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should merge with default options before hashing', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any,
@@ -570,7 +570,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should handle nested objects in settings', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -596,7 +596,7 @@ describe('ProviderExtension', () => {
     it('should support variant suffix parameter', async () => {
       const extension = new ProviderExtension<TestSettings>({
         name: 'test-provider',
-        create: createMockProviderV3 as any,
+        create: createMockProviderV4 as any,
         variants: [
           {
             suffix: 'chat',
@@ -617,7 +617,7 @@ describe('ProviderExtension', () => {
 
     it('should support dynamic import providers', async () => {
       const mockModule = {
-        createProvider: vi.fn(createMockProviderV3)
+        createProvider: vi.fn(createMockProviderV4)
       }
 
       const extension = new ProviderExtension<TestSettings>({
@@ -635,7 +635,7 @@ describe('ProviderExtension', () => {
 
     it('should throw error if creatorFunctionName not found in module', async () => {
       const mockModule = {
-        wrongName: vi.fn(createMockProviderV3)
+        wrongName: vi.fn(createMockProviderV4)
       }
 
       const extension = new ProviderExtension<TestSettings>({
@@ -653,7 +653,7 @@ describe('ProviderExtension', () => {
       const createFn = vi.fn(async () => {
         // Simulate async delay
         await new Promise((resolve) => setTimeout(resolve, 10))
-        return createMockProviderV3()
+        return createMockProviderV4()
       })
 
       const extension = new ProviderExtension<TestSettings>({
@@ -683,7 +683,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should handle arrays in settings', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -700,7 +700,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should differentiate settings with different array values', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -719,7 +719,7 @@ describe('ProviderExtension', () => {
 
   describe('Cache Key Correctness (no hash collisions)', () => {
     it('should differentiate settings with different API keys', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -733,7 +733,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should differentiate settings with different base URLs', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -747,7 +747,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should treat structurally identical settings as the same regardless of construction', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -766,7 +766,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should differentiate same-base-provider with different variant suffixes', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'azure',
         create: createFn as any,
@@ -794,7 +794,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should reuse settings with the same function reference', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -813,7 +813,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should distinguish settings with different function references', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -833,7 +833,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should distinguish settings with null vs missing keys', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any
@@ -853,7 +853,7 @@ describe('ProviderExtension', () => {
     })
 
     it('should not collide on similarly-structured but different settings', async () => {
-      const createFn = vi.fn(createMockProviderV3)
+      const createFn = vi.fn(createMockProviderV4)
       const extension = new ProviderExtension<any>({
         name: 'test-provider',
         create: createFn as any

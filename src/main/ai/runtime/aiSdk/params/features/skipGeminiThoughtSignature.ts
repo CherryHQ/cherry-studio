@@ -19,7 +19,7 @@ const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
   const MAGIC_STRING = 'skip_thought_signature_validator'
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }

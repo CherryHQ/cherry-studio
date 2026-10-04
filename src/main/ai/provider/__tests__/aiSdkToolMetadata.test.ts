@@ -1,6 +1,6 @@
-import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart, LanguageModelV4Usage } from '@ai-sdk/provider'
 import { readUIMessageStream, streamText, tool, type UIMessage, type UIMessageChunk } from 'ai'
-import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test'
+import { convertArrayToReadableStream, MockLanguageModelV4 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -16,13 +16,13 @@ const TOOL_METADATA = {
   }
 } as const
 
-const USAGE: LanguageModelV3Usage = {
+const USAGE: LanguageModelV4Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
   outputTokens: { total: 1, text: 1, reasoning: undefined }
 }
 
-function createToolCallModel(): MockLanguageModelV3 {
-  const parts: LanguageModelV3StreamPart[] = [
+function createToolCallModel(): MockLanguageModelV4 {
+  const parts: LanguageModelV4StreamPart[] = [
     {
       type: 'tool-call',
       toolCallId: 'call-1',
@@ -36,7 +36,7 @@ function createToolCallModel(): MockLanguageModelV3 {
     }
   ]
 
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doStream: async () => ({ stream: convertArrayToReadableStream(parts) })
   })
 }

@@ -18,7 +18,7 @@ import {
   mcpResourceListOutputSchema
 } from '@shared/ai/builtinTools'
 
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import { resolveMcpResourceServers } from '../mcp/resolveAssistantMcpTools'
 import { listScopedMcpResources } from '../mcp/scopedResources'
 import type { ToolEntry } from '../types'
@@ -32,6 +32,7 @@ export const MCP_RESOURCE_LIST_DESCRIPTION =
   'display only and is not unique.'
 
 const mcpResourceListTool = tool({
+  contextSchema: requestContextSchema,
   description: MCP_RESOURCE_LIST_DESCRIPTION,
   inputSchema: mcpResourceListInputSchema,
   outputSchema: mcpResourceListOutputSchema,

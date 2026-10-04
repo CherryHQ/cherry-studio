@@ -20,7 +20,7 @@ export async function toWireToolDefs(tools: ToolSet | undefined): Promise<WireTo
   return Promise.all(
     Object.entries(tools).map(async ([name, tool]) => ({
       name,
-      description: tool.description,
+      description: typeof tool.description === 'function' ? tool.description({ context: undefined }) : tool.description,
       input_schema: await canonicalSchema(tool.inputSchema)
     }))
   )

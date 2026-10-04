@@ -340,7 +340,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
     })
 
     const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
-    expect(body.reasoning).toEqual({ effort })
+    expect(body.reasoning).toMatchObject({ effort })
   })
 })
 

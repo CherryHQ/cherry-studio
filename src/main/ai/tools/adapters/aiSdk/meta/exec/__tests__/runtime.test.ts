@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import type { Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -15,11 +15,11 @@ import { runExec } from '../runtime'
  * error propagation without poking at worker internals.
  */
 
-function makeOptions(overrides: Partial<ToolExecutionOptions> = {}): ToolExecutionOptions {
+function makeOptions(overrides: Partial<ToolExecutionOptions<unknown>> = {}): ToolExecutionOptions<unknown> {
   return {
     toolCallId: 'outer-1',
     messages: [],
-    experimental_context: { requestId: 'req-1' },
+    context: { requestId: 'req-1' },
     ...overrides
   }
 }
@@ -65,7 +65,7 @@ describe('runExec / handleToolCall', () => {
     const code = `return await tools.invoke('mcp__s1__t', {})`
     await runExec(code, { registry: reg, parentOptions: makeOptions({ toolCallId: 'outer-9' }) })
 
-    const passedOptions = execute.mock.calls[0][1] as ToolExecutionOptions
+    const passedOptions = execute.mock.calls[0][1] as ToolExecutionOptions<unknown>
     expect(passedOptions.toolCallId).toMatch(/^outer-9::exec::/)
   })
 
@@ -172,7 +172,7 @@ describe('runExec / handleToolCall', () => {
     let childSignal: AbortSignal | undefined
     let abortedReason: unknown
 
-    const execute = vi.fn().mockImplementation((_params, options: ToolExecutionOptions) => {
+    const execute = vi.fn().mockImplementation((_params, options: ToolExecutionOptions<unknown>) => {
       childSignal = options.abortSignal
       return new Promise((resolve) => {
         // Resolve only once the child signal aborts, so we can observe propagation.

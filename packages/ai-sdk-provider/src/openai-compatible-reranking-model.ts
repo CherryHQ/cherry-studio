@@ -1,5 +1,5 @@
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
-import type { RerankingModelV3 } from '@ai-sdk/provider'
+import type { RerankingModelV4 } from '@ai-sdk/provider'
 import {
   combineHeaders,
   createStatusCodeErrorResponseHandler,
@@ -22,8 +22,8 @@ export type OpenAICompatibleRerankingModelConfig = {
   fetch?: FetchFunction
 }
 
-type DoRerankOptions = Parameters<RerankingModelV3['doRerank']>[0]
-type DoRerankResult = Awaited<ReturnType<RerankingModelV3['doRerank']>>
+type DoRerankOptions = Parameters<RerankingModelV4['doRerank']>[0]
+type DoRerankResult = Awaited<ReturnType<RerankingModelV4['doRerank']>>
 type RerankRanking = DoRerankResult['ranking']
 
 type OpenAICompatibleRerankResponseItem = {
@@ -35,8 +35,8 @@ type OpenAICompatibleRerankResponse = {
   results?: OpenAICompatibleRerankResponseItem[]
 }
 
-export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
-  readonly specificationVersion = 'v3'
+export class OpenAICompatibleRerankingModel implements RerankingModelV4 {
+  readonly specificationVersion = 'v4'
 
   constructor(
     readonly modelId: string,
@@ -108,7 +108,7 @@ function parseRerankResponse(body: unknown, documentCount: number): RerankRankin
 export function createOpenAICompatibleRerankingModel(
   modelId: string,
   settings: OpenAICompatibleRerankingModelSettings
-): RerankingModelV3 {
+): RerankingModelV4 {
   const baseURL = withoutTrailingSlash(settings.baseURL)
   if (!baseURL) {
     throw new Error('OpenAI-compatible reranking model requires baseURL')

@@ -5,13 +5,13 @@
  * `openai-compatible.aihubmix`), `providerOptionsName` stops matching the
  * namespace the app writes and every option silently vanishes from the wire.
  */
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
 import { captureWithFetch } from './captureRequest'
 
-const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+const PROMPT: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire', () => {
   it("serializes reasoningEffort 'none' from the aihubmix namespace as reasoning_effort", async () => {

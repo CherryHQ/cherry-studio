@@ -24,7 +24,7 @@
  * against the original zod schema.
  */
 
-import type { JSONSchema7, JSONSchema7Definition, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONSchema7, JSONSchema7Definition, LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -203,7 +203,7 @@ function hasIncompatibleGeminiArray(schema: JSONSchema7Definition): boolean {
   })
 }
 
-function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: RequestScope): LanguageModelV3CallOptions {
+function normalizeToolSchemas(params: LanguageModelV4CallOptions, scope: RequestScope): LanguageModelV4CallOptions {
   const tools = params.tools
   if (!tools) return params
 
@@ -212,7 +212,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   let changed = false
   const droppedTools: string[] = []
-  const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
+  const transformedTools: NonNullable<LanguageModelV4CallOptions['tools']> = []
   for (const tool of tools) {
     if (tool.type !== 'function') {
       transformedTools.push(tool)
@@ -246,7 +246,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
 function createToolSchemaCompatibilityMiddleware(scope: RequestScope): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     transformParams: async ({ params }) => normalizeToolSchemas(params, scope)
   }
 }

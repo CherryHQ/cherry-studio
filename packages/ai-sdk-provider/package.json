@@ -25,14 +25,13 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "dist/index.cjs",
+  "main": "dist/index.mjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.mts",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     }
   },
@@ -45,8 +44,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.15",
-    "@ai-sdk/provider-utils": "^4.0.48"
+    "@ai-sdk/provider": "^4.0.21",
+    "@ai-sdk/provider-utils": "^5.0.53"
   },
   "devDependencies": {
     "tsdown": "^0.22.14",
@@ -54,12 +53,12 @@
     "vitest": "^5.0.1"
   },
   "peerDependencies": {
-    "@ai-sdk/anthropic": "^3.0.71",
-    "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.109",
-    "@ai-sdk/openai-compatible": "^2.0.72"
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/openai-compatible": "^3.0.62"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

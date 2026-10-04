@@ -12,7 +12,7 @@
  * would otherwise send unsupported audio/video → provider error.
  */
 
-import type { ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
+import type { FilePart, ImagePart, ModelMessage, ToolResultPart, UIMessage } from 'ai'
 
 import type { Model } from '@shared/data/types/model'
 import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
@@ -92,9 +92,10 @@ function itemModality(item: ToolResultContentItem): GatedModality | undefined {
     case 'image-url':
     case 'image-file-id':
       return 'image'
-    case 'media':
+    case 'file':
+    case 'file-url':
     case 'file-data':
-      return gatedModality(item.mediaType)
+      return item.mediaType?.split('/')[0] === 'image' ? 'image' : gatedModality(item.mediaType ?? '')
     default:
       return undefined
   }
@@ -141,7 +142,7 @@ export function routeToolResultMedia(
 
   let changed = false
   const out: ModelMessage[] = []
-  let pendingParts: Array<{ type: 'text'; text: string } | ImagePart> = []
+  let pendingParts: Array<{ type: 'text'; text: string } | ImagePart | FilePart> = []
 
   const flushImages = () => {
     if (pendingParts.length === 0) return
@@ -162,16 +163,19 @@ export function routeToolResultMedia(
       let partChanged = false
       let imageIndex = 0
       const value = part.output.value.map((item) => {
-        if (item.type !== 'image-data') return item
+        const inlineFileImage = item.type === 'file' && itemModality(item) === 'image' && item.data.type === 'data'
+        if (item.type !== 'image-data' && !inlineFileImage) return item
         const anchor = `[tool-result attachment call_id=${JSON.stringify(part.toolCallId)} image=${++imageIndex}]`
         pendingParts.push(
           { type: 'text', text: anchor },
-          {
-            type: 'image',
-            image: item.data,
-            mediaType: item.mediaType,
-            ...(item.providerOptions && { providerOptions: item.providerOptions })
-          }
+          item.type === 'file'
+            ? { ...item, mediaType: item.mediaType ?? 'image' }
+            : {
+                type: 'image',
+                image: item.data,
+                mediaType: item.mediaType,
+                ...(item.providerOptions && { providerOptions: item.providerOptions })
+              }
         )
         partChanged = true
         return {

@@ -1,4 +1,4 @@
-import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV4 } from '@ai-sdk/provider'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { createOllama, type OllamaProvider, type OllamaProviderSettings } from 'ollama-ai-provider-v2'
 
@@ -23,7 +23,7 @@ export function createOllamaWithImageModel(settings: OllamaProviderSettings = {}
   const baseURL = withoutTrailingSlash(settings.baseURL) ?? DEFAULT_OLLAMA_BASE_URL
   const transport = createOllamaTransport({ baseURL, headers: settings.headers, fetch: settings.fetch })
 
-  provider.imageModel = (modelId: string): ImageModelV3 =>
+  provider.imageModel = (modelId: string): ImageModelV4 =>
     createImageGenerationModel(modelId, { provider: OLLAMA_PROVIDER_NAME, transport })
 
   return provider

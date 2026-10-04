@@ -1,12 +1,12 @@
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { APICallError } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-// Guards patches/@ai-sdk__openai-compatible@2.0.72.patch: `response_format: 'b64_json'` is
+// Guards patches/@ai-sdk__openai-compatible@3.0.62.patch: `response_format: 'b64_json'` is
 // retried away on a 400 (#18147, #18323, #18662) and `url` replies parse (#14579).
 describe('patched @ai-sdk/openai-compatible image model', () => {
-  const options = { prompt: 'a fox', n: 1, providerOptions: {} } as ImageModelV3CallOptions
+  const options = { prompt: 'a fox', n: 1, providerOptions: {} } as ImageModelV4CallOptions
 
   const ok = (payload: unknown) =>
     new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })

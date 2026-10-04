@@ -1,12 +1,12 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from '../ark'
 
 const parse = (body: BodyInit | null | undefined) => JSON.parse(body as string)
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Say hi.' }] }]
+const prompt: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Say hi.' }] }]
 
 const arkResponseBody = {
   id: 'resp_ark',

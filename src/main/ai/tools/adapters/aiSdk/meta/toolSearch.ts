@@ -1,3 +1,4 @@
+import { type Tool, tool } from 'ai'
 /**
  * `tool_search` meta-tool — exposes the deferred-tool catalog to the LLM
  * by namespace. Constructed per request so it can close over the deferred
@@ -6,10 +7,9 @@
  * Surfaces ONLY deferred entries — tools that are already inline in the
  * request's ToolSet would be redundant in search results.
  */
-
-import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import { requestContextSchema, type RequestContext } from '../context'
 import type { ToolRegistry } from '../registry'
 import { serializeToolSchema } from './schemaStub'
 
@@ -40,7 +40,8 @@ export function createToolSearchTool(
   deferredNames: ReadonlySet<string>,
   inspectedNames: Set<string>
 ): Tool {
-  return tool({
+  return tool<{ query?: string; namespace?: string; verbose: boolean }, ToolSearchOutput, RequestContext>({
+    contextSchema: requestContextSchema,
     description:
       'Discover available tools by namespace. This is tool discovery (NOT web search). Tools are ' +
       'grouped by domain (web, kb, mcp:gmail, ...). Omit `query` to browse all. Inspect a name ' +

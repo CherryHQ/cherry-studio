@@ -1,4 +1,4 @@
-import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions, LanguageModelV4FunctionTool, LanguageModelV4Message } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
@@ -15,12 +15,12 @@ function makeModel(overrides: Partial<Model> = {}): Model {
   return { id: 'anthropic::claude-sonnet-4', name: 'Claude Sonnet 4', ...overrides } as Model
 }
 
-function textMessage(role: 'system' | 'user' | 'assistant', text: string): LanguageModelV3Message {
+function textMessage(role: 'system' | 'user' | 'assistant', text: string): LanguageModelV4Message {
   if (role === 'system') return { role, content: text }
   return { role, content: [{ type: 'text', text }] }
 }
 
-function makeTool(name: string, descriptionChars = 10): LanguageModelV3FunctionTool {
+function makeTool(name: string, descriptionChars = 10): LanguageModelV4FunctionTool {
   return {
     type: 'function',
     name,
@@ -44,7 +44,7 @@ function getCacheControl(value: { providerOptions?: unknown }): unknown {
   return (value.providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic?.cacheControl
 }
 
-function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
+function collectCacheControls(params: LanguageModelV4CallOptions): unknown[] {
   const controls: unknown[] = []
   for (const tool of params.tools ?? []) {
     if ('providerOptions' in tool && hasCacheControl(tool)) controls.push(getCacheControl(tool))
@@ -60,7 +60,7 @@ function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {
   return controls
 }
 
-function countCacheMarkers(params: LanguageModelV3CallOptions): number {
+function countCacheMarkers(params: LanguageModelV4CallOptions): number {
   let count = 0
   for (const tool of params.tools ?? []) {
     if ('providerOptions' in tool && hasCacheControl(tool)) count++
@@ -77,10 +77,10 @@ function countCacheMarkers(params: LanguageModelV3CallOptions): number {
 }
 
 async function transform(
-  input: Partial<LanguageModelV3CallOptions>,
+  input: Partial<LanguageModelV4CallOptions>,
   provider = makeProvider(),
   assistant?: Assistant
-): Promise<LanguageModelV3CallOptions> {
+): Promise<LanguageModelV4CallOptions> {
   return transformAnthropicCacheParams(
     {
       prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
@@ -222,7 +222,7 @@ describe('transformAnthropicCacheParams', () => {
 
     expect(out.tools?.map((tool) => tool.name)).toEqual(['a_tool', 'z_tool'])
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
-    expect(hasCacheControl(out.tools?.at(-1) as LanguageModelV3FunctionTool)).toBe(true)
+    expect(hasCacheControl(out.tools?.at(-1) as LanguageModelV4FunctionTool)).toBe(true)
   })
 
   it('serializes the same selected tool set identically regardless of input order', async () => {

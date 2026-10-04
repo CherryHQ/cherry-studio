@@ -1,7 +1,7 @@
 /**
  * Creation 模块类型定义
  */
-import type { JSONObject, LanguageModelV3Middleware } from '@ai-sdk/provider'
+import type { JSONObject, LanguageModelV4Middleware } from '@ai-sdk/provider'
 
 import type { CoreProviderSettingsMap, ProviderId } from '../providers/types'
 
@@ -18,6 +18,6 @@ export interface ModelConfig<
   providerId: T
   modelId: string
   providerSettings: TSettingsMap[T & keyof TSettingsMap]
-  middlewares?: LanguageModelV3Middleware[]
+  middlewares?: LanguageModelV4Middleware[]
   extraModelConfig?: JSONObject
 }

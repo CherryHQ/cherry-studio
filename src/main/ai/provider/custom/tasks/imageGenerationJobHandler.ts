@@ -1,4 +1,4 @@
-import type { ImageModelV3File } from '@ai-sdk/provider'
+import type { ImageModelV4File } from '@ai-sdk/provider'
 
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
@@ -162,7 +162,7 @@ async function buildSubmitInput(
   }
 }
 
-async function readImageFile(fileId: string): Promise<ImageModelV3File> {
+async function readImageFile(fileId: string): Promise<ImageModelV4File> {
   const { content, mime } = await application.get('FileManager').read(fileId, { encoding: 'base64' })
   return { type: 'file', mediaType: mime, data: content }
 }

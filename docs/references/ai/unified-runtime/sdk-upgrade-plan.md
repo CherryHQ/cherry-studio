@@ -25,6 +25,81 @@ Harness, FilesV4 upload adoption, automatic stream retries, image Batch jobs, an
 subsequent work. Existing attachments, image generation/editing, custom image jobs, embedding/rerank,
 structured output, compaction and UI streams are part of this upgrade, not optional follow-ups.
 
+## Implementation record — 2026-10-04
+
+The implementation is [PR #21310](https://github.com/CherryHQ/cherry-studio/pull/21310),
+stacked on the research and plans in [PR #16462](https://github.com/CherryHQ/cherry-studio/pull/16462).
+The earlier merge of Cherry main is retained. AI SDK source inspection uses main
+`15f1a4d0531ac641a4a4d9cc602c0536c1906834`; installed dependencies use published versions.
+
+### Dependency and protocol closure
+
+| Package group | Selected versions / protocol |
+|---|---|
+| Core | `ai@7.0.127`, provider `4.0.21`, provider-utils `5.0.53`, React adapter `4.0.130` |
+| Integration | OTel `1.0.127`, devtools `1.0.30`, ai-retry `2.7.0` |
+| OpenAI family | OpenAI `4.0.83`, Azure `4.0.90`, compatible `3.0.62`, Open Responses `2.0.58` — native V4 |
+| Anthropic / Google | Anthropic `4.0.71`, Google `4.0.87`, Vertex `5.0.101`, Bedrock `5.0.105` — native V4 |
+| Other official providers | Gateway `4.0.103`, Bytedance `2.0.56`, Cerebras `3.0.62`, Cohere `4.0.54`, DeepSeek `3.0.58`, Groq `4.0.54`, Hugging Face `2.0.62`, Mistral `4.0.56`, Perplexity `5.0.5`, Together `3.0.63`, xAI `4.0.59` — native V4 |
+| Community providers | OpenRouter `3.1.0`, Ollama `4.0.1` — native V4 |
+| Explicit exception | GitHub Copilot `1.0.0` has no published V4 replacement in this inventory. Retain its V3 provider `3.0.18`, utils `4.0.56`, compatible `2.0.72`; the SDK converts at the execution boundary |
+| Cherry providers | Custom providers and `@cherrystudio/ai-sdk-provider` expose V4, including image, embedding, rerank, speech and transcription contracts |
+| Workspace exports | AI Core and AI SDK Provider publish ESM only and require Node >=22; their changeset records the public breaking changes |
+
+xAI is pinned to the latest V4-protocol 4.x provider: 5.x removes Chat Completions. The base extension
+explicitly uses `chat`, while `xai-responses` continues to use Responses, preserving saved endpoint choices.
+
+The core executor and middleware use V4. Its public wrappers accept native V4 models and the previous
+V3 model inputs. This does not advertise V4 feature parity for Copilot. No new FilesV4 lifecycle or
+provider-reference upload path is enabled as part of this compatibility boundary.
+
+### Patch decisions
+
+| Previous patch | Decision and protected behavior | Regression evidence |
+|---|---|---|
+| Core `ai@6.0.185` image hunks | Reimplement for `7.0.127`: HTTP/data URLs, custom downloads, cancellation, returned bytes | `generateImageDownloadPatch.test.ts`; ai-core image generation/editing tests |
+| Core and React snapshot hunks | Remove: v7 performs selective immutable snapshot copying upstream | `aiSdkV7.test.ts`: retained snapshots across nested tool input/metadata changes and 1000 text chunks |
+| Anthropic | Reimplement: optional thinking signature, unknown gateway model token limits, internal tool-schema sanitization and explicit `additionalProperties` | `anthropic.maxOutputTokens`, `anthropic.sonnet55`, `aihubmix.anthropicTools` boundary tests |
+| OpenAI | Reimplement: correct reasoning-model sampling guard, image URLs, strict Responses message/item IDs, opted-in raw reasoning replay/deltas, nullable output annotations | `openaiResponses*Patch`, `openaiResponsesItemId`, image download tests |
+| Google | Reimplement model-path/prefix compatibility; backport Imagen `/predict` into V4 while retaining native Gemini generation/editing | `googleImagePatch.test.ts`: Imagen parameters and images, Gemini input images, unsupported edits; AiHubMix image tests |
+| OpenAI-compatible | Reimplement native V4: reasoning replay including empty turns, tagged image output, embedding usage fallback, image URL replies and implicit response-format retry | Compatible image tests; AiHubMix/DMX/Silicon boundary tests |
+| Compatible `2.0.72` and Copilot | Retain only for Copilot's V3 dependency boundary | `copilotEndpointPatch.test.ts`: CJS/ESM request routing through SDK V4 adaptation |
+| Open Responses | Remove: `2.0.58` already replays reasoning content and uses the active reasoning-part identity | `openResponsesPatch.test.ts` |
+| OpenRouter | Reimplement strict JSON schema, search domain options, web fetch, image MIME and URL/base64 handling | `aiSdkToolMetadata`, provider-options tests and OpenRouter reasoning tests |
+| Ollama | Reimplement thinking levels/omission, nested sampling options, image-only input and reasoning-before-text stream order | `ollama.chatReasoning.test.ts` |
+
+### Semantic migration and evidence
+
+- Tool execution reads schema-scoped `context`; the agent supplies `toolsContext`, with shared orchestration
+  in `runtimeContext`. Existing host approval remains authoritative. Native SDK tool callbacks replace the
+  execute wrapper and include asynchronous preliminary results. Cherry's observer hook names remain stable.
+- Agent generation returns `finalStep.text`; aggregate usage remains aggregate. OTel is configured per call
+  using the official integration and Cherry's tracer; disabled tracing stays disabled.
+- Reasoning remains on the existing registry/provider-option path. The chat agent does not yet expose
+  top-level `reasoning`; [RG-01–06](./migration-plan.md#unified-reasoning-adoption) tracks that adoption
+  separately, including precedence, budget differences and output/replay retention.
+- Canonical V4 files and reasoning files retain media accounting and tool-image routing. Inline text files
+  count toward compaction; historical error-only messages retain their turn boundary during UI conversion.
+- Retry tests preserve key rotation after exhausted transient attempts; the finite key list bounds failover.
+  SDK stream recovery remains disabled during this baseline upgrade.
+- Executed codemod: `@ai-sdk/codemod@4.0.3 v7/rename-step-count-is src/main/ai`. The remaining inventory below
+  was audited and migrated manually where applicable; the full codemod bundle was not executed.
+- V6 baseline: 534 ai-core tests and 82 selected main tests passed. The v7 full run covered all 12 Vitest
+  projects: 33,939 passed, 68 skipped, and one newly added xAI fixture failed because it omitted the required
+  `object: 'response'` field. After correcting that fixture, all three tests in its file passed on rerun;
+  the full suite was not repeated. No other test failures or unhandled errors were reported.
+- Frozen installation, all six typecheck targets, i18n, repository checks and the docs gate passed. Lint
+  passed with zero errors and 43 existing ESLint warnings using `pnpm lint --ignore-pattern '.context/**'`;
+  the unfiltered aggregate command also linted ignored research/vendor scratch files and failed there.
+- Production Electron main/preload/renderer and utility-process builds passed. Both workspace packages
+  were packed and installed outside the monorepo; all four public ESM entrypoints and a real SDK request
+  passed on Node 22.0.0 and 24.21.0. Electron 44.2.0 started with the existing development profile and rendered
+  its main window; the attached renderer reported no page errors during the smoke check. Configured MCP
+  services with expired endpoints or an unavailable demo implementation still reported startup errors.
+- Controlled HTTP/fetch fixtures execute the real SDK and providers, including six Imagen/Gemini image
+  compatibility cases. Real-account file uploads, generation/editing, provider-native tools, and the
+  packaged OS matrix remain manual validation items; latency/memory budgets were not benchmarked.
+
 ## 1.1 Freeze dependencies and reproduce the v6 baseline
 
 1. Record the implementation branch's exact SHA, Node/pnpm/Electron versions, and resolved dependency
@@ -68,7 +143,7 @@ The full patch contents are the authority. This table groups work; it does not p
 The inspected official bundle contains **32 v7 transforms**. The tables below cover all of them.
 Names are suffixes under `v7/`. “Candidate” means a matching current source surface, not a dry-run result.
 “No direct use found” refers to a static production-source scan; tests, examples, aliases, and generated
-outputs still need classification. No codemod has been run for this document.
+outputs still need classification. This is the planning inventory; the executed transform is recorded above.
 
 Use a clean, disposable checkout of the implementation SHA. First inspect the pinned tool's `--help`.
 The official full-bundle preview and a scoped example are:

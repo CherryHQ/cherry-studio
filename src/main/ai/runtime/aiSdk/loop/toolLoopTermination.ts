@@ -1,4 +1,4 @@
-import { stepCountIs, type StepResult, type StopCondition, type ToolSet } from 'ai'
+import { isStepCount, type StepResult, type StopCondition, type ToolSet } from 'ai'
 
 import { getTrustedLocalToolTerminalFailure, type TerminalToolFailure } from './localToolTerminalOutcome'
 
@@ -37,7 +37,7 @@ function trackStopCondition(reason: TrackedStopReason, condition: StopCondition<
 
 /** The cap is an outcome reported by this condition, not inferred later from the result shape. */
 export function createToolCallLimitStopCondition(toolCallLimit: number): StopCondition<ToolSet> {
-  return trackStopCondition('tool-call-limit', stepCountIs(toolCallLimit))
+  return trackStopCondition('tool-call-limit', isStepCount(toolCallLimit))
 }
 
 /** Record a clean steer yield so it can take precedence if the cap also fires on the same step. */

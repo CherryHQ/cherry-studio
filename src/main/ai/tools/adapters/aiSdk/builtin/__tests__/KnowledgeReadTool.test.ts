@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -43,7 +43,7 @@ type ReadArgs = {
 }
 
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions<unknown>) => Promise<unknown>
   return execute(
     // Mode-specific fields are omitted, not sentinel-valued — kb_read runs without `strict`, so its
     // schema is plain optionals and the model omits what the mode does not use.
@@ -51,7 +51,7 @@ function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}):
     {
       toolCallId: 'tc-1',
       messages: [],
-      experimental_context: {
+      context: {
         requestId: 'req-1',
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal

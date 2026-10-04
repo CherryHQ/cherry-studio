@@ -1,5 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { isStepCount, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
@@ -758,7 +758,7 @@ export function composeStopWhen(
   featureStopConditions: StopCondition<ToolSet>[]
 ): StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined {
   if (featureStopConditions.length === 0) return baseStopWhen
-  const base = baseStopWhen ?? stepCountIs(SDK_DEFAULT_STEP_COUNT)
+  const base = baseStopWhen ?? isStepCount(SDK_DEFAULT_STEP_COUNT)
   return [base, ...featureStopConditions]
 }
 

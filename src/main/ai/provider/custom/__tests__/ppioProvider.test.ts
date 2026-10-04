@@ -61,7 +61,7 @@ describe('createPpioProvider', () => {
     const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
     const img = provider.imageModel('z-image-turbo')
     expect(img.provider).toBe('ppio')
-    expect(img.specificationVersion).toBe('v3')
+    expect(img.specificationVersion).toBe('v4')
   })
 
   it('image transport is built from imageBaseURL, NOT chat baseURL', () => {

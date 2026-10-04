@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart, LanguageModelV4Usage } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,19 +26,19 @@ const context = {
   messageRef: { kind: 'chat' as const, id: 'message-1' }
 }
 
-const usage: LanguageModelV3Usage = {
+const usage: LanguageModelV4Usage = {
   inputTokens: { total: 4, noCache: 4, cacheRead: undefined, cacheWrite: undefined },
   outputTokens: { total: 2, text: 2, reasoning: undefined },
   raw: undefined
 }
 
-async function readAll(stream: ReadableStream<LanguageModelV3StreamPart>): Promise<LanguageModelV3StreamPart[]> {
-  const result: LanguageModelV3StreamPart[] = []
+async function readAll(stream: ReadableStream<LanguageModelV4StreamPart>): Promise<LanguageModelV4StreamPart[]> {
+  const result: LanguageModelV4StreamPart[] = []
   for await (const part of stream) result.push(part)
   return result
 }
 
-function streamOf(parts: readonly LanguageModelV3StreamPart[]): ReadableStream<LanguageModelV3StreamPart> {
+function streamOf(parts: readonly LanguageModelV4StreamPart[]): ReadableStream<LanguageModelV4StreamPart> {
   return new ReadableStream({
     start(controller) {
       for (const part of parts) controller.enqueue(part)
@@ -119,7 +119,7 @@ describe('createLanguageUsageMiddleware', () => {
   })
 
   it('forwards stream chunks unchanged and records per-call TTFT, completion, and thinking', async () => {
-    const parts: LanguageModelV3StreamPart[] = [
+    const parts: LanguageModelV4StreamPart[] = [
       { type: 'reasoning-start', id: 'r1' },
       { type: 'reasoning-delta', id: 'r1', delta: 'think' },
       { type: 'text-delta', id: 't1', delta: 'answer' },
@@ -159,7 +159,7 @@ describe('createLanguageUsageMiddleware', () => {
       .mockReturnValueOnce(130)
       .mockReturnValueOnce(170)
     const middleware = createLanguageUsageMiddleware(context)
-    const parts: LanguageModelV3StreamPart[] = [
+    const parts: LanguageModelV4StreamPart[] = [
       { type: 'text-delta', id: 't1', delta: 'answer' },
       { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage }
     ]
@@ -189,7 +189,7 @@ describe('createLanguageUsageMiddleware', () => {
 
   it('does not create a successful record when a partial stream errors before finish', async () => {
     const middleware = createLanguageUsageMiddleware(context)
-    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+    const stream = new ReadableStream<LanguageModelV4StreamPart>({
       start(controller) {
         controller.enqueue({ type: 'text-delta', id: 't1', delta: 'partial' })
         controller.error(new Error('network'))
@@ -212,7 +212,7 @@ describe('createLanguageUsageMiddleware', () => {
         totalTokens: 120,
         cachedInputTokens: 40
       }
-    } as unknown as LanguageModelV3StreamPart
+    } as unknown as LanguageModelV4StreamPart
 
     const wrapped = await middleware.wrapStream!({
       doStream: async () => ({ stream: streamOf([flatFinish]) })
@@ -238,7 +238,7 @@ describe('createLanguageUsageMiddleware', () => {
       type: 'finish',
       finishReason: { unified: 'stop', raw: 'stop' },
       usage: { outputTokens: 15, reasoningTokens: 4, totalTokens: 15 }
-    } as unknown as LanguageModelV3StreamPart
+    } as unknown as LanguageModelV4StreamPart
 
     const wrapped = await middleware.wrapStream!({
       doStream: async () => ({ stream: streamOf([flatFinish]) })
@@ -263,7 +263,7 @@ describe('createLanguageUsageMiddleware', () => {
       outputTokens: 10,
       totalTokens: 60,
       cachedInputTokens: 15
-    } as unknown as LanguageModelV3Usage
+    } as unknown as LanguageModelV4Usage
 
     await middleware.wrapGenerate!({
       doGenerate: async () => ({
@@ -299,7 +299,7 @@ describe('createLanguageUsageMiddleware', () => {
         totalTokens: 120,
         cachedInputTokens: 40
       }
-    } as unknown as LanguageModelV3StreamPart
+    } as unknown as LanguageModelV4StreamPart
 
     const wrapped = await capture.wrapStream!({
       doStream: () =>
@@ -338,7 +338,7 @@ describe('createLanguageUsageMiddleware', () => {
         totalTokens: 120,
         raw: { cost: 0.0123 }
       }
-    } as unknown as LanguageModelV3StreamPart
+    } as unknown as LanguageModelV4StreamPart
 
     const wrapped = await capture.wrapStream!({
       doStream: () =>

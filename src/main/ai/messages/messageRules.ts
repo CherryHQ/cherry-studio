@@ -187,7 +187,17 @@ export async function toModelMessages(
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  // v7 drops data-only assistant turns; retain the failed turn between user messages.
+  const conversionInput = shaped.map((message) =>
+    message.role === 'assistant' &&
+    message.parts.some((part) => part.type === 'data-error') &&
+    message.parts.every(
+      (part) => part.type.startsWith('data-') || part.type.startsWith('source-') || part.type === 'step-start'
+    )
+      ? { ...message, parts: [...message.parts, { type: 'text' as const, text: '...' }] }
+      : message
+  )
+  const model = await convertToModelMessages(conversionInput, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

@@ -2,7 +2,7 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { JSONObject, LanguageModelV4 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   createProviderRegistry,
@@ -12,12 +12,12 @@ import {
   rerank as _rerank,
   streamText as _streamText,
   wrapEmbeddingModel,
-  wrapImageModel
+  wrapImageModel,
+  wrapLanguageModel
 } from 'ai'
 
-import { isV3Model } from '../models/utils'
 import { type AiPlugin, definePlugin } from '../plugins'
-import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
+import type { AiSdkProvider, CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
 import type {
@@ -68,10 +68,9 @@ export class RuntimeExecutor<
       resolveModel: (modelId: string) => this.resolveImageModel(modelId)
     })
 
-    // Some v3 providers (e.g., @openrouter/ai-sdk-provider) expose textEmbeddingModel
-    // but not embeddingModel. Patch for AI SDK registry compatibility.
+    // Accept legacy third-party providers that still expose textEmbeddingModel.
     const provider = config.provider
-    if (!provider.embeddingModel && provider.textEmbeddingModel) {
+    if (!provider.embeddingModel && 'textEmbeddingModel' in provider && provider.textEmbeddingModel) {
       provider.embeddingModel = (modelId: string) => provider.textEmbeddingModel!(modelId)
     }
 
@@ -141,7 +140,7 @@ export class RuntimeExecutor<
             ? wrapImageModel({
                 model: resolvedModel,
                 middleware: {
-                  specificationVersion: 'v3',
+                  specificationVersion: 'v4',
                   wrapGenerate: async ({ doGenerate, model: activeModel }) => {
                     const startedAt = performance.now()
                     const result = await doGenerate()
@@ -195,7 +194,7 @@ export class RuntimeExecutor<
       ? wrapEmbeddingModel({
           model: embeddingModel,
           middleware: {
-            specificationVersion: 'v3',
+            specificationVersion: 'v4',
             wrapEmbed: async ({ doEmbed, model }) => {
               const startedAt = performance.now()
               const result = await doEmbed()
@@ -247,20 +246,20 @@ export class RuntimeExecutor<
   // === 辅助方法 ===
 
   /**
-   * Resolve a model id to a `LanguageModelV3` instance using this
+   * Resolve a model id to a `LanguageModelV4` instance using this
    * executor's configured provider + registry.
    *
    * Single source of truth for model resolution: respects the optional
    * `modelResolver` (xAI responses, OpenAI chat, etc.) and falls back
    * to `registry.languageModel('${providerId}:${modelId}')`. Both the
    * agent path (via internal `resolveModel` → `streamText`) and external
-   * callers that need a bare `LanguageModelV3` (e.g. context-build's
+   * callers that need a bare `LanguageModelV4` (e.g. context-build's
    * compression model) go through this method, so the resolution logic
    * never forks.
    */
-  public async languageModel(modelId: string): Promise<LanguageModelV3> {
+  public async languageModel(modelId: string): Promise<LanguageModelV4> {
     if (this.config.modelResolver) {
-      return this.config.modelResolver(modelId)
+      return wrapLanguageModel({ model: this.config.modelResolver(modelId), middleware: [] })
     }
     return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
   }
@@ -270,7 +269,7 @@ export class RuntimeExecutor<
    * contributed by this executor's plugins is applied to the returned model.
    * Use `languageModel()` instead when the bare provider model is wanted.
    */
-  public resolveLanguageModel(modelId: string): Promise<LanguageModelV3> {
+  public resolveLanguageModel(modelId: string): Promise<LanguageModelV4> {
     return this.pluginEngine.resolveModel(modelId, [this.resolveModelPlugin])
   }
 
@@ -281,24 +280,20 @@ export class RuntimeExecutor<
    * 使用 resolver 函数解析模型，而不是通过 registry.languageModel()。
    * resolver 在 extension 声明处类型安全地捕获了具体 provider 方法。
    */
-  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
+  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV4> {
     if (typeof modelOrId === 'string') {
       return this.languageModel(modelOrId)
     } else {
-      if (!isV3Model(modelOrId)) {
-        throw new Error(
-          `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
-            'All providers should be wrapped with wrapProvider to return V3 models.'
-        )
-      }
-      return modelOrId
+      return wrapLanguageModel({ model: modelOrId, middleware: [] })
     }
   }
 
   /**
    * 解析图像模型：如果是字符串则创建图像模型，如果是模型则直接返回
    */
-  private async resolveImageModel(modelOrId: ImageModelV3 | string): Promise<ImageModelV3> {
+  private async resolveImageModel(
+    modelOrId: generateImageParams['model']
+  ): Promise<Exclude<generateImageParams['model'], string>> {
     try {
       if (typeof modelOrId === 'string') {
         return this.registry.imageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
@@ -324,7 +319,7 @@ export class RuntimeExecutor<
     T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
   >(
     providerId: T,
-    provider: ProviderV3,
+    provider: AiSdkProvider,
     options: TSettingsMap[T],
     plugins?: AiPlugin[],
     modelResolver?: (modelId: string) => any
@@ -343,7 +338,7 @@ export class RuntimeExecutor<
    * ✅ Now accepts provider instance directly
    */
   static createOpenAICompatible(
-    provider: ProviderV3, // ✅ Accept provider instance
+    provider: AiSdkProvider, // ✅ Accept provider instance
     options: CoreProviderSettingsMap['openai-compatible'],
     plugins: AiPlugin[] = []
   ): RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'> {

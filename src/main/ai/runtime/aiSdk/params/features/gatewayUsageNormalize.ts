@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -14,7 +14,7 @@ export {
 } from '@main/ai/utils/usageNormalize'
 
 const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
-  specificationVersion: 'v3',
+  specificationVersion: 'v4',
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate()
     return isFlatV3Usage(result.usage) ? { ...result, usage: normalizeFlatV3Usage(result.usage) } : result
@@ -22,7 +22,7 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
     const normalized = stream.pipeThrough(
-      new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+      new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish' && isFlatV3Usage(chunk.usage)) {
             controller.enqueue({ ...chunk, usage: normalizeFlatV3Usage(chunk.usage) })

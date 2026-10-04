@@ -2140,7 +2140,7 @@ describe('AiStreamManager', () => {
 
       expect(errors).toEqual([])
       expect(message?.parts).toEqual([
-        { type: 'reasoning', text: 'thinking in pieces', state: 'done' },
+        { type: 'reasoning', id: 'r1', text: 'thinking in pieces', state: 'done' },
         { type: 'text', text: 'answer', state: 'streaming' }
       ])
     })

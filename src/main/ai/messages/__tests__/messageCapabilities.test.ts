@@ -172,3 +172,26 @@ describe('routeToolResultMedia', () => {
     expect(withoutVision).toHaveLength(1)
   })
 })
+
+it('relocates V4 inline tool images without losing bytes or provider metadata', () => {
+  const file = {
+    type: 'file' as const,
+    mediaType: 'image/png',
+    data: { type: 'data' as const, data: 'BASE64' },
+    providerOptions: { google: { thoughtSignature: 'signature' } }
+  }
+  const message: ModelMessage = {
+    role: 'tool',
+    content: [
+      { type: 'tool-result', toolCallId: 'draw-1', toolName: 'draw', output: { type: 'content', value: [file] } }
+    ]
+  }
+  const routed = routeToolResultMedia(
+    [message],
+    { image: true, audio: false, video: false },
+    { image: false, audio: false, video: false }
+  )
+  expect(routed.map((message) => message.role)).toEqual(['tool', 'user'])
+  expect(routed[1].content).toContainEqual(file)
+  expect(JSON.stringify(routed[0])).not.toContain('BASE64')
+})

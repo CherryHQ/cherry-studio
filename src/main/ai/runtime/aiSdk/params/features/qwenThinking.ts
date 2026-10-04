@@ -16,7 +16,7 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
   const suffix = enableThinking ? ' /think' : ' /no_think'
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }

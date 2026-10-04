@@ -1,0 +1,94 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 94f1e3372de0f22e28a75686f87d2a609ebbd13f..e58347cbfed9647ae5d3a5a0172553d2dc5b05d3 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -6991,7 +6991,7 @@ type GenerateImagePrompt = string | {
+  *
+  * @returns A result object that contains the generated images.
+  */
+-export declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers }: {
++export declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download }: {
+   /**
+    * The image model to use.
+    */
+@@ -7052,6 +7052,8 @@ export declare function generateImage({ model: modelArg, prompt: promptArg, n, m
+    * Only applicable for HTTP-based providers.
+    */
+   headers?: Record<string, string>;
++  /** Downloads generated image URLs through the caller's network policy. */
++  experimental_download?: DownloadFunction;
+ }): Promise<GenerateImageResult>;
+ //#endregion
+ //#region src/batch/batch-types.d.ts
+diff --git a/dist/index.js b/dist/index.js
+index 1b15fa8a497a88bfe1a5cee5d331bdbb56a22532..f4517f10c757e602aade9d21eecf3b0f0c2ec803 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -11436,7 +11436,7 @@ var RetryableNoImageResultError = class extends Error {
+ *
+ * @returns A result object that contains the generated images.
+ */
+-async function generateImage({ model: modelArg, prompt: promptArg, n = 1, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers }) {
++async function generateImage({ model: modelArg, prompt: promptArg, n = 1, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download }) {
+ 	const model = resolveImageModel(modelArg);
+ 	const headersWithUserAgent = withUserAgentSuffix(headers ?? {}, `ai/${VERSION}`);
+ 	const { retry } = prepareRetries({
+@@ -11489,23 +11489,49 @@ async function generateImage({ model: modelArg, prompt: promptArg, n = 1, maxIma
+ 		totalTokens: void 0
+ 	};
+ 	for (const result of results) {
+-		const callImages = result.images.map((image, index) => new DefaultGeneratedFile({
+-			data: image,
+-			mediaType: detectMediaType({
+-				data: image,
+-				topLevelType: "image"
+-			}) ?? "image/png",
+-			providerMetadata: getImageProviderMetadata(result.providerMetadata, index)
++		const downloadedImages = await Promise.all(result.images.map(async (image, index) => {
++			let data = image;
++			let mediaType;
++			if (typeof image === "string" && /^data:/i.test(image)) {
++				const parsed = splitDataUrl(image);
++				if (parsed.base64Content == null) return null;
++				data = parsed.base64Content;
++				mediaType = parsed.mediaType;
++			} else if (typeof image === "string" && /^https?:/i.test(image)) {
++				try {
++					const downloader = experimental_download ?? createDefaultDownloadFunction(void 0, abortSignal);
++					const [file] = await downloader([{ url: new URL(image), isUrlSupportedByModel: false }]);
++					abortSignal?.throwIfAborted();
++					if (file == null) return null;
++					data = file.data;
++					mediaType = file.mediaType;
++				} catch (error) {
++					abortSignal?.throwIfAborted();
++					if (isAbortError(error)) throw error;
++					return null;
++				}
++			}
++			return new DefaultGeneratedFile({
++				data,
++				mediaType: mediaType ?? detectMediaType({ data, topLevelType: "image" }) ?? "image/png",
++				providerMetadata: getImageProviderMetadata(result.providerMetadata, index)
++			});
+ 		}));
++		const callImages = downloadedImages.filter(image => image != null);
++		const droppedCount = result.images.length - callImages.length;
++		const callWarnings = droppedCount === 0 ? result.warnings : [...result.warnings, {
++			type: "other",
++			message: `${droppedCount} of ${result.images.length} generated images could not be downloaded and were dropped`
++		}];
+ 		images.push(...callImages);
+ 		calls.push({
+ 			images: callImages,
+ 			providerMetadata: result.providerMetadata,
+ 			response: result.response,
+-			warnings: result.warnings,
++			warnings: callWarnings,
+ 			usage: result.usage
+ 		});
+-		warnings.push(...result.warnings);
++		warnings.push(...callWarnings);
+ 		if (result.usage != null) totalUsage = addImageModelUsage(totalUsage, result.usage);
+ 		if (result.providerMetadata) for (const [providerName, metadata] of Object.entries(result.providerMetadata)) if (providerName === "gateway") {
+ 			const currentEntry = providerMetadata[providerName];

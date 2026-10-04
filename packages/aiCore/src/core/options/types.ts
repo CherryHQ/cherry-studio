@@ -1,8 +1,8 @@
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import { type GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import { type OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import { type SharedV3ProviderMetadata } from '@ai-sdk/provider'
-import { type XaiProviderOptions } from '@ai-sdk/xai'
+import { type SharedV4ProviderMetadata } from '@ai-sdk/provider'
+import { type XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { type OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 
 /**
@@ -14,7 +14,7 @@ type ProviderOptionsMap = {
   anthropic: AnthropicProviderOptions
   google: GoogleGenerativeAIProviderOptions
   openrouter: OpenRouterProviderOptions
-  xai: XaiProviderOptions
+  xai: XaiResponsesProviderOptions
 }
 
 /**
@@ -25,4 +25,4 @@ export type TypedProviderOptions = {
   [K in keyof ProviderOptionsMap]?: ProviderOptionsMap[K]
 } & {
   [K in string]?: Record<string, any>
-} & SharedV3ProviderMetadata
+} & SharedV4ProviderMetadata

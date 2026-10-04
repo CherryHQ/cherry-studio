@@ -37,7 +37,7 @@ import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('ReadFile')
@@ -139,6 +139,7 @@ export function readFileModelOutput(output: ReadFileResult): ToolResultOutput {
 }
 
 const readFileTool = tool({
+  contextSchema: requestContextSchema,
   description: READ_FILE_DESCRIPTION,
   inputSchema: readFileInputSchema,
   outputSchema: readFileResultSchema,

@@ -6,13 +6,14 @@ import {
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
-  type ToolSet,
+  type Tool,
   type UIMessage,
   type UIMessageChunk
 } from 'ai'
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { RequestContext } from '@main/ai/tools/adapters/aiSdk/context'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
 
@@ -20,11 +21,13 @@ import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilit
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
-import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
+import { logger, safeCall, wrapForwardedHook, createToolExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
+
+type RequestTools = Record<string, Tool<any, any, RequestContext | undefined>>
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -95,7 +98,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private async buildAiSdkAgent(hooks: AgentLoopHooks) {
     const params = this.params
     const opts = params.options ?? {}
-    const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
     const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
     const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
       const routedMessages = routeToolResultMedia(
@@ -115,7 +117,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       if (!prepared && preparedMessages === options.messages) return undefined
       return { ...prepared, ...(preparedMessages !== options.messages && { messages: preparedMessages }) }
     }
-    return createAgent<AppProviderSettingsMap, T, ToolSet>({
+    return createAgent<AppProviderSettingsMap, T, RequestTools>({
       providerId: params.providerId,
       providerSettings: params.providerSettings,
       modelId: params.modelId,
@@ -123,7 +125,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
-        tools: toolsWithHooks,
+        tools: params.tools,
+        ...createToolExecutionHooks(hooks),
+        onStart: async () => {
+          await safeCall('onStart', hooks.onStart)
+        },
         toolChoice: opts.toolChoice,
         activeTools: opts.activeTools,
         // System
@@ -145,12 +151,17 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         // Loop control
         stopWhen: opts.stopWhen,
         // Experimental
-        experimental_telemetry: opts.telemetry,
-        experimental_context: opts.context,
+        telemetry: opts.telemetry ?? { isEnabled: false },
+        runtimeContext: opts.context,
+        toolsContext: Object.fromEntries(
+          Object.entries(params.tools ?? {})
+            .filter(([, tool]) => tool.contextSchema)
+            .map(([name]) => [name, opts.context])
+        ),
         experimental_repairToolCall: opts.repairToolCall,
         experimental_download: opts.download,
         prepareStep,
-        onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
+        onStepEnd: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
       }
     })
   }
@@ -161,7 +172,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   ): Promise<{ text: string; usage: LanguageModelUsage }> {
     const hooks = this.composedHooks()
     try {
-      await safeCall('onStart', hooks.onStart)
       signal?.throwIfAborted()
       const aiAgent = await this.buildAiSdkAgent(hooks)
       const generateInput =
@@ -185,7 +195,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
-      return { text: result.text, usage: result.usage }
+      return { text: result.finalStep.text, usage: result.usage }
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
       if (isCancellation) {
@@ -290,8 +300,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
 
     ;(async () => {
-      await safeCall('onStart', hooks.onStart)
-
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
       const messages = initialMessages

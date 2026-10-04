@@ -1,5 +1,5 @@
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -21,15 +21,15 @@ export interface OvmsProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface OvmsProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
+export interface OvmsProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
 }
 
 /**
- * Unified OVMS provider — chat, embedding, and image off one `ProviderV3`,
+ * Unified OVMS provider — chat, embedding, and image off one `ProviderV4`,
  * mirroring `newapi-provider.ts`. OVMS is a local OpenVINO Model Server with
  * NO auth, so headers carry only what the caller passes (no `Authorization`).
  * Chat/embedding hit `settings.baseURL`; the image model keeps its bespoke
@@ -61,7 +61,7 @@ export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsPro
   })
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
   provider.embeddingModel = (modelId: string) =>
     new OpenAICompatibleEmbeddingModel(modelId, {

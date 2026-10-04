@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -54,11 +54,11 @@ import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../Paint
 
 const entry = createGenerateImageToolEntry()
 
-function makeOptions(abortSignal = new AbortController().signal): ToolExecutionOptions {
+function makeOptions(abortSignal = new AbortController().signal): ToolExecutionOptions<unknown> {
   return {
     toolCallId: 't1',
     messages: [],
-    experimental_context: { requestId: 'r1', abortSignal }
+    context: { requestId: 'r1', abortSignal }
   }
 }
 
@@ -69,7 +69,7 @@ function callExecute(
 ): Promise<unknown> {
   const execute = selectedTool.execute as (
     args: { prompt: string; image_ids?: string[]; [key: string]: unknown },
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<unknown>
   return execute(args, makeOptions(abortSignal))
 }

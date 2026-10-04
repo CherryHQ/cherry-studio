@@ -2,7 +2,7 @@ import type { EmbeddingModelV3CallOptions, ImageModelV3CallOptions } from '@ai-s
 import {
   createMockEmbeddingModel,
   createMockImageModel,
-  createMockProviderV3,
+  createMockProviderV4,
   createMockRerankingModel
 } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,7 +11,7 @@ import { RuntimeExecutor } from '../executor'
 import type { RuntimeProviderCallEvent } from '../types'
 
 function createTestExecutor() {
-  return RuntimeExecutor.create('openai', createMockProviderV3({ provider: 'openai' }), { apiKey: 'test-key' })
+  return RuntimeExecutor.create('openai', createMockProviderV4({ provider: 'openai' }), { apiKey: 'test-key' })
 }
 
 describe('RuntimeExecutor provider-call observation', () => {

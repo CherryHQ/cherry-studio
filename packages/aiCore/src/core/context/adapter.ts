@@ -1,23 +1,23 @@
 /**
- * LanguageModelV3Prompt ↔ IR adapter (lossless round-trip).
+ * LanguageModelV4Prompt ↔ IR adapter (lossless round-trip).
  *
  * Vendored from @context-chef/ai-sdk-middleware 1.6.0 (MIT, same author).
  */
 import type {
-  LanguageModelV3Message,
-  LanguageModelV3Prompt,
-  LanguageModelV3ToolResultOutput,
-  LanguageModelV3ToolResultPart,
-  SharedV3ProviderOptions
+  LanguageModelV4Message,
+  LanguageModelV4Prompt,
+  LanguageModelV4ToolResultOutput,
+  LanguageModelV4ToolResultPart,
+  SharedV4ProviderOptions
 } from '@ai-sdk/provider'
 
 import { ensureValidHistory } from './ensureValidHistory'
 import type { Attachment, ContextMessage, ToolCall } from './types'
 
 /** Content types for each AI SDK message role */
-type UserContent = Extract<LanguageModelV3Message, { role: 'user' }>['content']
-type AssistantContent = Extract<LanguageModelV3Message, { role: 'assistant' }>['content']
-type ToolContent = Extract<LanguageModelV3Message, { role: 'tool' }>['content']
+type UserContent = Extract<LanguageModelV4Message, { role: 'user' }>['content']
+type AssistantContent = Extract<LanguageModelV4Message, { role: 'assistant' }>['content']
+type ToolContent = Extract<LanguageModelV4Message, { role: 'tool' }>['content']
 
 /**
  * Extended IR message with typed pass-through fields for lossless AI SDK round-trip.
@@ -28,7 +28,7 @@ export interface AISDKMessage extends ContextMessage {
   _assistantContent?: AssistantContent
   _toolContent?: ToolContent
   _originalText?: string
-  _providerOptions?: SharedV3ProviderOptions
+  _providerOptions?: SharedV4ProviderOptions
   _toolName?: string
 }
 
@@ -44,7 +44,7 @@ export interface AISDKMessage extends ContextMessage {
  * non-system message is a user message. This is a system boundary — IR
  * downstream is trusted to satisfy invariants.
  */
-export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
+export function fromAISDK(prompt: LanguageModelV4Prompt): AISDKMessage[] {
   const messages: AISDKMessage[] = []
 
   for (const msg of prompt) {
@@ -75,7 +75,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
           // so we never invent a fake encoding for non-string inputs.
           attachments.push({
             mediaType: part.mediaType,
-            data: typeof part.data === 'string' ? part.data : '',
+            data: part.data.type === 'data' && typeof part.data.data === 'string' ? part.data.data : '',
             ...(part.filename ? { filename: part.filename } : {})
           })
         }
@@ -128,7 +128,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
           // _assistantContent carries the actual payload through round-trip.
           attachments.push({
             mediaType: part.mediaType,
-            data: typeof part.data === 'string' ? part.data : '',
+            data: part.data.type === 'data' && typeof part.data.data === 'string' ? part.data.data : '',
             ...(part.filename ? { filename: part.filename } : {})
           })
         }
@@ -194,8 +194,8 @@ function asAISDK(msg: ContextMessage): AISDKMessage {
  * Falls back to constructing from IR fields when content was modified
  * (e.g. compression cleared tool results) or for new messages (e.g. compression summaries).
  */
-export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
-  const prompt: LanguageModelV3Prompt = []
+export function toAISDK(messages: ContextMessage[]): LanguageModelV4Prompt {
+  const prompt: LanguageModelV4Prompt = []
 
   let i = 0
   while (i < messages.length) {
@@ -234,11 +234,11 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
     }
 
     if (msg.role === 'tool') {
-      const toolResults: LanguageModelV3ToolResultPart[] = []
+      const toolResults: LanguageModelV4ToolResultPart[] = []
       // Re-attach the message-level providerOptions captured on the first IR
       // message of the original tool turn (see fromAISDK). Take the first
       // non-undefined across the coalesced group.
-      let providerOptions: SharedV3ProviderOptions | undefined
+      let providerOptions: SharedV4ProviderOptions | undefined
       while (i < messages.length && messages[i].role === 'tool') {
         const toolMsg = asAISDK(messages[i])
         const toolModified = toolMsg._originalText !== undefined && toolMsg._originalText !== toolMsg.content
@@ -282,7 +282,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
   return prompt
 }
 
-export function stringifyToolOutput(output: LanguageModelV3ToolResultOutput): string {
+export function stringifyToolOutput(output: LanguageModelV4ToolResultOutput): string {
   switch (output.type) {
     case 'text':
     case 'error-text':

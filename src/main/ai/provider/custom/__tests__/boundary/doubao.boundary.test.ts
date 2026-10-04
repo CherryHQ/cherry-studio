@@ -1,6 +1,6 @@
 import { createByteDance } from '@ai-sdk/bytedance'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -17,7 +17,7 @@ import { captureWithFetch, runWithResponse } from './captureRequest'
  * naming; these tests pin that our mapping actually lands on its options, since a
  * miss there is silent (its option schema is a `looseObject`).
  */
-function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
+function opts(partial: Partial<ImageModelV4CallOptions>): ImageModelV4CallOptions {
   return {
     prompt: 'a fox',
     n: 1,
@@ -39,8 +39,8 @@ const url = `${baseURL}/images/generations`
 const imageModel = (modelId: string, fetch: typeof globalThis.fetch) =>
   createByteDance({ apiKey: 'sk', baseURL, fetch }).imageModel(modelId)
 
-const file = (byte: number): NonNullable<ImageModelV3CallOptions['files']>[number] =>
-  ({ mediaType: 'image/png', data: new Uint8Array([byte]) }) as NonNullable<ImageModelV3CallOptions['files']>[number]
+const file = (byte: number): NonNullable<ImageModelV4CallOptions['files']>[number] =>
+  ({ mediaType: 'image/png', data: new Uint8Array([byte]) }) as NonNullable<ImageModelV4CallOptions['files']>[number]
 
 /** What `AiService.generateImage` delivers for a canonical param bag. */
 const deliver = (paramValues: Record<string, unknown>) =>

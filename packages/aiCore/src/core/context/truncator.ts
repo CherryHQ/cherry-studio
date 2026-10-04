@@ -1,12 +1,12 @@
 /**
- * Tool-result truncation over a LanguageModelV3Prompt.
+ * Tool-result truncation over a LanguageModelV4Prompt.
  *
  * Vendored from @context-chef/ai-sdk-middleware 1.6.0 (MIT, same author).
  */
 import type {
-  LanguageModelV3Prompt,
-  LanguageModelV3ToolResultOutput,
-  LanguageModelV3ToolResultPart
+  LanguageModelV4Prompt,
+  LanguageModelV4ToolResultOutput,
+  LanguageModelV4ToolResultPart
 } from '@ai-sdk/provider'
 
 import { Offloader, type VFSStorageAdapter } from './offloader'
@@ -84,16 +84,16 @@ export interface TruncateOptions {
  * When a storage adapter is provided, original content is persisted and a retrieval handle is included in the output.
  */
 export async function truncateToolResults(
-  prompt: LanguageModelV3Prompt,
+  prompt: LanguageModelV4Prompt,
   options: TruncateOptions,
   logger: ContextLogger = console
-): Promise<LanguageModelV3Prompt> {
+): Promise<LanguageModelV4Prompt> {
   const { threshold, headChars = 0, tailChars = 1000, storage } = options
 
   const offloader = storage ? new Offloader({ threshold, adapter: storage }) : null
   const policy = buildPolicyMap(options.perTool)
 
-  const result: LanguageModelV3Prompt = []
+  const result: LanguageModelV4Prompt = []
 
   for (const msg of prompt) {
     if (msg.role !== 'tool') {
@@ -166,8 +166,8 @@ export async function truncateToolResults(
             output: {
               type: 'text',
               value: vfsResult.content
-            } satisfies LanguageModelV3ToolResultOutput
-          } satisfies LanguageModelV3ToolResultPart)
+            } satisfies LanguageModelV4ToolResultOutput
+          } satisfies LanguageModelV4ToolResultPart)
           continue
         } catch (error) {
           logger.warn(
@@ -190,8 +190,8 @@ export async function truncateToolResults(
 
       newContent.push({
         ...part,
-        output: { type: 'text', value: truncated } satisfies LanguageModelV3ToolResultOutput
-      } satisfies LanguageModelV3ToolResultPart)
+        output: { type: 'text', value: truncated } satisfies LanguageModelV4ToolResultOutput
+      } satisfies LanguageModelV4ToolResultPart)
     }
 
     result.push({ ...msg, content: newContent })
@@ -219,13 +219,13 @@ type ToolPolicy =
  * that blob's full text — never trade data for a broken marker.
  */
 async function truncateEntities(
-  part: LanguageModelV3ToolResultPart,
+  part: LanguageModelV4ToolResultPart,
   codec: EntityToolOutputCodec,
   budget: { threshold: number; headChars: number; tailChars: number },
   offloader: Offloader | null,
   logger: ContextLogger
-): Promise<LanguageModelV3ToolResultPart | null> {
-  const output = part.output as Extract<LanguageModelV3ToolResultOutput, { type: 'json' }>
+): Promise<LanguageModelV4ToolResultPart | null> {
+  const output = part.output as Extract<LanguageModelV4ToolResultOutput, { type: 'json' }>
   const deflated = codec.deflate(output.value)
   if (deflated === null) return null
 
@@ -271,8 +271,8 @@ async function truncateEntities(
   if (!anyTrimmed) return part
   return {
     ...part,
-    output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) } as LanguageModelV3ToolResultOutput
-  } satisfies LanguageModelV3ToolResultPart
+    output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) } as LanguageModelV4ToolResultOutput
+  } satisfies LanguageModelV4ToolResultPart
 }
 
 /**
@@ -298,7 +298,7 @@ function buildPolicyMap(perTool: TruncateOptions['perTool']): Map<string, ToolPo
   return map
 }
 
-function extractText(output: LanguageModelV3ToolResultOutput): string {
+function extractText(output: LanguageModelV4ToolResultOutput): string {
   switch (output.type) {
     case 'text':
     case 'error-text':

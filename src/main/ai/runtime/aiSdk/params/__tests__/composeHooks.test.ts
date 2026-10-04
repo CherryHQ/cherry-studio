@@ -150,7 +150,12 @@ describe('composeHooks', () => {
       steps: [],
       messages: [{ role: 'user', content: 'hi' } as ModelMessage],
       model: { modelId: 'fake' } as never,
-      experimental_context: undefined
+      runtimeContext: {},
+      toolsContext: {},
+      instructions: undefined,
+      initialInstructions: undefined,
+      initialMessages: [],
+      responseMessages: []
     }
 
     it('keeps the only prepareStep when one part defines it', () => {
@@ -177,11 +182,11 @@ describe('composeHooks', () => {
 
     it('merges non-messages keys across parts (later wins)', async () => {
       const composed = composeHooks([
-        { prepareStep: () => Promise.resolve({ system: 'first', toolChoice: 'auto' as const }) },
-        { prepareStep: () => Promise.resolve({ system: 'last' }) }
+        { prepareStep: () => Promise.resolve({ instructions: 'first', toolChoice: 'auto' as const }) },
+        { prepareStep: () => Promise.resolve({ instructions: 'last' }) }
       ])
       const result = await composed.prepareStep!(baseOptions)
-      expect(result).toMatchObject({ system: 'last', toolChoice: 'auto' })
+      expect(result).toMatchObject({ instructions: 'last', toolChoice: 'auto' })
     })
 
     it('returns undefined when no part defines prepareStep', () => {

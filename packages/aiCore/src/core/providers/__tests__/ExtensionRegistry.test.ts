@@ -1,14 +1,13 @@
 /**
  * ExtensionRegistry 单元测试
  */
-
-import type { ProviderV3 } from '@ai-sdk/provider'
-import { createMockProviderV3 } from '@test-utils'
+import { createMockProviderV4 } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ExtensionRegistry } from '../core/ExtensionRegistry'
 import { ProviderExtension } from '../core/ProviderExtension'
 import { ProviderCreationError } from '../core/utils'
+import type { AiSdkProvider } from '../types'
 
 describe('ExtensionRegistry', () => {
   let registry: ExtensionRegistry
@@ -21,7 +20,7 @@ describe('ExtensionRegistry', () => {
     it('should register an extension', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -34,7 +33,7 @@ describe('ExtensionRegistry', () => {
       const extension = new ProviderExtension({
         name: 'openrouter',
         aliases: ['or', 'open-router'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -51,12 +50,12 @@ describe('ExtensionRegistry', () => {
     it('should be idempotent when name already registered', () => {
       const ext1 = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       const ext2 = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(ext1)
@@ -70,13 +69,13 @@ describe('ExtensionRegistry', () => {
       const ext1 = new ProviderExtension({
         name: 'provider1',
         aliases: ['shared-alias'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       const ext2 = new ProviderExtension({
         name: 'provider2',
         aliases: ['shared-alias'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(ext1)
@@ -87,12 +86,12 @@ describe('ExtensionRegistry', () => {
     it('should support method chaining', () => {
       const ext1 = new ProviderExtension({
         name: 'provider1',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       const ext2 = new ProviderExtension({
         name: 'provider2',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       const result = registry.register(ext1).register(ext2)
@@ -106,9 +105,9 @@ describe('ExtensionRegistry', () => {
   describe('registerAll', () => {
     it('should register multiple extensions', () => {
       const extensions = [
-        new ProviderExtension({ name: 'provider1', create: createMockProviderV3 }),
-        new ProviderExtension({ name: 'provider2', create: createMockProviderV3 }),
-        new ProviderExtension({ name: 'provider3', create: createMockProviderV3 })
+        new ProviderExtension({ name: 'provider1', create: createMockProviderV4 }),
+        new ProviderExtension({ name: 'provider2', create: createMockProviderV4 }),
+        new ProviderExtension({ name: 'provider3', create: createMockProviderV4 })
       ]
 
       registry.registerAll(extensions)
@@ -119,7 +118,7 @@ describe('ExtensionRegistry', () => {
     })
 
     it('should support method chaining', () => {
-      const extensions = [new ProviderExtension({ name: 'test', create: createMockProviderV3 })]
+      const extensions = [new ProviderExtension({ name: 'test', create: createMockProviderV4 })]
 
       const result = registry.registerAll(extensions)
 
@@ -131,7 +130,7 @@ describe('ExtensionRegistry', () => {
     it('should remove extension', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -147,7 +146,7 @@ describe('ExtensionRegistry', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
         aliases: ['alias1', 'alias2'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -168,7 +167,7 @@ describe('ExtensionRegistry', () => {
     it('should get extension by name', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -180,7 +179,7 @@ describe('ExtensionRegistry', () => {
       const extension = new ProviderExtension({
         name: 'test-provider',
         aliases: ['test-alias'],
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(extension)
@@ -195,8 +194,8 @@ describe('ExtensionRegistry', () => {
 
   describe('getAll', () => {
     it('should return all registered extensions', () => {
-      const ext1 = new ProviderExtension({ name: 'provider1', create: createMockProviderV3 })
-      const ext2 = new ProviderExtension({ name: 'provider2', create: createMockProviderV3 })
+      const ext1 = new ProviderExtension({ name: 'provider1', create: createMockProviderV4 })
+      const ext2 = new ProviderExtension({ name: 'provider2', create: createMockProviderV4 })
 
       registry.register(ext1).register(ext2)
 
@@ -217,19 +216,19 @@ describe('ExtensionRegistry', () => {
       const ext1 = new ProviderExtension({
         name: 'openai',
         aliases: ['oai'],
-        create: createMockProviderV3,
+        create: createMockProviderV4,
         variants: [
           {
             suffix: 'chat',
             name: 'Chat',
-            transform: (provider: ProviderV3) => provider
+            transform: (provider: AiSdkProvider) => provider
           }
         ]
       })
 
       const ext2 = new ProviderExtension({
         name: 'azure',
-        create: createMockProviderV3
+        create: createMockProviderV4
       })
 
       registry.register(ext1).register(ext2)
@@ -245,8 +244,8 @@ describe('ExtensionRegistry', () => {
 
   describe('clear', () => {
     it('should remove all extensions', () => {
-      registry.register(new ProviderExtension({ name: 'provider1', create: createMockProviderV3 }))
-      registry.register(new ProviderExtension({ name: 'provider2', create: createMockProviderV3 }))
+      registry.register(new ProviderExtension({ name: 'provider1', create: createMockProviderV4 }))
+      registry.register(new ProviderExtension({ name: 'provider2', create: createMockProviderV4 }))
 
       registry.clear()
 
@@ -257,7 +256,7 @@ describe('ExtensionRegistry', () => {
 
   describe('createProvider', () => {
     it('should create provider using create function', async () => {
-      const mockProvider = createMockProviderV3()
+      const mockProvider = createMockProviderV4()
       const extension = new ProviderExtension({
         name: 'test-provider',
         create: () => mockProvider
@@ -278,7 +277,7 @@ describe('ExtensionRegistry', () => {
         defaultOptions: { apiKey: 'default-key', timeout: 5000 },
         create: ((settings: any) => {
           receivedSettings = settings
-          return createMockProviderV3()
+          return createMockProviderV4()
         }) as any
       })
 
@@ -294,7 +293,7 @@ describe('ExtensionRegistry', () => {
     })
 
     it('should create provider using dynamic import', async () => {
-      const mockProvider = createMockProviderV3()
+      const mockProvider = createMockProviderV4()
 
       const extension = new ProviderExtension({
         name: 'lazy-provider',
@@ -336,7 +335,7 @@ describe('ExtensionRegistry', () => {
 
   describe('Provider Caching', () => {
     it('should cache provider instances based on settings', async () => {
-      const createSpy = vi.fn(createMockProviderV3)
+      const createSpy = vi.fn(createMockProviderV4)
 
       registry.register(
         new ProviderExtension({
@@ -376,7 +375,7 @@ describe('ExtensionRegistry', () => {
           } else {
             secondSettings = settings
           }
-          return createMockProviderV3()
+          return createMockProviderV4()
         }
       })
 
@@ -428,12 +427,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'openai',
           aliases: ['oai'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -443,12 +442,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'azure',
           aliases: ['azure-openai'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -458,7 +457,7 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'google',
           aliases: ['gemini'],
-          create: createMockProviderV3
+          create: createMockProviderV4
           // 没有 variants
         })
       )
@@ -504,12 +503,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'openai',
           aliases: ['oai'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -518,12 +517,12 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'azure',
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -533,7 +532,7 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'google',
           aliases: ['gemini'],
-          create: createMockProviderV3
+          create: createMockProviderV4
         })
       )
     })
@@ -590,22 +589,22 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'multi-variant',
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'chat',
               name: 'Chat',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             },
             {
               suffix: 'responses',
               name: 'Responses',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             },
             {
               suffix: 'completions',
               name: 'Completions',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -638,12 +637,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'openai',
           aliases: ['oai'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'chat',
               name: 'OpenAI Chat',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -653,12 +652,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'azure',
           aliases: ['azure-openai'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -668,12 +667,12 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'google',
           aliases: ['gemini'],
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           variants: [
             {
               suffix: 'chat',
               name: 'Google Chat',
-              transform: (provider: ProviderV3) => provider
+              transform: (provider: AiSdkProvider) => provider
             }
           ]
         })
@@ -682,7 +681,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'xai',
-          create: createMockProviderV3
+          create: createMockProviderV4
           // 没有 variants
         })
       )
@@ -792,22 +791,22 @@ describe('ExtensionRegistry', () => {
         registry.register(
           new ProviderExtension({
             name: 'multi-variant',
-            create: createMockProviderV3,
+            create: createMockProviderV4,
             variants: [
               {
                 suffix: 'chat',
                 name: 'Chat',
-                transform: (provider: ProviderV3) => provider
+                transform: (provider: AiSdkProvider) => provider
               },
               {
                 suffix: 'responses',
                 name: 'Responses',
-                transform: (provider: ProviderV3) => provider
+                transform: (provider: AiSdkProvider) => provider
               },
               {
                 suffix: 'completions',
                 name: 'Completions',
-                transform: (provider: ProviderV3) => provider
+                transform: (provider: AiSdkProvider) => provider
               }
             ]
           })
@@ -877,7 +876,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'openai',
-          create: createMockProviderV3
+          create: createMockProviderV4
         })
       )
 
@@ -895,7 +894,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'openai',
-          create: createMockProviderV3
+          create: createMockProviderV4
         })
       )
 
@@ -913,7 +912,7 @@ describe('ExtensionRegistry', () => {
         new ProviderExtension({
           name: 'openai',
           aliases: ['oai'],
-          create: createMockProviderV3
+          create: createMockProviderV4
         })
       )
 
@@ -931,7 +930,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'azure',
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           toolFactories: {
             webSearch: baseFactory
           },
@@ -939,7 +938,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'anthropic',
               name: 'Azure Anthropic',
-              transform: () => createMockProviderV3(),
+              transform: () => createMockProviderV4(),
               toolFactories: {
                 webSearch: variantFactory
               }
@@ -958,7 +957,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'azure',
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           toolFactories: {
             webSearch: baseFactory
           },
@@ -966,7 +965,7 @@ describe('ExtensionRegistry', () => {
             {
               suffix: 'responses',
               name: 'Azure Responses',
-              transform: () => createMockProviderV3()
+              transform: () => createMockProviderV4()
             }
           ]
         })
@@ -980,7 +979,7 @@ describe('ExtensionRegistry', () => {
       registry.register(
         new ProviderExtension({
           name: 'test',
-          create: createMockProviderV3,
+          create: createMockProviderV4,
           toolFactories: {
             webSearch: vi.fn()
           }
@@ -993,8 +992,8 @@ describe('ExtensionRegistry', () => {
 
   describe('getToolProvider (via resolveToolCapability)', () => {
     it('should return variant-transformed provider for variant IDs', async () => {
-      const baseProvider = createMockProviderV3({ provider: 'azure-base' })
-      const variantProvider = createMockProviderV3({ provider: 'anthropic-variant' })
+      const baseProvider = createMockProviderV4({ provider: 'azure-base' })
+      const variantProvider = createMockProviderV4({ provider: 'anthropic-variant' })
       const transformSpy = vi.fn().mockReturnValue(variantProvider)
       const factorySpy = vi.fn().mockReturnValue(() => ({ tools: {} }))
 
@@ -1023,7 +1022,7 @@ describe('ExtensionRegistry', () => {
     })
 
     it('should return base provider for non-variant IDs', async () => {
-      const baseProvider = createMockProviderV3({ provider: 'azure-base' })
+      const baseProvider = createMockProviderV4({ provider: 'azure-base' })
       const factorySpy = vi.fn().mockReturnValue(() => ({ tools: {} }))
 
       registry.register(
@@ -1048,7 +1047,7 @@ describe('ExtensionRegistry', () => {
       // instead of { tools: { urlContext: ... } }
       const mockTool = { type: 'tool' }
       const mockProvider = {
-        ...createMockProviderV3(),
+        ...createMockProviderV4(),
         tools: {
           webFetch_20260209: vi.fn().mockReturnValue(mockTool)
         }

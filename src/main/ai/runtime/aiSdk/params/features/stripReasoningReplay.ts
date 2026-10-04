@@ -13,7 +13,7 @@ import type { RequestFeature } from '../feature'
  */
 export function createStripReasoningReplayMiddleware(): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       if (!Array.isArray(params.prompt)) return params

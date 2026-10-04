@@ -1,13 +1,13 @@
+import { type Tool, tool } from 'ai'
 /**
  * `tool_inspect` meta-tool — emits a JSDoc stub for a single registered
  * tool: its description and parameter shapes. Optional — `tool_invoke`
  * returns the same signature when called on an unseen tool — but inspecting
  * first lets the model confirm parameters without a guess-and-retry round-trip.
  */
-
-import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import { requestContextSchema } from '../context'
 import type { ToolRegistry } from '../registry'
 import { buildToolStub } from './schemaStub'
 
@@ -25,6 +25,7 @@ export function createToolInspectTool(
   inspectedNames: Set<string>
 ): Tool {
   return tool({
+    contextSchema: requestContextSchema,
     description:
       'Get a single tool signature as a JSDoc stub — its description and parameter shapes. ' +
       'Use it before `tool_invoke` to confirm parameter names and shapes and avoid a guess-and-retry.',

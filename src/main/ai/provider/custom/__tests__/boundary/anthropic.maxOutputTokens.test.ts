@@ -1,15 +1,15 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createNewApi } from '../../newapiProvider'
 import { captureWithFetch } from './captureRequest'
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [
+const prompt: LanguageModelV4CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Continue until complete.' }] }
 ]
 
-function captureRequest(modelFactory: (fetch: typeof globalThis.fetch) => LanguageModelV3, options = {}) {
+function captureRequest(modelFactory: (fetch: typeof globalThis.fetch) => LanguageModelV4, options = {}) {
   return captureWithFetch((fetch) => modelFactory(fetch).doStream({ prompt, ...options }))
 }
 

@@ -1,10 +1,10 @@
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createOllamaWithImageModel } from '../../ollama/ollamaProvider'
 import { captureWithFetch } from './captureRequest'
 
-const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+const PROMPT: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('Ollama chat reasoning boundary', () => {
   it('leaves thinking unset when no reasoning option is selected', async () => {

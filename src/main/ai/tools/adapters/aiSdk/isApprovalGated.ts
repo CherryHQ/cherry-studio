@@ -9,7 +9,7 @@ export interface ApprovalGateOptions {
   input?: unknown
   toolCallId?: string
   messages?: ModelMessage[]
-  experimental_context?: unknown
+  context?: unknown
 }
 
 /**
@@ -33,7 +33,7 @@ export async function isApprovalGated(tool: Tool, opts: ApprovalGateOptions = {}
     return await needsApproval(opts.input, {
       toolCallId: opts.toolCallId ?? '',
       messages: opts.messages ?? [],
-      experimental_context: opts.experimental_context
+      context: opts.context
     })
   } catch (err) {
     logger.warn('needsApproval threw; treating tool as approval-gated', err as Error)

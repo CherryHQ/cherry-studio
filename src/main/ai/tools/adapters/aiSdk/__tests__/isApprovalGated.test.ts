@@ -31,7 +31,7 @@ describe('isApprovalGated', () => {
     expect(await isApprovalGated(tool, { input: { a: 1 }, toolCallId: 'c1', messages: [] })).toBe(true)
     expect(seen).toEqual({
       input: { a: 1 },
-      options: { toolCallId: 'c1', messages: [], experimental_context: undefined }
+      options: { toolCallId: 'c1', messages: [], context: undefined }
     })
   })
 

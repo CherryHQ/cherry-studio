@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart, LanguageModelV4Usage } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
@@ -22,7 +22,7 @@ export const AI_USAGE_RECORD_OPERATION_COVERAGE = {
   rerank: { status: 'recorded', modality: 'rerank', capture: 'ai-core-handler' }
 } as const
 
-function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocationInput['usage']> {
+function usageToRecord(usage: LanguageModelV4Usage): NonNullable<RecordAiInvocationInput['usage']> {
   const normalized = ensureNestedV3Usage(usage)
   const inputTokens = normalized.inputTokens.total
   const outputTokens = normalized.outputTokens.total
@@ -38,7 +38,7 @@ function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocat
   }
 }
 
-function semanticOutput(part: LanguageModelV3StreamPart): boolean {
+function semanticOutput(part: LanguageModelV4StreamPart): boolean {
   return (
     part.type === 'text-delta' ||
     part.type === 'reasoning-delta' ||
@@ -49,14 +49,14 @@ function semanticOutput(part: LanguageModelV3StreamPart): boolean {
   )
 }
 
-function nonReasoningOutput(part: LanguageModelV3StreamPart): boolean {
+function nonReasoningOutput(part: LanguageModelV4StreamPart): boolean {
   return semanticOutput(part) && part.type !== 'reasoning-delta'
 }
 
 function recordLanguageInvocation(
   context: AiUsageCaptureContext,
   requestId: string,
-  usage: LanguageModelV3Usage,
+  usage: LanguageModelV4Usage,
   metrics: RecordAiInvocationInput['metrics'],
   completedAt: number
 ): void {
@@ -74,7 +74,7 @@ function recordLanguageInvocation(
 
 export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     wrapGenerate: async ({ doGenerate }) => {
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
@@ -98,7 +98,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
       let finished = false
 
       const stream = result.stream.pipeThrough(
-        new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+        new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
           transform(part, controller) {
             const now = performance.now()
             if (semanticOutput(part) && firstTokenAt === undefined) firstTokenAt = now

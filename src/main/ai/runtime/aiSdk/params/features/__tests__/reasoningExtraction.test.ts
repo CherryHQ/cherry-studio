@@ -1,6 +1,6 @@
 import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
-import type { LanguageModelV3, LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import type { LanguageModelMiddleware } from 'ai'
+import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
+import type { LanguageModel, LanguageModelMiddleware } from 'ai'
 import { streamText, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -10,7 +10,7 @@ import { createOllamaWithImageModel } from '../../../../../provider/custom/ollam
 import { reasoningExtractionFeature } from '../reasoningExtraction'
 import { createAnchoredReasoningExtraction } from '../reasoningExtractionMiddleware'
 
-const PROMPT: LanguageModelV3CallOptions['prompt'] = [
+const PROMPT: LanguageModelV4CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Explain the answer' }] }
 ]
 
@@ -48,18 +48,18 @@ async function getOllamaReasoningMiddleware(): Promise<LanguageModelMiddleware[]
 }
 
 async function streamWith(
-  model: LanguageModelV3,
+  model: Exclude<LanguageModel, string>,
   middleware: LanguageModelMiddleware[]
-): Promise<LanguageModelV3StreamPart[]> {
-  const wrapped = middleware.length > 0 ? wrapLanguageModel({ model, middleware }) : model
+): Promise<LanguageModelV4StreamPart[]> {
+  const wrapped = wrapLanguageModel({ model, middleware })
   const result = await wrapped.doStream({ prompt: PROMPT })
 
-  const parts: LanguageModelV3StreamPart[] = []
+  const parts: LanguageModelV4StreamPart[] = []
   for await (const part of result.stream) parts.push(part)
   return parts
 }
 
-async function streamOllama(chunks: string[]): Promise<LanguageModelV3StreamPart[]> {
+async function streamOllama(chunks: string[]): Promise<LanguageModelV4StreamPart[]> {
   const fetch = () =>
     Promise.resolve(
       new Response(`${chunks.join('\n')}\n`, {
@@ -74,7 +74,7 @@ async function streamOllama(chunks: string[]): Promise<LanguageModelV3StreamPart
 }
 
 /** openai-compatible chat model whose SSE stream is the given deltas, verbatim. */
-function compatibleModel(deltas: Array<Record<string, unknown>>): LanguageModelV3 {
+function compatibleModel(deltas: Array<Record<string, unknown>>): Exclude<LanguageModel, string> {
   const payloads = deltas.map((delta, index) => ({
     id: 'cmpl-1',
     created: 0,
@@ -94,22 +94,22 @@ function compatibleModel(deltas: Array<Record<string, unknown>>): LanguageModelV
   })
 }
 
-function streamCompatible(deltas: Array<Record<string, unknown>>): Promise<LanguageModelV3StreamPart[]> {
+function streamCompatible(deltas: Array<Record<string, unknown>>): Promise<LanguageModelV4StreamPart[]> {
   return streamWith(compatibleModel(deltas), [createAnchoredReasoningExtraction('think')])
 }
 
 /** Emits the given parts verbatim, for structural cases an SSE fixture cannot express. */
 function fakeModel(
-  parts: LanguageModelV3StreamPart[],
+  parts: LanguageModelV4StreamPart[],
   options: { holdOpen?: boolean; onCancel?: () => void } = {}
-): LanguageModelV3 {
+): LanguageModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: 'test',
     modelId: 'fake',
     supportedUrls: {},
     doStream: async () => ({
-      stream: new ReadableStream<LanguageModelV3StreamPart>({
+      stream: new ReadableStream<LanguageModelV4StreamPart>({
         start(controller) {
           for (const part of parts) controller.enqueue(part)
           if (!options.holdOpen) controller.close()
@@ -125,21 +125,21 @@ function fakeModel(
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       warnings: []
     })
-  } as unknown as LanguageModelV3
+  } as unknown as LanguageModelV4
 }
 
-function joinedDelta(parts: LanguageModelV3StreamPart[], type: 'reasoning-delta' | 'text-delta'): string {
+function joinedDelta(parts: LanguageModelV4StreamPart[], type: 'reasoning-delta' | 'text-delta'): string {
   return parts
-    .filter((part): part is Extract<LanguageModelV3StreamPart, { type: typeof type }> => part.type === type)
+    .filter((part): part is Extract<LanguageModelV4StreamPart, { type: typeof type }> => part.type === type)
     .map((part) => part.delta)
     .join('')
 }
 
-function partTypes(parts: LanguageModelV3StreamPart[]): string[] {
+function partTypes(parts: LanguageModelV4StreamPart[]): string[] {
   return parts.map((part) => part.type)
 }
 
-function finishPart(): LanguageModelV3StreamPart {
+function finishPart(): LanguageModelV4StreamPart {
   return {
     type: 'finish',
     finishReason: { unified: 'stop', raw: 'stop' },
@@ -267,7 +267,7 @@ describe('anchored inline reasoning extraction', () => {
         { type: 'text-delta', id: 't1', delta: `${OPEN_TAG}second part` },
         { type: 'text-end', id: 't1' },
         finishPart()
-      ] as LanguageModelV3StreamPart[]),
+      ] as LanguageModelV4StreamPart[]),
       [createAnchoredReasoningExtraction('think')]
     )
 
@@ -277,7 +277,7 @@ describe('anchored inline reasoning extraction', () => {
   })
 
   it('synthesises nothing for a stream without text', async () => {
-    const streamParts: LanguageModelV3StreamPart[] = [
+    const streamParts: LanguageModelV4StreamPart[] = [
       { type: 'stream-start', warnings: [] },
       { type: 'reasoning-start', id: 'reasoning-0' },
       { type: 'reasoning-delta', id: 'reasoning-0', delta: 'native' },
@@ -296,7 +296,7 @@ describe('anchored inline reasoning extraction', () => {
         [
           { type: 'text-start', id: 't0' },
           { type: 'text-delta', id: 't0', delta: 'partial' }
-        ] as LanguageModelV3StreamPart[],
+        ] as LanguageModelV4StreamPart[],
         {
           holdOpen: true,
           onCancel: () => {

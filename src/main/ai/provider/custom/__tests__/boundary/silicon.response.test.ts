@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -6,7 +6,7 @@ import { SiliconImageModel } from '../../silicon/SiliconImageModel'
 import { runWithResponse } from './captureRequest'
 
 /** Inbound (response) boundary for SiliconFlow — `images|data[].url|b64_json`. */
-function opts(): ImageModelV3CallOptions {
+function opts(): ImageModelV4CallOptions {
   return {
     prompt: 'a fox',
     n: 1,

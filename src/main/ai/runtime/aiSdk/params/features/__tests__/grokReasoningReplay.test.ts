@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -7,7 +7,7 @@ import { rewriteGrokCliResponsesBody } from '../../../../../provider/grokCli'
 import { createGrokReasoningReplayMiddleware } from '../grokReasoningReplay'
 
 const reasoning = { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'opaque' }
-const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+const prompt: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
 const providerOptions = { openai: { store: false, forceReasoning: true, reasoningEffort: 'high' } }
 
 function createModel(providerId = 'grok-cli', modelId = 'grok-4.7', streaming = false) {
@@ -75,7 +75,7 @@ describe('Grok reasoning replay attribution', () => {
   it('keeps streamed encrypted-only reasoning with its model attribution', async () => {
     const source = createModel('grok-cli', 'grok-4.7', true)
     const result = await source.model.doStream({ prompt, providerOptions })
-    const chunks: LanguageModelV3StreamPart[] = []
+    const chunks: LanguageModelV4StreamPart[] = []
     for await (const chunk of result.stream) chunks.push(chunk)
     expect(chunks.find((part) => part.type === 'reasoning-end')).toMatchObject({
       providerMetadata: {

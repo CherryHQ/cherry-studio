@@ -1,5 +1,5 @@
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
-import { type EmbeddingModelV3, type LanguageModelV3, NoSuchModelError, type ProviderV3 } from '@ai-sdk/provider'
+import { type EmbeddingModelV4, type LanguageModelV4, NoSuchModelError, type ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { jsonSchema, tool } from 'ai'
@@ -109,12 +109,12 @@ export interface MoonshotProviderSettings {
   includeUsage?: boolean
 }
 
-export interface MoonshotProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  chatModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  textEmbeddingModel(modelId: string): EmbeddingModelV3
+export interface MoonshotProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  chatModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  textEmbeddingModel(modelId: string): EmbeddingModelV4
 }
 
 export function createMoonshotProvider(settings: MoonshotProviderSettings = {}): MoonshotProvider {
@@ -147,7 +147,7 @@ export function createMoonshotProvider(settings: MoonshotProviderSettings = {}):
     })
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
   provider.chatModel = createChatModel
   provider.embeddingModel = createEmbeddingModel

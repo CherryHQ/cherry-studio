@@ -13,7 +13,7 @@ const logger = loggerService.withContext('noThinkPlugin')
  */
 function createNoThinkMiddleware(): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }

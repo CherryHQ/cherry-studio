@@ -1,7 +1,7 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -28,16 +28,16 @@ async function getMiddleware(
 }
 
 async function transform(
-  params: LanguageModelV3CallOptions,
+  params: LanguageModelV4CallOptions,
   scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
-): Promise<LanguageModelV3CallOptions> {
+): Promise<LanguageModelV4CallOptions> {
   const middleware = await getMiddleware(scope)
   return middleware.transformParams!({ params, type: 'generate', model: {} as never })
 }
 
 describe('toolSchemaCompatibilityFeature', () => {
   it('strips unsupported validation keywords from nested strict schemas without mutating the source', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -85,7 +85,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('keeps a property that is named like a keyword', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -111,7 +111,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('strips the Gemini-rejected keywords from non-strict tools too, and only those (issue #10052)', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -144,7 +144,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('drops only tools with untyped array items on the Gemini endpoint', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -185,7 +185,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('keeps boolean-true array items because the Google SDK serializes them with a type', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -209,7 +209,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('does not apply Gemini array filtering to Vertex MaaS tools', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -249,7 +249,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     ['then', { then: { type: 'array' } }],
     ['else', { else: { type: 'array' } }]
   ] as const)('drops an incompatible array found through %s', async (branchName, branch) => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -269,7 +269,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   })
 
   it('does not drop untyped array tools outside the Gemini endpoint', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -322,20 +322,20 @@ describe('toolSchemaCompatibilityFeature', () => {
         tools: Array<{
           functionDeclarations: Array<{
             name: string
-            parameters: { properties: Record<string, unknown> }
+            parametersJsonSchema: { properties: Record<string, unknown> }
           }>
         }>
       }
     ).tools[0].functionDeclarations
     expect(declarations.map((declaration) => declaration.name)).toEqual(['valid'])
-    expect(declarations[0].parameters.properties.ids).toEqual({ type: 'array', items: { type: 'string' } })
+    expect(declarations[0].parametersJsonSchema.properties.ids).toEqual({ type: 'array', items: { type: 'string' } })
   })
 
   it('is a reference-preserving no-op on already-clean schemas', async () => {
-    const withoutTools: LanguageModelV3CallOptions = { prompt: [] }
+    const withoutTools: LanguageModelV4CallOptions = { prompt: [] }
     expect(await transform(withoutTools)).toBe(withoutTools)
 
-    const untouched: LanguageModelV3CallOptions = {
+    const untouched: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -400,7 +400,7 @@ describe('toolSchemaCompatibilityFeature', () => {
   // Gemini's Schema proto types `enum` as string lists; a numeric or boolean
   // `enum`/`const` 400s the whole request (browser `click.clickCount`).
   it('replaces numeric and boolean enum/const with their bare type on the Gemini endpoint only', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -486,21 +486,24 @@ describe('toolSchemaCompatibilityFeature', () => {
     const declaration = (
       capturedBody as {
         tools: Array<{
-          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+          functionDeclarations: Array<{ name: string; parametersJsonSchema: { properties: Record<string, unknown> } }>
         }>
       }
     ).tools[0].functionDeclarations[0]
     expect(declaration.name).toBe('click')
     // `z.union([z.literal(1), z.literal(2)])` used to reach Gemini as
     // `anyOf: [{ enum: [1] }, { enum: [2] }]` and 400 the whole request.
-    expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
+    expect(declaration.parametersJsonSchema.properties.clickCount).toEqual({
+      default: 1,
+      anyOf: [{ type: 'number' }, { type: 'number' }]
+    })
   })
 
   // Gemini's function-declaration proto has no `propertyNames` /
   // `additionalProperties` fields (issue #20939) — they 400 the whole
   // request as `Unknown name ... Cannot find field`.
   it('drops propertyNames and additionalProperties for Gemini, keeping them elsewhere', async () => {
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -574,7 +577,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     // Relay-style scope (e.g. aihubmix/newapi wrapping Gemini): endpointType is
     // GOOGLE_GENERATE_CONTENT while the downstream relay translates schemas
     // literally, so the repo-owned middleware is the last choke point (issue #20939).
-    const params: LanguageModelV3CallOptions = {
+    const params: LanguageModelV4CallOptions = {
       prompt: [],
       tools: [
         {
@@ -666,11 +669,11 @@ describe('toolSchemaCompatibilityFeature', () => {
     const declaration = (
       capturedBody as {
         tools: Array<{
-          functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+          functionDeclarations: Array<{ name: string; parametersJsonSchema: { properties: Record<string, unknown> } }>
         }>
       }
     ).tools[0].functionDeclarations[0]
     expect(declaration.name).toBe('search')
-    expect(JSON.stringify(declaration.parameters)).not.toMatch(/"(propertyNames|additionalProperties)"/)
+    expect(JSON.stringify(declaration.parametersJsonSchema)).not.toMatch(/"(propertyNames|additionalProperties)"/)
   })
 })

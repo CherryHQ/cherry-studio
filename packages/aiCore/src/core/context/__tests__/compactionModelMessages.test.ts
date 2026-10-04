@@ -1,8 +1,8 @@
 import type {
-  LanguageModelV3,
-  LanguageModelV3Content,
-  LanguageModelV3FinishReason,
-  LanguageModelV3GenerateResult
+  LanguageModelV4,
+  LanguageModelV4Content,
+  LanguageModelV4FinishReason,
+  LanguageModelV4GenerateResult
 } from '@ai-sdk/provider'
 import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -13,15 +13,15 @@ import { fromModelMessages } from '../modelMessageAdapter'
 
 /** Minimal V3 model whose summarization call returns a fixed string. A V3 model
  *  is a valid `LanguageModel`, so it exercises the widened model param too. */
-function createSummarizerModel(summaryText = 'SUMMARY'): LanguageModelV3 {
+function createSummarizerModel(summaryText = 'SUMMARY'): LanguageModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: 'test',
     modelId: 'test-model',
     supportedUrls: {},
-    async doGenerate(): Promise<LanguageModelV3GenerateResult> {
-      const content: LanguageModelV3Content[] = [{ type: 'text', text: summaryText }]
-      const finishReason: LanguageModelV3FinishReason = { unified: 'stop', raw: undefined }
+    async doGenerate(): Promise<LanguageModelV4GenerateResult> {
+      const content: LanguageModelV4Content[] = [{ type: 'text', text: summaryText }]
+      const finishReason: LanguageModelV4FinishReason = { unified: 'stop', raw: undefined }
       return {
         content,
         finishReason,

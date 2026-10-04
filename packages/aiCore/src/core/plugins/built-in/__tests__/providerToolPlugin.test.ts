@@ -23,7 +23,7 @@ describe('providerToolPlugin', () => {
       model: { provider: 'openai' }
     } as never)
 
-    expect(result.tools).toEqual({ web_search: serverTool, web_fetch: {} })
+    expect(result.tools).toEqual({ web_search: { ...serverTool, isProviderExecuted: true }, web_fetch: {} })
   })
 
   it('preserves the client fallback when no server implementation resolves', async () => {

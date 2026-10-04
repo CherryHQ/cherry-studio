@@ -4,7 +4,7 @@ import { tool } from 'ai'
 import { application } from '@application'
 import { sessionToolDefinitions } from '@main/ai/mcp/browserToolDefinitions'
 
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export function createBrowserToolEntries(): ToolEntry[] {
@@ -16,6 +16,7 @@ export function createBrowserToolEntries(): ToolEntry[] {
     truncatable: false,
     applies: (scope) => scope.browserEnabled === true,
     tool: tool({
+      contextSchema: requestContextSchema,
       description,
       inputSchema,
       execute: async (args, options) => {

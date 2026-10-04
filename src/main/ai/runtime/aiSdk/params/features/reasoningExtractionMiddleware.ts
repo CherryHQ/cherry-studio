@@ -1,4 +1,4 @@
-import type { LanguageModelV3Content, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4Content, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 /**
@@ -24,7 +24,7 @@ export function createAnchoredReasoningExtraction(tagName: string): LanguageMode
   const closingTag = `</${tagName}>`
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     wrapGenerate: async ({ doGenerate }) => {
       const result = await doGenerate()
       return { ...result, content: splitLeadingBlock(result.content, openingTag, closingTag) }
@@ -38,10 +38,10 @@ export function createAnchoredReasoningExtraction(tagName: string): LanguageMode
 
 /** Non-streaming counterpart: same two rules, applied to the finished parts. */
 function splitLeadingBlock(
-  content: LanguageModelV3Content[],
+  content: LanguageModelV4Content[],
   openingTag: string,
   closingTag: string
-): LanguageModelV3Content[] {
+): LanguageModelV4Content[] {
   if (content.some((part) => part.type === 'reasoning')) return content
 
   const index = content.findIndex((part) => part.type === 'text')
@@ -70,15 +70,15 @@ function splitLeadingBlock(
 }
 
 async function* anchoredChunks(
-  source: ReadableStream<LanguageModelV3StreamPart>,
+  source: ReadableStream<LanguageModelV4StreamPart>,
   openingTag: string,
   closingTag: string
-): AsyncGenerator<LanguageModelV3StreamPart> {
+): AsyncGenerator<LanguageModelV4StreamPart> {
   const reader = source.getReader()
   /** Anchor text-start + deltas, withheld until the probe decides the whole stream. */
-  const held: LanguageModelV3StreamPart[] = []
+  const held: LanguageModelV4StreamPart[] = []
   let anchorId: string | undefined
-  let heldTextStart: LanguageModelV3StreamPart | undefined
+  let heldTextStart: LanguageModelV4StreamPart | undefined
   let leading = ''
   let phase: StreamPhase = 'probe'
   let scanBuffer = ''
@@ -88,7 +88,7 @@ async function* anchoredChunks(
 
   const readPhase = (): StreamPhase => phase
 
-  const passthrough = (out: LanguageModelV3StreamPart[]): void => {
+  const passthrough = (out: LanguageModelV4StreamPart[]): void => {
     phase = 'after'
     out.push(...held)
     held.length = 0
@@ -96,7 +96,7 @@ async function* anchoredChunks(
   }
 
   /** The anchor's text part is opened late so it lands after the reasoning part. */
-  const openText = (out: LanguageModelV3StreamPart[], force = false): void => {
+  const openText = (out: LanguageModelV4StreamPart[], force = false): void => {
     if (textOpen || anchorId === undefined) return
     if (!force && pendingText.trim() === '') return
     out.push(heldTextStart ?? { type: 'text-start', id: anchorId })
@@ -105,7 +105,7 @@ async function* anchoredChunks(
     textOpen = true
   }
 
-  const closeBlock = (out: LanguageModelV3StreamPart[]): void => {
+  const closeBlock = (out: LanguageModelV4StreamPart[]): void => {
     if (scanBuffer) {
       out.push({ type: 'reasoning-delta', id: REASONING_PART_ID, delta: scanBuffer })
       scanBuffer = ''
@@ -117,7 +117,7 @@ async function* anchoredChunks(
     phase = 'after'
   }
 
-  const scan = (text: string, out: LanguageModelV3StreamPart[]): void => {
+  const scan = (text: string, out: LanguageModelV4StreamPart[]): void => {
     scanBuffer += text
     const end = scanBuffer.indexOf(closingTag)
     if (end >= 0) {
@@ -143,7 +143,7 @@ async function* anchoredChunks(
     }
   }
 
-  const probe = (chunk: LanguageModelV3StreamPart, out: LanguageModelV3StreamPart[]): void => {
+  const probe = (chunk: LanguageModelV4StreamPart, out: LanguageModelV4StreamPart[]): void => {
     if (chunk.type === 'text-start') {
       if (anchorId === undefined) {
         anchorId = chunk.id
@@ -214,7 +214,7 @@ async function* anchoredChunks(
     out.push(chunk)
   }
 
-  const extract = (chunk: LanguageModelV3StreamPart, out: LanguageModelV3StreamPart[]): void => {
+  const extract = (chunk: LanguageModelV4StreamPart, out: LanguageModelV4StreamPart[]): void => {
     if (chunk.type === 'text-delta') {
       if (chunk.id === anchorId) scan(chunk.delta, out)
       else out.push(chunk)
@@ -239,7 +239,7 @@ async function* anchoredChunks(
     out.push(chunk)
   }
 
-  const after = (chunk: LanguageModelV3StreamPart, out: LanguageModelV3StreamPart[]): void => {
+  const after = (chunk: LanguageModelV4StreamPart, out: LanguageModelV4StreamPart[]): void => {
     if (chunk.type === 'text-delta' && chunk.id === anchorId && !textOpen) openText(out, true)
     // A text part we deliberately never opened must not be ended either.
     if (chunk.type === 'text-end' && chunk.id === anchorId && !textOpen) return
@@ -250,7 +250,7 @@ async function* anchoredChunks(
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      const out: LanguageModelV3StreamPart[] = []
+      const out: LanguageModelV4StreamPart[] = []
       if (phase === 'probe') probe(value, out)
       else if (phase === 'extract') extract(value, out)
       else after(value, out)
@@ -259,7 +259,7 @@ async function* anchoredChunks(
 
     // Read through a call: the handlers above mutate `phase` inside closures, which
     // control-flow analysis cannot see.
-    const tail: LanguageModelV3StreamPart[] = []
+    const tail: LanguageModelV4StreamPart[] = []
     if (readPhase() === 'extract') closeBlock(tail)
     if (readPhase() === 'after') openText(tail)
     for (const part of tail) yield part
@@ -274,10 +274,10 @@ async function* anchoredChunks(
 }
 
 function toReadableStream(
-  iterator: AsyncGenerator<LanguageModelV3StreamPart>
-): ReadableStream<LanguageModelV3StreamPart> {
+  iterator: AsyncGenerator<LanguageModelV4StreamPart>
+): ReadableStream<LanguageModelV4StreamPart> {
   const source = iterator[Symbol.asyncIterator]()
-  return new ReadableStream<LanguageModelV3StreamPart>({
+  return new ReadableStream<LanguageModelV4StreamPart>({
     async pull(controller) {
       const { done, value } = await source.next()
       if (done) controller.close()

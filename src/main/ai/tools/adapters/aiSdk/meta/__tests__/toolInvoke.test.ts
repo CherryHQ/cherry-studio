@@ -62,7 +62,7 @@ async function callInvoke(tool: Tool, args: { name: string; params?: unknown }) 
   return tool.execute(args, {
     toolCallId: 'outer-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+    context: { requestId: 'req-1', abortSignal: new AbortController().signal }
   })
 }
 

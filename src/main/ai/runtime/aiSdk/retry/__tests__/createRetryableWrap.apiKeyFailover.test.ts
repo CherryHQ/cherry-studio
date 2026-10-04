@@ -1,4 +1,4 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -41,15 +41,15 @@ function makeFakeLanguageModel(
   modelId: string,
   doGenerate: ReturnType<typeof vi.fn>,
   doStream = vi.fn()
-): LanguageModelV3 {
+): LanguageModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: 'test',
     modelId,
     supportedUrls: {},
     doGenerate,
     doStream
-  } as unknown as LanguageModelV3
+  } as unknown as LanguageModelV4
 }
 
 function streamResult(parts: unknown[]) {
@@ -73,7 +73,7 @@ async function collectStream(stream: ReadableStream<unknown>): Promise<unknown[]
   }
 }
 
-function fallbackOf(model: LanguageModelV3): FallbackResolver {
+function fallbackOf(model: LanguageModelV4): FallbackResolver {
   return () => Promise.resolve({ model })
 }
 

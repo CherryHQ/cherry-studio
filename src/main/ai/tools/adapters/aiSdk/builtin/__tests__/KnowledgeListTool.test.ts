@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -169,7 +169,7 @@ function listPage(items: KnowledgeBase[], nextCursor?: string) {
 }
 
 function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions<unknown>) => Promise<unknown>
   return execute(
     // Unused filters are omitted, not sentinel-valued — kb_list runs without `strict`, so its schema
     // is plain optionals and the model omits what it does not filter on.
@@ -177,7 +177,7 @@ function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}):
     {
       toolCallId: 'tc-1',
       messages: [],
-      experimental_context: {
+      context: {
         requestId: 'req-1',
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal

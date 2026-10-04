@@ -1,3 +1,4 @@
+import { type Tool, tool } from 'ai'
 /**
  * `tool_exec` meta-tool — runs a snippet of JavaScript in an isolated
  * worker thread that can call any registered tool through `tools.invoke`.
@@ -14,10 +15,9 @@
  *
  * The user MUST `return` the final value. Hard timeout: 60s.
  */
-
-import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import { requestContextSchema } from '../context'
 import type { ToolRegistry } from '../registry'
 import { runExec } from './exec/runtime'
 
@@ -25,6 +25,7 @@ export const TOOL_EXEC_TOOL_NAME = 'tool_exec'
 
 export function createToolExecTool(registry: ToolRegistry): Tool {
   return tool({
+    contextSchema: requestContextSchema,
     description:
       'Execute JavaScript that orchestrates multiple tool calls in one round. Use `tools.invoke(name, params)` to call any tool. ' +
       'You MUST explicitly `return` the final value. Available helpers: `parallel(...)`, `settle(...)`, `console.*`, `tools.log(level, msg, fields?)`.',

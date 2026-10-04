@@ -9,10 +9,10 @@
  * All requests include the APP-Code header.
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
-import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { GoogleLanguageModel } from '@ai-sdk/google/internal'
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
 import { OpenAIChatLanguageModel, OpenAIResponsesLanguageModel, OpenAISpeechModel } from '@ai-sdk/openai/internal'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4, RerankingModelV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -33,12 +33,12 @@ export interface AihubmixProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface AihubmixProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
-  rerankingModel(modelId: string): RerankingModelV3
+export interface AihubmixProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
+  rerankingModel(modelId: string): RerankingModelV4
 }
 
 export function createAihubmix(options: AihubmixProviderSettings = {}): AihubmixProvider {
@@ -87,7 +87,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createGeminiModel = (modelId: string) => {
     const headers = authHeaders()
-    return new GoogleGenerativeAILanguageModel(modelId, {
+    return new GoogleLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
       baseURL: geminiBaseURL,
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
@@ -97,7 +97,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     })
   }
 
-  const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV3 =>
+  const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV4 =>
     new OpenAICompatibleChatLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
       url: chatUrl,
@@ -105,7 +105,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  const createOpenAIChatModel = (modelId: string): LanguageModelV3 =>
+  const createOpenAIChatModel = (modelId: string): LanguageModelV4 =>
     new OpenAIChatLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
       url: chatUrl,
@@ -113,7 +113,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  const createResponsesModel = (modelId: string): LanguageModelV3 =>
+  const createResponsesModel = (modelId: string): LanguageModelV4 =>
     new OpenAIResponsesLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.openai-response`,
       url: responsesUrl,
@@ -122,7 +122,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fileIdPrefixes: ['file-']
     })
 
-  const createChatModel = (modelId: string): LanguageModelV3 => {
+  const createChatModel = (modelId: string): LanguageModelV4 => {
     switch (resolveAihubmixChatFamily(modelId)) {
       case 'anthropic':
         return createAnthropicModel(modelId)
@@ -138,7 +138,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   }
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
 
   provider.languageModel = createChatModel
 

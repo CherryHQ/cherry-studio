@@ -1,6 +1,6 @@
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { createGoogle } from '@ai-sdk/google'
+import { GoogleLanguageModel } from '@ai-sdk/google/internal'
 import { createOpenAI } from '@ai-sdk/openai'
 import {
   OpenAICompatibleChatLanguageModel,
@@ -8,7 +8,7 @@ import {
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
 import { OpenAIImageModel } from '@ai-sdk/openai/internal'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -35,11 +35,11 @@ export interface DmxapiProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface DmxapiProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
+export interface DmxapiProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
 }
 
 type DmxapiEmbeddingFamily = 'openai-compat' | 'gemini'
@@ -104,7 +104,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? formatApiHost(nativeBaseURL, true)
 
   const googleProvider = () =>
-    createGoogleGenerativeAI({
+    createGoogle({
       baseURL: geminiBaseURL,
       apiKey: resolveApiKey(),
       headers: settings.headers,
@@ -124,7 +124,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const transport = buildDmxapiTransport(settings)
 
-  const createChatModel = (modelId: string): LanguageModelV3 => {
+  const createChatModel = (modelId: string): LanguageModelV4 => {
     switch (resolveDmxapiChatFamily(modelId)) {
       case 'anthropic':
         return new AnthropicMessagesLanguageModel(modelId, {
@@ -136,7 +136,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
           supportsNativeStructuredOutput: false
         })
       case 'gemini':
-        return new GoogleGenerativeAILanguageModel(modelId, {
+        return new GoogleLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.google`,
           baseURL: geminiBaseURL,
           headers: () => ({ 'x-goog-api-key': resolveApiKey(), ...settings.headers }),
@@ -156,7 +156,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     }
   }
 
-  const createImageModelV3 = (modelId: string): ImageModelV3 => {
+  const createImageModelV4 = (modelId: string): ImageModelV4 => {
     // Native SDK families win first — `gpt-image-*` / `dall-e-*` via
     // `@ai-sdk/openai`'s `OpenAIImageModel` (multipart edits, etc.),
     // `imagen-*` / `gemini-*-image*` via `@ai-sdk/google`'s `provider.image`.
@@ -193,9 +193,9 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   }
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
-  provider.embeddingModel = (modelId: string): EmbeddingModelV3 => {
+  provider.embeddingModel = (modelId: string): EmbeddingModelV4 => {
     if (resolveEmbeddingFamily(modelId) === 'gemini') {
       return googleEmbeddingModel(modelId)
     }
@@ -206,7 +206,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       fetch: customFetch
     })
   }
-  provider.imageModel = createImageModelV3
+  provider.imageModel = createImageModelV4
 
   return provider
 }

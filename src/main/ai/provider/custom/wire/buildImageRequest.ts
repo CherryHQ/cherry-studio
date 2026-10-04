@@ -1,4 +1,4 @@
-import type { JSONValue } from 'ai'
+import type { JSONValue } from '@ai-sdk/provider'
 
 import { wireName } from '@cherrystudio/provider-registry'
 

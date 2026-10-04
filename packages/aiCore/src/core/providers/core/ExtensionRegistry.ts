@@ -1,11 +1,9 @@
+import type { CoreProviderSettingsMap, RegisteredProviderId, ToolCapability, ToolFactory } from '../index'
 /**
  * Extension Registry
  * 管理所有 Provider Extensions 的注册、查询和实例化
  */
-
-import type { ProviderV3 } from '@ai-sdk/provider'
-
-import type { CoreProviderSettingsMap, RegisteredProviderId, ToolCapability, ToolFactory } from '../index'
+import type { AiSdkProvider } from '../types'
 import { type ProviderExtension } from './ProviderExtension'
 import { ProviderCreationError } from './utils'
 
@@ -347,7 +345,7 @@ export class ExtensionRegistry {
   }
 
   /** 获取 variant 的 resolveModel 函数（类型安全在 extension 声明处保证） */
-  getModelResolver(providerId: string): ((provider: ProviderV3, modelId: string) => any) | undefined {
+  getModelResolver(providerId: string): ((provider: AiSdkProvider, modelId: string) => any) | undefined {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
 
@@ -418,7 +416,7 @@ export class ExtensionRegistry {
     providerId: string,
     capability: ToolCapability,
     modelProvider?: string
-  ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
+  ): Promise<{ factory: ToolFactory; provider: AiSdkProvider } | undefined> {
     // 1. Direct: provider 自己有 toolFactories
     const directFactory = this.getToolFactory(providerId, capability)
     if (directFactory) {
@@ -444,7 +442,7 @@ export class ExtensionRegistry {
   }
 
   /** Get provider for .tools extraction (cached or dummy instance) */
-  private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined> {
+  private async getToolProvider(providerId: string): Promise<AiSdkProvider | undefined> {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
 
@@ -483,9 +481,12 @@ export class ExtensionRegistry {
    * @param settings - Provider 配置
    * @returns Provider 实例
    */
-  async createProvider<T extends RegisteredProviderId>(id: T, settings: CoreProviderSettingsMap[T]): Promise<ProviderV3>
-  async createProvider(id: string, settings?: unknown): Promise<ProviderV3>
-  async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
+  async createProvider<T extends RegisteredProviderId>(
+    id: T,
+    settings: CoreProviderSettingsMap[T]
+  ): Promise<AiSdkProvider>
+  async createProvider(id: string, settings?: unknown): Promise<AiSdkProvider>
+  async createProvider(id: string, settings?: unknown): Promise<AiSdkProvider> {
     const parsed = this.parseProviderId(id)
     if (!parsed) {
       throw new Error(`Provider extension "${id}" not found. Did you forget to register it?`)

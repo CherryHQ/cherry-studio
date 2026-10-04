@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -11,7 +11,7 @@ import { definePlugin } from '@cherrystudio/ai-core'
 function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
   const REDACTED_BLOCK = '[REDACTED]'
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     wrapGenerate: async ({ doGenerate }) => {
       const { content, ...rest } = await doGenerate()
       const modifiedContent = content.map((part) => {
@@ -29,10 +29,10 @@ function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
       const { stream, ...rest } = await doStream()
       return {
         stream: stream.pipeThrough(
-          new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+          new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
             transform(
-              chunk: LanguageModelV3StreamPart,
-              controller: TransformStreamDefaultController<LanguageModelV3StreamPart>
+              chunk: LanguageModelV4StreamPart,
+              controller: TransformStreamDefaultController<LanguageModelV4StreamPart>
             ) {
               if (chunk.type === 'reasoning-delta' && chunk.delta.includes(REDACTED_BLOCK)) {
                 controller.enqueue({

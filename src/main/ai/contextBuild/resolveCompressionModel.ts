@@ -1,13 +1,13 @@
 /**
  * Resolve a Cherry-side compression-model selector (`<providerId>::<modelId>`
- * UniqueModelId) into a `LanguageModelV3` via the SAME path the agent uses:
+ * UniqueModelId) into a `LanguageModelV4` via the SAME path the agent uses:
  * Provider+Model rows (DataApi) → `resolveSdkConfig` → `createExecutor`
  * → `executor.languageModel(modelId)`.
  *
  * Returns `null` (never throws) on any failure — the compress feature treats
  * null as "compression off" so a misconfigured model never breaks the chat.
  */
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import { createExecutor } from '@cherrystudio/ai-core'
@@ -36,7 +36,7 @@ const logger = loggerService.withContext('resolveCompressionModel')
  * `contextWindow` is `null` when the compressor row declares none.
  */
 export interface CompressionModelDescriptor {
-  readonly languageModel: LanguageModelV3
+  readonly languageModel: LanguageModelV4
   readonly contextWindow: number | null
 }
 

@@ -1,19 +1,19 @@
 /**
  * Model Test Utilities
- * Provides comprehensive mock creators for AI SDK v3 models and related test utilities
+ * Provides comprehensive mock creators for AI SDK v4 models and related test utilities
  */
 
 import type {
-  EmbeddingModelV3,
-  ImageModelV3,
-  LanguageModelV3,
-  LanguageModelV3Middleware,
-  ProviderV3,
-  RerankingModelV3
+  EmbeddingModelV4,
+  ImageModelV4,
+  LanguageModelV4,
+  LanguageModelV4Middleware,
+  ProviderV4,
+  RerankingModelV4
 } from '@ai-sdk/provider'
 import type { Tool, ToolSet } from 'ai'
 import { tool } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
+import { MockLanguageModelV4 } from 'ai/test'
 import { vi } from 'vitest'
 import * as z from 'zod'
 
@@ -41,7 +41,7 @@ type ContextOverrides = Partial<Omit<AiRequestContext<StreamTextParams, StreamTe
  * ```
  */
 export function createMockContext(overrides?: ContextOverrides): AiRequestContext<StreamTextParams, StreamTextResult> {
-  const mockModel = new MockLanguageModelV3({
+  const mockModel = new MockLanguageModelV4({
     provider: 'test-provider',
     modelId: 'test-model'
   })
@@ -84,7 +84,7 @@ export function createMockContext(overrides?: ContextOverrides): AiRequestContex
 
 /**
  * Creates a mock embedding model with customizable behavior
- * Compliant with AI SDK v3 specification
+ * Compliant with AI SDK v4 specification
  *
  * @example
  * ```ts
@@ -95,9 +95,9 @@ export function createMockContext(overrides?: ContextOverrides): AiRequestContex
  * })
  * ```
  */
-export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>): EmbeddingModelV3 {
+export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV4>): EmbeddingModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: 'mock-provider',
     modelId: 'mock-embedding-model',
     maxEmbeddingsPerCall: 100,
@@ -119,9 +119,9 @@ export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>):
   }
 }
 
-export function createMockRerankingModel(overrides?: Partial<RerankingModelV3>): RerankingModelV3 {
+export function createMockRerankingModel(overrides?: Partial<RerankingModelV4>): RerankingModelV4 {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: 'mock-provider',
     modelId: 'mock-reranking-model',
     doRerank: vi.fn().mockResolvedValue({
@@ -136,28 +136,28 @@ export function createMockRerankingModel(overrides?: Partial<RerankingModelV3>):
 }
 
 /**
- * Creates a complete mock ProviderV3 with all model types
+ * Creates a complete mock ProviderV4 with all model types
  * Useful for testing provider registration and management
  *
  * @example
  * ```ts
- * const provider = createMockProviderV3({
+ * const provider = createMockProviderV4({
  *   provider: 'openai',
  *   languageModel: customLanguageModel,
  *   imageModel: customImageModel
  * })
  * ```
  */
-export function createMockProviderV3(overrides?: {
+export function createMockProviderV4(overrides?: {
   provider?: string
-  languageModel?: (modelId: string) => LanguageModelV3
-  imageModel?: (modelId: string) => ImageModelV3
-  embeddingModel?: (modelId: string) => EmbeddingModelV3
-  rerankingModel?: (modelId: string) => RerankingModelV3
-}): ProviderV3 {
+  languageModel?: (modelId: string) => LanguageModelV4
+  imageModel?: (modelId: string) => ImageModelV4
+  embeddingModel?: (modelId: string) => EmbeddingModelV4
+  rerankingModel?: (modelId: string) => RerankingModelV4
+}): ProviderV4 {
   const defaultLanguageModel = (modelId: string) =>
     ({
-      specificationVersion: 'v3',
+      specificationVersion: 'v4',
       provider: overrides?.provider ?? 'mock-provider',
       modelId,
       defaultObjectGenerationMode: 'tool',
@@ -197,11 +197,11 @@ export function createMockProviderV3(overrides?: {
         rawResponse: { headers: {} },
         warnings: []
       })
-    }) as LanguageModelV3
+    }) as LanguageModelV4
 
   const defaultImageModel = (modelId: string) =>
     ({
-      specificationVersion: 'v3',
+      specificationVersion: 'v4',
       provider: overrides?.provider ?? 'mock-provider',
       modelId,
       maxImagesPerCall: undefined,
@@ -215,11 +215,11 @@ export function createMockProviderV3(overrides?: {
         ],
         warnings: []
       })
-    }) as ImageModelV3
+    }) as ImageModelV4
 
   const defaultEmbeddingModel = (modelId: string) =>
     ({
-      specificationVersion: 'v3',
+      specificationVersion: 'v4',
       provider: overrides?.provider ?? 'mock-provider',
       modelId,
       maxEmbeddingsPerCall: 100,
@@ -235,7 +235,7 @@ export function createMockProviderV3(overrides?: {
         },
         rawResponse: { headers: {} }
       })
-    }) as EmbeddingModelV3
+    }) as EmbeddingModelV4
 
   const defaultRerankingModel = (modelId: string) =>
     createMockRerankingModel({
@@ -244,14 +244,14 @@ export function createMockProviderV3(overrides?: {
     })
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: overrides?.provider ?? 'mock-provider',
 
     languageModel: vi.fn(overrides?.languageModel ?? defaultLanguageModel),
     imageModel: vi.fn(overrides?.imageModel ?? defaultImageModel),
     embeddingModel: vi.fn(overrides?.embeddingModel ?? defaultEmbeddingModel),
     rerankingModel: vi.fn(overrides?.rerankingModel ?? defaultRerankingModel)
-  } as ProviderV3
+  } as ProviderV4
 }
 
 /**
@@ -265,12 +265,8 @@ export function createMockProviderV3(overrides?: {
  * })
  * ```
  */
-export function createMockMiddleware(): LanguageModelV3Middleware {
-  return {
-    specificationVersion: 'v3',
-    wrapGenerate: vi.fn((doGenerate) => doGenerate),
-    wrapStream: vi.fn((doStream) => doStream)
-  }
+export function createMockMiddleware(): LanguageModelV4Middleware {
+  return { specificationVersion: 'v4' }
 }
 
 /**
@@ -294,10 +290,13 @@ export function createMockTool(name: string, description?: string): Tool<{ value
 /**
  * Creates a provider-defined tool for testing
  */
-export function createMockProviderTool(name: string, description?: string): { type: 'provider'; description: string } {
+export function createMockProviderTool(name: string): Tool {
   return {
-    type: 'provider' as const,
-    description: description || `Mock provider tool: ${name}`
+    type: 'provider',
+    id: `test.${name}`,
+    args: {},
+    inputSchema: z.object({}),
+    isProviderExecuted: false
   }
 }
 
@@ -320,7 +319,7 @@ export function createMockToolSet(tools: Record<string, 'function' | 'provider'>
     if (type === 'function') {
       toolSet[name] = createMockTool(name)
     } else {
-      toolSet[name] = createMockProviderTool(name) as Tool
+      toolSet[name] = createMockProviderTool(name)
     }
   }
 
@@ -350,25 +349,25 @@ export function createMockStreamParams(overrides?: Partial<StreamTextParams>): S
  */
 export const mockModels = {
   /** Standard language model for general testing */
-  language: new MockLanguageModelV3({
+  language: new MockLanguageModelV4({
     provider: 'test-provider',
     modelId: 'test-model'
   }),
 
   /** Mock OpenAI GPT-4 model */
-  gpt4: new MockLanguageModelV3({
+  gpt4: new MockLanguageModelV4({
     provider: 'openai',
     modelId: 'gpt-4'
   }),
 
   /** Mock Anthropic Claude model */
-  claude: new MockLanguageModelV3({
+  claude: new MockLanguageModelV4({
     provider: 'anthropic',
     modelId: 'claude-3-5-sonnet-20241022'
   }),
 
   /** Mock Google Gemini model */
-  gemini: new MockLanguageModelV3({
+  gemini: new MockLanguageModelV4({
     provider: 'google',
     modelId: 'gemini-2.0-flash-exp'
   })
