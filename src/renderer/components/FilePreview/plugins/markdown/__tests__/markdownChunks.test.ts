@@ -67,6 +67,18 @@ describe('splitMarkdownChunks', () => {
     expect(chunks).toHaveLength(3)
   })
 
+  // The math tokenizer accepts a closing fence at least as long as the opener and rejects a shorter
+  // one (`if (size < sizeOpen) return nok(code)` in micromark-extension-math), so the splitter's
+  // `>=` mirrors it rather than requiring an exact match.
+  it('closes dollar math on a longer fence but not on a shorter one', () => {
+    const longer = ['opening paragraph', '', '$$x = 1234567890', '', 'y = 2$$$', '', 'after'].join('\n')
+    const shorter = ['opening paragraph', '', '$$$x = 1234567890', '', 'y = 2$$', '', 'after'].join('\n')
+
+    expect(chunksOf(longer, 10)).toHaveLength(3)
+    expect(chunksOf(shorter, 10)).toHaveLength(2)
+    expect(chunksOf(shorter, 10)[1].text).toContain('y = 2$$\n\nafter')
+  })
+
   it('keeps the tail of a document in one chunk while its dollar math is unclosed', () => {
     // The parser reads an unclosed `$$` as math to the end of the document, so the splitter follows it.
     const content = ['opening paragraph', '', '$$x = 1', '', 'y = 2', '', 'after'].join('\n')
