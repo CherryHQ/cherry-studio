@@ -11,6 +11,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
+import { AgentLaunchIndexProvider } from '../../tools/agent'
+import { buildAgentLaunchIndex } from '../../tools/shared/agentToolTypes'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
 
@@ -1451,6 +1453,36 @@ describe('MessagePartsRenderer', () => {
       const toggle = screen.getByRole('button', { expanded: true })
       const list = container.querySelector(`#${toggle.getAttribute('aria-controls')}`)
       expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
+    })
+
+    // A resume row's flow is keyed by the launch it opens, not by the row's own call: while that
+    // flow is the active one the list must stay expanded, exactly as the row's click resolves it.
+    it('keeps the subtasks open while a resume row launch flow is active', () => {
+      const launch = {
+        type: 'tool-Agent',
+        toolCallId: 'reviewer',
+        state: 'output-available',
+        input: { description: 'Review database' },
+        output: { status: 'async_launched', taskId: 'child' }
+      } as CherryMessagePart
+      const receipt = {
+        type: 'tool-SendMessage',
+        toolCallId: 'resume',
+        state: 'output-available',
+        input: { to: 'child', message: 'Please continue' },
+        output: { success: true, resumedAgentId: 'child' }
+      } as CherryMessagePart
+      const launchIndex = buildAgentLaunchIndex({ 'msg-0': [launch], 'msg-1': [receipt] })
+      const actions = { openAgentToolFlow: vi.fn(), isAgentToolFlowActive: (id: string) => id === 'reviewer' }
+      finishTurn('done')
+
+      render(
+        <AgentLaunchIndexProvider value={launchIndex}>
+          {renderPartsTree([receipt], msg(), actions, undefined, [{ message: msg({ id: 'msg-0' }), parts: [launch] }])}
+        </AgentLaunchIndexProvider>
+      )
+
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
     })
 
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {

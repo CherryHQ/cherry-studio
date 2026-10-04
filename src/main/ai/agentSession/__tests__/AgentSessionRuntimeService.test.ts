@@ -2894,6 +2894,37 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.flowMessageIdsByToolCallId?.has('root-0')).toBe(false)
     })
 
+    // The persisted-row set is bounded, but a flow that keeps streaming must stay inside it: an
+    // evicted id sends its chunks to the message buffer, where they wait for teardown.
+    it('bounds the persisted flow ids without ageing out an active one', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      let host = 0
+      mocks.findFlowHostMessageId.mockImplementation(() => `assistant-${host++}`)
+      mocks.getSessionMessage.mockReturnValue({ id: 'assistant', role: 'assistant', data: { parts: [] } })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (index: number) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: `root-${index}`,
+          chunk: { type: 'text-start', id: `text-${index}` }
+        })
+
+      // The first flow keeps streaming while many other rows are persisted after it.
+      send(0)
+      const activeMessageId = entry.flowMessageIdsByToolCallId?.get('root-0')
+      for (let index = 1; index < 1_100; index += 1) {
+        send(index)
+        send(0)
+      }
+
+      expect(entry.persistedFlowMessageIds?.size).toBeLessThanOrEqual(1_024)
+      expect(entry.persistedFlowMessageIds?.has(activeMessageId as string)).toBe(true)
+    })
+
     // A live turn's row is not persisted yet: its anchor is the only route for its chunks, so the
     // bound may never give it up.
     it('never gives up a live turn anchor to the bound', () => {

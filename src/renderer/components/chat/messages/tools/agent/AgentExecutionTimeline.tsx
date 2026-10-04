@@ -14,6 +14,7 @@ import { isToolPartAwaitingApproval } from '../toolResponse'
 import { useAgentLaunchIndex } from './AgentLaunchIndexContext'
 import { buildResumeToolHeader } from './agentResumeHeader'
 import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
+import { resolveAgentToolFlowTarget } from './agentToolFlowTarget'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
@@ -63,12 +64,10 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   )
   // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
   // redirecting to the launch root would drop everything the resume produced. The index is read
-  // rather than the parts map, which a settled tool group deliberately empties, and a task the dsh
-  // runtime bound to this call is enough to know the content is on its way here.
-  const receiptRootsItsFlow =
-    resumeState?.kind === 'navigable' &&
-    (launchIndex?.childRootCallIds.has(toolResponse.toolCallId) === true ||
-      launchIndex?.dshTaskRootCallIds.has(toolResponse.toolCallId) === true)
+  // rather than the parts map, which a settled tool group deliberately empties, and the target
+  // comes from the shared resolver so the row, the disclosure and the pane agree on it.
+  const flowTarget = resolveAgentToolFlowTarget(toolResponse, launchIndex, Boolean(listActions?.openAgentToolFlow))
+  const receiptRootsItsFlow = flowTarget !== undefined && flowTarget === toolResponse.toolCallId
 
   if (tool?.name === 'mcp__assistant__navigate') {
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
@@ -111,7 +110,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         hasError={effectiveStatus === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
         openFlowOnClick={isSubagentTool || resumeEntry}
-        flowTargetToolCallId={receiptRootsItsFlow ? undefined : resumeTarget?.toolCallId}
+        flowTargetToolCallId={receiptRootsItsFlow ? undefined : flowTarget}
         // The flow is the agent's whole timeline — keep its title the launch identity, not the
         // resume request's summary.
         flowTitle={resumeTarget?.description ?? getAgentToolFlowTitle(tool?.name, args ?? parsedPartialArgs)}
