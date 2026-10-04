@@ -2,16 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import type { PiApprovalContext } from './approvalExtension'
-import { createPiCodeModeTools } from './piCodeMode'
-import type { PiMcpToolDefinition } from './piMcpToolAdapter'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
@@ -131,9 +127,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
 
   it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
     const { handler, emitted } = buildGate()
-    await expect(
-      handler(toolEvent('tool_call', { name: 'mcp__server__lookup', params: {} }), extCtx)
-    ).resolves.toBeUndefined()
+    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
   })
 
@@ -278,33 +272,13 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('applies the same SQLite guard through the reusable nested authorizer', async () => {
-    const { authorizeTool, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
-    const execute = vi.fn<ToolDefinition['execute']>(async () => ({
-      content: [{ type: 'text', text: 'unexpected' }],
-      details: undefined
-    }))
-    const nestedWrite = {
-      name: 'write',
-      label: 'write',
-      description: 'write a file',
-      parameters: { type: 'object' },
-      execute
-    } as PiMcpToolDefinition
-    const exec = createPiCodeModeTools([nestedWrite], () => false, authorizeTool).find(
-      (tool) => tool.name === PI_TOOL_EXEC_TOOL_NAME
-    )!
-
-    await expect(
-      exec.execute(
-        'outer-write',
-        { code: `return tools.invoke('write', { path: ${JSON.stringify(databaseFile)} })` },
-        undefined,
-        undefined,
-        {} as never
-      )
-    ).rejects.toThrow('SQLite')
-    expect(execute).not.toHaveBeenCalled()
+  it('blocks native nested writes to protected SQLite', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    const decision = await handler(
+      { ...toolEvent('write', { path: databaseFile }), parentToolCallId: 'codemode-parent' },
+      extCtx
+    )
+    expect(decision).toEqual({ block: true, reason: expect.stringContaining('SQLite') })
     expect(emitted).toHaveLength(0)
   })
 
@@ -448,6 +422,15 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       await flush()
       expect(emitted).toHaveLength(1)
       expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command } })
+    })
+
+    it('asks before running a destructive command that rtk rewrote', async () => {
+      mocks.rtkRewrite.mockResolvedValueOnce('rtk git push --force')
+      const { handler, emitted } = buildAutoGate()
+      void handler(toolEvent('bash', { command: 'git push --force' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'rtk git push --force' } })
     })
 
     it('asks before writing outside the workspace', async () => {

@@ -12,7 +12,7 @@ export function createBrowserToolEntries(): ToolEntry[] {
     name: `browser_${name}`,
     namespace: 'browser',
     description,
-    defer: 'auto',
+    defer: 'always',
     truncatable: false,
     applies: (scope) => scope.browserEnabled === true,
     tool: tool({

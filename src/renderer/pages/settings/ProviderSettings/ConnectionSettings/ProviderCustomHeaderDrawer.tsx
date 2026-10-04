@@ -67,6 +67,11 @@ const IMAGE_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
 ])
 
+/** Which image draft carries the host of an image endpoint. */
+function imageDraftFieldFor(type: EndpointType): ProviderImageEndpointDraftField {
+  return type === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT ? 'imageEditBaseUrl' : 'imageGenerationBaseUrl'
+}
+
 const DEFAULT_CHAT_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -288,8 +293,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     if (!provider) return
 
     // Validate the selected default baseUrl — non-empty + URL-shape, unless
-    // this is Vertex (whose text endpoints are account-managed).
-    const defaultEndpointDraft = trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
+    // this is Vertex (whose text endpoints are account-managed). A provider with
+    // no chat endpoint defaults to its image endpoint, and `resolveEndpointTypes`
+    // keeps image endpoints out of `endpointDrafts`, so its host is validated here.
+    const defaultEndpointIsImage = IMAGE_ENDPOINT_TYPES.has(defaultChatEndpoint)
+    const defaultEndpointDraft = defaultEndpointIsImage
+      ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
+      : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
     const isAccountManagedProvider = provider.authType === 'iam-gcp'
     if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
@@ -313,7 +323,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
-    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
+    const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
@@ -330,7 +340,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     try {
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
-        defaultChatEndpoint,
+        // `defaultChatEndpoint` names a text endpoint; an image-only provider
+        // keeps the value it already has instead of recording an image one.
+        defaultChatEndpoint: defaultEndpointIsImage ? provider.defaultChatEndpoint : defaultChatEndpoint,
         providerSettings: {
           ...provider.settings,
           extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)

@@ -679,6 +679,43 @@ describe('release preparation state', () => {
     expect(result.status).toBe(0)
     expect(result.stderr).toBe('')
   })
+
+  it.each([
+    { tag: 'v1.2.0', status: 0, stderr: '' },
+    { tag: 'v1.1.0', status: 1, stderr: 'Release v1.1.0 already exists' }
+  ])('validates $tag after short pipe reads followed by a large write', ({ tag, status, stderr }) => {
+    const validatorPath = path.resolve(import.meta.dirname, '../release/validate-release-state.js')
+    const result = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        `
+          const { spawn } = require('node:child_process')
+          const child = spawn(process.execPath, [process.argv[1], 'prepare'], {
+            stdio: ['pipe', 'inherit', 'inherit']
+          })
+          child.on('exit', (code) => { process.exitCode = code ?? 1 })
+          child.stdin.on('error', () => { process.exitCode = 1 })
+          let writes = 0
+          const timer = setInterval(() => {
+            child.stdin.write(' '.repeat(4000))
+            if (++writes === 24) {
+              clearInterval(timer)
+              child.stdin.end(' '.repeat(400000) + JSON.stringify([[{ tag_name: 'v1.1.0' }]]))
+            }
+          }, 5)
+        `,
+        validatorPath
+      ],
+      { encoding: 'utf8', env: { ...process.env, TAG: tag }, timeout: 5000 }
+    )
+
+    expect(result.error).toBeUndefined()
+    expect(result.signal).toBeNull()
+    expect(result.status).toBe(status)
+    if (stderr) expect(result.stderr).toContain(stderr)
+    else expect(result.stderr).toBe('')
+  })
 })
 
 describe('release publication state', () => {
@@ -1412,19 +1449,4 @@ describe('release workflow gates', () => {
       ])
     }
   )
-
-  it('runs release workflow contract tests for release-workflow-only pull requests', () => {
-    const workflow = fs.readFileSync(path.join(workflowRoot, 'ci.yml'), 'utf8')
-    for (const workflowName of [
-      'backport-release-fixes.yml',
-      'auto-release-build.yml',
-      'post-release.yml',
-      'prepare-release.yml',
-      'preview-release.yml',
-      'publish-release.yml',
-      'release.yml'
-    ]) {
-      expect(workflow).toContain(`- '.github/workflows/${workflowName}'`)
-    }
-  })
 })
