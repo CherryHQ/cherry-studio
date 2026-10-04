@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
-import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
@@ -174,7 +173,7 @@ describe('toModelMessages', () => {
   })
 
   it('replays a malformed stored tool_search result without making the topic unsendable', async () => {
-    const toolSearch = createToolSearchTool(new ToolRegistry(), new Set(), new Set())
+    const toolSearch = createToolSearchTool([])
     const model = await toModelMessages(
       [
         ui('assistant', [
@@ -198,8 +197,8 @@ describe('toModelMessages', () => {
         expect.objectContaining({
           toolName: 'tool_search',
           output: {
-            type: 'text',
-            value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+            type: 'json',
+            value: { content: [{ type: 'text', text: 'Process started' }], metadata: {} }
           }
         })
       ]

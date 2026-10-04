@@ -49,7 +49,7 @@
 | [Remote Agent Testing Specification](./references/ai/remote-agent-testing.md) | Local WebSocket client acceptance specification for remote protocol conformance, real Desktop execution, recovery, security, and weak-network budgets |
 | [AiStreamManager](./references/ai/stream-manager.md) | AiStreamManager active-stream registry — listener fan-out, reconnect replay, abort, steering, and persistence triggers |
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
-| [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
+| [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, native Tool Search, Core Code Mode, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
 | [AI SDK v7 — Research Conclusions](./references/ai/unified-runtime/aisdk-v7-research.md) | AI SDK v7 research conclusions, composable agents, unified reasoning, media capabilities, and Cherry adoption boundaries |
 | [FilesV4 and SkillsV4 — Upload Migration Boundaries](./references/ai/unified-runtime/large-file-upload-port.md) | FilesV4 attachment lifecycle migration and separate SkillsV4 adoption decisions, with scoped references and acceptance gates |

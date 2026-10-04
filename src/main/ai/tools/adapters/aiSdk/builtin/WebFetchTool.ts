@@ -26,7 +26,7 @@ const webFetchTool = tool({
   inputSchema: webFetchInputSchema,
   outputSchema: webFetchResultSchema,
   execute: async ({ urls }, options) =>
-    markTrustedLocalToolTerminalFailure(await fetchWeb(urls, getToolCallContext(options).request.abortSignal)),
+    markTrustedLocalToolTerminalFailure(await fetchWeb(urls, getToolCallContext(options).abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 

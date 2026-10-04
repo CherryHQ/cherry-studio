@@ -1,7 +1,11 @@
+import { experimental_runCodeMode } from '@ai-sdk/code-mode'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
-import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 
 import { ToolRegistry } from '../../registry'
 
@@ -16,18 +20,6 @@ vi.mock('@application', async () => {
     McpCatalogService: { listTools },
     McpRuntimeService: { callTool }
   } as Record<string, unknown>)
-})
-
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
 })
 
 vi.mock('@main/data/services/McpServerService', () => ({
@@ -86,6 +78,17 @@ describe('mcpTools execute wrapper', () => {
     // Never reaches the runtime when the server is inactive.
     expect(callTool).not.toHaveBeenCalled()
   })
+
+  it.each([{ disabledTools: ['t'] }, { disabledAutoApproveTools: ['t'] }])(
+    'rejects a revoked tool before dispatch even after discovery',
+    async (policy) => {
+      const reg = new ToolRegistry()
+      const execute = await registerToolExecute(reg)
+      getById.mockReturnValue({ ...activeServer('s1'), ...policy })
+      await expect(execute({}, { toolCallId: 'stale-call' } as any)).rejects.toThrow(/disabled|requires approval/)
+      expect(callTool).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects with the result summary when callTool returns isError', async () => {
     const reg = new ToolRegistry()
@@ -147,21 +150,62 @@ describe('mcpTools execute wrapper', () => {
     })
     await syncMcpToolsToRegistry(reg)
 
-    const invoke = createToolInvokeTool(reg, new Set([tool.id]), new Set([tool.id]))
-    const execute = invoke.execute
-    if (!execute) throw new Error('expected tool_invoke to have an execute fn')
-
     await expect(
-      execute(
-        { name: tool.id, params: { query: 'hello', unexpected: true } },
-        {
-          toolCallId: 'outer-1',
-          messages: [],
-          context: undefined
-        }
-      )
-    ).rejects.toThrow(/Invalid params/)
+      experimental_runCodeMode({
+        js: `return await tools.${tool.id}({ query: "hello", unexpected: true })`,
+        tools: { [tool.id]: reg.getByName(tool.id)!.tool },
+        options: { toolsContext: { [tool.id]: { requestId: 'request-1' } } },
+        toolExecutionOptions: { toolCallId: 'outer-1', messages: [] }
+      })
+    ).rejects.toThrow(/Invalid input/)
     expect(callTool).not.toHaveBeenCalled()
+  })
+
+  it('executes through a real MCP transport and retains image/resource results and child scope', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const server = new McpServer({ name: 'fixture', version: '1' }, { capabilities: { tools: {} } })
+    const received: unknown[] = []
+    server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      received.push(request.params.arguments)
+      return {
+        content: [
+          { type: 'image', mimeType: 'image/png', data: 'cGljdHVyZQ==' },
+          { type: 'resource', resource: { uri: 'file:///artifact.pdf', mimeType: 'application/pdf', blob: 'ZmlsZQ==' } }
+        ]
+      }
+    })
+    const client = new Client({ name: 'cherry', version: '1' })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    try {
+      const reg = new ToolRegistry()
+      await registerToolExecute(reg)
+      getById.mockReturnValue(activeServer('s1'))
+      const scopes: unknown[] = []
+      callTool.mockImplementation(async (request) => {
+        const req = request as { name: string; args: Record<string, unknown>; scope: string }
+        scopes.push(req.scope)
+        return (await client.callTool({ name: req.name, arguments: req.args })) as McpCallToolResponse
+      })
+      const result = await experimental_runCodeMode({
+        js: 'return await tools.mcp__s1__t({})',
+        tools: { mcp__s1__t: reg.getByName('mcp__s1__t')!.tool },
+        options: { toolsContext: { mcp__s1__t: { requestId: 'request-1', topicId: 'topic-1' } } },
+        toolExecutionOptions: { toolCallId: 'outer-1', messages: [] }
+      })
+      expect(received).toEqual([{}])
+      expect(scopes).toEqual(['topic-1'])
+      expect(result).toMatchObject({
+        content: [
+          { type: 'image', data: 'cGljdHVyZQ==' },
+          { type: 'resource', resource: { uri: 'file:///artifact.pdf', blob: 'ZmlsZQ==' } }
+        ],
+        metadata: { serverId: 's1', name: 't', type: 'mcp' }
+      })
+    } finally {
+      await client.close()
+      await server.close()
+    }
   })
 
   it('executes the explicitly selected server when display names normalize alike', async () => {

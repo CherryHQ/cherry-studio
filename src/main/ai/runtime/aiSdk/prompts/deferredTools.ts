@@ -1,12 +1,12 @@
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 
 const DEFERRED_TOOLS_HEADER = `<deferred-tools>
-Some tools are not loaded inline. Discover and call them through the meta-tools below.
+Some tool definitions are loaded on demand.
 
 <usage>
-1. \`tool_search({ query?, namespace?, verbose? })\` — discover tools, grouped by namespace (e.g. \`web\`, \`kb\`, \`mcp:<server>\`). This is tool discovery, NOT web search. Pass \`verbose: true\` to include full input schemas.
-2. \`tool_inspect({ name })\` — fetch a tool JSDoc signature to confirm its parameter names and shapes. Optional, but inspecting first (or searching with \`verbose: true\`) saves a round-trip.
-3. \`tool_invoke({ name, params })\` — call a single tool. If you call one you haven't inspected, or pass params that don't match its signature, the call returns that tool's signature — read it and call again with corrected params.
+1. \`tool_search({ query: "..." })\` — search tool names, descriptions, or a namespace listed below. Use a nonempty substring; this searches tools, not the web.
+2. Wait for the next model step: matching tool definitions become available then. Searching does not allow a previously unavailable tool to execute in the same step or code program.
+3. Call a discovered tool directly using its provided schema, or through Code Mode when its catalog allows it. Search again with a more specific query if the desired tool is missing.
 </usage>`
 
 /**

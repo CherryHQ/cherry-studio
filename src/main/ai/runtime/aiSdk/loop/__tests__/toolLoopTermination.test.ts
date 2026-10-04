@@ -1,8 +1,5 @@
-import { jsonSchema, type StepResult, type ToolSet } from 'ai'
+import { type StepResult, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
-
-import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
-import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import {
@@ -81,41 +78,6 @@ describe('tool-loop termination', () => {
     const output = markTrustedLocalToolTerminalFailure(terminalFailure())
 
     expect(getLastTerminalToolFailure(makeSteps([output], 1, { providerExecuted: true }))).toBeUndefined()
-  })
-
-  it('accepts a trusted result returned unchanged by the real tool_invoke wrapper', async () => {
-    const output = markTrustedLocalToolTerminalFailure(terminalFailure())
-    const registry = new ToolRegistry()
-    registry.register({
-      name: 'local_lookup',
-      namespace: 'test',
-      description: 'Local lookup',
-      defer: 'always',
-      tool: {
-        type: 'function',
-        description: 'Local lookup',
-        inputSchema: jsonSchema({ type: 'object' }),
-        execute: async () => output
-      }
-    })
-    const invoke = createToolInvokeTool(registry, new Set(['local_lookup']), new Set(['local_lookup']))
-    if (typeof invoke.execute !== 'function') throw new Error('tool_invoke is not executable')
-
-    const wrappedOutput = await invoke.execute(
-      { name: 'local_lookup', params: {} },
-      {
-        toolCallId: 'outer-1',
-        messages: [],
-        context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-      }
-    )
-    const wrapped = makeSteps([wrappedOutput], 1, {
-      toolName: TOOL_INVOKE_TOOL_NAME,
-      input: { opaque: 'wrapper-owned-payload' }
-    })
-
-    expect(wrappedOutput).toBe(output)
-    expect(getLastTerminalToolFailure(wrapped)).toMatchObject({ error: 'raw failure' })
   })
 
   it('does not mark or stop on a transient local-tool error', async () => {

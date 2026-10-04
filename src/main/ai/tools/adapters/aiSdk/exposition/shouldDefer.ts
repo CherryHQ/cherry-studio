@@ -13,7 +13,7 @@ import type { ToolEntry } from '../types'
 const DEFER_THRESHOLD_PCT = 10
 const FALLBACK_CONTEXT_WINDOW = 32_000
 
-/** Static cost of `tool_search` + `tool_inspect` + `tool_invoke` + DEFERRED_TOOLS header. */
+/** Conservative allowance for native search and discovery instructions. */
 const META_TOOLS_OVERHEAD_TOKENS = 500
 
 /** Below this the meta-tools round-trip costs more than inlining. */

@@ -36,9 +36,7 @@ const webSearchTool = tool({
     if (typeof query !== 'string' || !query.trim()) {
       return []
     }
-    return markTrustedLocalToolTerminalFailure(
-      await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
-    )
+    return markTrustedLocalToolTerminalFailure(await searchWeb(query.trim(), getToolCallContext(options).abortSignal))
   },
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })

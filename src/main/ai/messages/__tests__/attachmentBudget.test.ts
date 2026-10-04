@@ -1,8 +1,12 @@
+import { tool } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
-import { allocateAttachmentBudget, allocateInlineCaps } from '../attachmentBudget'
+import { allocateAttachmentBudget, allocateInlineCaps, resolveAttachmentBudget } from '../attachmentBudget'
 
 /** One token per character, so allocations read directly as character counts. */
 const charTokenizer = { id: 'chars', count: (text: string) => text.length }
@@ -97,3 +101,54 @@ describe('allocateInlineCaps', () => {
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0)
 }
+
+describe('native tool exposition attachment budget', () => {
+  const input = {
+    provider: {
+      id: 'provider',
+      name: 'fixture',
+      reportsActualCost: false,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      isEnabled: true
+    } satisfies Provider,
+    model: {
+      id: 'provider::model',
+      providerId: 'provider',
+      name: 'fixture',
+      contextWindow: 8_000,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies Model,
+    system: undefined,
+    maxOutputTokens: 1_000,
+    messages: [],
+    mediaCapabilities: { image: true, video: true, audio: true }
+  }
+
+  it('does not spend attachment space on deferred schemas that are absent from the first request', async () => {
+    const large = tool({
+      description: 'large tool description '.repeat(10_000),
+      inputSchema: z.object({}),
+      execute: () => 'ok'
+    })
+    const deferred = await resolveAttachmentBudget({ ...input, tools: { large: { ...large, deferLoading: true } } })
+    const inline = await resolveAttachmentBudget({ ...input, tools: { large } })
+    expect(inline?.tokens).toBe(0)
+    expect(deferred?.tokens).toBeGreaterThan(4_000)
+  })
+
+  it('reserves space for the native Code Mode definition and conversation catalog', async () => {
+    const lookup = tool({ inputSchema: z.object({ query: z.string() }), description: 'Search records' })
+    const client = await resolveAttachmentBudget({ ...input, tools: { lookup } })
+    const executable = await resolveAttachmentBudget({
+      ...input,
+      tools: { lookup: { ...lookup, execute: () => 'ok' } }
+    })
+    expect(executable?.tokens).toBeGreaterThan(0)
+    expect(executable!.tokens).toBeLessThan(client!.tokens)
+  })
+})

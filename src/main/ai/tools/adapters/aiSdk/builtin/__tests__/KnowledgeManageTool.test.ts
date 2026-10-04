@@ -75,9 +75,7 @@ describe('kb_manage', () => {
   it('builds an entry with the agreed namespace + defer policy and is approval-gated', () => {
     expect(entry.name).toBe(KB_MANAGE_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    // Approval-gated tools must stay inline (never deferred) — see applyDeferExposition/toolInvoke:
-    // a deferred approval-gated tool is unreachable (stripped from the inline set, and tool_invoke
-    // refuses to run an approval-gated tool blind).
+    // Keep mutations on the direct path with a persisted approval card.
     expect(entry.defer).toBe('never')
     // Every action mutates the base, so the tool must require user approval.
     expect(entry.tool.needsApproval).toBe(true)
