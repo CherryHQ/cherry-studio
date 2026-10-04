@@ -29,7 +29,12 @@ export const agentTable = sqliteTable(
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps
   },
-  (t) => [index('agent_name_idx').on(t.name), index('agent_type_idx').on(t.type), orderKeyIndex('agent')(t)]
+  (t) => [
+    index('agent_name_idx').on(t.name),
+    index('agent_type_idx').on(t.type),
+    index('agent_group_id_idx').on(t.groupId),
+    orderKeyIndex('agent')(t)
+  ]
 )
 
 export type AgentRow = typeof agentTable.$inferSelect
