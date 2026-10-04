@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, rmdir, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -108,7 +108,10 @@ describe('VoiceSessionService file and admission contract', () => {
       if (name === 'UtilityProcessManager') return { register: vi.fn() }
       return defaultServiceInstances[name as keyof typeof defaultServiceInstances]
     }) as typeof application.get)
-    vi.mocked(application.getPath).mockImplementation((_key, filename) => (filename ? path.join(root, filename) : root))
+    vi.mocked(application.getPath).mockImplementation((key, filename) => {
+      const directory = key === 'feature.voice.temp' ? path.join(root, 'voice') : root
+      return filename ? path.join(directory, filename) : directory
+    })
     native.status.mockReset().mockResolvedValue({ status: 'ready' })
     native.transcribe.mockReset().mockResolvedValue({ text: 'private-transcript', segments: [] })
     native.speech.mockReset().mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
@@ -665,5 +668,71 @@ describe('VoiceSessionService file and admission contract', () => {
     })
     await service.discard(replacementOwner, input.sessionId)
     expect(fileEntryService.findById(replacement.id)).toBeNull()
+  })
+  it('removes orphan scratch at startup and keeps neighboring managed files intact', async () => {
+    await service._doStop()
+    const directory = application.getPath('feature.voice.temp')
+    const orphan = path.join(directory, randomUUID())
+    const sibling = path.join(root, 'unrelated.wav')
+    await mkdir(orphan, { recursive: true })
+    await writeFile(path.join(orphan, 'input.wav'), wav())
+    await writeFile(sibling, wav())
+    await service._doInit()
+
+    expect(await readdir(directory)).toEqual([])
+    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    expect(await readFile(sibling)).toEqual(wav())
+    expect(
+      (
+        await service.speech(a, {
+          sessionId: randomUUID(),
+          requestId: randomUUID(),
+          text: 'scratch cleanup',
+          voice: 'exact'
+        })
+      ).mimeType
+    ).toBe('audio/wav')
+  })
+
+  it('drains scratch work before restart reconciliation removes stale directories', async () => {
+    const directory = path.join(application.getPath('feature.voice.temp'), randomUUID())
+    const scratchFile = path.join(directory, 'output.wav')
+    let finish!: () => void
+    native.speech.mockImplementationOnce(async (_model, _text, _options, signal: AbortSignal) => {
+      await mkdir(directory)
+      await writeFile(scratchFile, wav())
+      await new Promise<void>((resolve) => (finish = resolve))
+      signal.throwIfAborted()
+      return { audio: wav(), mediaType: 'audio/wav' }
+    })
+    const pending = service
+      .speech(a, { sessionId: randomUUID(), requestId: randomUUID(), text: 'scratch cleanup', voice: 'exact' })
+      .then(
+        () => 'completed',
+        (error: VoiceRuntimeError) => error.reason
+      )
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    let stopped = false
+    const stop = service._doStop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    expect(await readFile(scratchFile)).toEqual(wav())
+    finish()
+    expect(await pending).toBe('aborted')
+    await stop
+    await service._doInit()
+    expect(await readdir(application.getPath('feature.voice.temp'))).toEqual([])
+    expect(
+      (
+        await service.speech(a, {
+          sessionId: randomUUID(),
+          requestId: randomUUID(),
+          text: 'scratch cleanup',
+          voice: 'exact'
+        })
+      ).mimeType
+    ).toBe('audio/wav')
   })
 })

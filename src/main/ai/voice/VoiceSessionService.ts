@@ -1,3 +1,5 @@
+import { mkdir, rm } from 'node:fs/promises'
+
 import type { WebContents } from 'electron'
 
 import { application } from '@application'
@@ -60,7 +62,10 @@ export class VoiceSessionService extends BaseService {
   private active?: ActiveOperation
   private readonly inspections = new Map<Promise<unknown>, AbortController>()
 
-  protected override onInit(): void {
+  protected override async onInit(): Promise<void> {
+    const scratch = application.getPath('feature.voice.temp')
+    await rm(scratch, { recursive: true, force: true })
+    await mkdir(scratch, { recursive: true, mode: 0o700 })
     application.get('UtilityProcessManager').register(voiceAudioProcess)
     this.accepting = true
     this.registerDisposable(() => {
