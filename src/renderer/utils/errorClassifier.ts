@@ -20,6 +20,7 @@ export interface ClaudeCodeExitInfo {
 
 const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
   'auth',
+  'bad_request',
   'permission',
   'model',
   'quota',
@@ -119,27 +120,18 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     status: numStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })
-  if (category !== 'unknown') return classify(category)
+  if (category !== 'unknown' && category !== 'bad_request') return classify(category)
 
-  // A wrapper carries no status of its own. Prefer any diagnosis over a generic recovery-only fallback.
+  // Prefer a specific diagnosis over a generic request failure in another attempt.
   let nestedRecovery: ErrorClassification | null = null
   for (const nested of unwrapNestedErrors(error)) {
     const nestedClassification = classifyError(nested, providerId)
-    if (nestedClassification.category !== 'unknown') {
+    if (nestedClassification.category !== 'unknown' && nestedClassification.category !== 'bad_request') {
       return nestedClassification
     }
     if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
   }
   if (nestedRecovery) return nestedRecovery
 
-  // A generic 400 has no safe diagnosis, but its active provider settings remain a valid recovery path.
-  if (numStatus === 400) {
-    return {
-      category: 'unknown',
-      i18nKey: 'error.diagnosis.unknown',
-      navTarget: `/settings/provider${providerSuffix}`
-    }
-  }
-
-  return classify('unknown')
+  return classify(category)
 }

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
-import { PinIcon, Trash2 } from 'lucide-react'
+import { Archive, PinIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -205,7 +205,7 @@ export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) =
     data-history-record-title
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+    className="text-muted-foreground -mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -396,7 +396,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
         event.stopPropagation()
         if (action) onClick(action)
       }}>
-      <Trash2 className="size-4" />
+      <Archive className="size-4" />
     </Button>
   )
 }
@@ -498,7 +498,7 @@ export const HistoryRecordRow = ({
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="text-xs text-muted-foreground tabular-nums">{timeLabel}</div>
+      <div className="text-muted-foreground text-xs tabular-nums">{timeLabel}</div>
     </div>
     <div
       className={cn(

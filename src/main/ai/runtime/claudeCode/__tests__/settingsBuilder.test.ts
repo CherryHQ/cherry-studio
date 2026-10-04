@@ -934,6 +934,63 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
   })
 
+  it('keeps Task management available on newer models while leaving TodoWrite disabled', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList']))
+    expect(settings.allowedTools).not.toContain('TodoWrite')
+    expect(settings.disallowedTools).toContain('TodoWrite')
+  })
+
+  it('skips SDK-incompatible skill names without renaming or dropping valid skills', async () => {
+    const invalidNames = [
+      '',
+      ' padded',
+      'trailing ',
+      'bad(name)',
+      'bad,name',
+      'bad\nname',
+      'bad\u007fname',
+      '*',
+      'plugin:*',
+      'name *',
+      '/name',
+      'bad\\\\name',
+      'name\\',
+      '\ud800'
+    ]
+    const validNames = ['pdf-tools', 'my skill', '技能', 'plugin:skill', 'emoji-😀']
+    mocks.listSkills.mockResolvedValue([
+      { folderName: 'managed,bad', isEnabled: true },
+      { folderName: 'managed-good', isEnabled: true },
+      { folderName: 'disabled', isEnabled: false }
+    ])
+    mocks.listLocalSkillFolderNames.mockResolvedValue([...invalidNames, ...validNames, 'managed-good'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['managed-good', ...validNames])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping'),
+      expect.objectContaining({ agentId: 'agent-1', cwd: '/workspace/project', skillName: 'managed,bad' })
+    )
+  })
+
+  it('keeps an empty skill whitelist when every discovered name is incompatible', async () => {
+    mocks.listLocalSkillFolderNames.mockResolvedValue(['bad(name)', '*'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual([])
+  })
+
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
     // Each of the three model lookups must resolve independently from its own key/provider.
     mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {

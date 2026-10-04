@@ -47,10 +47,10 @@ describe('clampHeartbeatIntervalMinutes', () => {
 })
 
 describe('isHeartbeatEnabled', () => {
-  it('defaults to on when the toggle was never written', () => {
-    expect(DEFAULT_HEARTBEAT_ENABLED).toBe(true)
-    expect(isHeartbeatEnabled({})).toBe(true)
-    expect(isHeartbeatEnabled({ heartbeat_enabled: undefined })).toBe(true)
+  it('defaults to off when the toggle was never written', () => {
+    expect(DEFAULT_HEARTBEAT_ENABLED).toBe(false)
+    expect(isHeartbeatEnabled({})).toBe(false)
+    expect(isHeartbeatEnabled({ heartbeat_enabled: undefined })).toBe(false)
   })
 
   it('honors an explicit toggle in both directions', () => {

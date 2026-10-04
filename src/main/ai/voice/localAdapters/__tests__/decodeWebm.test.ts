@@ -26,7 +26,9 @@ function editedRecording(edit: (elements: EBMLElementBuffer[]) => void): Uint8Ar
     return true
   })
   edit(elements)
-  return new Uint8Array(new Encoder().encode(elements))
+  // ts-ebml 3.0.2 exposes pooled backing memory; Node's larger Buffer pool includes unrelated bytes.
+  const encoder = new Encoder() as unknown as { encodeChunk(element: EBMLElementBuffer): Buffer[] }
+  return new Uint8Array(Buffer.concat(elements.flatMap((element) => encoder.encodeChunk(element))))
 }
 
 describe('private Voice WebM decoder', () => {

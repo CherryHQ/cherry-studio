@@ -158,9 +158,9 @@ describe('AboutSettings repository controls accessibility', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
 
     await user.click(repositoryButtons[0])
-    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', REPOSITORY_URL)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
 
     await user.click(repositoryButtons[1])
-    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', REPOSITORY_URL)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', REPOSITORY_URL)
   })
 })
