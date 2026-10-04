@@ -33,7 +33,12 @@ class Vad {
   pop() { this.segments.shift() }
 }
 class OfflineRecognizer {
-  constructor(config) { this.config = config }
+  constructor(config) {
+    if (config.modelConfig.funasrNano.encoderAdaptor === '/models/unloadable-encoder.onnx') {
+      throw new Error('Recognizer cannot load this model')
+    }
+    this.config = config
+  }
   createStream() { return { acceptWaveform(audio) { this.audio = audio } } }
   decode(stream) { stream.decoded = true }
   getResult(stream) {
@@ -154,6 +159,15 @@ describe('ASR entry transcribe', () => {
     const result = await transcribe(audio(speech(8, 2), silence(8), speech(8)))
     expect(result.segments.map((segment) => segment.text)).toEqual(['decoded 4096@16000'])
     await expect(transcribe(silence(16))).resolves.toEqual({ text: '', segments: [] })
+  })
+
+  it('returns silence without loading the recognizer and still loads it for speech', async () => {
+    const modelPaths = { ...MODEL_PATHS, encoder: '/models/unloadable-encoder.onnx' }
+    const request = (samples: Float32Array) =>
+      asr.transcribe({ modelPaths, source: { kind: 'samples', samples, sampleRate: SAMPLE_RATE } })
+
+    await expect(request(silence(16))).resolves.toEqual({ text: '', segments: [] })
+    await expect(request(speech(8))).rejects.toMatchObject({ code: 'ASR_MODEL_LOAD_FAILED' })
   })
 
   it('configures FunASR with the installed model paths', async () => {
