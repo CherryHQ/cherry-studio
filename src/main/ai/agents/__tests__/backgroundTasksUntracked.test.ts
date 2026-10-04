@@ -114,6 +114,45 @@ describe('a task whose record write fails', () => {
     }
   })
 
+  it.skipIf(process.platform === 'win32')('completes a recovered task that finishes on its own', async () => {
+    // The recovery record is the only handle on this task and it reads `running`, so the
+    // completion it owes must still land when the process exits. Suppressing it would leave the
+    // record at `running` for a pid that is gone, and leave every channel that asked for a
+    // notification waiting for one that never comes.
+    const onExit = vi.fn()
+    const killFailSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw new Error('ESRCH')
+    })
+    await expect(
+      startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setTimeout(() => {}, 50)"`,
+        cwd: storageDir,
+        onExit
+      })
+    ).rejects.toThrow()
+    killFailSpy.mockRestore()
+
+    const [record] = await listDetachedBackgroundTasks(storageDir)
+    expect(record.status).toBe('running')
+    await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+
+    // Polled to a deadline rather than inside waitFor, so a regression reports the status it
+    // settled on instead of a timeout with nothing to compare. It waits for `completed` itself
+    // rather than for any change: a reconcile folds the dead pid to `unknown` in the gap before
+    // the completion lands, and stopping there would be the regression this test exists for.
+    const deadline = Date.now() + 10_000
+    let settled = record
+    while (settled.status !== 'completed' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      ;[settled] = await listDetachedBackgroundTasks(storageDir)
+    }
+    expect(settled.status).toBe('completed')
+    expect(settled.exitCode).toBe(0)
+    expect(onExit).toHaveBeenCalledTimes(1)
+    expect(onExit.mock.calls[0][0].summary).toContain(record.id)
+  })
+
   it.skipIf(process.platform === 'win32')(
     'names the task that is still running when the record cannot be written at all',
     async () => {

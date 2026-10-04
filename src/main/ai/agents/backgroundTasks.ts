@@ -176,9 +176,13 @@ export async function startDetachedBackgroundTask(
     // at most one completion lands. Handlers go
     // on before any await — both events can fire on the first ticks.
     let settled = false
-    let childFinished = false
+    // A completion the gate below refused. The recovery path spends that gate before its record
+    // exists, so a child that exits while the recovery is awaiting its kill never fires again.
+    let observedCompletion:
+      | { status: BackgroundTaskCompletion['status']; exitCode: number | null; signal: string | null }
+      | undefined
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
-      childFinished = true
+      observedCompletion = { status, exitCode, signal }
       activeTaskPids.delete(id)
       if (settled) return
       settled = true
@@ -221,9 +225,17 @@ export async function startDetachedBackgroundTask(
         })
         try {
           writeRecordSync(input.storageDir, { ...record, note: t('background_task.note.untracked') })
-          // `finalize` is spent, so nothing else would release this ownership; keeping it would let
-          // a stop aim at whatever process the OS later hands the recycled pid to.
-          if (!childFinished) activeTaskPids.set(id, record.pid)
+          // This record is real and reads `running`, so it owes the completion `settled` spent
+          // before it existed — otherwise the task never reports and the record sits at `running`.
+          settled = false
+          if (observedCompletion) {
+            const { status, exitCode, signal } = observedCompletion
+            finalize(status, exitCode, signal)
+          } else {
+            // `finalize` is spent, so nothing else would release this ownership; keeping it would let
+            // a stop aim at whatever process the OS later hands the recycled pid to.
+            activeTaskPids.set(id, record.pid)
+          }
         } catch (recordError) {
           logger.error('Detached background task is untracked and could not be recorded', {
             taskId: id,
