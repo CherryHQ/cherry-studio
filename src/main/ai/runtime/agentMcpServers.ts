@@ -72,6 +72,8 @@ export function buildAgentMcpServers(
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
   const servers: Record<string, AgentMcpServer> = {}
+  // Built-in entries are added after the user loop below; a user server must never take their keys.
+  const takenServerNames = new Set<string>(Object.values(CHERRY_MCP_SERVER))
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
   const hostTools = resolveHostTools(agent, { channelLinked })
@@ -90,9 +92,15 @@ export function buildAgentMcpServers(
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
       if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
-      servers[mcpId] = {
+      // The SDK derives tool names (`mcp__<key>__<tool>`, 64-char cap) and routes tool calls from
+      // the record key, so a 36-char UUID key leaves ~21 chars for the tool name and truncates the
+      // rest into unreadable hashes (issue #21321). Register under the configured short name; fall
+      // back to the id when the name is unknown or taken (`mcp_server.name` is not unique).
+      const serverName = legacyServer.name && !takenServerNames.has(legacyServer.name) ? legacyServer.name : mcpId
+      takenServerNames.add(serverName)
+      servers[serverName] = {
         id: legacyServer.id,
-        name: mcpId,
+        name: serverName,
         connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
       }
     } catch (error) {

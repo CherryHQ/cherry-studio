@@ -12,9 +12,11 @@ import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const {
   mockGetAgent,
@@ -24,7 +26,9 @@ const {
   mockGetPath,
   mockPreferenceGet,
   mockListOrOutlineKnowledge,
-  mockEnsureManagedDirectory
+  mockEnsureManagedDirectory,
+  mockCreateMcpBridgeServer,
+  mockCapturedBridgeFactories
 } = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
@@ -33,7 +37,9 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
-  mockEnsureManagedDirectory: vi.fn()
+  mockEnsureManagedDirectory: vi.fn(),
+  mockCreateMcpBridgeServer: vi.fn(() => ({})),
+  mockCapturedBridgeFactories: [] as Array<(opts: unknown) => unknown>
 }))
 
 vi.mock('@logger', () => ({
@@ -102,6 +108,25 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mockGetAgent }
 }))
+
+vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
+  createMcpBridgeServer: mockCreateMcpBridgeServer
+}))
+
+// Pass the real serveStdio through, but remember the bridge factories handed to it so tests can
+// drive the lazy factory without a full stdio handshake.
+const capturedBridgeFactories = mockCapturedBridgeFactories as Array<(opts: unknown) => unknown>
+vi.mock('@modelcontextprotocol/server/stdio', async (importOriginal) => {
+  const actual = (await importOriginal()) as {
+    serveStdio: (factory: (opts: unknown) => unknown, options: unknown) => unknown
+  }
+  return {
+    serveStdio: (factory: (opts: unknown) => unknown, options: unknown) => {
+      capturedBridgeFactories.push(factory)
+      return actual.serveStdio(factory, options)
+    }
+  }
+})
 
 // Spread the real module so the kb_* tool descriptions/schemas stay genuine; only the core call is
 // spied, to observe the id set the scope closure actually hands down.
@@ -416,6 +441,76 @@ describe('buildMcpServers', () => {
     expect(plain?.['assistant-files']).toBeUndefined()
     expect(assistant?.assistant).toBeDefined()
     expect(assistant?.['assistant-files']).toBeDefined()
+  })
+
+  // The SDK derives tool names (`mcp__<key>__<tool>`, 64-char cap) and routes tool calls from the
+  // record key, so a 36-char UUID key truncates long tool names into unreadable hashes
+  // (issue #21321). User servers must be registered under their configured name.
+  describe('user-mounted server naming (issue #21321)', () => {
+    const FIRECRAWL_ID = '987b24c3-ace2-4706-a24e-02eadeb25844'
+    const SPIDERFOOT_ID = '7c9af3a2-03f7-40ff-a7a3-4cc59a8a4b91'
+
+    const agentWith = (mcps: string[]) => ({ id: 'agent-1', mcps }) as unknown as AgentEntity
+    const snapshotsWith = (...servers: Array<{ id: string; name: string }>): McpServerSnapshotMap =>
+      new Map(servers.map((server) => [server.id, server as McpServer]))
+
+    beforeEach(() => {
+      mockCreateMcpBridgeServer.mockClear()
+      capturedBridgeFactories.length = 0
+    })
+
+    it('registers a user server under its configured name, keeping the bridge bound to the id', async () => {
+      const snapshots = snapshotsWith({ id: FIRECRAWL_ID, name: 'Firecrawl' })
+      const result = buildMcpServers(session, agentWith([FIRECRAWL_ID]), WITHOUT_HOST_TOOLS, snapshots)
+
+      expect(result?.Firecrawl).toEqual({
+        type: 'sdk',
+        name: 'Firecrawl',
+        instance: { connect: expect.any(Function) }
+      })
+      expect(Object.keys(result ?? {})).not.toContain(FIRECRAWL_ID)
+
+      // The bridge factory is captured lazily; driving it proves the bridge still binds the server
+      // id, not the record key.
+      const { instance } = result!['Firecrawl'] as McpSdkServerConfigWithInstance
+      await instance.connect({} as never).catch(() => undefined)
+      const factory = capturedBridgeFactories.at(-1)
+      await Promise.resolve(factory?.({ era: 'modern' })).catch(() => undefined)
+      expect(mockCreateMcpBridgeServer).toHaveBeenCalledWith(
+        FIRECRAWL_ID,
+        snapshots.get(FIRECRAWL_ID),
+        expect.anything()
+      )
+    })
+
+    it('falls back to the server id when two mounted servers share a name', () => {
+      const snapshots = snapshotsWith({ id: FIRECRAWL_ID, name: 'dup' }, { id: SPIDERFOOT_ID, name: 'dup' })
+      const result = buildMcpServers(session, agentWith([FIRECRAWL_ID, SPIDERFOOT_ID]), WITHOUT_HOST_TOOLS, snapshots)
+
+      expect(result?.dup).toEqual({
+        type: 'sdk',
+        name: 'dup',
+        instance: { connect: expect.any(Function) }
+      })
+      expect(result?.[SPIDERFOOT_ID]).toEqual({
+        type: 'sdk',
+        name: SPIDERFOOT_ID,
+        instance: { connect: expect.any(Function) }
+      })
+    })
+
+    it('never lets a user server take a built-in server key', () => {
+      const snapshots = snapshotsWith({ id: FIRECRAWL_ID, name: 'cherry-tools' })
+      const result = buildMcpServers(session, agentWith([FIRECRAWL_ID]), WITHOUT_HOST_TOOLS, snapshots)
+
+      // The user server lands on its id, so the built-in cherry-tools entry keeps its slot.
+      expect(result?.[FIRECRAWL_ID]).toEqual({
+        type: 'sdk',
+        name: FIRECRAWL_ID,
+        instance: { connect: expect.any(Function) }
+      })
+      expect(result?.['cherry-tools']).toBeDefined()
+    })
   })
 })
 
