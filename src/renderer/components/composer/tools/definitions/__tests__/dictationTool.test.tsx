@@ -20,7 +20,8 @@ const mocks = vi.hoisted(() => ({
   retry: vi.fn(async () => {}),
   snapshot: { phase: 'idle', elapsedMs: 0, recoveryAvailable: false } as any,
   startScoped: vi.fn(),
-  stop: vi.fn(async () => {})
+  stop: vi.fn(async () => {}),
+  transcribeRecording: vi.fn(async () => {})
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
@@ -38,6 +39,7 @@ vi.mock('@renderer/services/voice', () => ({
     getSnapshot: () => mocks.snapshot,
     startScoped: mocks.startScoped,
     stop: mocks.stop,
+    transcribeRecording: mocks.transcribeRecording,
     cancel: mocks.cancel,
     retry: mocks.retry,
     insertRecovery: mocks.insertRecovery,
@@ -52,7 +54,11 @@ vi.mock('react-i18next', () => ({
 
 import dictationTool from '../dictationTool'
 
-const translate = (key: string, options?: { seconds?: number }) => `${key}${options?.seconds ?? ''}`
+const translate = (key: string, options?: { seconds?: number }) =>
+  ({
+    'settings.voice.action.transcribe': 'Transcribe',
+    'settings.voice.dictation.phase.recorded': 'Ready to transcribe'
+  })[key] ?? `${key}${options?.seconds ?? ''}`
 
 function renderRuntime(scope: ComposerToolScope = TopicType.Chat) {
   const launchers: ComposerToolLauncher[][] = []
@@ -113,6 +119,7 @@ describe('dictationTool', () => {
     mocks.startScoped.mockReset()
     mocks.startScoped.mockReturnValue({ result: Promise.resolve(), cancel: mocks.cancel })
     mocks.stop.mockClear()
+    mocks.transcribeRecording.mockClear()
   })
 
   it('starts scoped dictation only after the user invokes the launcher and passes no preference overrides', async () => {
@@ -188,6 +195,23 @@ describe('dictationTool', () => {
     expect(launcher.label).toBe('chat.input.dictation.action.cancel')
     await userEvent.setup().click(screen.getByRole('button', { name: 'chat.input.dictation.action.cancel' }))
     expect(mocks.cancel).toHaveBeenCalledOnce()
+  })
+
+  it('offers explicit transcription of an interrupted recording without starting a new capture', async () => {
+    mocks.snapshot = { phase: 'recorded', elapsedMs: 1000, recoveryAvailable: false }
+    const rendered = renderRuntime()
+    const button = await screen.findByRole('button', { name: 'Transcribe' })
+
+    expect(latestLauncher(rendered)?.description).toBe('Ready to transcribe')
+    expect(mocks.transcribeRecording).not.toHaveBeenCalled()
+    await userEvent.setup().click(button)
+    expect(mocks.transcribeRecording).toHaveBeenCalledOnce()
+    expect(mocks.startScoped).not.toHaveBeenCalled()
+
+    latestLauncher(rendered)
+      ?.submenu?.find((item) => item.id === 'dictation:discard')
+      ?.action?.({} as never)
+    expect(mocks.discard).toHaveBeenCalledOnce()
   })
 
   it('keeps configuration failures discoverable with localized detail and a Voice Settings recovery action', async () => {

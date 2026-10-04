@@ -33,6 +33,7 @@ const settingsRecoveryErrors = new Set<DictationErrorCategory>([
 const phaseTranslationKeys: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
   recording: 'settings.voice.dictation.phase.recording',
+  recorded: 'settings.voice.dictation.phase.recorded',
   stopping: 'settings.voice.dictation.phase.stopping',
   transcribing: 'settings.voice.dictation.phase.transcribing',
   failed: 'settings.voice.dictation.phase.failed',
@@ -155,8 +156,13 @@ const InputBar = ({
           </Button>
         </>
       )}
-      {dictation.phase === 'failed' && (
+      {(dictation.phase === 'failed' || dictation.phase === 'recorded') && (
         <>
+          {dictation.phase === 'recorded' && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => void dictationService.transcribeRecording()}>
+              {t('settings.voice.action.transcribe')}
+            </Button>
+          )}
           {dictation.retryAvailable && (
             <Button
               type="button"

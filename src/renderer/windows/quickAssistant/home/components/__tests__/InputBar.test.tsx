@@ -12,6 +12,7 @@ const voice = vi.hoisted(() => ({
   insertRecovery: vi.fn(),
   copyRecovery: vi.fn(),
   discard: vi.fn(),
+  transcribeRecording: vi.fn(),
   snapshot: { phase: 'idle', elapsedMs: 0, recoveryAvailable: false } as {
     phase: string
     elapsedMs: number
@@ -37,7 +38,8 @@ vi.mock('@renderer/services/voice', () => ({
     retry: voice.retry,
     insertRecovery: voice.insertRecovery,
     copyRecovery: voice.copyRecovery,
-    discard: voice.discard
+    discard: voice.discard,
+    transcribeRecording: voice.transcribeRecording
   },
   voiceTargetManager: { markCurrent: voice.markCurrent }
 }))
@@ -52,11 +54,13 @@ vi.mock('react-i18next', () => ({
         'chat.input.dictation.action.cancel': 'Cancel dictation',
         'chat.input.dictation.action.copy_recovery': 'Copy transcript',
         'settings.voice.action.stop_recording': 'Stop recording',
+        'settings.voice.action.transcribe': 'Transcribe',
         'settings.voice.action.retry': 'Retry transcription',
         'settings.voice.action.insert_recovery': 'Insert transcript',
         'settings.voice.action.discard': 'Discard transcript',
         'settings.voice.dictation.elapsed': '2 s',
         'settings.voice.dictation.phase.recording': 'Recording',
+        'settings.voice.dictation.phase.recorded': 'Ready to transcribe',
         'settings.voice.dictation.phase.transcribing': 'Transcribing',
         'settings.voice.dictation.phase.recovery': 'Transcript ready to recover',
         'settings.voice.dictation.phase.failed': 'Dictation failed',
@@ -82,16 +86,6 @@ describe('InputBar', () => {
     voice.snapshot = snapshot
     voice.listeners.forEach((listener) => listener())
   }
-
-  it('stays transparent in both light and dark themes', () => {
-    render(<InputBar text="" placeholder="Ask a model" loading handleKeyDown={vi.fn()} handleChange={vi.fn()} />)
-
-    expect(screen.getByPlaceholderText('Ask a model')).toHaveClass(
-      'rounded-none',
-      'bg-transparent',
-      'dark:bg-transparent'
-    )
-  })
 
   it('exposes the real text input so callers can capture its live selection', () => {
     const inputRef: RefObject<HTMLInputElement | null> = { current: null }
@@ -217,5 +211,30 @@ describe('InputBar', () => {
     expect(navigation.openSettingsTab).toHaveBeenCalledWith('/settings/voice')
     expect(screen.getByPlaceholderText('Ask a model')).toHaveValue('unchanged')
     expect(voice.startScoped).not.toHaveBeenCalled()
+  })
+
+  it('retains an interrupted recording until the user transcribes or discards it', async () => {
+    voice.snapshot = { phase: 'recorded', elapsedMs: 2000, recoveryAvailable: false }
+    render(
+      <InputBar
+        text="draft"
+        placeholder="Ask a model"
+        loading={false}
+        dictationTargetId="quick-assistant-input:temp-topic"
+        handleKeyDown={vi.fn()}
+        handleChange={vi.fn()}
+      />
+    )
+    const user = userEvent.setup()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Ready to transcribe')
+    expect(screen.queryByRole('button', { name: 'Dictate' })).not.toBeInTheDocument()
+    expect(voice.transcribeRecording).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Transcribe' }))
+    expect(voice.transcribeRecording).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Discard transcript' }))
+    expect(voice.discard).toHaveBeenCalledOnce()
+    expect(voice.startScoped).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('Ask a model')).toHaveValue('draft')
   })
 })

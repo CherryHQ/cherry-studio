@@ -73,7 +73,7 @@ export const VOICE_SESSION_PHASES = [
 ] as const
 export type VoiceSessionPhase = (typeof VOICE_SESSION_PHASES)[number]
 
-export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'stop'] as const
+export const VOICE_SESSION_COMMANDS = ['pause', 'resume', 'stop', 'interrupt'] as const
 export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
 
 const revision = z.number().int().nonnegative()
@@ -99,6 +99,7 @@ export type VoiceSessionState = z.infer<typeof voiceSessionStateSchema>
 
 export type VoiceSessionEvent =
   | ({ type: 'state' } & VoiceSessionState)
+  | { type: 'interruption'; revision: number }
   | {
       type: 'command'
       sessionId: string
@@ -161,7 +162,7 @@ export const voiceRequestSchemas = {
     output: voiceSessionStateSchema
   }),
   'ai.voice.playback.control': defineRoute({
-    input: session.extend({ command: z.enum(VOICE_SESSION_COMMANDS) }),
+    input: session.extend({ command: z.enum(['pause', 'resume', 'stop']) }),
     output: voiceSessionStateSchema
   }),
   'ai.voice.microphone.status': defineRoute({

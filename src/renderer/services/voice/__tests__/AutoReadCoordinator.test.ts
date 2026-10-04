@@ -170,14 +170,21 @@ describe('AutoReadCoordinator', () => {
     expect(JSON.stringify(coordinator)).not.toContain(privateCanary)
   })
 
-  it('stops an owned auto run only when the preference transitions off', async () => {
+  it('rejects a completion carrying a stale enabled preference after the user turns it off', async () => {
     const { coordinator, playback } = createHarness()
 
     await coordinator.setEnabled(false)
     await coordinator.setEnabled(true)
     await coordinator.setEnabled(false)
-    await coordinator.setEnabled(false)
-
-    expect(playback.stopAutoRead).toHaveBeenCalledOnce()
+    await expect(
+      coordinator.consume({
+        enabled: true,
+        message: message('stale-enabled'),
+        attemptId: 1,
+        isAbort: false,
+        isError: false
+      })
+    ).resolves.toMatchObject({ status: 'skipped', reason: 'disabled' })
+    expect(playback.start).not.toHaveBeenCalled()
   })
 })
