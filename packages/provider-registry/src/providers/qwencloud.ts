@@ -1,5 +1,6 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import {
   effortChatWire,
   highMaxSupport,
@@ -328,6 +329,8 @@ export default defineProvider({
     },
     {
       modelId: 'kimi-k3',
+      // Same passthrough as dashscope: the intl endpoint forwards to Moonshot's backend too.
+      parameterSupport: fixedSamplingParameterSupport,
       reasoningContracts: {
         'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
       }
