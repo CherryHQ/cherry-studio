@@ -53,6 +53,14 @@ type RelativeOrientation =
 @ServicePhase(Phase.WhenReady)
 export class SelectionService extends BaseService implements Activatable {
   private selectionHook: SelectionHookInstance | null = null
+  private nativePanel?: {
+    configurePanel(handle: Buffer): void
+    moveToActiveSpace(handle: Buffer): void
+  }
+
+  private getNativePanel(): NonNullable<SelectionService['nativePanel']> {
+    return (this.nativePanel ??= require(application.getPath('feature.selection.native_panel_file')))
+  }
 
   /** Latest desired running state — mirrors the `feature.selection.enabled` preference. */
   private desiredEnabled = false
@@ -258,6 +266,7 @@ export class SelectionService extends BaseService implements Activatable {
     // or accumulate duplicates across reuses.
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
           if (this.isRemeberWinSize) {
@@ -1374,6 +1383,8 @@ export class SelectionService extends BaseService implements Activatable {
 
     // act normally when the app is not in fullscreen mode
     if (!isFullScreen) {
+      // Move before showing: a recycled panel may still belong to another Space.
+      this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
       return
     }
@@ -1385,6 +1396,7 @@ export class SelectionService extends BaseService implements Activatable {
     // (the pin toggle and this show sequence use the same default path).
     actionWindow.setAlwaysOnTop(true)
 
+    this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
     actionWindow.showInactive()
 
     // unset everything

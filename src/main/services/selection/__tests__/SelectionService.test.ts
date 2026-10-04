@@ -293,24 +293,47 @@ describe('SelectionService macOS action window', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not change process-wide workspace behavior when showing over fullscreen', () => {
-    const svc = new SelectionService() as unknown as {
-      showActionWindow(actionWindow: Record<string, ReturnType<typeof vi.fn>>, isFullScreen: boolean): void
-    }
-    const actionWindow = {
-      setPosition: vi.fn(),
-      setBounds: vi.fn(),
-      setFocusable: vi.fn(),
-      setAlwaysOnTop: vi.fn(),
-      setVisibleOnAllWorkspaces: vi.fn(),
-      showInactive: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      focus: vi.fn()
-    }
+  it.each([false, true])('keeps the invoking Space when showing a recycled panel (fullscreen=%s)', (fullScreen) => {
+    vi.useFakeTimers()
+    try {
+      let activeSpace = 'invoking-space'
+      let panelSpace = 'previous-space'
+      let visible = false
+      const handle = Buffer.alloc(8)
+      const svc = new SelectionService() as unknown as {
+        nativePanel: { moveToActiveSpace(handle: Buffer): void }
+        showActionWindow(actionWindow: unknown, isFullScreen: boolean): void
+      }
+      svc.nativePanel = {
+        moveToActiveSpace: (actualHandle) => {
+          expect(actualHandle).toBe(handle)
+          panelSpace = activeSpace
+        }
+      }
+      const show = () => {
+        activeSpace = panelSpace
+        visible = true
+      }
+      const actionWindow = {
+        getNativeWindowHandle: () => handle,
+        setPosition: vi.fn(),
+        setBounds: vi.fn(),
+        setFocusable: vi.fn(),
+        setAlwaysOnTop: vi.fn(),
+        show,
+        showInactive: show,
+        isDestroyed: () => false,
+        focus: vi.fn()
+      }
 
-    svc.showActionWindow(actionWindow, true)
+      svc.showActionWindow(actionWindow, fullScreen)
+      vi.runAllTimers()
 
-    expect(actionWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
-    expect(actionWindow.showInactive).toHaveBeenCalledOnce()
+      expect(visible).toBe(true)
+      expect(activeSpace).toBe('invoking-space')
+      expect(panelSpace).toBe('invoking-space')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

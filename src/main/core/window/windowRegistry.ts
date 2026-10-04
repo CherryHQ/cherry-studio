@@ -459,8 +459,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       thickFrame: false,
       platformOverrides: {
         mac: {
-          // Panels can join fullscreen Spaces without transforming the app process.
+          // Native selection-panel binding limits this panel to the invoking Space.
           type: 'panel',
+          fullscreenable: false,
           titleBarStyle: 'hidden', // [macOS]
           trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
@@ -480,8 +481,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       //   - alwaysOnTop is toggled at runtime by the `selection.pin_action_window`
       //     IpcApi handler via wm.behavior.setAlwaysOnTop; passing no level lets
       //     Electron use its default ('floating' on macOS).
-      //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
-      //     full-screen show sequence; see SelectionService.showActionWindow.
       macShowInDock: false
     },
     // Only restoreFocusOnHide applies — action windows show via the fullscreen-aware
