@@ -665,8 +665,13 @@ describe('VoiceSettings', () => {
 
     await user.click(play)
     await act(async () => {
-      publishSpeech({ phase: 'failed', sourceLabel: 'preview', progress: { completed: 0, total: 1 }, error: 'timeout' })
-      starting.reject(new VoiceDomainError('timeout'))
+      publishSpeech({
+        phase: 'failed',
+        sourceLabel: 'preview',
+        progress: { completed: 0, total: 1 },
+        error: 'operation_failed'
+      })
+      starting.reject(new VoiceDomainError('operation_failed'))
     })
 
     const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
