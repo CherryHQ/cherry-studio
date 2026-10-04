@@ -108,6 +108,7 @@ describe('filesystem MCP security', () => {
     vi.spyOn(types, 'runRipgrep').mockResolvedValue({
       ok: true,
       stdout: [legitFile, secretFile].join('\n'),
+      stderr: '',
       exitCode: 0
     })
 

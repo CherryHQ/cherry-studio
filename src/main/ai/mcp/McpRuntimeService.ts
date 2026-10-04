@@ -1004,43 +1004,6 @@ export class McpRuntimeService extends BaseService {
   }
 
   /**
-   * Check connectivity for an MCP server
-   */
-  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
-    const server = this.getServerById(serverId)
-    getServerLogger(server).debug(`Checking connectivity`)
-    try {
-      const client = await this.getOrCreateClient(server)
-      // Attempt to list tools as a way to check connectivity
-      await client.listTools()
-      getServerLogger(server).debug(`Connectivity check successful`)
-      this.setServerStatus(server.id, 'connected')
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'info',
-        message: 'Connectivity check successful',
-        source: 'connectivity'
-      })
-      return true
-    } catch (error) {
-      getServerLogger(server).error(`Connectivity check failed`, error as Error)
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'error',
-        message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactDeep(error),
-        source: 'connectivity'
-      })
-      // Close the client if connectivity check fails to ensure a clean state for the next attempt
-      const serverKey = this.getServerKey(server)
-      await this.closeClient(serverKey)
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'error', error)
-      return false
-    }
-  }
-
-  /**
    * Call a tool on an MCP server
    */
   public async callTool({

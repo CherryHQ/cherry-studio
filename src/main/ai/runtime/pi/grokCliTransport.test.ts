@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Context, Model } from '@earendil-works/pi-ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -52,13 +53,13 @@ describe('Grok CLI Pi transport', () => {
       messages: [{ role: 'user', content: 'Hello', timestamp: 0 }]
     }
     const options = { reasoning: 'high' as const, fetch }
-    const first = await config.streamSimple!(model, context, options).result()
+    const first = await config.streamSimple!(model, normalizeContext(context), options).result()
     expect(first.stopReason).toBe('stop')
     expect(first.content).toEqual([{ type: 'thinking', thinking: '', thinkingSignature: JSON.stringify(reasoning) }])
 
     const history = { ...context, messages: [...context.messages, first] }
-    await config.streamSimple!(model, history, options).result()
-    await config.streamSimple!({ ...model, id: 'grok-4.6' }, history, options).result()
+    await config.streamSimple!(model, normalizeContext(history), options).result()
+    await config.streamSimple!({ ...model, id: 'grok-4.6' }, normalizeContext(history), options).result()
 
     expect(requests[0].headers.get('authorization')).toBe('Bearer grok-token')
     expect(requests[0].headers.get('x-authenticateresponse')).toBe('authenticate-response')

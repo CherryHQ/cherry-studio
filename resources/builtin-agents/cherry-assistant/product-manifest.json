@@ -834,6 +834,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],

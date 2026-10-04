@@ -165,7 +165,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
+    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; DingTalk forwards non-empty files up to 20 MiB with a platform-supported filename extension; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -191,6 +191,12 @@ const NOTIFY_TOOL: Tool = {
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
 const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: string[]; description: string }> = {
+  dingtalk: {
+    required: ['client_id', 'client_secret', 'robot_code'],
+    optional: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id'],
+    description:
+      'DingTalk internal app robot. Enable Stream mode. Chat IDs: dm:<senderStaffId> or group:<conversationId>. Both allowlists must match when configured. Optional AI card template uses msgContent and flowStatus fields.'
+  },
   telegram: {
     required: ['bot_token'],
     optional: ['allowed_chat_ids'],
@@ -267,7 +273,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
+        enum: Object.keys(CHANNEL_CONFIG_SCHEMAS),
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {
