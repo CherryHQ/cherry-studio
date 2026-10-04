@@ -16,23 +16,25 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
+import { getCustomParameters } from '../utils/reasoning'
 
 const logger = loggerService.withContext('ai:outputReservation')
 
 /**
  * The `max_tokens` this request will put on the wire, or `undefined` when it
- * will send none. Precedence: explicit call override → custom parameter →
- * the assistant's own limit when enabled → the model's ceiling, but only on the
- * Anthropic endpoint, whose API requires the field.
+ * will send none. Precedence: explicit call override → the assistant's
+ * `maxOutputTokens` custom parameter → the assistant's own limit when enabled →
+ * the model's ceiling, but only on the Anthropic endpoint, whose API requires
+ * the field.
  */
 export function resolveRequestedMaxOutputTokens(
   requestMaxOutputTokens: number | undefined,
-  customMaxOutputTokens: unknown,
   assistant: Assistant | undefined,
   model: Model,
   endpointType: EndpointType | undefined
 ): number | undefined {
   if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+  const customMaxOutputTokens = assistant ? getCustomParameters(assistant).maxOutputTokens : undefined
   if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
 
   const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
@@ -59,7 +61,7 @@ export function resolveOutputReservation(
   const assistant = loadAssistant(assistantId)
   let largest: number | undefined
   for (const model of models) {
-    const reservation = resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointTypeOf(model))
+    const reservation = resolveRequestedMaxOutputTokens(undefined, assistant, model, endpointTypeOf(model))
     if (reservation !== undefined && (largest === undefined || reservation > largest)) largest = reservation
   }
   return largest

@@ -11,14 +11,15 @@
  * `compress.modelId` is a plain `string | null` (NOT `UniqueModelId`) so it
  * matches the auto-generated preference schema's boundary; validation to a
  * real model happens in `resolveCompressionModel`. `null` = "no explicit
- * pick"; the caller falls back to the current request model.
+ * pick": the caller falls back to the current request model. Like `maxMessages`,
+ * an assistant-layer `null` beats a global pick; an absent key inherits it.
  */
 import * as z from 'zod'
 
 export const ContextSettingsCompressOverrideSchema = z.object({
   enabled: z.boolean(),
   // min(1): '' would read as an explicit pick and silently kill compression
-  // (resolveCompressionModel('') → null) — clearing must be expressed as null.
+  // (resolveCompressionModel('') → null); use null to follow the request model.
   modelId: z.string().min(1).nullable().optional(),
   /** Compact once the prompt passes this percent of the available input context. */
   thresholdPercent: z.number().int().min(20).max(100).optional()
@@ -31,9 +32,8 @@ export const ContextSettingsOverrideSchema = z.object({
   /**
    * Serve only the last N messages (v1 contextCount successor). Three-state:
    * absent inherits the layer below, `null` is an explicit "no limit here" that
-   * overrides a finite global. The UI's empty field maps to `null`, not to
-   * absent — otherwise an assistant showing "unlimited" would silently inherit
-   * a finite global.
+   * overrides a finite global. The dialog's empty field means absent; its
+   * Unlimited switch stores `null`.
    */
   maxMessages: z.number().int().min(1).nullable().optional(),
   compress: ContextSettingsCompressOverrideSchema.partial().optional()
