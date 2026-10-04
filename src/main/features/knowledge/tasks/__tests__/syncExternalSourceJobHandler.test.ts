@@ -122,7 +122,7 @@ describe('sync-external-source job handler', () => {
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
   })
 
-  it('publishes content read models only after synchronization finishes', async () => {
+  it('publishes a final content reconciliation signal after synchronization finishes', async () => {
     let finishSync: ((value: ExternalKnowledgeSourceSyncSummary) => void) | undefined
     const syncSource = vi.fn().mockImplementation(
       () =>

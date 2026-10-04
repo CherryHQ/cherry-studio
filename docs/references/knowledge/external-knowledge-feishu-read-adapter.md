@@ -96,6 +96,11 @@ only with their Document/KnowledgeItem ownership transaction. A complete scan
 reconciles absence in one fenced batch, while a fatal or cancelled run never
 interprets unseen documents as deleted.
 
+Each committed document publication, metadata or warning update, and withdrawal
+emits content read-model notifications before synchronization advances to the
+next document. Rolled-back publication and invisible staging do not emit these
+notifications. The Job also emits a final reconciliation signal on exit.
+
 The Job output and metadata contain only validated counts, stable error/warning
 codes, and remote object ids. Credentials, account details, raw provider
 payloads, and provider error messages are not written to Job rows or Source
