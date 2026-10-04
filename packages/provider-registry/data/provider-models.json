@@ -37299,6 +37299,14 @@
     },
     {
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "qwencloud",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -43364,5 +43372,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "bd1ff301f4521d11"
+  "version": "e7f84e6f26f694bc"
 }
