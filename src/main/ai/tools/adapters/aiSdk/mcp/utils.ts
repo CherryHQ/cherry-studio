@@ -66,34 +66,32 @@ export function mcpResultToModelOutput(result: McpCallToolResponse, serverId?: s
     return { type: 'text', value: mcpResultToTextSummary(result) }
   }
 
-  const textParts: string[] = []
-  const media: ToolResultContentItem[] = []
-  for (const item of result.content) {
+  const value = result.content.map((item): ToolResultContentItem => {
     if (item.type === 'image' || item.type === 'audio') {
       if (item.data) {
         const isImage = item.type === 'image'
-        media.push({
+        return {
           type: isImage ? 'image-data' : 'file-data',
           data: item.data,
           mediaType: item.mimeType || (isImage ? 'image/png' : 'audio/mp3')
-        })
-      } else {
-        textParts.push(JSON.stringify(item))
+        }
       }
-    } else if (item.type === 'resource' && item.resource?.blob && serverId && item.resource.uri) {
-      const { uri, mimeType } = item.resource
-      textParts.push(
-        `Resource ${JSON.stringify(uri)} (${mimeType || 'application/octet-stream'}): ` +
-          `read with mcp_resource_read using ${JSON.stringify({ serverId, uri })}.`
-      )
-    } else {
-      textParts.push(mcpResultToTextSummary({ content: [item] }))
+      return { type: 'text', text: JSON.stringify(item) }
     }
-  }
+    if (item.type === 'resource' && item.resource?.blob && serverId && item.resource.uri) {
+      const { uri, mimeType } = item.resource
+      return {
+        type: 'text',
+        text:
+          `Resource ${JSON.stringify(uri)} (${mimeType || 'application/octet-stream'}): ` +
+          `read with mcp_resource_read using ${JSON.stringify({ serverId, uri })}.`
+      }
+    }
+    return { type: 'text', text: mcpResultToTextSummary({ content: [item] }) }
+  })
 
-  const text = textParts.join('\n')
-  if (media.length === 0) {
-    return { type: 'text', value: text }
+  if (value.every((item) => item.type === 'text')) {
+    return { type: 'text', value: value.map((item) => item.text).join('\n') }
   }
-  return { type: 'content', value: text ? [{ type: 'text', text }, ...media] : media }
+  return { type: 'content', value }
 }
