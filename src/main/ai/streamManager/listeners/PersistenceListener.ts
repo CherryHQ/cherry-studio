@@ -20,6 +20,7 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
+  hasNoAnswerContent,
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
@@ -121,6 +122,32 @@ export class PersistenceListener implements StreamListener {
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
         }
       : finalMessage
+
+    // A billed zero-text turn: the stream ended cleanly and usage reported
+    // output tokens, yet no answer content was streamed (e.g. an upstream
+    // completion cap truncating the reply below the configured
+    // maxOutputTokens — issue #21315). Persisting it as `success` shows the
+    // user a silent empty bubble; demote it through the existing error path
+    // so the failure is surfaced with a retry affordance. Backends that
+    // accept an empty success (agent sessions) keep their semantics.
+    if (
+      status === 'success' &&
+      finalMessageForPersistence &&
+      !this.opts.backend.canPersistEmptySuccessTerminal &&
+      finalMessageForPersistence.metadata?.stats?.outputTokens !== undefined &&
+      finalMessageForPersistence.metadata.stats.outputTokens > 0 &&
+      hasNoAnswerContent(finalMessageForPersistence.parts)
+    ) {
+      const error = zeroTextTurnError(finalMessageForPersistence.metadata.stats.outputTokens)
+      const withErrorPart = mergeErrorIntoMessage(
+        finalMessageForPersistence,
+        error,
+        toExecutionFailure(error, this.opts.modelId),
+        result.anchorMessageId
+      )
+      return this.persistAssistant(withErrorPart, 'error', runtimeTiming, result)
+    }
+
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
@@ -186,6 +213,16 @@ export class PersistenceListener implements StreamListener {
         })
       })
     }
+  }
+}
+
+/** Synthetic error for a turn the provider billed but streamed no answer content into. */
+function zeroTextTurnError(outputTokens: number): SerializedError {
+  return {
+    name: 'EmptyResponseError',
+    message: `The provider reported ${outputTokens} output tokens but the reply arrived without any content — it was likely truncated upstream. Retry the request.`,
+    stack: null,
+    isRetryable: true
   }
 }
 

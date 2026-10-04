@@ -111,6 +111,21 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
+/**
+ * True when a turn carries nothing a user could read — only structural step
+ * markers and/or reasoning. Text (non-empty), visible tool outputs and file
+ * parts count as content. Used to detect a billed-but-empty turn: the stream
+ * ended cleanly and usage reported output tokens, yet no answer content was
+ * streamed (e.g. an upstream completion cap truncating the reply).
+ */
+export function hasNoAnswerContent(parts: CherryMessagePart[]): boolean {
+  return !parts.some((part) => {
+    if (part.type === 'text') return part.text.trim().length > 0
+    if (part.type === 'file') return true
+    return isToolPart(part)
+  })
+}
+
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage

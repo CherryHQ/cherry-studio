@@ -536,3 +536,121 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 })
+
+describe('PersistenceListener — billed zero-text turn demotion', () => {
+  beforeEach(() => {
+    messageUpdateMock.mockReset()
+    messageFinalizeMock.mockReset()
+    messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
+  })
+
+  function makeZeroTextListener() {
+    return new PersistenceListener({
+      topicId: 'topic-1',
+      modelId: 'openai::gpt-x',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed: vi.fn()
+    })
+  }
+
+  // Issue #21315: an upstream completion cap (8192) below the configured
+  // maxOutputTokens (128000) truncates the reply — usage reports output
+  // tokens, the accumulated message holds only step markers, and the turn
+  // must not persist as a successful, billed reply.
+  it('demotes a billed step-start-only turn to the existing error path', async () => {
+    const finalMessage = {
+      id: 'msg-empty',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }],
+      metadata: { stats: { outputTokens: 8192 } }
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    const [, input] = messageFinalizeMock.mock.calls[0]
+    expect(input.status).toBe('error')
+    const parts = input.data.parts as Array<{ type: string; data?: { message?: string } }>
+    const errorPart = parts.at(-1)
+    expect(errorPart?.type).toBe('data-error')
+    expect(errorPart?.data?.message).toContain('8192')
+  })
+
+  it('reasoning-only output still counts as zero text', async () => {
+    const finalMessage = {
+      id: 'msg-reasoning-only',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }, { type: 'reasoning', text: 'thinking...', state: 'done' }],
+      metadata: { stats: { outputTokens: 8192 } }
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageFinalizeMock.mock.calls[0][1].status).toBe('error')
+  })
+
+  it('a text-bearing turn keeps status=success even with reported output tokens', async () => {
+    const finalMessage = {
+      id: 'msg-with-text',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }, { type: 'text', text: 'a full answer' }],
+      metadata: { stats: { outputTokens: 2399 } }
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageFinalizeMock.mock.calls[0][1].status).toBe('success')
+  })
+
+  it('visible tool output counts as content', async () => {
+    const finalMessage = {
+      id: 'msg-tool-only',
+      role: 'assistant',
+      parts: [
+        { type: 'step-start' },
+        { type: 'tool-search', toolCallId: 't1', state: 'output-available', input: {}, output: 'result' }
+      ],
+      metadata: { stats: { outputTokens: 8192 } }
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageFinalizeMock.mock.calls[0][1].status).toBe('success')
+  })
+
+  it('without reported output tokens the turn keeps current behavior', async () => {
+    const finalMessage = {
+      id: 'msg-no-usage',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }]
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageFinalizeMock.mock.calls[0][1].status).toBe('success')
+  })
+
+  it('an empty-success-opt-in backend (agent sessions) keeps persisting zero-text turns as success', async () => {
+    const persistAssistant = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: { kind: 'agents-db-like', canPersistEmptySuccessTerminal: true, persistAssistant },
+      onPersistFailed: vi.fn()
+    })
+    const finalMessage = {
+      id: 'msg-agent',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }],
+      metadata: { stats: { outputTokens: 8192 } }
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success' })
+
+    expect(persistAssistant).toHaveBeenCalledTimes(1)
+    expect(persistAssistant.mock.calls[0][0].status).toBe('success')
+  })
+})
