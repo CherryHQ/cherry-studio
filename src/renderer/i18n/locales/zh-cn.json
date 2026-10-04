@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "默认助手模型",
   "settings.models.default_assistant_model_description": "助手没有模型时使用这个模型",
   "settings.models.docs": "模型文档",
+  "settings.models.edit.classification_save_hint": "这些设置可能来自模型目录。修改任一选项会立即将当前显示的输入模态集合保存为自定义设置，不再随模型目录更新。请仅启用服务商支持的输入类型。",
   "settings.models.empty": "请选择模型",
   "settings.models.empty_hint": "点击上方的“同步模型”添加模型",
   "settings.models.enabled_models": "已启用",

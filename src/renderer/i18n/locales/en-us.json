@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "Default Assistant Model",
   "settings.models.default_assistant_model_description": "Used when an assistant has no model.",
   "settings.models.docs": "Model docs",
+  "settings.models.edit.classification_save_hint": "Settings may come from the model catalog. Editing any chip immediately saves the displayed input modalities as your override, so they stop following catalog updates. Only enable inputs your provider supports.",
   "settings.models.empty": "Select a model",
   "settings.models.empty_hint": "Click Sync models above to add models.",
   "settings.models.enabled_models": "Enabled",

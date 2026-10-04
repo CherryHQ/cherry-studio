@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "Modèle d'assistant par défaut",
   "settings.models.default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
   "settings.models.docs": "Documentation du modèle",
+  "settings.models.edit.classification_save_hint": "Les paramètres peuvent provenir du catalogue de modèles. Modifier une option enregistre immédiatement les modalités d’entrée affichées comme configuration personnelle, qui ne suit plus les mises à jour du catalogue. Activez uniquement les entrées prises en charge par votre fournisseur.",
   "settings.models.empty": "Sélectionnez un modèle",
   "settings.models.empty_hint": "Cliquez sur « Synchroniser les modèles » ci-dessus pour ajouter des modèles.",
   "settings.models.enabled_models": "Activés",

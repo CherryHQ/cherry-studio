@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "Varsayılan Asistan Modeli",
   "settings.models.default_assistant_model_description": "Bir asistanın modeli olmadığında kullanılır.",
   "settings.models.docs": "Model belgeleri",
+  "settings.models.edit.classification_save_hint": "Ayarlar model kataloğundan gelebilir. Herhangi bir seçeneği değiştirmek, görüntülenen giriş türlerini hemen kişisel ayarınız olarak kaydeder; artık katalog güncellemelerini takip etmezler. Yalnızca sağlayıcınızın desteklediği girişleri etkinleştirin.",
   "settings.models.empty": "Bir model seçin",
   "settings.models.empty_hint": "Model eklemek için yukarıdaki Modelleri eşitle seçeneğine tıklayın.",
   "settings.models.enabled_models": "Etkin",

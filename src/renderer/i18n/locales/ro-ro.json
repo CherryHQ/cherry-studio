@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "Model asistent implicit",
   "settings.models.default_assistant_model_description": "Folosit când un asistent nu are model.",
   "settings.models.docs": "Documentația modelului",
+  "settings.models.edit.classification_save_hint": "Setările pot proveni din catalogul de modele. Modificarea oricărei opțiuni salvează imediat modalitățile de intrare afișate ca setări proprii, care nu mai urmează actualizările catalogului. Activați doar intrări acceptate de furnizorul dvs.",
   "settings.models.empty": "Selectează un model",
   "settings.models.empty_hint": "Fă clic pe „Sincronizează modelele” de mai sus pentru a adăuga modele.",
   "settings.models.enabled_models": "Activate",

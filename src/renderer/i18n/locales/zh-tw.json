@@ -4846,6 +4846,7 @@
   "settings.models.default_assistant_model": "預設助理模型",
   "settings.models.default_assistant_model_description": "助理未設定模型時使用。",
   "settings.models.docs": "模型文件",
+  "settings.models.edit.classification_save_hint": "這些設定可能來自模型目錄。修改任一選項會立即將目前顯示的輸入模態集合儲存為自訂設定，不再隨模型目錄更新。請僅啟用服務商支援的輸入類型。",
   "settings.models.empty": "請選擇模型",
   "settings.models.empty_hint": "點擊上方的「同步模型」來新增模型。",
   "settings.models.enabled_models": "已啟用",
