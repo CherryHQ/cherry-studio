@@ -79,6 +79,7 @@ const fake = vi.hoisted(() => {
     runtime: {
       assertSessionWritable() {},
       isSessionBusy: () => false,
+      hasPendingBackgroundWork: () => false,
       respondToolApproval: vi.fn(() => true),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
