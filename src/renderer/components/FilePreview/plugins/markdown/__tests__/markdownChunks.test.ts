@@ -355,6 +355,59 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition whose title wraps from the line its destination is on', () => {
+    // The parser closes a title on whichever line carries the closing delimiter, so a title that
+    // opens on the destination's line runs on to the next one. Reading it as unclosed left the
+    // definition out entirely, and every chunk then rendered its reference as literal text.
+    const content = ['[label]: https://example.com "the long', 'spec title"', '', 'para one', '', 'see [label]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com "the long\nspec title"')
+    }
+  })
+
+  it('carries a definition whose title wraps from the line below its destination', () => {
+    // The same wrap, opening a line later: only the first line of the title was being taken, so the
+    // definition reached every chunk without the paragraph the parser holds it to.
+    const content = ['[label]:', 'https://example.com', '"the long', 'spec title"', '', 'see [label]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('https://example.com\n"the long\nspec title"')
+    }
+  })
+
+  it('leaves a paragraph that a blank line starts out of the definition behind it', () => {
+    // Across a blank line the parser holds a footnote definition open only at four columns, so a
+    // line indented less is a paragraph of its own. Carried, it was printed in every chunk.
+    const content = ['[^note]: first', '', '  second', '', 'tail'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(joined(chunks).match(/second/g)).toEqual(['second'])
+  })
+
+  it('still carries the paragraph a footnote definition holds at four columns', () => {
+    // The guard above has to stop at the indent the parser stops at, not at the first space.
+    const content = ['[^note]: first', '', '    second', '', 'tail'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^note]: first')
+      expect(chunk.text).toContain('    second')
+    }
+  })
+
   it('keeps a list whose leading items are definitions in one chunk', () => {
     // `- a` / `- b` / `- c` is one loose list; a boundary between them would render two lists and
     // the tail would lose the numbering the whole document gave it.

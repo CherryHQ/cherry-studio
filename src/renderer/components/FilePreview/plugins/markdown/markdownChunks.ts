@@ -111,7 +111,20 @@ const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|[^\s]+)/
 /** A link title, which may sit on the line below the destination; its delimiter may be escaped. */
 const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[^)\\\n])*\))[ \t]*$/
 
+/**
+ * A title the parser has accepted the opening of but not yet closed: the title runs on to the lines
+ * below the one it opens on, and only the closing delimiter ends it.
+ */
+const LINK_TITLE_OPEN = /^[ \t]*(?:"(?:\\.|[^"\\\n])*|'(?:\\.|[^'\\\n])*|\((?:\\.|[^)\\\n])*)$/
+
 const INDENTED_LINE = /^\s+\S/
+
+/**
+ * The indent a line needs to continue a definition across a blank one. The parser requires four
+ * columns there, so a shallower indented line after a blank is a paragraph of its own — and
+ * carrying it would print that paragraph in every chunk.
+ */
+const DEFINITION_AFTER_BLANK = /^(?: {4,}| {1,3}\t|\t)\S/
 
 /**
  * The bare text of a link reference definition and the lines it covers, or null when the line opens
@@ -138,15 +151,27 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     span = 2
   }
   tail = tail.replace(LINK_DESTINATION, '')
-  // A destination with anything else left on its own line is not a definition at all — that is a
-  // paragraph. Left on a later line, the definition stands and the text is a block of its own.
-  if (!/^[ \t]*$/.test(tail) && !LINK_TITLE.test(tail)) return null
-  if (/^[ \t]*$/.test(tail)) {
-    const title = continuation(lines[index + span], quotes, contentColumn)
-    if (title !== undefined && LINK_TITLE.test(title)) {
-      body.push(title)
+  // Whatever is left on the destination's line has to be a title, but the title may wrap: the parser
+  // closes it on whichever line carries the closing delimiter, so one that is still open here is
+  // taken from the lines below rather than rejected. Anything that is neither closed nor open, and
+  // any title that never closes, is a paragraph rather than a definition.
+  let title: string | undefined = /^[ \t]*$/.test(tail) ? undefined : tail
+  if (title === undefined) {
+    const below = continuation(lines[index + span], quotes, contentColumn)
+    if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
+      title = below
+      body.push(below)
       span += 1
     }
+  } else if (!LINK_TITLE.test(title) && !LINK_TITLE_OPEN.test(title)) {
+    return null
+  }
+  while (title !== undefined && !LINK_TITLE.test(title)) {
+    const next = continuation(lines[index + span], quotes, contentColumn)
+    if (next === undefined) return null
+    body.push(next)
+    span += 1
+    title = `${title} ${next}`.trim()
   }
   return { text: body.join('\n'), lines: span }
 }
@@ -375,8 +400,10 @@ export function splitMarkdownChunks(
       inDefinition = false
       continue
     }
-    // A multi-paragraph footnote definition continues on indented lines, including across its blank lines.
-    const indentedContinuation = INDENTED_LINE.test(line) || (blank && INDENTED_LINE.test(lines[nextContent[i]] ?? ''))
+    // A multi-paragraph footnote definition continues on indented lines, including across its blank
+    // lines — where the parser holds it to four columns, so a shallower one starts a new block.
+    const indentedContinuation =
+      INDENTED_LINE.test(line) || (blank && DEFINITION_AFTER_BLANK.test(lines[nextContent[i]] ?? ''))
     if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
       definitions.push(line)
       definitionLines += 1
