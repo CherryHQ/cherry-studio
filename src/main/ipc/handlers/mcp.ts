@@ -31,8 +31,6 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     application.get('McpRuntimeService').getPrompt({ serverId, name, args }),
   'mcp.server.read_resource_preview': async ({ serverId, uri, maxChars }) =>
     readMcpResourcePreview({ serverId, uri, maxChars }),
-  'mcp.server.check_connectivity': async ({ serverId }) =>
-    application.get('McpRuntimeService').checkMcpConnectivity(serverId),
   'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
   'mcp.server.get_logs': async ({ serverId }) => application.get('McpRuntimeService').getServerLogs(serverId),
   'mcp.protocol_install.list_pending': async (_input, { senderId }) =>

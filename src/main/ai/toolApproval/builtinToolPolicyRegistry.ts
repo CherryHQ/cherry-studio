@@ -12,7 +12,6 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
-import { CONNECTION_CHECK_TOOL_NAME, CONNECTION_INSTALL_TOOL_NAME } from '@main/ai/mcp/servers/cherryConnectionTools'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -101,8 +100,6 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
-  cherryConnectionCheck: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONNECTION_CHECK_TOOL_NAME, 'auto'),
-  cherryConnectionInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONNECTION_INSTALL_TOOL_NAME, 'required', 'enforce'),
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 

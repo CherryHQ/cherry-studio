@@ -57,7 +57,6 @@ export const mcpRequestSchemas = {
       isBinary: z.boolean()
     })
   }),
-  'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
   'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
   'mcp.protocol_install.list_pending': defineRoute({

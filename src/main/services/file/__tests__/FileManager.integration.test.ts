@@ -375,8 +375,30 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
+    await writeFile(path.join(internalRoot, `${id}.pdf`), 'doc')
+
     await fm.open(id)
     expect(electronMocks.shell.openPath).toHaveBeenCalledWith(path.join(internalRoot, `${id}.pdf`))
+  })
+
+  it('INT-3h: open refuses an entry whose file is gone instead of handing it to the OS', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff38' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'ghost',
+      ext: 'png',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    // On Linux an unresolvable path kills the child Electron forks inside `shell.openPath`.
+    await expect(fm.open(id)).rejects.toMatchObject({ code: fileErrorCodes.OPEN_TARGET_UNAVAILABLE })
+    expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
   })
 
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {

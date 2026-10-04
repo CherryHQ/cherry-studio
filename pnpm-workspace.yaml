@@ -27,6 +27,8 @@ overrides:
   "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"
   "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
   "@smithy/types": "4.7.1"
+  # All consumers accept this version; one core avoids repeated nested copies in release packages.
+  "@smithy/core": "3.35.0"
   "@codemirror/state": "6.5.4"
   "@codemirror/view": "6.39.16"
   "@codemirror/language": "6.12.2"
@@ -78,6 +80,7 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
   # Keep Bun's internal runners independent of workspace config and preserve their argv delimiter.
   "@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-sandbox-local@0.2.0-rc.2.patch
   "@deepseek-ai/dsh-subprocess-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-subprocess-local@0.2.0-rc.2.patch
@@ -110,8 +113,7 @@ patchedDependencies:
   # Preserve main's ultra reasoning support until the adapter accepts that level upstream.
   "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2": patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch
   "@earendil-works/pi-ai@0.87.1": patches/@earendil-works__pi-ai@0.87.1.patch
-  "@earendil-works/pi-ai@0.80.6": patches/@earendil-works__pi-ai@0.80.6.patch
-  "@earendil-works/pi-coding-agent@0.80.3": patches/@earendil-works__pi-coding-agent@0.80.3.patch
+  "@earendil-works/pi-ai@1.0.0": patches/@earendil-works__pi-ai@1.0.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
@@ -121,6 +123,7 @@ patchedDependencies:
   "@elysia/node@1.4.6": patches/@elysia__node@1.4.6.patch
   bonjour-service@1.3.0: patches/bonjour-service@1.3.0.patch
   "@ai-sdk/xai@3.0.126": patches/@ai-sdk__xai@3.0.126.patch
+  "@sting8k/pi-vcc@0.8.1": patches/@sting8k__pi-vcc@0.8.1.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true

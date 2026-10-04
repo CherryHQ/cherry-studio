@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai'
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { McpResource } from '@shared/types/mcp'
 
 /**
  * Per-request context constructed once in `buildAgentParams` and
@@ -40,6 +41,9 @@ export interface RequestContext {
    * the request started can never join. Absent for synthetic / IPC-driven invocations.
    */
   readonly mcpResourceServerIds?: ReadonlySet<string>
+
+  /** Conversation-owned embedded resources; MCP execution adds this turn's results. */
+  readonly mcpToolResources?: Map<string, McpResource>
 
   /**
    * Absolute paths of persisted tool-output blobs this conversation owns — the
