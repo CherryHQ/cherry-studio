@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
@@ -50,6 +51,7 @@ const voice = vi.hoisted(() => {
 })
 
 vi.mock('@renderer/services/voice', async () => ({
+  VoiceDomainError: (await import('@renderer/services/voice/VoiceService')).VoiceDomainError,
   getDefaultVoiceLanguage: (await import('@renderer/services/voice/voiceLanguage')).getDefaultVoiceLanguage,
   voiceService: {
     initialize: vi.fn(async () => undefined),
@@ -109,6 +111,28 @@ const models = [
   { id: APPLE_TTS_MODEL_ID, name: 'Apple System TTS' },
   { id: FUNASR_MODEL_ID, name: 'FunASR Nano' }
 ]
+
+function publishSpeech(snapshot: SpeechPlaybackSnapshot) {
+  act(() => {
+    voice.speech = snapshot
+    voice.speechListeners.forEach((listener) => listener())
+  })
+}
+
+async function renderPreviewTest() {
+  MockUsePreferenceUtils.setMultiplePreferenceValues({
+    'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
+    'feature.voice.speech.voice_id': 'voice.exact',
+    'feature.voice.speech.language': 'en-US'
+  })
+  const user = userEvent.setup()
+  render(<VoiceSettings />)
+  const input = screen.getByRole('textbox', { name: /preview text/i })
+  await user.type(input, 'Read this preview.')
+  const play = screen.getByRole('button', { name: /play preview/i })
+  await waitFor(() => expect(play).toBeEnabled())
+  return { input, play, user }
+}
 
 describe('VoiceSettings', () => {
   beforeAll(async () => {
@@ -784,6 +808,100 @@ describe('VoiceSettings', () => {
     expect(await recordingTest.findByRole('alert')).toHaveTextContent(/no speech was detected/i)
     expect(await playbackTest.findByRole('alert')).toHaveTextContent(/timed out/i)
     expect(screen.getAllByRole('alert')).toHaveLength(2)
+  })
+
+  it('reports a published preview failure once and clears it when playback recovers elsewhere', async () => {
+    const starting = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(starting.promise)
+    const { input, play, user } = await renderPreviewTest()
+
+    await user.click(play)
+    await act(async () => {
+      publishSpeech({
+        phase: 'failed',
+        sourceLabel: 'preview',
+        progress: { completed: 0, total: 1 },
+        error: 'operation_failed'
+      })
+      starting.reject(new VoiceDomainError('operation_failed'))
+    })
+
+    const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(input).toHaveAccessibleDescription(/operation failed/i)
+
+    publishSpeech({ phase: 'playing', sourceLabel: 'preview', progress: { completed: 0, total: 1 } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(input).not.toHaveAccessibleDescription()
+  })
+
+  it('keeps an unpublished preview failure beside its controls until the next preview action', async () => {
+    const starting = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(starting.promise)
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const { input, play, user } = await renderPreviewTest()
+
+    await user.click(play)
+    publishSpeech({ phase: 'playing', sourceLabel: 'message', progress: { completed: 0, total: 1 } })
+    await act(async () => starting.reject(new Error('Preview preparation failed')))
+
+    const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(input).toHaveAccessibleDescription(/operation failed/i)
+
+    await user.click(screen.getByRole('button', { name: /record test/i }))
+    expect(playbackTest.getByRole('alert')).toHaveTextContent(/operation failed/i)
+    await user.click(screen.getByRole('button', { name: /^stop$/i }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports a preview stop cleanup failure once beside the preview controls', async () => {
+    voice.speech = { phase: 'generating', sourceLabel: 'preview', progress: { completed: 0, total: 1 } }
+    voice.speechStop.mockImplementationOnce(async () => {
+      publishSpeech({
+        phase: 'failed',
+        sourceLabel: 'preview',
+        progress: { completed: 0, total: 1 },
+        error: 'operation_failed'
+      })
+      throw new VoiceDomainError('operation_failed')
+    })
+    const user = userEvent.setup()
+    render(<VoiceSettings />)
+
+    await user.click(screen.getByRole('button', { name: /^stop$/i }))
+
+    const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
+  it('does not report an interrupted preview start as a failure', async () => {
+    const starting = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(starting.promise)
+    const { play, user } = await renderPreviewTest()
+
+    await user.click(play)
+    await act(async () => starting.reject(new VoiceDomainError('aborted')))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('does not let an older preview rejection restore an error after a newer preview starts', async () => {
+    const first = deferred<{ status: 'started' }>()
+    const second = deferred<{ status: 'started' }>()
+    voice.speechStart.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const { play, user } = await renderPreviewTest()
+
+    await user.click(play)
+    await user.click(play)
+    publishSpeech({ phase: 'generating', sourceLabel: 'preview', progress: { completed: 0, total: 1 } })
+    await act(async () => first.reject(new VoiceDomainError('operation_failed')))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await act(async () => second.resolve({ status: 'started' }))
   })
 
   it('clears the previous result when starting a new recording test', async () => {
