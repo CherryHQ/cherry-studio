@@ -257,7 +257,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
                          │
          ┌───────────────▼─────────────┐
          │ BootConfigService                       │
-         │ (sync load, ~/.cherrystudio/            │
+         │ (sync load, {cherryHome}/               │
          │  boot-config.json — also used directly  │
          │  in early boot before lifecycle)        │
          └─────────────────────────────────────────┘

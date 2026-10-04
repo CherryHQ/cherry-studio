@@ -104,4 +104,15 @@ describe('createComposerInputAdapter', () => {
     expect(adapter.replaceRange?.({ from: 5, to: 6 }, 'ignored')).toBe(false)
     expect(serializeComposerDocument(editor!)).toEqual({ text: 'short', tokens: [] })
   })
+
+  it('reports the selected text end to toolbar-opened quick panels', () => {
+    const currentEditor = createEditor()
+    currentEditor.commands.setContent('prefix selected suffix')
+    currentEditor.commands.setTextSelection({ from: 8, to: 16 })
+
+    const adapter = createComposerInputAdapter(currentEditor)
+
+    expect(adapter.getCursorOffset?.()).toBe(7)
+    expect(adapter.getSelectionEndOffset?.()).toBe(15)
+  })
 })

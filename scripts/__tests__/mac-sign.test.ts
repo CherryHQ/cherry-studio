@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 const require = createRequire(import.meta.url)
-const { createOptionsForFile, signMacApp } = require('../mac-sign.js')
+const { createOptionsForFile, signMacApp } = require('../packaging/mac-sign.js')
 
 const projectRoot = path.resolve(import.meta.dirname, '../..')
 const appPath = '/tmp/Cherry Studio.app'
@@ -77,7 +77,7 @@ describe('macOS signing policy', () => {
 
     expect(builder.mac).toMatchObject({
       entitlementsInherit: 'build/entitlements.mac.plist',
-      sign: 'scripts/mac-sign.js'
+      sign: 'scripts/packaging/mac-sign.js'
     })
     expect(builder.mac.signIgnore).toBeUndefined()
     expect(manifest.devDependencies['@electron/osx-sign']).toBe('1.3.3')

@@ -25,10 +25,15 @@ const state = vi.hoisted(() => {
     getLabel: vi.fn((language: TranslateLanguage) => language.value),
     detectLanguage: vi.fn(),
     translate: vi.fn(),
-    onResponse: undefined as undefined | ((text: string) => void),
     readAloud: vi.fn(async () => undefined),
     cancel: vi.fn(),
-    scrollToBottom: vi.fn()
+    scrollToBottom: vi.fn(),
+    onResponse: undefined as ((text: string) => void) | undefined,
+    runTranslate: async (text: string, language: TranslateLanguage) => {
+      const result = await state.translate(text, language)
+      state.onResponse?.(result)
+      return result
+    }
   }
 })
 
@@ -43,9 +48,17 @@ import ActionTranslate from '../ActionTranslate'
 const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
 const defaultUsePreferenceImplementation = mockUsePreference.getMockImplementation()
 
-vi.mock('../ActionResultContent', () => {
+vi.mock('../ActionResultContent', async () => {
   resultContentChunk.evaluated()
-  return { default: () => null }
+  const React = await import('react')
+  const { CodeBlockWrapLinesContext } = await import('@renderer/components/CodeBlockView/wrapLinesContext')
+
+  return {
+    default: function ActionResultContentMock() {
+      const wrapLines = React.use(CodeBlockWrapLinesContext)
+      return <div data-testid="action-result-content" data-wrap-lines={String(wrapLines)} />
+    }
+  }
 })
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -67,10 +80,10 @@ vi.mock('@renderer/hooks/translate', () => ({
     }
   },
   useDetectLang: () => state.detectLanguage,
-  useTranslate: ({ onResponse }: { onResponse: (text: string) => void }) => {
+  useTranslate: ({ onResponse }: { onResponse?: (text: string) => void }) => {
     state.onResponse = onResponse
     return {
-      translate: state.translate,
+      translate: state.runTranslate,
       isTranslating: false,
       cancel: state.cancel
     }
@@ -170,6 +183,16 @@ describe('ActionTranslate', () => {
     expect(state.translate).not.toHaveBeenCalled()
   })
 
+  it('forces wrapping for translation result content', async () => {
+    state.detectLanguage.mockResolvedValue('en-us')
+
+    render(
+      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
+    )
+
+    expect(await screen.findByTestId('action-result-content')).toHaveAttribute('data-wrap-lines', 'true')
+  })
+
   it('uses Traditional Chinese when the app language is zh-TW and the target is still the default', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.language', 'zh-TW')
     state.detectLanguage.mockResolvedValue('en-us')
@@ -256,6 +279,12 @@ describe('ActionTranslate', () => {
 
   it('reads a completed translation result only after the response is final', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
+    let resolveTranslate: (value: string) => void = () => {}
+    state.translate.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
     render(
       <ActionTranslate
         action={createAction({ selectedText: 'PRIVATE_ORIGINAL' })}
@@ -265,7 +294,7 @@ describe('ActionTranslate', () => {
     )
     await waitFor(() => expect(state.translate).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: 'selection.action.voice.read_result' })).not.toBeInTheDocument()
-    act(() => state.onResponse?.('PRIVATE_TRANSLATION'))
+    await act(async () => resolveTranslate('PRIVATE_TRANSLATION'))
     fireEvent.click(await screen.findByRole('button', { name: 'selection.action.voice.read_result' }))
     expect(state.readAloud).toHaveBeenCalledWith(
       expect.objectContaining({

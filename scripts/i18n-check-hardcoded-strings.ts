@@ -14,6 +14,16 @@ const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
 const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts', '*prompts*.ts']
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// `*` matches any run of characters and everything else is literal, so `*.d.ts`
+// only matches declaration files. The previous `pattern.replace('*', '.*')`
+// conversion left the dots unescaped and the result unanchored, which made
+// `*.d.ts` match any name containing `d<any>ts`.
+const compileGlob = (pattern: string): RegExp => new RegExp(`^${pattern.split('*').map(escapeRegExp).join('.*')}$`)
+
+const IGNORED_FILE_PATTERNS = IGNORED_FILES.map(compileGlob)
+
 // 'content' is handled specially - only checked for specific components
 const UI_ATTRIBUTES = [
   'placeholder',
@@ -334,12 +344,7 @@ function shouldSkipFile(filePath: string, baseDir: string): boolean {
   }
 
   const fileName = path.basename(filePath)
-  if (
-    IGNORED_FILES.some((pattern) => {
-      const regex = new RegExp(pattern.replace('*', '.*'))
-      return regex.test(fileName)
-    })
-  ) {
+  if (IGNORED_FILE_PATTERNS.some((regex) => regex.test(fileName))) {
     return true
   }
 
