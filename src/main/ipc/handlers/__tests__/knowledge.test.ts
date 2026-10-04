@@ -194,11 +194,11 @@ describe('knowledgeHandlers', () => {
       ipcCode: 'KNOWLEDGE_EXTERNAL_REAUTHORIZATION_REQUIRED',
       message: 'The Feishu connection requires authorization'
     }
-  ])('maps $runtimeCode to its distinct fixed IPC error', async ({ runtimeCode, ipcCode, message }) => {
-    knowledgeService.validateFeishuConnection.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
+  ])('preserves $runtimeCode when completing authorization through IPC', async ({ runtimeCode, ipcCode, message }) => {
+    knowledgeService.completeFeishuUserAuthorization.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
 
-    const error = await knowledgeHandlers['knowledge.feishu.connection.validate'](
-      { connectionId: '01960000-0000-7000-8000-000000000001' },
+    const error = await knowledgeHandlers['knowledge.feishu.authorization.complete'](
+      { authorizationSessionId: '01960000-0000-7000-8000-000000000001' },
       ctx
     ).catch((cause) => cause)
 

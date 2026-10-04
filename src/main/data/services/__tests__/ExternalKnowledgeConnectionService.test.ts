@@ -24,7 +24,7 @@ const connectedIdentity = {
     'wiki:node:retrieve',
     'docs:document.content:read',
     'offline_access',
-    'auth:user.id:read'
+    'contact:user.employee_id:readonly'
   ]
 }
 
