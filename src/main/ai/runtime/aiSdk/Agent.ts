@@ -364,7 +364,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           }
           if (signal.aborted) break
           if (
-            (value.type === 'text-delta' && value.delta.length > 0) ||
+            (value.type === 'text-delta' && value.delta.trim().length > 0) ||
             value.type === 'file' ||
             value.type === 'tool-input-available'
           ) {

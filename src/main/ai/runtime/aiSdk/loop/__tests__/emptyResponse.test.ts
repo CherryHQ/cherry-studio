@@ -72,6 +72,18 @@ describe('empty assistant response', () => {
     expect(received.at(-1)).toEqual({ type: 'finish', finishReason: 'length' })
   })
 
+  it('rejects whitespace-only text that persistence would discard', async () => {
+    const { received, completion, onFinish } = setup([
+      { type: 'text-start', id: 'text' },
+      { type: 'text-delta', id: 'text', delta: ' \n\t' },
+      { type: 'text-end', id: 'text' },
+      { type: 'finish', finishReason: 'stop' }
+    ])
+    await expect(completion).rejects.toMatchObject({ name: 'EmptyResponseError', i18nKey: 'no_response' })
+    expect(received).not.toContainEqual(expect.objectContaining({ type: 'finish' }))
+    expect(onFinish).not.toHaveBeenCalled()
+  })
+
   it('allows a tool approval pause without assistant text', async () => {
     const { received, completion } = setup([
       { type: 'tool-input-available', toolCallId: 'tool', toolName: 'read', input: {} },
