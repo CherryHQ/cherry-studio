@@ -1,94 +1,70 @@
 {
-  "generated_at": "2026-10-03T00:00:00Z",
-  "note": "Discussions GraphQL API unavailable via GitHub MCP in this environment. Hot topics inferred from high-comment/high-engagement open issues.",
+  "generated_at": "2026-10-04T17:00:00Z",
+  "note": "Discussions GraphQL API unavailable via GitHub MCP. Hot topics inferred from high-comment/high-engagement open issues.",
   "hot_topics_from_issues": [
     {
       "number": 21282,
-      "title": "[Bug]: 2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row (worked in 2.1.3)",
+      "title": "[Bug]: 2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row",
       "labels": [],
-      "comments": 0,
-      "engagement": "NEW TODAY — startup crash regression. One invalid DB row bricks entire launch. Silent crash with no recovery path."
+      "comments": 1,
+      "engagement": "DAY 3 unlabeled startup crash regression — one invalid DB row bricks entire launch for 2.1.4 upgraders. No P1 label, no assignee."
+    },
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into visible chat transcript as a normal message",
+      "labels": ["bug", "p1", "agent"],
+      "comments": 13,
+      "engagement": "Still active today (last update 16:43 UTC) — high community pain, no fix merged yet"
     },
     {
       "number": 19793,
       "title": "Chat fails when a response stream ends without a finish reason",
-      "labels": ["bug","p1","models","chat"],
+      "labels": ["bug", "p1", "models", "chat"],
       "comments": 22,
-      "engagement": "22 comments — high community pain, no assignee, affects all providers"
+      "engagement": "22 comments — broad multi-provider issue"
     },
     {
       "number": 19847,
-      "title": "Agent with DashScope Qwen3.8-Max terminates on mid-response server error without recovery",
-      "labels": ["bug","p1","needs-triage","models","agent"],
+      "title": "Agent with DashScope Qwen3.8-Max terminates on server error without recovery",
+      "labels": ["bug", "p1", "needs-triage", "models", "agent"],
       "comments": 20,
-      "engagement": "20 comments — DashScope/Qwen users, recovery/retry feature gap"
-    },
-    {
-      "number": 19171,
-      "title": "Model connectivity check hardcodes reasoning_effort: none",
-      "labels": ["bug","p1","connectivity","models"],
-      "comments": 13,
-      "engagement": "13 comments — broad provider compatibility issue (Kimi, Gemini, etc.)"
-    },
-    {
-      "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into visible chat transcript",
-      "labels": ["bug","p1","agent"],
-      "comments": 11,
-      "engagement": "11 comments — confusing UX for all Agent users"
+      "engagement": "20 comments — DashScope/Qwen users, recovery/retry gap"
     },
     {
       "number": 20920,
-      "title": "[Bug]: Cherry Studio 2 cannot connect FastMCP in WSL with 127.0.0.1",
-      "labels": ["bug","mcp"],
+      "title": "Cherry Studio 2 cannot connect FastMCP in WSL with 127.0.0.1",
+      "labels": ["bug", "mcp"],
       "comments": 11,
-      "engagement": "11 comments — WSL/loopback networking gap for MCP users"
-    },
-    {
-      "number": 20907,
-      "title": "[Bug]: Image-only PDFs can time out during knowledge-base processing",
-      "labels": ["bug","windows","rag","needs-info"],
-      "comments": 8,
-      "engagement": "PDF/OCR pipeline issues — multiple confirmations"
+      "engagement": "WSL/loopback networking gap for MCP users"
     },
     {
       "number": 20808,
       "title": "[Discussion] version 1 was better",
       "labels": ["discussion"],
       "comments": 9,
-      "engagement": "V2 regression discussion — 9 comments, user sentiment on v1→v2 migration pain"
-    },
-    {
-      "number": 20488,
-      "title": "[Discussion]: version 1.9.12 is better than version 2.0.13",
-      "labels": ["help wanted","discussion"],
-      "comments": 4,
-      "engagement": "V2 regression discussion — 4 comments, user sentiment"
+      "engagement": "V2 regression sentiment — 9 comments"
     }
   ],
+  "new_issues_today": [
+    {"number": 21326, "title": "Repeated Huorong Security pop-ups when using Agent", "note": "Windows AV interference with Agent multi-step tasks"},
+    {"number": 21325, "title": "Claude Code agent ignores Small model setting for auto-mode classifier", "comments": 1},
+    {"number": 21324, "title": "Dialog box cannot use Enter for new line, assistants/conversations cannot be reordered"},
+    {"number": 21321, "title": "Agent MCP tools: serverName uses server id (UUID) instead of name", "comments": 1, "fix_pr": 21322, "note": "Filed and fix PR opened same day"}
+  ],
+  "fix_velocity_today": [
+    "#21322 fixes #21321 (MCP UUID tool names) — filed and fix PR same day",
+    "#21320 fixes #21315 (zero-text billed turn) — filed and fix PR same day",
+    "#21318 fixes #21316 (SenseNova image JSON body) — filed and fix PR same day",
+    "#21317 rejects billed empty assistant completions — proactive fix",
+    "#21314 hardens context-management compaction budgets"
+  ],
   "unanswered_themes": [
-    "2.1.4 startup crash: single invalid DB row kills DbService on startup — regression from 2.1.3 (issue #21282)",
+    "2.1.4 startup crash #21282: single invalid DB row kills DbService on startup — now day 3 unlabeled",
+    "Agent compaction transcript leak #20692: 13 comments, still no merged fix",
     "Agent runtime stability: DSH crashes, EPERM on Windows, EBADF on macOS",
     "Context/stream failures with no finish_reason — multi-provider issue",
-    "P1 triage backlog: 104 open P1 bugs, growing unlabeled backlog",
     "V2 regression: topic prompt management, compaction leaks, Windows update path",
     "Reasoning model compatibility: hardcoded reasoning_effort breaks detection",
-    "Skill marketplace / manual skill install UX gaps",
-    "Agent heartbeat circuit breaker permanently pausing after first successful run (#21264)"
-  ],
-  "new_since_last_run": [
-    {"number": 21282, "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on startup", "labels": [], "note": "Critical regression: unlabeled, needs immediate P1 + fix"},
-    {"number": 21280, "title": "[Bug]: mermaid download failed", "labels": []},
-    {"number": 21264, "title": "[Bug]: Agent heartbeat permanently paused by circuit breaker after first successful run — mid-conversation system message 400s", "labels": []},
-    {"number": 21268, "title": "apiGateway: Gemini adapter never reports cachedContentTokenCount", "labels": [], "note": "Opened and closed same day — resolved quickly"},
-    {"number": 21266, "title": "apiGateway: Responses-compatible adapter never reports cache/reasoning usage breakdowns", "labels": [], "note": "Opened and closed same day"},
-    {"number": 21262, "title": "apiGateway: OpenAI-compatible adapter never reports the reasoning-token breakdown", "labels": [], "note": "Opened and closed same day"},
-    {"number": 21260, "title": "apiGateway: Anthropic adapter reports cache-inclusive input total without cache split", "labels": [], "note": "Opened and closed same day"}
-  ],
-  "fix_velocity_positive": [
-    "6 API-gateway usage-tracking issues (#21268, #21266, #21262, #21260, and related) opened and closed 2026-10-02 — rapid internal fix cycle",
-    "#21226 Linux SIGTRAP on local file link click (2.1.3) — closed 2026-10-02, within 24h of filing",
-    "#21259 Built-in Grok CLI provider unavailable — closed 2026-10-02",
-    "#21168 Third-party platform models cannot call MCP tools — closed 2026-10-02"
+    "Agent heartbeat circuit breaker permanently pausing after first run (#21264)"
   ]
 }

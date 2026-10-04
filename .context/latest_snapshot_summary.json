@@ -1,185 +1,48 @@
 {
-  "generated_at": "2026-10-03T00:00:00Z",
-  "open_issues_total": 1116,
-  "open_issues_delta_30d": 108,
-  "open_prs_total": 100,
-  "open_prs_base_main": 97,
-  "open_prs_base_v2": 0,
-  "open_prs_base_other": 3,
-  "v2_open_prs": 0,
-  "p1_issues_total": 103,
-  "p1_issues_delta_30d": 70,
-  "p1_issues": [
-    {
-      "number": 21282,
-      "title": "[Bug]: 2.1.4 startup fatality on legacy provider order_key zz — one invalid row force-exits DbService in the startup registry sync (worked in 2.1.3); sync should be non-fatal",
-      "labels": [],
-      "updated_at": "2026-10-02",
-      "age_days": 1,
-      "status": "DAY 2 UNLABELED — startup crash regression 2.1.3→2.1.4, still no assignee or P1 label"
-    },
-    {
-      "number": 21085,
-      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": ["bug","p1","rag","assistant","performance","v2","chat"],
-      "updated_at": "2026-09-27",
-      "age_days": 6,
-      "status": "Active — assigned 404-Page-Found, context overflow"
-    },
-    {
-      "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug","p1","v2","agent","chat"],
-      "updated_at": "2026-09-22",
-      "age_days": 11,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug","p1","models","v2","chat"],
-      "updated_at": "2026-09-22",
-      "age_days": 11,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20937,
-      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug","p1","windows","v2","agent"],
-      "updated_at": "2026-09-22",
-      "age_days": 11,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20695,
-      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
-      "labels": ["bug","p1"],
-      "updated_at": "2026-09-24",
-      "age_days": 9,
-      "status": "Active — assigned 404-Page-Found + Copilot"
-    },
+  "generated_at": "2026-10-04T17:00:00Z",
+  "source": "github-mcp-api",
+  "repo": "CherryHQ/cherry-studio",
+  "summary": {
+    "open_issues_total": 1118,
+    "open_prs_total": 100,
+    "p1_issues_total": 102,
+    "unlabeled_issues_pct": 43,
+    "note": "open_issues +2 vs yesterday (1116→1118); p1 -1 (103→102)"
+  },
+  "p1_active_today": [
     {
       "number": 20692,
       "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
-      "labels": ["bug","p1","agent"],
-      "updated_at": "2026-10-01",
-      "age_days": 12,
-      "status": "Active — assigned 404-Page-Found, 11 comments"
+      "labels": ["bug", "p1", "agent"],
+      "updated_at": "2026-10-04T16:43:22Z",
+      "comments": 13
     },
     {
-      "number": 20532,
-      "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
-      "labels": ["bug","p1","windows"],
-      "updated_at": "2026-09-19",
-      "age_days": 14,
-      "status": "Active — assigned 404-Page-Found + Copilot"
-    },
-    {
-      "number": 20476,
-      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
-      "labels": ["bug","p1","windows","models","chat"],
-      "updated_at": "2026-09-12",
-      "age_days": 21,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20460,
-      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
-      "labels": ["bug","p1","models","agent"],
-      "updated_at": "2026-09-12",
-      "age_days": 21,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 20407,
-      "title": "[Bug]: Claude Code Agent spawn fails with EBADF on packaged macOS arm64 under high file-descriptor pressure",
-      "labels": ["bug","p1","macos","agent"],
-      "updated_at": "2026-09-22",
-      "age_days": 22,
-      "status": "Active — no assignee"
-    },
-    {
-      "number": 19865,
-      "title": "[Bug]: Claude Code Agent can exhaust Windows virtual memory and freeze the system",
-      "labels": ["bug","p1","windows","performance","agent"],
-      "updated_at": "2026-09-28",
-      "age_days": 31,
-      "status": "Aging — no assignee"
-    },
-    {
-      "number": 19753,
-      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": ["bug","p1","windows","needs-repro","v2","agent"],
-      "updated_at": "2026-09-29",
-      "age_days": 33,
-      "status": "Aging — no assignee"
+      "number": 20315,
+      "title": "[Bug]: DSH bridge fails while loading cordis:include",
+      "labels": ["bug", "p1", "windows", "mcp", "agent"],
+      "updated_at": "2026-10-04T14:15:36Z",
+      "comments": 6
     }
   ],
-  "label_distribution_sample": {
-    "bug": 60,
-    "p1": 103,
-    "p2": 45,
-    "p3": 28,
-    "agent": 38,
-    "models": 35,
-    "windows": 32,
-    "ui-ux": 30,
-    "feature": 25,
-    "v2": 18,
-    "mcp": 12,
-    "needs-triage": 14,
-    "needs-info": 10,
-    "performance": 16,
-    "rag": 8,
-    "internal-team": 22
-  },
-  "unlabeled_issues_estimate": "~430 (38% of 1116, from page-1 sample — ~43 unlabeled/100)",
-  "needs_triage_estimate": "~155 (14% of 1116)",
-  "no_priority_label_estimate": "~43% of open issues lack p1/p2/p3 classification",
-  "issue_health_estimated": {
-    "Active_le7days": "~130 (12%)",
-    "Aging_7to30days": "~275 (25%)",
-    "Stale_30to90days": "~425 (38%)",
-    "Zombie_gt90days": "~286 (26%)",
-    "note": "Extrapolated from sorted page-1 sample; full dataset health skews stale/zombie vs daily-active view"
-  },
-  "pr_breakdown": {
-    "total_open": 100,
-    "base_main": 97,
-    "base_v2": 0,
-    "base_other": 3,
-    "v2_open": 0,
-    "other_notable_branches": [
-      "wecom-channel-plan (1 PR)",
-      "codex/voice-primary-consumers (1 PR)",
-      "codex/issue-15970-lifecycle-completion (1 PR)"
-    ],
-    "top_contributors_open": ["404-Page-Found (21)", "lianshuang-photo (13)", "DeJeune (8)", "Dante-dan (6)", "lorenzozanee (6)"],
-    "age": {"active_7d": 84, "aging_7_30d": 16, "stale": 0, "zombie": 0},
-    "labels": {"needs-review": 11}
-  },
   "new_issues_today": [
-    {"number": 21305, "title": "[Feature]: Support in-chat tool approvals across Agent channels", "labels": [], "note": "Feature request — MCP tool approval UX"},
-    {"number": 21296, "title": "[Feature Request] Add RTL text direction support for Persian and Arabic", "labels": [], "note": "i18n feature"},
-    {"number": 21295, "title": "[Bug]: Back arrow in Skills returns to All tab instead of selected tab", "labels": [], "note": "Navigation bug"},
-    {"number": 21292, "title": "[Bug]: Different Type of MCP auth issue", "labels": [], "note": "MCP auth regression"},
-    {"number": 21291, "title": "[Feature]: Context usage circle doesn't update without hover — add auto-refresh", "labels": [], "note": "UX polish feature"}
+    {"number": 21326, "title": "[Bug]: Repeated Huorong Security pop-ups when using Agent", "created_at": "2026-10-04T16:44:44Z"},
+    {"number": 21325, "title": "[Bug]: Claude Code agent ignores the Small model setting for auto-mode classifier", "created_at": "2026-10-04T13:13:12Z"},
+    {"number": 21324, "title": "[Bug]: Dialog box cannot use Enter for new line, assistants cannot be reordered", "created_at": "2026-10-04T12:18:02Z"},
+    {"number": 21321, "title": "Agent MCP tools: serverName uses server id (UUID) instead of name", "created_at": "2026-10-04T09:20:51Z"},
+    {"number": 21316, "title": "[Feature]: Support vendor-customized image edit request body shapes (SenseNova)", "created_at": "2026-10-04T07:16:58Z"},
+    {"number": 21315, "title": "[Bug]: Zero-text chat turn persisted as successful billed reply when provider truncates", "created_at": "2026-10-04T06:21:45Z"}
   ],
-  "closed_30d_stats": {
-    "total": 100,
-    "unlabeled_pct": 41,
-    "top_labels": {"bug": 29, "ui-ux": 22, "feature": 13, "p1": 12, "windows": 11, "chat": 11, "agent": 10}
-  },
-  "volume_trend": {
-    "2026-08-30": 1008,
-    "2026-09-29": 1105,
-    "2026-09-30": 1109,
-    "2026-10-01": 1115,
-    "2026-10-02": 1113,
-    "2026-10-03": 1116,
-    "delta_30d": 108,
-    "delta_1d": 3,
-    "note": "Net +108 in 34 days. +3 today. 5 new issues opened, likely 2 closed. P1 count dipped 104→103 (one closed)."
-  },
-  "notes": "gh CLI unavailable; data via GitHub MCP API. PR count is page-1 (100 items) sample — previous 2-page count was 210; true total likely ~200. V2 branch has 0 open PRs — all dev targets main. Discussions GraphQL unavailable via MCP tools."
+  "new_prs_today": [
+    {"number": 21322, "title": "fix(agent-mcp): use the configured server name for sdk tool names", "fixes": 21321},
+    {"number": 21320, "title": "fix(chat): do not persist a zero-text turn as success", "fixes": 21315},
+    {"number": 21319, "title": "fix(ai-runtime): advance agent context-usage ring via message_delta", "fixes": 21291},
+    {"number": 21318, "title": "fix(sensenova-images): send image edits as JSON", "fixes": 21316},
+    {"number": 21317, "title": "fix(agent-stream): reject billed empty assistant completions"},
+    {"number": 21314, "title": "fix(context-management): harden compaction budgets, fallbacks, and settings"}
+  ],
+  "strategic_prs_open": [
+    {"number": 21310, "title": "feat(ai-sdk): upgrade to AI SDK 7 and native V4 providers", "base": "DeJeune/ai-sdk-v7-research", "type": "major-upgrade"},
+    {"number": 21313, "title": "feat(ai-tools): adopt native tool search and code mode", "base": "DeJeune/ai-sdk-v7-upgrade"}
+  ]
 }
