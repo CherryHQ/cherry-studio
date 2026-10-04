@@ -62,6 +62,7 @@ import {
   SessionResultCards,
   getSubagentTaskStatus
 } from '../tools/agent'
+import { useAgentLaunchIndex, resolveAgentToolFlowTarget } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { AgentToolsType, getResumedAgentId, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { getPartLaunchToolCallId, hasPartParentToolCallId } from '../tools/toolParentMetadata'
@@ -1476,6 +1477,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 }: MessagePartsRendererContentProps) {
   const { subagentListTitle } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive } = useMessageListActions()
+  // The same index the rows resolve their flow target with, so the disclosure and the click agree.
+  const launchIndex = useAgentLaunchIndex()
   const { t } = useTranslation()
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
@@ -1571,7 +1574,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
   const viewingSubagent = subagentEntries.some(({ part, index }) => {
     const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
-    return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
+    // A resume row's flow is keyed by the target it opens, not by the row's own call, so the list
+    // must ask the same question the click answers.
+    const target = response ? resolveAgentToolFlowTarget(response, launchIndex, true) : undefined
+    return Boolean(target && isAgentToolFlowActive?.(target))
   })
   const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
     'subtasks',
