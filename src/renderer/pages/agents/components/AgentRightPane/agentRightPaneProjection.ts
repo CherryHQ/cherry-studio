@@ -726,6 +726,10 @@ export function buildAgentToolFlowProjection(
           // A tagged part belongs to the new round — fall through to descendant inclusion.
         }
 
+        // A receipt whose round was already opened by a marker is a boundary, not content: without
+        // this it would fall through and be pushed into the segment as an ordinary tool part.
+        if (toolCallId && consumedMarkers.has(toolCallId)) continue
+
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
         } else {

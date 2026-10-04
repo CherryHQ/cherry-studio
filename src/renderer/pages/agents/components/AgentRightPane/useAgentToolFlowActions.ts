@@ -94,6 +94,15 @@ export function useAgentToolFlowActions({
       showFlowTab({ ...input, toolCallId: resolved.toolCallId, title: resolved.description ?? input.title }, nested)
       return
     }
+    // The receipt can stop being one while the chase waits: a runtime edge that binds its call as a
+    // flow root (a cold-resumed dsh child) means the click now has a flow of its own, and paging for
+    // a launch root that will never exist would end in a dead click.
+    if (!isResumeReceiptCall(input.toolCallId, partsByMessageId, lateTaskEvents)) {
+      setPendingFlowOpen(null)
+      pagedForRef.current = null
+      showFlowTab(input, nested)
+      return
+    }
     if (!runtime.hasOlder) {
       // No history is left to page: the root is absent, so say so instead of ignoring the click.
       setPendingFlowOpen(null)

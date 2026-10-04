@@ -2182,6 +2182,52 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('shell-tab-title')).toBeNull()
   })
 
+  // A chased receipt can become a flow root while the chase waits — the runtime's live cache then
+  // binds its call — and paging for a launch root that will never exist would end in a dead click.
+  it('opens the flow when the chased receipt becomes its own root', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open flow" title="Inspect flow" toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // The runtime binds the receipt's call to a task while the chase is still paging.
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a'), {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+    view.rerender(pane({ m1: [receipt] }))
+
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a'), {})
+  })
+
   // The pane's own index feeds the rows inside its flow panel, so it has to see the same live edges
   // the message list does — otherwise a receipt there still falls back to the launch root.
   it('publishes live task edges through the pane launch index', () => {
