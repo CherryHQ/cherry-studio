@@ -176,10 +176,12 @@ export async function startDetachedBackgroundTask(
     // at most one completion lands. Handlers go
     // on before any await — both events can fire on the first ticks.
     let settled = false
+    let childFinished = false
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
+      childFinished = true
+      activeTaskPids.delete(id)
       if (settled) return
       settled = true
-      activeTaskPids.delete(id)
       void finalizeDetachedBackgroundTask(input.storageDir, record, input.onExit, status, exitCode, signal)
     }
     child.on('error', (error) => {
@@ -219,7 +221,9 @@ export async function startDetachedBackgroundTask(
         })
         try {
           writeRecordSync(input.storageDir, { ...record, note: t('background_task.note.untracked') })
-          activeTaskPids.set(id, record.pid)
+          // `finalize` is spent, so nothing else would release this ownership; keeping it would let
+          // a stop aim at whatever process the OS later hands the recycled pid to.
+          if (!childFinished) activeTaskPids.set(id, record.pid)
         } catch (recordError) {
           logger.error('Detached background task is untracked and could not be recorded', {
             taskId: id,

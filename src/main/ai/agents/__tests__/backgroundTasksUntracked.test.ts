@@ -79,6 +79,41 @@ describe('a task whose record write fails', () => {
     }
   )
 
+  it.skipIf(process.platform === 'win32')('stops claiming the pid once a recovered task exits on its own', async () => {
+    // The record the recovery path writes is the only handle on this task, and it stays
+    // stoppable only while the app still owns the pid in memory. Once the task exits that
+    // ownership has to go with it — the OS is free to hand the same pid to something else, and a
+    // stop that still believed the pid was ours would signal that unrelated process.
+    const killFailSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw new Error('ESRCH')
+    })
+    await expect(
+      startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setTimeout(() => {}, 50)"`,
+        cwd: storageDir
+      })
+    ).rejects.toThrow()
+    killFailSpy.mockRestore()
+
+    const [record] = await listDetachedBackgroundTasks(storageDir)
+    expect(record.status).toBe('running')
+    await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+
+    // The pid is free for the OS to hand to something else now, so present it as taken: a stop
+    // that still believed the pid was this task's would aim a signal at that other process.
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
+      if (signal === 0) return true
+      throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' })
+    })
+    try {
+      await stopDetachedBackgroundTask(storageDir, record.id, true)
+      expect(killSpy.mock.calls.filter(([, signal]) => signal !== 0)).toEqual([])
+    } finally {
+      killSpy.mockRestore()
+    }
+  })
+
   it.skipIf(process.platform === 'win32')(
     'names the task that is still running when the record cannot be written at all',
     async () => {
