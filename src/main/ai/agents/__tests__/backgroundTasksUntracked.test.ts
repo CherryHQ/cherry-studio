@@ -78,4 +78,47 @@ describe('a task whose record write fails', () => {
       }
     }
   )
+
+  it.skipIf(process.platform === 'win32')(
+    'names the task that is still running when the record cannot be written at all',
+    async () => {
+      // Neither the kill nor the recovery write can succeed here, so the process outlives the
+      // failed start. Reporting that as a plain failure is what invites the retry that runs the
+      // same command a second time, so the error has to name what is still running.
+      writeFileSyncMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw new Error('ESRCH')
+      })
+
+      const started = startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir
+      })
+      const failure = await started.then(
+        () => {
+          throw new Error('expected the start to fail')
+        },
+        (error: Error) => error
+      )
+      killSpy.mockRestore()
+
+      const running = /is still running \(pid (\d+)\)/.exec(failure.message)
+      expect(failure.cause).toBeInstanceOf(Error)
+      const pid = running ? Number(running[1]) : 0
+      try {
+        expect(running).not.toBeNull()
+        expect(isPidAlive(pid)).toBe(true)
+        expect(await listDetachedBackgroundTasks(storageDir)).toEqual([])
+      } finally {
+        try {
+          process.kill(-pid, 'SIGKILL')
+        } catch {
+          // already reaped
+        }
+      }
+    }
+  )
 })
