@@ -15,15 +15,15 @@ sources:
 
 > Refreshed 2026-10-04 against Cherry `e3052500309` (`ai@6.0.185`). Published target comparison:
 > `ai@7.0.127`. The codemod inventory remains pinned to `@ai-sdk/codemod@4.0.3`; choose and inspect the
-> actual implementation dependency closure before applying it. [Main-only fixes](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger)
-> are not included merely by selecting that release. **Implementation, codemod execution, and runtime validation are not started.**
+> actual implementation dependency closure before applying it. [Main-only fixes](./aisdk-v7-research.md#released-versus-main-only-changes)
+> are not included merely by selecting that release. This page defines the compatibility gate;
+> [PR #21310](https://github.com/CherryHQ/cherry-studio/pull/21310) owns the implementation and observed validation.
 
 This is the first implementation phase of the [migration sequence](./migration-plan.md#implementation-sequence).
 Its deliverable is Cherry running on v7 with its existing behavior preserved. Tool Search, Code Mode,
 Harness, FilesV4 upload adoption, automatic stream retries, image Batch jobs, and new media features are
 subsequent work. Existing attachments, image generation/editing, custom image jobs, embedding/rerank,
-structured output, compaction and UI streams are part of this upgrade, not optional follow-ups. See the
-[complete coverage matrix](./migration-plan.md#research-coverage) for their adoption and retention records.
+structured output, compaction and UI streams are part of this upgrade, not optional follow-ups.
 
 ## 1.1 Freeze dependencies and reproduce the v6 baseline
 
@@ -38,7 +38,7 @@ structured output, compaction and UI streams are part of this upgrade, not optio
    force a V4 provider-utils version into an older dependency merely to deduplicate it. Preserve error
    recognition across supported package boundaries and verify that no incompatible duplicate reaches
    shared execution code. V2/V3 model acceptance is not V4 feature support.
-4. Record package export/engine impact. `@cherrystudio/ai-core` currently advertises CommonJS exports and
+4. Record package export/engine impact. `@cherrystudio/ai-core` at the v6 baseline advertises CommonJS exports and
    Node >=18, while the selected SDK is ESM-only and Node >=22. Resolve the build/consumer contract and
    release-version implications explicitly; a desktop build cannot certify all workspace-package consumers.
 5. Run the phase-1 baseline scenarios below on v6. Store failures as known baseline defects with an
@@ -49,9 +49,9 @@ baseline outcomes. No feature migration starts merely because installation succe
 
 ### Patch disposition record
 
-Use the [current patch inventory](./aisdk-v7-research.md#audit-the-current-patches-not-the-june-count).
+Inventory the actual patched dependencies in `pnpm-workspace.yaml` and `patches/`.
 For each hunk record: protected behavior, source file, chosen version, upstream equivalent, reproduction,
-remove/retain/reimplement decision, and test evidence. Initially all decisions are **unresolved**.
+remove/retain/reimplement decision, and test evidence. The implementation PR records the chosen dispositions.
 
 | Patch group | Concrete verification before removal |
 |---|---|
@@ -157,14 +157,14 @@ Sources: [fixed migration guide](https://github.com/vercel/ai/blob/ai%407.0.123/
 | `src/renderer/services/aiTransport`, stream persistence, Gateway SSE | Adapt v7 UI stream surface without changing transport ownership | Partial reasoning/tool input, disconnect/reconnect, approval, cancellation, and restored transcripts render consistently |
 | Electron build and workspace exports | Resolve ESM externalization and actual embedded Node support | Development and packaged app load SDK/providers; exported package consumer smoke passes |
 
-The [image workstream](./capability-migration-plan.md#i--image-generation-and-editing) expands the image
+The [image workstream](./migration-plan.md#i--image-generation-and-editing) expands the image
 cases and separately tracks capability integration and restart recovery. Preserve existing Job
 submit/poll/cancel behavior, including its current `abandon` recovery policy, during this phase.
 `generateImage` remains a wait-for-result API; adopting image Batch or durable recovery needs the M1/I4
 contracts rather than being smuggled into the dependency change. Likewise, F1/R1 preserve existing file
 and stream behavior before F2/R2 add new upstream capabilities.
 
-The [release/main ledger](./aisdk-v7-feature-inventory.md#release-and-main-delta-ledger) supplies specific
+The [release/main findings](./aisdk-v7-research.md#released-versus-main-only-changes) supplies specific
 regressions for this refresh: stale approvals after `addToolOutput`, equal inputs across JavaScript
 realms, merged-stream cancellation including later readers, and resumed versus new-message approval
 state. The last fix is main-only; reproduce on the chosen release and record whether a later version or

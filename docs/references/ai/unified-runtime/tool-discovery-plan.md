@@ -10,7 +10,7 @@ sources:
 
 # Phases 2–3 — Tool Search and Code Mode
 
-This is the tool branch of the [complete migration program](./migration-plan.md#research-coverage).
+This is the tool branch of the [complete migration program](./migration-plan.md#implementation-sequence).
 Files, image generation/editing and stream recovery have peer workstreams. The phase numbers here
 identify tool dependencies; they do not require those capabilities to wait until Code Mode or Harness.
 

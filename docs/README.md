@@ -51,15 +51,11 @@
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
-| [AI SDK v7 — Feature Delta Inventory](./references/ai/unified-runtime/aisdk-v7-feature-inventory.md) | AI SDK v7 feature deltas through 7.0.127, separately pinned main changes, and Cherry migration dispositions |
-| [AI SDK v7 — Upgrade Assessment](./references/ai/unified-runtime/aisdk-v7-research.md) | AI SDK 7.0.127 assessment and pinned main deltas against Cherry Studio 6.0.185, with capability coverage and migration gates |
-| [Unified Runtime — Architecture Proposal](./references/ai/unified-runtime/architecture.md) | Unified-runtime design proposal with current runtime boundaries and AI SDK v7 compatibility corrections |
-| [Capability Migration — Images, Recovery, and Media](./references/ai/unified-runtime/capability-migration-plan.md) | Migration work for image generation and editing, stream recovery, Batch, audio, video, Realtime, and evaluation, with source boundaries and acceptance gates |
+| [AI SDK v7 — Research Conclusions](./references/ai/unified-runtime/aisdk-v7-research.md) | AI SDK v7 research conclusions, composable agents, unified reasoning, media capabilities, and Cherry adoption boundaries |
 | [FilesV4 and SkillsV4 — Upload Migration Boundaries](./references/ai/unified-runtime/large-file-upload-port.md) | FilesV4 attachment lifecycle migration and separate SkillsV4 adoption decisions, with scoped references and acceptance gates |
-| [AI SDK Upgrade & Unified Runtime — Migration Assessment](./references/ai/unified-runtime/migration-plan.md) | AI SDK v7 research coverage and migration tracker for baseline compatibility, files, images, recovery, tools, media, Harness, and cleanup gates |
-| [Unified Runtime — Design & AI SDK Research](./references/ai/unified-runtime/README.md) | Current AI SDK v7 research and migration assessment, with the original unified-runtime proposal preserved for context |
+| [AI SDK Upgrade & Unified Runtime — Migration Assessment](./references/ai/unified-runtime/migration-plan.md) | Post-upgrade migration plan for Agent controls, images, recovery, media, tools, and Harness cutover |
+| [AI SDK v7 and Runtime Migration](./references/ai/unified-runtime/README.md) | AI SDK v7 research conclusions and implementation plans for SDK controls, files, images, tools, media, and Harness |
 | [Phase 1 — Upgrade AI SDK Before Migrating Features](./references/ai/unified-runtime/sdk-upgrade-plan.md) | Phase one AI SDK v6 to v7 implementation plan with dependency closure, codemod coverage, manual semantic migration, and acceptance gates |
-| [Tool Approval — Migration Constraints & Proposal](./references/ai/unified-runtime/tool-approval-refactor.md) | Tool approval migration constraints for AI SDK 7.0.127 and pinned main fixes, with the historical permission proposal |
 | [Phases 2–3 — Tool Search and Code Mode](./references/ai/unified-runtime/tool-discovery-plan.md) | Post-SDK-upgrade Tool Search and Code Mode implementation phases, replacement maps, approval gaps, and black-box acceptance |
 
 ### API Gateway
