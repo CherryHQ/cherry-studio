@@ -379,6 +379,7 @@ export function splitMarkdownChunks(
     const indentedContinuation = INDENTED_LINE.test(line) || (blank && INDENTED_LINE.test(lines[nextContent[i]] ?? ''))
     if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
       definitions.push(line)
+      definitionLines += 1
       continue
     }
     // A definition behind a quote or list item is carried without that container, which belongs to
