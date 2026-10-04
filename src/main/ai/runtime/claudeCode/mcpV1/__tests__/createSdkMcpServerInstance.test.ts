@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   onToolsCacheUpdated: vi.fn(),
   onToolsCacheUpdatedDispose: vi.fn(),
   listPrompts: vi.fn(),
-  getPrompt: vi.fn()
+  listResourceTemplates: vi.fn(),
+  getPrompt: vi.fn(),
+  getConnectedServerInstructions: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -75,6 +77,8 @@ describe('createSdkMcpServerInstance', () => {
       return { dispose: mocks.onToolsCacheUpdatedDispose }
     })
     mocks.listPrompts.mockResolvedValue([])
+    mocks.listResourceTemplates.mockResolvedValue([])
+    mocks.getConnectedServerInstructions.mockReturnValue(undefined)
     mocks.getPrompt.mockResolvedValue({
       description: 'Prompt description',
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
@@ -84,20 +88,44 @@ describe('createSdkMcpServerInstance', () => {
         return {
           listTools: mocks.listTools,
           onToolsCacheUpdated: mocks.onToolsCacheUpdated,
-          listPrompts: mocks.listPrompts
+          listPrompts: mocks.listPrompts,
+          listResourceTemplates: mocks.listResourceTemplates
         }
-      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt }
+      if (name === 'McpRuntimeService')
+        return {
+          getPrompt: mocks.getPrompt,
+          getConnectedServerInstructions: mocks.getConnectedServerInstructions,
+          onCatalogChanged: () => ({ dispose: () => undefined }),
+          onResourceUpdated: () => ({ dispose: () => undefined })
+        }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
 
-  it('uses a request-captured server snapshot without re-reading the edited database row', () => {
+  it('uses a request-captured server snapshot without re-reading the edited database row', async () => {
     const capturedServer = { id: 'server-1', name: 'Captured MCP' }
 
-    createSdkMcpServerInstance('server-1', capturedServer as never)
-
-    expect(mocks.findByIdOrName).not.toHaveBeenCalled()
+    const client = await connectClient(createSdkMcpServerInstance('server-1', capturedServer as never))
+    try {
+      expect(client.getServerVersion()?.name).toBe('Captured MCP')
+      expect(mocks.findByIdOrName).not.toHaveBeenCalled()
+    } finally {
+      await client.close()
+    }
   })
+
+  it.each([undefined, 'Use the document URI, not its title.'])(
+    'exposes connected server instructions through the Claude v1 handshake: %s',
+    async (instructions) => {
+      mocks.getConnectedServerInstructions.mockReturnValue(instructions ? { text: instructions } : undefined)
+      const client = await connectClient(createSdkMcpServerInstance('server-1'))
+      try {
+        expect(client.getInstructions()).toBe(instructions)
+      } finally {
+        await client.close()
+      }
+    }
+  )
 
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
     const sdkServer = createSdkMcpServerInstance('server-1')
@@ -243,13 +271,16 @@ describe('createSdkMcpServerInstance', () => {
   })
 
   it('responds to resource template discovery when resources are advertised', async () => {
-    const sdkServer = createSdkMcpServerInstance('server-1')
-    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
-    const handler = handlers.get('resources/templates/list')
-
-    expect(handler).toBeDefined()
-    await expect(handler!({ method: 'resources/templates/list' }, {})).resolves.toEqual({
-      resourceTemplates: []
-    })
+    mocks.listResourceTemplates.mockResolvedValue([
+      { name: 'Document', uriTemplate: 'docs://{id}', serverId: 'server-1', serverName: 'Docs MCP' }
+    ])
+    const client = await connectClient(createSdkMcpServerInstance('server-1'))
+    try {
+      expect(await client.listResourceTemplates()).toEqual({
+        resourceTemplates: [{ name: 'Document', uriTemplate: 'docs://{id}' }]
+      })
+    } finally {
+      await client.close()
+    }
   })
 })
