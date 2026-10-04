@@ -278,11 +278,13 @@ export function registerAgentMethods(
       } else if (response.kind === 'approve' && interaction.kind === 'question') {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Question requires answers' } }
       }
-      const decision = {
-        approved,
-        ...(updatedInput ? { updatedInput } : {}),
-        ...('reason' in response ? { reason: response.reason } : {})
-      }
+      const decision = approved
+        ? { approved: true as const, ...(updatedInput ? { updatedInput } : {}) }
+        : {
+            approved: false as const,
+            source: 'user' as const,
+            ...('reason' in response ? { reason: response.reason } : {})
+          }
       if (
         !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
       ) {

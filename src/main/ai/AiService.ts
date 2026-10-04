@@ -428,15 +428,15 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
-      payload.approvalId,
-      {
-        approved: payload.approved,
-        reason: payload.reason,
-        updatedInput: payload.updatedInput
-      },
-      payload.anchorId
-    )
+    const dispatched = application
+      .get('AgentSessionRuntimeService')
+      .respondToolApproval(
+        payload.approvalId,
+        payload.approved
+          ? { approved: true, updatedInput: payload.updatedInput }
+          : { approved: false, source: 'user', reason: payload.reason },
+        payload.anchorId
+      )
     if (dispatched) return { ok: true }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.

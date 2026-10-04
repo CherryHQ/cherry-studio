@@ -438,7 +438,6 @@
   "agent.toolPermission.button.run": "Courir",
   "agent.toolPermission.confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
   "agent.toolPermission.decisionDenied": "Refusé",
-  "agent.toolPermission.defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
   "agent.toolPermission.error.sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer.",
   "agent.toolPermission.inputPreview": "Aperçu de l'entrée de l'outil",
   "agent.toolPermission.pendingBadge": "En attente",

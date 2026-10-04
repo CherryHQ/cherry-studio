@@ -438,7 +438,6 @@
   "agent.toolPermission.button.run": "Запустить",
   "agent.toolPermission.confirmation": "Вы уверены, что хотите запустить этот инструмент Claude?",
   "agent.toolPermission.decisionDenied": "Отклонено",
-  "agent.toolPermission.defaultDenyMessage": "Пользователь отказал в разрешении на использование этого инструмента.",
   "agent.toolPermission.error.sendFailed": "Не удалось отправить ваше решение. Попробуйте ещё раз.",
   "agent.toolPermission.inputPreview": "Предварительный просмотр ввода инструмента",
   "agent.toolPermission.pendingBadge": "Ожидается",

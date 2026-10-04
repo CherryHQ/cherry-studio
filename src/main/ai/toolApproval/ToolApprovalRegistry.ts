@@ -7,11 +7,10 @@ const logger = loggerService.withContext('ToolApprovalRegistry')
  * result inside their own adapter/extension (Claude → `PermissionResult`, pi →
  * `tool_call` block/mutation) so no SDK type leaks into this shared path.
  */
-export type DispatchDecision = {
-  approved: boolean
-  reason?: string
-  updatedInput?: Record<string, unknown>
-}
+export type DispatchDecision =
+  | { approved: true; updatedInput?: Record<string, unknown>; reason?: never }
+  | { approved: false; source: 'user'; reason?: string; updatedInput?: never }
+  | { approved: false; source: 'host'; hostReason: string; reason?: never; updatedInput?: never }
 
 type PendingApproval = {
   approvalId: string
@@ -50,18 +49,18 @@ class ToolApprovalRegistry {
     const { approvalId, signal } = entry
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
-      entry.resolve({ approved: false, reason: 'Duplicate approval registration' })
+      entry.resolve({ approved: false, source: 'host', hostReason: 'Duplicate approval registration' })
       return false
     }
 
     if (signal?.aborted) {
-      entry.resolve({ approved: false, reason: 'Tool request was cancelled before approval' })
+      entry.resolve({ approved: false, source: 'host', hostReason: 'Tool request was cancelled before approval' })
       return false
     }
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+      const abortListener = () => this.dispatch(approvalId, { approved: false, source: 'host', hostReason: 'aborted' })
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
     }
@@ -101,7 +100,7 @@ class ToolApprovalRegistry {
       if (entry.sessionId !== sessionId) continue
       this.pending.delete(approvalId)
       this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
+      entry.resolve({ approved: false, source: 'host', hostReason: reason })
       aborted++
     }
     if (aborted > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
@@ -118,7 +117,7 @@ class ToolApprovalRegistry {
     if (count === 0) return 0
     for (const [, entry] of this.pending) {
       this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
+      entry.resolve({ approved: false, source: 'host', hostReason: reason })
     }
     this.pending.clear()
     logger.info('Cleared all pending approvals', { count, reason })

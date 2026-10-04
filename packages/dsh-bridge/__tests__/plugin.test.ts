@@ -7,7 +7,7 @@ import path from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { CONTEXT_SUMMARY_MAX_CHARS, ToolCallId, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import {
   interruptedTurnClosers,
@@ -760,6 +760,57 @@ describe('cherry bridge plugin', () => {
       sessionId: 'session-1',
       sessionEventSeq: 12
     })
+  })
+
+  it.each([
+    { source: 'host', toolName: 'bash', payload: 'dsh-session-closed' },
+    { source: 'long tool name', toolName: `mcp__${'x'.repeat(140)}`, payload: 'dsh-session-closed' },
+    {
+      source: 'user',
+      toolName: 'bash',
+      payload:
+        "The user denied permission to use bash. The tool did not execute. The user's exact words are between these markers:\n<<<USER_WORDS>>>\n\n  keep the copy in two steps  \n\n<<<USER_WORDS>>>"
+    }
+  ])('injects the $source rejection payload verbatim as a plugin notice', async ({ toolName, payload }) => {
+    const host = await startHost((method) =>
+      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: payload } : {}
+    )
+    const inject = vi.fn<(message: UserMessage) => void>()
+    const agent = {
+      id: 'session-1',
+      session: { snapshotEvents: () => [{ type: 'approval/asked', seq: 12 }] },
+      inject
+    } as unknown as Agent
+    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const ctx = makeContext({
+      on: (event: string, handler: unknown) => {
+        if (event === 'approval/request') approvalHandler = handler as typeof approvalHandler
+        return () => undefined
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!approvalHandler) throw new Error('approval handler was not registered')
+
+    await expect(approvalHandler({ agent, toolName, callId: 'call-with-feedback' } as ApprovalRequest)).resolves.toBe(
+      'rejected'
+    )
+    expect(inject).toHaveBeenCalledOnce()
+    const message = inject.mock.calls[0][0]
+    expect(message.content).toEqual([{ type: 'text', text: `Tool approval feedback for "${toolName}":\n${payload}` }])
+    expect(message.source).toMatchObject({ kind: 'plugin', plugin: 'cherry-bridge', form: 'notice' })
+    expect(message.source).not.toEqual({ kind: 'user' })
+    if (message.source.kind !== 'plugin' || message.source.form !== 'notice') {
+      throw new Error('approval feedback must be a plugin notice')
+    }
+    if (toolName === 'bash') expect(message.source.summary).toBe('Tool "bash" was not approved.')
+    else expect(message.source.summary.endsWith('…')).toBe(true)
+    expect(message.source.summary.length).toBeGreaterThan(0)
+    expect(message.source.summary.length).toBeLessThanOrEqual(CONTEXT_SUMMARY_MAX_CHARS)
+    expect(message.source.summary).not.toContain('keep the copy in two steps')
   })
 
   it('rejects an unknown method instead of answering it', async () => {

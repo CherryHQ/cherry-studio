@@ -590,7 +590,7 @@ async function buildToolPermissions(
         originalInput: input,
         presentation,
         signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        resolve: (decision) => resolve(decisionToPermissionResult(decision, input, toolName))
       })
       if (!pending) return
       emit({

@@ -993,7 +993,6 @@ describe('AiService tool approval', () => {
       'agent-approval-1',
       {
         approved: true,
-        reason: undefined,
         updatedInput: undefined
       },
       undefined

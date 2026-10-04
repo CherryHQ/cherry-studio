@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -491,7 +491,12 @@ export function apply(ctx: Context): void {
           req.agent.inject(
             createUserMessage({
               content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
-              source: { kind: 'user' }
+              source: {
+                kind: 'plugin',
+                plugin: 'cherry-bridge',
+                form: 'notice',
+                summary: boundContextSummary(`Tool "${req.toolName}" was not approved.`)
+              }
             })
           )
         } catch (error) {

@@ -9,7 +9,7 @@ interface Props {
 
 export function ToolApprovalOutcome({ approval }: Props) {
   const { t } = useTranslation()
-  const reason = approval?.reason?.trim()
+  const reason = approval?.reason
 
   if (approval?.approved !== false) return null
 
@@ -18,7 +18,7 @@ export function ToolApprovalOutcome({ approval }: Props) {
       <CircleX aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" size={13} strokeWidth={1.8} />
       <div className="min-w-0">
         <div className="font-medium text-foreground">{t('agent.toolPermission.decisionDenied')}</div>
-        {reason && (
+        {reason?.trim() && (
           <div className="whitespace-pre-wrap break-words text-muted-foreground">
             <span className="sr-only">{t('agent.toolPermission.reasonLabel')}: </span>
             {reason}

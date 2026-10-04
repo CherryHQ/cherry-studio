@@ -1,5 +1,6 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
 
+import { modelVisibleDenial } from '@main/ai/toolApproval/modelVisibleDenial'
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 /**
@@ -9,9 +10,10 @@ import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistr
  */
 export function decisionToPermissionResult(
   decision: DispatchDecision,
-  originalInput: Record<string, unknown>
+  originalInput: Record<string, unknown>,
+  toolName?: string
 ): PermissionResult {
   return decision.approved
     ? { behavior: 'allow', updatedInput: decision.updatedInput ?? originalInput }
-    : { behavior: 'deny', message: decision.reason ?? 'User denied permission for this tool' }
+    : { behavior: 'deny', message: modelVisibleDenial(decision, toolName) }
 }

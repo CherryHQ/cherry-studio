@@ -5,7 +5,7 @@ import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'
@@ -478,7 +478,7 @@ describe('DshBridgeServer', () => {
     await expect(ask).resolves.toEqual({ outcome: 'rejected' })
   })
 
-  it('returns a trimmed rejection reason for the plugin to deliver to the agent', async () => {
+  it('returns the attributed rejection with exact multiline user words for the plugin', async () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', {
       sessionId: SESSION_ID,
@@ -489,25 +489,56 @@ describe('DshBridgeServer', () => {
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
 
+    const reason = '\n  keep the copy in two steps  \n'
     toolApprovalRegistry.dispatch(event.request.approvalId, {
       approved: false,
-      reason: '  use a copy instead  '
+      source: 'user',
+      reason
     })
 
     await expect(ask).resolves.toEqual({
       outcome: 'rejected',
-      rejectionReason: 'use a copy instead'
+      rejectionReason: `The user denied permission to use bash. The tool did not execute. The user's exact words are between these markers:\n<<<USER_WORDS>>>\n${reason}\n<<<USER_WORDS>>>`
     })
   })
 
-  it('does not attach feedback to approvals, blank denials, or edited-input fallbacks', async () => {
+  it.each([
+    ['reason omitted', undefined],
+    ['whitespace-only reason', '   '],
+    ['legacy UI reason', '用户拒绝了该工具的权限。']
+  ])('returns the fixed no-reason message when the %s is denied', async (_case, reason) => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false, source: 'user', reason })
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason:
+        'The user denied permission to use this tool. The tool did not execute. The user gave no reason and is waiting for your instructions.'
+    })
+  })
+
+  it('returns the session-close host rejection reason unchanged', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    expect(toolApprovalRegistry.abort(SESSION_ID, 'dsh-session-closed')).toBe(1)
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason: 'dsh-session-closed'
+    })
+  })
+
+  it('does not attach feedback to approvals or edited-input fallbacks', async () => {
     const harness = await makeHarness()
 
     for (const decision of [
-      { approved: true, reason: 'ignored' },
-      { approved: false, reason: '   ' },
-      { approved: true, reason: 'rewritten', updatedInput: { command: 'echo edited' } }
-    ]) {
+      { approved: true },
+      { approved: true, updatedInput: { command: 'echo edited' } }
+    ] satisfies DispatchDecision[]) {
       const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
       await vi.waitFor(() => expect(harness.events).toHaveLength(1))
       const event = harness.events.shift()
@@ -579,7 +610,11 @@ describe('DshBridgeServer', () => {
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
 
-    toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false, reason: 'missing tests' })
+    toolApprovalRegistry.dispatch(event.request.approvalId, {
+      approved: false,
+      source: 'user',
+      reason: 'missing tests'
+    })
     await expect(ask).resolves.toEqual({
       answers: [{ id: 'plan-review', selected: [], custom: 'missing tests' }]
     })

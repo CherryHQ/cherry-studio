@@ -23,6 +23,7 @@ import type {
   BridgeToolCallResult
 } from '@cherrystudio/dsh-bridge'
 import { loggerService } from '@logger'
+import { modelVisibleDenial } from '@main/ai/toolApproval/modelVisibleDenial'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -335,7 +336,7 @@ export class DshBridgeServer {
             logger.warn('editing tool input is not supported by the dsh runtime; rejecting', { toolName })
           }
           const outcome = decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected'
-          const rejectionReason = decision.approved ? undefined : decision.reason?.trim()
+          const rejectionReason = decision.approved ? undefined : modelVisibleDenial(decision, toolName)
           resolve({ outcome, ...(rejectionReason ? { rejectionReason } : {}) })
         }
       })
