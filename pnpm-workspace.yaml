@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
 
+engineStrict: true
+
 packageExtensions:
   # The published development export imports these but lists them only as devDependencies.
   "micromark-extension-definition-list@2.0.1":
@@ -11,7 +13,8 @@ packageExtensions:
 overrides:
   # Temporary: the SDK umbrella is only needed without dshBin; Cherry always supplies its bundled runtime.
   # Remove when upstream makes this optional/peer (PR #20214, discussion_r3965278746).
-  "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1>@deepseek-ai/dsh": "-"
+  "@deepseek-ai/dsh-sdk-client@0.2.0-rc.2>@deepseek-ai/dsh": "-"
+  "@deepseek-ai/dsh-llm-pi-ai>@earendil-works/pi-ai": "0.87.1"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
   fast-xml-parser: ">=5.10.1"
@@ -24,6 +27,8 @@ overrides:
   "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"
   "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
   "@smithy/types": "4.7.1"
+  # All consumers accept this version; one core avoids repeated nested copies in release packages.
+  "@smithy/core": "3.35.0"
   "@codemirror/state": "6.5.4"
   "@codemirror/view": "6.39.16"
   "@codemirror/language": "6.12.2"
@@ -60,30 +65,28 @@ overrides:
   "@napi-rs/canvas": "0.1.97"
   # transformers 4.2.0 pins 1.24.3; keep every inference path on the patched lifecycle-safe build.
   onnxruntime-node: "1.25.1"
-  # system-ocr 1.1.0's macOS 26 structured-document sidecar can recurse
-  # indefinitely through Vision list containers. Keep the 1.1.0 wrapper and
-  # Windows bindings, but use the legacy Accurate macOS implementation until
-  # upstream adds cycle/depth guards.
-  "@napi-rs/system-ocr-darwin-arm64": "1.0.2"
-  "@napi-rs/system-ocr-darwin-x64": "1.0.2"
   # Keep exactly one @ai-sdk/provider + provider-utils so `instanceof APICallError` holds
-  # across every provider package; 3.0.15 / 4.0.50 is what the current provider set declares.
-  "@ai-sdk/provider": "3.0.15"
-  "@ai-sdk/provider-utils": "4.0.50"
+  # across every provider package; 3.0.18 / 4.0.56 is what the current provider set declares.
+  "@ai-sdk/provider": "3.0.18"
+  "@ai-sdk/provider-utils": "4.0.56"
   # Keep every OpenAI consumer on the single patched build, including Azure's transitive copy.
   "@ai-sdk/openai": "3.0.109"
-  # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
-  # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
-  # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.103 includes
-  # the upstream thinking fix; our patch handles tool schemas and unknown-model limits.
-  "@ai-sdk/anthropic": "3.0.103"
+  # Share one patched Anthropic build across direct, Bedrock, and Vertex consumers.
+  # 3.0.125 adds Sonnet 5.5; our patch preserves gateway schema and token-limit compatibility.
+  "@ai-sdk/anthropic": "3.0.125"
   # Same reason: packages/aiCore and @openrouter/ai-sdk-provider peer-depend on `ai`
   # with ranges, which used to resolve to a second, unpatched copy. Pin every instance
   # to the patched build so the app runs exactly one `ai` module.
   ai: "6.0.185"
 
 patchedDependencies:
-  "@napi-rs/system-ocr@1.1.0": patches/@napi-rs-system-ocr-npm-1.1.0-59e7a78e8b.patch
+  dingtalk-stream@2.1.7-beta.1: patches/dingtalk-stream@2.1.7-beta.1.patch
+  # Keep Bun's internal runners independent of workspace config and preserve their argv delimiter.
+  "@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-sandbox-local@0.2.0-rc.2.patch
+  "@deepseek-ai/dsh-subprocess-local@0.2.0-rc.2": patches/@deepseek-ai__dsh-subprocess-local@0.2.0-rc.2.patch
+  # Forward transient assistant chunks on the SDK pipe, ordered with durable session events.
+  "@deepseek-ai/dsh-sdk-jsonrpc-server@0.2.0-rc.2": patches/@deepseek-ai__dsh-sdk-jsonrpc-server@0.2.0-rc.2.patch
+  "@napi-rs/system-ocr@1.2.0": patches/@napi-rs__system-ocr@1.2.0.patch
   "tesseract.js@6.0.1": patches/tesseract.js-npm-6.0.1-2562a7e46d.patch
   "electron-updater@6.7.0": patches/electron-updater-npm-6.7.0-47b11bb0d4.patch
   "atomically@1.7.0": patches/atomically-npm-1.7.0-e742e5293b.patch
@@ -108,15 +111,18 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
   # Preserve main's ultra reasoning support until the adapter accepts that level upstream.
-  "@deepseek-ai/dsh-llm-pi-ai@0.1.2-rc.1": patches/@deepseek-ai__dsh-llm-pi-ai@0.1.2-rc.1.patch
-  "@earendil-works/pi-ai@0.80.6": patches/@earendil-works__pi-ai@0.80.6.patch
-  "@earendil-works/pi-coding-agent@0.80.3": patches/@earendil-works__pi-coding-agent@0.80.3.patch
+  "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2": patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch
+  "@earendil-works/pi-ai@0.87.1": patches/@earendil-works__pi-ai@0.87.1.patch
+  "@earendil-works/pi-ai@1.0.0": patches/@earendil-works__pi-ai@1.0.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
   "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
-  "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1": patches/@deepseek-ai__dsh-sdk-client@0.1.2-rc.1.patch
+  "@deepseek-ai/dsh-sdk-client@0.2.0-rc.2": patches/@deepseek-ai__dsh-sdk-client@0.2.0-rc.2.patch
   docx-preview@0.3.7: patches/docx-preview@0.3.7.patch
+  "@elysia/node@1.4.6": patches/@elysia__node@1.4.6.patch
+  bonjour-service@1.3.0: patches/bonjour-service@1.3.0.patch
+  "@sting8k/pi-vcc@0.8.1": patches/@sting8k__pi-vcc@0.8.1.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true
@@ -157,92 +163,6 @@ supportedArchitectures:
 
 minimumReleaseAgeExclude:
   - "@ai-sdk/open-responses@1.0.34"
-  - "@deepseek-ai/cordis@4.0.2"
-  - "@deepseek-ai/cosmokit@1.8.2"
-  - "@deepseek-ai/dsh-agent@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-attachment@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-attachment-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-brand@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-code-runtime@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-invariants@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-llm@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-scope@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-system-prompt@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-timeout@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tools@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-typert-protocol@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-user-approval@0.1.2-rc.1"
-  - "@deepseek-ai/schemastery@3.18.1"
-  - "@deepseek-ai/cordis-plugin-group@1.0.2"
-  - "@deepseek-ai/cordis-plugin-include@1.0.7"
-  - "@deepseek-ai/cordis-plugin-loader@1.0.3"
-  - "@deepseek-ai/cordis-plugin-timer@1.1.4"
-  - "@deepseek-ai/dsh-agent-instructions@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-agent-loop@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-anonymous-user-id@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-app-boot@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-bash-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-bash-sandbox@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-credentials@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-fs-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-fs@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-goal-round-driver@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-goal@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-home-paths@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-jobs-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-jobs@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-launch-environment@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-llm-deepseek@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-llm-pi-ai@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-llm-retry@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-output-retention@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-pwsh-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-pwsh-sandbox@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sandbox-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sandbox-policy@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sandbox-windows-acl@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sandbox@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sdk-client@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sdk-jsonrpc-server@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-sdk-protocol@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session-persistence-jsonl@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session-persistence@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session-projection@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session-query@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-session-title@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-settings@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-shell-env@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-shell@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-skill-filesystem@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-skill@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subagent@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subprocess-local@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subprocess@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-bash@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-fs@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-goal@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-jobs@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-pwsh@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-skill@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-todo@0.1.2-rc.1"
-  - "@deepseek-ai/node-addon-landlock-run-linux-arm64@0.1.1"
-  - "@deepseek-ai/node-addon-landlock-run-linux-x64@0.1.1"
-  - "@deepseek-ai/node-addon-landlock-run@0.1.1"
-  - "@deepseek-ai/dsh-commands@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-compaction@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-token-meter@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-compaction-basic@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-compaction-tool-result-pruner@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-command-compact@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-command-goal@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-plan-mode@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subagent-fork-in-process@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subagent-in-process-driver@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-subagent-control@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-tool-subagent@0.1.2-rc.1"
-  - "@deepseek-ai/dsh-user-questions@0.1.2-rc.1"
   - "@ai-sdk/google-vertex@4.0.188"
   - "@ai-sdk/google@3.0.113"
   - "@ai-sdk/openai-compatible@2.0.72"
@@ -250,7 +170,134 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/huggingface@1.0.74"
   - "@ai-sdk/togetherai@2.0.78"
   - "@ai-sdk/xai@3.0.126"
-  - "@ai-sdk/provider-utils@4.0.50"
-  - "@cherrystudio/analytics-client@1.3.1"
+  - "@ai-sdk/provider-utils@4.0.56"
+  - "@cherrystudio/analytics-client@1.4.0"
   - "@ai-sdk/openai@3.0.109"
   - "@ai-sdk/azure@3.0.116"
+  - "@ai-sdk/anthropic@3.0.125"
+  - "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-linux-x64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.284"
+  - "@anthropic-ai/claude-agent-sdk@0.3.284"
+  - "@deepseek-ai/cordis@4.0.4"
+  - "@deepseek-ai/cordis-plugin-group@1.0.4"
+  - "@deepseek-ai/cordis-plugin-include@1.0.9"
+  - "@deepseek-ai/cordis-plugin-loader@1.0.5"
+  - "@deepseek-ai/cordis-plugin-timer@1.1.6"
+  - "@deepseek-ai/cosmokit@1.8.5"
+  - "@deepseek-ai/dsh-agent@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-agent-instructions@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-agent-loop@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-agent-preset-registry@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-anonymous-user-id@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-app-boot@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-atomic-write@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-attachment@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-attachment-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-authorization@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-bash-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-bash-sandbox@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-brand@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-chunked-list@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-cmdline@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-command-compact@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-command-goal@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-commands@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-compaction@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-compaction-basic@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-compaction-image-offload@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-compaction-tool-result-pruner@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-config-editor@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-credentials@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-deepseek-llm-api-extensions@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-fs@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-fs-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-goal@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-goal-round-driver@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-hmr@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-home-paths@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-http-proxy@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-invariants@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-jobs@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-launch-environment@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-lazy-require@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-llm@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-llm-deepseek@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-llm-deepseek-api-key@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-llm-retry@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-output-retention@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-package-manifest@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-permission-presets@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-plan-mode@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-ptc-runtime@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-pwsh-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-pwsh-sandbox@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sandbox@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sandbox-policy@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sandbox-windows-acl@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-scope@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sdk-client@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sdk-jsonrpc-server@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-sdk-protocol@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format-catalog@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format-v0-to-v1@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format-v1-to-v2@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format-v2-to-v3@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-format-v3-to-v4@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-persistence@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-persistence-jsonl@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-projection@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-projection-cache@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-query@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-session-title@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-settings@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-shell@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-shell-env@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-skill@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-skill-filesystem@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-storage@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-storage-domain@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subagent@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subagent-fork-in-process@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subagent-in-process-driver@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subagent-spawn-in-process@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subprocess@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-subprocess-local@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-system-prompt@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-timeout@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-token-meter@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-bash@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-fs@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-goal@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-jobs@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-pwsh@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-skill@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-subagent@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-subagent-control@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tool-todo@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-tools@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-typert-protocol@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-user-approval@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-user-questions@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-util-code-language@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-util-crypto@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-util-time@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-util-values@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-win32-process@0.2.0-rc.2"
+  - "@deepseek-ai/dsh-workspace@0.2.0-rc.2"
+  - "@deepseek-ai/node-addon-system@0.1.2"
+  - "@deepseek-ai/node-addon-system-darwin-arm64@0.1.2"
+  - "@deepseek-ai/node-addon-system-darwin-x64@0.1.2"
+  - "@deepseek-ai/node-addon-system-linux-arm64@0.1.2"
+  - "@deepseek-ai/node-addon-system-linux-x64@0.1.2"
+  - "@deepseek-ai/schemastery@3.18.4"
+  - "@earendil-works/pi-ai@0.87.1"

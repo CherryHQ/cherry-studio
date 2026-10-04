@@ -143,7 +143,7 @@ export class AnalyticsService extends BaseService implements Activatable {
         } catch {
           logger.info('Analytics queue discarded after consent revocation')
         }
-        await this.client.destroy()
+        await this.client.destroy({ flush: false })
       } else {
         await this.client.destroy()
       }

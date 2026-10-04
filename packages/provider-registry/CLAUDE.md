@@ -62,3 +62,5 @@ Structural compatibility is not enough for runtime-interpreted values. When cata
 using a new adapter family, endpoint type, reasoning wire behavior, or another value older app code
 cannot execute, bump `REGISTRY_MIN_APP_VERSION` to the first compatible application version. The
 publish manifest admits a client only when `minAppVersion <= appVersion <= sourceAppVersion`.
+Create a new schema-version stream for that higher floor; never cut off an existing stream's clients.
+The publisher preserves older streams' published minimum versions while updating compatible data.
