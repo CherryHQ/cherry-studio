@@ -1,10 +1,10 @@
-import { normalizeContext } from '@earendil-works/pi-ai'
+import { InMemoryCredentialStore, normalizeContext } from '@earendil-works/pi-ai'
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
@@ -254,9 +254,13 @@ describe('buildPiProviderInjection', () => {
       vi.stubGlobal('fetch', fetch)
 
       const materialized = await materializePiProviderStream(injection)
-      const authStorage = AuthStorage.inMemory()
-      authStorage.setRuntimeApiKey(injection.providerName, REAL_KEY)
-      const modelRegistry = ModelRegistry.inMemory(authStorage)
+      const modelRuntime = await ModelRuntime.create({
+        credentials: new InMemoryCredentialStore(),
+        modelsPath: null,
+        refreshOnCreate: false
+      })
+      await modelRuntime.setRuntimeApiKey(injection.providerName, REAL_KEY)
+      const modelRegistry = new ModelRegistry(modelRuntime)
       modelRegistry.registerProvider(injection.providerName, {
         ...materialized.providerConfig,
         streamSimple: materialized.streamSimple
@@ -284,8 +288,7 @@ describe('buildPiProviderInjection', () => {
       const { session } = await createAgentSession({
         cwd,
         model: configuredModel,
-        authStorage,
-        modelRegistry,
+        modelRuntime,
         settingsManager,
         resourceLoader,
         sessionManager: SessionManager.inMemory(cwd),
