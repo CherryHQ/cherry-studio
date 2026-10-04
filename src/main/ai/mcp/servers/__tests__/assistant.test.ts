@@ -742,6 +742,32 @@ describe('diagnose health', () => {
     expect(health.error).toBe('No API key configured')
     expect(mocks.diagnoseEndpoint).not.toHaveBeenCalled()
   })
+
+  it('probes an external-CLI provider that holds no app-side API key', async () => {
+    mocks.providerGetById.mockReturnValue({
+      apiKeys: [],
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'chat',
+      endpointConfigs: { chat: { baseUrl: endpoint } }
+    })
+    mocks.diagnoseEndpoint.mockResolvedValue({
+      endpointId: 'provider:health-external-cli',
+      host: 'api.example',
+      dns: ok,
+      tls: ok,
+      proxy: { effective: 'DIRECT', configuredMode: 'none' },
+      http: { ...ok, data: { status: 401 } },
+      verdict: 'reachable'
+    })
+
+    const health = JSON.parse((await diagnoseHealth('health-external-cli')).content[0].text) as {
+      status: string
+      host: string
+      error?: string
+    }
+    expect(health).toMatchObject({ status: 'reachable', host: 'https://api.example:8443' })
+    expect(health.error).toBeUndefined()
+  })
 })
 
 describe('diagnose doctor', () => {

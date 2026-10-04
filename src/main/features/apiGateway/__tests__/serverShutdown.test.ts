@@ -1,3 +1,6 @@
+import { createConnection, createServer, Server as NetServer } from 'node:net'
+import { networkInterfaces } from 'node:os'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -15,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
   warmToolsCache: vi.fn(async () => undefined),
   listTools: vi.fn(() => []),
-  callTool: vi.fn()
+  callTool: vi.fn(),
+  streamController: undefined as ReadableStreamDefaultController<Uint8Array> | undefined
 }))
 
 vi.mock('@application', async () => {
@@ -68,7 +72,10 @@ vi.mock('../app', async () => {
         () =>
           new Response(
             new ReadableStream({
-              start: (controller) => controller.enqueue(new TextEncoder().encode(': open\n\n'))
+              start: (controller) => {
+                mocks.streamController = controller
+                controller.enqueue(new TextEncoder().encode(': open\n\n'))
+              }
             }),
             { headers: { 'content-type': 'text/event-stream' } }
           )
@@ -82,13 +89,16 @@ import type { McpSessionStore } from '../McpSessionStore'
 import { ApiGateway } from '../server'
 
 const rawServer = (gateway: ApiGateway): HttpServer =>
-  (gateway as unknown as { serverInfo: { raw: { node: { server: HttpServer } } } }).serverInfo.raw.node.server
+  (gateway as unknown as { servers: Array<{ raw: { node: { server: HttpServer } } }> }).servers[0].raw.node.server
 
 const portOf = (gateway: ApiGateway): number => (rawServer(gateway).address() as { port: number }).port
 
 /** Open the endless stream and wait for its first chunk, so the response is live server-side. */
-const openEndlessStream = async (port: number): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
-  const response = await fetch(`http://127.0.0.1:${port}/never-ends`)
+const openEndlessStream = async (
+  port: number,
+  host = '127.0.0.1'
+): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+  const response = await fetch(`http://${host.includes(':') ? `[${host}]` : host}:${port}/never-ends`)
   expect(response.status).toBe(200)
   const reader = response.body!.getReader()
   await reader.read()
@@ -187,4 +197,137 @@ describe('ApiGateway shutdown with a stuck plain HTTP response', () => {
     void reader.cancel().catch(() => {})
     gateway = null
   }, 30_000)
+})
+
+const canConnect = (host: string, port: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    const socket = createConnection({ host, port })
+    const finish = (connected: boolean) => {
+      socket.destroy()
+      resolve(connected)
+    }
+    socket.once('connect', () => finish(true))
+    socket.once('error', () => finish(false))
+    socket.setTimeout(1_000, () => finish(false))
+  })
+
+describe('ApiGateway listening scope', () => {
+  let gateway: ApiGateway | null = null
+
+  afterEach(async () => {
+    await gateway?.stop()
+    gateway = null
+  })
+
+  it('changes the bound interface without interrupting an active local stream', async () => {
+    gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+    await gateway.start()
+    const port = gateway.getPort()
+    const reader = await openEndlessStream(port)
+    const ipv4Controller = mocks.streamController!
+    const ipv6Reader = await openEndlessStream(port, '::1')
+    const ipv6Controller = mocks.streamController!
+    expect(gateway.getHosts()).toEqual(['127.0.0.1', '::1'])
+    try {
+      for (const host of ['0.0.0.0', '127.0.0.1']) {
+        await gateway.rebind(host)
+        expect(gateway.getHosts()).toEqual([host, host === '0.0.0.0' ? '::' : '::1'])
+        expect(gateway.getPort()).toBe(port)
+        expect(await canConnect('127.0.0.1', port)).toBe(true)
+        expect(await canConnect('::1', port)).toBe(true)
+        ipv4Controller.enqueue(new TextEncoder().encode(host))
+        ipv6Controller.enqueue(new TextEncoder().encode(host))
+        expect(new TextDecoder().decode((await ipv6Reader.read()).value)).toBe(host)
+        const chunk = await reader.read()
+        expect(chunk.done).toBe(false)
+        expect(new TextDecoder().decode(chunk.value)).toBe(host)
+      }
+    } finally {
+      await reader.cancel()
+      await ipv6Reader.cancel()
+    }
+  })
+
+  it.each(['event', 'throw'])('keeps IPv4 available when IPv6 fails via %s', async (failure) => {
+    const originalListen = NetServer.prototype.listen
+    const listen = vi.spyOn(NetServer.prototype, 'listen').mockImplementation(function (
+      this: NetServer,
+      ...args: unknown[]
+    ) {
+      const options = args[0] as { host?: string }
+      if (options?.host === '::1') {
+        const error = Object.assign(new Error('IPv6 disabled'), { code: 'EAFNOSUPPORT' })
+        if (failure === 'throw') throw error
+        process.nextTick(() => this.emit('error', error))
+        return this
+      }
+      return Reflect.apply(originalListen, this, args)
+    })
+    const exitListeners = process.listenerCount('beforeExit')
+    try {
+      gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+      await gateway.start()
+      expect(gateway.isRunning()).toBe(true)
+      expect(gateway.getHosts()).toEqual(['127.0.0.1'])
+      expect(await canConnect('127.0.0.1', gateway.getPort())).toBe(true)
+      await gateway.rebind('0.0.0.0')
+      expect(gateway.getHosts()).toEqual(['0.0.0.0'])
+      await gateway.stop()
+      expect(process.listenerCount('beforeExit')).toBe(exitListeners)
+    } finally {
+      listen.mockRestore()
+    }
+  })
+
+  it('releases IPv4 when IPv6 cannot bind the shared port', async () => {
+    const occupied = createServer()
+    await new Promise<void>((resolve) => occupied.listen({ host: '::1', port: 0, ipv6Only: true }, resolve))
+    const port = (occupied.address() as { port: number }).port
+    gateway = new ApiGateway({ host: '127.0.0.1', port })
+    try {
+      await expect(gateway.start()).rejects.toMatchObject({ code: 'EADDRINUSE' })
+      expect(gateway.isRunning()).toBe(false)
+      expect(gateway.getHosts()).toEqual([])
+      expect(await canConnect('127.0.0.1', port)).toBe(false)
+    } finally {
+      await new Promise<void>((resolve) => occupied.close(() => resolve()))
+    }
+  })
+
+  const ipv6Address = Object.entries(networkInterfaces()).flatMap(([name, addresses]) =>
+    (addresses ?? [])
+      .filter((address) => address.family === 'IPv6' && !address.internal)
+      .map((address) => (/^fe[89ab]/i.test(address.address) ? `${address.address}%${name}` : address.address))
+  )[0]
+
+  it.skipIf(!ipv6Address)('closes IPv6 network access while keeping IPv6 loopback available', async () => {
+    gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+    await gateway.start()
+    const port = gateway.getPort()
+    expect(await canConnect(ipv6Address, port)).toBe(false)
+    await gateway.rebind('0.0.0.0')
+    expect(await canConnect(ipv6Address, port)).toBe(true)
+    await gateway.rebind('127.0.0.1')
+    expect(await canConnect(ipv6Address, port)).toBe(false)
+    expect(await canConnect('::1', port)).toBe(true)
+  })
+
+  const networkAddress = Object.values(networkInterfaces())
+    .flat()
+    .find((address) => address?.family === 'IPv4' && !address.internal)?.address
+
+  it.skipIf(!networkAddress)(
+    'refuses new connections through the network interface after access is disabled',
+    async () => {
+      gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+      await gateway.start()
+      const port = gateway.getPort()
+      expect(await canConnect(networkAddress!, port)).toBe(false)
+      await gateway.rebind('0.0.0.0')
+      expect(await canConnect(networkAddress!, port)).toBe(true)
+      await gateway.rebind('127.0.0.1')
+      expect(await canConnect(networkAddress!, port)).toBe(false)
+      expect(await canConnect('127.0.0.1', port)).toBe(true)
+    }
+  )
 })

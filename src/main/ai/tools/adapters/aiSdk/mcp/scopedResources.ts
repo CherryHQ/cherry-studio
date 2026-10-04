@@ -1,16 +1,4 @@
-/**
- * Reads over the MCP resources reachable in a request scope — the shared core behind
- * `mcp_resource_list` / `mcp_resource_read`.
- *
- * Both entry points take the already-scoped server list (`resolveMcpResourceServers` intersected
- * with the request's frozen server ids), so neither this file nor the tools decide which servers a
- * request may touch.
- *
- * A resource is addressed by `(serverId, uri)` and must match that server's published catalog. The
- * id, not the name: `mcp_server` indexes name without a unique constraint, so two active servers can
- * share one and a name-keyed lookup would silently read whichever came first. A uri the server never
- * published as a resource or template is not something the model may ask for either.
- */
+/** Read published resources/templates or embedded contents already received in this conversation. */
 
 import { randomUUID } from 'node:crypto'
 
@@ -19,7 +7,8 @@ import { UriTemplate } from '@modelcontextprotocol/client'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
-import { atomicWriteFile, mimeToExt } from '@main/utils/file'
+import { mcpToolResourceKey } from '@main/ai/messages/mcpToolResources'
+import { atomicWriteFile, decodeTextBufferIfText, mimeToExt } from '@main/utils/file'
 import type {
   McpResourceEntry,
   McpResourceListOutput,
@@ -40,6 +29,7 @@ export interface ReadScopedMcpResourceOptions {
   charCap: number
   signal?: AbortSignal
   interactionContext?: McpInteractionContext
+  embeddedResources?: ReadonlyMap<string, McpResource>
 }
 
 function toResourceEntry(resource: McpResource): McpResourceEntry {
@@ -97,45 +87,55 @@ async function persistResourceBlob(content: McpResource & { blob: string }): Pro
 
 export async function readScopedMcpResource(
   servers: readonly McpServer[],
-  { serverId, uri, offset = 0, charCap, signal, interactionContext }: ReadScopedMcpResourceOptions
+  { serverId, uri, offset = 0, charCap, signal, interactionContext, embeddedResources }: ReadScopedMcpResourceOptions
 ): Promise<McpResourceReadResult> {
-  const server = servers.find((candidate) => candidate.id === serverId)
+  const embedded = embeddedResources?.get(mcpToolResourceKey(serverId, uri))
+  const server =
+    servers.find((candidate) => candidate.id === serverId) ??
+    (embedded && { id: embedded.serverId, name: embedded.serverName })
   if (!server) {
     return { error: `MCP server ${serverId} is not available in this conversation.` }
   }
 
-  let published = false
-  try {
-    const catalog = application.get('McpCatalogService')
-    const resources = await catalog.listResources(server.id)
-    published = resources.some((resource) => resource.uri === uri)
-    if (!published) {
-      const templates = await catalog.listResourceTemplates(server.id)
-      published = templates.some(({ uriTemplate }) => {
-        try {
-          return new UriTemplate(uriTemplate).match(uri) !== null
-        } catch {
-          return false
-        }
-      })
+  // Embedded resources are already in the conversation; only remote reads require catalog admission.
+  if (!embedded) {
+    let published = false
+    try {
+      const catalog = application.get('McpCatalogService')
+      const resources = await catalog.listResources(server.id)
+      published = resources.some((resource) => resource.uri === uri)
+      if (!published) {
+        const templates = await catalog.listResourceTemplates(server.id)
+        published = templates.some(({ uriTemplate }) => {
+          try {
+            return new UriTemplate(uriTemplate).match(uri) !== null
+          } catch {
+            return false
+          }
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
+      return { error: `Could not reach ${server.name} to verify ${uri}.` }
     }
-  } catch (error) {
-    logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
-    return { error: `Could not reach ${server.name} to verify ${uri}.` }
-  }
-  if (!published) {
-    return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
+    if (!published) {
+      return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
+    }
   }
 
   try {
-    const { contents } = await application.get('McpRuntimeService').getResource({
-      serverId: server.id,
-      uri,
-      signal,
-      interactionContext
-    })
+    const contents = embedded
+      ? [embedded]
+      : (
+          await application
+            .get('McpRuntimeService')
+            .getResource({ serverId: server.id, uri, signal, interactionContext })
+        ).contents
     const full = contents
-      .map((content: McpResource) => content.text ?? '')
+      .map(
+        (content: McpResource) =>
+          content.text ?? (content.blob ? decodeTextBufferIfText(Buffer.from(content.blob, 'base64')) : '') ?? ''
+      )
       .filter(Boolean)
       .join('\n')
     const blobs = await Promise.all(

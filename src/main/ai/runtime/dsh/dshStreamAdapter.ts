@@ -1,10 +1,10 @@
 /**
- * Translate dsh `session.event` envelopes (`{type, seq, time, data}`) into
+ * Translate dsh durable session events and transient assistant chunks into
  * Cherry `UIMessageChunk`s plus connection callbacks.
  *
  * Maps only the content/tool/usage surface; turn lifecycle (`turn/end` →
  * turn-complete/error, resume tokens) is owned by `DshRuntimeConnection` via
- * the sink callbacks. Events are typed as dsh's `SessionEvent` union (cast
+ * the sink callbacks. Durable events use dsh's `SessionEvent` union (cast
  * once at the connection's wire boundary); the union is open via declaration
  * merging, so unknown types fall through the `default:` branch.
  *
@@ -12,10 +12,10 @@
  * - `assistant/chunk` block-start/deltas/block-end → text and reasoning chunks
  * - `tool/call` → tool-input-start + tool-input-available (raw JSON args parsed defensively)
  * - `tool/result` → tool-output-available / tool-output-error
- * - terminal usage chunks → per-attempt accounting; `assistant/message` → successful-turn metadata
+ * - `assistant/attempt|message` → per-attempt accounting and successful-turn metadata
  * - `turn/end` → sink callback with the wire reason
  * - `compaction/start|summary|end` → host compaction runtime events via the sink
- * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
+ * - `llm/retry` / `llm/retry-started` → retry status and timing
  * - `user/message` (entering batch) → classifies the turn as host-prompted or autonomous
  * - content with no host-opened turn → autonomous-turn lifecycle
  */
@@ -25,9 +25,11 @@ import type {} from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-goal'
 import type { ContentBlock, MessageSource, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
+import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type {} from '@deepseek-ai/dsh-plan-mode'
-import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
+import type { SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 
+import type { DshAssistantChunk, DshRuntimeEvent } from '@cherrystudio/dsh-bridge'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
@@ -115,14 +117,6 @@ export class DshStreamAdapter {
   private firstTokenAt?: number
   private thinkingMs = 0
   private readonly reasoningOpenedAt = new Map<number, number>()
-  /** Terminal usage arrives before either assistant/message or retry/failure boundaries. */
-  private pendingProviderUsage?: {
-    turn: number
-    step: number
-    seq: number
-    usage: TokenUsage
-    metrics?: DshInvocationMetrics
-  }
   /** Open compaction folds by compactionId — dsh's lock pairs every start with an end. */
   private readonly activeCompactions = new Map<
     string,
@@ -215,10 +209,9 @@ export class DshStreamAdapter {
     this.hostClaimedTurn = false
   }
 
-  handleEvent(event: SessionEvent): void {
+  handleEvent(event: DshRuntimeEvent): void {
     switch (event.type) {
       case 'turn/start':
-        this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
         // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
         // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
@@ -237,7 +230,7 @@ export class DshStreamAdapter {
         return
       case 'assistant/chunk':
         this.ensureTurnOpen()
-        this.handleAssistantChunk(event.data, event.seq)
+        this.handleAssistantChunk(event.data)
         return
       case 'tool/call':
         this.ensureTurnOpen()
@@ -247,12 +240,18 @@ export class DshStreamAdapter {
         this.ensureTurnOpen()
         this.handleToolResult(event.data)
         return
+      case 'assistant/attempt': {
+        const usage = lastAssistantStreamChunk(event.data.stream, 'usage')?.usage
+        const metrics = this.takeStepMetrics()
+        if (usage)
+          this.sink.onAssistantUsage({ turn: event.data.turn, seq: event.seq, usage, ...(metrics ? { metrics } : {}) })
+        return
+      }
       case 'assistant/message':
         this.ensureTurnOpen()
         this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
-        this.flushPendingProviderUsage()
         this.turnOrigin = undefined
         this.enteringTurn = false
         this.hostClaimedTurn = false
@@ -269,14 +268,12 @@ export class DshStreamAdapter {
         return
       }
       case 'llm/retry':
-        this.flushPendingProviderUsage()
         this.handleRetry(event.data)
         return
       case 'llm/retry-started':
         this.startProviderAttempt(event.data, false)
         return
       case 'step/end':
-        this.flushPendingProviderUsage()
         this.resetStepTiming()
         return
       case 'compaction/start':
@@ -303,7 +300,7 @@ export class DshStreamAdapter {
     return `dsh-${this.turnSeq}-${index}`
   }
 
-  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], seq: number): void {
+  private handleAssistantChunk(data: Omit<DshAssistantChunk, 'sessionId'>): void {
     const stepKey = `${data.turn}:${data.step}`
     if (stepKey !== this.lastStepKey) {
       // Compatibility fallback for logs produced without a visible step/start.
@@ -340,9 +337,6 @@ export class DshStreamAdapter {
         }
         return
       }
-      case 'usage':
-        this.captureProviderUsage(data, seq, chunk.usage)
-        return
       default:
         // tool-call-delta / finish surface through durable tool and message events.
         return
@@ -351,7 +345,6 @@ export class DshStreamAdapter {
 
   private startProviderAttempt(data: { turn: number; step: number }, newStep: boolean): void {
     if (newStep) {
-      this.flushPendingProviderUsage()
       const stepKey = `${data.turn}:${data.step}`
       if (stepKey !== this.lastStepKey) {
         this.lastStepKey = stepKey
@@ -417,16 +410,15 @@ export class DshStreamAdapter {
   }
 
   private handleToolResult(data: SessionEventMap['tool/result']): void {
-    const block = data.message.content[0]
-    const toolCallId = block.toolCallId
+    const toolCallId = data.message.toolCallId
     if (!toolCallId) return
     // A result with no preceding tool/call (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) {
       this.handleToolCall({ callId: toolCallId, name: 'unknown', arguments: '{}' })
     }
     const toolName = this.startedTools.get(toolCallId) ?? 'unknown'
-    const output = block.content
-    if (data.error !== undefined || block.isError === true) {
+    const output = data.message.content
+    if (data.error !== undefined || data.message.isError === true) {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
@@ -477,43 +469,16 @@ export class DshStreamAdapter {
       })
     }
 
-    const pending = this.takePendingProviderUsage(data.turn, data.step)
-    const usage = pending?.usage ?? messageUsage
+    const usage = messageUsage
     if (!usage) return
-    const metrics = pending?.metrics ?? this.takeStepMetrics()
+    const metrics = this.takeStepMetrics()
     this.sink.onAssistantUsage({
       turn: data.turn,
-      seq: pending?.seq ?? seq,
+      seq,
       usage,
       model: data.message.source.model,
       ...(metrics ? { metrics } : {})
     })
-  }
-
-  private captureProviderUsage(data: { turn: number; step: number }, seq: number, usage: TokenUsage): void {
-    this.flushPendingProviderUsage()
-    const metrics = this.takeStepMetrics()
-    this.pendingProviderUsage = {
-      turn: data.turn,
-      step: data.step,
-      seq,
-      usage,
-      ...(metrics ? { metrics } : {})
-    }
-  }
-
-  private takePendingProviderUsage(turn: number, step: number) {
-    const pending = this.pendingProviderUsage
-    if (!pending || pending.turn !== turn || pending.step !== step) return undefined
-    this.pendingProviderUsage = undefined
-    return pending
-  }
-
-  private flushPendingProviderUsage(): void {
-    const pending = this.pendingProviderUsage
-    if (!pending) return
-    this.pendingProviderUsage = undefined
-    this.sink.onAssistantUsage(pending)
   }
 
   /** `maxRetries` is absent only in the retry plugin's `always` mode, which this composition never selects. */
@@ -619,7 +584,7 @@ function parseToolArguments(raw: string): Record<string, unknown> {
  * inside a JSON string. Unwrap it the way the Claude Code adapter does, so downstream consumers
  * (tool cards, citation resolution, persisted projection) see one shape across runtimes.
  */
-function normalizeToolOutput(output: ContentBlock[]): unknown {
+function normalizeToolOutput(output: readonly ContentBlock[]): unknown {
   const texts = output.filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
   if (texts.length === 0 || texts.length !== output.length) return output
 
@@ -631,7 +596,7 @@ function normalizeToolOutput(output: ContentBlock[]): unknown {
   }
 }
 
-function stringifyToolOutput(output: ContentBlock[]): string {
+function stringifyToolOutput(output: readonly ContentBlock[]): string {
   const text = output
     .filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
     .map((entry) => entry.text)

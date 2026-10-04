@@ -1,6 +1,7 @@
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -1257,6 +1258,22 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
   })
 
+  it.each([400, 401, 429, 503])('preserves SDK HTTP %i across error serialization', (statusCode) => {
+    const { adapter } = createAdapter()
+    const message = `API Error: ${statusCode} Provider returned error`
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(
+        successResult({ is_error: true, terminal_reason: 'api_error', api_error_status: statusCode, result: message })
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(serializeError(thrown)).toMatchObject({ name: 'ClaudeCodeResultError', statusCode, message })
+  })
+
   it('emits final live usage metadata before throwing on error results', () => {
     const { adapter, parts } = createAdapter()
 
@@ -1576,7 +1593,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         message: 'API Error: The operation timed out.',
         subtype: 'success',
         terminalReason: 'api_error',
-        apiErrorStatus: 504
+        statusCode: 504
       })
       expect(sessionIds).toEqual(['resume-api-error'])
       expect(parts).toEqual([])

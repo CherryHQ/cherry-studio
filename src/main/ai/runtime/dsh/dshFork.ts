@@ -16,7 +16,10 @@ export async function forkDshSession(input: RuntimeForkInput): Promise<RuntimeFo
   const sourceRoot = application.getPath('feature.agents.dsh.sessions')
   const targetRoot = path.join(input.artifactDirectory, 'dsh')
   const checkpoints = input.checkpoints.map(parseDshForkCheckpoint).map((value) => {
-    if (value.boundary > checkpoint.boundary || value.runtimeSessionId !== checkpoint.runtimeSessionId)
+    if (
+      (value.formatVersion === checkpoint.formatVersion && value.boundary > checkpoint.boundary) ||
+      value.runtimeSessionId !== checkpoint.runtimeSessionId
+    )
       throw new AgentSessionForkError('history_changed')
     return value
   })
@@ -30,18 +33,26 @@ export async function forkDshSession(input: RuntimeForkInput): Promise<RuntimeFo
     targetSessionId: input.targetSessionId,
     targetCwd: input.targetCwd,
     boundary: checkpoint.boundary,
-    checkpoints: checkpoints.map(({ boundary }) => ({ boundary }))
+    formatVersion: checkpoint.formatVersion,
+    checkpoints: checkpoints.map(({ boundary, formatVersion }) => ({ boundary, formatVersion }))
   }
   const worker = createWorker({ workerData, env: { ...process.env } })
-  const parsed = z.strictObject({ path: z.string().min(1) }).safeParse(await runForkWorker(worker, input.signal))
+  const parsed = z
+    .strictObject({
+      path: z.string().min(1),
+      checkpoints: z
+        .array(z.strictObject({ boundary: z.number().int().nonnegative(), formatVersion: z.literal(4) }))
+        .length(checkpoints.length)
+    })
+    .safeParse(await runForkWorker(worker, input.signal))
   if (!parsed.success) throw new AgentSessionForkError('history_corrupt')
   const result = parsed.data
   const relative = path.relative(targetRoot, result.path)
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Invalid DSH artifact path')
   return {
     resumeToken: input.targetSessionId,
-    checkpoints: checkpoints.map((value) =>
-      parseDshForkCheckpoint({ ...value, runtimeSessionId: input.targetSessionId })
+    checkpoints: checkpoints.map((value, index) =>
+      parseDshForkCheckpoint({ ...value, ...result.checkpoints[index], runtimeSessionId: input.targetSessionId })
     ),
     publish: [{ source: result.path, target: path.join(sourceRoot, relative) }]
   }

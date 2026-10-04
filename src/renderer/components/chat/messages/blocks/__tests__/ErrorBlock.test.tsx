@@ -343,21 +343,31 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
-  it('offers the active provider settings for a generic HTTP 400', async () => {
+  it('shows a Claude SDK request failure with its original error and provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
-    mocks.actions = { navigateErrorTarget }
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { navigateErrorTarget, diagnoseMessageError }
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
 
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'AI_APICallError', message: 'Bad Request', stack: null, statusCode: 400 }}
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: 'API Error: 400 Provider returned error',
+          stack: null,
+          statusCode: 400
+        }}
         message={message}
       />
     )
 
+    expect(screen.getByText('Provider request failed (HTTP 400)')).toBeInTheDocument()
+    expect(screen.getByText(/API Error: 400 Provider returned error/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
   it('uses injected diagnosis capability for unknown errors', async () => {

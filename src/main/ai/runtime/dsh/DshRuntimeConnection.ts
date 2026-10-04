@@ -8,6 +8,7 @@ import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 import { application } from '@application'
+import type { DshAssistantChunk } from '@cherrystudio/dsh-bridge'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -69,6 +70,7 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
+import { buildDshProxyEnvironment } from './dshProxyEnvironment'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -455,7 +457,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const loginPath = getPathFromEnvironment(loginShellEnv)
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
-      // only managed binary locations, the routed API key, and the bridge socket.
+      // only managed binary locations, the applied proxy, the routed API key, and the bridge socket.
       const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
         runtimeExecutable,
@@ -471,6 +473,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
+          // Inherit the applied proxy (claude-code parity); the gateway-host bypass keeps the local gateway direct.
+          ...buildDshProxyEnvironment(snapshot.provider, snapshot.model),
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
@@ -817,6 +821,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           }
           continue
         }
+        if (notification.method === 'session.chunk') {
+          const { sessionId, ...data } = notification.params as unknown as DshAssistantChunk
+          const event = { type: 'assistant/chunk' as const, data }
+          if (sessionId === this.runtimeSessionId) this.adapter.handleEvent(event)
+          else this.subagents.handleChildEvent(sessionId, event)
+          continue
+        }
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
@@ -896,7 +907,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         const checkpoint = DshForkCheckpointSchema.safeParse({
           runtime: 'dsh',
           runtimeSessionId: this.runtimeSessionId,
-          boundary
+          boundary,
+          formatVersion: 4
         })
         this.eventQueue.push({
           type: 'turn-complete',

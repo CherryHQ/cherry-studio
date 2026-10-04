@@ -7,6 +7,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
+import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import { mergeHeaders } from '@main/utils/http'
@@ -54,7 +55,8 @@ import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
   getTemperature,
-  getTopP
+  getTopP,
+  stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
@@ -263,6 +265,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     persistedOutputPaths: new Set(retained.persistedOutputPaths),
     // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
     mcpResourceServerIds,
+    mcpToolResources: collectMcpToolResources(request.messages ?? []),
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
@@ -605,29 +608,27 @@ function buildAgentOptions(
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
+  let bodyParams: Record<string, unknown> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant.settings, model, reasoning)
-    const topP = getTopP(assistant.settings, model, reasoning)
+    const {
+      temperature = getTemperature(assistant.settings, model, reasoning),
+      topP = getTopP(assistant.settings, model, reasoning),
+      ...customRest
+    } = customParameters.standardParams
     standardParams = {
+      ...customRest,
       ...(temperature !== undefined && { temperature }),
-      ...(topP !== undefined && { topP }),
-      ...customParameters.standardParams
+      ...(topP !== undefined && { topP })
     }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
-      const customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
         customParameters.providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
-      if (Object.keys(customBodyParams).length > 0) {
-        sdkConfig.providerSettings.fetch = createCustomParamsFetch(
-          sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-          customBodyParams
-        )
-      }
     }
   }
 
@@ -639,12 +640,13 @@ function buildAgentOptions(
       request.serviceTier ?? assistant?.settings.service_tier
     )
     if (serviceTierControl.wire.delivery.type === 'request-body') {
-      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+      bodyParams = {
+        ...bodyParams,
         [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
           serviceTierControl,
           request.serviceTier ?? assistant?.settings.service_tier
         )
-      })
+      }
     }
   }
 
@@ -658,9 +660,6 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
-  // A namespace that ended up empty carries nothing; emitting it would ship a bare
-  // `providerOptions` for callers that opted into nothing.
-  const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -675,6 +674,19 @@ function buildAgentOptions(
     standardParams = { ...standardParams }
     delete standardParams.maxOutputTokens
   }
+
+  const sanitized = stripRejectedSamplingParams(
+    { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
+    model
+  )
+  // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
+  if (Object.keys(sanitized.bodyParams).length > 0) {
+    sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      sanitized.bodyParams
+    )
+  }
+  const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
 
   const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
   // A provider that keys on the conversation declared the header; the caller's own headers win.
@@ -691,9 +703,9 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
-    ...(hasProviderOptions && { providerOptions: effectiveProviderOptions }),
+    ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
-    ...standardParams,
+    ...sanitized.standardParams,
     context: requestContext,
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
