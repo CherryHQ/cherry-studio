@@ -333,6 +333,62 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('- [^1]'))).toHaveLength(1)
   })
 
+  it('carries a definition whose title escapes its own delimiter', () => {
+    // An escaped quote is part of the title, so the definition is a definition; read as a closing
+    // delimiter it would fail the title shape and the reference would degrade to literal text.
+    const content = ['[a]: /url "say \\"hi\\""', '', 'see [a]', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[a]: /url "say \\"hi\\""')
+    }
+  })
+
+  it('carries a definition whose title escapes a parenthesis', () => {
+    const content = ['[a\\]b]: /url (a \\) b)', '', 'see [a\\]b]', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[a\\]b]: /url (a \\) b)')
+    }
+  })
+
+  it('keeps a list whose leading items are definitions in one chunk', () => {
+    // `- a` / `- b` / `- c` is one loose list; a boundary between them would render two lists and
+    // the tail would lose the numbering the whole document gave it.
+    const content = ['- [a]: /one', '- [b]: /two', '', '- real item', '', 'tail'].join('\n')
+
+    const chunks = chunksOf(content, 24)
+
+    const withList = chunks.filter((chunk) => chunk.text.includes('- real item'))
+    expect(withList).toHaveLength(1)
+    expect(withList[0].text).toContain('- [a]: /one\n- [b]: /two\n\n- real item')
+  })
+
+  it('keeps a list whose leading item is a footnote definition in one chunk', () => {
+    const content = ['- [^1]: the note', '', '- real item', '', 'tail'].join('\n')
+
+    const chunks = chunksOf(content, 12)
+
+    const withList = chunks.filter((chunk) => chunk.text.includes('- real item'))
+    expect(withList).toHaveLength(1)
+    expect(withList[0].text).toContain('- [^1]: the note\n\n- real item')
+  })
+
+  it('measures a carried definition by the lines it covers', () => {
+    // The estimate drives the virtualizer before a chunk is measured, so a definition that spans
+    // three lines has to count as three — otherwise the chunk is placed a third too high.
+    const content = ['[a]:', '   /url', '   "a title"', '', 'body one', '', 'body two'].join('\n')
+
+    const chunks = chunksOf(content, 30)
+
+    for (const chunk of chunks) {
+      expect(chunk.lines).toBe(chunk.text.split('\n').length)
+    }
+  })
+
   it('carries a definition with an indented continuation line', () => {
     const content = ['[^1]: first line', '    second line', '', 'see [^1]'].join('\n')
 
