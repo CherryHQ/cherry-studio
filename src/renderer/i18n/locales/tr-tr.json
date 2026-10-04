@@ -5670,6 +5670,7 @@
   "settings.voice.dictation.phase.stopping": "Kayıt tamamlanıyor",
   "settings.voice.dictation.phase.transcribing": "Döküm hazırlanıyor",
   "settings.voice.dictation.status_label": "Dikte durumu",
+  "settings.voice.language.auto_detect": "Otomatik algılama",
   "settings.voice.language.follow_interface": "Arayüz dilini kullan ({{language}})",
   "settings.voice.language.world": "Dünya",
   "settings.voice.microphone.denied": "Mikrofon erişimi kullanılamıyor",

@@ -5670,6 +5670,7 @@
   "settings.voice.dictation.phase.stopping": "A terminar a gravação",
   "settings.voice.dictation.phase.transcribing": "A transcrever",
   "settings.voice.dictation.status_label": "Estado do ditado",
+  "settings.voice.language.auto_detect": "Deteção automática",
   "settings.voice.language.follow_interface": "Seguir o idioma da interface ({{language}})",
   "settings.voice.language.world": "Mundo",
   "settings.voice.microphone.denied": "O acesso ao microfone não está disponível",

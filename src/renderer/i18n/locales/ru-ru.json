@@ -5670,6 +5670,7 @@
   "settings.voice.dictation.phase.stopping": "Завершение записи",
   "settings.voice.dictation.phase.transcribing": "Расшифровка",
   "settings.voice.dictation.status_label": "Состояние диктовки",
+  "settings.voice.language.auto_detect": "Автоматическое определение",
   "settings.voice.language.follow_interface": "Как в интерфейсе ({{language}})",
   "settings.voice.language.world": "весь мир",
   "settings.voice.microphone.denied": "Доступ к микрофону недоступен",

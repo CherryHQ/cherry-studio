@@ -5670,6 +5670,7 @@
   "settings.voice.dictation.phase.stopping": "正在结束录音",
   "settings.voice.dictation.phase.transcribing": "正在转写",
   "settings.voice.dictation.status_label": "听写状态",
+  "settings.voice.language.auto_detect": "自动检测",
   "settings.voice.language.follow_interface": "跟随界面（{{language}}）",
   "settings.voice.language.world": "世界",
   "settings.voice.microphone.denied": "麦克风访问不可用",
