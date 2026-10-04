@@ -1,3 +1,5 @@
+import { mkdir, rm } from 'node:fs/promises'
+
 import type { WebContents } from 'electron'
 import { session as electronSession, shell, systemPreferences } from 'electron'
 
@@ -89,7 +91,10 @@ export class VoiceSessionService extends BaseService {
   private voiceState: VoiceSessionState = { phase: 'idle', revision: 0 }
   private readonly inspections = new Map<Promise<unknown>, AbortController>()
 
-  protected override onInit(): void {
+  protected override async onInit(): Promise<void> {
+    const scratch = application.getPath('feature.voice.temp')
+    await rm(scratch, { recursive: true, force: true })
+    await mkdir(scratch, { recursive: true, mode: 0o700 })
     application.get('UtilityProcessManager').register(voiceAudioProcess)
     this.accepting = true
     this.installMicrophonePermissionHandlers()
