@@ -1,35 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <span {...props}>{children}</span>
-  ),
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: {
-    children: ReactNode
-    type?: 'button'
-    [key: string]: unknown
-  }) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  ),
-  PageHeader: ({ title, action, className }: { title: ReactNode; action?: ReactNode; className?: string }) => (
-    <div className={className}>
-      <h2>{title}</h2>
-      {action}
-    </div>
-  )
-}))
+vi.unmock('@cherrystudio/ui')
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -44,6 +21,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.restore.action': '重建知识库',
           'knowledge.status.completed': '就绪',
           'knowledge.status.failed': '失败',
+          'knowledge.external.sources.title': '同步来源',
           'knowledge.tabs.rag_config': '知识库设置',
           'knowledge.tabs.recall_test': '召回测试'
         }) as Record<string, string>
@@ -92,6 +70,7 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        onOpenExternalSources={vi.fn()}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRebuild={onRebuild}
@@ -111,6 +90,7 @@ describe('DetailHeader', () => {
 
     // A failed base cannot be configured or recall-tested, so those actions are hidden.
     expect(screen.queryByRole('button', { name: '知识库设置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '同步来源' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '召回测试' })).not.toBeInTheDocument()
   })
 
@@ -128,6 +108,31 @@ describe('DetailHeader', () => {
 
     expect(screen.queryByText('就绪')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /重建知识库/ })).not.toBeInTheDocument()
+  })
+
+  it('opens source management from an accessible icon button and hides it outside the base root', async () => {
+    const user = userEvent.setup()
+    const onOpenExternalSources = vi.fn()
+    const props = {
+      base: createKnowledgeBase(),
+      onOpenRagConfig: vi.fn(),
+      onOpenRecallTest: vi.fn(),
+      onRebuild: vi.fn()
+    }
+    const { rerender } = render(<DetailHeader {...props} onOpenExternalSources={onOpenExternalSources} />)
+
+    const manage = screen.getByRole('button', { name: '同步来源' })
+    expect(manage).toHaveTextContent(/^$/)
+    await user.tab()
+    await user.tab()
+    expect(manage).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(onOpenExternalSources).toHaveBeenCalledOnce()
+    await user.hover(manage)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('同步来源')
+
+    rerender(<DetailHeader {...props} />)
+    expect(screen.queryByRole('button', { name: '同步来源' })).not.toBeInTheDocument()
   })
 
   it('renders the header actions as icon-only buttons, with no more menu', () => {

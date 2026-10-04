@@ -1,9 +1,11 @@
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import type { ExternalKnowledgeSourceListItem } from '@shared/data/api/schemas/externalKnowledge'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
@@ -14,19 +16,35 @@ const { mockOpenSettingsTab, mockUseLocalModel } = vi.hoisted(() => ({
   mockOpenSettingsTab: vi.fn(),
   mockUseLocalModel: vi.fn()
 }))
-const mockUseQuery = vi.fn()
 const defaultOnPreviewFile = vi.fn()
 
 type TestDataSourcePanelProps = Omit<
   DataSourcePanelProps,
-  'baseId' | 'onAddFeishuWiki' | 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'
+  | 'baseId'
+  | 'onAddFeishuWiki'
+  | 'onDeleteItems'
+  | 'onPreviewFile'
+  | 'onReindexItems'
+  | 'externalSourcesOpen'
+  | 'onExternalSourcesOpenChange'
 > &
   Partial<
-    Pick<DataSourcePanelProps, 'baseId' | 'onAddFeishuWiki' | 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>
+    Pick<
+      DataSourcePanelProps,
+      | 'baseId'
+      | 'onAddFeishuWiki'
+      | 'onDeleteItems'
+      | 'onPreviewFile'
+      | 'onReindexItems'
+      | 'externalSourcesOpen'
+      | 'onExternalSourcesOpenChange'
+    >
   >
 
 const DataSourcePanel = ({
   baseId = 'base-1',
+  externalSourcesOpen = false,
+  onExternalSourcesOpenChange = vi.fn(),
   onAddFeishuWiki = vi.fn(),
   onDeleteItems = vi.fn(),
   onPreviewFile = defaultOnPreviewFile,
@@ -36,16 +54,14 @@ const DataSourcePanel = ({
   <DataSourcePanelComponent
     {...props}
     baseId={baseId}
+    externalSourcesOpen={externalSourcesOpen}
+    onExternalSourcesOpenChange={onExternalSourcesOpenChange}
     onAddFeishuWiki={onAddFeishuWiki}
     onDeleteItems={onDeleteItems}
     onPreviewFile={onPreviewFile}
     onReindexItems={onReindexItems}
   />
 )
-
-vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args)
-}))
 
 vi.mock('@renderer/hooks/useLocalModel', () => ({
   useLocalModel: () => mockUseLocalModel()
@@ -54,8 +70,6 @@ vi.mock('@renderer/hooks/useLocalModel', () => ({
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mockOpenSettingsTab
 }))
-
-vi.mock('../ExternalSourcesSection', () => ({ default: () => null }))
 
 // The real DynamicVirtualList renders nothing under jsdom (no layout to measure),
 // so stub it with a plain pass-through that renders every row.
@@ -70,27 +84,10 @@ vi.mock('@renderer/components/VirtualList', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const React = await import('react')
   const actual = (await importOriginal()) as Record<string, unknown>
-  const PopoverContext = React.createContext<{ open: boolean; onOpenChange?: (open: boolean) => void }>({
-    open: false
-  })
 
   return {
     ...actual,
-    Button: ({
-      children,
-      type = 'button',
-      ...props
-    }: {
-      children: ReactNode
-      type?: 'button' | 'submit' | 'reset'
-      [key: string]: unknown
-    }) => (
-      <button type={type} {...props}>
-        {children}
-      </button>
-    ),
     Checkbox: ({
       checked,
       onCheckedChange,
@@ -141,28 +138,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           </button>
         </div>
       ) : null,
-    Popover: ({
-      children,
-      open,
-      onOpenChange
-    }: {
-      children: ReactNode
-      open?: boolean
-      onOpenChange?: (open: boolean) => void
-    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
-    PopoverContent: ({ children }: { children: ReactNode }) => {
-      const { open } = React.use(PopoverContext)
-      return open ? <>{children}</> : null
-    },
-    PopoverTrigger: ({ children }: { children: ReactNode }) => {
-      const { onOpenChange } = React.use(PopoverContext)
-
-      return (
-        <span role="presentation" onClickCapture={() => onOpenChange?.(true)} onMouseEnter={() => onOpenChange?.(true)}>
-          {children}
-        </span>
-      )
-    },
     Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
   }
 })
@@ -314,7 +289,7 @@ vi.mock('react-i18next', () => ({
           {
             'knowledge.data_source.add_dialog.title': '添加数据源',
             'knowledge.data_source.toolbar.add': '添加数据源',
-            'knowledge.data_source.empty.title': '上传第一个数据源',
+            'knowledge.data_source.empty.title': '上传本地资料，或连接飞书知识库',
             'knowledge.data_source.empty.shortcuts.file.title': '文件',
             'knowledge.data_source.empty.shortcuts.url.title': '链接',
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
@@ -352,13 +327,20 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.delete_confirm_title': '确认删除数据源',
             'knowledge.data_source.delete_failed': '删除数据源失败',
             'knowledge.data_source.reindex_failed': '重新索引数据源失败',
-            'knowledge.data_source.empty_description': '暂无数据源',
+            'knowledge.data_source.empty_description': '添加第一份知识内容',
+            'knowledge.external.sources.title': '同步来源',
+            'knowledge.external.sources.manage_connections': '管理账号',
+            'knowledge.external.sources.connections': '已连接账号',
+            'knowledge.external.sources.add_source': '添加同步来源',
+            'knowledge.external.wizard.name': '来源名称',
+            'common.back': '返回',
             'knowledge.data_source.filters.file': '文件',
             'knowledge.data_source.filters.note': '笔记',
             'knowledge.data_source.filters.directory': '目录',
             'knowledge.data_source.filters.url': '链接',
             'knowledge.data_source.add_dialog.sources.directory': '目录',
             'knowledge.data_source.add_dialog.sources.file': '文件',
+            'knowledge.data_source.add_dialog.sources.feishu_wiki': '飞书知识库',
             'knowledge.data_source.add_dialog.sources.note': '笔记',
             'knowledge.data_source.add_dialog.sources.url': '链接',
             'knowledge.data_source.status.ready': '就绪',
@@ -386,10 +368,14 @@ describe('DataSourcePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
+    MockUseDataApiUtils.resetMocks()
     mockUseQuery.mockReturnValue({
-      data: undefined,
+      data: [] as never,
       isLoading: false,
-      error: undefined
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
     })
   })
 
@@ -414,6 +400,8 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('button', { name: '笔记' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '目录' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '链接' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '连接飞书知识库' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '同步来源' })).not.toBeInTheDocument()
 
     mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
     rerender(<DataSourcePanel {...props} />)
@@ -519,7 +507,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(screen.getByText('上传第一个数据源')).toBeInTheDocument()
+    expect(screen.getByText('上传本地资料，或连接飞书知识库')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
@@ -527,47 +515,123 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
   })
 
-  it('guides users from the empty data source state into file or URL add flows', () => {
+  it('guides users from the empty state into local and Feishu add flows', async () => {
+    const user = userEvent.setup()
     const onAdd = vi.fn()
+    const onAddFeishuWiki = vi.fn()
 
-    const { rerender } = render(
+    render(
       <DataSourcePanel
         updatedAt="2026-04-15T09:00:00+08:00"
         items={[]}
         isLoading={false}
         onAdd={onAdd}
+        onAddFeishuWiki={onAddFeishuWiki}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
     )
 
-    expect(screen.getByText('暂无数据源')).toBeInTheDocument()
-    expect(screen.getByText('上传第一个数据源')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '添加第一份知识内容' })).toBeInTheDocument()
+    expect(screen.getByText('上传本地资料，或连接飞书知识库')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
 
-    expect(document.querySelector('input[type="file"]')).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: '文件' }))
-
+    await user.click(screen.getByRole('button', { name: '文件' }))
     expect(onAdd).toHaveBeenCalledWith('file')
-
-    rerender(
-      <DataSourcePanel
-        updatedAt="2026-04-15T09:00:00+08:00"
-        items={[]}
-        isLoading={false}
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-    fireEvent.click(screen.getByRole('button', { name: '链接' }))
-
+    await user.click(screen.getByRole('button', { name: '链接' }))
     expect(onAdd).toHaveBeenCalledWith('url')
+    expect(screen.queryByRole('button', { name: '连接飞书知识库' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '添加数据源' }))
+    await user.click(screen.getByRole('menuitem', { name: '飞书知识库' }))
+    expect(onAddFeishuWiki).toHaveBeenCalledOnce()
+  })
+
+  it('opens the controlled manager during bulk selection and retains its account view across selection changes', async () => {
+    const user = userEvent.setup()
+    const props = {
+      updatedAt: '2026-04-15T09:00:00+08:00',
+      items: [createFileItem({ id: 'file-1' })],
+      isLoading: false,
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+      onReindex: vi.fn()
+    }
+    const { rerender } = render(<DataSourcePanel {...props} />)
+    await user.click(screen.getByRole('checkbox', { name: '全选' }))
+    rerender(<DataSourcePanel {...props} externalSourcesOpen />)
+    expect(screen.getByRole('dialog', { name: '同步来源' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '管理账号' }))
+    expect(screen.getByRole('dialog', { name: '已连接账号' })).toBeVisible()
+
+    rerender(<DataSourcePanel {...props} externalSourcesOpen={false} />)
+    await user.click(screen.getByRole('checkbox', { name: '全选' }))
+    rerender(<DataSourcePanel {...props} externalSourcesOpen />)
+    expect(screen.getByRole('dialog', { name: '已连接账号' })).toBeVisible()
+  })
+
+  it('allows managing existing sources but blocks adding until the local model is ready', async () => {
+    const user = userEvent.setup()
+    mockUseLocalModel.mockReturnValue({ status: 'downloading', percent: 42 })
+    const source: ExternalKnowledgeSourceListItem = {
+      id: 'source-1',
+      baseId: 'base-1',
+      connectionId: 'connection-1',
+      name: 'Team handbook',
+      state: 'active',
+      provider: 'feishu',
+      tenantId: 'tenant-1',
+      spaceId: 'space-1',
+      scope: { kind: 'space' },
+      revision: 0,
+      scheduleId: null,
+      schedule: { policy: { kind: 'manual' }, nextRunAt: null },
+      activeJobId: null,
+      lastTrigger: null,
+      lastStartedAt: null,
+      lastFinishedAt: null,
+      lastOutcome: null,
+      lastScannedCount: null,
+      lastIndexedCount: null,
+      lastUnchangedCount: null,
+      lastSkippedCount: null,
+      lastWarningCount: null,
+      lastErrorSummary: null,
+      lastSuccessfulSyncAt: null,
+      createdAt: '2026-04-15T01:00:00.000Z',
+      updatedAt: '2026-04-15T01:00:00.000Z'
+    }
+    mockUseQuery.mockImplementation((path) => ({
+      data: (path === '/knowledge-bases/:id/external-knowledge-sources' ? [source] : []) as never,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+    const props = {
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+      externalSourcesOpen: true,
+      updatedAt: source.updatedAt,
+      items: [],
+      isLoading: false,
+      onAdd: vi.fn(),
+      onDelete: vi.fn(),
+      onReindex: vi.fn()
+    }
+    const { rerender } = render(<DataSourcePanel {...props} />)
+
+    expect(screen.getByRole('button', { name: '添加同步来源' })).toBeDisabled()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Team handbook' }))
+    expect(screen.getByRole('textbox', { name: '来源名称' })).toBeEnabled()
+
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '返回' }))
+    mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })
+    rerender(<DataSourcePanel {...props} />)
+    expect(screen.getByRole('button', { name: '添加同步来源' })).toBeEnabled()
   })
 
   it('sends dropped files through the existing file add flow while preserving the picker entry', () => {
@@ -588,7 +652,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    const dropTarget = screen.getByText('上传第一个数据源')
+    const dropTarget = screen.getByText('上传本地资料，或连接飞书知识库')
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
 
     fireEvent.dragEnter(dropTarget, { dataTransfer: { files } })
@@ -687,7 +751,8 @@ describe('DataSourcePanel', () => {
     expect(screen.getByLabelText('该文件夹内容迁移失败，请删除后重新上传。')).toBeInTheDocument()
   })
 
-  it('does not open the add source dialog from the header button before a source is selected', () => {
+  it('does not open the add source dialog from the header button before a source is selected', async () => {
+    const user = userEvent.setup()
     const onAdd = vi.fn()
 
     render(
@@ -701,13 +766,15 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '添加数据源' }))
+    await user.click(screen.getByRole('button', { name: '添加数据源' }))
 
+    expect(screen.getByRole('menuitem', { name: '文件' })).toBeVisible()
     expect(onAdd).not.toHaveBeenCalled()
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
   })
 
-  it('opens the add dialog when selecting the file source from the header menu', () => {
+  it('opens the add dialog when selecting the file source from the header menu', async () => {
+    const user = userEvent.setup()
     const onAdd = vi.fn()
 
     render(
@@ -721,32 +788,11 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(document.querySelector('input[type="file"]')).toBeNull()
-
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: '文件' }))
+    await user.click(screen.getByRole('button', { name: '添加数据源' }))
+    await user.click(screen.getByRole('menuitem', { name: '文件' }))
 
     expect(onAdd).toHaveBeenCalledWith('file')
-  })
-
-  it('shows source choices on header add hover and forwards the selected source', () => {
-    const onAdd = vi.fn()
-
-    render(
-      <DataSourcePanel
-        updatedAt="2026-04-15T09:00:00+08:00"
-        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
-        isLoading={false}
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: '目录' }))
-
-    expect(onAdd).toHaveBeenCalledWith('directory')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
 
   it('prunes selected item ids when items are removed', async () => {
@@ -947,7 +993,7 @@ describe('DataSourcePanel', () => {
     expect(onNavigateUp).toHaveBeenCalledTimes(1)
   })
 
-  it('hides the header add-source entry inside a directory so adding cannot silently target the root', () => {
+  it('hides source management and adding inside a directory so actions cannot silently target the root', () => {
     render(
       <DataSourcePanel
         updatedAt="2026-04-15T09:00:00+08:00"
@@ -962,6 +1008,7 @@ describe('DataSourcePanel', () => {
     )
 
     expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '同步来源' })).not.toBeInTheDocument()
   })
 
   it('shows an empty-folder message instead of add shortcuts inside an empty directory', () => {
@@ -979,7 +1026,8 @@ describe('DataSourcePanel', () => {
     )
 
     expect(screen.getByText('该文件夹为空')).toBeInTheDocument()
-    expect(screen.queryByText('上传第一个数据源')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '添加第一份知识内容' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '连接飞书知识库' })).not.toBeInTheDocument()
   })
 
   it('forwards view chunks menu actions to the item chunk detail handler', () => {

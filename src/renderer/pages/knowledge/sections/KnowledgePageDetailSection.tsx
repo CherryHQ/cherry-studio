@@ -47,13 +47,20 @@ const KnowledgePageDetailSection = () => {
   // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
   const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
   const currentDirectory = directoryStack.at(-1) ?? null
+  const [externalSourcesOpen, setExternalSourcesOpen] = useState(false)
 
   // Every base selection starts from that base's root, including re-selecting the current base.
   useEffect(() => {
     setDirectoryStack([])
-  }, [baseNavigationVersion])
+    setExternalSourcesOpen(false)
+  }, [baseNavigationVersion, selectedBaseId])
+
+  useEffect(() => {
+    if (selectedItemId || filePreview) setExternalSourcesOpen(false)
+  }, [selectedItemId, filePreview])
 
   const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
+    setExternalSourcesOpen(false)
     setDirectoryStack((prev) => [...prev, item])
   }, [])
   const navigateUp = useCallback(() => {
@@ -80,6 +87,7 @@ const KnowledgePageDetailSection = () => {
       {!selectedItemId && !filePreview ? (
         <DetailHeader
           base={selectedBase}
+          onOpenExternalSources={currentDirectory ? undefined : () => setExternalSourcesOpen(true)}
           onOpenRagConfig={openRagConfigDrawer}
           onOpenRecallTest={openRecallTestDrawer}
           onRebuild={() => openRestoreBaseDialog(selectedBase)}
@@ -108,11 +116,11 @@ const KnowledgePageDetailSection = () => {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('common.back')}
-                    className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                    className="text-muted-foreground size-6 min-h-6 min-w-6 rounded p-0 shadow-none hover:bg-accent hover:text-foreground"
                     onClick={closeFilePreview}>
                     <ArrowLeft className="size-3.5" />
                   </Button>
-                  <span className="min-w-0 flex-1 truncate text-foreground text-sm">{filePreview.fileName}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{filePreview.fileName}</span>
                 </>
               }
             />
@@ -120,6 +128,8 @@ const KnowledgePageDetailSection = () => {
         ) : (
           <DataSourcePanel
             baseId={selectedBaseId}
+            externalSourcesOpen={externalSourcesOpen}
+            onExternalSourcesOpenChange={setExternalSourcesOpen}
             embeddingModelId={selectedBase.embeddingModelId}
             items={selectedBaseItems}
             total={selectedBaseItemsTotal}

@@ -148,7 +148,7 @@ export const createExternalItem = ({
   status: 'completed',
   error: null,
   data: {
-    source: 'feishu://document/doc-1',
+    source: 'Team handbook',
     title: 'External doc',
     relativePath: 'external.md' as PosixRelativeFilePath
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
@@ -82,6 +82,8 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
       revalidateAll: revalidateAllPages
     }
   })
+
+  useDataChange(baseId ? '/knowledge-bases/:id/items' : [], () => void refresh(), { routeParams: { id: baseId } })
 
   useEffect(() => {
     setRevalidateAllPages(hasNonTerminalItem(pages))

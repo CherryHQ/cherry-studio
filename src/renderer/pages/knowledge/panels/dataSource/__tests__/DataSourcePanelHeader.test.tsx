@@ -1,51 +1,14 @@
-import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
 
 import DataSourcePanelHeader from '../DataSourcePanelHeader'
 
-vi.mock('@renderer/utils/time', () => ({
-  formatRelativeTime: () => '刚刚'
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
-    <button type="button" data-variant={variant} {...props}>
-      {children}
-    </button>
-  ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
-    <button type="button" {...props}>
-      {label}
-    </button>
-  ),
-  MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    i18n: { language: 'zh-CN' },
-    t: (key: string, opts?: Record<string, unknown>) => {
-      if (key === 'knowledge.data_source.bulk.selected_count') return `已选 ${opts?.count}`
-      if (key === 'knowledge.meta.updated_at') return `更新于 ${opts?.time}`
-      if (key === 'knowledge.data_source.bulk.loaded_only_hint') return `仅已加载，共 ${opts?.total} 项`
-      return (
-        (
-          {
-            'knowledge.data_source.bulk.cancel': '取消',
-            'knowledge.data_source.bulk.reindex': '重新索引',
-            'knowledge.data_source.bulk.delete': '删除',
-            'knowledge.data_source.toolbar.add': '添加',
-            'knowledge.data_source.add_dialog.sources.feishu_wiki': '飞书知识库'
-          } as Record<string, string>
-        )[key] ?? key
-      )
-    }
-  })
+vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/dropdown-menu'))
 }))
 
 const baseProps = {
@@ -60,20 +23,86 @@ const baseProps = {
 }
 
 describe('DataSourcePanelHeader', () => {
-  it('renders the updated time and add button in the default state', () => {
-    render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
-
-    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
+  beforeAll(async () => {
+    await i18n.changeLanguage('zh-CN')
   })
 
-  it('switches to the bulk toolbar when rows are selected', () => {
+  it('selects Feishu with the keyboard and returns focus after closing the menu', async () => {
+    const user = userEvent.setup()
+    const onAddFeishuWiki = vi.fn()
+    render(<DataSourcePanelHeader {...baseProps} onAddFeishuWiki={onAddFeishuWiki} />)
+    const add = screen.getByRole('button', { name: '添加数据源' })
+
+    await user.tab()
+    expect(add).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    const file = await screen.findByRole('menuitem', { name: '文件' })
+    await waitFor(() => expect(file).toHaveFocus())
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: '笔记' })).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(file).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(screen.getByRole('menuitem', { name: '飞书知识库' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(onAddFeishuWiki).toHaveBeenCalledOnce()
+    await waitFor(() => expect(add).toHaveFocus())
+  })
+
+  it('dismisses keyboard selection with Escape without opening a source', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onAddFeishuWiki = vi.fn()
+    render(<DataSourcePanelHeader {...baseProps} onAdd={onAdd} onAddFeishuWiki={onAddFeishuWiki} />)
+    const add = screen.getByRole('button', { name: '添加数据源' })
+
+    await user.tab()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: '文件' })).toHaveFocus())
+    await user.keyboard('{ArrowDown}{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(add).toHaveFocus())
+    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAddFeishuWiki).not.toHaveBeenCalled()
+  })
+
+  it('opens a local source from the same menu and closes it after selection', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(<DataSourcePanelHeader {...baseProps} onAdd={onAdd} />)
+
+    await user.click(screen.getByRole('button', { name: '添加数据源' }))
+    expect(screen.getByRole('menuitem', { name: '飞书知识库' })).toBeVisible()
+    await user.click(screen.getByRole('menuitem', { name: '目录' }))
+
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(onAdd).toHaveBeenCalledWith('directory')
+  })
+
+  it('replaces the add menu with bulk actions while rows are selected', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={2} />)
 
-    expect(screen.getByText('已选 2')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '取消' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '添加数据源' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: i18n.t('knowledge.external.sources.title') })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+  })
+
+  it('keeps the status slot mounted but hidden during bulk selection', () => {
+    const status = <input aria-label="Sync status draft" defaultValue="unsaved configuration" />
+    const { rerender } = render(<DataSourcePanelHeader {...baseProps} syncStatus={status} />)
+    const draft = screen.getByRole('textbox', { name: 'Sync status draft' })
+
+    rerender(<DataSourcePanelHeader {...baseProps} selectedCount={2} syncStatus={status} />)
+    expect(draft).toBeInTheDocument()
+    expect(draft).not.toBeVisible()
+
+    rerender(<DataSourcePanelHeader {...baseProps} syncStatus={status} />)
+    expect(screen.getByRole('textbox', { name: 'Sync status draft' })).toBe(draft)
+    expect(draft).toBeVisible()
   })
 
   it('warns that a selection only covers loaded rows when unloaded pages remain', () => {
@@ -81,40 +110,8 @@ describe('DataSourcePanelHeader', () => {
       <DataSourcePanelHeader {...baseProps} total={200} loadedCount={50} selectedCount={50} />
     )
 
-    expect(screen.getByText('仅已加载，共 200 项')).toBeInTheDocument()
-
-    // Fully loaded (total === loadedCount): no hint.
+    expect(screen.getByText('仅作用于已加载项，共 200 项')).toBeInTheDocument()
     rerender(<DataSourcePanelHeader {...baseProps} total={50} loadedCount={50} selectedCount={50} />)
-
-    expect(screen.queryByText('仅已加载，共 50 项')).not.toBeInTheDocument()
-  })
-
-  it('invokes bulk callbacks from the selected-state toolbar', () => {
-    const onBulkReindex = vi.fn()
-    const onBulkDelete = vi.fn()
-
-    render(
-      <DataSourcePanelHeader
-        {...baseProps}
-        selectedCount={1}
-        onBulkReindex={onBulkReindex}
-        onBulkDelete={onBulkDelete}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
-
-    expect(onBulkReindex).toHaveBeenCalledTimes(1)
-    expect(onBulkDelete).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens the Feishu Wiki flow from the Add menu at the base root', () => {
-    const onAddFeishuWiki = vi.fn()
-    render(<DataSourcePanelHeader {...baseProps} onAddFeishuWiki={onAddFeishuWiki} />)
-
-    fireEvent.click(screen.getByRole('menuitem', { name: '飞书知识库' }))
-
-    expect(onAddFeishuWiki).toHaveBeenCalledOnce()
+    expect(screen.queryByText('仅作用于已加载项，共 50 项')).not.toBeInTheDocument()
   })
 })
