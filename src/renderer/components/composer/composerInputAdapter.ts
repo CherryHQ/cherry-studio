@@ -16,7 +16,7 @@ import {
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
-import { serializeComposerDocument } from './composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
@@ -110,12 +110,14 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
       const to = getComposerDraftPositionAtTextOffset(editor, range.to)
       if (from === null || to === null || to < from) return false
 
-      return editor
-        .chain()
-        .focus()
-        .setTextSelection({ from, to })
-        .insertContent(buildInsertedInlineContent(editor, text, { tokenizeVariables: false }))
-        .run()
+      const content = buildInsertedInlineContent(editor, text, { tokenizeVariables: false })
+      const insertedLength = serializeComposerDocument({
+        type: 'doc',
+        content: [{ type: 'paragraph', content }]
+      }).text.length
+      if (draftLength - (range.to - range.from) + insertedLength > COMPOSER_INPUT_MAX_LENGTH) return false
+
+      return editor.chain().focus().setTextSelection({ from, to }).insertContent(content).run()
     },
     insertText: (insertedText, options) => {
       editor

@@ -2281,6 +2281,7 @@ export default function ComposerSurfaceRuntime({
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       onPointerDownCapture={onVoiceTargetInteraction}
+      onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
