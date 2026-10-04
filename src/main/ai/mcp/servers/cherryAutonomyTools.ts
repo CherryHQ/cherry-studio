@@ -16,13 +16,14 @@ import QRCode from 'qrcode'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
+import { notifyAgentBackgroundTaskCompletion, startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import {
   type BackgroundTaskRecord,
   type CompletedBackgroundTask,
@@ -30,7 +31,6 @@ import {
   listDetachedBackgroundTasks,
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
-import { saveBackgroundTaskRecord, saveBackgroundTaskRecords } from '@main/ai/agents/backgroundTaskStore'
 import {
   detectDestructiveAssistantCommand,
   isGitHubIssueCreationCommand,
@@ -1090,7 +1090,7 @@ export class CherryAutonomyTools {
    */
   private indexBackgroundTask(record: BackgroundTaskRecord): void {
     try {
-      saveBackgroundTaskRecord(this.agentId, record)
+      agentBackgroundTaskService.saveRecord(this.agentId, record)
     } catch (error) {
       logger.error('Failed to index detached background task', { taskId: record.id, error })
     }
@@ -1099,7 +1099,7 @@ export class CherryAutonomyTools {
   /** One transaction for the whole listing, so a large task set costs one write, not one per row. */
   private indexBackgroundTasks(records: BackgroundTaskRecord[]): void {
     try {
-      saveBackgroundTaskRecords(this.agentId, records)
+      agentBackgroundTaskService.saveRecords(this.agentId, records)
     } catch (error) {
       logger.error('Failed to index detached background tasks', { agentId: this.agentId, error })
     }
@@ -1111,28 +1111,7 @@ export class CherryAutonomyTools {
    * delivery: every live channel adapter of the agent, best-effort.
    */
   private notifyBackgroundTaskCompletion(task: CompletedBackgroundTask): void {
-    try {
-      const adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
-      for (const adapter of adapters) {
-        for (const chatId of adapter.notifyChatIds) {
-          adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
-            logger.warn('Failed to deliver background task completion notification', {
-              agentId: this.agentId,
-              taskId: task.record.id,
-              channelId: adapter.channelId,
-              chatId,
-              error: err
-            })
-          })
-        }
-      }
-    } catch (err) {
-      logger.warn('Error while building background task completion notification', {
-        agentId: this.agentId,
-        taskId: task.record.id,
-        error: err
-      })
-    }
+    notifyAgentBackgroundTaskCompletion(this.agentId, task)
   }
 
   private async sendNotification(args: Record<string, unknown>) {

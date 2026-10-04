@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 
@@ -9,9 +10,9 @@ import {
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask,
   type BackgroundTaskRecord,
+  type CompletedBackgroundTask,
   type StartDetachedBackgroundTaskInput
 } from './backgroundTasks'
-import { listBackgroundTaskRecords, saveBackgroundTaskRecord, saveBackgroundTaskRecords } from './backgroundTaskStore'
 
 const logger = loggerService.withContext('backgroundTaskActions')
 
@@ -66,12 +67,38 @@ export async function listAgentBackgroundTasks(agentId: string): Promise<Backgro
   // after a failed write would hand the panel a different answer from the agent's own list tool,
   // which returns the reconciled disk records, so the disk stays the answer either way.
   try {
-    saveBackgroundTaskRecords(agentId, records)
+    agentBackgroundTaskService.saveRecords(agentId, records)
   } catch (error) {
     logger.error('Failed to index background tasks after reconcile', { agentId, error })
     return records
   }
-  return listBackgroundTaskRecords(agentId)
+  return agentBackgroundTaskService.listByAgent(agentId)
+}
+
+/** Announces a finished task on every channel that watches this agent, wherever it was stopped from. */
+export function notifyAgentBackgroundTaskCompletion(agentId: string, task: CompletedBackgroundTask): void {
+  try {
+    const adapters = application.get('ChannelManager').getAgentAdapters(agentId)
+    for (const adapter of adapters) {
+      for (const chatId of adapter.notifyChatIds) {
+        adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
+          logger.warn('Failed to deliver background task completion notification', {
+            agentId,
+            taskId: task.record.id,
+            channelId: adapter.channelId,
+            chatId,
+            error: err
+          })
+        })
+      }
+    }
+  } catch (err) {
+    logger.warn('Error while building background task completion notification', {
+      agentId,
+      taskId: task.record.id,
+      error: err
+    })
+  }
 }
 
 export async function stopAgentBackgroundTask(
@@ -80,10 +107,12 @@ export async function stopAgentBackgroundTask(
   force: boolean
 ): Promise<BackgroundTaskRecord | undefined> {
   if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
-  const record = await stopDetachedBackgroundTask(storageDirFor(agentId), taskId, force)
+  const record = await stopDetachedBackgroundTask(storageDirFor(agentId), taskId, force, (task) => {
+    notifyAgentBackgroundTaskCompletion(agentId, task)
+  })
   if (record) {
     try {
-      saveBackgroundTaskRecord(agentId, record)
+      agentBackgroundTaskService.saveRecord(agentId, record)
     } catch (error) {
       logger.error('Failed to index background task after stop', { agentId, taskId, error })
     }

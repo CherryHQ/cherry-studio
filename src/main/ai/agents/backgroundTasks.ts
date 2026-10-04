@@ -228,7 +228,14 @@ export async function startDetachedBackgroundTask(
           })
         }
       }
-      throw error
+      // A plain "start failed" here invites a retry that duplicates work that is in fact still
+      // running, so an uncleaned recovery has to name the task it could not dispose of.
+      throw cleaned
+        ? error
+        : new Error(
+            `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`,
+            { cause: error }
+          )
     }
 
     logger.info('Detached background task started', { taskId: id, pid: record.pid })
