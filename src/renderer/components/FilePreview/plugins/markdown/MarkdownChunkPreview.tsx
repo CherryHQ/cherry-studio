@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useRef } from 'react'
+import { type MouseEvent as ReactMouseEvent, useRef } from 'react'
 
-import { StaticMarkdown } from '@renderer/components/markdown'
+import { findMarkdownAnchorTarget, StaticMarkdown } from '@renderer/components/markdown'
 
 import type { MarkdownChunk } from './markdownChunks'
 
@@ -32,11 +32,39 @@ export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) 
   })
   const virtualItems = virtualizer.getVirtualItems()
 
+  // Every chunk renders its own `.markdown` container, so the default anchor handler — which
+  // scopes to the nearest one — cannot see a heading that lives in a different chunk. Resolving
+  // against the scroller covers the whole preview; a chunk the virtualizer has not mounted still
+  // has no element to find, and the event is left to the default handler in that case.
+  const scrollToPreviewAnchor = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const anchor = (event.target as Element | null)?.closest?.('a[href]')
+    const href = anchor?.getAttribute('href')
+    if (!href?.startsWith('#')) return
+
+    let fragment: string
+    try {
+      fragment = decodeURIComponent(href.slice(1))
+    } catch {
+      return
+    }
+    if (!fragment) return
+
+    const target = findMarkdownAnchorTarget(scrollerRef.current, fragment)
+    if (!target) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    target.scrollIntoView({ block: 'start' })
+  }
+
   // The viewer owns the scroll here: its virtualizer measures its own scroller, so an unbounded
   // wrapper would hand it the whole document as the viewport and mount every chunk.
   return (
     <div className="flex h-full min-h-0 w-full">
-      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto pb-[var(--chat-composer-inset,0px)]">
+      <div
+        ref={scrollerRef}
+        onClickCapture={scrollToPreviewAnchor}
+        className="min-h-0 flex-1 overflow-y-auto pb-[var(--chat-composer-inset,0px)]">
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           <div
             className="absolute top-0 left-0 w-full"

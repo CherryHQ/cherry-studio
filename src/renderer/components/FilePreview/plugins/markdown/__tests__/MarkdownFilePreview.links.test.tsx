@@ -141,6 +141,26 @@ describe('MarkdownFilePreview links', () => {
     expect(openFile).not.toHaveBeenCalled()
   })
 
+  it('jumps to a heading that lives in another chunk of the same preview', async () => {
+    // A document larger than the chunk budget splits into several independently rendered
+    // `.markdown` containers, so the anchor has to resolve against the preview rather than the
+    // chunk that holds the link.
+    const padding = 'x'.repeat(15_000)
+    mocks.readText.mockResolvedValue(
+      [`# Alpha`, '', '[jump](#target)', '', padding, '', padding, '', '## Target', '', 'body'].join('\n')
+    )
+    const scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+
+    renderArtifactPreview(vi.fn())
+
+    const heading = await screen.findByRole('heading', { name: 'Target' })
+    heading.scrollIntoView = scrollIntoView
+    await user.click(await screen.findByRole('link', { name: 'jump' }))
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
+  })
+
   it('keeps passive fenced-code actions without chat execution or HTML artifact controls', async () => {
     mocks.readText.mockResolvedValue(
       '```python\nprint("not executed")\n```\n\n```html\n<button>Not an artifact</button>\n```'
