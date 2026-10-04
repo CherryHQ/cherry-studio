@@ -21,6 +21,7 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
+import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 import { getComposerEditorMinHeight } from './composerSizing'
 import type { ComposerDeferredIntent, ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -90,7 +91,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           : { from: selectionRef.current.start, to: selectionRef.current.end }
       },
       replaceRange: (range, insertedText) => {
-        const current = textRef.current
+        const current = textRef.current.replace(/\r\n?/g, '\n')
         if (
           !Number.isInteger(range.from) ||
           !Number.isInteger(range.to) ||
@@ -100,8 +101,10 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         ) {
           return false
         }
-        const nextText = `${current.slice(0, range.from)}${insertedText}${current.slice(range.to)}`
-        const nextPosition = range.from + insertedText.length
+        const normalizedText = insertedText.replace(/\r\n?/g, '\n')
+        const nextText = `${current.slice(0, range.from)}${normalizedText}${current.slice(range.to)}`
+        if (nextText.length > COMPOSER_INPUT_MAX_LENGTH) return false
+        const nextPosition = range.from + normalizedText.length
         selectionRef.current = { start: nextPosition, end: nextPosition }
         onTextChangeRef.current(nextText)
         return true
@@ -316,6 +319,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       data-composer-inputbar=""
       data-composer-presentation="regular"
       onPointerDownCapture={markVoiceTargetCurrent}
+      onFocusCapture={markVoiceTargetCurrent}
       className={`inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm ${
         belowControls ? 'mb-0.5' : 'mb-3'
       }`}>
