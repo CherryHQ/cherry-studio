@@ -14,13 +14,18 @@ import QRCode from 'qrcode'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
+import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { startAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
+import {
+  notifyAgentBackgroundTaskCompletion,
+  startAgentBackgroundTask
+} from '@main/ai/agents/backgroundTaskActions'
 import {
   type BackgroundTaskRecord,
   type CompletedBackgroundTask,
@@ -28,7 +33,6 @@ import {
   listDetachedBackgroundTasks,
   stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
-import { saveBackgroundTaskRecord, saveBackgroundTaskRecords } from '@main/ai/agents/backgroundTaskStore'
 import {
   detectDestructiveAssistantCommand,
   isGitHubIssueCreationCommand,
@@ -877,7 +881,7 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
         name: args.name,
         onExit: (task) => {
           indexBackgroundTask(ctx, task.record)
-          notifyBackgroundTaskCompletion(ctx, task)
+          notifyAgentBackgroundTaskCompletion(ctx.agentId, task)
         }
       })
       indexBackgroundTask(ctx, (await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), record.id)) ?? record)
@@ -906,7 +910,7 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
         args.action === 'kill',
         (task) => {
           indexBackgroundTask(ctx, task.record)
-          notifyBackgroundTaskCompletion(ctx, task)
+          notifyAgentBackgroundTaskCompletion(ctx.agentId, task)
         }
       )
       if (!record) throw new Error(`Task "${taskId}" is not running or cannot be verified`)
@@ -919,7 +923,7 @@ async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTask
 /** One transaction for the whole listing, so a large task set costs one write, not one per row. */
 function indexBackgroundTasks(ctx: AutonomyToolsContext, records: BackgroundTaskRecord[]): void {
   try {
-    saveBackgroundTaskRecords(ctx.agentId, records)
+    agentBackgroundTaskService.saveRecords(ctx.agentId, records)
   } catch (error) {
     logger.error('Failed to index detached background tasks', { agentId: ctx.agentId, error })
   }
@@ -932,39 +936,9 @@ function indexBackgroundTasks(ctx: AutonomyToolsContext, records: BackgroundTask
  */
 function indexBackgroundTask(ctx: AutonomyToolsContext, record: BackgroundTaskRecord): void {
   try {
-    saveBackgroundTaskRecord(ctx.agentId, record)
+    agentBackgroundTaskService.saveRecord(ctx.agentId, record)
   } catch (error) {
     logger.error('Failed to index detached background task', { taskId: record.id, error })
-  }
-}
-
-/**
- * Out-of-band completion delivery — the app's ordinary notify authority does
- * not exist this long after the starting turn, so this mirrors scheduled-task
- * delivery: every live channel adapter of the agent, best-effort.
- */
-function notifyBackgroundTaskCompletion(ctx: AutonomyToolsContext, task: CompletedBackgroundTask): void {
-  try {
-    const adapters = application.get('ChannelManager').getAgentAdapters(ctx.agentId)
-    for (const adapter of adapters) {
-      for (const chatId of adapter.notifyChatIds) {
-        adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
-          logger.warn('Failed to deliver background task completion notification', {
-            agentId: ctx.agentId,
-            taskId: task.record.id,
-            channelId: adapter.channelId,
-            chatId,
-            error: err
-          })
-        })
-      }
-    }
-  } catch (err) {
-    logger.warn('Error while building background task completion notification', {
-      agentId: ctx.agentId,
-      taskId: task.record.id,
-      error: err
-    })
   }
 }
 
