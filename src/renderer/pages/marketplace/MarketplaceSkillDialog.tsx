@@ -74,6 +74,9 @@ export function MarketplaceSkillDialog({
   const published = Number.isNaN(date.getTime())
     ? item.releaseDate
     : new Intl.DateTimeFormat(i18n.resolvedLanguage, { dateStyle: 'medium' }).format(date)
+  const language = [detail?.longDescription.zh, detail?.longDescription.en]
+    .map((description) => description?.match(/^\s*中文适配[：:][ \t]*([^\r\n]*)/m)?.[1].trim())
+    .find(Boolean)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -82,13 +85,15 @@ export function MarketplaceSkillDialog({
         motion="fade-scale"
         closeLabel={t('common.close')}
         overlayClassName="backdrop-blur-sm"
-        className="flex max-h-[calc(100vh-3rem)] flex-col gap-0 overflow-hidden rounded-3xl p-0"
+        className="flex max-h-[calc(100vh-3rem)] flex-col gap-0 overflow-hidden rounded-3xl bg-transparent p-0"
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           onReturnFocus()
         }}>
         <DialogDescription className="sr-only">{text(item.description)}</DialogDescription>
-        <DialogHeader className="shrink-0 border-border-subtle border-b bg-background-subtle px-5 pt-10 pb-5 text-left">
+        <DialogHeader
+          className="shrink-0 border-border-subtle border-b px-5 pt-10 pb-5 text-left backdrop-blur-2xl backdrop-saturate-150"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--card) 85%, transparent)' }}>
           <div className="flex items-center gap-3">
             <MarketplaceSkillIcon skill={item} large />
             <div className="min-w-0 flex-1">
@@ -104,7 +109,7 @@ export function MarketplaceSkillDialog({
           </div>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-card px-5 py-5">
           <div className="grid grid-cols-3 gap-2">
             {[
               [
@@ -127,9 +132,20 @@ export function MarketplaceSkillDialog({
               </div>
             ))}
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {text(detail?.longDescription ?? item.description) || text(item.description)}
-          </p>
+          <p className="text-sm leading-6 text-muted-foreground">{text(item.description)}</p>
+          <dl className="grid grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+            {[
+              [t('marketplace.author'), item.author ? `@${item.author.replace(/^@/, '')}` : '—'],
+              [t('marketplace.published'), published || '—'],
+              [t('common.language'), language || '—'],
+              [t('marketplace.resource_type'), t('marketplace.type.skill')]
+            ].map(([label, value]) => (
+              <div key={label} className="col-span-2 grid min-w-0 grid-cols-subgrid items-baseline">
+                <dt className="text-foreground-tertiary">{label}</dt>
+                <dd className="min-w-0 break-words text-foreground">{value}</dd>
+              </div>
+            ))}
+          </dl>
           {isLoading ? <Spinner text={t('common.loading')} /> : null}
           {error ? (
             <div role="alert" className="flex items-center justify-between gap-3 text-sm text-error">
@@ -185,7 +201,7 @@ export function MarketplaceSkillDialog({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-border-subtle border-t bg-background-subtle px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-border-subtle border-t bg-card px-5 py-3">
           {validSource ? (
             <Button
               variant="ghost"
