@@ -1,7 +1,11 @@
+import { gunzipSync } from 'node:zlib'
+
+import { net } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
+import { registrationBegin } from '@main/services/feishuAppRegistration'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 
 import type {
   ExternalKnowledgeCredential,
@@ -14,6 +18,7 @@ import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getUserIdentity,
   type FeishuUserIdentity,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -707,6 +712,49 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(runtime.validateConnection(value.id)).resolves.toMatchObject({ displayName: 'Validated user' })
     expect(provider.getUserIdentity).toHaveBeenCalledTimes(2)
     expect(waits).toEqual([1_750])
+  })
+
+  it('reports a terminal begin permission failure without residue and allows a fresh authorization', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const provider = createProvider({
+      beginDeviceAuthorization: vi
+        .fn()
+        .mockRejectedValueOnce(new FeishuProviderError('app-scope-missing', true))
+        .mockResolvedValue({
+          deviceCode: 'device-code',
+          userCode: 'ABCD-EFGH',
+          verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+          expiresIn: 600,
+          interval: 5
+        }),
+      exchangeDeviceAuthorization: vi.fn(async () => ({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider })
+    const application = { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'app-secret' }
+    await runtime.start()
+    try {
+      await expect(runtime.beginUserAuthorization(application)).rejects.toMatchObject({
+        name: 'ExternalKnowledgeRuntimeError',
+        code: 'scope-missing'
+      })
+      expect(connections.values.size).toBe(0)
+      expect(credentials.values.size).toBe(0)
+
+      const retry = await runtime.beginUserAuthorization(application)
+      const connected = await runtime.completeUserAuthorization(retry.authorizationSessionId)
+      expect(connected.authorizationStatus).toBe('connected')
+      expect([...connections.values.keys()]).toEqual([connected.id])
+      expect(credentials.values.size).toBe(1)
+    } finally {
+      await runtime.stop()
+    }
   })
 
   it('honors Retry-After while beginning device authorization', async () => {
@@ -2037,7 +2085,7 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(connections.create).not.toHaveBeenCalled()
   })
 
-  it('uses actual token scopes and rejects an incomplete authorization before identity lookup', async () => {
+  it('removes an incomplete initial authorization and lets a fresh attempt succeed without duplicate accounts', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const provider = createProvider({
@@ -2053,7 +2101,13 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'refresh-token',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: ['wiki:node:read']
+        grantedScopes: [
+          'wiki:node:read',
+          'wiki:node:retrieve',
+          'docs:document.content:read',
+          'offline_access',
+          'auth:user.id:read'
+        ]
       }))
     })
     const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, sleep: async () => {} })
@@ -2068,7 +2122,111 @@ describe('ExternalKnowledgeRuntime', () => {
       code: 'scope-missing'
     })
     expect(provider.getUserIdentity).not.toHaveBeenCalled()
-    expect(connections.values.get(begun.connection.id)?.authorizationStatus).toBe('reauthorization-required')
+    expect(connections.getById(begun.connection.id)).toBeNull()
+    await expect(credentials.read(begun.connection.credentialReference)).resolves.toEqual({ status: 'missing' })
+
+    provider.exchangeDeviceAuthorization.mockResolvedValueOnce({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      expiresIn: 7200,
+      refreshTokenExpiresIn: 604800,
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+    })
+    const retried = await runtime.beginUserAuthorization({
+      kind: 'custom-app',
+      appId: 'cli_manual',
+      appSecret: 'app-secret'
+    })
+    await expect(runtime.completeUserAuthorization(retried.authorizationSessionId)).resolves.toMatchObject({
+      authorizationStatus: 'connected'
+    })
+    expect([...connections.values.values()]).toEqual([
+      expect.objectContaining({ id: retried.connection.id, authorizationStatus: 'connected' })
+    ])
+    await runtime.stop()
+  })
+
+  it('preserves a missing provider user id as an identity error when completing reconnect', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one', { authorizationStatus: 'reauthorization-required' })
+    const originalCredential = validCredential('one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: originalCredential })
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: 0, data: { open_id: 'ou_replacement', tenant_key: value.tenantKey } }))
+    )
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider: createProvider({
+        beginDeviceAuthorization: vi.fn(async () => ({
+          deviceCode: 'device-code',
+          userCode: 'ABCD-EFGH',
+          verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+          expiresIn: 600,
+          interval: 5
+        })),
+        exchangeDeviceAuthorization: vi.fn(async () => ({
+          accessToken: 'candidate-access',
+          refreshToken: 'candidate-refresh',
+          expiresIn: 7200,
+          refreshTokenExpiresIn: 604800,
+          grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+        })),
+        getUserIdentity
+      })
+    })
+    await runtime.start()
+    const begun = await runtime.beginReconnect(value.id, {
+      kind: 'custom-app',
+      appId: 'cli_candidate',
+      appSecret: 'candidate-secret'
+    })
+
+    try {
+      await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
+        code: 'identity-unverifiable'
+      })
+      expect(connections.values.get(value.id)).toEqual(value)
+      expect([...credentials.values.keys()]).toEqual(['ref-one'])
+      await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'ok', credential: originalCredential })
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it('configures PersonalAgent registration with the user_info identity field permission', async () => {
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(new Response('{}'))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            device_code: 'registration-code',
+            verification_uri_complete: 'https://accounts.feishu.cn/registration',
+            expire_in: 600,
+            interval: 5
+          })
+        )
+      )
+    const runtime = new ExternalKnowledgeRuntime({
+      connections: new MemoryConnections(),
+      credentials: new MemoryCredentials(),
+      registration: {
+        begin: registrationBegin,
+        poll: vi.fn(async () => ({ appId: 'cli_automatic', appSecret: 'automatic-secret' }))
+      }
+    })
+    await runtime.start()
+    try {
+      const registration = await runtime.beginAppRegistration()
+      const addons = new URL(registration.verificationUri).searchParams.get('addons')!
+      const configured = JSON.parse(gunzipSync(Buffer.from(addons, 'base64url')).toString('utf8'))
+      expect(configured.scopes.user).toContain('contact:user.employee_id:readonly')
+      expect(configured.scopes.user).not.toContain('auth:user.id:read')
+    } finally {
+      await runtime.stop()
+    }
   })
 
   it('cancels an in-flight PersonalAgent registration', async () => {
@@ -2321,6 +2479,64 @@ describe('ExternalKnowledgeRuntime', () => {
     await runtime.cancelUserAuthorization(authorization.authorizationSessionId)
   })
 
+  it.each([
+    { identityScopes: ['auth:user.id:read', 'contact:user.employee_id:readonly'], errorCode: null },
+    { identityScopes: ['auth:user.id:read'], errorCode: 'scope-missing' },
+    {
+      identityScopes: ['auth:user.id:read', 'contact:user.employee_id:readonly', 'drive:drive'],
+      errorCode: 'automatic-scope-mismatch'
+    }
+  ])(
+    'validates cumulative PersonalAgent identity grants on reconnect: $identityScopes',
+    async ({ identityScopes, errorCode }) => {
+      const connections = new MemoryConnections()
+      const credentials = new MemoryCredentials()
+      const value = connection('one', 'ref-one', { appCredentialSource: 'personal-agent' })
+      connections.values.set(value.id, value)
+      credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+      const grantedScopes = [
+        'wiki:node:read',
+        'wiki:node:retrieve',
+        'docs:document.content:read',
+        'offline_access',
+        ...identityScopes
+      ]
+      const runtime = new ExternalKnowledgeRuntime({
+        connections,
+        credentials,
+        provider: createProvider({
+          beginDeviceAuthorization: vi.fn(async () => ({
+            deviceCode: 'device-code',
+            userCode: 'ABCD-EFGH',
+            verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+            expiresIn: 600,
+            interval: 5
+          })),
+          exchangeDeviceAuthorization: vi.fn(async () => ({
+            accessToken: 'access-one',
+            refreshToken: 'candidate-refresh',
+            expiresIn: 7200,
+            refreshTokenExpiresIn: 604800,
+            grantedScopes
+          }))
+        })
+      })
+      await runtime.start()
+      try {
+        const begun = await runtime.beginReconnect(value.id)
+        const completion = runtime.completeUserAuthorization(begun.authorizationSessionId)
+        if (errorCode) {
+          await expect(completion).rejects.toMatchObject({ code: errorCode })
+          expect(connections.values.get(value.id)?.credentialReference).toBe('ref-one')
+        } else {
+          await expect(completion).resolves.toMatchObject({ authorizationStatus: 'connected', grantedScopes })
+        }
+      } finally {
+        await runtime.stop()
+      }
+    }
+  )
+
   it('accepts extra scopes for a manual app but rejects them for automatic registration', async () => {
     const token: FeishuUserTokenSet = {
       accessToken: 'access-token',
@@ -2388,7 +2604,7 @@ describe('ExternalKnowledgeRuntime', () => {
     })
   })
 
-  it('does not persist an initial candidate when identity lookup transiently fails', async () => {
+  it('removes the initial connection and candidate when identity lookup transiently fails', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const provider = createProvider({
@@ -2420,7 +2636,7 @@ describe('ExternalKnowledgeRuntime', () => {
       code: 'transient'
     })
     await expect(credentials.read(begun.connection.credentialReference)).resolves.toEqual({ status: 'missing' })
-    expect(connections.values.get(begun.connection.id)?.authorizationStatus).toBe('pending-authorization')
+    expect(connections.getById(begun.connection.id)).toBeNull()
   })
 
   it('aborts an in-flight request before removing its connection and credential', async () => {

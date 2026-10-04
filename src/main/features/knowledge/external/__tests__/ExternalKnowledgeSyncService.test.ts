@@ -8,6 +8,7 @@ import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledge
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../../items'
@@ -19,6 +20,9 @@ import {
   type SyncExternalKnowledgeDocumentInput
 } from '../ExternalKnowledgeSyncService'
 import type { FeishuKnowledgeReference, FeishuKnowledgeSourceScanResult } from '../feishuKnowledgeReadAdapter'
+
+const { notifyDataChangeMock } = vi.hoisted(() => ({ notifyDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
@@ -85,6 +89,7 @@ describe('ExternalKnowledgeSyncService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    notifyDataChangeMock.mockReset()
     snapshots.clear()
     materials.clear()
     deletionAdmissions.length = 0
@@ -276,6 +281,78 @@ describe('ExternalKnowledgeSyncService', () => {
       return error as ExternalKnowledgeSourceSyncError
     }
   }
+
+  it.each(['updated', 'metadata-only', 'permission-denied', 'transient'] as const)(
+    'makes a committed %s document observable while the next document is still syncing',
+    async (outcome) => {
+      seedActiveDocument()
+      let releaseSecond!: () => void
+      const secondGate = new Promise<void>((resolve) => {
+        releaseSecond = resolve
+      })
+      let secondStarted = false
+      const observed: Array<{ itemId: string | null; availability: string; title: string; warning: string | null }> = []
+      notifyDataChangeMock.mockImplementation((effects: DataApiDataChangeEffect[]) => {
+        if (!effects.some((effect) => effect.endpoint === '/knowledge-bases/:id/items')) return
+        expect(dbh.sqlite.inTransaction).toBe(false)
+        const document = dbh.db
+          .select()
+          .from(externalKnowledgeDocumentTable)
+          .where(eq(externalKnowledgeDocumentTable.id, OLD_DOCUMENT_ID))
+          .get()!
+        observed.push({
+          itemId: document.knowledgeItemId,
+          availability: document.availability,
+          title: document.title,
+          warning: document.currentWarning
+        })
+      })
+      const ids = [STAGED_ITEM_ID, '0198f3f2-7d22-7abc-8def-123456789abc']
+      const service = createService(
+        'updated body',
+        { createItemId: () => ids.shift()! },
+        async (_connectionId, item) => {
+          if (item.descriptor.remoteObjectId === 'doc-2') {
+            secondStarted = true
+            await secondGate
+          } else if (outcome === 'permission-denied') {
+            throw new ExternalKnowledgeRuntimeError('resource-permission-denied')
+          } else if (outcome === 'transient') {
+            throw new ExternalKnowledgeRuntimeError('transient')
+          }
+          return 'updated body'
+        },
+        async () =>
+          scanResult([
+            reference({
+              title: 'Updated title',
+              remoteRevision: outcome === 'metadata-only' ? 'revision-1' : 'revision-2'
+            }),
+            reference({ remoteObjectId: 'doc-2', nodeId: 'node-2' })
+          ])
+      )
+      const syncing = service.syncSource(sourceSyncInput())
+      try {
+        await vi.waitFor(() => expect(secondStarted).toBe(true))
+        expect(observed).toEqual([
+          {
+            itemId: outcome === 'updated' ? STAGED_ITEM_ID : outcome === 'permission-denied' ? null : OLD_ITEM_ID,
+            availability: outcome === 'permission-denied' ? 'unavailable' : 'active',
+            title: outcome === 'permission-denied' ? 'Architecture' : 'Updated title',
+            warning:
+              outcome === 'permission-denied'
+                ? 'resource-permission-denied'
+                : outcome === 'transient'
+                  ? 'transient'
+                  : null
+          }
+        ])
+      } finally {
+        releaseSecond()
+        await syncing
+      }
+    }
+  )
 
   it('exposes the source fence as the only source authority', () => {
     type HasIndependentSource = 'source' extends keyof SyncExternalKnowledgeDocumentInput ? true : false
@@ -868,6 +945,7 @@ describe('ExternalKnowledgeSyncService', () => {
 
     await expect(service.syncDocument(input)).rejects.toThrow('publication cleanup admission failed')
 
+    expect(notifyDataChangeMock).not.toHaveBeenCalled()
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({ knowledgeItemId: OLD_ITEM_ID, contentHash: OLD_CONTENT_HASH })
     ])

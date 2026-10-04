@@ -29,6 +29,7 @@ import { prepareKnowledgeMaterial } from '../ingestion/indexKnowledgeItem'
 import { enqueueKnowledgeSubtreeDeletionTx, recoverDeletingKnowledgeItems } from '../ingestion/subtreeDeletion'
 import { writeFileIntoKnowledgeBaseAt } from '../pathStorage'
 import type { RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
+import { notifyExternalKnowledgeSyncContentChange } from './externalKnowledgeDataChange'
 import { ExternalKnowledgeRuntimeError, type ExternalKnowledgeRuntimeErrorCode } from './ExternalKnowledgeRuntime'
 import type { FeishuKnowledgeReference, FeishuKnowledgeSourceScanResult } from './feishuKnowledgeReadAdapter'
 
@@ -517,6 +518,7 @@ export class ExternalKnowledgeSyncService {
         })
       })
 
+      notifyExternalKnowledgeSyncContentChange(input.fence.baseId, input.fence.sourceId)
       return { outcome: 'indexed', warnings: [] }
     } catch (error) {
       this.acceptStagedCleanup(input.fence.baseId, item.id)
@@ -569,6 +571,7 @@ export class ExternalKnowledgeSyncService {
         if (!document) throw new StaleExternalKnowledgePublicationError()
       })
 
+      notifyExternalKnowledgeSyncContentChange(input.fence.baseId, input.fence.sourceId)
       return { outcome: 'unchanged', warnings: [] }
     })
   }
@@ -637,6 +640,7 @@ export class ExternalKnowledgeSyncService {
         )
         if (!updated) throw new StaleExternalKnowledgePublicationError()
       })
+      notifyExternalKnowledgeSyncContentChange(input.fence.baseId, input.fence.sourceId)
     })
   }
 
@@ -691,6 +695,7 @@ export class ExternalKnowledgeSyncService {
         }
         this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, input.fence.baseId, [item.id])
       })
+      notifyExternalKnowledgeSyncContentChange(input.fence.baseId, input.fence.sourceId)
     })
   }
 
@@ -743,6 +748,9 @@ export class ExternalKnowledgeSyncService {
         }
         this.dependencies.enqueueKnowledgeSubtreeDeletionTx(tx, input.fence.baseId, rootItemIds)
       })
+      if (missingDocuments.length > 0) {
+        notifyExternalKnowledgeSyncContentChange(input.fence.baseId, input.fence.sourceId)
+      }
     })
   }
 

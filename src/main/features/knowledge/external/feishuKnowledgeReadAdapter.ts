@@ -1,5 +1,5 @@
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import type { FeishuExternalKnowledgeScope } from '@shared/data/types/externalKnowledge'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeDocumentRead,
   ExternalKnowledgeDocumentKind,
