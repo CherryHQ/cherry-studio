@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
+import type { CSSProperties, FC, MouseEvent } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +19,7 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 
 const SettingsPage: FC = () => {
@@ -39,11 +40,22 @@ const SettingsPage: FC = () => {
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
 
+  const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.type === 'auxclick' && event.button !== 1) return
+    const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
+    if (!anchor || !/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) return
+    event.preventDefault()
+    event.stopPropagation()
+    void openExternalWebsite(anchor.href)
+  }
+
   return (
     <SettingsSearchDomIdsProvider>
       <div
         style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
         data-ui="settings.view"
+        onClickCapture={openExternalLink}
+        onAuxClickCapture={openExternalLink}
         className={cn(
           'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-background'

@@ -34,7 +34,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -43,7 +43,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
 import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData } from './channelTypes'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
@@ -89,6 +89,12 @@ function getChannelSummary(channel: ChannelData): string {
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
+    case 'dingtalk':
+      if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
+      break
+    case 'wecom':
+      if (cfg.bot_id) parts.push(truncateId(cfg.bot_id as string))
+      break
     case 'wechat':
       break
   }
@@ -187,7 +193,7 @@ type EditModalProps = {
   channel: ChannelData | null
   agents: Array<{ id: string; name: string }>
   onClose: () => void
-  onSave: (id: string, updates: Partial<ChannelData>) => void
+  onSave: (id: string, updates: ChannelUpdates) => void
   onDelete: (id: string) => void
 }
 
@@ -198,7 +204,8 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const lastChannelRef = useRef<ChannelData | null>(channel)
   // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   if (channel) {
     lastChannelRef.current = channel
@@ -251,7 +258,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
   const handleUpdate = useCallback(
-    (updates: Partial<ChannelData>) => {
+    (updates: ChannelUpdates) => {
       if (channel) onSave(channel.id, updates)
     },
     [channel, onSave]
@@ -261,13 +268,16 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-125" closeLabel={t('common.close')}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col overflow-hidden"
+        closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
-            <DialogHeader>
+            <DialogHeader className="shrink-0">
               <DialogTitle>{renderedChannel.name}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-4">
+            <Scrollbar className="flex min-h-0 flex-col gap-4">
               <div>
                 <Label className="mb-1 block text-xs">{t('common.name')}</Label>
                 <Input
@@ -317,7 +327,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                   onRemove={() => channel && onDelete(channel.id)}
                 />
               )}
-            </div>
+            </Scrollbar>
           </>
         )}
       </DialogContent>
@@ -501,13 +511,14 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [channels?.length, createChannel, channelDef, openEditModal])
 
   const handleSave = useCallback(
-    async (channelId: string, updates: Partial<ChannelData>) => {
+    async (channelId: string, updates: ChannelUpdates) => {
       if (!channelList.some((ch) => ch.id === channelId)) return
 
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
       if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
+      if (updates.configPatch !== undefined) apiUpdates.configPatch = updates.configPatch
       if (updates.config !== undefined) apiUpdates.config = updates.config
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode

@@ -59,7 +59,7 @@ runs both smokes; only a successful Windows run is native execution evidence.
 `before-pack.js` builds only the Windows x64 target and adds its executable to
 `resources/system-speech/cherry-system-speech.exe` outside asar. It removes the
 resource entry before an ARM64 packaging pass. electron-builder's extra-resource
-copy transformer signs `.exe` files with the existing `scripts/win-sign.js`
+copy transformer signs `.exe` files with the existing `scripts/packaging/win-sign.js`
 policy when `WIN_SIGN` is enabled; no separate signing credentials are introduced.
 
 Check an unpacked application directory, an NSIS installation directory, or the

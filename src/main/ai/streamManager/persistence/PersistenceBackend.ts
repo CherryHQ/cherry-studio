@@ -120,6 +120,12 @@ export interface PersistAssistantInput {
   runtimeStats?: MessageRuntimeStatsInput
 }
 
+export interface PersistedAssistant {
+  messageId: string
+  messageRevision: string
+  historyRevision: string
+}
+
 export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
@@ -133,7 +139,7 @@ export interface PersistenceBackend {
   /** True only when an empty successful response is itself a valid terminal result. */
   readonly canPersistEmptySuccessTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void | Promise<void>
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
