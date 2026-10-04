@@ -36,6 +36,7 @@ const voice = vi.hoisted(() => {
     openMicrophoneSettings: vi.fn(),
     dictationStartScoped: vi.fn(),
     dictationStop: vi.fn(),
+    dictationTranscribe: vi.fn(),
     dictationRetry: vi.fn(),
     dictationDiscard: vi.fn(),
     speechStart: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock('@renderer/services/voice', async () => ({
     getSnapshot: () => voice.dictation,
     startScoped: voice.dictationStartScoped,
     stop: voice.dictationStop,
+    transcribeRecording: voice.dictationTranscribe,
     retry: voice.dictationRetry,
     insertRecovery: vi.fn(),
     copyRecovery: vi.fn(),
@@ -132,6 +134,7 @@ describe('VoiceSettings', () => {
     voice.openMicrophoneSettings.mockResolvedValue(undefined)
     voice.dictationStartScoped.mockReturnValue({ result: Promise.resolve(), cancel: vi.fn(async () => undefined) })
     voice.dictationStop.mockResolvedValue(undefined)
+    voice.dictationTranscribe.mockResolvedValue(undefined)
     voice.dictationRetry.mockResolvedValue(undefined)
     voice.dictationDiscard.mockResolvedValue(undefined)
     voice.speechStart.mockResolvedValue({ status: 'started' })
@@ -150,7 +153,8 @@ describe('VoiceSettings', () => {
     voice.listModels.mockResolvedValue({ models, defaultAsrModelId: APPLE_ASR_MODEL_ID })
     voice.listVoices.mockResolvedValue([
       { id: 'voice.english', name: 'Samantha', language: 'en-US' },
-      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' }
+      { id: 'voice.chinese', name: 'Tingting', language: 'zh-CN' },
+      { id: 'voice.japanese', name: 'Kyoko', language: 'ja-JP' }
     ])
     await i18n.changeLanguage('zh-CN')
     const user = userEvent.setup()
@@ -164,7 +168,12 @@ describe('VoiceSettings', () => {
     await user.keyboard('{Escape}')
 
     await act(async () => i18n.changeLanguage('ja-JP'))
-    expect(screen.getByRole('combobox', { name: '認識言語' })).toHaveTextContent('英語')
+    expect(screen.getByRole('combobox', { name: '認識言語' })).toHaveTextContent('日本語')
+    expect(screen.getByRole('combobox', { name: '読み上げ言語' })).toHaveTextContent('日本語')
+    await user.click(screen.getByRole('combobox', { name: '読み上げ音声' }))
+    expect(await screen.findByRole('option', { name: 'Kyoko' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Samantha' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
     await act(async () => i18n.changeLanguage('en-US'))
     expect(screen.getByRole('combobox', { name: 'Speech language' })).toHaveTextContent('English (United States)')
     await user.click(screen.getByRole('combobox', { name: 'Speech voice' }))
@@ -849,6 +858,37 @@ describe('VoiceSettings', () => {
     view.unmount()
   })
 
+  it('preserves an interrupted recording until the user chooses to transcribe or discard it', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.dictation = { phase: 'recorded', elapsedMs: 12_000, recoveryAvailable: false }
+    render(<VoiceSettings />)
+
+    expect(await screen.findByRole('status', { name: /dictation status/i })).toHaveTextContent(
+      i18n.t('settings.voice.dictation.phase.recorded')
+    )
+    const record = screen.getByRole('button', { name: /record test/i })
+    await user.click(record)
+    expect(record).toBeDisabled()
+    expect(voice.dictationStartScoped).not.toHaveBeenCalled()
+    expect(voice.dictationTranscribe).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: i18n.t('settings.voice.action.transcribe') }))
+    expect(voice.dictationTranscribe).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: /discard/i }))
+    expect(voice.dictationDiscard).toHaveBeenCalledOnce()
+  })
+
+  it('reports a saved-recording transcription failure without starting a new recording', async () => {
+    const user = userEvent.setup()
+    voice.dictation = { phase: 'recorded', elapsedMs: 12_000, recoveryAvailable: false }
+    voice.dictationTranscribe.mockRejectedValueOnce(new Error('transcription unavailable'))
+    render(<VoiceSettings />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('settings.voice.action.transcribe') }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(voice.dictationStartScoped).not.toHaveBeenCalled()
+  })
+
   it.each([
     { status: 'unsupported' },
     { status: 'not_installed', reason: 'voice_unavailable' },
@@ -899,10 +939,11 @@ describe('VoiceSettings', () => {
     expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
   })
 
-  it('does not request recording while microphone status is pending or unknown', async () => {
+  it('waits for microphone status then permits a ready FunASR test when OS preflight is unknown', async () => {
     const user = userEvent.setup()
     const microphone = deferred<'unknown'>()
-    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'ready', percent: 100, isStatusResolved: true }
     voice.microphone.mockReturnValue(microphone.promise)
     render(<VoiceSettings />)
 
@@ -911,11 +952,47 @@ describe('VoiceSettings', () => {
     await user.click(record)
     expect(voice.dictationStartScoped).not.toHaveBeenCalled()
 
-    microphone.resolve('unknown')
-    await waitFor(() => expect(voice.microphone).toHaveBeenCalledOnce())
-    expect(record).toBeDisabled()
+    await act(async () => microphone.resolve('unknown'))
+    await waitFor(() => expect(record).toBeEnabled())
     await user.click(record)
-    expect(voice.dictationStartScoped).not.toHaveBeenCalled()
+    expect(voice.dictationStartScoped).toHaveBeenCalledOnce()
+  })
+
+  it.each(['denied', 'restricted'] as const)(
+    'refreshes an initially %s microphone permission after returning from OS settings',
+    async (status) => {
+      const user = userEvent.setup()
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+      voice.microphone.mockResolvedValue(status)
+      render(<VoiceSettings />)
+
+      const settings = await screen.findByRole('button', { name: /open microphone settings/i })
+      const record = screen.getByRole('button', { name: /record test/i })
+      expect(record).toBeDisabled()
+      await user.click(settings)
+      expect(voice.openMicrophoneSettings).toHaveBeenCalledOnce()
+
+      voice.microphone.mockResolvedValue('granted')
+      fireEvent.focus(window)
+      await waitFor(() => expect(record).toBeEnabled())
+      await user.click(record)
+      expect(voice.dictationStartScoped).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('keeps an unsupported interface recognition locale visible without substituting English', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    voice.listTranscriptionLocales.mockResolvedValue({ supported: ['en-US'], installed: ['en-US'] })
+    voice.getModelStatus.mockImplementation(async ({ language }) => ({
+      status: language === 'en-US' ? 'ready' : 'unsupported',
+      ...(language !== 'en-US' && { reason: 'unsupported' })
+    }))
+    await i18n.changeLanguage('ja-JP')
+    render(<VoiceSettings />)
+
+    expect(await screen.findByRole('combobox', { name: '認識言語' })).toHaveTextContent('日本語')
+    expect(await screen.findByText('このシステムではサポートされていません')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '録音テスト' })).toBeDisabled()
   })
 
   it('allows the first OS permission prompt when microphone status is not determined', async () => {

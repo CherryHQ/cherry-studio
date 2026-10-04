@@ -67,10 +67,19 @@ class FakeVoiceService {
   })
   readonly discardSession = vi.fn(async () => undefined)
   private readonly commandListeners = new Set<(event: any) => void>()
+  private readonly interruptionListeners = new Set<() => void>()
   readonly subscribeCommands = vi.fn((listener: (event: any) => void): (() => void) => {
     this.commandListeners.add(listener)
     return () => this.commandListeners.delete(listener)
   })
+  readonly subscribeInterruptions = (listener: () => void): (() => void) => {
+    this.interruptionListeners.add(listener)
+    return () => this.interruptionListeners.delete(listener)
+  }
+
+  emitInterruption(): void {
+    this.interruptionListeners.forEach((listener) => listener())
+  }
 
   emitCommand(command: 'pause' | 'resume' | 'stop'): void {
     this.commandListeners.forEach((listener) => listener({ type: 'command', revision: 1, sessionId, command }))
@@ -115,6 +124,43 @@ function createHarness(options: { chunks?: string[]; objectUrl?: string; audio?:
 beforeEach(() => vi.restoreAllMocks())
 
 describe('SpeechPlaybackService planning and playback', () => {
+  it('invalidates a start waiting for preferences when Main reports a power interruption', async () => {
+    const { service, voice } = createHarness()
+    let resolve!: (value: any) => void
+    voice.resolveSpeechPreferences.mockReturnValueOnce(new Promise<any>((done) => (resolve = done)))
+    const starting = service.start(baseInput)
+    const aborted = expect(starting).rejects.toMatchObject({ reason: 'aborted' })
+    await vi.waitFor(() => expect(voice.resolveSpeechPreferences).toHaveBeenCalled())
+
+    voice.emitInterruption()
+    resolve({ modelId: 'local-voice::apple-system-tts', voice: 'configured-voice', speed: 1 })
+    await aborted
+
+    expect(voice.generateSpeech).not.toHaveBeenCalled()
+    expect(service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('keeps generated audio paused when power interrupts before the owned pause command arrives', async () => {
+    const { service, voice, audios } = createHarness()
+    let resolve!: (value: any) => void
+    voice.generateSpeech.mockImplementationOnce(() => ({
+      sessionId,
+      requestId,
+      result: new Promise<any>((done) => (resolve = done))
+    }))
+    const starting = service.start(baseInput)
+    await vi.waitFor(() => expect(resolve).toBeTypeOf('function'))
+
+    voice.emitInterruption()
+    resolve({ sessionId, requestId, fileEntry: { id: 'file-1', origin: 'internal' }, mimeType: 'audio/wav' })
+    await starting
+
+    expect(audios[0].play).not.toHaveBeenCalled()
+    expect(service.getSnapshot().phase).toBe('paused')
+    expect(voice.updatePlayback).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'playing' }))
+    await service.stop()
+  })
+
   it('uses centrally resolved speech preferences instead of caller parameters', async () => {
     const { service, voice } = createHarness()
 
@@ -464,7 +510,6 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     })
 
     expect(service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'voice_unavailable' })
-    expect(voice.initialize).not.toHaveBeenCalled()
     expect(voice.generateSpeech).not.toHaveBeenCalled()
   })
 

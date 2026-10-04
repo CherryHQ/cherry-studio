@@ -130,6 +130,7 @@ export class VoiceService {
   private readonly readSpeechPreferences: NonNullable<VoiceServiceOptions['readSpeechPreferences']>
   private readonly stateListeners = new Set<() => void>()
   private readonly commandListeners = new Set<(event: VoiceCommandEvent) => void>()
+  private readonly interruptionListeners = new Set<() => void>()
   private readonly reservations = new Map<string, SessionReservation>()
   private readonly tombstones = new Map<string, symbol>()
   private readonly pendingMaterializations = new Map<string, symbol>()
@@ -244,6 +245,11 @@ export class VoiceService {
   subscribeCommands = (listener: (event: VoiceCommandEvent) => void): (() => void) => {
     this.commandListeners.add(listener)
     return () => this.commandListeners.delete(listener)
+  }
+
+  subscribeInterruptions = (listener: () => void): (() => void) => {
+    this.interruptionListeners.add(listener)
+    return () => this.interruptionListeners.delete(listener)
   }
 
   listModels(): Promise<OutputFor<'ai.voice.models.list'>> {
@@ -459,6 +465,10 @@ export class VoiceService {
       this.applyState(event)
       return
     }
+    if (event.type === 'interruption') {
+      this.interruptionListeners.forEach((listener) => listener())
+      return
+    }
     if (event.revision < this.snapshot.revision || event.sessionId !== this.currentOwnedSessionId) return
     if (this.snapshot.phase === 'idle' || this.snapshot.sessionId !== event.sessionId) return
     this.commandListeners.forEach((listener) => listener(event))
@@ -585,6 +595,7 @@ export class VoiceService {
     this.initialization = undefined
     this.stateListeners.clear()
     this.commandListeners.clear()
+    this.interruptionListeners.clear()
     this.reservations.forEach((reservation, sessionId) => {
       const sequence = this.speechSequences.get(sessionId)
       if (this.pendingAdmissions.get(sessionId)?.token === reservation.token || sequence?.activeSpeechToken) {

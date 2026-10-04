@@ -190,6 +190,7 @@ describe('Voice IPC contract', () => {
     expect(update.safeParse({ sessionId: base.sessionId, phase: 'playing' }).success).toBe(true)
     expect(update.safeParse({ sessionId: base.sessionId, phase: 'generating' }).success).toBe(false)
     expect(control.safeParse({ sessionId: base.sessionId, command: 'pause' }).success).toBe(true)
+    expect(control.safeParse({ sessionId: base.sessionId, command: 'interrupt' }).success).toBe(false)
     expect(control.safeParse({ sessionId: base.sessionId, command: 'seek', seconds: 3 }).success).toBe(false)
   })
 
