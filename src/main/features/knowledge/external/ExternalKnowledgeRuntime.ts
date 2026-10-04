@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { delay } from 'es-toolkit'
 
 import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { FeishuExternalKnowledgeScope } from '@shared/data/types/externalKnowledge'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeDocumentRead,
   ExternalKnowledgeScopePreview,
@@ -66,7 +66,6 @@ type ConnectionStore = Pick<
   | 'markValidated'
   | 'markReauthorizationRequired'
   | 'commitReauthorization'
-  | 'remove'
   | 'assertUnreferenced'
   | 'removeUnreferenced'
 >
@@ -438,7 +437,7 @@ export class ExternalKnowledgeRuntime {
       }
     }
     if (session.initial && !session.candidateCommitted) {
-      this.connections.remove(session.connectionId)
+      this.connections.removeUnreferenced(session.connectionId)
       this.credentialStates.delete(session.stateCredentialReference)
     }
   }
@@ -844,7 +843,7 @@ export class ExternalKnowledgeRuntime {
       } finally {
         if (input.initial && !connection) this.credentialStates.delete(stateCredentialReference)
       }
-      throw error
+      throw error instanceof FeishuProviderError && error.terminal ? this.authorizationError(error) : error
     }
   }
 
@@ -926,9 +925,10 @@ export class ExternalKnowledgeRuntime {
       this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
       throw new ExternalKnowledgeRuntimeError('authorization-failed')
     } catch (error) {
+      let authorizationFailure = error
       if (error instanceof FeishuProviderError && error.terminal) {
         this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
-        error = this.authorizationError(error)
+        authorizationFailure = this.authorizationError(error)
       }
       if (!session.candidateCommitted) {
         try {
@@ -936,8 +936,12 @@ export class ExternalKnowledgeRuntime {
         } catch {
           // Startup reconciliation retries orphan cleanup.
         }
+        if (session.initial && this.isCurrentCredentialGeneration(state, session.generation)) {
+          this.connections.removeUnreferenced(session.connectionId)
+          this.credentialStates.delete(session.stateCredentialReference)
+        }
       }
-      throw error
+      throw authorizationFailure
     } finally {
       if (this.authorizationSessions.get(authorizationSessionId) === session) {
         this.authorizationSessions.delete(authorizationSessionId)
@@ -1231,6 +1235,9 @@ export class ExternalKnowledgeRuntime {
     }
     if (error instanceof FeishuProviderError && error.code === 'reauthorization-required') {
       return new ExternalKnowledgeRuntimeError('reauthorization-required')
+    }
+    if (error instanceof FeishuProviderError && error.code === 'identity-unverifiable') {
+      return new ExternalKnowledgeRuntimeError('identity-unverifiable')
     }
     return new ExternalKnowledgeRuntimeError('authorization-failed')
   }

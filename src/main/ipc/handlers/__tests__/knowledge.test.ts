@@ -207,19 +207,82 @@ describe('knowledgeHandlers', () => {
     ).rejects.toMatchObject({ code: knowledgeErrorCodes.EXTERNAL_RUNTIME_STOPPED })
   })
   it('routes both Feishu application credential entries through the same user authorization command', async () => {
-    const started = { authorizationSessionId: 'session-1' }
+    const started = {
+      authorizationSessionId: 'session-1',
+      connection: { id: '01960000-0000-7000-8000-000000000001', credentialReference: 'cred_private_reference' }
+    }
     knowledgeService.beginFeishuUserAuthorization.mockResolvedValue(started)
     const manual = { kind: 'custom-app' as const, appId: 'cli_manual', appSecret: 'private-secret' }
 
     const result = await knowledgeHandlers['knowledge.feishu.authorization.begin'](manual, ctx)
 
     expect(knowledgeService.beginFeishuUserAuthorization).toHaveBeenCalledWith(manual)
-    expect(result).toBe(started)
+    expect(result).toEqual({ authorizationSessionId: 'session-1', connection: { id: started.connection.id } })
     expect(JSON.stringify(result)).not.toContain('private-secret')
   })
 
+  it('keeps the main-process credential reference out of every Connection response', async () => {
+    const connection = {
+      id: '01960000-0000-7000-8000-000000000001',
+      provider: 'feishu' as const,
+      appId: 'cli_example',
+      appCredentialSource: 'custom-app' as const,
+      authorizationStatus: 'pending-authorization' as const,
+      credentialReference: 'cred_private_reference',
+      accountUserId: null,
+      accountOpenId: null,
+      accountUnionId: null,
+      tenantKey: null,
+      displayName: null,
+      avatarUrl: null,
+      applicationName: null,
+      grantedScopes: [],
+      authorizedAt: null,
+      lastValidatedAt: null,
+      createdAt: '2026-09-20T00:00:00.000Z',
+      updatedAt: '2026-09-20T00:00:00.000Z'
+    }
+    const started = {
+      authorizationSessionId: '01960000-0000-4000-8000-000000000002',
+      connection,
+      userCode: 'ABCD',
+      verificationUri: 'https://open.feishu.cn/authorization',
+      expiresAt: '2026-09-20T00:05:00.000Z'
+    }
+    knowledgeService.beginFeishuUserAuthorization.mockResolvedValue(started)
+    knowledgeService.completeFeishuUserAuthorization.mockResolvedValue(connection)
+    knowledgeService.reconnectFeishuConnection.mockResolvedValue(started)
+    knowledgeService.validateFeishuConnection.mockResolvedValue(connection)
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+
+    const responses = await Promise.all([
+      router.dispatch(
+        'knowledge.feishu.authorization.begin',
+        { kind: 'custom-app', appId: 'cli_example', appSecret: 'secret' },
+        ctx
+      ),
+      router.dispatch(
+        'knowledge.feishu.authorization.complete',
+        { authorizationSessionId: started.authorizationSessionId },
+        ctx
+      ),
+      router.dispatch('knowledge.feishu.connection.reconnect', { connectionId: connection.id }, ctx),
+      router.dispatch('knowledge.feishu.connection.validate', { connectionId: connection.id }, ctx)
+    ])
+
+    expect(responses[0]).toMatchObject({ connection: { id: connection.id } })
+    expect(responses[1]).toMatchObject({ id: connection.id })
+    expect(responses[2]).toMatchObject({ connection: { id: connection.id } })
+    expect(responses[3]).toMatchObject({ id: connection.id })
+    expect(JSON.stringify(responses)).not.toContain('credentialReference')
+    expect(JSON.stringify(responses)).not.toContain(connection.credentialReference)
+  })
+
   it('forwards replacement application credentials only into the reconnect command', async () => {
-    const started = { authorizationSessionId: 'session-1' }
+    const started = {
+      authorizationSessionId: 'session-1',
+      connection: { id: '01960000-0000-7000-8000-000000000001', credentialReference: 'cred_private_reference' }
+    }
     knowledgeService.reconnectFeishuConnection.mockResolvedValue(started)
     const input = {
       connectionId: '01960000-0000-7000-8000-000000000001',
@@ -229,7 +292,7 @@ describe('knowledgeHandlers', () => {
     const result = await knowledgeHandlers['knowledge.feishu.connection.reconnect'](input, ctx)
 
     expect(knowledgeService.reconnectFeishuConnection).toHaveBeenCalledWith(input.connectionId, input.credentials)
-    expect(result).toBe(started)
+    expect(result).toEqual({ authorizationSessionId: 'session-1', connection: { id: started.connection.id } })
     expect(JSON.stringify(result)).not.toContain('replacement-secret')
   })
 
@@ -288,11 +351,11 @@ describe('knowledgeHandlers', () => {
       ipcCode: 'KNOWLEDGE_EXTERNAL_REAUTHORIZATION_REQUIRED',
       message: 'The Feishu connection requires authorization'
     }
-  ])('maps $runtimeCode to its distinct fixed IPC error', async ({ runtimeCode, ipcCode, message }) => {
-    knowledgeService.validateFeishuConnection.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
+  ])('preserves $runtimeCode when completing authorization through IPC', async ({ runtimeCode, ipcCode, message }) => {
+    knowledgeService.completeFeishuUserAuthorization.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
 
-    const error = await knowledgeHandlers['knowledge.feishu.connection.validate'](
-      { connectionId: '01960000-0000-7000-8000-000000000001' },
+    const error = await knowledgeHandlers['knowledge.feishu.authorization.complete'](
+      { authorizationSessionId: '01960000-0000-7000-8000-000000000001' },
       ctx
     ).catch((cause) => cause)
 

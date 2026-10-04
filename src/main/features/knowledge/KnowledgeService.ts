@@ -1,9 +1,9 @@
 import { application } from '@application'
+import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
-import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 import type {
   ExternalKnowledgeScopePreview,
   ExternalKnowledgeScopeResolution
