@@ -27,4 +27,5 @@ ALTER TABLE `__new_agent` RENAME TO `agent`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
+CREATE INDEX `agent_group_id_idx` ON `agent` (`group_id`);--> statement-breakpoint
 CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);

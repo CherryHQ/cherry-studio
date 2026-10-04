@@ -924,7 +924,7 @@ export class AgentService {
             }
       const result = tx
         .update(agentsTable)
-        .set({ deletedAt: trashedAt })
+        .set({ deletedAt: trashedAt, groupId: null })
         .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
         .run()
       pinService.purgeForEntityTx(tx, 'agent', id)

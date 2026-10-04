@@ -131,6 +131,13 @@
           ],
           "isUnique": false
         },
+        "agent_group_id_idx": {
+          "name": "agent_group_id_idx",
+          "columns": [
+            "group_id"
+          ],
+          "isUnique": false
+        },
         "agent_order_key_idx": {
           "name": "agent_order_key_idx",
           "columns": [

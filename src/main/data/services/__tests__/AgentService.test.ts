@@ -2017,6 +2017,27 @@ describe('AgentService', () => {
         { endpoint: '/agents', kind: 'membership', entityIds: [created.id] }
       ])
     })
+
+    it('stops counting an archived agent as a group member', async () => {
+      const group = await insertGroup()
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Archive Me',
+        model: TEST_MODEL_ID,
+        groupId: group.id
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.deleteAgent(created.id)
+      notifyDataApiDataChangeMock.mockClear()
+
+      groupService.delete(group.id)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/groups/:id', routeParams: { id: group.id }, entityIds: [group.id] }
+      ])
+    })
   })
 
   describe('listAgents', () => {
