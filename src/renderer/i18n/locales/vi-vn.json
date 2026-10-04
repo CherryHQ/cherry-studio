@@ -4560,7 +4560,7 @@
   "settings.mcp.builtinServersDescriptions.memory": "Triển khai bộ nhớ liên tục dựa trên đồ thị tri thức cục bộ. Điều này cho phép mô hình ghi nhớ thông tin liên quan đến người dùng trên các cuộc trò chuyện khác nhau. Yêu cầu cấu hình biến môi trường MEMORY_FILE_PATH.",
   "settings.mcp.builtinServersDescriptions.no": "Không có mô tả",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
-  "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
+  "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong sandbox trình duyệt an toàn. Chạy Python bằng Pyodide, hỗ trợ hầu hết các thư viện chuẩn và gói tính toán khoa học. Không thể truy cập các tệp trên máy tính chủ hoặc ổ đĩa cục bộ.",
   "settings.mcp.builtinServersDescriptions.qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc",
   "settings.mcp.command": "Lệnh",

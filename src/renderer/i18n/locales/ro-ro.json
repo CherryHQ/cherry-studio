@@ -4560,7 +4560,7 @@
   "settings.mcp.builtinServersDescriptions.memory": "Implementare de memorie persistentă bazată pe un graf de cunoștințe local. Aceasta permite modelului să rețină informații legate de utilizator între conversații diferite. Necesită configurarea variabilei de mediu MEMORY_FILE_PATH.",
   "settings.mcp.builtinServersDescriptions.no": "Fără descriere",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
-  "settings.mcp.builtinServersDescriptions.python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",
+  "settings.mcp.builtinServersDescriptions.python": "Execută cod Python într-un sandbox sigur al browserului. Rulează Python cu Pyodide, cu suport pentru majoritatea bibliotecilor standard și a pachetelor de calcul științific. Nu poate accesa fișierele de pe computerul gazdă sau discul local.",
   "settings.mcp.builtinServersDescriptions.qveris": "Conectați-vă la QVeris pentru a descoperi, inspecta și apela capabilitățile agenților AI. Este necesară configurarea variabilei de mediu QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "O implementare de server MCP care oferă instrumente pentru rezolvarea dinamică și reflexivă a problemelor prin procese de gândire structurată",
   "settings.mcp.command": "Comandă",

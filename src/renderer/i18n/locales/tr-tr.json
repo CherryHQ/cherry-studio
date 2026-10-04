@@ -4560,7 +4560,7 @@
   "settings.mcp.builtinServersDescriptions.memory": "Yerel bir bilgi grafiğine dayalı kalıcı bellek uygulaması. Bu, modelin kullanıcıyla ilgili bilgileri farklı konuşmalar arasında hatırlamasını sağlar. MEMORY_FILE_PATH ortam değişkeninin yapılandırılması gerekir.",
   "settings.mcp.builtinServersDescriptions.no": "Açıklama yok",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Nowledge Mem uygulamasının yerel olarak çalışması gerekir. Yapay zekâ sohbetlerini, araçları, notları, ajanları ve dosyaları bilgisayardaki özel bellekte tutar. https://mem.nowledge.co/ adresinden indirin",
-  "settings.mcp.builtinServersDescriptions.python": "Python kodunu güvenli bir korumalı alan ortamında yürütür. Çoğu standart kitaplığı ve bilimsel hesaplama paketini destekleyen Pyodide ile Python çalıştırır",
+  "settings.mcp.builtinServersDescriptions.python": "Güvenli bir tarayıcı sanal alanında Python kodu çalıştırın. Pyodide ile Python çalıştırarak çoğu standart kitaplığı ve bilimsel hesaplama paketini destekler. Ana makinedeki veya yerel diskteki dosyalara erişemez.",
   "settings.mcp.builtinServersDescriptions.qveris": "Yapay zekâ ajanı yeteneklerini keşfetmek, incelemek ve çağırmak için QVeris'e bağlanır. QVERIS_API_KEY ortam değişkeninin yapılandırılması gerekir.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Yapılandırılmış düşünme süreçleri aracılığıyla dinamik ve yansıtıcı problem çözme araçları sunan bir MCP sunucusu uygulaması",
   "settings.mcp.command": "Komut",
