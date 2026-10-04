@@ -73,6 +73,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
     const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
+    const activeViewModeRef = useRef(tmpViewMode)
+    activeViewModeRef.current = tmpViewMode
     const userViewModeOverrideRef = useRef(false)
     const readButtonRef = useRef<HTMLButtonElement>(null)
     const voiceIdentityRef = useRef(voiceNoteId)
@@ -90,15 +92,17 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       const text = selectedText.trim() ? selectedText : draft
       if (!text.trim()) return
       const mode = selectedText.trim() ? 'selection' : 'document'
+      const isCurrent = () => voiceIdentityRef.current === voiceNoteId && readButtonRef.current !== null
       void readTextAloud({
         text,
         mode,
         sourceLabel: mode,
         sourceEntityId: voiceNoteId,
-        isCurrent: () => voiceIdentityRef.current === voiceNoteId,
+        isCurrent,
         focusOnClose: () => {
-          if (tmpViewMode === 'source') codeEditorRef.current?.focus?.()
-          else if (tmpViewMode === 'preview') editorRef.current?.focus()
+          if (!isCurrent()) return
+          if (activeViewModeRef.current === 'source' && codeEditorRef.current?.focus) codeEditorRef.current.focus()
+          else if (activeViewModeRef.current === 'preview' && editorRef.current) editorRef.current.focus()
           else readButtonRef.current?.focus()
         }
       })

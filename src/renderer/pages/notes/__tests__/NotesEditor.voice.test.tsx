@@ -1,17 +1,25 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
-import type { MutableRefObject } from 'react'
+import { type MutableRefObject, useImperativeHandle, useRef } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
+
+vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
   selection: { from: 1, to: 4, text: 'selected text' },
   richText: 'unsaved rich draft',
   sourceText: 'unsaved source draft',
   read: vi.fn<
-    (input: { text: string; mode: string; sourceEntityId: string; isCurrent: () => boolean }) => Promise<void>
+    (input: {
+      text: string
+      mode: string
+      sourceEntityId: string
+      isCurrent: () => boolean
+      focusOnClose: () => void
+    }) => Promise<void>
   >(async () => undefined),
   log: vi.fn(),
   snapshot: { phase: 'idle', elapsedMs: 0 },
@@ -33,27 +41,25 @@ vi.mock('@renderer/services/voice', () => ({
   }
 }))
 vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
-  default: ({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) => {
-    const value = {
+  default: function MockRichEditor({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) {
+    const nodeRef = useRef<HTMLDivElement>(null)
+    useImperativeHandle(ref, () => ({
       getSelection: () => mocks.selection,
       getMarkdown: () => mocks.richText,
-      focus: () => undefined
-    }
-    if (typeof ref === 'function') ref(value)
-    else ref.current = value
-    return <div role="textbox" aria-label="rich draft" tabIndex={0} />
+      focus: () => nodeRef.current?.focus()
+    }))
+    return <div ref={nodeRef} role="textbox" aria-label="rich draft" tabIndex={0} />
   }
 }))
 vi.mock('@cherrystudio/ui/components/composites/code-editor', () => ({
-  default: ({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) => {
-    const value = {
+  default: function MockSourceEditor({ ref }: { ref: MutableRefObject<unknown> | ((value: unknown) => void) }) {
+    const nodeRef = useRef<HTMLDivElement>(null)
+    useImperativeHandle(ref, () => ({
       getSelection: () => mocks.selection,
       getContent: () => mocks.sourceText,
-      focus: () => undefined
-    }
-    if (typeof ref === 'function') ref(value)
-    else ref.current = value
-    return <div role="textbox" aria-label="source draft" tabIndex={0} />
+      focus: () => nodeRef.current?.focus()
+    }))
+    return <div ref={nodeRef} role="textbox" aria-label="source draft" tabIndex={0} />
   }
 }))
 vi.mock('@renderer/components/ActionIconButton', () => ({ default: () => null }))
@@ -134,6 +140,81 @@ describe('Notes manual read-aloud', () => {
       expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ text: draft, mode: 'document' }))
     }
   )
+
+  it.each([
+    { before: 'source', after: 'preview', target: 'rich draft' },
+    { before: 'preview', after: 'source', target: 'source draft' },
+    { before: 'preview', after: 'read', target: 'Read aloud' }
+  ])('restores focus to the current $after mode after a pending $before read', async ({ before, after, target }) => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    mocks.read.mockImplementationOnce(async ({ focusOnClose }) => {
+      await pending
+      focusOnClose()
+    })
+    const user = userEvent.setup()
+    render(<NotesEditor {...props} />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), before)
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), after)
+    await screen.findByRole(after === 'read' ? 'button' : 'textbox', { name: target })
+
+    await act(async () => finish())
+
+    expect(screen.getByRole(after === 'read' ? 'button' : 'textbox', { name: target })).toHaveFocus()
+  })
+
+  it('restores focus to the read control when the current editor handle is unavailable', async () => {
+    const user = userEvent.setup()
+    render(<NotesEditor {...props} />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const request = mocks.read.mock.calls[0][0]
+    screen.getByRole('combobox', { name: 'view mode' }).focus()
+    editorRef.current = null
+
+    request.focusOnClose()
+
+    expect(screen.getByRole('button', { name: 'Read aloud' })).toHaveFocus()
+  })
+
+  it('does not move focus from a new note when the old confirmation closes', async () => {
+    const user = userEvent.setup()
+    const view = render(<NotesEditor {...props} />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const request = mocks.read.mock.calls[0][0]
+    view.rerender(<NotesEditor {...props} activeNodeId="/private/other.md" voiceNoteId="opaque-note-2" />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    const mode = screen.getByRole('combobox', { name: 'view mode' })
+    mode.focus()
+
+    request.focusOnClose()
+
+    expect(mode).toHaveFocus()
+  })
+
+  it('invalidates an old read when loading replaces the editor and reuses its parent refs', async () => {
+    const user = userEvent.setup()
+    const oldEditor = render(<NotesEditor {...props} />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    const request = mocks.read.mock.calls[0][0]
+    expect(request.isCurrent()).toBe(true)
+    oldEditor.unmount()
+    render(<NotesEditor {...props} activeNodeId="/private/other.md" voiceNoteId="opaque-note-2" />)
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    const mode = screen.getByRole('combobox', { name: 'view mode' })
+    mode.focus()
+
+    expect(request.isCurrent()).toBe(false)
+    request.focusOnClose()
+
+    expect(mode).toHaveFocus()
+  })
 
   it('invalidates a pending read-aloud confirmation when the selected note changes', async () => {
     const view = render(<NotesEditor {...props} />)
