@@ -131,6 +131,8 @@ const MAX_RECOVERY_FLOW_CHUNKS = 1_000
 const MAX_RECOVERY_FLOW_CHUNKS_PER_SESSION = 4_000
 /** Cap on remembered flow anchors: above the concurrent flows of a session, below a leak. */
 const MAX_FLOW_ANCHOR_ENTRIES = 1_024
+/** Cap on remembered persisted flow rows, refreshed on every use so an active one never ages out. */
+const MAX_PERSISTED_FLOW_MESSAGE_IDS = 1_024
 /** Cap on seed-failure stamps; an evicted id costs one extra seed attempt, not one per chunk. */
 const MAX_SEED_FAILURE_ENTRIES = 256
 /** Per-message and per-session caps for chunks buffered while no accumulator can be seeded. */
@@ -2315,6 +2317,8 @@ export class AgentSessionRuntimeService extends BaseService {
       this.bufferByMessageId(entry, messageId, chunk)
       return
     }
+    // Touching on use is what keeps a still-streaming flow inside the bound.
+    this.rememberPersistedFlowMessage(entry, messageId)
 
     this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
   }
@@ -2369,6 +2373,22 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Remember that a flow's host row is persisted. The set is bounded, and it refreshes recency on
+   * every touch: a long-lived flow must not age out while it is still streaming, or its chunks
+   * would sit in the message buffer until teardown instead of reaching an accumulator.
+   */
+  private rememberPersistedFlowMessage(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    const persisted = (entry.persistedFlowMessageIds ??= new Set<string>())
+    persisted.delete(messageId)
+    persisted.add(messageId)
+    while (persisted.size > MAX_PERSISTED_FLOW_MESSAGE_IDS) {
+      const oldest = persisted.values().next().value
+      if (oldest === undefined) break
+      persisted.delete(oldest)
+    }
+  }
+
+  /**
    * Remember which row a detached call streams under, least-recently-used first. A warm entry
    * outlives many turns, so the map is bounded; an evicted call is not lost — its chunks fall back
    * to the recovery buffer, whose look-up re-anchors them from the persisted row.
@@ -2401,7 +2421,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // The throttle exists for unresolved roots only: once the anchor is in place this root never
     // consults it again, so its timestamp would be retained for the rest of the session for nothing.
     entry.recoveryLookupAt?.delete(rootToolCallId)
-    ;(entry.persistedFlowMessageIds ??= new Set()).add(hostMessageId)
+    this.rememberPersistedFlowMessage(entry, hostMessageId)
     // Chunks buffered while the row was unresolvable flow in first — they are the oldest content.
     const buffered = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
     if (buffered?.length) {
@@ -2457,7 +2477,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
-    ;(entry.persistedFlowMessageIds ??= new Set()).add(messageId)
+    this.rememberPersistedFlowMessage(entry, messageId)
     const pending = this.takePendingByMessageId(entry, messageId)
     if (!pending?.length) return
 
