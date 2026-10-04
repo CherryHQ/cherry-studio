@@ -1,3 +1,4 @@
+import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1447,7 +1448,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         return Response.json({ data: [{ b64_json: 'edited-image' }] })
       })
       try {
-        const result = await createOpenAICompatible(config.providerSettings)
+        const result = await createOpenAICompatible(config.providerSettings as OpenAICompatibleProviderSettings)
           .imageModel('sensenova-u1.5-fast')
           .doGenerate({
             prompt: 'a glacier',
@@ -1456,7 +1457,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
             aspectRatio: undefined,
             seed: undefined,
             providerOptions: {},
-            files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }]
+            files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }],
+            mask: undefined
           })
         expect(result.images).toEqual(['edited-image'])
       } finally {
