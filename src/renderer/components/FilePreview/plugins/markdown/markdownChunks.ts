@@ -108,8 +108,8 @@ const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\])+)\][ \t]*:([ \t]*)([\s\
 /** A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. */
 const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|[^\s]+)/
 
-/** A link title, which may sit on the line below the destination. */
-const LINK_TITLE = /^[ \t]*(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\))[ \t]*$/
+/** A link title, which may sit on the line below the destination; its delimiter may be escaped. */
+const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[^)\\\n])*\))[ \t]*$/
 
 const INDENTED_LINE = /^\s+\S/
 
@@ -315,6 +315,9 @@ export function splitMarkdownChunks(
   }
 
   const definitions: string[] = []
+  // A definition may cover up to three source lines while occupying one entry here, so the carried
+  // prefix is measured in lines rather than entries — the virtualizer estimates from this count.
+  let definitionLines = 0
   const boundaries: number[] = []
   let contentChars = 0
   let bufferChars = 0
@@ -384,17 +387,25 @@ export function splitMarkdownChunks(
     const uncontained = container ? line.slice(container[0].length) : line
     if (FOOTNOTE_DEFINITION_START.test(uncontained)) {
       definitions.push(uncontained)
+      definitionLines += 1
       inDefinition = true
       footnoteDefinition = true
+      // A definition written as a list item still numbers that list, so the blank line behind it
+      // may not end one — the same reason an ordinary item keeps the run alive.
+      const item = LIST_ITEM.exec(line)
+      if (item) run = trackListItem(run, item)
       continue
     }
     // A link definition is a run of up to three lines, none of them blank, so it holds no boundary.
     const definition = linkDefinition(lines, i)
     if (definition) {
       definitions.push(definition.text)
+      definitionLines += definition.lines
       bufferChars += definition.text.length + 1
       i += definition.lines - 1
       inDefinition = false
+      const item = LIST_ITEM.exec(line)
+      if (item) run = trackListItem(run, item)
       continue
     }
     inDefinition = false
@@ -425,7 +436,7 @@ export function splitMarkdownChunks(
   }
 
   const prefix = definitions.length > 0 ? `${definitions.join('\n')}\n\n` : ''
-  const prefixLines = definitions.length > 0 ? definitions.length + 1 : 0
+  const prefixLines = definitionLines > 0 ? definitionLines + 1 : 0
   const chunks: MarkdownChunk[] = []
   let start = 0
   for (const end of [...boundaries, lines.length]) {
