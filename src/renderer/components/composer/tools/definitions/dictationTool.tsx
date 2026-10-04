@@ -24,6 +24,7 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
 const PHASE_TRANSLATION_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
   recording: 'settings.voice.dictation.phase.recording',
+  recorded: 'settings.voice.dictation.phase.recorded',
   stopping: 'settings.voice.dictation.phase.stopping',
   transcribing: 'settings.voice.dictation.phase.transcribing',
   failed: 'settings.voice.dictation.phase.failed',
@@ -82,11 +83,13 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         ? t('settings.voice.action.stop_recording')
         : phase === 'starting' || processing
           ? t('chat.input.dictation.action.cancel')
-          : phase === 'recovery'
-            ? t('settings.voice.action.insert_recovery')
-            : retryAvailable
-              ? t('settings.voice.action.retry')
-              : t('chat.input.dictation.action.start')
+          : phase === 'recorded'
+            ? t('settings.voice.action.transcribe')
+            : phase === 'recovery'
+              ? t('settings.voice.action.insert_recovery')
+              : retryAvailable
+                ? t('settings.voice.action.retry')
+                : t('chat.input.dictation.action.start')
     const icon =
       phase === 'recording' ? (
         <Square />
@@ -112,7 +115,18 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.stop(), inputAdapter)
       })
     }
-    if (active && !recoveryAvailable) {
+    if (phase === 'recorded') {
+      submenu.push({
+        id: 'dictation:transcribe',
+        kind: 'command',
+        sources: ['root-panel'],
+        label: t('settings.voice.action.transcribe'),
+        icon: <Mic />,
+        action: ({ inputAdapter }: ComposerToolLauncherActionOptions) =>
+          runAction(() => dictationService.transcribeRecording(), inputAdapter)
+      })
+    }
+    if (active && !recoveryAvailable && phase !== 'recorded') {
       submenu.push({
         id: 'dictation:cancel',
         kind: 'command' as const,
@@ -156,7 +170,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         }
       )
     }
-    if (phase === 'failed' || recoveryAvailable) {
+    if (phase === 'failed' || phase === 'recorded' || recoveryAvailable) {
       submenu.push({
         id: 'dictation:discard',
         kind: 'command' as const,
@@ -197,6 +211,8 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
             runAction(() => dictationService.stop(), inputAdapter)
           } else if (phase === 'starting' || processing) {
             runAction(() => dictationService.cancel(), inputAdapter)
+          } else if (phase === 'recorded') {
+            runAction(() => dictationService.transcribeRecording(), inputAdapter)
           } else if (phase === 'recovery') {
             runAction(() => dictationService.insertRecovery(), inputAdapter)
           } else if (retryAvailable) {

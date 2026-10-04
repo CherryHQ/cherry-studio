@@ -91,6 +91,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
 }
 const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   failed: 'settings.voice.dictation.phase.failed',
+  recorded: 'settings.voice.dictation.phase.recorded',
   recording: 'settings.voice.dictation.phase.recording',
   recovery: 'settings.voice.dictation.phase.recovery',
   starting: 'settings.voice.dictation.phase.starting',
@@ -193,7 +194,7 @@ function VoiceSettings() {
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
   const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
   const [microphoneStatus, setMicrophoneStatus] =
-    useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>('unknown')
+    useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>()
   const [installing, setInstalling] = useState(false)
   const [pendingFunAsrAction, setPendingFunAsrAction] = useState<FunAsrAction>()
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
@@ -384,8 +385,12 @@ function VoiceSettings() {
     }
   }, [configuredSpeechLanguage, configuredSpeechModel, configuredSpeechVoice])
 
+  const microphonePermissionFailed = dictation.error === 'microphone_permission'
+  const needsMicrophoneRecovery =
+    microphonePermissionFailed || microphoneStatus === 'denied' || microphoneStatus === 'restricted'
+
   useEffect(() => {
-    if (dictation.error !== 'microphone_permission') return
+    if (!needsMicrophoneRecovery) return
     let current = true
     let refreshPending = false
 
@@ -410,13 +415,13 @@ function VoiceSettings() {
         })
     }
 
-    refreshMicrophoneStatus()
+    if (microphonePermissionFailed) refreshMicrophoneStatus()
     window.addEventListener('focus', refreshMicrophoneStatus)
     return () => {
       current = false
       window.removeEventListener('focus', refreshMicrophoneStatus)
     }
-  }, [dictation.error])
+  }, [microphonePermissionFailed, needsMicrophoneRecovery])
 
   useEffect(
     () =>
@@ -441,11 +446,11 @@ function VoiceSettings() {
     recognitionStatus.reason === 'asset_required'
   const dictationRecording = dictation.phase === 'starting' || dictation.phase === 'recording'
   const dictationProcessing = dictation.phase === 'stopping' || dictation.phase === 'transcribing'
-  const dictationHasPendingResult = dictation.recoveryAvailable || dictation.retryAvailable === true
-  const microphonePermissionFailed = dictation.error === 'microphone_permission'
+  const dictationHasPendingResult =
+    dictation.phase === 'recorded' || dictation.recoveryAvailable || dictation.retryAvailable === true
   const microphoneBlocked =
     microphonePermissionFailed ||
-    microphoneStatus === 'unknown' ||
+    microphoneStatus === undefined ||
     microphoneStatus === 'denied' ||
     microphoneStatus === 'restricted'
   const canOpenMicrophoneSettings = microphoneStatus === 'denied' || microphoneStatus === 'restricted'
@@ -707,6 +712,13 @@ function VoiceSettings() {
               {dictationRecording ? <Square className="size-4" /> : <Mic className="size-4" />}
               {t(dictationRecording ? 'settings.voice.action.stop_recording' : 'settings.voice.action.record_test')}
             </Button>
+            {dictation.phase === 'recorded' ? (
+              <Button
+                variant="outline"
+                onClick={() => void dictationService.transcribeRecording().catch(() => setActionFailed(true))}>
+                {t('settings.voice.action.transcribe')}
+              </Button>
+            ) : null}
             {dictation.retryAvailable ? (
               <Button
                 variant="outline"

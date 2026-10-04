@@ -64,6 +64,7 @@ function createHarness(
   let requestNumber = 0
   const events: string[] = []
   const commandListeners = new Set<(event: VoiceCommandEvent) => void>()
+  const interruptionListeners = new Set<() => void>()
   const chunks = options.chunks ?? [new Blob([WEBM_HEADER]), new Blob([new Uint8Array([0x42, 0x82])])]
   const tracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
   const stream = { getTracks: () => tracks } as unknown as MediaStream
@@ -85,6 +86,10 @@ function createHarness(
       commandListeners.add(listener)
       return () => commandListeners.delete(listener)
     }),
+    subscribeInterruptions: (listener: () => void) => {
+      interruptionListeners.add(listener)
+      return () => interruptionListeners.delete(listener)
+    },
     resolveTranscriptionPreferences: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
       modelId: APPLE_ASR_MODEL_ID,
       language: 'zh-CN'
@@ -151,6 +156,7 @@ function createHarness(
     emitCommand: (sessionId: string, command: VoiceCommandEvent['command'] = 'stop') => {
       commandListeners.forEach((listener) => listener({ type: 'command', revision: 1, sessionId, command }))
     },
+    emitInterruption: () => interruptionListeners.forEach((listener) => listener()),
     events,
     getUserMedia,
     owner,
@@ -179,6 +185,137 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
+  it('preserves interrupted audio until the user explicitly transcribes it', async () => {
+    const harness = createHarness()
+    await harness.service.start()
+
+    harness.emitCommand('session-1', 'interrupt')
+
+    harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('recorded'))
+    expect(harness.voice.createRecording.mock.calls[0][0].audio).toEqual(new Uint8Array([...WEBM_HEADER, 0x42, 0x82]))
+    expect(harness.voice.transcribe).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
+    expect(harness.replaceRange).not.toHaveBeenCalled()
+
+    await harness.service.transcribeRecording()
+
+    expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('discards a retained interrupted recording without transcribing', async () => {
+    const harness = createHarness()
+    await harness.service.start()
+    harness.emitCommand('session-1', 'interrupt')
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('recorded'))
+
+    await harness.service.discard()
+
+    expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1')
+    expect(harness.voice.transcribe).not.toHaveBeenCalled()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+  })
+
+  it('does not automatically transcribe when interruption wins a pending recording save', async () => {
+    const saved = deferred<{ readonly id: 'file-1'; readonly origin: 'internal' }>()
+    const harness = createHarness()
+    harness.voice.createRecording.mockReturnValueOnce(saved.promise)
+    await harness.service.start()
+    const stopping = harness.service.stop()
+    await vi.waitFor(() => expect(harness.voice.createRecording).toHaveBeenCalledOnce())
+
+    harness.emitCommand('session-1', 'interrupt')
+    saved.resolve({ id: 'file-1', origin: 'internal' })
+    await stopping
+
+    expect(harness.service.getSnapshot().phase).toBe('recorded')
+    expect(harness.voice.transcribe).not.toHaveBeenCalled()
+    expect(harness.voice.discardSession).not.toHaveBeenCalled()
+    await harness.service.discard()
+  })
+
+  it('releases a permission stream arriving after interruption without starting capture', async () => {
+    const permission = deferred<MediaStream>()
+    const harness = createHarness({ getUserMedia: vi.fn(() => permission.promise) })
+    const starting = harness.service.start()
+    await vi.waitFor(() => expect(harness.getUserMedia).toHaveBeenCalled())
+
+    harness.emitCommand('session-1', 'interrupt')
+    permission.resolve(harness.stream)
+    await starting
+
+    harness.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(harness.createMediaRecorder).not.toHaveBeenCalled()
+    expect(harness.voice.createRecording).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('idle'))
+  })
+
+  it.each(['initialize', 'resolveTranscriptionPreferences'] as const)(
+    'does not admit recording after power interruption during %s',
+    async (boundary) => {
+      const waiting = deferred<any>()
+      const harness = createHarness()
+      harness.voice[boundary].mockReturnValueOnce(waiting.promise)
+      const starting = harness.service.start()
+      await vi.waitFor(() => expect(harness.voice[boundary]).toHaveBeenCalled())
+
+      harness.emitInterruption()
+      waiting.resolve({ modelId: APPLE_ASR_MODEL_ID, language: 'zh-CN' })
+      await starting
+
+      expect(harness.voice.startRecording).not.toHaveBeenCalled()
+      expect(harness.getUserMedia).not.toHaveBeenCalled()
+      expect(harness.service.getSnapshot().phase).toBe('idle')
+    }
+  )
+
+  it('cancels an admission waiting for Main when power interrupts before a recording lease exists', async () => {
+    const admission = deferred<{ revision: number; phase: 'recording'; sessionId: string }>()
+    const harness = createHarness()
+    harness.voice.startRecording.mockReturnValueOnce(operation('session-1', 'request-1', admission.promise))
+    const starting = harness.service.start()
+    await vi.waitFor(() => expect(harness.voice.startRecording).toHaveBeenCalled())
+
+    harness.emitInterruption()
+    admission.resolve({ revision: 1, phase: 'recording', sessionId: 'session-1' })
+    await starting
+
+    expect(harness.getUserMedia).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(harness.service.getSnapshot().phase).toBe('idle'))
+  })
+
+  it.each([false, true])(
+    'does not replace a failed session after power interrupts its pending cleanup (cleanup fails: %s)',
+    async (fails) => {
+      const cleanup = deferred<void>()
+      const harness = createHarness()
+      harness.createMediaRecorder.mockImplementationOnce(() => {
+        throw new Error('recorder setup failed')
+      })
+      harness.voice.discardSession.mockRejectedValueOnce({ reason: 'operation_failed' })
+      await harness.service.start()
+      expect(harness.service.getSnapshot()).toMatchObject({ phase: 'failed', error: 'operation_failed' })
+      harness.voice.discardSession.mockReturnValueOnce(cleanup.promise)
+      const replacing = harness.service.start()
+      await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledTimes(2))
+
+      harness.emitInterruption()
+      if (fails) cleanup.reject({ reason: 'operation_failed' })
+      else cleanup.resolve()
+      await replacing
+
+      expect(harness.voice.startRecording).toHaveBeenCalledTimes(1)
+      expect(harness.getUserMedia).toHaveBeenCalledTimes(1)
+      await vi.waitFor(() =>
+        expect(harness.service.getSnapshot()).toMatchObject(
+          fails ? { phase: 'failed', error: 'operation_failed' } : { phase: 'idle' }
+        )
+      )
+      await harness.service.discard()
+    }
+  )
+
   it('uses the recognition preferences captured at recording start and the bound source entity', async () => {
     const harness = createHarness()
 

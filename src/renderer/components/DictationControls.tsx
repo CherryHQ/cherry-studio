@@ -17,6 +17,7 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
 const PHASE_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
   recording: 'settings.voice.dictation.phase.recording',
+  recorded: 'settings.voice.dictation.phase.recorded',
   stopping: 'settings.voice.dictation.phase.stopping',
   transcribing: 'settings.voice.dictation.phase.transcribing',
   failed: 'settings.voice.dictation.phase.failed',
@@ -40,7 +41,7 @@ export function DictationControls({
       .finally(focusInput)
   }
   const start = () => {
-    if (disabled || voiceTargetManager.captureCurrent()?.targetId !== targetId) return
+    if (disabled || !voiceTargetManager.markCurrent(targetId)) return
     void dictationService.startScoped().result.catch(() => undefined)
     focusInput()
   }
@@ -85,8 +86,17 @@ export function DictationControls({
           <X className="size-4" />
         </Button>
       )}
-      {snapshot.phase === 'failed' && (
+      {(snapshot.phase === 'failed' || snapshot.phase === 'recorded') && (
         <>
+          {snapshot.phase === 'recorded' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => run(() => dictationService.transcribeRecording())}>
+              {t('settings.voice.action.transcribe')}
+            </Button>
+          )}
           {snapshot.retryAvailable && (
             <Button
               type="button"

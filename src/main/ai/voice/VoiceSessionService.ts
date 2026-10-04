@@ -1,3 +1,5 @@
+import { mkdir, rm } from 'node:fs/promises'
+
 import type { WebContents } from 'electron'
 import { session as electronSession, shell, systemPreferences } from 'electron'
 
@@ -86,17 +88,21 @@ export class VoiceSessionService extends BaseService {
   private active?: ActiveOperation
   private lease?: Session
   private sleepHold?: Disposable
+  private powerEpoch = 0
   private revision = 0
   private voiceState: VoiceSessionState = { phase: 'idle', revision: 0 }
   private readonly inspections = new Map<Promise<unknown>, AbortController>()
 
-  protected override onInit(): void {
+  protected override async onInit(): Promise<void> {
+    const scratch = application.getPath('feature.voice.temp')
+    await rm(scratch, { recursive: true, force: true })
+    await mkdir(scratch, { recursive: true, mode: 0o700 })
     application.get('UtilityProcessManager').register(voiceAudioProcess)
     this.accepting = true
     this.installMicrophonePermissionHandlers()
     const power = application.get('PowerService')
-    this.registerDisposable(power.onSuspend(() => void this.handlePowerInterruption('suspend')))
-    this.registerDisposable(power.onLockScreen(() => void this.handlePowerInterruption('lock')))
+    this.registerDisposable(power.onSuspend(() => this.handlePowerInterruption()))
+    this.registerDisposable(power.onLockScreen(() => this.handlePowerInterruption()))
     this.registerDisposable(() => {
       for (const session of this.sessions.values()) session.detach()
     })
@@ -146,6 +152,8 @@ export class VoiceSessionService extends BaseService {
   async startRecording(owner: VoiceOwner, input: InputFor<'ai.voice.recording.start'>): Promise<VoiceSessionState> {
     this.requireAdmission()
     this.requireOwner(owner)
+    const powerEpoch = this.powerEpoch
+    if ((this.lease ?? this.active?.session)?.kind === 'recording') throw new VoiceRuntimeError('busy')
     const session = this.createSession(owner, input.sessionId, 'recording', input.source, input.sourceEntityId)
     session.requestId = input.requestId
     try {
@@ -155,10 +163,11 @@ export class VoiceSessionService extends BaseService {
       }
       while (this.lease || this.active) {
         const displaced = this.lease ?? this.active!.session
+        if (displaced.kind === 'recording') throw new VoiceRuntimeError('busy')
         if (this.lease === displaced && !displaced.closed) this.sendCommand(displaced, 'stop')
         await this.closeSession(displaced, true)
       }
-      if (session.closed) throw new VoiceRuntimeError('aborted')
+      if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       this.acquireLease(session)
       return this.transition(session, 'recording')
     } catch (error) {
@@ -277,7 +286,7 @@ export class VoiceSessionService extends BaseService {
         session.currentChunkIndex = input.chunkIndex
         if (input.chunkIndex === undefined) session.generatedUnchunked = true
         signal.throwIfAborted()
-        this.transition(session, 'ready')
+        if (session.phase !== 'paused') this.transition(session, 'ready')
         return { sessionId: session.id, requestId: input.requestId, fileEntry, mimeType: 'audio/wav' as const }
       },
       {
@@ -327,6 +336,7 @@ export class VoiceSessionService extends BaseService {
     if (session.kind !== 'playback') throw new VoiceRuntimeError('invalid_request')
     switch (input.phase) {
       case 'playing':
+        if (this.active?.session === session) throw new VoiceRuntimeError('busy')
         if (
           !['ready', 'paused'].includes(session.phase ?? '') &&
           !(session.phase === 'failed' && session.outputId && session.files.has(session.outputId))
@@ -357,6 +367,7 @@ export class VoiceSessionService extends BaseService {
         return this.transition(session, 'paused')
       case 'resume':
         if (session.phase !== 'paused') throw new VoiceRuntimeError('invalid_request')
+        if (this.active?.session === session) throw new VoiceRuntimeError('busy')
         this.sendCommand(session, 'resume')
         return this.transition(session, 'playing')
       case 'stop':
@@ -433,6 +444,7 @@ export class VoiceSessionService extends BaseService {
   ): Promise<Session> {
     this.requireAdmission()
     this.requireOwner(owner)
+    const powerEpoch = this.powerEpoch
     if (this.inspections.size) throw new VoiceRuntimeError('busy')
     if (this.lease?.kind === 'playback' && this.lease.id === input.sessionId && !this.active) {
       const session = this.lease
@@ -457,7 +469,7 @@ export class VoiceSessionService extends BaseService {
         await this.closeSession(occupied, true)
       }
 
-      if (session.closed) throw new VoiceRuntimeError('aborted')
+      if (session.closed || powerEpoch !== this.powerEpoch) throw new VoiceRuntimeError('aborted')
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) throw new VoiceRuntimeError('invalid_request')
       this.acquireLease(session)
       return session
@@ -517,6 +529,7 @@ export class VoiceSessionService extends BaseService {
   private requireControlOwner(owner: VoiceOwner): void {
     this.requireAdmission()
     this.requireOwner(owner)
+    if (this.lease?.owner.windowId === owner.windowId && this.lease.owner.webContents === owner.webContents) return
     const type = application.get('WindowManager').getWindowType(owner.windowId)
     if (type !== WindowType.Main && type !== WindowType.SubWindow) throw new VoiceRuntimeError('forbidden_owner')
   }
@@ -592,15 +605,29 @@ export class VoiceSessionService extends BaseService {
 
   private acquireLease(session: Session): void {
     this.lease = session
-    this.sleepHold = application.get('PowerService').preventSleep(`voice:${session.kind}`)
+    this.syncSleepHold()
+  }
+
+  private syncSleepHold(): void {
+    const session = this.lease
+    const working =
+      session &&
+      (this.active?.session === session ||
+        (!session.closed && ['recording', 'recognizing', 'generating', 'playing'].includes(session.phase ?? '')))
+    if (working) {
+      this.sleepHold ??= application.get('PowerService').preventSleep(`voice:${session.kind}`)
+    } else {
+      this.sleepHold?.dispose()
+      this.sleepHold = undefined
+    }
   }
 
   private releaseLease(session?: Session): void {
     if (session && this.lease !== session) return
+    const owner = this.lease?.owner
     this.lease = undefined
-    this.sleepHold?.dispose()
-    this.sleepHold = undefined
-    if (this.voiceState.phase !== 'idle') this.publishState({ phase: 'idle', revision: ++this.revision })
+    this.syncSleepHold()
+    if (this.voiceState.phase !== 'idle') this.publishState({ phase: 'idle', revision: ++this.revision }, owner)
   }
 
   private transition(
@@ -609,6 +636,7 @@ export class VoiceSessionService extends BaseService {
     reason?: InputFor<'ai.voice.playback.update'>['reason']
   ): VoiceSessionState {
     session.phase = phase
+    this.syncSleepHold()
     const state: VoiceSessionState = {
       phase,
       revision: ++this.revision,
@@ -621,12 +649,16 @@ export class VoiceSessionService extends BaseService {
     return { ...state }
   }
 
-  private publishState(state: VoiceSessionState): void {
+  private publishState(state: VoiceSessionState, owner = this.lease?.owner): void {
     this.voiceState = state
     const event = { type: 'state' as const, ...state }
     const ipc = application.get('IpcApiService')
     ipc.broadcastToType(WindowType.Main, 'ai.voice.session_event', event)
     ipc.broadcastToType(WindowType.SubWindow, 'ai.voice.session_event', event)
+    const type = owner && application.get('WindowManager').getWindowType(owner.windowId)
+    if (owner && !owner.webContents.isDestroyed() && type !== WindowType.Main && type !== WindowType.SubWindow) {
+      ipc.send(owner.windowId, 'ai.voice.session_event', event)
+    }
     logger.debug('Voice state changed', {
       sessionId: state.phase === 'idle' ? undefined : state.sessionId,
       operation: this.lease?.operation,
@@ -642,7 +674,7 @@ export class VoiceSessionService extends BaseService {
     application.get('IpcApiService').send(session.owner.windowId, 'ai.voice.session_event', {
       type: 'command',
       sessionId: session.id,
-      revision: this.voiceState.revision,
+      revision: this.revision,
       command
     })
   }
@@ -681,12 +713,13 @@ export class VoiceSessionService extends BaseService {
     const controller = new AbortController()
     const active: ActiveOperation = { session, requestId, controller }
     this.active = active
+    this.syncSleepHold()
     session.requestId = requestId
     session.selectedModel = modelId
     session.resolvedAdapter =
       modelId === WINDOWS_TTS_MODEL_ID ? 'windows' : modelId === 'local-voice::funasr-nano' ? 'funasr' : 'apple'
     session.operation = operation
-    if (options.startPhase) this.transition(session, options.startPhase)
+    if (options.startPhase && session.phase !== 'paused') this.transition(session, options.startPhase)
     const startedAt = Date.now()
     logger.debug('Voice operation started', {
       sessionId: session.id,
@@ -721,6 +754,7 @@ export class VoiceSessionService extends BaseService {
         throw normalized
       } finally {
         if (this.active === active) this.active = undefined
+        this.syncSleepHold()
         logger.debug('Voice operation settled', {
           sessionId: session.id,
           requestId,
@@ -802,6 +836,7 @@ export class VoiceSessionService extends BaseService {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
     session.closed = true
+    this.syncSleepHold()
     session.detach()
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
     const cleanup = (async () => {
@@ -931,25 +966,22 @@ export class VoiceSessionService extends BaseService {
     )
   }
 
-  private async handlePowerInterruption(kind: 'suspend' | 'lock'): Promise<void> {
+  private handlePowerInterruption(): void {
+    this.powerEpoch += 1
+    const event = { type: 'interruption' as const, revision: ++this.revision }
+    const ipc = application.get('IpcApiService')
+    for (const type of [WindowType.Main, WindowType.SubWindow, WindowType.QuickAssistant, WindowType.SelectionAction]) {
+      ipc.broadcastToType(type, 'ai.voice.session_event', event)
+    }
     const session = this.lease
     if (!session || session.closed || session.phase === 'paused') return
-    if (session.kind === 'playback' && session.phase === 'playing') {
-      this.sendCommand(session, 'pause')
-      this.transition(session, 'paused')
+    if (session.kind === 'recording') {
+      this.sendCommand(session, 'interrupt')
       return
     }
-    this.sendCommand(session, 'stop')
-    try {
-      await this.closeSession(session, true)
-    } catch {
-      logger.warn('Voice power cleanup failed', {
-        sessionId: session.id,
-        operation: session.operation,
-        state: session.phase,
-        reason: 'operation_failed',
-        powerEvent: kind
-      })
+    if (session.kind === 'playback' && session.phase !== 'failed') {
+      this.sendCommand(session, 'pause')
+      this.transition(session, 'paused')
     }
   }
 }

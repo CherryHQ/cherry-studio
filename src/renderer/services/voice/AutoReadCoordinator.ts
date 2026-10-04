@@ -75,7 +75,7 @@ export class AutoReadCoordinator {
     if (this.#completionKeys.has(key)) return { status: 'skipped', key, reason: 'duplicate' }
     this.#claim(key)
 
-    if (!input.enabled) return { status: 'skipped', key, reason: 'disabled' }
+    if (!input.enabled || this.#enabled === false) return { status: 'skipped', key, reason: 'disabled' }
     if (input.eligible === false || input.message.role !== 'assistant') {
       return { status: 'skipped', key, reason: 'ineligible' }
     }

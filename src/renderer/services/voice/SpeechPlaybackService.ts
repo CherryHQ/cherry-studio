@@ -1,5 +1,5 @@
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
-import type { VoiceSessionCommand } from '@shared/ipc/schemas/voice'
+import type { InputFor } from '@shared/ipc/types'
 
 import {
   planReadableText,
@@ -52,6 +52,7 @@ type PlaybackVoiceService = Pick<
   | 'initialize'
   | 'resolveSpeechPreferences'
   | 'subscribeCommands'
+  | 'subscribeInterruptions'
   | 'generateSpeech'
   | 'abortSpeech'
   | 'readOutput'
@@ -131,7 +132,10 @@ export class SpeechPlaybackService {
   private visibleRun?: PlaybackRun
   private initialization?: Promise<void>
   private unsubscribeCommands?: () => void
+  private unsubscribeInterruptions?: () => void
   private lifecycleGeneration = 0
+  private interruptionGeneration = 0
+  private autoReadGeneration = 0
 
   constructor(options: SpeechPlaybackServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
@@ -153,6 +157,13 @@ export class SpeechPlaybackService {
     if (this.initialization) return this.initialization
     const generation = this.lifecycleGeneration
     this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
+    this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
+      if (generation !== this.lifecycleGeneration) return
+      this.interruptionGeneration += 1
+      this.runs.forEach((run) => {
+        if (!run.stopped && run.phase !== 'failed') this.pauseRun(run)
+      })
+    })
     this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
     const initialization = this.voice.initialize().catch((error: unknown) => {
       if (generation === this.lifecycleGeneration && this.initialization === initialization) {
@@ -183,16 +194,29 @@ export class SpeechPlaybackService {
     }
 
     const generation = this.lifecycleGeneration
+    const interruptionGeneration = this.interruptionGeneration
+    const autoReadGeneration = this.autoReadGeneration
+    const assertStartCurrent = (): void => {
+      if (
+        generation !== this.lifecycleGeneration ||
+        interruptionGeneration !== this.interruptionGeneration ||
+        (input.trigger === 'auto_read' && autoReadGeneration !== this.autoReadGeneration)
+      ) {
+        throw new VoiceDomainError('aborted')
+      }
+    }
     let preferences: ResolvedSpeechPreferences
     try {
+      await this.initialize()
+      assertStartCurrent()
       preferences = await this.voice.resolveSpeechPreferences()
+      assertStartCurrent()
     } catch (error) {
+      assertStartCurrent()
       const reason = errorReason(error)
       this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
       throw new VoiceDomainError(reason)
     }
-    await this.initialize()
-    if (generation !== this.lifecycleGeneration) throw new VoiceDomainError('aborted')
     const deferredVisibleRun = input.trigger === 'auto_read' ? this.visibleRun : undefined
     const operation = this.voice.generateSpeech(this.speechInput(input, preferences, plan.chunks, 0))
     const run: PlaybackRun = {
@@ -257,13 +281,16 @@ export class SpeechPlaybackService {
   }
 
   async stopAutoRead(): Promise<boolean> {
-    const run = this.visibleRun
-    if (!run || run.trigger !== 'auto_read') return false
-    await this.stop(run.sessionId)
-    return true
+    this.autoReadGeneration += 1
+    const runs = [...this.runs.values()].filter((run) => run.trigger === 'auto_read')
+    await Promise.all(runs.map((run) => this.terminate(run, true)))
+    return runs.length > 0
   }
 
-  async control(sessionId: string | undefined, command: VoiceSessionCommand): Promise<void> {
+  async control(
+    sessionId: string | undefined,
+    command: InputFor<'ai.voice.playback.control'>['command']
+  ): Promise<void> {
     const target = sessionId ?? this.visibleRun?.sessionId
     if (!target) throw new VoiceDomainError('invalid_request')
     await this.voice.controlPlayback({ sessionId: target, command })
@@ -510,11 +537,7 @@ export class SpeechPlaybackService {
     if (!run || (run.stopped && event.command !== 'stop')) return
     switch (event.command) {
       case 'pause':
-        run.desiredPaused = true
-        run.mainPlaying = false
-        run.audio?.pause()
-        run.phase = 'paused'
-        this.publish(run, 'paused')
+        this.pauseRun(run)
         break
       case 'resume':
         run.desiredPaused = false
@@ -530,6 +553,14 @@ export class SpeechPlaybackService {
         void this.terminate(run, true).catch(() => undefined)
         break
     }
+  }
+
+  private pauseRun(run: PlaybackRun): void {
+    run.desiredPaused = true
+    run.mainPlaying = false
+    run.audio?.pause()
+    run.phase = 'paused'
+    this.publish(run, 'paused')
   }
 
   private terminate(run: PlaybackRun, publishIdle: boolean): Promise<void> {
@@ -643,6 +674,8 @@ export class SpeechPlaybackService {
   private detach(): void {
     this.unsubscribeCommands?.()
     this.unsubscribeCommands = undefined
+    this.unsubscribeInterruptions?.()
+    this.unsubscribeInterruptions = undefined
     this.ownerWindow.removeEventListener('beforeunload', this.handleBeforeUnload)
   }
 
