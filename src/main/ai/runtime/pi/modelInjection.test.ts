@@ -441,9 +441,11 @@ describe('buildPiProviderInjection', () => {
     vi.stubGlobal('fetch', fetch)
     const { providerConfig, streamSimple } = await materializePiProviderStream(injection)
     const model = providerConfig.models?.[0]
-    if (!model || model.api !== 'azure-openai-responses') throw new Error('Expected an Azure Responses model')
+    if (!model || !('reasoning' in model) || model.api !== 'azure-openai-responses') {
+      throw new Error('Expected an Azure Responses chat model')
+    }
     if (!providerConfig.baseUrl) throw new Error('Expected an Azure Responses base URL')
-    const context = { messages: [{ role: 'user' as const, content: 'hello', timestamp: 1 }] }
+    const context = normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
     const configuredModel = {
       ...model,
       api: 'azure-openai-responses' as const,
