@@ -1291,7 +1291,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.connectionTarget(entry).trustedNotifyChannels
   }
 
-  /** Whether any agent session can still mutate its DB row or external runtime files. */
+  /**
+   * Whether any agent session has a turn in flight. Background work deliberately does not count:
+   * it can still write message data (`finishBackgroundFlows`), so a caller that must not race a
+   * writer needs `listActiveWork` or `hasPendingBackgroundWork` rather than this.
+   */
   hasBusySessions(): boolean {
     if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
