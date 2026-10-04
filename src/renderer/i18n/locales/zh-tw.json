@@ -4563,6 +4563,7 @@
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
   "settings.mcp.builtinServersDescriptions.qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。需要設定 QVERIS_API_KEY 環境變數。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具",
+  "settings.mcp.builtinServersDescriptions.truthifi": "為你的 AI 提供一份經過核實的家庭財務紀錄：帳戶、交易、持倉、費用、績效、現金流以及 Truthifi 評分。無法轉移資金。需要登入 Truthifi 帳戶（OAuth）。",
   "settings.mcp.command": "指令",
   "settings.mcp.copyLogs": "複製日誌",
   "settings.mcp.customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",

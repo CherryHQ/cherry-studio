@@ -4563,6 +4563,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Executar código Python num ambiente sandbox seguro. Utilizar Pyodide para executar Python, suportando a maioria das bibliotecas padrão e pacotes de computação científica",
   "settings.mcp.builtinServersDescriptions.qveris": "Conecte-se ao QVeris para descobrir, inspecionar e chamar capacidades de agentes de IA. É necessário configurar a variável de ambiente QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Uma implementação de servidor MCP que fornece ferramentas para resolução dinâmica e reflexiva de problemas através de um processo de pensamento estruturado",
+  "settings.mcp.builtinServersDescriptions.truthifi": "Um registo financeiro verificado do agregado familiar para a sua IA: contas, atividade, posições, comissões, desempenho, fluxo de caixa e o seu Truthifi Score. Não pode movimentar dinheiro. Requer início de sessão numa conta Truthifi (OAuth).",
   "settings.mcp.command": "Comando",
   "settings.mcp.copyLogs": "Copiar logs",
   "settings.mcp.customRegistryPlaceholder": "Por favor, introduza o endereço do repositório privado, por exemplo: https://npm.company.com",

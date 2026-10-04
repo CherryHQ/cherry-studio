@@ -4563,6 +4563,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
   "settings.mcp.builtinServersDescriptions.qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Cần cấu hình biến môi trường QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc",
+  "settings.mcp.builtinServersDescriptions.truthifi": "Một hồ sơ tài chính hộ gia đình đã được xác minh cho AI của bạn: tài khoản, giao dịch, danh mục nắm giữ, phí, hiệu suất, dòng tiền và Truthifi Score. Không thể chuyển tiền. Cần đăng nhập tài khoản Truthifi (OAuth).",
   "settings.mcp.command": "Lệnh",
   "settings.mcp.copyLogs": "Sao chép nhật ký",
   "settings.mcp.customRegistryPlaceholder": "Nhập URL của registry riêng, ví dụ: https://npm.company.com",

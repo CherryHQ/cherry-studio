@@ -161,5 +161,14 @@ export const PRESET_MCP_SERVERS = freezePresets([
     provider: 'Nowledge',
     installSource: 'builtin',
     isTrusted: true
+  },
+  {
+    name: BuiltinMcpServerNames.truthifi,
+    reference: 'https://truthifi.com/features/mcp',
+    type: 'streamableHttp',
+    baseUrl: 'https://api.truthifi.com/mcp',
+    isActive: false,
+    provider: 'Truthifi',
+    installSource: 'builtin'
   }
 ])

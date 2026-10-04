@@ -4563,6 +4563,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",
   "settings.mcp.builtinServersDescriptions.qveris": "Подключитесь к QVeris, чтобы находить, просматривать и вызывать возможности ИИ-агентов. Требуется настроить переменную окружения QVERIS_API_KEY.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP серверная реализация, предоставляющая инструменты для динамического и рефлексивного решения проблем посредством структурированного мыслительного процесса",
+  "settings.mcp.builtinServersDescriptions.truthifi": "Проверенная финансовая запись домохозяйства для вашего ИИ: счета, операции, активы, комиссии, доходность, денежный поток и ваш Truthifi Score. Не может переводить деньги. Требуется вход в аккаунт Truthifi (OAuth).",
   "settings.mcp.command": "Команда",
   "settings.mcp.copyLogs": "Скопировать журналы",
   "settings.mcp.customRegistryPlaceholder": "Введите адрес частного склада, например: https://npm.company.com",
