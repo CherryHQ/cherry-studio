@@ -389,6 +389,28 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('measures a carried footnote definition by the lines it covers', () => {
+    // Same estimate contract as the link definition above, for the other definition kind: a
+    // footnote continues on indented lines, so one entry can cover several.
+    const content = ['[^1]: first line', '    second line', '    third line', '', 'body one', '', 'body two'].join('\n')
+
+    const chunks = chunksOf(content, 30)
+
+    for (const chunk of chunks) {
+      expect(chunk.lines).toBe(chunk.text.split('\n').length)
+    }
+  })
+
+  it('measures a carried footnote definition that spans its own blank line', () => {
+    const content = ['[^1]: para one', '', '    para two', '', 'body one', '', 'body two'].join('\n')
+
+    const chunks = chunksOf(content, 30)
+
+    for (const chunk of chunks) {
+      expect(chunk.lines).toBe(chunk.text.split('\n').length)
+    }
+  })
+
   it('carries a definition with an indented continuation line', () => {
     const content = ['[^1]: first line', '    second line', '', 'see [^1]'].join('\n')
 
