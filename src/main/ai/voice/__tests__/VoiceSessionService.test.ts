@@ -44,6 +44,7 @@ const runtime = {
   broadcastToType: vi.fn(),
   send: vi.fn(),
   preventSleepDispose: vi.fn(),
+  sleepHolds: new Set<symbol>(),
   permissionCheck: undefined as ((...args: any[]) => boolean) | null | undefined,
   permissionRequest: undefined as ((...args: any[]) => void) | null | undefined
 }
@@ -121,6 +122,7 @@ describe('VoiceSessionService file and admission contract', () => {
     runtime.broadcastToType.mockReset()
     runtime.send.mockReset()
     runtime.preventSleepDispose.mockReset()
+    runtime.sleepHolds.clear()
     runtime.permissionCheck = undefined
     runtime.permissionRequest = undefined
     for (const level of ['debug', 'info', 'warn', 'error', 'verbose', 'silly'] as const) {
@@ -172,7 +174,16 @@ describe('VoiceSessionService file and admission contract', () => {
             powerEvents.on('unlock', listener)
             return { dispose: () => powerEvents.removeListener('unlock', listener) }
           },
-          preventSleep: () => ({ dispose: runtime.preventSleepDispose })
+          preventSleep: () => {
+            const hold = Symbol()
+            runtime.sleepHolds.add(hold)
+            return {
+              dispose: () => {
+                runtime.sleepHolds.delete(hold)
+                runtime.preventSleepDispose()
+              }
+            }
+          }
         }
       return defaultServiceInstances[name as keyof typeof defaultServiceInstances]
     }) as typeof application.get)
@@ -249,12 +260,65 @@ describe('VoiceSessionService file and admission contract', () => {
     })
     expect(service.getState(a)).toEqual({ phase: 'recorded', revision: 2, sessionId, source: 'dictation' })
     expect(fileEntryService.findById(entry.id)).not.toBeNull()
-    expect(runtime.broadcastToType.mock.calls.map(([type]) => type)).toEqual([
-      WindowType.Main,
-      WindowType.SubWindow,
-      WindowType.Main,
-      WindowType.SubWindow
-    ])
+  })
+
+  it('rejects a second recording without interrupting the admitted capture', async () => {
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
+    const challenger = owner()
+
+    await expect(
+      service.startRecording(challenger, { sessionId: randomUUID(), requestId: randomUUID(), source: 'dictation' })
+    ).rejects.toMatchObject({ reason: 'busy' })
+
+    expect(service.getState(a)).toMatchObject({ phase: 'recording', sessionId })
+    const entry = await service.createRecording(a, {
+      sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 1_000
+    })
+    expect(await files.read(entry.id, { encoding: 'binary' })).toMatchObject({ content: webm })
+    expect((challenger.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+  })
+
+  it('rejects a second recording while recognition retains its input and completes', async () => {
+    const input = await recording()
+    let finish!: () => void
+    let activeSignal!: AbortSignal
+    native.transcribe.mockImplementationOnce(
+      (_model, _audio, _options, signal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          activeSignal = signal
+          finish = () => resolve({ text: 'retained transcript', segments: [] })
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const transcription = service.transcribe(a, input)
+    await vi.waitFor(() => expect(activeSignal).toBeDefined())
+    const challenger = owner()
+    const admission = service.startRecording(challenger, {
+      sessionId: randomUUID(),
+      requestId: randomUUID(),
+      source: 'dictation'
+    })
+    const admissionOutcome = admission.then(
+      () => 'admitted',
+      (error: VoiceRuntimeError) => error.reason
+    )
+    const transcriptionOutcome = transcription.then(
+      (value) => value.text,
+      (error: VoiceRuntimeError) => error.reason
+    )
+    await admissionOutcome
+    const retained = fileEntryService.findById(input.fileEntryId)
+    const wasAborted = activeSignal.aborted
+    finish()
+
+    expect(await admissionOutcome).toBe('busy')
+    expect(wasAborted).toBe(false)
+    expect(retained).not.toBeNull()
+    expect(await transcriptionOutcome).toBe('retained transcript')
   })
 
   it('allows microphone permission only for the current recording owner and exact trusted audio request', async () => {
@@ -623,6 +687,39 @@ describe('VoiceSessionService file and admission contract', () => {
     ).rejects.toMatchObject({ reason: 'forbidden_owner' })
   })
 
+  it.each([WindowType.QuickAssistant, WindowType.SelectionAction])(
+    'lets the %s playback owner receive state and control only its own session',
+    async (type) => {
+      managedWindows.get(a.windowId)!.type = type
+      const playback = await speech(a)
+      expect(runtime.send.mock.calls).toContainEqual([
+        a.windowId,
+        'ai.voice.session_event',
+        expect.objectContaining({ type: 'state', phase: 'ready', sessionId: playback.input.sessionId })
+      ])
+      await expect(
+        service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'pause' })
+      ).resolves.toMatchObject({ phase: 'paused' })
+      await expect(
+        service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'resume' })
+      ).resolves.toMatchObject({ phase: 'playing' })
+
+      const foreignOwner = owner()
+      managedWindows.get(foreignOwner.windowId)!.type = type
+      await expect(
+        service.controlPlayback(foreignOwner, { sessionId: playback.input.sessionId, command: 'stop' })
+      ).rejects.toMatchObject({ reason: 'forbidden_owner' })
+      expect(fileEntryService.findById(playback.result.fileEntry.id)).not.toBeNull()
+      await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+      expect(runtime.send.mock.calls).toContainEqual([
+        a.windowId,
+        'ai.voice.session_event',
+        expect.objectContaining({ type: 'state', phase: 'idle' })
+      ])
+      expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
+    }
+  )
+
   it('retries failed playback from the same retained output without regenerating it', async () => {
     const playback = await speech(a)
     const generationCount = native.speech.mock.calls.length
@@ -699,6 +796,44 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
   })
 
+  it.each(['recording', 'playback'] as const)(
+    'rejects %s admission when power interrupts displaced playback cleanup',
+    async (kind) => {
+      const playback = await speech(a)
+      const deleteRetained = files.deleteRetainedTemporaryEntry.bind(files)
+      let continueDelete!: () => void
+      vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockImplementationOnce(async (id) => {
+        await new Promise<void>((resolve) => (continueDelete = resolve))
+        return deleteRetained(id)
+      })
+      const challenger = owner()
+      const sessionId = randomUUID()
+      const admission =
+        kind === 'recording'
+          ? service.startRecording(challenger, { sessionId, requestId: randomUUID(), source: 'dictation' })
+          : service.speech(challenger, {
+              sessionId,
+              requestId: randomUUID(),
+              text: 'replacement',
+              voice: 'exact',
+              trigger: 'manual'
+            })
+      const outcome = admission.then(
+        () => 'admitted',
+        (error: VoiceRuntimeError) => error.reason
+      )
+      await vi.waitFor(() => expect(continueDelete).toBeTypeOf('function'))
+      powerEvents.emit('lock')
+      continueDelete()
+
+      expect(await outcome).toBe('aborted')
+      expect(service.getState(a).phase).toBe('idle')
+      expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
+      expect(fileEntryService.findMany()).toHaveLength(0)
+      expect((challenger.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    }
+  )
+
   it('does not admit manual playback after its owner navigates while displaced generation cleanup is pending', async () => {
     let activeSignal!: AbortSignal
     let finishAbort!: () => void
@@ -729,7 +864,7 @@ describe('VoiceSessionService file and admission contract', () => {
     }
   })
 
-  it('pauses playing on lock/suspend, terminates other phases, and never auto-resumes', async () => {
+  it('pauses playing and ready output on lock/suspend and never auto-resumes', async () => {
     const playing = await speech(a)
     await service.updatePlayback(a, { sessionId: playing.input.sessionId, phase: 'playing' })
     powerEvents.emit('lock')
@@ -746,8 +881,252 @@ describe('VoiceSessionService file and admission contract', () => {
 
     const ready = await speech(a)
     powerEvents.emit('suspend')
-    await vi.waitFor(() => expect(service.getState(a).phase).toBe('idle'))
-    expect(fileEntryService.findById(ready.result.fileEntry.id)).toBeNull()
+    await vi.waitFor(() => expect(service.getState(a).phase).toBe('paused'))
+    expect(fileEntryService.findById(ready.result.fileEntry.id)).not.toBeNull()
+    expect(
+      await service.readOutput(a, {
+        sessionId: ready.input.sessionId,
+        fileEntryId: ready.result.fileEntry.id
+      })
+    ).toEqual({ audio: Uint8Array.from(wav()), mimeType: 'audio/wav' })
+    powerEvents.emit('resume')
+    expect(service.getState(a).phase).toBe('paused')
+  })
+
+  it('keeps generation paused when it finishes after a power interruption', async () => {
+    let finish!: () => void
+    native.speech.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ audio: wav(), mediaType: 'audio/wav' })
+        })
+    )
+    const pending = speech(a)
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    const state = service.getState(a)
+    if (state.phase === 'idle') throw new Error('Speech admission must precede synthesis')
+    powerEvents.emit('lock')
+    const interruptedPhase = service.getState(a).phase
+    const resume = service.controlPlayback(a, { sessionId: state.sessionId, command: 'resume' }).then(
+      () => 'resumed',
+      (error: VoiceRuntimeError) => error.reason
+    )
+    finish()
+    const result = await pending.then(
+      (value) => value.result,
+      (error: VoiceRuntimeError) => error.reason
+    )
+
+    expect(interruptedPhase).toBe('paused')
+    expect(await resume).toBe('busy')
+    expect(result).not.toBeTypeOf('string')
+    expect(service.getState(a)).toMatchObject({ phase: 'paused', sessionId: state.sessionId })
+    powerEvents.emit('unlock')
+    powerEvents.emit('resume')
+    expect(service.getState(a).phase).toBe('paused')
+    await expect(service.controlPlayback(a, { sessionId: state.sessionId, command: 'resume' })).resolves.toMatchObject({
+      phase: 'playing'
+    })
+  })
+
+  it('notifies Voice consumer windows about power interruption before a session is admitted', () => {
+    powerEvents.emit('lock')
+    for (const type of [WindowType.Main, WindowType.SubWindow, WindowType.QuickAssistant, WindowType.SelectionAction]) {
+      const event = runtime.broadcastToType.mock.calls.find(([windowType]) => windowType === type)?.[2]
+      expect(event).toEqual({ type: 'interruption', revision: 1 })
+    }
+    expect(service.getState(a).phase).toBe('idle')
+  })
+
+  it.each(['lock', 'suspend'])('interrupts capture on %s while keeping partial input available', async (event) => {
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
+    powerEvents.emit(event)
+    await Promise.resolve()
+    expect(runtime.send.mock.calls).toContainEqual([
+      a.windowId,
+      'ai.voice.session_event',
+      expect.objectContaining({ type: 'command', command: 'interrupt', sessionId })
+    ])
+    const entry = await service.createRecording(a, {
+      sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 1_000
+    })
+    expect(service.getState(a)).toMatchObject({ phase: 'recorded', sessionId })
+    expect(await files.read(entry.id, { encoding: 'binary' })).toMatchObject({ content: webm })
+    const transcription = await service.transcribe(a, {
+      sessionId,
+      requestId: randomUUID(),
+      fileEntryId: entry.id,
+      modelId: APPLE_ASR_MODEL_ID
+    })
+    expect(transcription.text).toBe('private-transcript')
+  })
+
+  it('retains captured input when lock arrives before transcription starts', async () => {
+    const input = await recording()
+    powerEvents.emit('lock')
+    await Promise.resolve()
+    expect(service.getState(a)).toMatchObject({ phase: 'recorded', sessionId: input.sessionId })
+    expect(fileEntryService.findById(input.fileEntryId)).not.toBeNull()
+    expect(runtime.send.mock.calls).toContainEqual([
+      a.windowId,
+      'ai.voice.session_event',
+      expect.objectContaining({ type: 'command', command: 'interrupt', sessionId: input.sessionId })
+    ])
+    expect((await service.transcribe(a, input)).text).toBe('private-transcript')
+  })
+
+  it('lets recognition finish after lock without aborting or dropping its input', async () => {
+    const input = await recording()
+    let finish!: () => void
+    let activeSignal!: AbortSignal
+    native.transcribe.mockImplementationOnce(
+      (_model, _audio, _options, signal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          activeSignal = signal
+          finish = () => resolve({ text: 'preserved recognition', segments: [] })
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const pending = service.transcribe(a, input).then(
+      (value) => value.text,
+      (error: VoiceRuntimeError) => error.reason
+    )
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    powerEvents.emit('lock')
+    const retained = fileEntryService.findById(input.fileEntryId)
+    const aborted = activeSignal.aborted
+    finish()
+
+    expect(await pending).toBe('preserved recognition')
+    expect(aborted).toBe(false)
+    expect(retained).not.toBeNull()
+    expect(service.getState(a).phase).toBe('idle')
+  })
+
+  it('releases sleep prevention for retained partial input and reacquires it only during recognition', async () => {
+    const sessionId = randomUUID()
+    await service.startRecording(a, { sessionId, requestId: randomUUID(), source: 'dictation' })
+    expect(runtime.sleepHolds.size).toBe(1)
+    powerEvents.emit('lock')
+    const entry = await service.createRecording(a, {
+      sessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 1_000
+    })
+    expect(runtime.sleepHolds.size).toBe(0)
+    expect(service.getState(a)).toMatchObject({ phase: 'recorded', sessionId })
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
+    await expect(
+      service.startRecording(owner(), { sessionId: randomUUID(), requestId: randomUUID() })
+    ).rejects.toMatchObject({ reason: 'busy' })
+
+    let finish!: () => void
+    native.transcribe.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ text: 'resumed recognition', segments: [] })
+        })
+    )
+    const recognition = service.transcribe(a, {
+      sessionId,
+      requestId: randomUUID(),
+      fileEntryId: entry.id,
+      modelId: APPLE_ASR_MODEL_ID
+    })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    expect(runtime.sleepHolds.size).toBe(1)
+    finish()
+    expect((await recognition).text).toBe('resumed recognition')
+    expect(runtime.sleepHolds.size).toBe(0)
+  })
+
+  it('releases sleep prevention for ready and paused output and reacquires it on explicit resume', async () => {
+    const playback = await speech()
+    expect(runtime.sleepHolds.size).toBe(0)
+    await service.updatePlayback(a, { sessionId: playback.input.sessionId, phase: 'playing' })
+    expect(runtime.sleepHolds.size).toBe(1)
+    powerEvents.emit('lock')
+    expect(runtime.sleepHolds.size).toBe(0)
+    expect(service.getState(a)).toMatchObject({ phase: 'paused', sessionId: playback.input.sessionId })
+    expect(fileEntryService.findById(playback.result.fileEntry.id)).not.toBeNull()
+    await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'resume' })
+    expect(runtime.sleepHolds.size).toBe(1)
+    await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'pause' })
+    expect(runtime.sleepHolds.size).toBe(0)
+    await service.controlPlayback(a, { sessionId: playback.input.sessionId, command: 'stop' })
+    expect(runtime.sleepHolds.size).toBe(0)
+  })
+
+  it('holds sleep prevention only until paused in-flight generation settles', async () => {
+    let finish!: () => void
+    native.speech.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ audio: wav(), mediaType: 'audio/wav' })
+        })
+    )
+    const generation = speech()
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    powerEvents.emit('lock')
+    expect(service.getState(a).phase).toBe('paused')
+    expect(runtime.sleepHolds.size).toBe(1)
+    finish()
+    const playback = await generation
+    expect(service.getState(a).phase).toBe('paused')
+    expect(runtime.sleepHolds.size).toBe(0)
+    expect(fileEntryService.findById(playback.result.fileEntry.id)).not.toBeNull()
+  })
+
+  it('removes orphan scratch at startup and keeps neighboring managed files intact', async () => {
+    await service._doStop()
+    const directory = application.getPath('feature.voice.temp')
+    const orphan = path.join(directory, randomUUID())
+    const sibling = path.join(root, 'unrelated.wav')
+    await mkdir(orphan, { recursive: true })
+    await writeFile(path.join(orphan, 'input.wav'), wav())
+    await writeFile(sibling, wav())
+    await service._doInit()
+
+    expect(await readdir(directory)).toEqual([])
+    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    expect(await readFile(sibling)).toEqual(wav())
+    expect((await speech()).result.mimeType).toBe('audio/wav')
+  })
+
+  it('drains scratch work before restart reconciliation removes stale directories', async () => {
+    const directory = path.join(application.getPath('feature.voice.temp'), randomUUID())
+    const scratchFile = path.join(directory, 'output.wav')
+    let finish!: () => void
+    native.speech.mockImplementationOnce(async (_model, _text, _options, signal: AbortSignal) => {
+      await mkdir(directory)
+      await writeFile(scratchFile, wav())
+      await new Promise<void>((resolve) => (finish = resolve))
+      signal.throwIfAborted()
+      return { audio: wav(), mediaType: 'audio/wav' }
+    })
+    const pending = speech().then(
+      () => 'completed',
+      (error: VoiceRuntimeError) => error.reason
+    )
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    let stopped = false
+    const stop = service._doStop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    expect(await readFile(scratchFile)).toEqual(wav())
+    finish()
+    expect(await pending).toBe('aborted')
+    await stop
+    await service._doInit()
+    expect(await readdir(application.getPath('feature.voice.temp'))).toEqual([])
+    expect((await speech()).result.mimeType).toBe('audio/wav')
   })
 
   it('keeps state events and structured logs free of text, transcript, bytes, and paths', async () => {
@@ -827,7 +1206,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(service.getState(a)).toMatchObject({ phase: 'recording', sessionId })
   })
 
-  it('serializes concurrent recording starts that both await the displaced lease cleanup', async () => {
+  it('rejects the later recording when concurrent starts await displaced playback cleanup', async () => {
     const playback = await speech(a)
     const originalDelete = files.deleteRetainedTemporaryEntry.bind(files)
     let continueDelete!: () => void
@@ -850,25 +1229,24 @@ describe('VoiceSessionService file and admission contract', () => {
       requestId: randomUUID(),
       source: 'dictation'
     })
+    const secondOutcome = second.then(
+      () => 'admitted',
+      (error: VoiceRuntimeError) => error.reason
+    )
     continueDelete()
-    await Promise.all([first, second])
+    await first
+    expect(await secondOutcome).toBe('busy')
 
     expect(fileEntryService.findById(playback.result.fileEntry.id)).toBeNull()
-    expect(service.getState(secondOwner)).toMatchObject({ phase: 'recording', sessionId: secondSessionId })
-    expect((firstOwner.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
-    expect(runtime.send).toHaveBeenCalledWith(
-      firstOwner.windowId,
-      'ai.voice.session_event',
-      expect.objectContaining({ type: 'command', command: 'stop', sessionId: firstSessionId })
-    )
-    await expect(
-      service.createRecording(firstOwner, {
-        sessionId: firstSessionId,
-        audio: webm,
-        mimeType: 'audio/webm;codecs=opus',
-        durationMs: 1
-      })
-    ).rejects.toMatchObject({ reason: 'invalid_request' })
+    expect(service.getState(firstOwner)).toMatchObject({ phase: 'recording', sessionId: firstSessionId })
+    expect((secondOwner.webContents as unknown as EventEmitter).listenerCount('destroyed')).toBe(0)
+    const entry = await service.createRecording(firstOwner, {
+      sessionId: firstSessionId,
+      audio: webm,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 1
+    })
+    expect(fileEntryService.findById(entry.id)).not.toBeNull()
   })
 
   it('invalid recordings cannot exhaust session admission or attach owner listeners', async () => {
@@ -1458,71 +1836,5 @@ describe('VoiceSessionService file and admission contract', () => {
     })
     await service.discard(replacementOwner, input.sessionId)
     expect(fileEntryService.findById(replacement.id)).toBeNull()
-  })
-  it('removes orphan scratch at startup and keeps neighboring managed files intact', async () => {
-    await service._doStop()
-    const directory = application.getPath('feature.voice.temp')
-    const orphan = path.join(directory, randomUUID())
-    const sibling = path.join(root, 'unrelated.wav')
-    await mkdir(orphan, { recursive: true })
-    await writeFile(path.join(orphan, 'input.wav'), wav())
-    await writeFile(sibling, wav())
-    await service._doInit()
-
-    expect(await readdir(directory)).toEqual([])
-    expect((await stat(directory)).mode & 0o777).toBe(0o700)
-    expect(await readFile(sibling)).toEqual(wav())
-    expect(
-      (
-        await service.speech(a, {
-          sessionId: randomUUID(),
-          requestId: randomUUID(),
-          text: 'scratch cleanup',
-          voice: 'exact'
-        })
-      ).mimeType
-    ).toBe('audio/wav')
-  })
-
-  it('drains scratch work before restart reconciliation removes stale directories', async () => {
-    const directory = path.join(application.getPath('feature.voice.temp'), randomUUID())
-    const scratchFile = path.join(directory, 'output.wav')
-    let finish!: () => void
-    native.speech.mockImplementationOnce(async (_model, _text, _options, signal: AbortSignal) => {
-      await mkdir(directory)
-      await writeFile(scratchFile, wav())
-      await new Promise<void>((resolve) => (finish = resolve))
-      signal.throwIfAborted()
-      return { audio: wav(), mediaType: 'audio/wav' }
-    })
-    const pending = service
-      .speech(a, { sessionId: randomUUID(), requestId: randomUUID(), text: 'scratch cleanup', voice: 'exact' })
-      .then(
-        () => 'completed',
-        (error: VoiceRuntimeError) => error.reason
-      )
-    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
-    let stopped = false
-    const stop = service._doStop().then(() => {
-      stopped = true
-    })
-    await Promise.resolve()
-    expect(stopped).toBe(false)
-    expect(await readFile(scratchFile)).toEqual(wav())
-    finish()
-    expect(await pending).toBe('aborted')
-    await stop
-    await service._doInit()
-    expect(await readdir(application.getPath('feature.voice.temp'))).toEqual([])
-    expect(
-      (
-        await service.speech(a, {
-          sessionId: randomUUID(),
-          requestId: randomUUID(),
-          text: 'scratch cleanup',
-          voice: 'exact'
-        })
-      ).mimeType
-    ).toBe('audio/wav')
   })
 })

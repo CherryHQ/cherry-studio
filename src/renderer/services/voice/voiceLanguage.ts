@@ -1,3 +1,3 @@
-export function getDefaultVoiceLanguage(interfaceLanguage: string): 'zh-CN' | 'en-US' {
-  return interfaceLanguage.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+export function getDefaultVoiceLanguage(interfaceLanguage: string): string {
+  return Intl.getCanonicalLocales(interfaceLanguage)[0]
 }

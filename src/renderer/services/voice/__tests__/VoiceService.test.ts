@@ -49,8 +49,9 @@ function emitVoiceEvent(event: any): void {
 describe('VoiceService state ownership', () => {
   it.each([
     ['zh-CN', 'zh-CN'],
-    ['zh-TW', 'zh-CN'],
-    ['ja-JP', 'en-US']
+    ['zh-TW', 'zh-TW'],
+    ['ja-JP', 'ja-JP'],
+    ['fr-FR', 'fr-FR']
   ])('uses the interface default for an unset recognition language in %s', async (locale, language) => {
     await i18n.changeLanguage(locale)
     const service = new VoiceService({

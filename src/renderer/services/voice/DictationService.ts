@@ -15,7 +15,15 @@ const RECORDING_MIME_TYPE = 'audio/webm;codecs=opus'
 const MAX_RECORDING_DURATION_MS = 300_000
 const ELAPSED_UPDATE_INTERVAL_MS = 1_000
 
-export type DictationPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'transcribing' | 'failed' | 'recovery'
+export type DictationPhase =
+  | 'idle'
+  | 'starting'
+  | 'recording'
+  | 'stopping'
+  | 'recorded'
+  | 'transcribing'
+  | 'failed'
+  | 'recovery'
 
 export type DictationErrorCategory =
   | VoiceErrorReason
@@ -49,6 +57,7 @@ interface DictationVoiceService {
   initialize(): Promise<void>
   resolveTranscriptionPreferences(): Promise<ResolvedTranscriptionPreferences>
   subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
+  subscribeInterruptions(listener: () => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
   createRecording(input: CreateRecordingInput): Promise<RecordingEntry>
   transcribe(input: TranscriptionInput): VoiceOperation<TranscriptionResult>
@@ -104,6 +113,7 @@ interface ActiveDictation {
   transcription?: VoiceOperation<TranscriptionResult>
   stopTask?: Promise<void>
   discardTask?: Promise<void>
+  interrupted?: boolean
 }
 
 interface DictationRecovery {
@@ -142,9 +152,11 @@ export class DictationService {
   private timerOwner?: ActiveDictation
   private initialization?: { generation: number; promise: Promise<void> }
   private unsubscribeCommands?: () => void
+  private unsubscribeInterruptions?: () => void
   private lifecycleGeneration = 0
   private generation = 0
   private currentRunToken?: symbol
+  private pendingStart?: symbol
 
   constructor(options: DictationServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
@@ -173,6 +185,11 @@ export class DictationService {
     const generation = this.lifecycleGeneration
     try {
       this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
+      this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
+        if (generation === this.lifecycleGeneration && this.pendingStart) {
+          void this.cancelRun(this.pendingStart)
+        }
+      })
     } catch (error) {
       return Promise.reject(error)
     }
@@ -196,9 +213,12 @@ export class DictationService {
     const generation = ++this.generation
     const runToken = Symbol('dictation-run')
     this.currentRunToken = runToken
+    this.pendingStart = runToken
     this.recovery = undefined
     return {
-      result: this.startRun(runToken, generation, target),
+      result: this.startRun(runToken, generation, target).finally(() => {
+        if (this.pendingStart === runToken) this.pendingStart = undefined
+      }),
       cancel: () => this.cancelRun(runToken)
     }
   }
@@ -309,6 +329,12 @@ export class DictationService {
     return active.stopTask
   }
 
+  async transcribeRecording(): Promise<void> {
+    const active = this.active
+    if (!active?.fileEntryId || this.snapshot.phase !== 'recorded') return
+    await this.transcribe(active, false)
+  }
+
   async cancel(): Promise<void> {
     const runToken = this.currentRunToken
     if (runToken) return this.cancelRun(runToken)
@@ -374,7 +400,8 @@ export class DictationService {
       const fileEntry = await this.createRecording(active, elapsedMs)
       if (!this.isCurrent(active)) return
       active.fileEntryId = fileEntry.id
-      await this.transcribe(active, false)
+      if (active.interrupted) this.publish('recorded', elapsedMs)
+      else await this.transcribe(active, false)
     } catch (error) {
       if (!this.isCurrent(active)) return
       const cleanupError = await this.cleanupSession(active)
@@ -563,20 +590,23 @@ export class DictationService {
 
   private handleCommand(generation: number, event: VoiceCommandEvent): void {
     const active = this.active
-    if (
-      generation !== this.lifecycleGeneration ||
-      event.command !== 'stop' ||
-      !active ||
-      event.sessionId !== active.sessionId
-    ) {
+    if (generation !== this.lifecycleGeneration || !active || event.sessionId !== active.sessionId) {
       return
     }
-    void this.cancelRun(active.runToken)
+    if (event.command === 'stop') {
+      void this.cancelRun(active.runToken)
+    } else if (event.command === 'interrupt') {
+      active.interrupted = true
+      if (active.fileEntryId || active.transcription) return
+      void this.stop()
+    }
   }
 
   private detachCommands(): void {
     this.unsubscribeCommands?.()
     this.unsubscribeCommands = undefined
+    this.unsubscribeInterruptions?.()
+    this.unsubscribeInterruptions = undefined
   }
 
   private isCurrent(active: ActiveDictation): boolean {
