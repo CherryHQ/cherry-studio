@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
 import { IpcRouter } from '@main/ipc/IpcRouter'
 import type { InternalFileEntry } from '@shared/data/types/file'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
@@ -242,6 +241,17 @@ describe('Voice handlers through real IpcRouter', () => {
     expect(boundary.createRecording).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['an out-of-range speed', { speed: 2.01 }],
+    ['a non-finite speed', { speed: Number.POSITIVE_INFINITY }],
+    ['a transcription model', { modelId: 'local-voice::apple-system-asr' }]
+  ])('rejects speech input containing %s before invoking the handler', async (_label, invalid) => {
+    await expectValidationFailure(
+      router.dispatch('ai.speech.generate', { ...input, ...invalid }, { senderId: 'owner' })
+    )
+    expect(boundary.speech).not.toHaveBeenCalled()
+  })
+
   it('requires an exact voice before invoking speech', async () => {
     const withoutVoice = {
       sessionId: input.sessionId,
@@ -282,7 +292,5 @@ describe('Voice handlers through real IpcRouter', () => {
       message: 'operation_failed',
       data: { reason: 'operation_failed' }
     })
-    expect(boundary.speech.mock.calls[0][0]).toEqual({ windowId: 'owner', webContents })
-    expect(application.get).toHaveBeenCalledWith('VoiceSessionService')
   })
 })

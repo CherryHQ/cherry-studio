@@ -111,11 +111,14 @@ export const asrHandlers: UtilityProcessHandlers<AsrInferenceContract> = {
   transcribe: async ({ modelPaths, source }, { logger }) => {
     const audio = source.kind === 'wav' ? getSherpa().readWave(source.filePath, COPY_NATIVE_SAMPLES) : source
     const samples = toRecognizerSampleRate(audio.samples, audio.sampleRate)
-    const recognizer = await getRecognizer(modelPaths, logger)
     const detector = await getDetector(modelPaths.voiceActivityDetector)
+    const speechSegments = detectSpeech(detector, samples)
+    if (!speechSegments.length) return { text: '', segments: [] }
+
+    const recognizer = await getRecognizer(modelPaths, logger)
     const segments: AsrSegment[] = []
 
-    for (const speech of detectSpeech(detector, samples)) {
+    for (const speech of speechSegments) {
       for (let offset = 0; offset < speech.samples.length; offset += MAX_SEGMENT_SAMPLES) {
         const chunk = speech.samples.subarray(offset, offset + MAX_SEGMENT_SAMPLES)
         const text = decodeSegment(recognizer, chunk)

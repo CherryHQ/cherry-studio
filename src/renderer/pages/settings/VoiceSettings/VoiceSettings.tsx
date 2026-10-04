@@ -31,6 +31,8 @@ import {
   type DictationPhase,
   getDefaultVoiceLanguage,
   speechPlaybackService,
+  type SpeechPlaybackSnapshot,
+  VoiceDomainError,
   voiceService,
   voiceTargetManager
 } from '@renderer/services/voice'
@@ -198,12 +200,14 @@ function VoiceSettings() {
   const [installing, setInstalling] = useState(false)
   const [pendingFunAsrAction, setPendingFunAsrAction] = useState<FunAsrAction>()
   const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
+  const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const [transcript, setTranscript] = useState('')
   const [previewText, setPreviewText] = useState('')
   const transcriptRef = useRef<HTMLTextAreaElement>(null)
   const transcriptValueRef = useRef('')
   const autoReadRef = useRef<HTMLButtonElement>(null)
   const dictationRunRef = useRef<ReturnType<typeof dictationService.startScoped> | undefined>(undefined)
+  const previewGenerationRef = useRef(0)
   const speechStatusCheckRef = useRef<Promise<void>>(Promise.resolve())
 
   transcriptValueRef.current = transcript
@@ -455,6 +459,7 @@ function VoiceSettings() {
     microphoneStatus === 'restricted'
   const canOpenMicrophoneSettings = microphoneStatus === 'denied' || microphoneStatus === 'restricted'
   const speechBusy = ['generating', 'playing', 'paused'].includes(speech.phase)
+  const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
 
   const savePreference = (write: () => Promise<void>) => {
     setActionFailed(false)
@@ -518,9 +523,17 @@ function VoiceSettings() {
   }
 
   const togglePreview = () => {
+    const generation = ++previewGenerationRef.current
     setActionFailed(false)
+    setPreviewFailure(undefined)
+    const reportFailure = (error: unknown) => {
+      if (generation !== previewGenerationRef.current) return
+      const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
+      if (reason === 'aborted') return
+      setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
+    }
     if (speechBusy) {
-      void speechPlaybackService.stop().catch(() => setActionFailed(true))
+      void speechPlaybackService.stop().catch(reportFailure)
       return
     }
     void speechPlaybackService
@@ -530,7 +543,7 @@ function VoiceSettings() {
         sourceLabel: 'preview',
         sourceEntityId: 'voice-settings'
       })
-      .catch(() => setActionFailed(true))
+      .catch(reportFailure)
   }
 
   const updateAutoRead = async (enabled: boolean) => {
@@ -866,7 +879,7 @@ function VoiceSettings() {
         <div id="setting-voice-speech-test" className="scroll-mt-6 space-y-3">
           <Textarea.Input
             aria-label={t('settings.voice.speech.preview_text')}
-            aria-describedby={speech.error ? 'voice-speech-error' : undefined}
+            aria-describedby={speechError ? 'voice-speech-error' : undefined}
             value={previewText}
             maxLength={5000}
             onValueChange={setPreviewText}
@@ -881,9 +894,9 @@ function VoiceSettings() {
             {speechBusy ? <Square className="size-4" /> : <Play className="size-4" />}
             {t(speechBusy ? 'common.stop' : 'settings.voice.action.play_preview')}
           </Button>
-          {speech.error ? (
+          {speechError ? (
             <p id="voice-speech-error" role="alert" className="text-sm text-error">
-              {t(errorKey(speech.error))}
+              {t(errorKey(speechError))}
             </p>
           ) : null}
         </div>
