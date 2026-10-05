@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(() => ({ configuration: { fallback_model_ids: ['backup::model'] } })),
-  readRetryPolicy: vi.fn(() => ({ enabled: false, maxAttempts: 3, backoffEnabled: true, fallbackModelIds: [] }))
+  readRetryPolicy: vi.fn(() => ({ enabled: false, maxAttempts: 3, backoffEnabled: true, fallbackModelIds: [] })),
+  getByProviderId: vi.fn((providerId: string) => ({ id: providerId, isEnabled: true })),
+  getByKey: vi.fn((providerId: string, modelId: string) => ({ id: modelId, providerId }))
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
+vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProviderId: mocks.getByProviderId } }))
+vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
 vi.mock('../aiSdk', () => ({ readRetryPolicy: mocks.readRetryPolicy }))
 
 import { AgentSessionFallbackConnection, classifyRuntimeFallbackError } from '../AgentSessionFallbackConnection'
