@@ -11,8 +11,8 @@
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { StreamErrorResult, StreamListener } from '@main/ai/streamManager/types'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { AiStreamManagerConfig } from '../types'
@@ -69,6 +69,14 @@ class ErrorCapturingListener implements StreamListener {
   errors: StreamErrorResult[] = []
 
   onChunk(): void {
+    // Only the terminal error matters here.
+  }
+
+  onDone(): void {
+    // Only the terminal error matters here.
+  }
+
+  onPaused(): void {
     // Only the terminal error matters here.
   }
 
