@@ -48,6 +48,10 @@ export interface AgentSessionMessageBackendOptions {
 export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
   readonly canPersistEmptyTerminal = true
+  // This gates the `finalMessage === undefined` terminal (see PersistenceListener: a terminal event with
+  // no message object at all), NOT "an empty successful response is acceptable". This backend downgrades
+  // a success terminal whose parts are all non-visible to an error below, so the two must not be read
+  // as the same claim. Flipping this to `false` would strand zero-chunk turns as `pending` forever.
   readonly canPersistEmptySuccessTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
   private persistedSuccess = false
