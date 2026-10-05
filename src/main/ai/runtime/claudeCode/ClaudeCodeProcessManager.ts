@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import type { Readable } from 'node:stream'
+import { PassThrough, type Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
@@ -176,14 +176,12 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
-    const rawChild = this.spawnProcess(options.command, options.args, {
-      cwd: options.cwd,
-      env: options.env,
-      signal: options.signal,
-      // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
-    })
+    // libuv throws synchronously when it cannot set up the child's stdio (notably `EBADF` on
+    // macOS, where the new pipes land above Apple's `OPEN_MAX` spawn ceiling). A synchronous
+    // throw leaves no handle to attach `once('error')` to, so it would escape the wrapper's
+    // error listener and reach the SDK as a bare `Error: spawn EBADF`. Convert it into the
+    // async `error` contract the SDK already handles on one shared shape.
+    const rawChild = this.spawnOrThrow(options, diagnostics)
     diagnostics.exited = new Promise<void>((resolve) => {
       rawChild.once('exit', () => resolve())
       rawChild.once('error', () => {
@@ -198,6 +196,48 @@ export class ClaudeCodeProcessManager extends BaseService {
       if (child.pid === undefined) this.processes.delete(child)
     })
     return child
+  }
+
+  /**
+   * Spawn, converting a synchronous throw into a handle that delivers `error` asynchronously.
+   * The stand-in keeps the `SpawnedProcess` contract (unresolved pid, no streams) so the
+   * existing listeners observe the failure through the same path as a late spawn error.
+   */
+  private spawnOrThrow(options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics): SpawnedChildProcess {
+    try {
+      return this.spawnProcess(options.command, options.args, {
+        cwd: options.cwd,
+        env: options.env,
+        signal: options.signal,
+        // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true
+      })
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(String(error))
+      const events = new EventEmitter()
+      // Inert pipes, not nulls: the SDK reads `stdin`/`stdout` right after the spawn call returns,
+      // and a missing stream would throw a TypeError that masks the spawn failure it came from.
+      const [stdin, stdout, stderr] = [new PassThrough(), new PassThrough(), new PassThrough()]
+      const standIn = {
+        pid: undefined,
+        stdin,
+        stdout,
+        stderr,
+        killed: false,
+        exitCode: null,
+        signalCode: null,
+        kill: () => false,
+        on: events.on.bind(events),
+        once: events.once.bind(events),
+        off: events.off.bind(events)
+      } as unknown as SpawnedChildProcess
+      recordClaudeCodeSpawnError(diagnostics, failure)
+      // Deferred: emitting synchronously would outrun listeners the SDK attaches after this
+      // returns — the same ordering the bare throw used to break.
+      queueMicrotask(() => events.emit('error', failure))
+      return standIn
+    }
   }
 
   /**

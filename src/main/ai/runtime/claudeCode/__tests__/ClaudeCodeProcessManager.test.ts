@@ -244,6 +244,40 @@ describe('ClaudeCodeProcessManager', () => {
     expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
   })
 
+  it('reports a synchronous spawn failure through the error listener instead of throwing', async () => {
+    // libuv throws synchronously when it cannot set up stdio — macOS EBADF lands here. The pre-fix
+    // code propagated that throw to the SDK, skipping both diagnostics and the error contract.
+    const failure = Object.assign(new Error('spawn EBADF'), { code: 'EBADF' })
+    const manager = new TestProcessManager(() => {
+      throw failure
+    })
+    const diagnostics = createClaudeCodeProcessDiagnostics('spawn-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onError = vi.fn()
+    managed.once('error', onError)
+
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledExactlyOnceWith(failure))
+
+    expect(diagnostics.spawnFailed).toBe(true)
+    expect(diagnostics.terminalReason).toBe('Failed to spawn Claude Code process: spawn EBADF')
+    // The stand-in must satisfy the SDK's post-spawn reads, or a TypeError masks this failure.
+    expect(managed.stdin).toBeTruthy()
+    expect(managed.stdout).toBeTruthy()
+    // `exited` must settle, otherwise teardown blocks forever waiting on a process that never ran.
+    await expect(diagnostics.exited).resolves.toBeUndefined()
+  })
+
+  it('untracks a synchronously failed spawn so the shutdown sweep skips it', async () => {
+    const manager = new TestProcessManager(() => {
+      throw Object.assign(new Error('spawn EBADF'), { code: 'EBADF' })
+    })
+    manager.spawn(spawnOptions)
+    const sweep = vi.spyOn(manager, 'killAll')
+    await manager._doStop()
+    expect(sweep).toHaveBeenCalledWith('SIGTERM')
+    expect(manager['processes'].size).toBe(0)
+  })
+
   it('stops tracking a child whose spawn fails before receiving a pid', () => {
     const child = createFakeChild({ pid: undefined })
     const manager = new TestProcessManager(vi.fn(() => child.process))
