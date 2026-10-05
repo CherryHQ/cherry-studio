@@ -4019,6 +4019,7 @@
   "settings.data.trash.file_refs.loading": "Vérification des références de fichiers…",
   "settings.data.trash.file_refs.retry": "Réessayer la vérification des références",
   "settings.data.trash.load_more": "Charger plus",
+  "settings.data.trash.owned_by": "de {{name}}",
   "settings.data.trash.page_next": "Suivant",
   "settings.data.trash.page_prev": "Précédent",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Supprimer définitivement {{count}} éléments ?",

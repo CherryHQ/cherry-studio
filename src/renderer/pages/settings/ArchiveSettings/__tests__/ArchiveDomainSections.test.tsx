@@ -76,6 +76,11 @@ function deletedTopic(id: string, name: string) {
   return { id, name, deletedAt: '2026-08-01T00:00:00.000Z' }
 }
 
+/** `/archives` entry shape; `entityId` is what the section hands to the domain actions. */
+function archivedEntry(domain: string, id: string, name: string) {
+  return { id, entityId: id, domain, name, parentId: null, parentName: null, deletedAt: '2026-08-01T00:00:00.000Z' }
+}
+
 function deletedFile(id: string, name: string) {
   return {
     id,
@@ -106,10 +111,10 @@ const dataDomainCases: DataDomainCase[] = [
   {
     label: 'Topic',
     Component: TopicArchiveSection,
-    listPath: '/topics',
+    listPath: '/archives',
     deletePath: '/topics/:id',
     paginated: false,
-    makeRecord: deletedTopic
+    makeRecord: (id, name) => archivedEntry('topics', id, name)
   },
   {
     label: 'Assistant',
@@ -281,9 +286,7 @@ describe('Archive domain batch adapters', () => {
 
   it('restores a Session through its lifecycle IPC command', async () => {
     const user = userEvent.setup()
-    mocks.pagesByPath.set('/agent-sessions', [
-      { items: [{ id: 'session-1', name: 'Session one', deletedAt: '2026-08-01T00:00:00.000Z' }] }
-    ])
+    mocks.pagesByPath.set('/archives', [{ items: [archivedEntry('sessions', 'session-1', 'Session one')] }])
     mocks.ipcRequest.mockResolvedValue({ id: 'session-1' })
 
     render(
@@ -301,6 +304,27 @@ describe('Archive domain batch adapters', () => {
     )
     expect(mocks.invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1', '/agents/*'])
     expect(toast.success).toHaveBeenCalledWith('Restored')
+  })
+
+  it('shows the owning agent on an archived session row', () => {
+    mocks.pagesByPath.set('/archives', [
+      {
+        items: [
+          { ...archivedEntry('sessions', 'session-1', 'Session one'), parentId: 'agent-1', parentName: 'Researcher' }
+        ]
+      }
+    ])
+
+    render(
+      <SessionArchiveSection
+        retentionDays={30}
+        isBatchMode={false}
+        isPermanentDeleting={false}
+        onRequestDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/from Researcher/)).toBeInTheDocument()
   })
 
   it.each(dataDomainCases)(
@@ -414,8 +438,13 @@ describe('Archive domain batch adapters', () => {
 
   it('reports an all-stale Topic batch in one user-visible summary', async () => {
     const user = userEvent.setup()
-    mocks.pagesByPath.set('/topics', [
-      { items: [deletedTopic('topic-stale-1', 'Stale one'), deletedTopic('topic-stale-2', 'Stale two')] }
+    mocks.pagesByPath.set('/archives', [
+      {
+        items: [
+          archivedEntry('topics', 'topic-stale-1', 'Stale one'),
+          archivedEntry('topics', 'topic-stale-2', 'Stale two')
+        ]
+      }
     ])
     mocks.mutate.mockImplementation(async (_method, _path, args) => {
       throw DataApiErrorFactory.notFound('Topic', args.params.id)
@@ -501,12 +530,12 @@ describe('Archive domain batch adapters', () => {
 
   it('sequentially sends exact Session permanent-delete commands and keeps an empty result as stale', async () => {
     const user = userEvent.setup()
-    mocks.pagesByPath.set('/agent-sessions', [
+    mocks.pagesByPath.set('/archives', [
       {
         items: [
-          { id: 'session-1', name: 'First session', deletedAt: '2026-08-01T00:00:00.000Z' },
-          { id: 'session-2', name: 'Second session', deletedAt: '2026-08-01T00:00:00.000Z' },
-          { id: 'session-3', name: 'Third session', deletedAt: '2026-08-01T00:00:00.000Z' }
+          archivedEntry('sessions', 'session-1', 'First session'),
+          archivedEntry('sessions', 'session-2', 'Second session'),
+          archivedEntry('sessions', 'session-3', 'Third session')
         ]
       }
     ])
@@ -572,8 +601,8 @@ describe('Archive domain batch adapters', () => {
     {
       label: 'Session',
       Component: SessionArchiveSection,
-      listPath: '/agent-sessions',
-      record: { id: 'session-stale', name: 'Stale session', deletedAt: '2026-08-01T00:00:00.000Z' },
+      listPath: '/archives',
+      record: archivedEntry('sessions', 'session-stale', 'Stale session'),
       request: ['ai.agent.session.delete', { sessionIds: ['session-stale'], permanent: true }] as const,
       response: { deletedIds: [] },
       invalidatePaths: ['/agent-sessions', '/agents/*'],
@@ -623,7 +652,7 @@ describe('Archive domain batch adapters', () => {
 
   it('treats restore NOT_FOUND as complete after refresh confirms the Topic is active', async () => {
     const user = userEvent.setup()
-    mocks.pagesByPath.set('/topics', [{ items: [deletedTopic('topic-1', 'First topic')] }])
+    mocks.pagesByPath.set('/archives', [{ items: [archivedEntry('topics', 'topic-1', 'First topic')] }])
     mocks.mutate.mockImplementation(async (method) => {
       if (method === 'POST') throw DataApiErrorFactory.notFound('Topic', 'topic-1')
     })

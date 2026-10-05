@@ -4019,6 +4019,7 @@
   "settings.data.trash.file_refs.loading": "正在檢查檔案引用…",
   "settings.data.trash.file_refs.retry": "重試引用檢查",
   "settings.data.trash.load_more": "載入更多",
+  "settings.data.trash.owned_by": "來自 {{name}}",
   "settings.data.trash.page_next": "下一頁",
   "settings.data.trash.page_prev": "上一頁",
   "settings.data.trash.permanent_delete.batch_confirm_title": "永久刪除 {{count}} 個項目？",

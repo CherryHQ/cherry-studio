@@ -102,4 +102,17 @@ describe('archive list', () => {
     await expect(archiveHandlers['/archives'].GET({ query: { limit: 0 } })).rejects.toThrow()
     await expect(archiveHandlers['/archives'].GET({ query: { limit: 201 } })).rejects.toThrow()
   })
+
+  it('attributes archived sessions and topics to their owner and filters by domain', () => {
+    seedArchive()
+    dbh.db.update(topicTable).set({ assistantId: 'same' }).where(eq(topicTable.id, 'same')).run()
+    dbh.db.update(agentSessionTable).set({ agentId: 'same' }).where(eq(agentSessionTable.id, 'same')).run()
+
+    const byId = new Map(listArchives({ limit: 10 }).items.map((entry) => [entry.id, entry]))
+    expect(byId.get('sessions:same')).toMatchObject({ parentId: 'same', parentName: 'Agent' })
+    expect(byId.get('topics:same')).toMatchObject({ parentId: 'same', parentName: 'Assistant' })
+    expect(byId.get('agents:same')).toMatchObject({ parentId: null, parentName: null })
+
+    expect(listArchives({ domain: 'sessions', limit: 10 }).items.map(({ domain }) => domain)).toEqual(['sessions'])
+  })
 })
