@@ -309,7 +309,8 @@ describe('agent-session error rows always explain themselves (P3)', () => {
     expect(row.data.parts?.filter((p) => p.type === 'data-error')).toHaveLength(1)
     // The pre-existing error wins — we never overwrite a more specific truth.
     const firstPart = row.data.parts?.[0]
-    const carried = firstPart && 'data' in firstPart ? (firstPart.data as Record<string, unknown> | undefined) : undefined
+    const carried =
+      firstPart && 'data' in firstPart ? (firstPart.data as Record<string, unknown> | undefined) : undefined
     expect(carried?.message).toBe('original failure')
   })
 })
