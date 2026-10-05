@@ -5833,7 +5833,7 @@ describe('AgentSessionRuntimeService', () => {
     const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
     }
     await persistenceListener(handle).onDone(result)
 
@@ -5854,7 +5854,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'success',
-          data: { parts: [] },
+          data: { parts: [{ type: 'text', text: 'done' }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
