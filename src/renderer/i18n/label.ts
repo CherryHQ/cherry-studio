@@ -75,6 +75,7 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
+  topxai: 'provider.topxai',
   tokendance: 'provider.tokendance',
   tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
