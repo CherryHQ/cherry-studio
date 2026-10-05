@@ -1,0 +1,43 @@
+{
+  "fill": {
+    "solid": "srgb:1.00000,0.37255,0.37255,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name-specializations": [
+            {
+              "value": "cherry-studio-light.png"
+            },
+            {
+              "appearance": "dark",
+              "value": "cherry-studio-dark.png"
+            }
+          ],
+          "name": "Cherry Studio",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
