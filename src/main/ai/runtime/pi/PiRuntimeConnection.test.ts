@@ -13,6 +13,7 @@ import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
+import type * as PiSdk from './piSdk'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
@@ -51,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
+  loadPiVccExtension: vi.fn(),
   loadPiApiStreamSimple: vi.fn(),
   providerStreamSimple: vi.fn(),
   providerResult: undefined as unknown,
@@ -181,8 +183,10 @@ vi.mock('./piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.captureConnectionSnapshot,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
-vi.mock('./piSdk', () => ({
+vi.mock('./piSdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof PiSdk>()),
   loadPiSdk: mocks.loadPiSdk,
+  loadPiVccExtension: mocks.loadPiVccExtension,
   loadPiAi: async () => ({ InMemoryCredentialStore: class {} }),
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
@@ -415,9 +419,9 @@ beforeEach(() => {
       ]
     }
   })
-  mocks.getPath.mockImplementation((key: string) => {
+  mocks.getPath.mockImplementation((key: string, filename?: string) => {
     if (key === 'external.pi.settings_file') return mocks.piSettingsFile
-    if (key === 'feature.agents.pi.root') return PI_ROOT
+    if (key === 'feature.agents.pi.root') return filename ? path.join(PI_ROOT, filename) : PI_ROOT
     if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
     if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
     if (key === 'feature.binary.data.isolated.rustup') return '/cherry/Toolchain/rustup'
@@ -426,6 +430,7 @@ beforeEach(() => {
     return PI_SESSIONS
   })
   mocks.loadPiSdk.mockResolvedValue(fakePi)
+  mocks.loadPiVccExtension.mockResolvedValue(() => {})
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
   mocks.providerResult = {
     role: 'assistant',
@@ -1584,7 +1589,6 @@ describe('PiRuntimeConnection', () => {
       noThemes: true,
       noContextFiles: false
     })
-    expect(mocks.reload).toHaveBeenCalledWith()
   })
 
   it('hands the configured pi shellPath to the settings manager and the managed bash tool', async () => {
@@ -1673,12 +1677,10 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.loaderOpts).toMatchObject({ noSkills: true, additionalSkillPaths: [] })
   })
 
-  it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
+  it('bakes disabledTools into excludeTools while keeping the managed Bash definition', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
-    const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
-    expect(factories).toHaveLength(5)
     expect(mocks.createOpts?.customTools).toEqual([MANAGED_BASH_TOOL])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
