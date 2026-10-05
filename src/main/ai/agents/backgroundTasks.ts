@@ -204,6 +204,7 @@ export async function startDetachedBackgroundTask(
       settled = true
       activeTaskPids.delete(id)
       let cleaned = record.pid <= 0
+      let completed = false
       try {
         if (!cleaned) {
           if (process.platform === 'win32') {
@@ -231,6 +232,9 @@ export async function startDetachedBackgroundTask(
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
+            // The completion this call publishes also tells the agent the task is done, so the
+            // start failure must not claim the opposite and send it polling a finished task.
+            completed = true
           } else {
             // `finalize` is spent, so nothing else would release this ownership; keeping it would let
             // a stop aim at whatever process the OS later hands the recycled pid to.
@@ -245,11 +249,14 @@ export async function startDetachedBackgroundTask(
         }
       }
       // A plain "start failed" here invites a retry that duplicates work that is in fact still
-      // running, so an uncleaned recovery has to name the task it could not dispose of.
+      // running, so an uncleaned recovery has to name the task it could not dispose of — unless
+      // this same call already published its completion, which names the opposite.
       throw cleaned
         ? error
         : new Error(
-            `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`,
+            completed
+              ? `Detached background task ${id} could not record its start but has already finished (${observedCompletion?.status})`
+              : `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`,
             { cause: error }
           )
     }
