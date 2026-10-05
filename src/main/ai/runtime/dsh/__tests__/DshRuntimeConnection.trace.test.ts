@@ -192,6 +192,14 @@ vi.mock('@main/ai/runtime/agentPrompt', () => ({
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
+// Fallback selection resolves each candidate's provider/model, so the data layer has to answer here
+// too — otherwise the lookup reaches a real service and the turn never settles.
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: vi.fn((providerId: string) => ({ id: providerId, isEnabled: true })) }
+}))
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: vi.fn((providerId: string, modelId: string) => ({ id: modelId, providerId })) }
+}))
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
 const { buildDshCherryToolBridge } = await import('../DshCherryToolBridge')
