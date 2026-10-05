@@ -1,6 +1,5 @@
 import { getToolName, isToolUIPart } from 'ai'
 
-import { loggerService } from '@logger'
 import {
   type AgentToolOutput,
   AgentToolsType,
@@ -21,9 +20,6 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-
-// TEMPORARY diagnostic — removed once the cold-restart round ordering is diagnosed.
-const probeLogger = loggerService.withContext('AgentFlowOrderProbe')
 
 export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
@@ -597,10 +593,14 @@ export function buildAgentToolFlowProjection(
     // authoritative and restart-safe — the host row usually predates the receipt row, so position
     // alone cannot order them), or — for untagged history — the receipt's own walk position.
     const receiptPrompts = new Map<string, string>()
-    const probeReceipts: Array<Record<string, unknown>> = []
     // Markers belonging to sibling agents' continuations must not split this flow, so the set of
     // this agent's own receipt call ids gates every marker-driven split.
     const ownReceiptCallIds = new Set<string>()
+    // Rounds are ordered by the resume call that opened them, never by where their content happens
+    // to sit: a resumed child streams into the live turn's row while the turn runs and into the
+    // launch's row after a cold restart, so walk order can place a later round before an earlier one.
+    const receiptRank = new Map<string, number>()
+    const rankReceiptCallId = new Map<number, string>()
     if (launchedAgentId) {
       for (const { parts } of messageEntries) {
         for (const part of parts) {
@@ -612,17 +612,26 @@ export function buildAgentToolFlowProjection(
           if (!isResumeReceiptFor(part, launchedAgentId)) continue
           ownReceiptCallIds.add(toolCallId)
           const prompt = getResumeReceiptPromptText(part)
-          if (prompt) receiptPrompts.set(toolCallId, prompt)
-          probeReceipts.push({
-            toolCallId,
-            prompt: Boolean(prompt),
-            inputKeys: Object.keys((part as { input?: object }).input ?? {})
-          })
+          if (prompt) {
+            receiptPrompts.set(toolCallId, prompt)
+            const rank = receiptRank.size + 1
+            receiptRank.set(toolCallId, rank)
+            rankReceiptCallId.set(rank, toolCallId)
+          }
         }
       }
     }
 
-    const segments: Array<{ parts: CherryMessagePart[] }> = [{ parts: [] }]
+    // The launch round always exists: an active flow shows its empty round as pending.
+    const roundParts = new Map<number, CherryMessagePart[]>([[0, []]])
+    const partsOfRound = (rank: number): CherryMessagePart[] => {
+      const existing = roundParts.get(rank)
+      if (existing) return existing
+      const created: CherryMessagePart[] = []
+      roundParts.set(rank, created)
+      return created
+    }
+    let currentRank = 0
     // The result text only fills a flow that has no streamed child parts at all (a runtime whose
     // foreground calls emit no detachable content); Claude Code streams them even for foreground
     // runs, so injecting there would duplicate the report and leak its agentId trailer. Background
@@ -650,103 +659,42 @@ export function buildAgentToolFlowProjection(
           ? undefined
           : selectedOutputText
       if (foregroundResultText) {
-        segments[0].parts.push({ type: 'text', text: foregroundResultText })
+        partsOfRound(0).push({ type: 'text', text: foregroundResultText })
       }
     }
-    let segmentIndex = 0
-    let emittedSegments = 0
-    let resumeCount = 0
-    const consumedMarkers = new Set<string>()
-    const probeBoundaries: Array<Record<string, unknown>> = []
-    const emitSegment = (index: number) => {
-      const segment = segments[index]
-      if (segment.parts.length === 0 && !isFlowActive) return
-      const id = `${selectedToolCallId}:agent-flow-assistant${index === 0 ? '' : `-${index}`}`
-      const assistantMessage = {
-        id,
-        role: 'assistant',
-        parts: segment.parts,
-        metadata: {
-          createdAt: selectedCreatedAt,
-          status: isFlowActive ? 'pending' : 'success'
-        }
-      } as CherryUIMessage
-      flowMessages.push(assistantMessage)
-      flowPartsByMessageId[id] = segment.parts
-    }
-    for (const { message, parts } of messageEntries) {
+    for (const { parts } of messageEntries) {
       for (const part of parts) {
-        // Task events carry no tool-call metadata, so they join the round they fall in and never
-        // reach the resume-marker walk below.
+        // Task events carry no tool-call metadata, so they join the round they fall in.
         if (part.type === 'data-agent-task-event') {
-          if (taskIds.has(part.data.taskId)) segments[segmentIndex].parts.push(part)
+          if (taskIds.has(part.data.taskId)) partsOfRound(currentRank).push(part)
           continue
         }
         const toolCallId = getToolCallId(part)
 
-        // Runtime-tagged round boundary: the first marked part opens the new round. The matching
-        // receipt's prompt text (pre-scanned by call id) backfills the user message; when that
-        // receipt is walked later it must not split a second time. The adapter only stamps parts
-        // whose parent is this launch root, but sibling flows sharing the walk order need the
-        // receipt-set check too, so both gates guard against splitting on foreign markers.
-        const marker = getPartResumeMarker(part)
-
-        // A resume receipt is not itself part of the flow, but for untagged content it marks where
-        // a new round starts. Skip if its call id was already consumed by a runtime marker.
+        // A resume receipt is a round boundary, never flow content: it opens its round when it
+        // carried a request, and is skipped either way.
         const isResumeReceipt =
           launchedAgentId &&
           isToolUIPart(part) &&
           toolCallId !== selectedToolCallId &&
-          isResumeReceiptFor(part, launchedAgentId) &&
-          !(toolCallId && consumedMarkers.has(toolCallId))
+          isResumeReceiptFor(part, launchedAgentId)
 
         // A marker only opens a round when its receipt was matched and carried a request: a break
-        // whose prompt is unknown reads as an empty round, so that content stays in this one.
+        // whose prompt is unknown reads as an empty round, so that content stays in this one. The
+        // adapter only stamps parts whose parent is this launch root, but sibling flows sharing the
+        // walk order need the receipt-set check too.
+        const marker = getPartResumeMarker(part)
         const markerOwnsThisFlow =
           marker !== undefined &&
           receiptPrompts.has(marker) &&
           marker !== selectedToolCallId &&
-          !consumedMarkers.has(marker) &&
           (ownReceiptCallIds.has(marker) || getPartParentToolCallId(part) === selectedToolCallId)
 
-        probeBoundaries.push({
-          messageId: message.id,
-          toolCallId: toolCallId ?? null,
-          marker: marker ?? null,
-          isResumeReceipt: Boolean(isResumeReceipt),
-          markerOwnsThisFlow
-        })
         if (markerOwnsThisFlow || isResumeReceipt) {
-          // The receipt's own request wins when it is the part being walked; a marker-split reads
-          // the request of the receipt that opened the round.
-          const promptText = isResumeReceipt ? getResumeReceiptPromptText(part) : receiptPrompts.get(marker ?? '')
-          if (promptText) {
-            for (; emittedSegments <= segmentIndex; emittedSegments += 1) emitSegment(emittedSegments)
-            resumeCount += 1
-            if (marker) consumedMarkers.add(marker)
-            // A part that is both consumes both ids: the receipt's call id must not split again, or
-            // a same-message tagged part would duplicate the prompt message.
-            if (isResumeReceipt && toolCallId) consumedMarkers.add(toolCallId)
-            segmentIndex += 1
-            segments.push({ parts: [] })
-            const resumeMessage = createFlowTextMessage(
-              `${selectedToolCallId}:agent-flow-resume-${resumeCount}`,
-              'user',
-              promptText,
-              selectedCreatedAt
-            )
-            if (resumeMessage) {
-              flowMessages.push(resumeMessage)
-              flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts
-            }
-          }
-          if (isResumeReceipt) continue
-          // A tagged part belongs to the new round — fall through to descendant inclusion.
+          const rank = receiptRank.get(marker ?? toolCallId ?? '')
+          if (rank !== undefined) currentRank = rank
         }
-
-        // A receipt whose round was already opened by a marker is a boundary, not content: without
-        // this it would fall through and be pushed into the segment as an ordinary tool part.
-        if (toolCallId && consumedMarkers.has(toolCallId)) continue
+        if (isResumeReceipt) continue
 
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
@@ -755,21 +703,41 @@ export function buildAgentToolFlowProjection(
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
-        segments[segmentIndex].parts.push(getPartWithoutParentMetadata(part))
+        partsOfRound(currentRank).push(getPartWithoutParentMetadata(part))
       }
     }
-    for (; emittedSegments < segments.length; emittedSegments += 1) emitSegment(emittedSegments)
-    if (probeBoundaries.length > 1)
-      probeLogger.info('projection', {
-        selectedToolCallId,
-        launchedAgentId,
-        rootTaskId,
-        messageOrder: messageEntries.map(({ message }) => message.id),
-        receipts: probeReceipts,
-        ownReceiptCallIds: [...ownReceiptCallIds],
-        boundaries: probeBoundaries,
-        flowOrder: flowMessages.map((item) => `${item.role}:${item.id}`)
-      })
+
+    // Rounds are emitted in resume order, each behind the request that opened it; an empty round
+    // still shows its request while the flow is active, and is dropped once it settles.
+    for (const rank of [...roundParts.keys()].sort((left, right) => left - right)) {
+      if (rank > 0) {
+        const receiptCallId = rankReceiptCallId.get(rank)
+        const resumeMessage = createFlowTextMessage(
+          `${selectedToolCallId}:agent-flow-resume-${rank}`,
+          'user',
+          receiptCallId ? receiptPrompts.get(receiptCallId) : undefined,
+          selectedCreatedAt
+        )
+        if (resumeMessage) {
+          flowMessages.push(resumeMessage)
+          flowPartsByMessageId[resumeMessage.id] = resumeMessage.parts
+        }
+      }
+      const roundContent = roundParts.get(rank) ?? []
+      if (roundContent.length === 0 && !isFlowActive) continue
+      const id = `${selectedToolCallId}:agent-flow-assistant${rank === 0 ? '' : `-${rank}`}`
+      const assistantMessage = {
+        id,
+        role: 'assistant',
+        parts: roundContent,
+        metadata: {
+          createdAt: selectedCreatedAt,
+          status: isFlowActive ? 'pending' : 'success'
+        }
+      } as CherryUIMessage
+      flowMessages.push(assistantMessage)
+      flowPartsByMessageId[id] = roundContent
+    }
   }
 
   return {

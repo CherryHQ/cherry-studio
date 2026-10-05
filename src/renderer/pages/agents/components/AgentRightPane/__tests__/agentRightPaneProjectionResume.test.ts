@@ -291,6 +291,74 @@ describe('agent right pane flow rounds', () => {
     )
   })
 
+  // A resumed child streams into the live turn's row while the turn runs, but into the launch's row
+  // after a cold restart — so a later round's content can sit in an older message than an earlier
+  // round's. Rounds must be ordered by the resume call that opened them, not by where they landed.
+  it('orders rounds by their resume call when a cold restart moves their content', () => {
+    const marked = (text: string, resumeCallId: string) =>
+      ({
+        type: 'text',
+        text,
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { resumedViaCallId: resumeCallId }
+        }
+      }) as unknown as CherryMessagePart
+    const receipt = (toolCallId: string, message: string) =>
+      toolPart(
+        toolCallId,
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'child', message },
+        { success: true, resumedAgentId: 'child' }
+      )
+    // The launch's own (older) row: round 1 plus the content of the cold rounds 3 and 4.
+    const launchRow = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Launch' },
+        'Async agent launched successfully.\nagentId: child (internal metadata - do not mention.)'
+      ),
+      marked('Round 1 findings', 'call_unused'),
+      marked('Round 3 findings', 'call_r3'),
+      marked('Round 4 findings', 'call_r4')
+    ]
+    // The row of the turn that was live when round 2 ran.
+    const liveRow = [receipt('call_r2', 'Round 2 request'), marked('Round 2 findings', 'call_r2')]
+    const messages = [
+      message('launch-row', launchRow),
+      message('live-row', liveRow),
+      message('r3-row', [receipt('call_r3', 'Round 3 request')]),
+      message('r4-row', [receipt('call_r4', 'Round 4 request'), marked('Round 4 late findings', 'call_r4')])
+    ]
+    const partsByMessageId = Object.fromEntries(messages.map((entry) => [entry.id, entry.parts]))
+
+    const projection = buildAgentToolFlowProjection(messages, partsByMessageId, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1',
+      'call_launch:agent-flow-resume-2',
+      'call_launch:agent-flow-assistant-2',
+      'call_launch:agent-flow-resume-3',
+      'call_launch:agent-flow-assistant-3'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Round 2 request'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Round 2 findings'])
+    expect(texts('call_launch:agent-flow-resume-2')).toEqual(['Round 3 request'])
+    expect(texts('call_launch:agent-flow-assistant-2')).toEqual(['Round 3 findings'])
+    expect(texts('call_launch:agent-flow-resume-3')).toEqual(['Round 4 request'])
+    // A round's content split across rows stays in that round, wherever it landed.
+    expect(texts('call_launch:agent-flow-assistant-3')).toEqual(['Round 4 findings', 'Round 4 late findings'])
+  })
+
   // A foreground launch returns the child's answer, so nothing in its result names the child. The
   // runtime's task event is what binds that root to it, and without that binding a later
   // SendMessage receipt cannot be recognised as a continuation of this flow.
