@@ -46,10 +46,12 @@ describe('AgentSessionMessageBackend', () => {
     const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
     await listener.onDone({ status: 'success', finalMessage: undefined })
-    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
-      status: 'success',
-      data: { parts: [] }
-    })
+    const row = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    // The placeholder row is finalized in place — no orphan row, no stuck `pending`.
+    expect(row.status).toBe('success')
+    // A contentless reply is a failure wearing success's clothes, so it carries a
+    // classified error explaining itself instead of rendering as an empty bubble.
+    expect(row.data.parts?.some((part) => part.type === 'data-error')).toBe(true)
   })
 
   it('persists an unknown runtime checkpoint intact without exposing it in public messages', async () => {

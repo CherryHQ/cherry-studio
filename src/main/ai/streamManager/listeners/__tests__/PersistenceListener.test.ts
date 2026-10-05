@@ -328,12 +328,16 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
   })
 
-  it('skips persistence when onDone arrives without a finalMessage', async () => {
+  it('classifies instead of skipping when onDone arrives without a finalMessage', async () => {
     const listener = makeListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    expect(appendAssistantMessageMock).not.toHaveBeenCalled()
+    // A contentless turn still has to reach storage — silently dropping it
+    // strands the placeholder row as `pending` forever.
+    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
+    const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts
+    expect(parts.some((part: { type: string }) => part.type === 'data-error')).toBe(true)
   })
 
   it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
@@ -387,12 +391,16 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('does not create an empty successful ordinary-chat reply', async () => {
+  it('finalizes an empty successful ordinary-chat reply with a classified error', async () => {
     const listener = makeMessageServiceListener()
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    expect(messageFinalizeMock).not.toHaveBeenCalled()
+    // `MessageServiceBackend` has no `canPersistEmptySuccessTerminal`, so an empty
+    // success previously wrote nothing and froze the placeholder as `pending`.
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    const parts = messageFinalizeMock.mock.calls[0][1].data.parts as Array<{ type: string }>
+    expect(parts.some((part) => part.type === 'data-error')).toBe(true)
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
