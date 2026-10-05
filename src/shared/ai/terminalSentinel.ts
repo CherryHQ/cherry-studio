@@ -11,6 +11,7 @@
  * Cross-process: `main` writes them, the renderer's `ErrorBlock` renders them.
  */
 
+import type { CherryMessagePart } from '../data/types/message'
 import type { SerializedError } from '../types/error'
 
 /** Renderer key prefix — `ErrorBlock` resolves `error.${i18nKey}`. See the SerializedError doc comment. */
@@ -104,13 +105,11 @@ export function withTerminalErrorPart(
   data: { parts?: unknown } | null | undefined,
   key: TerminalSentinelKey,
   options?: TerminalSentinelOptions
-): { parts: unknown[] } {
-  const existing = Array.isArray(data?.parts) ? (data?.parts as unknown[]) : []
-  const hasError = existing.some(
-    (part) => typeof part === 'object' && part !== null && (part as { type?: unknown }).type === 'data-error'
-  )
+): { parts: CherryMessagePart[] } {
+  const existing = (Array.isArray(data?.parts) ? data?.parts : []) as CherryMessagePart[]
+  const hasError = existing.some((part) => part?.type === 'data-error')
   if (hasError) return { parts: existing }
 
   const error = terminalSentinel(key, options)
-  return { parts: [...existing, { type: 'data-error', data: error }] }
+  return { parts: [...existing, { type: 'data-error', data: error } as CherryMessagePart] }
 }
