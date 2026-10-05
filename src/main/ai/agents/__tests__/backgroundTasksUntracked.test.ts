@@ -1,5 +1,5 @@
 import type * as NodeFs from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -13,6 +13,8 @@ vi.mock('node:fs', async (importOriginal) => ({
 }))
 
 import {
+  BACKGROUND_TASK_RECORD_EXT,
+  type BackgroundTaskRecord,
   isPidAlive,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
@@ -39,6 +41,14 @@ describe('a task whose record write fails', () => {
     writeFileSyncMock.mockReset()
     await rm(storageDir, { recursive: true, force: true })
   })
+
+  // The recovery record read straight off disk. `listDetachedBackgroundTasks` reconciles, and a pid
+  // that has already exited folds to `unknown`, so going through it races the task's own 50ms exit —
+  // which is how a loaded runner came to assert `running` about a process that was gone.
+  const readRecoveryRecord = async (): Promise<BackgroundTaskRecord> => {
+    const [entry] = (await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_RECORD_EXT))
+    return JSON.parse(await readFile(path.join(storageDir, entry), 'utf8'))
+  }
 
   it.skipIf(process.platform === 'win32')(
     'records the task so it stays stoppable when the cleanup kill also fails',
@@ -96,7 +106,7 @@ describe('a task whose record write fails', () => {
     ).rejects.toThrow()
     killFailSpy.mockRestore()
 
-    const [record] = await listDetachedBackgroundTasks(storageDir)
+    const record = await readRecoveryRecord()
     expect(record.status).toBe('running')
     await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
 
@@ -133,7 +143,7 @@ describe('a task whose record write fails', () => {
     ).rejects.toThrow()
     killFailSpy.mockRestore()
 
-    const [record] = await listDetachedBackgroundTasks(storageDir)
+    const record = await readRecoveryRecord()
     expect(record.status).toBe('running')
     await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
 
