@@ -59,20 +59,31 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Only the
- * header is read to decide, so in-bounds input is never decoded or re-encoded.
+ * Shrink an image so neither edge exceeds the model-bound cap, preserving its format. Reads
+ * dimensions from the header; in-bounds input is verified with a single decode pass and not
+ * re-encoded. Oversized input is resized in one pipeline (decode included).
  * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
  */
 export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
-  if (!(await isDecodableImage(bytes))) throw new Error('could not decode image')
   const sharp = (await import('sharp')).default
   const image = sharp(bytes, { failOn: 'none' })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
-  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) return null
-  return image
-    .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer()
+  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) {
+    try {
+      await image.stats()
+    } catch {
+      throw new Error('could not decode image')
+    }
+    return null
+  }
+  try {
+    return await image
+      .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer()
+  } catch {
+    throw new Error('could not decode image')
+  }
 }
 
 /**

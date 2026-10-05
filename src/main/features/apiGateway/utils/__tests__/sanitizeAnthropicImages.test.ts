@@ -1,12 +1,8 @@
+import type { ContentBlockParam, MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
-
-import {
-  sanitizeAnthropicRequestImages,
-  UNDECODABLE_IMAGE_PLACEHOLDER
-} from '../sanitizeAnthropicImages'
+import { sanitizeAnthropicRequestImages, UNDECODABLE_IMAGE_PLACEHOLDER } from '../sanitizeAnthropicImages'
 
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
@@ -63,8 +59,11 @@ describe('sanitizeAnthropicRequestImages', () => {
     const { messages: out, replacedCount } = await sanitizeAnthropicRequestImages(messages)
 
     expect(replacedCount).toBe(1)
-    const block = (out[0].content as MessageParam['content'] & object[])[0]
+    const block = (out[0].content as ContentBlockParam[])[0]
     expect(block.type).toBe('tool_result')
+    if (block.type !== 'tool_result' || !Array.isArray(block.content)) {
+      throw new Error('expected tool_result with array content')
+    }
     expect(block.content).toEqual([
       { type: 'text', text: 'Read broken.png' },
       { type: 'text', text: UNDECODABLE_IMAGE_PLACEHOLDER }

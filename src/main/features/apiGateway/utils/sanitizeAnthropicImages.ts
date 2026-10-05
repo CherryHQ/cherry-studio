@@ -2,8 +2,11 @@ import type {
   ContentBlockParam,
   ImageBlockParam,
   MessageParam,
-  TextBlockParam
+  TextBlockParam,
+  ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
+
+type ToolResultContentBlock = Exclude<ToolResultBlockParam['content'], string | undefined>[number]
 
 import { isDecodableImage } from '@main/utils/image'
 
@@ -44,12 +47,12 @@ async function sanitizeContentBlocks(content: MessageParam['content']): Promise<
     }
 
     if (block.type === 'tool_result' && Array.isArray(block.content)) {
-      const nested: ContentBlockParam[] = []
+      const nested: ToolResultContentBlock[] = []
       for (const item of block.content) {
         if (item.type === 'image') {
           const next = await sanitizeImageBlock(item)
           if (next.type === 'text') replacedCount += 1
-          nested.push(next)
+          nested.push(next.type === 'text' ? next : (next as ImageBlockParam))
         } else {
           nested.push(item)
         }
