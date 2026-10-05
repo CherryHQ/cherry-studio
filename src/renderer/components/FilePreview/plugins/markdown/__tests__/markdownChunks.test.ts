@@ -408,6 +408,32 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('measures a tab-indented continuation in columns, not in characters', () => {
+    // A tab advances to the next multiple of four, so two of them indent further than the four
+    // spaces the guard above accepts. Measured as characters they read as too shallow, and the
+    // paragraph the parser holds inside the definition went missing from every later chunk.
+    const content = ['[^note]: first', '', '\t\tsecond', '', 'tail'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^note]: first')
+      expect(chunk.text).toContain('\t\tsecond')
+    }
+  })
+
+  it('leaves a fenced block that breaks a never-closing title out of the definition behind it', () => {
+    // The fence ends the construct the parser is reading, so this is not a definition at all. Read
+    // as a title that runs on, its code block was carried into every chunk and printed each time.
+    const content = ['[spec]: /url "the long', '```', 'code', '```', 'spec title"', '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(joined(chunks).match(/code/g)).toEqual(['code'])
+  })
+
   it('keeps a list whose leading items are definitions in one chunk', () => {
     // `- a` / `- b` / `- c` is one loose list; a boundary between them would render two lists and
     // the tail would lose the numbering the whole document gave it.
