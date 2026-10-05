@@ -5,14 +5,14 @@ import {
   AgentToolsType,
   buildAgentLaunchIndex,
   extractLaunchReceiptId,
+  getPartLaunchToolCallId,
+  getPartResumeMarker,
   getResumedAgentId,
   isBackgroundAgentOutput,
   resolveResumeReceiptState
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
-  getPartLaunchToolCallId,
   getPartParentToolCallId,
-  getPartResumeMarker,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
