@@ -34,6 +34,40 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
 }
 
 /**
+ * Where in the request pipeline a failure happened, orthogonal to `ErrorCategory`
+ * (what went wrong). "No response" and "Failed to process successful response"
+ * name neither, so users cannot tell a retryable transport hiccup from a dead
+ * account; the stage supplies the missing half.
+ *
+ * A separate axis rather than more categories: `quota` can surface at `transport`
+ * (HTTP 429) or `runtime` (CLI exit), and collapsing them would lose that.
+ */
+export const ERROR_STAGES = [
+  /** Connection/DNS/TLS/proxy — the request never reached the provider. */
+  'transport',
+  /** The provider answered with an HTTP error status. */
+  'http',
+  /** The response body or SSE frame could not be decoded. */
+  'parse',
+  /** A failure reported by the provider inside an already-open stream. */
+  'stream',
+  /** The agent runtime process (Claude Code / dsh / pi) failed or exited non-zero. */
+  'runtime',
+  /** Writing the turn to storage failed; the model output was produced and lost. */
+  'persistence',
+  /** Anything not attributable to a stage above. */
+  'unknown'
+] as const
+
+export type ErrorStage = (typeof ERROR_STAGES)[number]
+
+const STAGE_NAMES: ReadonlySet<string> = new Set(ERROR_STAGES)
+
+export function isErrorStage(value: unknown): value is ErrorStage {
+  return typeof value === 'string' && STAGE_NAMES.has(value)
+}
+
+/**
  * Recover an HTTP status from free text. Only for sources without a structured status
  * (CLI stderr); callers holding a real status field must pass that instead.
  */

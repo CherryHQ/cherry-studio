@@ -7,6 +7,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -163,7 +164,15 @@ export function useHomeMessageListProviderValue({
   }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
-  const partsByMessageIdRef = useRef(partsByMessageId)
+  // A turn that settled with nothing to render needs an error part, or the user is
+  // left looking at an empty bubble with no cause and no way to act on it. This
+  // mirrors what the Agent list already did; without it, ordinary chats showed a
+  // blank assistant message instead (#20941).
+  const partsByMessageIdWithFallback = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId]
+  )
+  const partsByMessageIdRef = useRef(partsByMessageIdWithFallback)
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -200,8 +209,8 @@ export function useHomeMessageListProviderValue({
   }, [messageItems])
 
   useEffect(() => {
-    partsByMessageIdRef.current = partsByMessageId
-  }, [partsByMessageId])
+    partsByMessageIdRef.current = partsByMessageIdWithFallback
+  }, [partsByMessageIdWithFallback])
 
   const requireChatWrite = useCallback(
     (actionName: string) => {
