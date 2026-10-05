@@ -1084,7 +1084,11 @@ describe('AgentSessionMessageService', () => {
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
-      expect(row.data).toEqual(finalizedData)
+      // The caller's terminalized content survives, and the row also explains why
+      // it failed: a crash leaves no error object of its own, so the sentinel
+      // supplies one rather than leaving an error row with nothing in it.
+      expect(row.data.parts?.[0]).toEqual(finalizedData.parts[0])
+      expect(row.data.parts?.some((part) => part.type === 'data-error')).toBe(true)
       expect(session.lastActivityAt).toBe(1_000)
     })
 
