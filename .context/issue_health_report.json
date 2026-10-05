@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-04T17:00:00Z",
-  "total_open_issues": 1118,
+  "generated_at": "2026-10-05T08:00:00Z",
+  "total_open_issues": 1126,
   "p1_critical_count": 102,
   "p1_delta_30d": 71,
   "p1_breakdown": {
@@ -28,52 +28,48 @@
     "rag_knowledge": 3
   },
   "high_urgency_p1": [
-    {"number": 21282, "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row (regression from 2.1.3)", "age_days": 2, "note": "DAY 3 UNLABELED — startup crash regression, still no P1 label, no assignee"},
-    {"number": 20941, "title": "Work and Agent conversations terminate with empty no-response error", "age_days": 12},
-    {"number": 20940, "title": "Responses API stream events fail client TypeValidation", "age_days": 12},
-    {"number": 20937, "title": "DSH cannot read dsh-bridge under Program Files (EPERM)", "age_days": 12},
-    {"number": 20476, "title": "DeepSeek chat content serialized with incomplete hex escape", "age_days": 22},
-    {"number": 20460, "title": "Volcano responses with reasoning_content break tool_calls parsing", "age_days": 22},
-    {"number": 20407, "title": "Claude Code Agent spawn fails with EBADF on macOS arm64", "age_days": 23},
-    {"number": 20365, "title": "Clearing chat context still reports 90K cached prompt tokens", "age_days": 24},
-    {"number": 19753, "title": "DeepSeek Harness repeatedly crashes during Agent sessions", "age_days": 34},
-    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "age_days": 37}
+    {"number": 21282, "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row", "age_days": 3, "note": "DAY 4 UNLABELED — startup crash regression, needs P1 label + hotfix"},
+    {"number": 20692, "title": "Agent compaction summary leaks into visible chat transcript", "age_days": 18, "note": "13 comments active, no fix merged after 18 days"},
+    {"number": 21343, "title": "Cancelling a chat turn leaves in-loop context compaction running", "age_days": 0, "note": "New today — unlabeled, related to compaction pipeline"},
+    {"number": 21341, "title": "Responses gateway drops assistant output_text when replaying history", "age_days": 0, "note": "New today — unlabeled"},
+    {"number": 20365, "title": "Clearing chat context still reports ~90K cached prompt tokens", "age_days": 25},
+    {"number": 19753, "title": "DeepSeek Harness repeatedly crashes during Agent sessions", "age_days": 36},
+    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "age_days": 39},
+    {"number": 19171, "title": "Model connectivity check hardcodes reasoning_effort: none", "age_days": 44, "assignee": "DeJeune"}
   ],
   "aging_p1_risk": [
-    {"number": 20692, "title": "Agent compaction summary leaks into chat transcript", "age_days": 17, "note": "13 comments active today — still no fix merged"},
-    {"number": 20695, "title": "Parallel edit calls to same file cause lost updates", "age_days": 16},
-    {"number": 19847, "title": "DashScope Qwen3.8-Max terminates on mid-response error", "age_days": 33},
-    {"number": 19865, "title": "Claude Code Agent exhausts Windows virtual memory", "age_days": 32},
-    {"number": 19321, "title": "Local API drops DeepSeek reasoning_text on tool continuations", "age_days": 40},
-    {"number": 19171, "title": "Model connectivity check hardcodes reasoning_effort: none", "age_days": 42, "note": "13 comments, assigned DeJeune"}
+    {"number": 20695, "title": "Parallel edit calls to same file cause lost updates", "age_days": 17},
+    {"number": 19865, "title": "Claude Code Agent exhausts Windows virtual memory", "age_days": 33, "assignee": "404-Page-Found"},
+    {"number": 19864, "title": "Large local Ollama context allocation ends in opaque 500 and OOM", "age_days": 33, "assignee": "404-Page-Found"},
+    {"number": 19441, "title": "Video generation feature urgently needed", "age_days": 40, "assignee": "SiinXu+DeJeune"}
   ],
   "stale_zombie_p1_sample": [
     {"number": 16863, "title": "ARM: cannot upload docs / switch input methods", "age_days": 98},
-    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "age_days": 120, "note": "internal-team"},
-    {"number": 14356, "title": "v2 fresh install — every message fails with Topic not found", "age_days": 168},
-    {"number": 12397, "title": "Expected function.name to be a string (MCP)", "age_days": 270},
-    {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 328}
+    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "age_days": 121, "note": "internal-team"},
+    {"number": 14356, "title": "v2 fresh install — every message fails with Topic not found", "age_days": 169},
+    {"number": 12397, "title": "Expected function.name to be a string (MCP)", "age_days": 271},
+    {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 329},
+    {"number": 8730, "title": "cherry studio是否无法接入商汤大模型", "age_days": 432}
   ],
   "health_summary": {
     "Active_le7d": "~130 issues (12%)",
     "Aging_7_30d": "~275 issues (25%)",
     "Stale_30_90d": "~425 issues (38%)",
-    "Zombie_gt90d": "~288 issues (26%)",
-    "methodology": "Page-1 100-issue sample (sorted by updated_at DESC) represents Active tier fully; remaining extrapolated from historical drift rate."
+    "Zombie_gt90d": "~296 issues (26%)",
+    "methodology": "100-issue sample (sorted by updated_at DESC); remaining extrapolated from historical drift rate."
   },
   "unclassified_issues": {
-    "no_labels": "~43% (rising — new issues flooding unlabeled)",
+    "no_labels": "~46% (widening — new issues flooding unlabeled)",
     "needs_triage": "~14%",
-    "no_priority": "~43%",
-    "recommendation": "Labeling backlog still widening. 43% of page-1 sample unlabeled — triage velocity lagging issue intake."
+    "no_priority": "~40%",
+    "recommendation": "Labeling backlog widening. 46% of sampled open issues unlabeled — triage velocity lagging issue intake."
   },
   "key_alerts": [
-    "ALERT DAY 3: #21282 startup crash regression (2.1.3→2.1.4) still unlabeled and unassigned — needs P1 + assignee immediately",
-    "P1 count: 102 (down 1 from 103 yesterday) — one P1 closed",
-    "+2 net new open issues today (1116→1118)",
-    "#21321 (MCP server UUID tool names) filed AND fix PR #21322 already open same day — good fix velocity",
-    "#21315 (zero-text billed turn) filed AND fix PR #21320 already open same day — good fix velocity",
-    "#21316 (SenseNova image JSON body) filed AND fix PR #21318 already open same day — good fix velocity"
+    "ALERT DAY 4: #21282 startup crash regression (2.1.3→2.1.4) still unlabeled and unassigned — needs P1 + assignee immediately",
+    "P1 count: 102 (stable from yesterday)",
+    "+8 net new open issues today (1118→1126) — above daily average of ~2",
+    "#21343/#21341 filed today suggest ongoing compaction/Responses-API regression sweep by user 'dakjdakd'",
+    "#20692 agent compaction leak: 13 comments, 18 days unresolved — escalation recommended"
   ],
   "volume_trend": {
     "2026-08-30": 1008,
@@ -83,12 +79,14 @@
     "2026-10-02": 1113,
     "2026-10-03": 1116,
     "2026-10-04": 1118,
-    "delta_30d": 110,
-    "delta_1d": 2,
+    "2026-10-05": 1126,
+    "delta_30d": 118,
+    "delta_1d": 8,
     "p1_2026-09-30": 104,
     "p1_2026-10-02": 104,
     "p1_2026-10-03": 103,
     "p1_2026-10-04": 102,
-    "p1_delta_1d": -1
+    "p1_2026-10-05": 102,
+    "p1_delta_1d": 0
   }
 }
