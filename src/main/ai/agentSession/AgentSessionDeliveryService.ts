@@ -447,12 +447,16 @@ export class AgentSessionDeliveryService extends BaseService {
       const manager = application.get('AiStreamManager')
       if (
         application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
+        application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(sessionId) ||
         manager.hasLiveStream(topicId) ||
         manager.hasTerminalPersistenceInFlight(topicId)
       ) {
         return true
       }
-      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
+      // Runtime, background work and stream persistence are all idle, so no writer can still
+      // complete this placeholder. Background work targets this very assistant row: a turn that
+      // settles while detached subagents run reports idle, and `markFlowMessagePersisted` admits
+      // their chunks once the row persists.
       // A transient repair failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)

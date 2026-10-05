@@ -463,6 +463,40 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
+  it('does not repair a pending placeholder while background work can still write it', async () => {
+    // The turn settles as soon as its generation ends, so the terminal path reports idle while
+    // detached subagents are still running. Those chunks target this very assistant row, and
+    // `markFlowMessagePersisted` admits them once the row persists — so an idle kick must not
+    // conclude that no writer remains and error the placeholder out from under them.
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(assistant)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(true)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).not.toHaveBeenCalled()
+    expect(mocks.finalize).not.toHaveBeenCalled()
+
+    mocks.pendingBackgroundWork.mockReturnValue(false)
+    mocks.getMessage.mockReturnValue({ ...assistant, status: 'success' })
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'success'
+    })
+  })
+
   it('ignores row-roll terminal events', async () => {
     mocks.findByTurnRef.mockReturnValue(accepted)
     const service = new AgentSessionDeliveryService()
