@@ -78,7 +78,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { AiStreamAbortOrigin, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
@@ -323,7 +323,7 @@ type Props = {
   resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
-  stop: () => Promise<void>
+  stop: (origin: AiStreamAbortOrigin) => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -1240,9 +1240,9 @@ const AgentComposerInner = ({
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
 
   const abortAgentSession = useCallback(async () => {
-    logger.info('Aborting agent session', { sessionTopicId })
+    logger.info('Aborting agent session', { sessionTopicId }, { logToMain: true })
     try {
-      await chatStop()
+      await chatStop('user-stop')
     } catch (error) {
       logger.error('Failed to abort agent session', { sessionTopicId, error })
     }

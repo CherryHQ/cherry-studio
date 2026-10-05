@@ -760,7 +760,7 @@ duplicated; the rest are stream-manager-specific.
 | Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `pendingTurns`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Reconnect | `ai.stream.attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned; attach never changes runtime state |
-| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
+| Abort — renderer request | `ai.stream.abort` (reason = the caller's `origin`) | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `ai.stream.attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
@@ -799,7 +799,43 @@ chunks-only prompt stream with no message target. See
 | `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `ai.stream.detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
-| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle |
+| `ai.stream.abort` | `{ topicId, origin? }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle. `origin` names the caller and becomes the abort reason — see [Abort reasons](#abort-reasons) |
+
+### Abort reasons
+
+`abort(topicId, reason)` logs `Aborting stream { topicId, reason }`, and that reason is
+the only record of **who** ended a stream. An agent-session Stop that arrives before the
+stream exists never reaches that line: it aborts the pending turn through
+`AgentSessionRuntimeService.abortPendingTurn` and logs
+`Aborting pending agent turn { topicId, reason }` instead, and only when a live turn was
+actually stopped. Main names its own teardowns
+(`no-subscribers`, `app-shutdown`, `agent-session-runtime-stop`, `mini-app-cancelled`, …);
+a renderer-requested abort carries the `origin` the caller passed to `ai.stream.abort`:
+
+| `origin` | Sent by |
+|---|---|
+| `user-stop` | the composer Pause/Stop button — `AgentComposer`'s `onPause`, and `ChatWriteActions.pause` on the chat path |
+| `transport-abort-signal` | `IpcChatTransport`, when the AI SDK's `abortSignal` fires |
+| `translate-cancel` | `translateText`, when its caller's signal fires |
+
+`origin` is optional on the wire. An abort that names none is stamped
+`origin-unspecified` — deliberately not `user-stop`, so a caller that cannot identify
+itself is never mistaken for a human pressing Stop. `useChatWithHistory.stop()` requires
+an origin from its caller for the same reason: the hook cannot tell a user's Stop from a
+programmatic one.
+
+During `abortAndDrain`, a stream that appears on the topic *after* the requested abort is
+torn down as collateral and logged as `drain-replacement:<original reason>`, so it is never
+confused with the abort someone actually asked for.
+
+Main's `Aborting stream { topicId, reason }` is the authoritative record: it is written in
+the main process and no renderer setting can suppress it. The requester-side lines the
+renderer forwards with `{ logToMain: true }` are a second, best-effort copy naming the
+surface that asked — they land at the default renderer level, but a window whose level has
+been raised past `info`, or a diagnostics run restricted with
+`CSLOGGER_RENDERER_SHOW_MODULES`, drops them before the forward. `processLog` applies those
+filters before it reads the force marker; `LoggerService.test.ts` pins both halves. Read the
+origin off main's line, not off theirs.
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
@@ -810,7 +846,7 @@ chunks-only prompt stream with no message target. See
 | Channel | Payload | Notes |
 |---|---|---|
 | `ai.stream.chunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
-| `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
+| `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs a stream stopped before finishing, for any abort origin or a Main-side reason; **only sent to attached windows** |
 | `ai.stream.error` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
 
 Topic-level status transitions are NOT a bespoke IPC — they live in the
