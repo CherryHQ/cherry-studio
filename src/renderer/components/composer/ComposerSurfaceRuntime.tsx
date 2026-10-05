@@ -1596,16 +1596,21 @@ export default function ComposerSurfaceRuntime({
           return true
         }
 
-        if (
-          event.key === 'Backspace' &&
-          filesCountRef.current > 0 &&
-          (!editorRef.current ||
-            (!hasComposerTokenBeforeSelection(editorRef.current) &&
-              !serializeComposerDocument(editorRef.current).tokens.length))
-        ) {
-          setFilesRef.current((prev) => prev.slice(0, -1))
-          event.preventDefault()
-          return true
+        if (event.key === 'Backspace' && filesCountRef.current > 0) {
+          const detach = () => {
+            setFilesRef.current((prev) => prev.slice(0, -1))
+            event.preventDefault()
+            return true
+          }
+          const editor = editorRef.current
+          if (!editor) return detach()
+          // Emptiness needs both terms: a chip is an atom whose text lives in attributes, so a file
+          // chip contributes `''` while still being content — and prose with no chip at all is
+          // content too, which the painting composer produces by attaching files it never chips.
+          const draft = serializeComposerDocument(editor)
+          if (!draft.text.trim() && !draft.tokens.length && !hasComposerTokenBeforeSelection(editor)) {
+            return detach()
+          }
         }
 
         return false

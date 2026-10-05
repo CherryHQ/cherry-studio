@@ -3615,6 +3615,41 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(false)
   })
 
+  it('does not detach an attachment when the draft holds prose and no chip at all', async () => {
+    // The painting composer attaches uploads it never renders a chip for, so "files attached with
+    // nothing in the document" is a state it produces on purpose. Measuring emptiness on chips
+    // alone reads that draft as empty and detaches the attachment, leaving Backspace to delete
+    // nothing — the character the keystroke was aimed at survives and the image disappears.
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'make it blue' }] }]
+    })
+    mocks.selection = {
+      empty: true,
+      from: 11,
+      to: 11,
+      node: null,
+      $from: { nodeBefore: { type: { name: 'text' } } }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
   it('opens the QuickPanel root when slash follows whitespace', async () => {
     render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
