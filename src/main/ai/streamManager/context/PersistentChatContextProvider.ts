@@ -204,6 +204,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       parentId: message.parentId,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
+      modelSelection: message.data.modelSelection,
       messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
       turnOptions: message.data.turnOptions,
@@ -312,6 +313,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    // Single-model submits also carry the composer's current model snapshot.
+    const modelSelection =
+      models.length > 1 || (isRegenerate && req.appendToLiveGroupMessageId !== undefined) ? 'explicit' : 'default'
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
@@ -414,7 +418,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [], turnOptions },
+          data: { parts: [], turnOptions, modelSelection },
           status: 'pending',
           modelId: model.id,
           messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)

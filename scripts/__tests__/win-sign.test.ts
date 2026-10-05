@@ -10,7 +10,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 const require = createRequire(import.meta.url)
 const childProcess = require('child_process') as typeof childProcessModule
 const execSync = vi.spyOn(childProcess, 'execSync')
-const sign = require('../win-sign').default as (configuration: { path: string }) => Promise<void>
+const sign = require('../packaging/win-sign').default as (configuration: { path: string }) => Promise<void>
 const prebuilds = path.resolve(import.meta.dirname, '../../node_modules/selection-hook/prebuilds')
 let directory: string
 

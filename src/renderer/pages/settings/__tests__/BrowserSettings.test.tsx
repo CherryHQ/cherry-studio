@@ -104,7 +104,10 @@ beforeAll(async () => {
     interpolation: { escapeValue: false }
   })
 })
-afterEach(cleanup)
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  cleanup()
+})
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
@@ -495,6 +498,11 @@ describe('Browser settings workflows', () => {
 })
 
 describe('Browser preferences', () => {
+  const waitForBrowserSwitchSave = async (label: string) => {
+    const toggle = screen.getByRole('switch', { name: label })
+    await waitFor(() => expect(toggle).not.toBeDisabled())
+  }
+
   it('changes browser preferences only through the switches, not their titles', async () => {
     const user = userEvent.setup()
     renderSettings()
@@ -505,6 +513,7 @@ describe('Browser preferences', () => {
       expect(toggle).not.toBeChecked()
       await user.click(toggle)
       await waitFor(() => expect(toggle).toBeChecked())
+      await waitForBrowserSwitchSave(en[key])
     }
   })
 
@@ -515,6 +524,7 @@ describe('Browser preferences', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.open_links_in_browser']).toBe(true)
     )
+    await waitForBrowserSwitchSave(en['settings.browser.openLinks'])
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).not.toBe(true)
   })
 
@@ -525,6 +535,7 @@ describe('Browser preferences', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
     )
+    await waitForBrowserSwitchSave(en['settings.browser.control'])
     view.unmount()
     renderSettings()
     expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeChecked()
@@ -533,5 +544,6 @@ describe('Browser preferences', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
+    await waitForBrowserSwitchSave(en['settings.browser.control'])
   })
 })

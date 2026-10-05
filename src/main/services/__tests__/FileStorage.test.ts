@@ -50,10 +50,23 @@ describe('FileStorage', () => {
   })
 
   describe('openPath', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-openpath-test-${uniqueId()}.md`)
+      fs.writeFileSync(tmpFile, 'note')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    // The target has to exist: on Linux an unresolvable path kills the child Electron forks inside
+    // `shell.openPath`, so only real paths may reach the default-open guard.
     it('opens a file with a safe extension via the system default app', async () => {
       vi.mocked(shell.openPath).mockResolvedValue('')
-      await fileStorage.openPath(event, '/mock/notes/report.md')
-      expect(shell.openPath).toHaveBeenCalledWith('/mock/notes/report.md')
+      await fileStorage.openPath(event, tmpFile)
+      expect(shell.openPath).toHaveBeenCalledWith(tmpFile)
     })
 
     it('refuses script extensions before reaching the OS handler', async () => {
