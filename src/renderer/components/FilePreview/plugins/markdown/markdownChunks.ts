@@ -120,12 +120,105 @@ const LINK_TITLE_OPEN = /^[ \t]*(?:"(?:\\.|[^"\\\n])*|'(?:\\.|[^'\\\n])*|\((?:\\
 const INDENTED_LINE = /^\s+\S/
 
 /**
- * A block that ends an open link definition where it appears, so a title that never closes cannot
- * swallow it. A fence or heading indented four or more columns is content of the definition rather
- * than a block of its own, and an autolink stays title text, so neither ends it.
+ * A fenced, heading or ruled block that ends an open definition where it appears, so a title that
+ * never closes cannot swallow it. The three-column allowance is load-bearing: such a line indented
+ * four or more is content of the definition rather than a block of its own, and a tab is four
+ * columns, so neither ends it.
  */
 const BLOCK_START =
-  /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$|=+[ \t]*$|<(?:!--|\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|$)))/
+  /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$|=+[ \t]*$)/
+
+/** CommonMark's block-level tag names, plus the four raw ones; a tag outside opens no block. */
+const HTML_BLOCK_TAGS = new Set([
+  'address',
+  'article',
+  'aside',
+  'base',
+  'basefont',
+  'blockquote',
+  'body',
+  'caption',
+  'center',
+  'col',
+  'colgroup',
+  'dd',
+  'details',
+  'dialog',
+  'dir',
+  'div',
+  'dl',
+  'dt',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'frame',
+  'frameset',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'head',
+  'header',
+  'hr',
+  'html',
+  'iframe',
+  'legend',
+  'li',
+  'link',
+  'main',
+  'menu',
+  'menuitem',
+  'nav',
+  'noframes',
+  'ol',
+  'optgroup',
+  'option',
+  'p',
+  'param',
+  'search',
+  'section',
+  'summary',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'title',
+  'tr',
+  'track',
+  'ul',
+  'pre',
+  'script',
+  'style',
+  'textarea'
+])
+
+/**
+ * A line opening an HTML block the parser takes even inside the construct it is reading: a comment,
+ * a processing instruction, a declaration, a CDATA section, or a block-level tag. Any other tag is
+ * type 7, which cannot interrupt, so a bare `<a>` inside a link title stays title text — as does an
+ * autolink. A type-7 tag with a double-quoted attribute also ends the definition in this position,
+ * but the span measurement reaches that verdict on its own, so the predicate need not encode it.
+ */
+function opensHtmlBlock(line: string): boolean {
+  if (/^ {0,3}<(?:!--|\?|!\[CDATA\[|![A-Z])/.test(line)) return true
+  const tag = /^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)/.exec(line)
+  return tag !== null && HTML_BLOCK_TAGS.has(tag[1].toLowerCase())
+}
+
+/**
+ * Whether a line opens a block where it appears. Both callers ask the same question — one ends a
+ * run that would otherwise swallow the line, the other decides the line is not the block's own
+ * content — so the answer must not differ between them.
+ */
+function startsBlock(line: string): boolean {
+  return LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
+}
 
 /**
  * The indent a line needs to continue a definition across a blank one. The parser requires four
@@ -217,7 +310,7 @@ function continuation(line: string | undefined, quotes: number, contentColumn: n
     content = content.slice(quote[0].length)
     seen += 1
   }
-  if (seen > quotes || LIST_MARKER.test(content) || BLOCK_START.test(content)) return undefined
+  if (seen > quotes || startsBlock(content)) return undefined
   return /\S/.test(content) ? content : undefined
 }
 
@@ -422,7 +515,8 @@ export function splitMarkdownChunks(
     // A multi-paragraph footnote definition continues on indented lines, including across its blank
     // lines — where the parser holds it to four columns, so a shallower one starts a new block.
     const indentedContinuation =
-      INDENTED_LINE.test(line) || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
+      (INDENTED_LINE.test(line) && !startsBlock(line)) ||
+      (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
     if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
       definitions.push(line)
       definitionLines += 1
