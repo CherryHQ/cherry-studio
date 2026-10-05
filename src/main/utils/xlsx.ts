@@ -37,10 +37,12 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
 
 function cellText(cell: Cell, date1904: boolean): string {
   let value: CellValue = cell.value
-  // A formula reads as its cached result; one saved without a result shows its formula.
+  // A formula reads as its cached result, from cell.result since ExcelJS leaves a cached 0 or false
+  // out of cell.value; one saved without a result shows its formula.
   if (value !== null && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
-    if (value.result === undefined || value.result === null) return `=${cell.formula}`
-    value = value.result
+    const result: CellValue = cell.result
+    if (result === undefined || result === null) return `=${cell.formula}`
+    value = result
   }
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return formatDate(value, cell.numFmt, date1904)
@@ -65,17 +67,21 @@ function plainText(value: unknown): string {
   return ''
 }
 
-// A time of day or an elapsed duration reaches ExcelJS as a Date on day 0 (1899-12-30 or
-// 1904-01-01): only a format with a day or a year outside quotes and [...] shows a date.
+// A time of day or an elapsed duration reaches ExcelJS as a Date on day 0 (1899-12-30 or 1904-01-01).
+// Outside quotes and [...], a day, a year, or a month without an hour or second shows a date.
 function formatDate(date: Date, numFmt: string, date1904: boolean): string {
   // Rounded to the second, as Excel shows it: a NOW() stamp of 14:04:59.9 reads 14:05:00
   const time = Math.round(date.getTime() / 1000) * 1000
   const iso = new Date(time).toISOString()
-  if (/[dy]/i.test(numFmt.replace(/"[^"]*"|\[[^\]]*\]/g, ''))) {
+  const elapsed = /\[(h+|m+|s+)\]/i.exec(numFmt)
+  const tokens = numFmt.replace(/"[^"]*"|\[[^\]]*\]/g, '')
+  if (!elapsed && (/[dy]/i.test(tokens) || (/m/i.test(tokens) && !/[hs]/i.test(tokens)))) {
     return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' ')
   }
-  if (!/\[(?:h+|m+|s+)\]/i.test(numFmt)) return iso.slice(11, 19)
+  if (!elapsed) return iso.slice(11, 19)
   const seconds = (time - (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30))) / 1000
   const pad = (n: number) => String(n).padStart(2, '0')
+  // Elapsed minutes count in minutes: [mm]:ss of 25 hours reads 1500:00
+  if (/^m/i.test(elapsed[1])) return `${Math.floor(seconds / 60)}:${pad(seconds % 60)}`
   return `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`
 }

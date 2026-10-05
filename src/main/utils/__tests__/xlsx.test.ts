@@ -42,6 +42,17 @@ describe('extractXlsxText', () => {
     expect(await extractXlsxText(data)).toBe('Sheet: Totals\n1\t2\t#DIV/0!\n2\t4\t=SUM(A1:A2)')
   })
 
+  it('reads a cached 0 or false formula result, not the formula', async () => {
+    const data = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Zeros')
+      sheet.getCell('A1').value = { formula: 'B1*2', result: 0 }
+      sheet.getCell('A2').value = { sharedFormula: 'A1', result: 0 }
+      sheet.getCell('A3').value = { formula: 'B1>1', result: false }
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Zeros\n0\n0\nFALSE')
+  })
+
   it('reads booleans and hyperlinks as the sheet shows them', async () => {
     const data = await xlsxBytes((workbook) => {
       const sheet = workbook.addWorksheet('Links')
@@ -62,7 +73,8 @@ describe('extractXlsxText', () => {
       ['1899-12-30T12:00:00.000Z', '[$-x-systime]h:mm:ss AM/PM', '12:00:00'],
       ['1899-12-30T18:00:00.000Z', 'h:mm" daily"', '18:00:00'],
       ['1899-12-31T12:00:00.000Z', '[h]:mm:ss', '36:00:00'],
-      ['1899-12-31T01:00:00.000Z', '[mm]:ss', '25:00:00']
+      ['1899-12-31T01:00:30.000Z', '[mm]:ss', '1500:30'],
+      ['2024-09-30T00:00:00.000Z', 'mmmm', '2024-09-30']
     ]
     const data = await xlsxBytes((workbook) => {
       const row = workbook.addWorksheet('Dates').getRow(1)
