@@ -7,7 +7,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -33,6 +32,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
