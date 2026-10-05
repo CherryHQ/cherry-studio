@@ -39,6 +39,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { withTerminalErrorPart } from '@shared/ai/terminalSentinel'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -895,8 +896,11 @@ export class AgentSessionMessageService {
     application.get('DbService').withWriteTx((tx) => {
       const updatedAt = Date.now()
       for (const message of messages) {
+        // A crash leaves no error object behind, so the row would otherwise be
+        // marked failed with nothing saying why. The sentinel supplies the truth:
+        // the process died and the unsent text is gone.
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', data: message.data, updatedAt })
+          .set({ status: 'error', data: withTerminalErrorPart(message.data, 'turn.orphaned_by_restart'), updatedAt })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
@@ -911,10 +915,16 @@ export class AgentSessionMessageService {
 
   /** Best-effort terminalization after a live assistant persistence failure. */
   markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+    const database = application.get('DbService').getDb()
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
     const changed = application.get('DbService').withWriteTx((tx) => {
       const result = tx
         .update(sessionMessagesTable)
-        .set({ status: 'error', updatedAt: Date.now() })
+        .set({
+          status: 'error',
+          data: withTerminalErrorPart(row?.data, 'turn.persist_failed'),
+          updatedAt: Date.now()
+        })
         .where(
           and(
             eq(sessionMessagesTable.sessionId, sessionId),
