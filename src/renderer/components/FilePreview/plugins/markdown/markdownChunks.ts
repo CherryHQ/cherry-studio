@@ -120,11 +120,30 @@ const LINK_TITLE_OPEN = /^[ \t]*(?:"(?:\\.|[^"\\\n])*|'(?:\\.|[^'\\\n])*|\((?:\\
 const INDENTED_LINE = /^\s+\S/
 
 /**
+ * A block that ends an open link definition where it appears, so a title that never closes cannot
+ * swallow it. A fence or heading indented four or more columns is content of the definition rather
+ * than a block of its own, and an autolink stays title text, so neither ends it.
+ */
+const BLOCK_START =
+  /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$|=+[ \t]*$|<(?:!--|\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|$)))/
+
+/**
  * The indent a line needs to continue a definition across a blank one. The parser requires four
  * columns there, so a shallower indented line after a blank is a paragraph of its own — and
  * carrying it would print that paragraph in every chunk.
  */
-const DEFINITION_AFTER_BLANK = /^(?: {4,}| {1,3}\t|\t)\S/
+function continuesDefinitionAfterBlank(line: string | undefined): boolean {
+  if (line === undefined || !INDENTED_LINE.test(line)) return false
+  // A tab advances to the next multiple of four, so the columns a line is indented by are not the
+  // characters it is indented with.
+  let columns = 0
+  for (const character of line) {
+    if (character === ' ') columns += 1
+    else if (character === '\t') columns += 4 - (columns % 4)
+    else return columns >= 4
+  }
+  return false
+}
 
 /**
  * The bare text of a link reference definition and the lines it covers, or null when the line opens
@@ -198,7 +217,7 @@ function continuation(line: string | undefined, quotes: number, contentColumn: n
     content = content.slice(quote[0].length)
     seen += 1
   }
-  if (seen > quotes || LIST_MARKER.test(content)) return undefined
+  if (seen > quotes || LIST_MARKER.test(content) || BLOCK_START.test(content)) return undefined
   return /\S/.test(content) ? content : undefined
 }
 
@@ -403,7 +422,7 @@ export function splitMarkdownChunks(
     // A multi-paragraph footnote definition continues on indented lines, including across its blank
     // lines — where the parser holds it to four columns, so a shallower one starts a new block.
     const indentedContinuation =
-      INDENTED_LINE.test(line) || (blank && DEFINITION_AFTER_BLANK.test(lines[nextContent[i]] ?? ''))
+      INDENTED_LINE.test(line) || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
     if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
       definitions.push(line)
       definitionLines += 1
