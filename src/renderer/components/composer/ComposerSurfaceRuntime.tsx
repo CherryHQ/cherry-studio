@@ -1598,9 +1598,10 @@ export default function ComposerSurfaceRuntime({
 
         if (
           event.key === 'Backspace' &&
-          textRef.current.trim().length === 0 &&
           filesCountRef.current > 0 &&
-          (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
+          (!editorRef.current ||
+            (!hasComposerTokenBeforeSelection(editorRef.current) &&
+              !serializeComposerDocument(editorRef.current).tokens.length))
         ) {
           setFilesRef.current((prev) => prev.slice(0, -1))
           event.preventDefault()
