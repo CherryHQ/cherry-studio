@@ -18,9 +18,9 @@ export function readPreferenceValueFromDatabaseFile(
   try {
     const db = new Database(dbPath, { readonly: true, fileMustExist: true })
     try {
-      const row = db
-        .prepare(`SELECT value FROM ${PREFERENCE_TABLE} WHERE scope = ? AND key = ?`)
-        .get(scope, key) as { value: unknown } | undefined
+      const row = db.prepare(`SELECT value FROM ${PREFERENCE_TABLE} WHERE scope = ? AND key = ?`).get(scope, key) as
+        | { value: unknown }
+        | undefined
       return row?.value
     } finally {
       db.close()
