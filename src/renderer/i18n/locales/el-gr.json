@@ -172,6 +172,7 @@
   "agent.right_pane.flow.main_task": "Κύρια εργασία",
   "agent.right_pane.flow.no_messages.description": "Αυτή η κλήση εργαλείου δεν έχει καταγεγραμμένη ροή θυγατρικών μηνυμάτων.",
   "agent.right_pane.flow.no_messages.title": "Κανένα μήνυμα",
+  "agent.right_pane.flow.root_not_found": "Η αρχή αυτής της ροής δεν βρέθηκε στο ιστορικό της συνεδρίας, οπότε δεν μπόρεσε να ανοίξει.",
   "agent.right_pane.flow.subtasks": "Υποεργασίες",
   "agent.right_pane.info.artifacts": "Παραδοτέα",
   "agent.right_pane.info.context_categories.autocompact_buffer": "Αυτόματα συμπυκνούμενος ενισχυτής",

@@ -107,7 +107,7 @@ export function useAgentToolFlowActions({
       // No history is left to page: the root is absent, so say so instead of ignoring the click.
       setPendingFlowOpen(null)
       pagedForRef.current = null
-      toast.warning(t('agent.right_pane.flow.no_messages.description'))
+      toast.warning(t('agent.right_pane.flow.root_not_found'))
       return
     }
     // One page per arrival: the parts map changes with each load, so a repeat cannot spin.

@@ -172,6 +172,7 @@
   "agent.right_pane.flow.main_task": "Основная задача",
   "agent.right_pane.flow.no_messages.description": "У этого вызова инструмента нет захваченного дочернего потока сообщений.",
   "agent.right_pane.flow.no_messages.title": "Нет сообщений",
+  "agent.right_pane.flow.root_not_found": "Начало этого потока не найдено в истории сеанса, поэтому его не удалось открыть.",
   "agent.right_pane.flow.subtasks": "Подзадачи",
   "agent.right_pane.info.artifacts": "Результаты",
   "agent.right_pane.info.context_categories.autocompact_buffer": "Буфер с автоматическим уплотнением",

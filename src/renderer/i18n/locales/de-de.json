@@ -172,6 +172,7 @@
   "agent.right_pane.flow.main_task": "Hauptaufgabe",
   "agent.right_pane.flow.no_messages.description": "Dieser Tool-Aufruf hat keinen erfassten untergeordneten Nachrichtenfluss.",
   "agent.right_pane.flow.no_messages.title": "Keine Nachrichten",
+  "agent.right_pane.flow.root_not_found": "Der Anfang dieses Ablaufs wurde nicht im Sitzungsverlauf gefunden, daher konnte er nicht geöffnet werden.",
   "agent.right_pane.flow.subtasks": "Teilaufgaben",
   "agent.right_pane.info.artifacts": "Liefergegenstände",
   "agent.right_pane.info.context_categories.autocompact_buffer": "Autocompact-Puffer",

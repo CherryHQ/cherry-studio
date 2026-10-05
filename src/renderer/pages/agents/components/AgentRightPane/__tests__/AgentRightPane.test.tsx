@@ -664,6 +664,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
@@ -2136,6 +2137,33 @@ describe('AgentRightPane', () => {
     await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(2))
   })
 
+  // A chase that pages to the very beginning and still finds no root has nowhere left to look: the
+  // click must say so instead of dying silently.
+  it('reports an absent root when history is exhausted', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{ m1: [receipt] }}>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    await waitFor(() => expect(toastWarningMock).toHaveBeenCalledWith('agent.right_pane.flow.root_not_found'))
+    expect(loadOlder).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
   // The chase belongs to the session that asked for it: switching sessions must not page or open a
   // flow in the one the user moved to.
   it('does not chase a paged-out root into another session', async () => {
@@ -2225,7 +2253,6 @@ describe('AgentRightPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
     expect(loadOlder).toHaveBeenCalledTimes(1)
-    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a'), {})
   })
 
   // The pane's own index feeds the rows inside its flow panel, so it has to see the same live edges
@@ -2258,7 +2285,6 @@ describe('AgentRightPane', () => {
     )
 
     expect(screen.getByTestId('launch-index-roots').textContent).toBe('call-send')
-    MockUseCacheUtils.setSharedCacheValue(eventsKey, {})
   })
 
   // The resume edge can exist only in the runtime's live task-event cache, and the click must still
@@ -2301,7 +2327,6 @@ describe('AgentRightPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
     expect(loadOlder).not.toHaveBeenCalled()
-    MockUseCacheUtils.setSharedCacheValue(eventsKey, {})
   })
 
   // The click belonged to the session it was made in: coming back later must not resurrect it and

@@ -172,6 +172,7 @@
   "agent.right_pane.flow.main_task": "Tác vụ chính",
   "agent.right_pane.flow.no_messages.description": "Cuộc gọi công cụ này không có luồng thông báo con nào được ghi lại.",
   "agent.right_pane.flow.no_messages.title": "Không có tin nhắn",
+  "agent.right_pane.flow.root_not_found": "Không tìm thấy điểm bắt đầu của luồng này trong lịch sử phiên nên không thể mở được.",
   "agent.right_pane.flow.subtasks": "Tác vụ con",
   "agent.right_pane.info.artifacts": "Các sản phẩm giao nộp",
   "agent.right_pane.info.context_categories.autocompact_buffer": "Bộ đệm tự nén",

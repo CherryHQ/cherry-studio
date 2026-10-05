@@ -172,6 +172,7 @@
   "agent.right_pane.flow.main_task": "Main task",
   "agent.right_pane.flow.no_messages.description": "This tool call has no captured child message flow.",
   "agent.right_pane.flow.no_messages.title": "No messages",
+  "agent.right_pane.flow.root_not_found": "This flow's start was not found in the session history, so it could not be opened.",
   "agent.right_pane.flow.subtasks": "Subtasks",
   "agent.right_pane.info.artifacts": "Outputs",
   "agent.right_pane.info.context_categories.autocompact_buffer": "Autocompact buffer",
