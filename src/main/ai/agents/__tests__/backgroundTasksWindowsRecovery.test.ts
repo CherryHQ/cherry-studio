@@ -88,4 +88,32 @@ describe('a Windows task whose record write fails', () => {
     expect(failure.message).toContain('already finished')
     expect(failure.message).not.toMatch(/is still running/)
   })
+
+  it('does not call a task still running when the recovery record fails too', async () => {
+    // A failing write is what brings this recovery into being, and one failing write rarely means
+    // the next succeeds — a full disk or a vanished directory takes both. That strands the
+    // completion the close listener had already captured, so the message must still name the task
+    // as finished: telling the agent it is running sends it to poll a process that has exited, and
+    // one that left no record to poll.
+    writeFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOSPC: no space left on device')
+    })
+
+    const failure = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => {}, 50)"`,
+      cwd: storageDir
+    }).then(
+      () => {
+        throw new Error('expected the start to fail')
+      },
+      (error: Error) => error
+    )
+    // The taskkill window is 300ms and the task exits at 50ms, so this only waits out the spawn.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    expect(await listDetachedBackgroundTasks(storageDir)).toEqual([])
+    expect(failure.message).toContain('already finished')
+    expect(failure.message).not.toMatch(/is still running/)
+  })
 })
