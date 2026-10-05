@@ -700,6 +700,41 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks.filter((chunk) => chunk.text.includes('https://example.com'))).toHaveLength(1)
   })
+
+  it('carries a definition whose multi-line title holds a bare tag the parser keeps inside it', () => {
+    // A type-7 tag cannot interrupt a paragraph, so `<a>` stays title text and the definition runs
+    // on to the closing quote. Reading it as a block of its own truncated the definition to the one
+    // line before it, which every chunk but that one then lacked — so the reference rendered
+    // literally instead of as a link.
+    const content = ['[spec]: /url "the long', '<a>', 'spec title"', '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes('[spec]: /url "the long\n<a>\nspec title"'))).toHaveLength(
+      chunks.length
+    )
+  })
+
+  it('does not repeat the definition line an unterminated raw HTML block swallows', () => {
+    // `<?` opens an HTML block, and nothing here closes it, so the parser swallows the rest of the
+    // document — title included. Carrying that title into every chunk printed it once per chunk.
+    const content = ['[spec]: /url "the long', '<?php echo 1;', 'spec title"', '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('[spec]: /url "the long'))).toHaveLength(1)
+  })
+
+  it('does not carry an indented heading that the footnote definition does not own', () => {
+    // The footnote's indented continuation holds four columns, so a shallower heading is a block of
+    // its own. Taking it for definition text printed the heading once per chunk.
+    const content = ['[^n]: note', ' # heading', '', 'tail', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('# heading'))).toHaveLength(1)
+  })
 })
 
 describe('the window a split reports', () => {
