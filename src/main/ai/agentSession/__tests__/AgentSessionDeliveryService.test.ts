@@ -497,6 +497,37 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
+  it('settles a placeholder that background work has stopped writing to', async () => {
+    // Detached work reports occupancy but never reports finishing, so a wedged subagent leaves the
+    // predicate set for the life of the process — and holding this reconciliation on it strands
+    // every delivery queued behind this one, not just this one. The bound is the row's own
+    // staleness, since a background writer bumps its `updatedAt`.
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    const stale = { ...assistant, updatedAt: new Date(Date.now() - 24 * 60 * 60_000).toISOString() }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(stale)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(true)
+    mocks.markTerminalError.mockImplementation(() => {
+      mocks.getMessage.mockReturnValue({ ...stale, status: 'error' })
+    })
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).toHaveBeenCalledWith('target', 'assistant-1')
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'failed'
+    })
+  })
+
   it('ignores row-roll terminal events', async () => {
     mocks.findByTurnRef.mockReturnValue(accepted)
     const service = new AgentSessionDeliveryService()
