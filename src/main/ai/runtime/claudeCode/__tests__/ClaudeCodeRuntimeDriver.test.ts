@@ -155,6 +155,7 @@ const mocks = vi.hoisted(() => ({
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
+  getProviderById: vi.fn((providerId: string) => ({ id: providerId, isEnabled: true })),
   getPreference: vi.fn(),
   applicationGet: vi.fn(),
   getPhysicalPath: vi.fn(),
@@ -198,6 +199,10 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.getModelByKey }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mocks.getProviderById }
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
