@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "A quota da conta esgotou-se. Adicione saldo ou mude de fornecedor.",
   "error.diagnosis.rate_limit": "Demasiados pedidos num curto espaço de tempo. Aguarde um momento e tente novamente, ou mude para um modelo com um limite de taxa mais elevado",
   "error.diagnosis.region": "Serviço indisponível na sua região. Configure um proxy ou mude para um fornecedor disponível na sua área",
+  "error.diagnosis.resource": "Esta aplicação esgotou os seus descritores de ficheiro e não conseguiu iniciar um novo processo. Feche outras aplicações ou reinicie o Cherry Studio para os libertar",
   "error.diagnosis.server": "Erro no servidor, tente novamente mais tarde",
   "error.diagnosis.stream": "Resposta interrompida, verifique a estabilidade da rede ou tente novamente",
   "error.diagnosis.unknown": "Ocorreu um erro",

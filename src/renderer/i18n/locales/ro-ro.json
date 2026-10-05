@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
   "error.diagnosis.rate_limit": "Prea multe solicitări într-un timp scurt. Așteaptă puțin și încearcă din nou sau alege un model cu o limită de frecvență mai mare",
   "error.diagnosis.region": "Serviciu indisponibil în regiunea ta. Configurează un proxy sau treci la un furnizor disponibil în zona ta",
+  "error.diagnosis.resource": "Această aplicație a epuizat descriptorii de fișiere, astfel încât nu s-a putut porni un proces nou. Închideți alte aplicații sau reporniți Cherry Studio pentru a-i elibera",
   "error.diagnosis.server": "Eroare de server; încearcă din nou mai târziu",
   "error.diagnosis.stream": "Răspuns întrerupt; verifică stabilitatea rețelei sau încearcă din nou",
   "error.diagnosis.unknown": "A apărut o eroare",

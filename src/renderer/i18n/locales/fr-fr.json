@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
   "error.diagnosis.rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",
   "error.diagnosis.region": "Service indisponible dans votre région. Configurez un proxy ou passez à un fournisseur disponible dans votre zone",
+  "error.diagnosis.resource": "Cette application n'a plus de descripteurs de fichiers et n'a pas pu démarrer un nouveau processus. Fermez d'autres applications ou redémarrez Cherry Studio pour les libérer",
   "error.diagnosis.server": "Erreur serveur, veuillez réessayer plus tard",
   "error.diagnosis.stream": "Réponse interrompue, vérifiez la stabilité du réseau ou réessayez",
   "error.diagnosis.unknown": "Une erreur est survenue",

@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
   "error.diagnosis.rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
   "error.diagnosis.region": "Servicio no disponible en su región. Configure un proxy o cambie a un proveedor disponible en su zona",
+  "error.diagnosis.resource": "Esta aplicación ha agotado sus descriptores de archivo y no pudo iniciar un nuevo proceso. Cierre otras aplicaciones o reinicie Cherry Studio para liberarlos",
   "error.diagnosis.server": "Error del servidor, intenta de nuevo más tarde",
   "error.diagnosis.stream": "Respuesta interrumpida, verifica la estabilidad de la red o intenta nuevamente",
   "error.diagnosis.unknown": "Se ha producido un error",

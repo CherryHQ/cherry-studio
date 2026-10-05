@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "帳戶額度已用完，請儲值或更換供應商",
   "error.diagnosis.rate_limit": "請求過於頻繁，請稍等片刻再試，或更換為更高速率的模型",
   "error.diagnosis.region": "服務在你所在的地區不可用，請設定代理或更換為可用的供應商",
+  "error.diagnosis.resource": "本應用程式的檔案描述子已耗盡，無法啟動新的處理程序。請關閉其他應用程式，或重新啟動 Cherry Studio 以釋放檔案描述子",
   "error.diagnosis.server": "伺服器異常，建議稍後重試",
   "error.diagnosis.stream": "回應中斷，請檢查網路穩定性或重試",
   "error.diagnosis.unknown": "發生了一個錯誤",

@@ -22,6 +22,7 @@ export const ERROR_CATEGORIES = [
   'ocr',
   'mcp',
   'parse',
+  'resource',
   'unknown'
 ] as const
 
@@ -70,6 +71,18 @@ export function isMcpErrorMessage(message: string): boolean {
     msg.startsWith('[mcp]') ||
     msg.includes('mcp_')
   )
+}
+
+/**
+ * Exhaustion of the process's descriptor table. Sibling codes differ in scope:
+ * `EMFILE` is the per-process `RLIMIT_NOFILE`, `ENFILE` the system-wide table, and on macOS
+ * `EBADF` is libuv surfacing Apple's `posix_spawn` ceiling on high-numbered descriptors —
+ * the new stdio pipes were allocated above `OPEN_MAX` (10240) and Apple's file-actions API rejects
+ * any descriptor it cannot address. See https://github.com/libuv/libuv/issues/5204.
+ */
+export function isFileDescriptorExhausted(message: string): boolean {
+  // Case-insensitive: callers classify an already-lowercased message.
+  return /\b(?:emfile|enfile|ebadf)\b/i.test(message)
 }
 
 export function isProxyErrorMessage(message: string): boolean {
@@ -250,6 +263,13 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('certificate has expired')
   ) {
     return 'proxy'
+  }
+
+  // Descriptor exhaustion: reported by the OS around the failing syscall, not by any transport,
+  // so it must win over `network` — otherwise a `fetch failed` wrapper around it sends users to
+  // check a connection that is fine. Checked before `server` because a 5xx body can accompany it.
+  if (isFileDescriptorExhausted(msg)) {
+    return 'resource'
   }
 
   // Network errors. Chromium `net::ERR_*` codes use underscores, matching the

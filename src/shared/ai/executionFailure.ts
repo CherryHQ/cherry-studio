@@ -24,6 +24,7 @@ const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   server: 'provider_unavailable',
   mcp: 'mcp',
   parse: 'parse',
+  resource: 'resource_exhausted',
   unknown: 'unknown'
 }
 

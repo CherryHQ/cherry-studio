@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Account quota exhausted, please recharge or switch provider",
   "error.diagnosis.rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
   "error.diagnosis.region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
+  "error.diagnosis.resource": "This app has run out of file descriptors, so a new process could not be started. Close other apps or restart Cherry Studio to free them",
   "error.diagnosis.server": "Server error, please retry later",
   "error.diagnosis.stream": "Response interrupted, check network stability or retry",
   "error.diagnosis.unknown": "An error occurred",

@@ -20,6 +20,7 @@ export const aiFailureReasonSchema = z.enum([
   'tool_failed',
   'mcp',
   'parse',
+  'resource_exhausted',
   'internal',
   'unknown'
 ])

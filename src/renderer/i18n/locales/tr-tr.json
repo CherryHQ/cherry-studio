@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Hesap kotası tükendi; bakiye yükleyin veya sağlayıcıyı değiştirin",
   "error.diagnosis.rate_limit": "Kısa sürede çok fazla istek gönderildi. Bir süre bekleyip yeniden deneyin veya daha yüksek hız sınırına sahip bir modele geçin",
   "error.diagnosis.region": "Hizmet bu bölgede kullanılamıyor. Bir proxy yapılandırın veya bölgede kullanılabilen bir sağlayıcıya geçin",
+  "error.diagnosis.resource": "Bu uygulamanın dosya tanımlayıcıları tükendiği için yeni bir işlem başlatılamadı. Bunları serbest bırakmak için diğer uygulamaları kapatın veya Cherry Studio'yu yeniden başlatın",
   "error.diagnosis.server": "Sunucu hatası; daha sonra yeniden deneyin",
   "error.diagnosis.stream": "Yanıt kesintiye uğradı; ağ kararlılığını kontrol edin veya yeniden deneyin",
   "error.diagnosis.unknown": "Bir hata oluştu",

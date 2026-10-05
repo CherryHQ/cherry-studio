@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
   "error.diagnosis.rate_limit": "Zu viele Anfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen, oder zu einem Modell mit höherer Ratenbegrenzung wechseln",
   "error.diagnosis.region": "Dienst in Ihrer Region nicht verfügbar. Konfigurieren Sie einen Proxy oder wechseln Sie zu einem Anbieter, der in Ihrem Gebiet verfügbar ist",
+  "error.diagnosis.resource": "Dieser App sind die Dateideskriptoren ausgegangen, sodass kein neuer Prozess gestartet werden konnte. Schließen Sie andere Apps oder starten Sie Cherry Studio neu, um sie freizugeben",
   "error.diagnosis.server": "Serverfehler, bitte später erneut versuchen",
   "error.diagnosis.stream": "Antwort unterbrochen, überprüfen Sie die Netzwerkstabilität oder versuchen Sie es erneut",
   "error.diagnosis.unknown": "Ein Fehler ist aufgetreten",

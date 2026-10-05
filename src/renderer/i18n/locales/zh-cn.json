@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "账户额度已用完，请充值或更换服务商",
   "error.diagnosis.rate_limit": "请求过于频繁，请稍等片刻再试，或改用速率限制更高的模型",
   "error.diagnosis.region": "服务在你所在的地区不可用，请配置代理或更换为可用的服务商",
+  "error.diagnosis.resource": "本应用的文件描述符已耗尽，无法启动新的进程。请关闭其他应用，或重启 Cherry Studio 以释放文件描述符",
   "error.diagnosis.server": "服务器错误，请稍后重试",
   "error.diagnosis.stream": "响应传输中断，请检查网络稳定性或重试",
   "error.diagnosis.unknown": "发生未知错误",

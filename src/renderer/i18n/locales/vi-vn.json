@@ -1368,6 +1368,7 @@
   "error.diagnosis.quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
   "error.diagnosis.rate_limit": "Quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi thử lại, hoặc chuyển sang mô hình có giới hạn tốc độ cao hơn",
   "error.diagnosis.region": "Dịch vụ không khả dụng tại khu vực của bạn. Hãy cấu hình proxy hoặc chuyển sang nhà cung cấp có sẵn trong khu vực của bạn",
+  "error.diagnosis.resource": "Ứng dụng này đã cạn kiệt bộ mô tả tệp nên không thể khởi động tiến trình mới. Hãy đóng các ứng dụng khác hoặc khởi động lại Cherry Studio để giải phóng chúng",
   "error.diagnosis.server": "Lỗi máy chủ, vui lòng thử lại sau",
   "error.diagnosis.stream": "Phản hồi bị gián đoạn, kiểm tra độ ổn định mạng hoặc thử lại",
   "error.diagnosis.unknown": "Đã xảy ra lỗi",
