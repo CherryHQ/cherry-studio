@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { extractSseErrorFrame } from '@shared/ai/sseErrorFrame'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -227,8 +228,26 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
   }
 }
 
+/**
+ * Rebuild an error from the AI SDK `error` chunk. The chunk carries only
+ * `errorText`, and some providers put the whole SSE frame there
+ * (`… · event:error data:{"type":"error",…}`) — persisting that verbatim renders
+ * protocol scaffolding in the message. Unwrap to the provider's own payload and
+ * keep the structured fields so classification still sees the status.
+ */
 function errorFromStreamChunk(errorText: string): SerializedError {
-  return { name: 'StreamError', message: errorText, stack: null }
+  const frame = extractSseErrorFrame(errorText)
+  if (!frame) return { name: 'StreamError', message: errorText, stack: null }
+  const error: SerializedError = {
+    name: 'StreamError',
+    message: frame.message ?? errorText,
+    stack: null,
+    failureStage: 'stream'
+  }
+  if (frame.statusCode !== undefined) error.statusCode = frame.statusCode
+  if (frame.type !== undefined) error.providerErrorType = frame.type
+  if (frame.code !== undefined) error.providerErrorCode = frame.code
+  return error
 }
 
 function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMessageChunk | undefined {

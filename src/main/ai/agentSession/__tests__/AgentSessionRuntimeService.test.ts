@@ -5791,10 +5791,12 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
+    // `stage` is asserted separately: it names where the failure happened and is
+    // deliberately outside the reasonCode/source axes above.
     expect(result.failure).toEqual({
       message: 'boom',
       retryable: false,
-      failure: { version: 1, reasonCode: 'unknown', source: { layer: 'runtime' }, context: {} }
+      failure: { version: 1, reasonCode: 'unknown', source: { layer: 'runtime' }, stage: 'unknown', context: {} }
     })
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
