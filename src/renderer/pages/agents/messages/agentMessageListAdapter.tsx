@@ -3,7 +3,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
-import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -57,36 +57,6 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 }
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
-
-function withTerminalErrorFallback(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
-  noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
-
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
-    const needsFallback =
-      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && !hasVisiblePart)
-    if (!needsFallback) continue
-
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [
-      ...parts,
-      {
-        type: 'data-error',
-        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
-      }
-    ]
-  }
-
-  return next
-}
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId) ?? null

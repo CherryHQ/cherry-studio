@@ -11,6 +11,7 @@ import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/labe
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import { isErrorStage } from '@shared/utils/errorCategory'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -79,7 +80,23 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     )
   }
 
-  return providerErrorText(error)
+  const text = providerErrorText(error)
+  const stage = getFailureStageText(error, t)
+  // "No response" / "An unknown error occurred" name no stage, so nothing there tells the
+  // user whether to retry. Naming where it broke makes that call possible (#20941).
+  return stage ? `${stage} ${text}`.trim() : text
+}
+
+/** The failing pipeline stage, when the error carries one the UI can name. */
+function getFailureStageText(error: Props['error'], t: ReturnType<typeof useTranslation>['t']): string | undefined {
+  const bag = error as Record<string, unknown> | undefined
+  if (!bag) return undefined
+  for (const source of [bag.executionFailure, bag.failure]) {
+    const stage = (source as { failure?: { stage?: unknown } } | undefined)?.failure?.stage
+    if (isErrorStage(stage)) return t(`error.stage.${stage}`)
+  }
+  if (isErrorStage(bag.failureStage)) return t(`error.stage.${bag.failureStage}`)
+  return undefined
 }
 
 const MessageErrorInfo: React.FC<{
