@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
@@ -263,7 +264,7 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions?.openrouter).toEqual({ service_tier: 'flex', extra: true })
   })
 
-  it('injects OpenRouter Messages service_tier at the top level after custom request-body parameters', async () => {
+  it.each([undefined, 'sdk-tier'])('preserves service tier body precedence with SDK tier %s', async (sdkTier) => {
     let sentBody: Record<string, unknown> | undefined
     const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -307,10 +308,10 @@ describe('buildAgentParams provider resolution', () => {
     })
     await (result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)('https://openrouter.ai/api/messages', {
       method: 'POST',
-      body: JSON.stringify({ model: model.apiModelId })
+      body: JSON.stringify({ model: model.apiModelId, ...(sdkTier && { service_tier: sdkTier }) })
     })
 
-    expect(sentBody).toEqual({ route_hint: 'keep-me', service_tier: 'priority', model: model.apiModelId })
+    expect(sentBody).toEqual({ route_hint: 'keep-me', service_tier: sdkTier ?? 'priority', model: model.apiModelId })
     expect(result.options.providerOptions?.anthropic).not.toHaveProperty('service_tier')
   })
 
@@ -652,6 +653,209 @@ describe('buildAgentParams standard model parameters', () => {
     })
 
     expect(result.options.maxOutputTokens).toBe(32_000)
+  })
+
+  describe('sampling constraints across request inputs', () => {
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    beforeEach(() => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+    })
+
+    it.each(['settings', 'custom', 'namespace', 'gateway', 'gateway namespace'])(
+      'omits unsupported sampling from %s while retaining other parameters',
+      async (source) => {
+        const assistant = source.startsWith('gateway')
+          ? undefined
+          : makeAssistant({
+              settings: {
+                enableTemperature: true,
+                temperature: 0.7,
+                enableTopP: true,
+                topP: 0.9,
+                customParameters:
+                  source === 'custom'
+                    ? [
+                        { name: 'temperature', type: 'number', value: 0.3 },
+                        { name: 'topP', type: 'number', value: 0.8 }
+                      ]
+                    : source === 'namespace'
+                      ? [
+                          {
+                            name: 'dashscope',
+                            type: 'json',
+                            value: JSON.stringify({ temperature: 0.3, top_p: 0.8, user: 'kept' })
+                          }
+                        ]
+                      : []
+              }
+            })
+        const callOverrides: CallOverrides = {
+          maxOutputTokens: 100,
+          ...(source === 'gateway' && { temperature: 0.3, topP: 0.8 }),
+          ...(source === 'gateway namespace' && {
+            providerOptions: { 'openai-compatible': { temperature: 0.3, topP: 0.8, top_p: 0.8, user: 'kept' } }
+          })
+        }
+        const { options } = await buildAgentParams({
+          request: { conversation: CONVERSATION, callOverrides },
+          signal: undefined,
+          provider,
+          model,
+          assistant
+        })
+
+        expect(options).not.toHaveProperty('temperature')
+        expect(options).not.toHaveProperty('topP')
+        expect(options.maxOutputTokens).toBe(100)
+        for (const namespace of Object.values(options.providerOptions ?? {})) {
+          expect(namespace).not.toHaveProperty('temperature')
+          expect(namespace).not.toHaveProperty('topP')
+          expect(namespace).not.toHaveProperty('top_p')
+        }
+        if (source.endsWith('namespace')) {
+          expect(Object.values(options.providerOptions ?? {})).toContainEqual(expect.objectContaining({ user: 'kept' }))
+        }
+      }
+    )
+
+    it.each(['gemini::gemini-3-pro', 'anthropic::claude-opus-4-7-20260101'] as const)(
+      'preserves the sampling family policy for gateway requests to %s',
+      async (id) => {
+        const { options } = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            callOverrides: { temperature: 0.7, topP: 0.9, topK: 40, maxOutputTokens: 100 }
+          },
+          signal: undefined,
+          provider,
+          model: makeModel({ id })
+        })
+        expect(options).not.toHaveProperty('temperature')
+        expect(options).not.toHaveProperty('topP')
+        expect(options).not.toHaveProperty('topK')
+        expect(options.maxOutputTokens).toBe(100)
+      }
+    )
+
+    it.each([false, true])(
+      'honors sampling support=%s through SDK serialization and body passthrough',
+      async (supported) => {
+        let body: Record<string, unknown> | undefined
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: {
+            providerId: 'openai-compatible',
+            providerSettings: {
+              fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw new Error('request captured')
+              }
+            }
+          },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const result = await buildAgentParams({
+          request: { conversation: CONVERSATION },
+          signal: undefined,
+          provider,
+          model: supported ? makeModel({ id: 'dashscope::kimi-k2', providerId: 'dashscope' }) : model,
+          assistant: makeAssistant({
+            settings: {
+              customParameters: [
+                { name: 'temperature', type: 'number', value: 0.3 },
+                { name: 'top_p', type: 'number', value: 0.8 },
+                { name: 'user', type: 'string', value: 'probe-user' }
+              ]
+            }
+          })
+        })
+        const sdkModel = createOpenAICompatible({
+          name: 'openai-compatible',
+          baseURL: 'https://provider.test/v1',
+          fetch: result.sdkConfig.providerSettings.fetch
+        }).chatModel('kimi')
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            temperature: result.options.temperature,
+            topP: result.options.topP,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+
+        expect(body).toMatchObject({ model: 'kimi', user: 'probe-user' })
+        if (supported) {
+          expect(body).toMatchObject({ temperature: 0.3, top_p: 0.8 })
+        } else {
+          expect(body).not.toHaveProperty('temperature')
+          expect(body).not.toHaveProperty('top_p')
+        }
+        expect(body).not.toHaveProperty('topP')
+      }
+    )
+
+    it('falls back to assistant sampling when custom values are explicitly undefined', async () => {
+      const { options } = await buildAgentParams({
+        request: { conversation: CONVERSATION },
+        signal: undefined,
+        provider,
+        model: makeModel(),
+        assistant: makeAssistant({
+          settings: {
+            enableTemperature: true,
+            temperature: 0.2,
+            enableTopP: true,
+            topP: 0.9,
+            customParameters: [
+              { name: 'temperature', type: 'json', value: 'undefined' },
+              { name: 'topP', type: 'json', value: 'undefined' }
+            ]
+          }
+        })
+      })
+      expect(options).toMatchObject({ temperature: 0.2, topP: 0.9 })
+    })
+
+    it('keeps gateway > custom > assistant precedence for supported sampling', async () => {
+      const assistant = makeAssistant({
+        settings: {
+          enableTemperature: true,
+          temperature: 0.2,
+          customParameters: [{ name: 'temperature', type: 'number', value: 0.3 }]
+        }
+      })
+      for (const [callOverrides, expected] of [
+        [undefined, 0.3],
+        [{ temperature: 0.4 }, 0.4]
+      ] as const) {
+        const { options } = await buildAgentParams({
+          request: { conversation: CONVERSATION, callOverrides },
+          signal: undefined,
+          provider,
+          model: makeModel(),
+          assistant
+        })
+        expect(options.temperature).toBe(expected)
+      }
+    })
   })
 
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
@@ -1763,12 +1967,6 @@ describe('applyCallOverrides', () => {
     providerOptions: {} as ProviderOptions
   })
 
-  it('returns the base unchanged when there are no overrides', () => {
-    const input = { standardParams: { temperature: 0.2 }, providerOptions: { openai: { reasoningEffort: 'low' } } }
-    const result = applyCallOverrides(input, undefined, makeModel())
-    expect(result).toBe(input)
-  })
-
   it('applies sampling overrides at highest precedence', () => {
     const overrides: CallOverrides = { temperature: 0.9, topP: 0.5, maxOutputTokens: 100, stopSequences: ['STOP'] }
     const result = applyCallOverrides(
@@ -1784,9 +1982,8 @@ describe('applyCallOverrides', () => {
     })
   })
 
-  it('drops topK for Gemini 3.x via filterStandardParams', () => {
-    const result = applyCallOverrides(base(), { topK: 40, temperature: 0.5 }, makeModel({ id: 'gemini::gemini-3-pro' }))
-    expect(result.standardParams.temperature).toBe(0.5)
+  it('drops topK overrides for Gemini 3.x', () => {
+    const result = applyCallOverrides(base(), { topK: 40 }, makeModel({ id: 'gemini::gemini-3-pro' }))
     expect(result.standardParams).not.toHaveProperty('topK')
   })
 

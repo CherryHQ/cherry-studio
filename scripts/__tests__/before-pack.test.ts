@@ -10,7 +10,7 @@ import { Arch } from 'electron-builder'
 import { describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../before-pack'
+import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../packaging/before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'

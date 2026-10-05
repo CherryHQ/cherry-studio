@@ -75,7 +75,7 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension, warmMcpToolCatalogs } from './piMcpExtension'
-import { loadPiAi, loadPiSdk } from './piSdk'
+import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -381,7 +381,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           createPiApprovalExtension(approvalContext),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
-          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
+          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
+          await loadPiVccExtension(application.getPath('feature.agents.pi.root', 'pi-vcc-config.json'))
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
