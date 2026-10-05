@@ -22,7 +22,10 @@ describe('Claude Code process exit diagnostics', () => {
     // Geo-blocks and oversized prompts also ship as bare 4xx; the shared ladder's precedence
     // is what keeps them out of the permission / unknown buckets.
     ['API Error: 403 {"error":{"message":"unsupported_country_region_territory"}}', 'region'],
-    ['API Error: 400 prompt is too long: 210000 tokens > 200000 maximum', 'context_length']
+    ['API Error: 400 prompt is too long: 210000 tokens > 200000 maximum', 'context_length'],
+    // Descriptor exhaustion is an OS-level failure of the spawn itself, not a transport fault.
+    ['Failed to spawn Claude Code process: spawn EBADF', 'resource'],
+    ['Failed to spawn Claude Code process: spawn EMFILE', 'resource']
   ] as const)('maps %s to the %s recovery category', (terminalReason, category) => {
     const diagnostics = createClaudeCodeProcessDiagnostics('known-ref')
     diagnostics.terminalReason = terminalReason
