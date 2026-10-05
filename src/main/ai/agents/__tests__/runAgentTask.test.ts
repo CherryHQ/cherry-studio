@@ -685,7 +685,7 @@ describe('runAgentTask', () => {
 
     await expect(promise).resolves.toEqual({ result: 'partial summary' })
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(stopped)_', undefined)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'partial summary\n\n_(Stopped)_', undefined)
     expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
   })
 

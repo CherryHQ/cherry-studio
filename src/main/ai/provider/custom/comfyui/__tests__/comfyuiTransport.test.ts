@@ -328,6 +328,77 @@ describe('a submit is bounded by the request deadline', () => {
 
   const SUBMIT_TIMEOUT_MS = 60_000
 
+  /** A workflow whose only text is the negative prompt. */
+  const negativeOnlyWorkflow = {
+    nodes: [
+      { id: 1, type: 'CLIPTextEncode', widgets_values: ['blurry, deformed'] },
+      {
+        id: 2,
+        type: 'KSampler',
+        inputs: [{ name: 'negative', link: 3 }],
+        widgets_values: [0, 20, 8, 'euler', 'normal', 1]
+      }
+    ],
+    links: [[3, 1, 0, 2, 1]]
+  }
+
+  /** A workflow with no text at all, e.g. an upscaler. */
+  const textFreeWorkflow = {
+    nodes: [
+      {
+        id: 1,
+        type: 'ComfySwitchNode',
+        inputs: [
+          { name: 'switch', link: null },
+          { name: 'on_false', link: null },
+          { name: 'on_true', link: null }
+        ],
+        widgets_values: [true]
+      },
+      {
+        id: 2,
+        type: 'KSampler',
+        inputs: [{ name: 'latent_image', link: null }],
+        widgets_values: [0, 20, 8, 'euler', 'normal', 1]
+      }
+    ],
+    links: []
+  }
+
+  it('runs a workflow that holds no text as it was saved', async () => {
+    const posts: Record<string, any>[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(textFreeWorkflow)
+      posts.push(JSON.parse(String(init?.body)) as Record<string, any>)
+      return respond({ prompt_id: 'pid-1' })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.submit({ ...submitInput, prompt: 'a cat' })
+
+    // Nothing carries the prompt, and nothing carries the run's seed either:
+    // with no prompt target there is no node the run owns, so the workflow goes
+    // out exactly as it was saved.
+    const graph = posts[0].prompt as Record<string, { inputs: Record<string, unknown> }>
+    expect(Object.values(graph).some((node) => Object.values(node.inputs).includes('a cat'))).toBe(false)
+    expect(graph['2'].inputs.seed).toBe(0)
+  })
+
+  it('refuses a workflow whose text it cannot place', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      return respond(negativeOnlyWorkflow)
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    // The only text is the negative prompt, and writing the run's prompt there
+    // would replace it: refusing beats generating something else.
+    await expect(transport.submit({ ...submitInput, prompt: 'a cat' })).rejects.toThrow(/no_prompt_node/)
+  })
+
   it('bounds a submit whose /prompt body never arrives', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
