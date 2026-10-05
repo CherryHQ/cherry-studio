@@ -29,11 +29,16 @@ describe('notesRelocationSession', () => {
     expect(releaseNotesRelocationSession('window-b', secondEpoch)).toBe(true)
   })
 
-  it('allows the same owner to re-enter the active session with the same epoch', () => {
-    const firstEpoch = acquireNotesRelocationSession('window-a')
-    const secondEpoch = acquireNotesRelocationSession('window-a')
-    expect(secondEpoch).toBe(firstEpoch)
-    expect(releaseNotesRelocationSession('window-a', firstEpoch)).toBe(true)
+  it('rejects re-acquiring the session while it is still active', () => {
+    const epoch = acquireNotesRelocationSession('window-a')
+
+    expect(() => acquireNotesRelocationSession('window-a')).toThrow(
+      expect.objectContaining({
+        code: notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS
+      })
+    )
+
+    expect(releaseNotesRelocationSession('window-a', epoch)).toBe(true)
   })
 
   it('only releases the session for the owning window and matching epoch', () => {

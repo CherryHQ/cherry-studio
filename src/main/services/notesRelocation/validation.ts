@@ -83,6 +83,24 @@ async function assertSourceHasNoSymbolicLinks(dirPath: string): Promise<void> {
   await walk(path.resolve(dirPath))
 }
 
+async function assertTargetHasNoSymbolicLinks(dirPath: string): Promise<void> {
+  const walk = async (currentPath: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name)
+      const stats = await fs.promises.lstat(entryPath)
+      if (stats.isSymbolicLink()) {
+        invalid('invalid_target', `target contains a symbolic link: ${entryPath}`)
+      }
+      if (stats.isDirectory()) {
+        await walk(entryPath)
+      }
+    }
+  }
+
+  await walk(path.resolve(dirPath))
+}
+
 function assertNotesTargetDirectory(dirPath: string): void {
   if (!dirPath || typeof dirPath !== 'string') {
     invalid('invalid_target', 'target path is required')
@@ -93,8 +111,11 @@ function assertNotesTargetDirectory(dirPath: string): void {
     invalid('invalid_target', `target does not exist: ${dirPath}`)
   }
 
-  const stats = fs.statSync(normalizedPath)
-  if (!stats.isDirectory()) {
+  const lstats = fs.lstatSync(normalizedPath)
+  if (lstats.isSymbolicLink()) {
+    invalid('invalid_target', `target is a symbolic link: ${dirPath}`)
+  }
+  if (!lstats.isDirectory()) {
     invalid('invalid_target', `target is not a directory: ${dirPath}`)
   }
 
@@ -152,6 +173,10 @@ export async function assertNotesRelocationPaths(sourcePath: string, targetPath:
   }
 
   await assertSourceHasNoSymbolicLinks(sourcePath)
+
+  if (fs.existsSync(targetPath)) {
+    await assertTargetHasNoSymbolicLinks(targetPath)
+  }
 
   if (sourceReal === targetEffective) {
     invalid('same_path', `source and target are the same path: ${targetPath}`)

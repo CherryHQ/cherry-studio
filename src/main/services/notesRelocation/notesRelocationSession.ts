@@ -10,16 +10,14 @@ export function setNotesRelocationMigrateInFlight(inFlight: boolean): void {
 }
 
 export function acquireNotesRelocationSession(ownerId: string): number {
-  if (notesRelocationSessionOwnerId != null && notesRelocationSessionOwnerId !== ownerId) {
+  if (notesRelocationSessionOwnerId != null) {
     throw new IpcError(
       notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS,
       'another notes directory migration is already in progress'
     )
   }
-  if (notesRelocationSessionOwnerId == null) {
-    notesRelocationSessionOwnerId = ownerId
-    notesRelocationSessionEpoch += 1
-  }
+  notesRelocationSessionOwnerId = ownerId
+  notesRelocationSessionEpoch += 1
   return notesRelocationSessionEpoch
 }
 

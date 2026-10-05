@@ -244,7 +244,18 @@ export async function migrateNotesDirectory(
         }
         continue
       }
-      await fs.promises.copyFile(from, to)
+      await assertNonMergeDestinationAbsent(to)
+      try {
+        await fs.promises.copyFile(from, to, constants.COPYFILE_EXCL)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+          throw new IpcError(
+            notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
+            'target entry appeared during migration'
+          )
+        }
+        throw error
+      }
     }
 
     await verifySourceCopied(resolvedSource, resolvedTarget)

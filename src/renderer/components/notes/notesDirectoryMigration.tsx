@@ -119,7 +119,6 @@ export async function migrateNotesDirectoryWithUi(options: {
     }
 
     const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
-    let migrateSucceeded = false
     try {
       await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
@@ -127,7 +126,6 @@ export async function migrateNotesDirectoryWithUi(options: {
         merge,
         sessionEpoch
       })
-      migrateSucceeded = true
 
       try {
         await onSuccess(targetPath)
@@ -139,9 +137,7 @@ export async function migrateNotesDirectoryWithUi(options: {
 
       toast.success(t('settings.data.notes_relocation.success'))
     } finally {
-      if (migrateSucceeded) {
-        await finishNotesRelocationSession(sessionEpoch)
-      }
+      await finishNotesRelocationSession(sessionEpoch)
     }
   } catch (error) {
     logger.error('Notes directory migration failed', error as Error)

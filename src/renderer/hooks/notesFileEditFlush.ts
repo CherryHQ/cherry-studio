@@ -17,10 +17,12 @@ function notifyStructuralWriteIdleWaiters(): void {
 }
 
 export function lockNotesEditsForRelocation(): void {
-  relocationEditLockDepth += 1
-  for (const cancel of autosaveCancelCallbacks) {
-    cancel()
+  if (relocationEditLockDepth === 0) {
+    for (const cancel of autosaveCancelCallbacks) {
+      cancel()
+    }
   }
+  relocationEditLockDepth += 1
 }
 
 export function registerNotesRelocationAutosaveCancel(cancel: () => void): () => void {
@@ -31,7 +33,7 @@ export function registerNotesRelocationAutosaveCancel(cancel: () => void): () =>
 }
 
 export function unlockNotesEditsForRelocation(): void {
-  relocationEditLockDepth = Math.max(0, relocationEditLockDepth - 1)
+  relocationEditLockDepth = 0
 }
 
 export function areNotesEditsLockedForRelocation(): boolean {
