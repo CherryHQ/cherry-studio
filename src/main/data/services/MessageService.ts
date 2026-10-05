@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { withTerminalErrorPart } from '@shared/ai/terminalSentinel'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -918,8 +919,17 @@ export class MessageService {
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+    // Each row needs its own sentinel: it carries no error object of its own, so
+    // without this it lands as a failure with nothing explaining it.
+    application.get('DbService').withWriteTx((tx) => {
+      for (const id of ids) {
+        const [row] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
+        tx.update(messageTable)
+          .set({ status: 'error', data: withTerminalErrorPart(row?.data, 'turn.orphaned_by_restart') })
+          .where(eq(messageTable.id, id))
+          .run()
+      }
+    })
   }
 
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
