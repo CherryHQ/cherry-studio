@@ -111,5 +111,5 @@ export function withTerminalErrorPart(
   if (hasError) return { parts: existing }
 
   const error = terminalSentinel(key, options)
-  return { parts: [...existing, { type: 'data-error', data: error } as CherryMessagePart] }
+  return { parts: [...existing, { type: 'data-error', data: error }] }
 }
