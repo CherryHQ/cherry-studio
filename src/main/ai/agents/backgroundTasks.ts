@@ -204,7 +204,6 @@ export async function startDetachedBackgroundTask(
       settled = true
       activeTaskPids.delete(id)
       let cleaned = record.pid <= 0
-      let completed = false
       try {
         if (!cleaned) {
           if (process.platform === 'win32') {
@@ -232,9 +231,6 @@ export async function startDetachedBackgroundTask(
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
-            // The completion this call publishes also tells the agent the task is done, so the
-            // start failure must not claim the opposite and send it polling a finished task.
-            completed = true
           } else {
             // `finalize` is spent, so nothing else would release this ownership; keeping it would let
             // a stop aim at whatever process the OS later hands the recycled pid to.
@@ -249,16 +245,22 @@ export async function startDetachedBackgroundTask(
         }
       }
       // A plain "start failed" here invites a retry that duplicates work that is in fact still
-      // running, so an uncleaned recovery has to name the task it could not dispose of — unless
-      // this same call already published its completion, which names the opposite.
-      throw cleaned
-        ? error
-        : new Error(
-            completed
-              ? `Detached background task ${id} could not record its start but has already finished (${observedCompletion?.status})`
-              : `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`,
-            { cause: error }
-          )
+      // running, so the task may only be described as still running while that holds. Both of the
+      // facts it rests on are about the process rather than the record, and neither depends on the
+      // write above succeeding: `cleaned` means this call killed it, `observedCompletion` means the
+      // one close listener — spent, so it will not fire again — saw it exit. Deriving it from the
+      // record instead let a task that provably exited be announced as running, because the entry
+      // condition of this whole recovery is a write failing, and one failing write rarely means the
+      // next succeeds.
+      const stillRunning = !cleaned && !observedCompletion
+      throw new Error(
+        stillRunning
+          ? `Detached background task ${id} is still running (pid ${record.pid}) and its record could not be written`
+          : cleaned
+            ? `Detached background task ${id} could not record its start and was stopped (pid ${record.pid})`
+            : `Detached background task ${id} could not record its start but has already finished (${observedCompletion!.status})`,
+        { cause: error }
+      )
     }
 
     logger.info('Detached background task started', { taskId: id, pid: record.pid })
