@@ -94,7 +94,7 @@ export async function copyDirectoryRecursive(
           }
         }
         try {
-          if (options?.exclusiveFileCopies) {
+          if (options?.exclusiveFileCopies || options?.skipExistingFiles) {
             await fs.promises.copyFile(sourcePath, destPath, constants.COPYFILE_EXCL)
           } else {
             await fs.promises.copyFile(sourcePath, destPath)

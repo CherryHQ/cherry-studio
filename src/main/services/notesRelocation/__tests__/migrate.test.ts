@@ -219,6 +219,21 @@ describe('notesRelocation', () => {
     })
   })
 
+  it('rejects a target directory that contains symbolic links', async () => {
+    const source = path.join(tempRoot, 'source-notes-target-symlink')
+    const target = path.join(tempRoot, 'target-notes-target-symlink')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+    fs.writeFileSync(path.join(target, 'note.md'), '# Target')
+    fs.symlinkSync(path.join(target, 'note.md'), path.join(target, 'link.md'))
+
+    const inspection = await inspectNotesRelocation(source, target)
+    expect(inspection.valid).toBe(false)
+    if (inspection.valid) return
+    expect(inspection.reason).toBe('invalid_target')
+  })
+
   it('rejects a source directory that is itself a symbolic link', async () => {
     const realSource = path.join(tempRoot, 'real-source')
     const source = path.join(tempRoot, 'linked-source')
