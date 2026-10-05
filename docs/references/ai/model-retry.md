@@ -154,7 +154,10 @@ own their provider transport. Claude Code implements turn-level fallback in
   error carrying `api_error_status` 429/500/502/503/529, or an `api_error` terminal reason
   whose diagnostics name a rate limit / quota / overload — **and the turn has
   produced no content yet**, the runtime reconnects using the first configured
-  fallback model and replays the same user message in the host turn.
+  fallback model and replays the same user message in the host turn. Candidates
+  are skipped when their provider or model no longer exists, or the provider is
+  disabled, so a stale entry cannot consume the turn's single attempt (the same
+  skip-and-continue rule the chat path above applies, issue #20547).
 - The fallback is **visible**: a persisted `data-model-fallback` part rides the
   assistant row and renders as a transcript divider (`ModelFallbackBlock`), so
   history shows that the reply came from a different model.
@@ -164,7 +167,8 @@ own their provider transport. Claude Code implements turn-level fallback in
   against the agent's primary model.
 
 Limitations: one fallback attempt per turn; fallback *selection* is not
-capability-gated (a fallback is picked purely by id), though the replayed
+capability-gated (a resolvable fallback is picked by id, and only
+reachability is checked), though the replayed
 message is materialized for the fallback model's own capabilities, so a
 non-vision fallback receives OCR text or a readable path instead of native
 image parts; the assistant row keeps the primary model's `modelId` stamp — the

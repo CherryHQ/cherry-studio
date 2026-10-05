@@ -1,10 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { RetryPolicy } from '../../aiSdk'
 import { classifyFallbackEligibleError, resolveAgentSessionFallback, selectFallbackModelId } from '../modelFallback'
 import { ClaudeCodeResultError } from '../streamAdapter'
 
+const getByProviderId = vi.hoisted(() => vi.fn())
+const getByKey = vi.hoisted(() => vi.fn())
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: (...a: unknown[]) => getByProviderId(...a) }
+}))
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: (...a: unknown[]) => getByKey(...a) }
+}))
+
 const CURRENT_MODEL = 'claude-code::sonnet'
+
+beforeEach(() => {
+  getByProviderId.mockReset().mockReturnValue({ id: 'other-provider', isEnabled: true })
+  getByKey.mockReset().mockReturnValue({ id: 'haiku' })
+})
 
 function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
   return {
@@ -85,6 +101,71 @@ describe('selectFallbackModelId', () => {
 
   it('returns undefined when every configured fallback equals the failed model', () => {
     expect(selectFallbackModelId(policy({ fallbackModelIds: [CURRENT_MODEL] }), CURRENT_MODEL)).toBeUndefined()
+  })
+
+  // A turn gets ONE fallback attempt, so a stale id in front of a healthy one used to cost the turn
+  // its fallback entirely: the driver latched `fallbackAttempted` before proving the candidate was
+  // reachable, then the NOT_FOUND surfaced as the turn's error and the healthy entry was never tried.
+  it('skips a fallback whose provider was deleted and takes the next configured one', () => {
+    getByProviderId.mockImplementation((providerId: string) => {
+      if (providerId === 'deleted-provider') throw DataApiErrorFactory.notFound('Provider', 'gone')
+      return { id: providerId, isEnabled: true }
+    })
+
+    expect(
+      selectFallbackModelId(
+        policy({ fallbackModelIds: ['deleted-provider::haiku', 'healthy-provider::glm'] }),
+        CURRENT_MODEL
+      )
+    ).toBe('healthy-provider::glm')
+  })
+
+  it('skips a fallback whose model was deleted', () => {
+    getByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (modelId === 'removed') throw DataApiErrorFactory.notFound('Model', 'gone')
+      return { id: modelId, providerId }
+    })
+
+    expect(
+      selectFallbackModelId(
+        policy({ fallbackModelIds: ['healthy-provider::removed', 'healthy-provider::glm'] }),
+        CURRENT_MODEL
+      )
+    ).toBe('healthy-provider::glm')
+  })
+
+  // The gateway refuses a disabled provider's models, so routing to one only buys an opaque 404
+  // (issue #20547) — the chat retry path already skips these for the same reason.
+  it('skips a fallback whose provider is disabled', () => {
+    getByProviderId.mockImplementation((providerId: string) => ({
+      id: providerId,
+      isEnabled: providerId !== 'disabled-provider'
+    }))
+
+    expect(
+      selectFallbackModelId(
+        policy({ fallbackModelIds: ['disabled-provider::haiku', 'healthy-provider::glm'] }),
+        CURRENT_MODEL
+      )
+    ).toBe('healthy-provider::glm')
+  })
+
+  it('returns undefined when every remaining fallback is unreachable', () => {
+    getByProviderId.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Provider', 'gone')
+    })
+
+    expect(
+      selectFallbackModelId(policy({ fallbackModelIds: ['gone-a::haiku', 'gone-b::glm'] }), CURRENT_MODEL)
+    ).toBeUndefined()
+  })
+
+  it('propagates a non-NOT_FOUND resolution failure instead of silently skipping it', () => {
+    getByProviderId.mockImplementation(() => {
+      throw new Error('database is locked')
+    })
+
+    expect(() => selectFallbackModelId(policy(), CURRENT_MODEL)).toThrow('database is locked')
   })
 })
 
