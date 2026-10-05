@@ -18,6 +18,7 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -1511,6 +1512,10 @@ async function createSiyuanDoc(
 }
 
 const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  if (notesEditFlushService.getMigrationLocked()) {
+    toast.error(i18n.t('settings.data.notes_relocation.error.migration_in_progress'))
+    throw new Error('Notes directory migration is in progress')
+  }
   await addNote(title, content, folderPath)
 
   toast.success(i18n.t('message.success.notes.export'))

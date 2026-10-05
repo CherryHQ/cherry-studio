@@ -225,8 +225,6 @@ describe('BasicDataSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.data.notes_relocation.migrate' }))
 
     await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalledWith('/mock/notes'))
-    expect(startNotesDirectoryMigration).toHaveBeenCalledWith(
-      expect.objectContaining({ sourcePath: '/mock/notes' })
-    )
+    expect(startNotesDirectoryMigration).toHaveBeenCalledWith(expect.objectContaining({ sourcePath: '/mock/notes' }))
   })
 })
