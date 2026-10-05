@@ -74,6 +74,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       }
       await waitForNotesFilesystemMutationsIdle()
       setNotesMigrationBlockedRoots(sourcePath, targetPath)
+      // Close the TOCTOU window where a writer could start after the first idle
+      // check but before blocked roots are installed (e.g. chat → notes export).
+      await waitForNotesFilesystemMutationsIdle()
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
       const sessionId = getNotesMigrationSessionId()
       if (!sessionId) {
