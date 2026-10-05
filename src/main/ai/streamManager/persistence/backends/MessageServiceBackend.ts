@@ -20,11 +20,13 @@ export interface MessageServiceBackendOptions {
 
 export class MessageServiceBackend implements PersistenceBackend {
   readonly kind = 'sqlite'
+  readonly assistantMessageId: string
   readonly canPersistEmptyTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: MessageServiceBackendOptions) {
     this.afterPersist = opts.afterPersist
+    this.assistantMessageId = opts.assistantMessageId
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {

@@ -131,6 +131,13 @@ export interface PersistenceBackend {
   readonly kind: string
 
   /**
+   * Row id reserved for this turn's assistant message. Backends that pre-create a
+   * placeholder expose it so the row identity survives terminal events that
+   * arrive without an accumulated message; `undefined` for append-only backends.
+   */
+  readonly assistantMessageId?: string
+
+  /**
    * True for backends that finalize a pre-created placeholder row. They must
    * still write terminal status when a stream is paused before producing chunks.
    */

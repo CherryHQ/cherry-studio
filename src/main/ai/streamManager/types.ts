@@ -45,6 +45,15 @@ interface TerminalOutcome {
   persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
 }
 
+/**
+ * Why a turn reached `onDone` with no answerable content. `detail` is a
+ * user-facing sentence; `name` is the stable log/telemetry discriminator.
+ */
+export interface EmptyTurnReason {
+  readonly name: 'no-parts' | 'blank-content'
+  readonly detail: string
+}
+
 export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
@@ -56,6 +65,13 @@ export interface StreamDoneResult extends TerminalOutcome {
   isTopicDone?: boolean
   timings?: TransportTimings
   runtimeTiming?: MessageRuntimeTiming
+  /**
+   * Set when the turn closed cleanly but produced no answerable content. The
+   * persistence listener rewrites `finalMessage` to carry a classified
+   * `data-error`; this tells later listeners (usage reporting, renderer
+   * notification) that the success they see is a recovered empty turn.
+   */
+  emptyTurn?: EmptyTurnReason
 }
 
 export interface StreamPausedResult extends TerminalOutcome {
