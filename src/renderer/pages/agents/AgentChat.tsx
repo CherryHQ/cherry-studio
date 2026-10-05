@@ -310,9 +310,7 @@ const AgentChat = ({
     async (nextModel?: Model) => {
       if (!sessionSnapshot || !nextModel) return
       const clearingOverrideToDefault =
-        sessionSnapshot.modelId != null &&
-        nextModel.id === activeAgent?.model &&
-        nextModel.id === activeModel?.id
+        sessionSnapshot.modelId != null && nextModel.id === activeAgent?.model && nextModel.id === activeModel?.id
       if (nextModel.id === activeModel?.id && !clearingOverrideToDefault) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
         setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: sessionSnapshot.agentId, model: nextModel })
@@ -584,20 +582,22 @@ const AgentChat = ({
         confirmText={t('agent.session.model_switch_confirm.confirm')}
         cancelText={t('common.cancel')}
         onConfirm={async () => {
+          const target = modelSwitchTarget
           const clearingOverrideToDefault =
             sessionSnapshot?.modelId != null &&
-            modelSwitchTarget?.model.id === activeAgent?.model &&
-            modelSwitchTarget.model.id === activeModel?.id
+            target != null &&
+            target.model.id === activeAgent?.model &&
+            target.model.id === activeModel?.id
           if (
             !sessionSnapshot ||
-            !modelSwitchTarget ||
-            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
-            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
-            (modelSwitchTarget.model.id === activeModel?.id && !clearingOverrideToDefault)
+            !target ||
+            target.sessionId !== sessionSnapshot.id ||
+            target.agentId !== sessionSnapshot.agentId ||
+            (target.model.id === activeModel?.id && !clearingOverrideToDefault)
           ) {
             return
           }
-          const modelId = modelSwitchTarget.model.id === activeAgent?.model ? null : modelSwitchTarget.model.id
+          const modelId = target.model.id === activeAgent?.model ? null : target.model.id
           const updatedSession = await updateSession({ id: sessionSnapshot.id, modelId }, { showSuccessToast: false })
           if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
