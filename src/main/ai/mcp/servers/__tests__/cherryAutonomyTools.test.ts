@@ -1790,6 +1790,54 @@ describe('CherryAutonomyTools', () => {
       })
     })
 
+    describe('headless turns', () => {
+      beforeEach(() => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        mockGetChannel.mockReturnValue(telegramChannel)
+        mockGetAgent.mockReturnValue(agentWithConfig)
+      })
+
+      it('refuses to add a sender to allowed_chat_ids from a channel or scheduled turn', async () => {
+        const result = await callTool(
+          createServer('agent_1'),
+          { action: 'update_channel', channel_id: 'ch_1', config: { allowed_chat_ids: ['100', 'attacker'] } },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain(
+          'Headless channel or scheduled turns cannot mutate agent configuration'
+        )
+        expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        { action: 'rename', name: 'Renamed' },
+        { action: 'add_channel', type: 'telegram', name: 'Extra', config: { bot_token: 'tok_2' } },
+        { action: 'remove_channel', channel_id: 'ch_1' },
+        { action: 'reconnect_channel', channel_id: 'ch_1' },
+        { action: 'complete_bootstrap' },
+        { action: 'reset_bootstrap' }
+      ])('refuses $action', async (args) => {
+        const result = await callTool(createServer('agent_1'), args, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(mockUpdateAgent).not.toHaveBeenCalled()
+        expect(mockCreateChannel).not.toHaveBeenCalled()
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+        expect(mockReconnectChannel).not.toHaveBeenCalled()
+      })
+
+      it('still reports status', async () => {
+        mockListChannels.mockReturnValue([telegramChannel])
+
+        const result = await callTool(createServer('agent_1'), { action: 'status' }, 'config')
+
+        expect(result.isError).toBeUndefined()
+        expect(JSON.parse(result.content[0].text).channels).toHaveLength(1)
+      })
+    })
+
     describe('update_channel action', () => {
       it('should update an existing channel and sync', async () => {
         mockGetChannel.mockReturnValue(telegramChannel)

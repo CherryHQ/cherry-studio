@@ -19,13 +19,11 @@ import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolP
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
-  toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
-import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -36,15 +34,6 @@ import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependenc
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
-const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
-  'rename',
-  'complete_bootstrap',
-  'reset_bootstrap',
-  'add_channel',
-  'update_channel',
-  'remove_channel',
-  'reconnect_channel'
-])
 export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -84,11 +73,6 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
     signal: ctx.signal
   })
   return decision ? {} : null
-}
-
-const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
-  const action = typeof ctx.input?.action === 'string' ? ctx.input.action : ''
-  return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
 }
 
 const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
@@ -192,15 +176,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
-  },
-  {
-    id: 'headless-config-mutation',
-    match: { tool: toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME), when: mutatingConfigAction },
-    headless: {
-      predicate: 'turn-headless',
-      reason:
-        'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
-    }
   },
   {
     // Installing third-party skill code needs a responder — except under bypassPermissions, the
