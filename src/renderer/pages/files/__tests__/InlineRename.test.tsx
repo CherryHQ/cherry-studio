@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +18,17 @@ describe('InlineRename', () => {
 
     fireEvent.change(input, { target: { value: '报告' } })
     fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm on an IME Enter reported only through keyCode 229', () => {
+    const onConfirm = vi.fn()
+    render(<InlineRename value="report.md" onConfirm={onConfirm} onCancel={vi.fn()} />)
+    const input = screen.getByDisplayValue('report.md') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: '报告' } })
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
 
     expect(onConfirm).not.toHaveBeenCalled()
   })
