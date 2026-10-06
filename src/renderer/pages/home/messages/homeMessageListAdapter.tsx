@@ -170,7 +170,7 @@ export function useHomeMessageListProviderValue({
   // blank assistant message instead (#20941).
   const partsByMessageIdWithFallback = useMemo(
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
-    [messages, partsByMessageId]
+    [messages, partsByMessageId, t]
   )
   const partsByMessageIdRef = useRef(partsByMessageIdWithFallback)
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
