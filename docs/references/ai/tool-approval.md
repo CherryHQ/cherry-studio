@@ -3,6 +3,10 @@ description: Main-as-writer tool approval through ai.tool.respond_approval, appr
 sources:
   - src/main/ai/AiService.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/toolApproval/builtinToolPolicyRegistry.ts
+  - src/main/ai/runtime/claudeCode/guardRules.ts
+  - src/main/ai/runtime/pi/approvalExtension.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
   - src/main/ipc/handlers/ai.ts
   - src/renderer/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
@@ -66,6 +70,28 @@ descriptor is passed. It persists the opt-out by PATCHing the server's
 `disabledAutoApproveTools`, so the MCP settings page reflects it and
 subsequent calls of that tool skip the approval card. There is no generic
 per-tool default for non-MCP agent-runtime tools.
+
+## Built-in Agent delegation on scheduled turns
+
+The persistent MCP decisions above do not pre-authorize the built-in
+`session_send` or `session_create` tools. Both require live per-call approval,
+including in `bypassPermissions` (Full Access) and when the recipient is a
+sibling Session of the same Agent. Scheduled, channel, and delivery-triggered
+turns without an approval responder are denied before either tool executes;
+`reuse_session: true` does not make a scheduled turn interactive.
+
+For a scheduled coordinator, keep the notice in its output and, when the turn
+has configured notification recipients, use `notify` to inform the user. To
+send it to a sibling Session, return to an interactive sender turn and approve
+that `session_send` call. This is a manual handoff, not unattended cross-Session
+routing; `notify` delivers to configured channel recipients, not to a Session.
+A denied send has not created a delivery to retry automatically.
+
+Runtime-generated completion results for an already accepted request can
+return to its immutable sender without another model tool call. See the
+[deliberate security ceiling](./agent-session-runtime.md#deliberate-security-ceiling)
+for this supported return path and the authorization, ancestry, cycle, and
+budget requirements for any future unattended delegation policy.
 
 ## Why this design
 
