@@ -48,7 +48,12 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import {
+  readCherryMeta,
+  type CherryProviderMetadata,
+  type ComposerMessageSnapshot,
+  type ComposerMessageToken
+} from '@shared/data/types/uiParts'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
@@ -587,7 +592,8 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  return <ErrorBlock partId={partId} error={error} message={message} />
+  const synthetic = readCherryMeta(part)?.synthetic === true
+  return <ErrorBlock partId={partId} error={error} message={message} synthetic={synthetic} />
 })
 
 const TranslationPartView = React.memo(function TranslationPartView({
