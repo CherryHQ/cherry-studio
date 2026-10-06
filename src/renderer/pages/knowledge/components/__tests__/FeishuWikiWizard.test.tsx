@@ -16,6 +16,7 @@ const mockInvalidate = vi.fn(async () => undefined)
 const mockOpenExternal = vi.fn(async () => undefined)
 
 vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/accordion')),
   ...(await import('@cherrystudio/ui/components/primitives/button')),
   ...(await import('@cherrystudio/ui/components/primitives/combobox')),
   ...(await import('@cherrystudio/ui/components/primitives/dialog')),
@@ -75,6 +76,19 @@ const preview = {
   visibleNodeCount: 4,
   supportedDocxCount: 3,
   unsupportedOrSkippedCount: 1,
+  supportedDocuments: [
+    { nodeId: 'handbook', title: 'Team handbook', documentKind: 'document' as const },
+    { nodeId: 'onboarding', title: 'Employee onboarding', documentKind: 'document' as const },
+    { nodeId: 'security', title: 'Security guide', documentKind: 'document' as const }
+  ],
+  skippedItems: [
+    {
+      nodeId: 'metrics',
+      title: 'Quarterly metrics',
+      documentKind: 'spreadsheet' as const,
+      reason: 'unsupported-type' as const
+    }
+  ],
   warnings: []
 }
 const createdSource = { id: '0199c87a-1200-7000-8000-000000000002' }
@@ -84,6 +98,26 @@ const spacePreview = {
   visibleNodeCount: 8,
   supportedDocxCount: 5,
   unsupportedOrSkippedCount: 3,
+  supportedDocuments: [
+    ...preview.supportedDocuments,
+    { nodeId: 'roadmap', title: 'Product roadmap', documentKind: 'document' as const },
+    { nodeId: 'release', title: 'Release checklist', documentKind: 'document' as const }
+  ],
+  skippedItems: [
+    ...preview.skippedItems,
+    {
+      nodeId: 'reference',
+      title: 'Reference materials',
+      documentKind: 'document' as const,
+      reason: 'cross-space-shortcut' as const
+    },
+    {
+      nodeId: 'reference',
+      title: 'Reference shortcut',
+      documentKind: 'document' as const,
+      reason: 'cross-space-shortcut' as const
+    }
+  ],
   embeddingCostExact: false,
   warnings: []
 }
@@ -110,7 +144,7 @@ async function reachReview(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
   await user.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByRole('heading', { name: 'Add Feishu Wiki' })
-  await screen.findByRole('textbox', { name: 'Source name' })
+  await screen.findByRole('radio', { name: 'Daily' })
 }
 
 describe('FeishuWikiWizard', () => {
@@ -438,16 +472,23 @@ describe('FeishuWikiWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('previews the chosen scope and creates a manual source without waiting for sync', async () => {
+  it('creates a source with automatic daily sync enabled by default without waiting for sync', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     render(<FeishuWikiWizard open baseId="00000000-0000-4000-8000-000000000001" onOpenChange={onOpenChange} />)
 
     await reachReview(user)
-    expect(screen.getByText('3 supported documents')).toBeInTheDocument()
-    expect(screen.getByText('1 unsupported or skipped')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Source name' })).toHaveValue('Team handbook')
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    expect(screen.getByText('Documents to sync: 3')).toBeInTheDocument()
+    expect(screen.getByText('Items to skip: 1')).toBeInTheDocument()
+    expect(screen.getByText('Team handbook')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'Source name' })).not.toBeInTheDocument()
+    expect(screen.queryByText('4 visible nodes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Embedding cost depends on the content fetched during sync.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Time zone:/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.create', {
@@ -456,8 +497,114 @@ describe('FeishuWikiWizard', () => {
       url,
       name: 'Team handbook'
     })
-    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.schedule.update', expect.anything())
+    expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
+      sourceId: createdSource.id,
+      policy: { kind: 'daily', time: '09:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }
+    })
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.sync', expect.anything())
     expect(mockInvalidate).toHaveBeenCalledWith('/knowledge-bases/:id/external-knowledge-sources')
+  })
+
+  it('keeps preview details collapsed until the user expands documents or skipped reasons', async () => {
+    const user = userEvent.setup()
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    const documents = screen.getByRole('button', { name: 'Documents to sync: 3 View documents' })
+    const reasons = screen.getByRole('button', { name: 'Items to skip: 1 View reasons' })
+    expect(documents).toHaveAttribute('aria-expanded', 'false')
+    expect(reasons).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Employee onboarding')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quarterly metrics')).not.toBeInTheDocument()
+
+    await user.click(documents)
+    expect(await screen.findByText('Employee onboarding')).toBeVisible()
+    expect(screen.getByText('Security guide')).toBeVisible()
+    expect(screen.queryByText('Quarterly metrics')).not.toBeInTheDocument()
+    await user.click(reasons)
+    const skipped = screen.getByRole('region', { name: 'Items to skip: 1 View reasons' })
+    expect(within(skipped).getByText('Quarterly metrics')).toBeVisible()
+    expect(within(skipped).getByText('Spreadsheet')).toBeVisible()
+    expect(within(skipped).getByText('This content type is not supported yet.')).toBeVisible()
+    expect(documents).toHaveAttribute('aria-expanded', 'true')
+    expect(reasons).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('omits the skipped-details control when every previewed document can sync', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'knowledge.feishu.scope.preview')
+        return { ...preview, visibleNodeCount: 3, unsupportedOrSkippedCount: 0, skippedItems: [] }
+      return undefined
+    })
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    expect(screen.getByRole('button', { name: 'Documents to sync: 3 View documents' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /View reasons/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Items to skip: 0')).not.toBeInTheDocument()
+  })
+
+  it('explains an empty sync preview and hides a zero skipped count', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'knowledge.feishu.scope.preview')
+        return {
+          ...preview,
+          visibleNodeCount: 0,
+          supportedDocxCount: 0,
+          unsupportedOrSkippedCount: 0,
+          supportedDocuments: [],
+          skippedItems: [],
+          warnings: ['no-supported-documents']
+        }
+      return undefined
+    })
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    expect(screen.getByRole('status')).toHaveTextContent('No documents available to sync.')
+    expect(screen.queryByText('Documents to sync: 0')).not.toBeInTheDocument()
+    expect(screen.queryByText('Items to skip: 0')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /View documents|View reasons/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps skipped reasons available when no previewed documents can sync', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (route === 'knowledge.feishu.scope.preview')
+        return {
+          ...preview,
+          visibleNodeCount: 1,
+          supportedDocxCount: 0,
+          supportedDocuments: [],
+          warnings: ['no-supported-documents']
+        }
+      return undefined
+    })
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    expect(screen.getByRole('status')).toHaveTextContent('No documents available to sync.')
+    expect(screen.queryByRole('button', { name: /View documents/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Items to skip: 1 View reasons' }))
+    expect(screen.getByText('Quarterly metrics')).toBeVisible()
+    expect(screen.getByText('This content type is not supported yet.')).toBeVisible()
+  })
+
+  it('allows disabling the default automatic sync before creating a source', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
+    await reachReview(user)
+    await user.click(screen.getByRole('radio', { name: 'Manual' }))
+    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.schedule.update', expect.anything())
   })
 
   it('keeps the URL step available when preview fails, then permits a retry', async () => {
@@ -482,7 +629,7 @@ describe('FeishuWikiWizard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not preview this Feishu Wiki URL')
     expect(screen.getByRole('textbox', { name: 'Feishu Wiki URL' })).toHaveValue(url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByRole('textbox', { name: 'Source name' })).toHaveValue('Team handbook')
+    expect(await screen.findByText('Team handbook')).toBeVisible()
   })
 
   it('closes after creation even when daily scheduling fails and explains the manual fallback', async () => {
@@ -501,7 +648,7 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
     await user.clear(screen.getByLabelText('Daily sync time'))
     await user.type(screen.getByLabelText('Daily sync time'), '10:30')
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('source was created')))
@@ -517,19 +664,17 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
     await reachReview(user)
 
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
     expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
     const time = screen.getByLabelText('Daily sync time')
     await user.clear(time)
-    expect(screen.getByRole('button', { name: 'Create source' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
     expect(time).toBeInvalid()
     await user.type(time, '10:30')
     await user.click(screen.getByRole('radio', { name: 'Manual' }))
     expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
     expect(screen.getByLabelText('Daily sync time')).toHaveValue('10:30')
-    expect(screen.getByRole('button', { name: 'Create source' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled()
   })
 
   it('keeps submitted settings and the wizard stable until creation and scheduling finish', async () => {
@@ -553,13 +698,13 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
     await reachReview(user)
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
-    expect(screen.getByRole('textbox', { name: 'Source name' })).toBeDisabled()
     expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
     expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Create source' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-busy', 'true')
     await user.keyboard('{Escape}')
     expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => finishCreate(createdSource))
@@ -694,9 +839,9 @@ describe('FeishuWikiWizard', () => {
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    expect(await screen.findByRole('textbox', { name: 'Source name' })).toHaveValue('Project Wiki')
-    expect(screen.getByText('5 supported documents')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    expect(await screen.findByText('Project Wiki')).toBeVisible()
+    expect(screen.getByText('Documents to sync: 5')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.space.preview', {
@@ -711,7 +856,7 @@ describe('FeishuWikiWizard', () => {
     })
   })
 
-  it('searches and selects multiple Wikis, previews each, and creates separate named sources with one shared frequency', async () => {
+  it('creates selected Wikis with their original names and a shared sync frequency', async () => {
     const user = userEvent.setup()
     const research = { spaceId: 'space-2', name: 'Research Wiki', description: null }
     const onOpenChange = vi.fn()
@@ -719,7 +864,16 @@ describe('FeishuWikiWizard', () => {
       if (route === 'knowledge.feishu.spaces.list') return { spaces: [space, research] }
       if (route === 'knowledge.feishu.space.preview')
         return input?.spaceId === research.spaceId
-          ? { ...spacePreview, space: research, supportedDocxCount: 2 }
+          ? {
+              ...spacePreview,
+              space: research,
+              visibleNodeCount: 5,
+              supportedDocxCount: 2,
+              supportedDocuments: [
+                { nodeId: 'research-notes', title: 'Research notes', documentKind: 'document' },
+                { nodeId: 'findings', title: 'Study findings', documentKind: 'document' }
+              ]
+            }
           : spacePreview
       if (route === 'knowledge.external_source.create') return { id: `source-${input?.spaceId}` }
       if (route === 'knowledge.external_source.schedule.update' && input?.sourceId === `source-${research.spaceId}`)
@@ -740,43 +894,56 @@ describe('FeishuWikiWizard', () => {
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    const projectName = await screen.findByRole('textbox', { name: 'Source name for Project Wiki' })
-    const researchName = screen.getByRole('textbox', { name: 'Source name for Research Wiki' })
-    expect(projectName).toHaveValue('Project Wiki')
-    expect(researchName).toHaveValue('Research Wiki')
-    expect(screen.getByText('5 supported documents')).toBeVisible()
-    expect(screen.getByText('2 supported documents')).toBeVisible()
+    expect(await screen.findByText('Project Wiki')).toBeVisible()
+    expect(screen.getByText('Research Wiki')).toBeVisible()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByText('Documents to sync: 5')).toBeVisible()
+    expect(screen.getByText('Documents to sync: 2')).toBeVisible()
+    const projectPreview = screen.getByRole('region', { name: 'Project Wiki' })
+    const researchPreview = screen.getByRole('region', { name: 'Research Wiki' })
+    await user.click(within(projectPreview).getByRole('button', { name: /View documents/ }))
+    expect(within(projectPreview).getByText('Product roadmap')).toBeVisible()
+    expect(within(researchPreview).queryByText('Product roadmap')).not.toBeInTheDocument()
+    expect(within(researchPreview).queryByText('Research notes')).not.toBeInTheDocument()
+    await user.click(within(researchPreview).getByRole('button', { name: /View documents/ }))
+    expect(within(researchPreview).getByText('Research notes')).toBeVisible()
+    await user.click(within(projectPreview).getByRole('button', { name: /View reasons/ }))
+    const skipped = within(projectPreview).getByRole('region', { name: 'Items to skip: 3 View reasons' })
+    expect(within(skipped).getByText('Quarterly metrics')).toBeVisible()
+    expect(within(skipped).getByText('Spreadsheet')).toBeVisible()
+    expect(within(skipped).getByText('This content type is not supported yet.')).toBeVisible()
+    expect(within(skipped).getByText('Reference materials')).toBeVisible()
+    expect(within(skipped).getByText('Reference shortcut')).toBeVisible()
+    expect(within(skipped).getAllByText('Cross-Wiki shortcut')).toHaveLength(2)
+    expect(within(skipped).getAllByText('The linked content belongs to another Wiki.')).toHaveLength(2)
+    expect(within(skipped).queryByText('Document')).not.toBeInTheDocument()
     for (const spaceId of [space.spaceId, research.spaceId]) {
       expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.space.preview', {
         connectionId: connection.id,
         spaceId
       })
     }
-    await user.clear(projectName)
-    await user.type(projectName, 'Project docs')
-    await user.clear(researchName)
-    await user.type(researchName, 'Research docs')
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
     await user.clear(screen.getByLabelText('Daily sync time'))
     await user.type(screen.getByLabelText('Daily sync time'), '10:30')
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.error).toHaveBeenCalledWith({
       title: i18n.t('knowledge.external.wizard.daily_warning'),
-      description: 'Research docs'
+      description: 'Research Wiki'
     })
     expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.create', {
       baseId: 'base-1',
       connectionId: connection.id,
       spaceId: space.spaceId,
-      name: 'Project docs'
+      name: 'Project Wiki'
     })
     expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.create', {
       baseId: 'base-1',
       connectionId: connection.id,
       spaceId: research.spaceId,
-      name: 'Research docs'
+      name: 'Research Wiki'
     })
     for (const spaceId of [space.spaceId, research.spaceId]) {
       expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
@@ -812,24 +979,21 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('option', { name: 'Operations Wiki' }))
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    await screen.findByRole('textbox', { name: 'Source name for Project Wiki' })
+    await screen.findByRole('button', { name: 'Add' })
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    await user.click(screen.getByRole('button', { name: 'Create source' }))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Some sources could not be created. Retry to create the remaining sources.'
     )
     expect(screen.getByText('Created 2 of 3 sources.')).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Research Wiki')
-    expect(screen.getByRole('textbox', { name: 'Source name for Project Wiki' })).toBeDisabled()
-    expect(screen.getByRole('textbox', { name: 'Source name for Research Wiki' })).toBeDisabled()
-    expect(screen.getByRole('textbox', { name: 'Source name for Operations Wiki' })).toBeDisabled()
     expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
     expect(screen.getByRole('radio', { name: 'Daily' })).toBeDisabled()
     expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
-    for (const close of screen.getAllByRole('button', { name: 'Close' })) expect(close).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeEnabled()
     expect(onOpenChange).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
@@ -870,7 +1034,7 @@ describe('FeishuWikiWizard', () => {
     await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    expect(await screen.findByRole('textbox', { name: 'Source name' })).toHaveValue('Research Wiki')
+    expect(await screen.findByText('Research Wiki')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Back' }))
     await openWikiOptions(user)
     expect(screen.getByRole('option', { name: 'Research Wiki' })).toHaveAttribute('aria-checked', 'true')
@@ -955,7 +1119,7 @@ describe('FeishuWikiWizard', () => {
     await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    expect(await screen.findByRole('textbox', { name: 'Source name' })).toHaveValue('Team handbook')
+    expect(await screen.findByText('Team handbook')).toBeVisible()
   })
 
   it('reauthorizes space discovery only after the user requests it and reloads spaces', async () => {
@@ -1203,6 +1367,6 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
     await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByRole('textbox', { name: 'Source name' })).toHaveValue('Team handbook')
+    expect(await screen.findByText('Team handbook')).toBeVisible()
   })
 })

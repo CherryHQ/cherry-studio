@@ -332,7 +332,8 @@ vi.mock('react-i18next', () => ({
             'knowledge.external.sources.manage_connections': '管理账号',
             'knowledge.external.sources.connections': '已连接账号',
             'knowledge.external.sources.add_source': '添加同步来源',
-            'knowledge.external.wizard.name': '来源名称',
+            'knowledge.external.sources.auto_sync': '自动同步',
+            'knowledge.external.sources.view_details': '查看详情',
             'common.back': '返回',
             'knowledge.data_source.filters.file': '文件',
             'knowledge.data_source.filters.note': '笔记',
@@ -625,8 +626,10 @@ describe('DataSourcePanel', () => {
     const { rerender } = render(<DataSourcePanel {...props} />)
 
     expect(screen.getByRole('button', { name: '添加同步来源' })).toBeDisabled()
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Team handbook' }))
-    expect(screen.getByRole('textbox', { name: '来源名称' })).toBeEnabled()
+    await user.click(
+      within(screen.getByRole('group', { name: 'Team handbook' })).getByRole('button', { name: '查看详情' })
+    )
+    expect(screen.getByRole('switch', { name: '自动同步' })).toBeEnabled()
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '返回' }))
     mockUseLocalModel.mockReturnValue({ status: 'ready', percent: 100 })

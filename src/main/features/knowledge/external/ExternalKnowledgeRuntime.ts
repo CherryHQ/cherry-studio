@@ -55,6 +55,7 @@ import {
   FeishuKnowledgeReadError,
   parseFeishuKnowledgeUrl,
   previewFeishuKnowledgeScope,
+  previewFeishuKnowledgeSpace,
   readFeishuDocx,
   resolveFeishuKnowledgeScope,
   scanFeishuKnowledgeSource,
@@ -612,20 +613,8 @@ export class ExternalKnowledgeRuntime {
   async previewFeishuSpace(connectionId: string, spaceId: string): Promise<FeishuWikiSpacePreview> {
     return await this.runAuthorizedRead(connectionId, async (context) => {
       const space = await this.findWikiSpace(context, spaceId)
-      const scan = await scanFeishuKnowledgeSource(
-        { spaceId, scope: { kind: 'space' } },
-        this.feishuReadOperations(context),
-        context.signal
-      )
-      const supportedDocxCount = scan.canonicalReferences.length
-      return {
-        space,
-        visibleNodeCount: scan.visibleNodeCount,
-        supportedDocxCount,
-        unsupportedOrSkippedCount: scan.unsupportedOrSkippedCount,
-        embeddingCostExact: false,
-        warnings: supportedDocxCount === 0 ? ['no-supported-documents'] : []
-      }
+      const preview = await previewFeishuKnowledgeSpace({ spaceId }, this.feishuReadOperations(context), context.signal)
+      return { space, ...preview }
     })
   }
 

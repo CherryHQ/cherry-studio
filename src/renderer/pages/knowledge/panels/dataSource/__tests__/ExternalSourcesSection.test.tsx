@@ -27,13 +27,16 @@ vi.mock('@renderer/hooks/useJob', () => ({
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => mockRequest(...args) } }))
 vi.mock('@cherrystudio/ui', async () => ({
   ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/accordion')),
+  ...(await import('@cherrystudio/ui/components/primitives/alert')),
+  ...(await import('@cherrystudio/ui/components/primitives/badge')),
   ...(await import('@cherrystudio/ui/components/primitives/combobox')),
   ...(await import('@cherrystudio/ui/components/primitives/input')),
   ...(await import('@cherrystudio/ui/components/primitives/field')),
   ...(await import('@cherrystudio/ui/components/primitives/label')),
   ...(await import('@cherrystudio/ui/components/primitives/tooltip')),
   ...(await import('@cherrystudio/ui/components/composites/icon-tooltips')),
-  ...(await import('@cherrystudio/ui/components/primitives/segmented-control')),
+  ...(await import('@cherrystudio/ui/components/primitives/switch')),
   ...(await import('@cherrystudio/ui/components/primitives/dialog')),
   ...(await import('@cherrystudio/ui/components/composites/page-side-panel')),
   ...(await import('@cherrystudio/ui/components/composites/confirm-dialog'))
@@ -106,7 +109,7 @@ const openSourceSettings = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole('button', { name: 'Sync sources' }))
   const manager = screen.getByRole('dialog', { name: 'Sync sources' })
   await waitFor(() => expect(manager).toHaveFocus())
-  await user.click(within(manager).getByRole('button', { name: 'Team handbook' }))
+  await user.click(within(manager).getByRole('button', { name: 'View details' }))
 }
 
 describe('ExternalSourcesSection', () => {
@@ -176,8 +179,54 @@ describe('ExternalSourcesSection', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('1 source(s) need attention')
     await user.click(screen.getByRole('button', { name: '1 source(s) need attention' }))
     const manager = screen.getByRole('dialog', { name: 'Sync sources' })
-    expect(manager).toHaveTextContent('Sync timed out. Try again.')
-    expect(within(manager).getByRole('button', { name: 'Retry sync' })).toBeEnabled()
+    expect(within(manager).getByText('Sync failed')).toBeVisible()
+    expect(within(manager).queryByText('Sync timed out. Try again.')).not.toBeInTheDocument()
+    expect(within(manager).queryByRole('button', { name: 'Retry sync' })).not.toBeInTheDocument()
+    await user.click(within(manager).getByRole('button', { name: 'View details' }))
+    const details = screen.getByRole('dialog', { name: 'Source details' })
+    expect(details).toHaveTextContent('Sync timed out. Try again.')
+    expect(within(details).getByRole('button', { name: 'Manual sync' })).toBeEnabled()
+  })
+
+  it('separates paused source status from history and reveals remote identifiers only in details', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+          : [{ ...source, state: 'paused', activeJobId: null, lastOutcome: 'completed' }],
+      refetch: vi.fn()
+    }))
+    render(<SourcesHarness />)
+    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    const manager = screen.getByRole('dialog', { name: 'Sync sources' })
+    expect(within(manager).getByText('Paused')).toBeVisible()
+    expect(within(manager).queryByText('Sync is paused. Check the account connection.')).not.toBeInTheDocument()
+    expect(within(manager).queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument()
+    expect(within(manager).queryByText('Sync completed', { exact: false })).not.toBeInTheDocument()
+    expect(within(manager).queryByText('space-1', { exact: false })).not.toBeInTheDocument()
+    expect(within(manager).queryByRole('button', { name: 'Disconnect' })).not.toBeInTheDocument()
+
+    await user.click(within(manager).getByRole('button', { name: 'View details' }))
+    const details = screen.getByRole('dialog', { name: 'Source details' })
+    const result = within(details).getByRole('region', { name: 'Last sync result' })
+    expect(result).toHaveTextContent('Sync completed')
+    expect(within(result).getByText('Documents added or updated in this sync: 2')).toBeVisible()
+    expect(within(details).queryByText('Sync is paused. Check the account connection.')).not.toBeInTheDocument()
+    expect(within(details).queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument()
+    expect(within(details).getByRole('button', { name: 'Manual sync' })).toBeEnabled()
+    expect(within(details).queryByText('space-1')).not.toBeInTheDocument()
+    expect(within(details).queryByText('wiki-node')).not.toBeInTheDocument()
+    expect(within(details).getByRole('button', { name: 'Source information' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    await user.click(within(details).getByRole('button', { name: 'Source information' }))
+    expect(within(details).getByText('space-1')).toBeVisible()
+    expect(within(details).getByText('wiki-node')).toBeVisible()
+    await user.click(within(details).getByRole('button', { name: 'Source information' }))
+    expect(within(details).queryByText('space-1')).not.toBeInTheDocument()
+    expect(within(details).getByRole('button', { name: 'Disconnect' })).toBeEnabled()
   })
 
   it('returns from source settings and account connections without stacking panels', async () => {
@@ -196,6 +245,50 @@ describe('ExternalSourcesSection', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('keeps a previous failure reason in history while reconnecting takes priority', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+          : [{ ...source, state: 'paused', activeJobId: null, lastOutcome: 'failed', lastErrorSummary: 'timeout' }],
+      refetch: vi.fn()
+    }))
+    render(<SourcesHarness />)
+    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    const manager = screen.getByRole('dialog', { name: 'Sync sources' })
+    expect(within(manager).queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument()
+    expect(within(manager).queryByRole('button', { name: 'Retry sync' })).not.toBeInTheDocument()
+    expect(within(manager).queryByText('Sync timed out. Try again.')).not.toBeInTheDocument()
+    await user.click(within(manager).getByRole('button', { name: 'View details' }))
+    const result = within(screen.getByRole('dialog', { name: 'Source details' })).getByRole('region', {
+      name: 'Last sync result'
+    })
+    expect(within(result).getByRole('alert')).toHaveTextContent('Sync timed out. Try again.')
+  })
+
+  it('opens the chosen source and restores its detail entry in a multi-source list', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [connection]
+          : [source, { ...source, id: 'source-2', name: 'API reference' }],
+      refetch: vi.fn()
+    }))
+    render(<SourcesHarness />)
+    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    const entry = within(screen.getByRole('group', { name: 'API reference' })).getByRole('button', {
+      name: 'View details'
+    })
+    await user.click(entry)
+    expect(within(screen.getByRole('dialog', { name: 'Source details' })).getByText('API reference')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(
+      within(screen.getByRole('group', { name: 'API reference' })).getByRole('button', { name: 'View details' })
+    ).toHaveFocus()
+  })
+
   it('keeps keyboard focus in source settings and restores the source entry when going back', async () => {
     const user = userEvent.setup()
     render(<SourcesHarness />)
@@ -203,15 +296,10 @@ describe('ExternalSourcesSection', () => {
     const manager = screen.getByRole('dialog', { name: 'Sync sources' })
     await waitFor(() => expect(manager).toHaveFocus())
 
-    await user.click(within(manager).getByRole('button', { name: 'Team handbook' }))
+    await user.click(within(manager).getByRole('button', { name: 'View details' }))
     expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus()
     await user.keyboard('{Enter}')
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Team handbook' })).toHaveFocus()
-
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Settings' }))
-    expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus()
-    await user.keyboard('{Enter}')
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Team handbook' })).toHaveFocus()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'View details' })).toHaveFocus()
   })
 
   it('restores the account entry after returning from account connections with the keyboard', async () => {
@@ -236,31 +324,6 @@ describe('ExternalSourcesSection', () => {
     expect(entry).toHaveFocus()
   })
 
-  it('saves a changed name once and returns after one Back click while saving is delayed', async () => {
-    const user = userEvent.setup()
-    let finishRename!: () => void
-    mockRequest.mockImplementation((route: string) =>
-      route === 'knowledge.external_source.rename'
-        ? new Promise<void>((resolve) => {
-            finishRename = resolve
-          })
-        : Promise.resolve(undefined)
-    )
-    render(<SourcesHarness />)
-    await openSourceSettings(user)
-    await user.clear(screen.getByLabelText('Source name'))
-    await user.type(screen.getByLabelText('Source name'), 'New handbook')
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-
-    expect(mockRequest).toHaveBeenCalledExactlyOnceWith('knowledge.external_source.rename', {
-      sourceId: 'source-1',
-      name: 'New handbook'
-    })
-    await act(async () => finishRename())
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Sync sources' })).toBeVisible())
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Team handbook' })).toHaveFocus()
-  })
-
   it('shows a brief syncing status and puts detailed progress and account information in management', async () => {
     const user = userEvent.setup()
     render(<SourcesHarness />)
@@ -269,14 +332,56 @@ describe('ExternalSourcesSection', () => {
     expect(screen.queryByText(/Last sync: 2 indexed, 1 unchanged/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Sync sources' }))
     const manager = screen.getByRole('dialog', { name: 'Sync sources' })
-    expect(manager).toHaveTextContent('Alice · Node · space-1')
+    expect(manager).toHaveTextContent('Alice · Node')
+    expect(within(manager).queryByText('space-1', { exact: false })).not.toBeInTheDocument()
     expect(manager).toHaveTextContent('Syncing · Stage: Reading')
-    expect(within(manager).getByText(/Last sync: 2 indexed, 1 unchanged/)).toBeInTheDocument()
+    expect(within(manager).queryByText(/Last sync: 2 indexed, 1 unchanged/)).not.toBeInTheDocument()
     expect(within(manager).getByText(/Last successful sync/)).toBeInTheDocument()
-    expect(within(manager).getByText(/Next scheduled run: Never/)).toBeInTheDocument()
+    expect(within(manager).queryByText(/Next scheduled run/)).not.toBeInTheDocument()
+    expect(within(manager).queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument()
+    await user.click(within(manager).getByRole('button', { name: 'View details' }))
+    const details = screen.getByRole('dialog', { name: 'Source details' })
+    const result = within(details).getByRole('region', { name: 'Last sync result' })
+    expect(within(result).getByText('Documents added or updated in this sync: 2')).toBeVisible()
+    expect(within(result).queryByText('Indexed')).not.toBeInTheDocument()
+    expect(within(result).queryByText('Unchanged')).not.toBeInTheDocument()
+    expect(within(result).queryByText('Skipped')).not.toBeInTheDocument()
+    expect(within(result).queryByText('Notices')).not.toBeInTheDocument()
+    const syncDetails = within(result).getByRole('button', { name: 'Sync details' })
+    expect(syncDetails).toHaveAttribute('aria-expanded', 'false')
+    await user.click(syncDetails)
+    expect(within(result).getByText('Unchanged')).toBeVisible()
+    expect(within(result).getByText('Skipped')).toBeVisible()
+    expect(within(result).getByText('1')).toBeVisible()
+    expect(within(result).getByText('0')).toBeVisible()
+    expect(mockRequest).not.toHaveBeenCalled()
+    expect(within(details).queryByText(/Next scheduled run/)).not.toBeInTheDocument()
+    expect(within(details).queryByText('Changes are saved automatically.')).not.toBeInTheDocument()
+    expect(within(details).queryByText('Sync settings')).not.toBeInTheDocument()
+    expect(within(details).getByText('Team handbook')).toBeVisible()
+    expect(within(details).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(details).getByRole('switch', { name: 'Automatic sync' })).toBeVisible()
   })
 
-  it('saves frequency immediately without requiring a name or a Save button', async () => {
+  it('does not show result counts before the first sync finishes', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [connection]
+          : [{ ...source, lastFinishedAt: null, lastIndexedCount: null, lastWarningCount: null }],
+      refetch: vi.fn()
+    }))
+    render(<SourcesHarness />)
+    await openSourceSettings(user)
+    const result = within(screen.getByRole('dialog', { name: 'Source details' })).getByRole('region', {
+      name: 'Last sync result'
+    })
+    expect(within(result).queryByText(/Documents added or updated/)).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: 'Sync details' })).not.toBeInTheDocument()
+  })
+
+  it('saves automatic sync immediately without a Save button or a name editor', async () => {
     const user = userEvent.setup()
     let stored = structuredClone(source)
     mockQuery.mockImplementation((path: string) => ({
@@ -290,40 +395,49 @@ describe('ExternalSourcesSection', () => {
     })
     render(<SourcesHarness />)
     await openSourceSettings(user)
-    const details = screen.getByRole('dialog', { name: 'Team handbook' })
-    await user.clear(within(details).getByLabelText('Source name'))
-    await user.click(within(details).getByRole('radio', { name: 'Daily' }))
+    const details = screen.getByRole('dialog', { name: 'Source details' })
+    expect(within(details).queryByRole('textbox')).not.toBeInTheDocument()
+    await user.click(within(details).getByRole('switch', { name: 'Automatic sync' }))
     expect(within(details).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
-    await waitFor(() => expect(within(details).getByRole('radio', { name: 'Daily' })).toBeEnabled())
+    await waitFor(() => expect(within(details).getByRole('switch', { name: 'Automatic sync' })).toBeEnabled())
     await user.click(within(details).getByRole('button', { name: 'Close' }))
     await openSourceSettings(user)
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).toBeChecked()
     expect(screen.getByLabelText('Daily sync time')).toHaveValue('09:00')
   })
 
-  it('commits an edited name on blur independently of the schedule', async () => {
+  it('reflects a persisted daily schedule and saves disabling automatic sync', async () => {
     const user = userEvent.setup()
-    let stored = structuredClone(source)
+    let stored = {
+      ...source,
+      schedule: { policy: { kind: 'daily' as const, time: '10:30', timezone: 'Asia/Shanghai' }, nextRunAt: null }
+    } as ExternalKnowledgeSourceListItem
     mockQuery.mockImplementation((path: string) => ({
       data: path === '/external-knowledge-connections' ? [connection] : [stored],
       refetch: vi.fn()
     }))
     mockRequest.mockImplementation(async (route, input) => {
-      if (route === 'knowledge.external_source.rename') stored = { ...stored, name: input.name }
+      if (route === 'knowledge.external_source.schedule.update')
+        stored = { ...stored, schedule: { policy: input.policy, nextRunAt: null } }
     })
     render(<SourcesHarness />)
     await openSourceSettings(user)
-    await user.clear(screen.getByLabelText('Source name'))
-    await user.type(screen.getByLabelText('Source name'), 'Updated handbook{Enter}')
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Updated handbook' })).toBeInTheDocument())
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).toBeChecked()
+    expect(screen.getByLabelText('Daily sync time')).toHaveValue('10:30')
+    expect(mockRequest).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('switch', { name: 'Automatic sync' }))
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Automatic sync' })).toBeEnabled())
+    expect(stored.schedule.policy).toEqual({ kind: 'manual' })
+    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await openSourceSettings(user)
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).not.toBeChecked()
   })
 
   it('requires an explicit keep or remove choice when disconnecting', async () => {
     const user = userEvent.setup()
     render(<SourcesHarness />)
-    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    await openSourceSettings(user)
     await user.click(screen.getByRole('button', { name: 'Disconnect' }))
     const dialog = screen.getByRole('dialog', { name: 'Disconnect external source?' })
     expect(dialog).toHaveTextContent('Team handbook')
@@ -343,7 +457,17 @@ describe('ExternalSourcesSection', () => {
     const user = userEvent.setup()
     mockDocuments.mockReturnValue({
       pages: [
-        { items: [{ id: 'document-1', title: 'Older document', availability: 'unavailable', currentWarning: null }] }
+        {
+          items: [
+            {
+              id: 'document-1',
+              title: 'Older document',
+              availability: 'unavailable',
+              currentWarning: 'resource-permission-denied',
+              originalUrl: 'https://example.feishu.cn/wiki/older'
+            }
+          ]
+        }
       ],
       isLoading: false,
       hasNext: false,
@@ -353,9 +477,73 @@ describe('ExternalSourcesSection', () => {
     expect(screen.queryByText('Older document')).not.toBeInTheDocument()
     await openSourceSettings(user)
     expect(
-      within(screen.getByRole('dialog', { name: 'Team handbook' })).getByText('Older document')
+      within(screen.getByRole('dialog', { name: 'Source details' })).getByText('Older document')
     ).toBeInTheDocument()
     expect(screen.getByText('Unavailable in the latest sync. No local body is available.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Access is unavailable. Check the Feishu app permissions and access to this content.')
+    ).toBeVisible()
+  })
+
+  it('hides document notices when all documents are healthy', async () => {
+    const user = userEvent.setup()
+    mockDocuments.mockReturnValue({
+      pages: [
+        { items: [{ id: 'document-1', title: 'Current handbook', availability: 'available', currentWarning: null }] }
+      ],
+      isLoading: false,
+      hasNext: false,
+      refresh: vi.fn()
+    })
+    render(<SourcesHarness />)
+    await openSourceSettings(user)
+    expect(screen.queryByText('Document notices')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Items needing attention in this sync/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View in Feishu' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['transient', 'Feishu is temporarily unavailable. Try again later.'],
+    ['invalid-provider-response', 'Feishu returned incomplete document data. Try syncing again.'],
+    ['unsupported-resource', 'This document type is not supported for sync.'],
+    ['document-sync-failed', 'This document could not be indexed. Try syncing again.']
+  ])('shows an actionable reason for a document warning: %s', async (warning, message) => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [connection]
+          : [{ ...source, activeJobId: null, lastOutcome: 'completed-with-warnings', lastWarningCount: 1 }],
+      refetch: vi.fn()
+    }))
+    const originalUrl = 'https://example.feishu.cn/wiki/handbook'
+    mockDocuments.mockReturnValue({
+      pages: [
+        {
+          items: [
+            {
+              id: 'document-1',
+              title: 'Outdated handbook',
+              availability: 'active',
+              currentWarning: warning,
+              originalUrl
+            }
+          ]
+        }
+      ],
+      isLoading: false,
+      hasNext: false,
+      refresh: vi.fn()
+    })
+    render(<SourcesHarness />)
+    await openSourceSettings(user)
+    expect(screen.getByText('Document notices')).toBeVisible()
+    expect(screen.getByText('Outdated handbook')).toBeVisible()
+    expect(screen.getByText('Items needing attention in this sync: 1')).toBeVisible()
+    expect(screen.getByText(message)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'View in Feishu' }))
+    expect(mockOpenExternal).toHaveBeenCalledWith(originalUrl)
+    expect(screen.getByRole('button', { name: 'Manual sync' })).toBeEnabled()
   })
 
   it('connects a Feishu application from management and returns to the application list without creating a source', async () => {
@@ -608,8 +796,8 @@ describe('ExternalSourcesSection', () => {
     await user.click(time)
     fireEvent.change(time, { target: { value: '12:15' } })
     await user.tab({ shift: true })
-    expect(screen.getByRole('radio', { name: 'Daily' })).toHaveFocus()
-    await user.click(screen.getByLabelText('Source name'))
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Sync details' }))
     await waitFor(() => expect(stored.schedule.policy.time).toBe('12:15'))
   })
 
@@ -623,12 +811,13 @@ describe('ExternalSourcesSection', () => {
     )
     render(<SourcesHarness />)
     await openSourceSettings(user)
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeDisabled()
-    expect(screen.getByText('Saving…')).toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: 'Automatic sync' }))
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).toBeDisabled()
+    expect(screen.getByRole('region', { name: 'Sync settings' })).toHaveAttribute('aria-busy', 'true')
     await act(async () => failSave(new Error('Schedule unavailable')))
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Daily' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Automatic sync' })).toBeEnabled()
+    expect(screen.getByRole('region', { name: 'Sync settings' })).toHaveAttribute('aria-busy', 'false')
     expect(screen.getByRole('alert')).toHaveTextContent('Schedule unavailable')
   })
 
@@ -644,9 +833,9 @@ describe('ExternalSourcesSection', () => {
     render(<SourcesHarness />)
     expect(screen.getByRole('alert')).toHaveTextContent('1 source(s) need attention')
     await openSourceSettings(user)
-    const details = screen.getByRole('dialog', { name: 'Team handbook' })
+    const details = screen.getByRole('dialog', { name: 'Source details' })
     expect(within(details).getByText('Sync timed out. Try again.')).toBeInTheDocument()
-    expect(within(details).getByRole('button', { name: 'Retry sync' })).toBeEnabled()
+    expect(within(details).getByRole('button', { name: 'Manual sync' })).toBeEnabled()
   })
 
   it('disables sync for paused sources and keeps reauthorization available', async () => {
@@ -660,10 +849,92 @@ describe('ExternalSourcesSection', () => {
     }))
     render(<SourcesHarness />)
     await user.click(screen.getByRole('button', { name: '1 source(s) need attention' }))
-    expect(screen.getByRole('button', { name: 'Sync now' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeEnabled()
-    expect(screen.getByText('Sync is paused. Check the account connection.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Sync is paused. Check the account connection.')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View details' }))
+    expect(screen.getByRole('button', { name: 'Manual sync' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Sync is paused. Check the account connection.')).not.toBeInTheDocument()
   })
+
+  it('starts a manual sync for the selected connected source and prevents another active run', async () => {
+    const user = userEvent.setup()
+    let stored: ExternalKnowledgeSourceListItem = { ...source, activeJobId: null }
+    mockQuery.mockImplementation((path: string) => ({
+      data: path === '/external-knowledge-connections' ? [connection] : [stored],
+      refetch: vi.fn()
+    }))
+    mockRequest.mockImplementation(async (route, input) => {
+      if (route === 'knowledge.external_source.sync') {
+        if (input.sourceId !== source.id) throw new Error('Wrong source')
+        stored = { ...stored, activeJobId: 'job-1' }
+      }
+    })
+    render(<SourcesHarness />)
+    await openSourceSettings(user)
+    await user.click(screen.getByRole('button', { name: 'Manual sync' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Manual sync' })).toBeDisabled())
+    expect(screen.getByRole('dialog', { name: 'Source details' })).toHaveTextContent('Syncing · Stage: Reading')
+  })
+
+  it.each(['complete', 'cancel', 'failure'] as const)(
+    'only starts a manual sync after successful reauthorization: %s',
+    async (outcome) => {
+      const user = userEvent.setup()
+      let stored = { ...source, state: 'paused' as const, activeJobId: null } as ExternalKnowledgeSourceListItem
+      let authorize!: () => void
+      let rejectAuthorization!: (error: Error) => void
+      let syncedSourceId: string | null = null
+      mockQuery.mockImplementation((path: string) => ({
+        data:
+          path === '/external-knowledge-connections'
+            ? [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+            : [stored],
+        refetch: vi.fn()
+      }))
+      mockRequest.mockImplementation(async (route, input) => {
+        if (route === 'knowledge.feishu.connection.reconnect')
+          return {
+            authorizationSessionId: 'session-1',
+            verificationUri: 'https://feishu.example/verify',
+            userCode: 'ABCD'
+          }
+        if (route === 'knowledge.feishu.authorization.complete') {
+          await new Promise<void>((resolve, reject) => {
+            authorize = resolve
+            rejectAuthorization = reject
+          })
+          stored = { ...stored, state: 'active' }
+        }
+        if (route === 'knowledge.external_source.sync') {
+          syncedSourceId = input.sourceId
+          stored = { ...stored, activeJobId: 'job-1' }
+        }
+        return undefined
+      })
+      const { rerender } = render(<SourcesHarness />)
+      await openSourceSettings(user)
+      await user.click(screen.getByRole('button', { name: 'Manual sync' }))
+      const authorization = await screen.findByRole('dialog', { name: 'Reconnect' })
+      expect(syncedSourceId).toBeNull()
+      if (outcome === 'cancel') await user.click(within(authorization).getByRole('button', { name: 'Cancel' }))
+      await act(async () => {
+        if (outcome === 'failure') rejectAuthorization(new Error('Authorization failed'))
+        else authorize()
+      })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reconnect' })).not.toBeInTheDocument())
+      if (outcome === 'complete') {
+        await waitFor(() => expect(syncedSourceId).toBe(source.id))
+        // The query stub has no subscription to deliver the refreshed source projection.
+        rerender(<SourcesHarness />)
+        expect(screen.getByRole('button', { name: 'Manual sync' })).toBeDisabled()
+      } else {
+        expect(syncedSourceId).toBeNull()
+        expect(screen.getByRole('button', { name: 'Manual sync' })).toBeEnabled()
+      }
+    }
+  )
 
   it('lets users replace custom app credentials while keeping the source connection', async () => {
     const user = userEvent.setup()
@@ -755,7 +1026,7 @@ describe('ExternalSourcesSection', () => {
       })
     )
     render(<SourcesHarness />)
-    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    await openSourceSettings(user)
     await user.click(screen.getByRole('button', { name: 'Disconnect' }))
     const dialog = screen.getByRole('dialog', { name: 'Disconnect external source?' })
     const activeButton = within(dialog).getByRole('button', { name: choice })
@@ -783,7 +1054,7 @@ describe('ExternalSourcesSection', () => {
       })
     )
     render(<SourcesHarness />)
-    await user.click(screen.getByRole('button', { name: 'Sync sources' }))
+    await openSourceSettings(user)
     await user.click(screen.getByRole('button', { name: 'Disconnect' }))
     const dialog = screen.getByRole('dialog', { name: 'Disconnect external source?' })
     const keep = within(dialog).getByRole('button', { name: 'Keep local content' })

@@ -172,9 +172,10 @@ The schema enforces one document per `(sourceId, remoteObjectId)` and at most
 one document owner per knowledge item. Sources belong to one base and one
 connection; deleting a base cascades through the complete ownership graph,
 while deleting an independently owned item is rejected. Synchronization uses
-durable JobManager rows rather than a separate sync-run entity. Sources default
-to manual-only and may own one daily JobManager schedule; arbitrary intervals,
-custom Cron, and scheduling UI remain out of scope. Public
+durable JobManager rows rather than a separate sync-run entity. The create command
+defaults to manual-only; the Feishu wizard selects daily synchronization at 09:00
+local time and applies the schedule after creation. Sources may own one daily
+JobManager schedule; arbitrary intervals and custom Cron remain out of scope. Public
 `KnowledgeAddItemInput` also remains limited to user-owned source types; only
 the trusted external synchronization path may create an external item after
 its local snapshot is pinned.
@@ -408,8 +409,10 @@ reindex-items(baseId, itemIds)
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. Chunks are derived index rows and are replaced wholesale by reindexing; there is no chunk-delete mutation.
 
-External Source creation accepts only a base id, connection id, URL, and name.
-Main resolves the URL again, then re-reads the base and connection and validates
+External Source creation accepts only a base id, connection id, name, and either
+a URL or selected Wiki space id. The wizard derives the name from the resolved
+Wiki or document title and does not expose renaming. Main resolves the URL again
+or rechecks access to the selected space, then re-reads the base and connection and validates
 base availability, provider, authorization, resolved tenant, and provider-scope
 uniqueness inside the same write transaction that creates the Source, enqueues
 its initial synchronization Job, and binds `activeJobId`. Domain conflicts and

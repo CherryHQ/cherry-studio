@@ -346,6 +346,8 @@ describe('ExternalKnowledgeRuntime', () => {
       visibleNodeCount: 1,
       supportedDocxCount: 1,
       unsupportedOrSkippedCount: 0,
+      supportedDocuments: [{ nodeId: 'root', title: 'Readme', documentKind: 'document' }],
+      skippedItems: [],
       embeddingCostExact: false,
       warnings: []
     })
@@ -373,6 +375,8 @@ describe('ExternalKnowledgeRuntime', () => {
       space: { spaceId: 'empty-space' },
       visibleNodeCount: 0,
       supportedDocxCount: 0,
+      supportedDocuments: [],
+      skippedItems: [],
       warnings: ['no-supported-documents']
     })
     expect(provider.getWikiNode).not.toHaveBeenCalled()

@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   Combobox,
   Dialog,
@@ -20,6 +24,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
+  ExternalKnowledgeDocumentKind,
   ExternalKnowledgeScopePreview,
   FeishuWikiSpace,
   FeishuWikiSpacePreview
@@ -46,6 +51,15 @@ type ScopePreview =
   | { kind: 'url'; data: ExternalKnowledgeScopePreview }
   | { kind: 'space'; data: FeishuWikiSpacePreview[] }
 
+const documentTypeKeys = {
+  document: 'knowledge.external.wizard.document_types.document',
+  spreadsheet: 'knowledge.external.wizard.document_types.spreadsheet',
+  database: 'knowledge.external.wizard.document_types.database',
+  presentation: 'knowledge.external.wizard.document_types.presentation',
+  file: 'knowledge.external.wizard.document_types.file',
+  other: 'knowledge.external.wizard.document_types.other'
+} satisfies Record<ExternalKnowledgeDocumentKind, string>
+
 const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps) => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
@@ -65,10 +79,8 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const [spacesError, setSpacesError] = useState<'permission' | 'other' | null>(null)
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<ScopePreview | null>(null)
-  const [name, setName] = useState('')
-  const [spaceNames, setSpaceNames] = useState<Record<string, string>>({})
   const [createdCount, setCreatedCount] = useState(0)
-  const [policy, setPolicy] = useState<'manual' | 'daily'>('manual')
+  const [policy, setPolicy] = useState<'manual' | 'daily'>('daily')
   const [dailyTime, setDailyTime] = useState('09:00')
   const [authorization, setAuthorization] = useState<AuthorizationStart | null>(null)
   const [busy, setBusy] = useState(false)
@@ -86,8 +98,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
       ? preview.data.map((data) => ({ key: data.space.spaceId, title: data.space.name, data }))
       : [{ key: 'url', title: preview.data.resolution.selected.title, data: preview.data }]
     : []
-  const hasSourceNames =
-    preview?.kind === 'space' ? preview.data.every((item) => spaceNames[item.space.spaceId]?.trim()) : !!name.trim()
   const hasConnectedConnections =
     !connectionsError && connections?.some((connection) => connection.authorizationStatus === 'connected')
   const showAppForm = connectingNewApp || !hasConnectedConnections
@@ -254,7 +264,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           results.push(result)
         }
         setPreview({ kind: 'space', data: results })
-        setSpaceNames(Object.fromEntries(results.map((result) => [result.space.spaceId, result.space.name])))
       } else {
         const result = await ipcApi.request('knowledge.feishu.scope.preview', {
           connectionId: selectedConnectionId,
@@ -262,7 +271,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         })
         if (closed.current) return
         setPreview({ kind: 'url', data: result })
-        setName(result.resolution.selected.title)
       }
       setStep(3)
     } catch (cause) {
@@ -283,7 +291,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   }
 
   const createSource = async () => {
-    if (busy || !selectedConnectionId || !preview || !hasSourceNames || (policy === 'daily' && !dailyTime)) return
+    if (busy || !selectedConnectionId || !preview || (policy === 'daily' && !dailyTime)) return
     setBusy(true)
     setError(null)
     const scopes =
@@ -291,9 +299,9 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         ? preview.data.map((item) => ({
             key: item.space.spaceId,
             scope: { spaceId: item.space.spaceId },
-            name: spaceNames[item.space.spaceId].trim()
+            name: item.space.name.trim()
           }))
-        : [{ key: 'url', scope: { url: url.trim() }, name: name.trim() }]
+        : [{ key: 'url', scope: { url: url.trim() }, name: preview.data.resolution.selected.title.trim() }]
     const failures: string[] = []
     try {
       for (const scope of scopes) {
@@ -593,7 +601,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                 ) : (
                   <div className="space-y-4 py-2">
                     {previewEntries.map((entry) => (
-                      <div key={entry.key} className="space-y-2">
+                      <section key={entry.key} aria-label={entry.title} className="space-y-2">
                         <div className="space-y-1 text-sm break-words">
                           <p className="font-medium">{entry.title}</p>
                           {preview?.kind === 'url' ? (
@@ -603,43 +611,86 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                             </>
                           ) : null}
                         </div>
-                        <div className="text-muted-foreground space-y-1 text-sm">
-                          <p>
-                            {t('knowledge.external.wizard.preview_visible', { count: entry.data.visibleNodeCount })}
+                        {entry.data.warnings.includes('no-supported-documents') ? (
+                          <p role="status" className="text-muted-foreground text-sm">
+                            {t('knowledge.external.wizard.preview_no_supported')}
                           </p>
-                          <p>
-                            {t('knowledge.external.wizard.preview_supported', { count: entry.data.supportedDocxCount })}
-                          </p>
-                          <p>
-                            {t('knowledge.external.wizard.preview_unsupported', {
-                              count: entry.data.unsupportedOrSkippedCount
-                            })}
-                          </p>
-                          {entry.data.warnings.includes('no-supported-documents') ? (
-                            <p role="status">{t('knowledge.external.wizard.preview_no_supported')}</p>
-                          ) : null}
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor={`feishu-source-name-${entry.key}`}>
-                            {previewEntries.length > 1
-                              ? t('knowledge.external.wizard.space_name', { name: entry.title })
-                              : t('knowledge.external.wizard.name')}
-                          </Label>
-                          <Input
-                            id={`feishu-source-name-${entry.key}`}
-                            disabled={reviewLocked}
-                            value={preview?.kind === 'space' ? spaceNames[entry.key] : name}
-                            maxLength={256}
-                            onChange={(event) =>
-                              preview?.kind === 'space'
-                                ? setSpaceNames((current) => ({ ...current, [entry.key]: event.target.value }))
-                                : setName(event.target.value)
-                            }
-                          />
-                        </div>
-                      </div>
+                        ) : null}
+                        {entry.data.supportedDocxCount > 0 || entry.data.unsupportedOrSkippedCount > 0 ? (
+                          <Accordion type="multiple">
+                            {entry.data.supportedDocxCount > 0 ? (
+                              <AccordionItem value="documents" className="border-0 first:border-t-0">
+                                <AccordionTrigger className="text-muted-foreground min-h-10 py-2 font-normal">
+                                  <span className="flex flex-1 items-center justify-between gap-3">
+                                    <span>
+                                      {t('knowledge.external.wizard.preview_supported', {
+                                        count: entry.data.supportedDocxCount
+                                      })}
+                                    </span>
+                                    <span className="text-muted-foreground text-xs">
+                                      {t('knowledge.external.wizard.preview_documents')}
+                                    </span>
+                                  </span>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-1 pb-2">
+                                  <ul className="max-h-48 space-y-3 overflow-y-auto pr-2">
+                                    {entry.data.supportedDocuments.map((document) => (
+                                      <li key={document.nodeId} className="flex items-start justify-between gap-3">
+                                        <span className="min-w-0 break-words text-foreground">{document.title}</span>
+                                        <span className="text-muted-foreground shrink-0 text-xs">
+                                          {t(documentTypeKeys[document.documentKind])}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </AccordionContent>
+                              </AccordionItem>
+                            ) : null}
+                            {entry.data.unsupportedOrSkippedCount > 0 ? (
+                              <AccordionItem value="skipped" className="border-0 first:border-t-0">
+                                <AccordionTrigger className="text-muted-foreground min-h-10 py-2 font-normal">
+                                  <span className="flex flex-1 items-center justify-between gap-3">
+                                    <span>
+                                      {t('knowledge.external.wizard.preview_unsupported', {
+                                        count: entry.data.unsupportedOrSkippedCount
+                                      })}
+                                    </span>
+                                    <span className="text-muted-foreground text-xs">
+                                      {t('knowledge.external.wizard.preview_reasons')}
+                                    </span>
+                                  </span>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-1 pb-2">
+                                  <ul className="max-h-48 space-y-3 overflow-y-auto pr-2">
+                                    {entry.data.skippedItems.map((item, index) => (
+                                      <li key={`${item.nodeId}-${index}`} className="space-y-1">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <span className="min-w-0 break-words text-foreground">{item.title}</span>
+                                          <span className="text-muted-foreground shrink-0 text-xs">
+                                            {t(
+                                              item.reason === 'cross-space-shortcut'
+                                                ? 'knowledge.external.wizard.document_types.cross_space_shortcut'
+                                                : documentTypeKeys[item.documentKind]
+                                            )}
+                                          </span>
+                                        </div>
+                                        <p className="text-muted-foreground text-xs">
+                                          {t(
+                                            item.reason === 'cross-space-shortcut'
+                                              ? 'knowledge.external.wizard.skip_reasons.cross_space_shortcut'
+                                              : 'knowledge.external.wizard.skip_reasons.unsupported_type'
+                                          )}
+                                        </p>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </AccordionContent>
+                              </AccordionItem>
+                            ) : null}
+                          </Accordion>
+                        ) : null}
+                      </section>
                     ))}
-                    <p className="text-muted-foreground text-sm">{t('knowledge.external.wizard.preview_exact_cost')}</p>
                     <div className="space-y-1.5">
                       <Label id="feishu-sync-frequency">{t('knowledge.external.wizard.sync_frequency')}</Label>
                       <SegmentedControl<'manual' | 'daily'>
@@ -671,9 +722,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                             {t('common.required_field')}
                           </p>
                         ) : null}
-                        <p className="text-muted-foreground text-xs">
-                          {t('knowledge.external.wizard.timezone', { timezone })}
-                        </p>
                       </div>
                     ) : null}
                     {createdCount > 0 ? (
@@ -694,9 +742,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                 {errorMessage}
               </div>
               <DialogFooter className="shrink-0">
-                <Button type="button" variant="outline" disabled={isCreating} onClick={close}>
-                  {t(createdCount > 0 ? 'common.close' : 'common.cancel')}
-                </Button>
                 {step > 1 ? (
                   <Button
                     type="button"
@@ -728,9 +773,9 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                   <Button
                     type="button"
                     loading={busy}
-                    disabled={busy || !hasSourceNames || (policy === 'daily' && !dailyTime)}
+                    disabled={busy || (policy === 'daily' && !dailyTime)}
                     onClick={() => void createSource()}>
-                    {t(createdCount > 0 ? 'common.retry' : 'knowledge.external.wizard.create')}
+                    {t(createdCount > 0 ? 'common.retry' : 'common.add')}
                   </Button>
                 )}
               </DialogFooter>

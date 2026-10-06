@@ -140,23 +140,6 @@ describe('ExternalKnowledgeSourceService', () => {
     }
   )
 
-  it('renames only the Source display name, and rejects a missing Source', () => {
-    seedBase(BASE_ID)
-    seedConnection()
-    seedSource(SOURCE_ID, BASE_ID, 300)
-
-    expect(externalKnowledgeSourceService.rename(SOURCE_ID, ' Product Wiki ')).toMatchObject({
-      id: SOURCE_ID,
-      name: 'Product Wiki',
-      spaceId: `space-${BASE_ID}`,
-      scope: { kind: 'node', nodeId: 'node-1' },
-      revision: 3
-    })
-    expect(() => externalKnowledgeSourceService.rename(STALE_JOB_ID, 'Unknown')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND, status: 404 })
-    )
-  })
-
   it('creates a source in the caller transaction without weakening remote identity uniqueness', () => {
     seedBase(BASE_ID)
     seedConnection()

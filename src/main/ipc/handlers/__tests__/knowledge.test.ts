@@ -30,7 +30,6 @@ const knowledgeService = {
   createExternalKnowledgeSource: vi.fn(),
   requestExternalKnowledgeSourceSync: vi.fn(),
   updateExternalKnowledgeSourceSchedule: vi.fn(),
-  renameExternalKnowledgeSource: vi.fn(),
   disconnectExternalKnowledgeSource: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
@@ -168,26 +167,6 @@ describe('knowledgeHandlers', () => {
     expect(knowledgeService.disconnectExternalKnowledgeSource).toHaveBeenNthCalledWith(2, {
       sourceId: externalSource.id,
       mode: 'remove-local'
-    })
-  })
-
-  it('accepts a trimmed display name and rejects remote scope edits', async () => {
-    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
-    knowledgeService.renameExternalKnowledgeSource.mockResolvedValue({ ...externalSource, name: 'Product Wiki' })
-
-    await expect(
-      router.dispatch('knowledge.external_source.rename', { sourceId: externalSource.id, name: ' Product Wiki ' }, ctx)
-    ).resolves.toMatchObject({ name: 'Product Wiki' })
-    await expect(
-      router.dispatch(
-        'knowledge.external_source.rename',
-        { sourceId: externalSource.id, name: 'Other', connectionId: externalSource.connectionId },
-        ctx
-      )
-    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
-    expect(knowledgeService.renameExternalKnowledgeSource).toHaveBeenCalledWith({
-      sourceId: externalSource.id,
-      name: 'Product Wiki'
     })
   })
 
@@ -552,6 +531,8 @@ describe('knowledgeHandlers', () => {
       visibleNodeCount: 1,
       supportedDocxCount: 1,
       unsupportedOrSkippedCount: 0,
+      supportedDocuments: [{ nodeId: 'root', title: 'Root', documentKind: 'document' }],
+      skippedItems: [],
       embeddingCostExact: false,
       warnings: []
     })
@@ -582,6 +563,14 @@ describe('knowledgeHandlers', () => {
       visibleNodeCount: 4,
       supportedDocxCount: 2,
       unsupportedOrSkippedCount: 2,
+      supportedDocuments: [
+        { nodeId: 'readme', title: 'Readme', documentKind: 'document' },
+        { nodeId: 'architecture', title: 'Architecture', documentKind: 'document' }
+      ],
+      skippedItems: [
+        { nodeId: 'roadmap', title: 'Roadmap', documentKind: 'spreadsheet', reason: 'unsupported-type' },
+        { nodeId: 'other-wiki', title: 'Other Wiki', documentKind: 'document', reason: 'cross-space-shortcut' }
+      ],
       embeddingCostExact: false,
       warnings: []
     }

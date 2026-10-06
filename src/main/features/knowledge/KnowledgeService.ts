@@ -1,6 +1,5 @@
 import { application } from '@application'
 import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
-import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -29,7 +28,6 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
-import { notifyExternalKnowledgeSourceChange } from './external/externalKnowledgeDataChange'
 import {
   type DisconnectExternalKnowledgeSourceCommand,
   ExternalKnowledgeDisconnect
@@ -312,12 +310,6 @@ export class KnowledgeService extends BaseService {
 
   async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
     return await this.externalKnowledgeSyncAdmission.create(input)
-  }
-
-  renameExternalKnowledgeSource(input: { sourceId: string; name: string }): ExternalKnowledgeSource {
-    const source = externalKnowledgeSourceService.rename(input.sourceId, input.name)
-    notifyExternalKnowledgeSourceChange(source.baseId, source.id, 'projection')
-    return source
   }
 
   async requestExternalKnowledgeSourceSync(

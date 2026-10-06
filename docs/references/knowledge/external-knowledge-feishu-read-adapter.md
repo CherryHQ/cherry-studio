@@ -34,7 +34,9 @@ URL path for connections without discovery permission and for a specific node
 or document. `knowledge.feishu.space.preview` accepts a selected space id and
 rechecks access in main before scanning all of its visible root nodes.
 The wizard supports selecting multiple spaces. It previews each space and creates
-an independently named Source for each, using one shared scheduling choice.
+a Source named after each Wiki space, using one shared scheduling choice. Link-based
+Sources use the resolved Wiki or document title. The renderer does not offer a
+separate Source name field or rename action.
 Creation continues after an individual failure; retries skip Sources already
 created in that wizard session, and partial success keeps the confirmed plan fixed.
 New PersonalAgent registrations request the discovery scope. The connection wizard
@@ -58,8 +60,8 @@ Resolve and preview are separate commands. Preview re-runs resolution from the
 raw URL and does not accept a prior resolution or session handle as authority.
 Its result is an ephemeral observation, not an initial-sync snapshot.
 Space preview likewise rechecks the space id instead of trusting list metadata
-from the renderer. It returns space metadata and counts without inventing a
-root-node descriptor or URL.
+from the renderer. It returns space metadata, counts, and document details without
+inventing a root-node descriptor or URL.
 
 ## Resolution and traversal
 
@@ -90,6 +92,15 @@ Preview counts have deliberately different units:
 - A scope with no supported Docx object succeeds with the
   `no-supported-documents` warning.
 
+Preview also returns `supportedDocuments` and `skippedItems` with public node ids,
+titles, and document kinds. Supported documents use the same canonical references
+as synchronization; skipped items retain each reference and report either
+`unsupported-type` or `cross-space-shortcut`. Counts come from these arrays, so
+the summary and details agree. Expanding the wizard's initially collapsed document
+and reason lists makes no additional provider request and never reads document
+bodies. The wizard hides the reasons entry when no items are skipped and retains
+the empty-scope warning when no documents can synchronize.
+
 The provider-neutral descriptor retains stable remote object identity, node and
 parent identity, relative breadcrumb, title, safe original URL, remote revision,
 document kind, and support state. Main-only validated Feishu data retains the
@@ -115,7 +126,11 @@ Source, rejects paused Sources and failed bases, and enqueues the same
 per-Source idempotency key coalesces repeated requests while a Job remains
 non-terminal.
 
-Sources default to manual-only scheduling. `knowledge.external_source.schedule.update`
+The create command defaults to manual-only scheduling. The wizard instead selects
+daily synchronization at 09:00 local time by default and applies that choice through
+the existing schedule-update command after creation. Users can select manual mode;
+if schedule setup fails, the Source remains manual-only and the wizard reports it.
+`knowledge.external_source.schedule.update`
 can attach one daily schedule with a local time and IANA timezone, update that
 schedule, or return the Source to manual-only mode. The Source owns provider-work
 admission through its active/paused state; the JobManager schedule separately owns
@@ -166,6 +181,8 @@ pause every dependent Source, and disable their schedules. Successful
 reauthorization restores those Sources and schedules without starting a sync.
 Startup credential reconciliation applies the same paused state before provider
 admission opens.
+The renderer's manual synchronization action requests reauthorization first when
+needed, then enqueues synchronization only after that authorization succeeds.
 
 `knowledge.external_source.disconnect` has two local-only modes. Keep-local
 removes Source/Document ownership while preserving completed snapshots, chunks,

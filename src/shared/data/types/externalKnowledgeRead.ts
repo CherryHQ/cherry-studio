@@ -63,11 +63,22 @@ export const EXTERNAL_KNOWLEDGE_PREVIEW_WARNINGS = ['no-supported-documents'] as
 export const ExternalKnowledgePreviewWarningSchema = z.enum(EXTERNAL_KNOWLEDGE_PREVIEW_WARNINGS)
 export type ExternalKnowledgePreviewWarning = z.infer<typeof ExternalKnowledgePreviewWarningSchema>
 
+const ExternalKnowledgePreviewDocumentSchema = ExternalKnowledgeReadDescriptorSchema.pick({
+  nodeId: true,
+  title: true,
+  documentKind: true
+})
+const ExternalKnowledgeSkippedPreviewItemSchema = ExternalKnowledgePreviewDocumentSchema.extend({
+  reason: z.enum(['unsupported-type', 'cross-space-shortcut'])
+})
+
 export const ExternalKnowledgeScopePreviewSchema = z.strictObject({
   resolution: ExternalKnowledgeScopeResolutionSchema,
   visibleNodeCount: z.number().int().nonnegative(),
   supportedDocxCount: z.number().int().nonnegative(),
   unsupportedOrSkippedCount: z.number().int().nonnegative(),
+  supportedDocuments: z.array(ExternalKnowledgePreviewDocumentSchema),
+  skippedItems: z.array(ExternalKnowledgeSkippedPreviewItemSchema),
   embeddingCostExact: z.literal(false),
   warnings: z.array(ExternalKnowledgePreviewWarningSchema)
 })
@@ -91,6 +102,8 @@ export const FeishuWikiSpacePreviewSchema = z.strictObject({
   visibleNodeCount: z.number().int().nonnegative(),
   supportedDocxCount: z.number().int().nonnegative(),
   unsupportedOrSkippedCount: z.number().int().nonnegative(),
+  supportedDocuments: z.array(ExternalKnowledgePreviewDocumentSchema),
+  skippedItems: z.array(ExternalKnowledgeSkippedPreviewItemSchema),
   embeddingCostExact: z.literal(false),
   warnings: z.array(ExternalKnowledgePreviewWarningSchema)
 })

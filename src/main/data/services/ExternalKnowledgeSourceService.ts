@@ -179,21 +179,6 @@ export class ExternalKnowledgeSourceService {
     return row ? rowToEntity(row) : null
   }
 
-  rename(id: string, name: string): ExternalKnowledgeSource {
-    const trimmedName = name.trim()
-    if (!trimmedName || trimmedName.length > 256) {
-      throw DataApiErrorFactory.validation({ name: ['Name must be between 1 and 256 characters'] })
-    }
-    const [row] = this.db
-      .update(externalKnowledgeSourceTable)
-      .set({ name: trimmedName, updatedAt: Date.now() })
-      .where(eq(externalKnowledgeSourceTable.id, id))
-      .returning()
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', id)
-    return rowToEntity(row)
-  }
-
   listByConnectionId(connectionId: string): ExternalKnowledgeSource[] {
     return this.listByConnectionIdTx(this.db, connectionId)
   }

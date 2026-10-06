@@ -209,6 +209,45 @@ function compareCanonicalReferences(left: FeishuKnowledgeReference, right: Feish
   return compareCodeUnits(left.descriptor.nodeId, right.descriptor.nodeId)
 }
 
+function canonicalReferences(references: FeishuKnowledgeReference[]): FeishuKnowledgeReference[] {
+  const canonicalByRemoteObject = new Map<string, FeishuKnowledgeReference>()
+  for (const item of references) {
+    if (item.descriptor.supportState !== 'supported') continue
+    const existing = canonicalByRemoteObject.get(item.descriptor.remoteObjectId)
+    if (!existing || compareCanonicalReferences(item, existing) < 0) {
+      canonicalByRemoteObject.set(item.descriptor.remoteObjectId, item)
+    }
+  }
+  return [...canonicalByRemoteObject.values()]
+}
+
+function buildPreviewSummary(
+  references: FeishuKnowledgeReference[]
+): Omit<ExternalKnowledgeScopePreview, 'resolution'> {
+  const supportedDocuments = canonicalReferences(references).map(({ descriptor: { nodeId, title, documentKind } }) => ({
+    nodeId,
+    title,
+    documentKind
+  }))
+  const skippedItems = references
+    .filter(({ descriptor }) => descriptor.supportState !== 'supported')
+    .map(({ descriptor: { nodeId, title, documentKind, supportState } }) => ({
+      nodeId,
+      title,
+      documentKind,
+      reason: supportState === 'skipped' ? ('cross-space-shortcut' as const) : ('unsupported-type' as const)
+    }))
+  return {
+    visibleNodeCount: references.length,
+    supportedDocxCount: supportedDocuments.length,
+    unsupportedOrSkippedCount: skippedItems.length,
+    supportedDocuments,
+    skippedItems,
+    embeddingCostExact: false,
+    warnings: supportedDocuments.length === 0 ? ['no-supported-documents'] : []
+  }
+}
+
 type TraversalEntry = {
   node: FeishuWikiNode
   breadcrumb: string[]
@@ -322,32 +361,18 @@ export async function previewFeishuKnowledgeScope(
     signal
   )
 
-  const supportedRemoteObjects = new Set<string>()
-  let unsupportedOrSkippedCount = 0
-  for (const item of references) {
-    if (item.descriptor.supportState === 'supported') {
-      supportedRemoteObjects.add(item.descriptor.remoteObjectId)
-    } else {
-      unsupportedOrSkippedCount++
-    }
-  }
-  const supportedDocxCount = supportedRemoteObjects.size
   const preview: ExternalKnowledgeScopePreview = {
     resolution: resolved.resolution,
-    visibleNodeCount: references.length,
-    supportedDocxCount,
-    unsupportedOrSkippedCount,
-    embeddingCostExact: false,
-    warnings: supportedDocxCount === 0 ? ['no-supported-documents'] : []
+    ...buildPreviewSummary(references)
   }
   return { resolution: resolved.resolution, preview, references }
 }
 
-export async function scanFeishuKnowledgeSource(
+async function scanFeishuKnowledgeReferences(
   input: { spaceId: string; scope: FeishuExternalKnowledgeScope },
   operations: FeishuKnowledgeReadOperations,
   signal?: AbortSignal
-): Promise<FeishuKnowledgeSourceScanResult> {
+): Promise<FeishuKnowledgeReference[]> {
   const references: FeishuKnowledgeReference[] = []
   const pending: TraversalEntry[] = []
   if (input.scope.kind === 'space') {
@@ -397,16 +422,26 @@ export async function scanFeishuKnowledgeSource(
     signal
   )
 
-  const canonicalByRemoteObject = new Map<string, FeishuKnowledgeReference>()
-  for (const item of references) {
-    if (item.descriptor.supportState !== 'supported') continue
-    const existing = canonicalByRemoteObject.get(item.descriptor.remoteObjectId)
-    if (!existing || compareCanonicalReferences(item, existing) < 0) {
-      canonicalByRemoteObject.set(item.descriptor.remoteObjectId, item)
-    }
-  }
+  return references
+}
+
+export async function previewFeishuKnowledgeSpace(
+  input: { spaceId: string },
+  operations: FeishuKnowledgeReadOperations,
+  signal?: AbortSignal
+): Promise<Omit<ExternalKnowledgeScopePreview, 'resolution'>> {
+  const references = await scanFeishuKnowledgeReferences({ ...input, scope: { kind: 'space' } }, operations, signal)
+  return buildPreviewSummary(references)
+}
+
+export async function scanFeishuKnowledgeSource(
+  input: { spaceId: string; scope: FeishuExternalKnowledgeScope },
+  operations: FeishuKnowledgeReadOperations,
+  signal?: AbortSignal
+): Promise<FeishuKnowledgeSourceScanResult> {
+  const references = await scanFeishuKnowledgeReferences(input, operations, signal)
   return {
-    canonicalReferences: [...canonicalByRemoteObject.values()],
+    canonicalReferences: canonicalReferences(references),
     visibleNodeCount: references.length,
     unsupportedOrSkippedCount:
       references.length - references.filter((item) => item.descriptor.supportState === 'supported').length
