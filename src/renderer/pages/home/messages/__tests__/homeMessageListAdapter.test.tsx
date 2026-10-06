@@ -830,6 +830,172 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('appends a terminal fallback error part to the rendered parts of a settled message', () => {
+    // The home page renders whatever reaches MessageListProvider state.partsByMessageId;
+    // if the fallback never lands there, a failed turn still shows an empty bubble (#20941).
+    const errorMessage = {
+      id: 'assistant-error',
+      role: 'assistant',
+      parts: [],
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+    } as CherryUIMessage
+    const emptySuccessMessage = {
+      id: 'assistant-empty-success',
+      role: 'assistant',
+      parts: [],
+      metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+    } as CherryUIMessage
+    const pendingMessage = {
+      id: 'assistant-pending',
+      role: 'assistant',
+      parts: [],
+      metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+    } as CherryUIMessage
+    const messages = [errorMessage, emptySuccessMessage, pendingMessage]
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={messages}
+        partsByMessageId={Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+  })
+
+  it('renders the fallback through the history streaming layer, not only the live parts map', () => {
+    // MessageList renders settled groups from streamingLayers.historyPartsByMessageId;
+    // a fallback that misses that layer would only ever show on the live tail.
+    const errorMessage = {
+      id: 'assistant-error',
+      role: 'assistant',
+      parts: [],
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+    } as CherryUIMessage
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[errorMessage]}
+        partsByMessageId={{ 'assistant-error': [] }}
+        streamingLayers={{
+          historyPartsByMessageId: { 'assistant-error': [] },
+          liveMessageIds: []
+        }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+  })
+
+  it('persists raw parts without the synthetic fallback when saving a code block', async () => {
+    // A stream that failed mid-response with partial text still gets the synthetic
+    // data-error part appended for display. Saving an edit from that message must
+    // write back the parts the message actually holds, or the synthetic part is
+    // permanently baked into storage.
+    const textPart = { type: 'text', text: '```ts\nconst value = "old"\n```' } as CherryMessagePart
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'assistant-partial',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue('```ts\nconst value = "new"\n```')
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[
+          {
+            id: 'assistant-partial',
+            role: 'assistant',
+            parts: [textPart],
+            metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+          }
+        ]}
+        partsByMessageId={{ 'assistant-partial': [textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+
+    // Display path shows the fallback…
+    expect(value?.state.partsByMessageId?.['assistant-partial']).toEqual([
+      textPart,
+      expect.objectContaining({ type: 'data-error' })
+    ])
+
+    // …but the persisted write keeps the raw parts.
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'assistant-partial-block-0',
+      originalContent: 'const value = "old"',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).toHaveBeenCalledWith('assistant-partial', [
+      { ...textPart, text: '```ts\nconst value = "new"\n```' }
+    ])
+  })
+
+  it('persists raw parts without the synthetic fallback when translating a message', async () => {
+    // Same contract as code-block saves: the translation flow rewrites the message
+    // parts and must not persist the display-only fallback part.
+    const textPart = { type: 'text', text: 'partial reply' } as CherryMessagePart
+    chatWriteMock.editMessage.mockResolvedValue(undefined)
+    vi.mocked(translateText).mockImplementationOnce(async (_text, _language, onResponse) => {
+      onResponse?.('translated reply', true)
+      return 'translated reply'
+    })
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[
+          {
+            id: 'assistant-partial',
+            role: 'assistant',
+            parts: [textPart],
+            metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+          }
+        ]}
+        partsByMessageId={{ 'assistant-partial': [textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+
+    await act(async () => {
+      await value?.actions.translateMessage?.('assistant-partial', { langCode: 'en-us' } as any, 'partial reply')
+    })
+
+    const persistedPartsLists = vi.mocked(chatWriteMock.editMessage).mock.calls.map(([, parts]) => parts)
+    for (const parts of persistedPartsLists) {
+      expect(parts).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ name: 'AgentRuntimeError' }) })
+        ])
+      )
+    }
+    expect(persistedPartsLists.length).toBeGreaterThan(0)
+  })
+
   it('shows an error when saving code block edits through chat write fails', async () => {
     const textPart = {
       type: 'text',

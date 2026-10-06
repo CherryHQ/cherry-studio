@@ -73,11 +73,9 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   }
 
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
-    return (
-      <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
-      </span>
-    )
+    const text = `${t(getHttpMessageLabelKey(errorStatus.toString()))} ${providerErrorText(error)}`.trim()
+    const stage = getFailureStageText(error, t)
+    return <span>{stage ? `${stage} ${text}` : text}</span>
   }
 
   const text = providerErrorText(error)
