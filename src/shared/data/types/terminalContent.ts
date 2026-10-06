@@ -15,8 +15,11 @@ import type { CherryMessagePart } from './message'
  *
  * Deliberately excludes `data-*`: those are service/control parts
  * (compaction anchors, task events, errors themselves) that render no answer.
+ * Also excludes `step-start` and `source-url` (plus `source-document`, which is
+ * not listed here): the renderer hides all of them (`HIDDEN_PART_TYPES` in
+ * `messagePartLayouts.ts`), so a turn made only of them renders nothing.
  */
-const CONTENT_PART_PREFIXES = ['text', 'reasoning', 'file', 'source-url', 'step-start'] as const
+const CONTENT_PART_PREFIXES = ['text', 'reasoning', 'file'] as const
 const CONTENT_PART_EXACT = new Set(['dynamic-tool'])
 
 export function isContentPart(part: Pick<CherryMessagePart, 'type'>): boolean {
@@ -40,19 +43,4 @@ export type ContentPart = CherryMessagePart & { type: string; text?: string }
 
 export function isRenderedContentPart(part: CherryMessagePart): part is ContentPart {
   return isContentPart(part)
-}
-
-/**
- * True when every content part is present but blank — text/reasoning that
- * arrived empty or whitespace-only. These are stripped before storage
- * (`dropEmptyContentParts`), so a turn made only of them is empty too.
- *
- * Note this reads a missing `text` as blank, so non-textual content parts
- * (tool calls, whose answer lives in `output`) would count as blank here.
- * Callers must exclude them first — see `diagnoseEmptySuccessTurn`.
- */
-export function hasOnlyBlankContent(parts: ReadonlyArray<CherryMessagePart> | undefined): boolean {
-  const content = parts?.filter(isRenderedContentPart) ?? []
-  if (content.length === 0) return (parts?.length ?? 0) > 0
-  return content.every((part) => typeof part.text !== 'string' || part.text.trim().length === 0)
 }
