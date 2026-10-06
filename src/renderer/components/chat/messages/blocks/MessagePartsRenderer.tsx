@@ -49,7 +49,12 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import {
+  readCherryMeta,
+  type CherryProviderMetadata,
+  type ComposerMessageSnapshot,
+  type ComposerMessageToken
+} from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
