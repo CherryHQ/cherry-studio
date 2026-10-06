@@ -22,6 +22,9 @@ import { topicTable } from '@data/db/schemas/topic'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { terminalSentinel } from '@shared/ai/terminalSentinel'
+// Self-registers in the data-service registry: `messageService.update` resolves
+// TopicService for the assistant activity transition it triggers.
+import '@data/services/TopicService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { StreamDoneResult } from '../../types'
@@ -469,5 +472,23 @@ describe('ordinary-chat error rows always explain themselves (P3)', () => {
     const [row] = dbh.db.select().from(messageTable).where(eq(messageTable.id, id)).all()
     expect(row.status).toBe('pending')
     expect(row.data?.parts ?? []).toEqual([])
+  })
+
+  /**
+   * Fails pre-fix: `MessageServiceBackend.markTerminalError` set only `status`,
+   * so a persist failure left the placeholder as an unexplained empty error row.
+   */
+  it('writes an error part when terminalizing a failed persist on the ordinary-chat backend', async () => {
+    const id = 'msg-persist-fail-1'
+    seedPendingAssistant(id)
+
+    const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
+    new MessageServiceBackend({ assistantMessageId: id }).markTerminalError()
+
+    const [row] = dbh.db.select().from(messageTable).where(eq(messageTable.id, id)).all()
+    expect(row.status).toBe('error')
+    const part = row.data?.parts?.find((p) => p.type === 'data-error')
+    expect(part).toBeDefined()
+    expect((part?.data as Record<string, unknown> | undefined)?.i18nKey).toBe('turn.persist_failed')
   })
 })

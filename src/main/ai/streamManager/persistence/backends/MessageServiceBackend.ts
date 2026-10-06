@@ -1,6 +1,7 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
 import { messageService } from '@main/data/services/MessageService'
+import { withTerminalErrorPart } from '@shared/ai/terminalSentinel'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
@@ -47,6 +48,9 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
   markTerminalError(): void {
-    messageService.update(this.opts.assistantMessageId, { status: 'error' })
+    messageService.update(this.opts.assistantMessageId, {
+      status: 'error',
+      data: withTerminalErrorPart(messageService.getById(this.opts.assistantMessageId).data, 'turn.persist_failed')
+    })
   }
 }
