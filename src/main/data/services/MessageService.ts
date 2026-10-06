@@ -2326,8 +2326,14 @@ export class MessageService {
         // so attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
-      // A copied pending row has no stream owner; make it terminal.
+      // A copied pending row has no stream owner; make it terminal. It carries no
+      // error of its own, so without the sentinel it lands as a failure with
+      // nothing explaining it.
       const status = sourceMessage.status === 'pending' ? 'error' : sourceMessage.status
+      const copiedData =
+        status === 'error' && sourceMessage.status === 'pending'
+          ? withTerminalErrorPart(sourceMessage.data, 'turn.interrupted')
+          : sourceMessage.data
       const createdAt = Date.now()
       const [copiedMessage] = tx
         .insert(messageTable)
@@ -2335,7 +2341,7 @@ export class MessageService {
           topicId: options.topicId,
           parentId: copiedParentId,
           role: sourceMessage.role,
-          data: sourceMessage.data,
+          data: copiedData,
           status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,

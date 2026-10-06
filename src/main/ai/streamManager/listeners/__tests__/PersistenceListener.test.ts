@@ -19,6 +19,7 @@ import type { StreamErrorResult } from '../../types'
 const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
 const messageFinalizeMock = vi.fn()
+const messageGetByIdMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -29,7 +30,8 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     update: messageUpdateMock,
-    finalizeAssistantMessage: messageFinalizeMock
+    finalizeAssistantMessage: messageFinalizeMock,
+    getById: messageGetByIdMock
   }
 }))
 
@@ -368,6 +370,10 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   beforeEach(() => {
     messageUpdateMock.mockReset()
     messageFinalizeMock.mockReset()
+    messageGetByIdMock.mockReset()
+    // The recovery write reads the placeholder row to attach the terminal
+    // sentinel; tests that don't care about the payload get a pending row.
+    messageGetByIdMock.mockReturnValue({ id: 'assistant-1', data: { parts: [] } })
   })
 
   function makeMessageServiceListener() {
@@ -417,8 +423,22 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
-    // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
-    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+    // The recovery write flips the frozen `pending` placeholder to a terminal
+    // `error` and attaches the persist-failure sentinel so the row explains itself.
+    expect(messageUpdateMock).toHaveBeenLastCalledWith(
+      'assistant-1',
+      expect.objectContaining({
+        status: 'error',
+        data: expect.objectContaining({
+          parts: [
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ i18nKey: 'turn.persist_failed' })
+            })
+          ]
+        })
+      })
+    )
   })
 
   it('retains frozen turn options when finalizing the assistant placeholder', async () => {

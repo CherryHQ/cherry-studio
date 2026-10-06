@@ -2301,6 +2301,47 @@ describe('MessageService', () => {
       expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
       expect(copiedLeaf[0].stats).toEqual({ timeCompletionMs: 250 })
     })
+
+    /**
+     * A copied `pending` row has no stream owner, so it is terminalized to
+     * `error`. Fails pre-fix: the copy carried the source's (usually empty)
+     * parts unchanged — an unexplained failure row.
+     */
+    it('writes a sentinel error part when copying a pending assistant row', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'source-topic-pending', orderKey: 'a0' },
+        { id: 'target-topic-pending', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('source-topic-pending', [
+          {
+            id: 'pending-source',
+            parentId: null,
+            topicId: 'source-topic-pending',
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'pending',
+            siblingsGroupId: 0
+          }
+        ])
+      )
+      messageService.createRootMessageTx(dbh.db, 'target-topic-pending')
+      const pathRows = messageService.getPathRowsToNodeTx(dbh.db, 'pending-source', {
+        topicId: 'source-topic-pending'
+      })
+
+      dbh.db.transaction((tx) => messageService.copyPathRowsTx(tx, pathRows, { topicId: 'target-topic-pending' }))
+
+      const copied = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'target-topic-pending'), eq(messageTable.role, 'assistant')))
+      expect(copied).toHaveLength(1)
+      expect(copied[0].status).toBe('error')
+      const part = copied[0].data?.parts?.find((p) => p.type === 'data-error')
+      expect(part).toBeDefined()
+      expect((part?.data as Record<string, unknown> | undefined)?.i18nKey).toBe('turn.interrupted')
+    })
   })
 
   describe('virtual root — single-root invariant', () => {
