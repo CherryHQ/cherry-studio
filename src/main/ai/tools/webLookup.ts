@@ -5,7 +5,7 @@
  * AI-SDK builtin tools (`web_search` / `web_fetch`) and the Claude Code
  * in-process MCP bridge. Both runtimes are thin formatters over these
  * functions; the provider is resolved inside `WebSearchService` from the
- * user's configured default for each capability.
+ * assistant's provider override or the configured global default for each capability.
  *
  * Never throws on lookup failure: a failed lookup returns a structured error
  * so callers can distinguish transient failures from failures that cannot

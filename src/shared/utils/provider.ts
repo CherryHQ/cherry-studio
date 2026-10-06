@@ -383,8 +383,11 @@ export function resolveWebToolRoutes(
     coordinatedGoogleConflict = true
     const clientCoverage = Number(clientSearchAvailable) + Number(clientFetchAvailable)
     const serverCoverage = Number(serverSearchAvailable) + Number(serverFetchAvailable)
-    const selectedSide: Exclude<WebToolRoute, 'none'> =
-      clientCoverage === serverCoverage
+    const explicitClientChoice =
+      (options.clientSearchPreferred && clientSearchAvailable) || (options.clientFetchPreferred && clientFetchAvailable)
+    const selectedSide: Exclude<WebToolRoute, 'none'> = explicitClientChoice
+      ? 'client'
+      : clientCoverage === serverCoverage
         ? options.modelToolsPreferred && !options.clientSearchPreferred && !options.clientFetchPreferred
           ? 'server'
           : 'client'

@@ -324,6 +324,22 @@ describe('conflict-aware routing', () => {
     ).toEqual({ webSearch: 'client', webFetch: 'client' })
   })
 
+  it('keeps an explicit URL provider on pre-3 Gemini instead of overriding it for broader native coverage', () => {
+    expect(
+      resolveWebToolRoutes(gemini25, geminiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: false,
+        clientFetchAvailable: true,
+        modelToolsPreferred: true,
+        clientFetchPreferred: true
+      })
+    ).toEqual({
+      webSearch: 'none',
+      webFetch: 'client',
+      reasons: { webSearch: 'gemini-function-tool-conflict' }
+    })
+  })
+
   it('reports the conflict when no client fallback exists', () => {
     expect(
       resolveWebToolRoutes(gemini25, geminiProvider, {
