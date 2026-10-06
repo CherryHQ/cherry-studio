@@ -794,7 +794,7 @@ const ExternalSourcesSection = ({
             disabled={isBusy}
             className="h-7 max-w-full min-w-0 gap-1 px-1 text-xs"
             onClick={() => onOpenChange(true)}>
-            {needsAttention ? <AlertCircle className="size-3 shrink-0 text-warning" /> : null}
+            {needsAttention ? <AlertCircle className="lucide-custom size-3 shrink-0 text-warning" /> : null}
             <span
               role={needsAttention ? 'alert' : 'status'}
               className={needsAttention ? 'truncate text-warning' : 'text-muted-foreground truncate'}>
