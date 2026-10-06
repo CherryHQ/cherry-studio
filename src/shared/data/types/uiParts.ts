@@ -205,6 +205,8 @@ export interface DiagnosisResult {
 export interface CherryErrorMeta {
   /** Persisted AI error diagnosis, rehydrated into the error-detail popup after close / reload. */
   diagnosis?: DiagnosisResult
+  /** Marks display-synthesized fallback parts (see `withTerminalErrorFallback`) — never persisted. */
+  synthetic?: boolean
 }
 
 /** Cherry metadata on a FileUIPart. */
@@ -327,7 +329,8 @@ const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
 })
 
 export const CherryErrorMetaSchema: z.ZodType<CherryErrorMeta> = z.object({
-  diagnosis: DiagnosisResultSchema.optional()
+  diagnosis: DiagnosisResultSchema.optional(),
+  synthetic: z.boolean().optional()
 })
 
 export const KnowledgeScopePartDataSchema: z.ZodType<KnowledgeScopePartData> = z.strictObject({

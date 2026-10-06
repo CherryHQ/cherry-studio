@@ -26,10 +26,12 @@ interface Props {
   partId: string
   error: SerializedError | undefined
   message: MessageListItem
+  /** Display-synthesized fallback part — not persisted, so "remove" has nothing to act on. */
+  synthetic?: boolean
 }
 
-const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
-  return <MessageErrorInfo partId={partId} error={error} message={message} />
+const ErrorBlock: React.FC<Props> = ({ partId, error, message, synthetic }) => {
+  return <MessageErrorInfo partId={partId} error={error} message={message} synthetic={synthetic} />
 }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
@@ -101,7 +103,8 @@ const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
   message: MessageListItem
-}> = ({ partId, error, message }) => {
+  synthetic?: boolean
+}> = ({ partId, error, message, synthetic }) => {
   const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
@@ -196,7 +199,7 @@ const MessageErrorInfo: React.FC<{
   }
 
   const canOpenDetail = !!openErrorDetail
-  const canRemoveErrorPart = !!removeMessageErrorPart
+  const canRemoveErrorPart = !!removeMessageErrorPart && !synthetic
   const canNavigate = !!classification.navTarget && !!navigateErrorTarget
 
   return (

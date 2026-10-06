@@ -276,4 +276,25 @@ describe('replaceEditedMessageParts', () => {
       editedParts
     )
   })
+
+  it('drops a synthetic terminal-fallback error part on save but keeps a real persisted one', () => {
+    const syntheticError = {
+      type: 'data-error',
+      data: { name: 'AgentRuntimeError', message: 'no response', stack: null },
+      providerMetadata: { cherry: { synthetic: true } }
+    }
+    const realError = { type: 'data-error', data: { name: 'AgentRuntimeError', message: 'boom', stack: null } }
+    const originalParts = parts(text('partial reply'), syntheticError)
+    const draft = editedDraft('edited reply', [])
+
+    expect(replaceEditedMessageParts(originalParts, MESSAGE_ID, draft, parts(text('edited reply')))).toEqual([
+      text('edited reply')
+    ])
+
+    const withRealError = parts(text('partial reply'), realError)
+    expect(replaceEditedMessageParts(withRealError, MESSAGE_ID, draft, parts(text('edited reply')))).toEqual([
+      text('edited reply'),
+      realError
+    ])
+  })
 })

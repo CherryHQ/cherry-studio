@@ -1,5 +1,6 @@
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 /**
  * Give a settled turn that rendered nothing an error part to show.
@@ -27,17 +28,15 @@ export function withTerminalErrorFallback(
     if (!needsFallback) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [
-      ...parts,
-      {
-        type: 'data-error',
-        data: {
-          name: 'AgentRuntimeError',
-          message: noResponseMessage,
-          stack: null
-        }
+    const fallbackPart: Extract<CherryMessagePart, { type: 'data-error' }> = {
+      type: 'data-error',
+      data: {
+        name: 'AgentRuntimeError',
+        message: noResponseMessage,
+        stack: null
       }
-    ]
+    }
+    next[message.id] = [...parts, withCherryMeta(fallbackPart, { synthetic: true })]
   }
 
   return next
