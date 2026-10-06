@@ -100,16 +100,19 @@ export function terminalSentinelI18nKey(key: TerminalSentinelKey): string {
  * marked failed with nothing explaining it is undiagnosable in the UI and in
  * support logs. Existing parts are preserved; the sentinel is appended unless an
  * error part is already present.
+ *
+ * Returns the whole `data` object so callers can write it back as-is: sibling
+ * fields beside `parts` (turn options, model selection, runtime anchors) must
+ * survive the terminalization — `resetAssistantForRetry` rebuilds the retry
+ * turn from them.
  */
-export function withTerminalErrorPart(
-  data: { parts?: unknown } | null | undefined,
+export function withTerminalErrorPart<T extends { parts?: unknown }>(
+  data: T | null | undefined,
   key: TerminalSentinelKey,
   options?: TerminalSentinelOptions
-): { parts: CherryMessagePart[] } {
-  const existing = (Array.isArray(data?.parts) ? data?.parts : []) as CherryMessagePart[]
+): T {
+  const existing = (Array.isArray(data?.parts) ? data.parts : []) as CherryMessagePart[]
   const hasError = existing.some((part) => part?.type === 'data-error')
-  if (hasError) return { parts: existing }
-
-  const error = terminalSentinel(key, options)
-  return { parts: [...existing, { type: 'data-error', data: error }] }
+  const parts = hasError ? existing : [...existing, { type: 'data-error', data: terminalSentinel(key, options) }]
+  return { ...data, parts } as T
 }

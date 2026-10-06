@@ -366,7 +366,9 @@ export class AgentSessionDeliveryService extends BaseService {
               }
             }
           ],
-          [current.sessionId]
+          [current.sessionId],
+          // The process is alive — this was a delivery failure, not a restart.
+          'turn.interrupted'
         )
         const result = agentSessionMessageService.finalizeSessionDelivery({
           requestSessionId: current.sessionId,
@@ -472,5 +474,6 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private recoverDeliveries(): void {
     for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
+
   }
 }
