@@ -438,6 +438,8 @@ export interface PreferenceSchemas {
     'feature.quick_assistant.assistant_id': string
     // redux/settings/clickTrayToShowQuickAssistant
     'feature.quick_assistant.click_tray_to_show': boolean
+    // cherry-studio#21354 — independent context message count for the quick assistant
+    'feature.quick_assistant.context_max_messages': number | null
     // redux/settings/enableQuickAssistant
     'feature.quick_assistant.enabled': boolean
     // target-key-definitions/complex/complex
@@ -799,6 +801,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.paintings.default_provider': 'zhipu',
     'feature.quick_assistant.assistant_id': '',
     'feature.quick_assistant.click_tray_to_show': false,
+    'feature.quick_assistant.context_max_messages': null,
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.model_id': null,
     'feature.quick_assistant.read_clipboard_at_startup': true,

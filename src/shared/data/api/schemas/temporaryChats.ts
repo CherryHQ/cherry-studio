@@ -11,11 +11,25 @@
  * at the type level to keep full alignment with the persistent API surface.
  */
 
+import * as z from 'zod'
+
 import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import type { CreateMessageDto } from './messages'
-import type { CreateTopicDto } from './topics'
+import { CreateTopicSchema } from './topics'
+
+/**
+ * POST /temporary/topics body. The persistent CreateTopicDto extended with the
+ * leasing surface's context cap: a Quick-Assistant window pins how many of the
+ * last messages it wants served (its independent context message count).
+ * Absent = no opinion — the global and assistant layers resolve as usual.
+ * "Follow" is spelled by omitting the field, not by `null`.
+ */
+export const CreateTemporaryTopicSchema = CreateTopicSchema.extend({
+  maxMessages: z.number().int().min(1).optional()
+})
+export type CreateTemporaryTopicDto = z.infer<typeof CreateTemporaryTopicSchema>
 
 // ============================================================================
 // Responses
@@ -59,7 +73,7 @@ export type TemporaryChatSchemas = {
   '/temporary/topics': {
     /** Create a new temporary topic. */
     POST: {
-      body: CreateTopicDto
+      body: CreateTemporaryTopicDto
       response: Topic
     }
   }
