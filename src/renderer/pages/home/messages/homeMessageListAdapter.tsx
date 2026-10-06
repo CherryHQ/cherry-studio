@@ -167,12 +167,25 @@ export function useHomeMessageListProviderValue({
   // A turn that settled with nothing to render needs an error part, or the user is
   // left looking at an empty bubble with no cause and no way to act on it. This
   // mirrors what the Agent list already did; without it, ordinary chats showed a
-  // blank assistant message instead (#20941).
-  const partsByMessageIdWithFallback = useMemo(
+  // blank assistant message instead (#20941). Display-only: write flows read the
+  // raw persisted parts so the synthetic error part is never saved to storage.
+  const displayPartsByMessageId = useMemo(
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
-  const partsByMessageIdRef = useRef(partsByMessageIdWithFallback)
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
+  const partsByMessageIdRef = useRef(partsByMessageId)
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -209,8 +222,8 @@ export function useHomeMessageListProviderValue({
   }, [messageItems])
 
   useEffect(() => {
-    partsByMessageIdRef.current = partsByMessageIdWithFallback
-  }, [partsByMessageIdWithFallback])
+    partsByMessageIdRef.current = partsByMessageId
+  }, [partsByMessageId])
 
   const requireChatWrite = useCallback(
     (actionName: string) => {
@@ -257,8 +270,8 @@ export function useHomeMessageListProviderValue({
     topicId,
     topicName: topic.name,
     messages: messageItems,
-    partsByMessageId,
-    streamingLayers,
+    partsByMessageId: displayPartsByMessageId,
+    streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
     getDoctorSubject,
@@ -796,8 +809,8 @@ export function useHomeMessageListProviderValue({
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -833,11 +846,11 @@ export function useHomeMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageNavigation,
-      partsByMessageId,
+      displayPartsByMessageId,
       renderConfig,
       resolvedAssistantId,
       selectionController.selection,
-      streamingLayers,
+      displayStreamingLayers,
       topic,
       translationLanguages,
       translationLanguagesStatus
