@@ -489,7 +489,8 @@ async function resolveRequestWebToolRoutes(
   if (!assistant) return NO_WEB_TOOL_ROUTES
 
   const preferenceService = application.get('PreferenceService')
-  const clientWebToolsEnabled = assistant.settings.enableWebSearch === true
+  const assistantSettings = assistant.settings
+  const clientWebToolsEnabled = assistantSettings.enableWebSearch === true
   const [clientSearchAvailable, clientFetchAvailable] = clientWebToolsEnabled
     ? await Promise.all([
         resolveClientWebCapabilityAvailability('searchKeywords'),
@@ -514,8 +515,8 @@ async function resolveRequestWebToolRoutes(
     try {
       const clientProvider = await getProviderForCapability(
         (capability === 'searchKeywords'
-          ? assistant.settings.searchKeywordsProviderId
-          : assistant.settings.fetchUrlsProviderId) ?? undefined,
+          ? assistantSettings.searchKeywordsProviderId
+          : assistantSettings.fetchUrlsProviderId) ?? undefined,
         capability,
         preferenceService
       )
