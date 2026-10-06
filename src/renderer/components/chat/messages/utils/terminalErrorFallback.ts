@@ -8,15 +8,11 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
  * `data-error` part made it into the message, or it was recorded `success` while
  * carrying no visible part at all. Both leave the user staring at an empty reply
  * with no cause and nothing to retry.
- *
- * `stage` is attached when known so the fallback names where it broke instead of
- * repeating a bare "No response" (#20941).
  */
 export function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  noResponseMessage: string,
-  stage?: string
+  noResponseMessage: string
 ): Record<string, CherryMessagePart[]> {
   let next = partsByMessageId
 
@@ -38,8 +34,7 @@ export function withTerminalErrorFallback(
         data: {
           name: 'AgentRuntimeError',
           message: noResponseMessage,
-          stack: null,
-          ...(stage ? { failureStage: stage } : {})
+          stack: null
         }
       }
     ]

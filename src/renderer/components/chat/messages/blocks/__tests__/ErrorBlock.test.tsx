@@ -18,7 +18,8 @@ const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
 const STAGE_LABELS = {
   parse: enUS['error.stage.parse'],
   persistence: enUS['error.stage.persistence'],
-  runtime: enUS['error.stage.runtime']
+  runtime: enUS['error.stage.runtime'],
+  stream: enUS['error.stage.stream']
 }
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -517,6 +518,43 @@ describe('ErrorBlock', () => {
 
       expect(screen.getByText('boom')).toBeInTheDocument()
       expect(screen.queryByText(/Failure stage unknown/)).toBeNull()
+    })
+
+    it('names the stream stage next to an HTTP status label', () => {
+      // A mid-stream provider frame can carry both a 429 status and the stream stage;
+      // the status alone leaves the user guessing whether the request ever got going.
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'StreamError',
+            message: 'rate limited',
+            stack: null,
+            statusCode: 429,
+            failureStage: 'stream'
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(`${STAGE_LABELS.stream} HTTP 429 rate limited`)).toBeInTheDocument()
+    })
+
+    it('keeps the HTTP label unprefixed when the error carries no stage', () => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'APICallError',
+            message: 'Too many requests',
+            stack: null,
+            statusCode: 429
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText('HTTP 429 Too many requests')).toBeInTheDocument()
     })
   })
 })
