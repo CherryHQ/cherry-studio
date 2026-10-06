@@ -16,7 +16,7 @@ import type {
   MessageRuntimeTiming
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { hasTurnContent } from '@shared/data/types/terminalContent'
+import { hasTurnContent, isRenderedContentPart } from '@shared/data/types/terminalContent'
 import type { SerializedError } from '@shared/types/error'
 
 import {
@@ -246,7 +246,22 @@ export function diagnoseEmptySuccessTurn(finalMessage: CherryUIMessage | undefin
       detail: 'The model finished the request without producing a reply.'
     }
   }
-  if (hasTurnContent(parts)) return undefined
+  if (hasTurnContent(parts)) {
+    // `hasTurnContent` only looks at part types, so whitespace-only text/reasoning
+    // counts as content here — but `dropEmptyContentParts` strips those before
+    // storage, which would land another silent empty success. A turn still counts
+    // as answered when any content part survives the blank check: tool parts carry
+    // their answer in `output`, not `text`, so the check must ignore them rather
+    // than read their missing `text` as blank.
+    const blankTextContent = parts.filter(
+      (part): part is CherryMessagePart & { text: string } =>
+        (part.type === 'text' || part.type === 'reasoning') && typeof part.text === 'string'
+    )
+    if (blankTextContent.some((part) => part.text.trim().length > 0)) return undefined
+    if (parts.some((part) => part.type !== 'text' && part.type !== 'reasoning' && isRenderedContentPart(part))) {
+      return undefined
+    }
+  }
   const hasErrorPart = parts.some((part) => part.type === 'data-error')
   if (hasErrorPart) return undefined
   // A `/compact` turn legitimately ends with no answer: the compaction record IS

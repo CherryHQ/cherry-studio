@@ -39,7 +39,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import { withTerminalErrorPart } from '@shared/ai/terminalSentinel'
+import { withTerminalErrorPart, type TerminalSentinelKey } from '@shared/ai/terminalSentinel'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -883,14 +883,20 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
-   * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
-   * a runaway execution (#18281) — so the next connection must start without a token.
+   * Resolve orphaned `pending` rows to `error` (with the caller's terminalized
+   * `data`) and discard the affected sessions' resume tokens, atomically. A
+   * crashed turn leaves the external CLI session in an untrusted state — resuming
+   * it can replay a runaway execution (#18281) — so the next connection must start
+   * without a token.
+   *
+   * `sentinelKey` names why the turn was orphaned: callers terminalizing after an
+   * in-process failure must pass `'turn.interrupted'`; the default names the boot
+   * reconcile path, where the process really did restart.
    */
   resolveCrashOrphanedMessages(
     messages: Array<{ id: string; data: AgentSessionMessageEntity['data'] }>,
-    sessionIds: string[]
+    sessionIds: string[],
+    sentinelKey: TerminalSentinelKey = 'turn.orphaned_by_restart'
   ): void {
     if (messages.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
@@ -900,7 +906,7 @@ export class AgentSessionMessageService {
         // marked failed with nothing saying why. The sentinel supplies the truth:
         // the process died and the unsent text is gone.
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', data: withTerminalErrorPart(message.data, 'turn.orphaned_by_restart'), updatedAt })
+          .set({ status: 'error', data: withTerminalErrorPart(message.data, sentinelKey), updatedAt })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
