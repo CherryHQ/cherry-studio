@@ -97,7 +97,6 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
     const finalMessage = { id: 'msg-1', role: 'assistant', parts: [] } as unknown as CherryUIMessage
 
     await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
-
     expect(ctx.captured).toHaveLength(1)
     expect(partsOf(ctx.captured[0])).toHaveLength(1)
     expect(errorPartOf(ctx.captured[0])?.data?.message).toBeTruthy()
@@ -129,6 +128,20 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
 
     expect(errorPartOf(ctx.captured[0])).toBeUndefined()
     expect(partsOf(ctx.captured[0])).toEqual([{ type: 'text', text: 'the real answer' }])
+  })
+
+  /** Whitespace-only text is stripped by `dropEmptyContentParts` before storage —
+   * without classification it would land as another silent empty success. */
+  it('classifies a turn whose only content is whitespace-only text', async () => {
+    const finalMessage = {
+      id: 'msg-3b',
+      role: 'assistant',
+      parts: [{ type: 'text', text: '   ' }]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeDefined()
   })
 
   it('leaves a tool-only turn alone — tool calls are an answer', async () => {
