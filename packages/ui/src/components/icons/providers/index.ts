@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-10-06T08:09:30.262Z
+ * Generated at: 2026-10-06T09:36:32.062Z
  * Total icons: 164
  */
 export { Ai302Icon as Ai302 } from './302ai'

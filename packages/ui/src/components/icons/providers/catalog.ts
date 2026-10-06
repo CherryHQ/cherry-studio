@@ -4,7 +4,7 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-06T08:09:30.379Z
+ * Generated at: 2026-10-06T09:36:32.174Z
  * Total icons: 164
  */
 import { type CompoundIcon } from '../types'

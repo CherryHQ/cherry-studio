@@ -17,6 +17,7 @@ export function getProviderIconAssetMetrics({
   kind: 'provider' | 'model'
   iconId: string
 }): ProviderIconAssetMetrics {
+  if (kind === 'provider' && iconId.toLowerCase() === 'acedatacloud') return { canvasScale: 1, kind: 'mark' }
   const catalog: Readonly<Record<string, IconMeta>> = kind === 'model' ? MODEL_ICON_META_CATALOG : PROVIDER_ICON_META_CATALOG
   if (catalog[iconId.toLowerCase()]?.artworkKind === 'tile') return { canvasScale: 1, kind: 'tile' }
   return { canvasScale: kind === 'model' ? INSET_MODEL_CANVAS_SCALE : INSET_PROVIDER_CANVAS_SCALE, kind: 'mark' }
