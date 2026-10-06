@@ -1156,6 +1156,37 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('uses assistant providers for readiness and prefers an explicit search choice over model-native search', async () => {
+    const preferences = new Map<string, unknown>([
+      ['chat.web_search.model_tools_preferred', true],
+      ['chat.web_search.default_search_keywords_provider', null],
+      ['chat.web_search.default_fetch_urls_provider', null],
+      ['chat.web_search.provider_overrides', { tavily: { apiKeys: ['configured'] } }],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+    registry.register(clientFetchEntry)
+    const scopedAssistant = makeAssistant({
+      settings: {
+        enableWebSearch: true,
+        searchKeywordsProviderId: 'tavily',
+        fetchUrlsProviderId: 'jina'
+      }
+    })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: scopedAssistant
+    })
+    expect(result.tools?.web_search).toBe(clientSearchEntry.tool)
+    expect(result.tools?.web_fetch).toBe(clientFetchEntry.tool)
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
+
   it('keeps client search available through ExaMCP when the selected provider has no key', async () => {
     const preferences = new Map<string, unknown>([
       ['app.developer_mode.enabled', false],

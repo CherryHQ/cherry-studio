@@ -21,6 +21,7 @@ import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 
 const logger = loggerService.withContext('WebLookup')
@@ -203,9 +204,15 @@ function mapResponse(response: WebSearchResponse): WebSearchOutput {
   }))
 }
 
-export async function searchWeb(query: string, signal?: AbortSignal): Promise<WebLookupResult> {
+export async function searchWeb(
+  query: string,
+  signal?: AbortSignal,
+  providerId?: WebSearchProviderId
+): Promise<WebLookupResult> {
   try {
-    const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
+    const response = await application
+      .get('WebSearchService')
+      .searchKeywords({ keywords: [query], ...(providerId ? { providerId } : {}) }, { signal })
     return mapResponse(response)
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
@@ -216,9 +223,15 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
   }
 }
 
-export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<WebLookupResult> {
+export async function fetchWeb(
+  urls: string[],
+  signal?: AbortSignal,
+  providerId?: WebSearchProviderId
+): Promise<WebLookupResult> {
   try {
-    const response = await application.get('WebSearchService').fetchUrls({ urls }, { signal })
+    const response = await application
+      .get('WebSearchService')
+      .fetchUrls({ urls, ...(providerId ? { providerId } : {}) }, { signal })
     return mapResponse(response)
   } catch (error) {
     // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a

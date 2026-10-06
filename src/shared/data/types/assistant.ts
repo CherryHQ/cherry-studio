@@ -7,6 +7,7 @@
 
 import * as z from 'zod'
 
+import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
@@ -74,6 +75,9 @@ export const AssistantSettingsSchema = z.object({
   // -- Context sources --
   /** One switch for the web tool group (search + URL fetch), whichever side executes it. */
   enableWebSearch: z.boolean(),
+  /** Absent or null inherits the global provider for this capability. */
+  searchKeywordsProviderId: WebSearchProviderIdSchema.nullable().optional(),
+  fetchUrlsProviderId: WebSearchProviderIdSchema.nullable().optional(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
 

@@ -20,7 +20,11 @@ import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
+import {
+  getWebSearchFallbackProviderIds,
+  isWebSearchProviderReady,
+  resolveReadyWebSearchProvider
+} from '@shared/utils/webSearch'
 
 interface Props {
   assistantId: string
@@ -66,12 +70,60 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
-    defaultFetchUrlsProvider,
-    defaultSearchKeywordsProvider,
+    defaultFetchUrlsProvider: globalFetchProvider,
+    defaultSearchKeywordsProvider: globalSearchProvider,
     isLoading: isLoadingWebSearchProviders,
     providers
   } = useWebSearchProviders()
   const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
+
+  const defaultSearchKeywordsProvider = assistant?.settings.searchKeywordsProviderId
+    ? providers.find((provider) => provider.id === assistant.settings.searchKeywordsProviderId)
+    : globalSearchProvider
+  const defaultFetchUrlsProvider = assistant?.settings.fetchUrlsProviderId
+    ? providers.find((provider) => provider.id === assistant.settings.fetchUrlsProviderId)
+    : globalFetchProvider
+  const providerChoices = useMemo(
+    () =>
+      (['searchKeywords', 'fetchUrls'] as const).flatMap((capability) => {
+        const field = capability === 'searchKeywords' ? 'searchKeywordsProviderId' : 'fetchUrlsProviderId'
+        const label = t(
+          capability === 'searchKeywords'
+            ? 'settings.tool.websearch.search_provider'
+            : 'settings.tool.websearch.fetch_urls_provider'
+        )
+        return [
+          {
+            id: `web-provider-${capability}-default`,
+            kind: 'command' as const,
+            label: `${label} · ${t('common.default')}`,
+            icon: <Globe size={TOOLBAR_ICON_SIZE} />,
+            active: !assistant?.settings[field],
+            action: () => {
+              void updateAssistant({ settings: { [field]: null } })
+            }
+          },
+          ...providers
+            .filter((provider) => isWebSearchProviderReady(provider, capability))
+            .map((provider) => ({
+              id: `web-provider-${capability}-${provider.id}`,
+              kind: 'command' as const,
+              label: `${label} · ${provider.name}`,
+              icon: (
+                <WebSearchProviderIcon
+                  iconRef={getWebSearchProviderIconRef(provider.id)}
+                  providerName={provider.name}
+                />
+              ),
+              active: assistant?.settings[field] === provider.id,
+              action: () => {
+                void updateAssistant({ settings: { [field]: provider.id } })
+              }
+            }))
+        ]
+      }),
+    [assistant?.settings, providers, t, updateAssistant]
+  )
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
@@ -97,6 +149,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           modelToolsPreferred,
+          clientSearchPreferred: Boolean(assistant.settings.searchKeywordsProviderId),
+          clientFetchPreferred: Boolean(assistant.settings.fetchUrlsProviderId),
           endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
@@ -201,9 +255,30 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         disabled: isDisabled,
         disabledReason,
         action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
+      },
+      {
+        id: 'web-search-providers',
+        kind: 'command',
+        sources: ['popover'],
+        label: t('settings.tool.websearch.search_provider'),
+        icon: <Globe size={TOOLBAR_ICON_SIZE} />,
+        disabled: isLoadingWebSearchProviders || !assistant,
+        submenu: providerChoices
       }
     ])
-  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t, tooltipTitle])
+  }, [
+    assistant,
+    disabledReason,
+    enableWebSearch,
+    icon,
+    isDisabled,
+    isLoadingWebSearchProviders,
+    launcher,
+    onClick,
+    providerChoices,
+    t,
+    tooltipTitle
+  ])
 
   return { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle }
 }

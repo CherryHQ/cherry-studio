@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getLastTerminalToolFailure, stopOnTerminalToolFailure } from '@main/ai/runtime/aiSdk/loop/toolLoopTermination'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+
+import { makeAssistant } from '../../../../../__tests__/fixtures'
 
 const { fetchUrls, searchKeywords } = vi.hoisted(() => ({
   fetchUrls: vi.fn(),
@@ -95,6 +98,36 @@ describe('web_search', () => {
     // while the id/url/title citation anchors ride the skeleton.
     expect(searchEntry.truncatable).toBeUndefined()
     expect(searchEntry.codec).toBeDefined()
+  })
+
+  it('routes each capability through its assistant override, and clearing one inherits its global default', async () => {
+    const assistant = makeAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        searchKeywordsProviderId: 'tavily',
+        fetchUrlsProviderId: 'jina'
+      }
+    })
+    searchKeywords.mockImplementation(async ({ providerId }) => ({
+      ...response(),
+      results: [
+        { title: providerId ?? 'global', url: 'https://a.com', content: providerId ?? 'global', sourceInput: 'q' }
+      ]
+    }))
+    fetchUrls.mockImplementation(async ({ providerId }) => ({
+      ...response(),
+      results: [
+        { title: providerId ?? 'global', url: 'https://a.com', content: providerId ?? 'global', sourceInput: 'q' }
+      ]
+    }))
+    const options = { ...makeOptions(), experimental_context: { requestId: 'req-provider', assistant } }
+    const search = searchEntry.tool.execute!
+    const fetch = fetchEntry.tool.execute!
+    expect(await search({ query: 'q' }, options)).toEqual([expect.objectContaining({ content: 'tavily' })])
+    expect(await fetch({ urls: ['https://a.com'] }, options)).toEqual([expect.objectContaining({ content: 'jina' })])
+    assistant.settings.searchKeywordsProviderId = null
+    expect(await search({ query: 'q' }, options)).toEqual([expect.objectContaining({ content: 'global' })])
+    expect(await fetch({ urls: ['https://a.com'] }, options)).toEqual([expect.objectContaining({ content: 'jina' })])
   })
 
   it('calls WebSearchService.searchKeywords with the request abort signal', async () => {

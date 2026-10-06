@@ -72,6 +72,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 4. **Practical Tools Integration**:
 
 - 🔍 Global Search Functionality
+- 🌐 In chat, open **+ → Search service provider** to choose keyword-search and URL-fetch providers independently. Choices are saved for the current assistant and used by its topics; **Default** restores the corresponding global provider. Only ready providers appear, and the web-search toggle still controls whether web tools are enabled.
 - 📝 Topic Management System
 - 🔤 AI-powered Translation
 - 🎯 Drag-and-drop Sorting
