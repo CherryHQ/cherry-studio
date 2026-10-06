@@ -396,8 +396,8 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     await listener.onDone({ finalMessage: undefined, status: 'success' })
 
-    // `MessageServiceBackend` has no `canPersistEmptySuccessTerminal`, so an empty
-    // success previously wrote nothing and froze the placeholder as `pending`.
+    // An empty success is classified upstream and finalized with a data-error
+    // part instead of freezing the placeholder as `pending`.
     expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
     const parts = messageFinalizeMock.mock.calls[0][1].data.parts as Array<{ type: string }>
     expect(parts.some((part) => part.type === 'data-error')).toBe(true)

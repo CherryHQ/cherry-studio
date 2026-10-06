@@ -39,7 +39,6 @@ function capturingBackend() {
   const captured: CapturedWrite[] = []
   const backend = {
     kind: 'test',
-    canPersistEmptySuccessTerminal: true,
     canPersistEmptyTerminal: true,
     persistAssistant: ({ finalMessage, status }: { finalMessage?: CherryUIMessage; status: string }) => {
       captured.push({
@@ -79,8 +78,8 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
   })
 
   /**
-   * Fails pre-fix: `onDone` passed `undefined` straight through and the backend's
-   * `canPersistEmptySuccessTerminal` wrote a contentless `success` row.
+   * Fails pre-fix: `onDone` passed `undefined` straight through and the backend
+   * wrote a contentless `success` row.
    */
   it('classifies a turn with no accumulated message instead of persisting empty success', async () => {
     await listener.onDone({ status: 'success', modelId: 'openai::gpt-4o' })
@@ -144,11 +143,81 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
     expect(errorPartOf(ctx.captured[0])).toBeDefined()
   })
 
+  /**
+   * The AI SDK accumulator never emits a bare blank text part: every step opens
+   * with a `step-start`, so an empty text block accumulates to
+   * `[{ type: 'step-start' }, { type: 'text', text: '', state: 'done' }]`.
+   * After `dropEmptyContentParts` strips the blank text, only the invisible
+   * `step-start` remains — the renderer hides it (`HIDDEN_PART_TYPES`), so this
+   * is a silent empty success. Fails pre-fix: `step-start` counted as content.
+   */
+  it('classifies a turn reduced to a step-start part after blank text is stripped', async () => {
+    const finalMessage = {
+      id: 'msg-3c',
+      role: 'assistant',
+      parts: [
+        { type: 'step-start' },
+        { type: 'text', text: '', state: 'done' } as unknown as CherryUIMessage['parts'][number]
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeDefined()
+    // The persisted row must not keep the invisible part either.
+    expect(partsOf(ctx.captured[0]).every((p) => p.type !== 'text')).toBe(true)
+  })
+
+  /** Same accumulator shape with an empty reasoning block instead of text. */
+  it('classifies a turn reduced to a step-start part after blank reasoning is stripped', async () => {
+    const finalMessage = {
+      id: 'msg-3d',
+      role: 'assistant',
+      parts: [
+        { type: 'step-start' },
+        { type: 'reasoning', text: '   ', state: 'done' } as unknown as CherryUIMessage['parts'][number]
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeDefined()
+  })
+
+  /**
+   * `source-url` is also renderer-hidden: a turn whose only non-blank part is a
+   * source citation with no text renders nothing and must be classified.
+   */
+  it('classifies a turn whose only visible-ish part is a hidden source-url', async () => {
+    const finalMessage = {
+      id: 'msg-3e',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }, { type: 'source-url', url: 'https://example.com' }]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeDefined()
+  })
+
   it('leaves a tool-only turn alone — tool calls are an answer', async () => {
     const finalMessage = {
       id: 'msg-4',
       role: 'assistant',
       parts: [{ type: 'tool-Bash', toolCallId: 'c1', state: 'output-available', output: 'ok' }]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(errorPartOf(ctx.captured[0])).toBeUndefined()
+  })
+
+  /** A tool step accumulates a `step-start` before the tool call — still an answer. */
+  it('leaves a tool turn with its step-start part alone', async () => {
+    const finalMessage = {
+      id: 'msg-4b',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }, { type: 'tool-Bash', toolCallId: 'c1', state: 'output-available', output: 'ok' }]
     } as unknown as CherryUIMessage
 
     await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
