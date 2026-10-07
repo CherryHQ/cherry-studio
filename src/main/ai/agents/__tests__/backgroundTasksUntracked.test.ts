@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import type * as NodeFs from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -182,8 +183,13 @@ describe('a task whose record write fails', () => {
   it.skipIf(process.platform === 'win32')('treats an EPERM group kill as proof the task already exited', async () => {
     // macOS answers EPERM when the child's group holds only exited-but-unreaped members — the
     // child provably gone — and reading that as a failed kill announced a finished task as
-    // still running, inviting the retry that duplicates work that already completed. The task
-    // self-terminates, so nothing outlives the test however the start settles.
+    // still running, inviting the retry that duplicates work that already completed. The first
+    // write failure is delayed past the task's own exit while the event loop is held, so the
+    // group the kill reports on holds nothing alive, and `:` leaves no process behind either way.
+    writeFileSyncMock.mockImplementation(() => {
+      execFileSync('sleep', ['1'])
+      throw new Error('ENOSPC: no space left on device')
+    })
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
       throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
     })
@@ -191,14 +197,46 @@ describe('a task whose record write fails', () => {
       await expect(
         startDetachedBackgroundTask({
           storageDir,
-          command: `${nodeBin} -e "setTimeout(() => {}, 300)"`,
+          command: ':',
           cwd: storageDir
         })
       ).rejects.toThrow(/was stopped/)
+      // The exit was self-evident, so there is no untracked process a record needs to hold.
+      expect((await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_RECORD_EXT))).toEqual([])
     } finally {
       killSpy.mockRestore()
     }
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'does not read an EPERM group kill as an exit while the group is still alive',
+    async () => {
+      // macOS answers EPERM for a live member that fails the credential check too — a setuid
+      // `sudo` the task exec'd — so an EPERM kill only proves an exit once no member is alive.
+      // Reading it as the exit announced a running task as stopped and left no record to stop
+      // it through.
+      const held = await markerHeldTask('exit-eperm.marker')
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
+      })
+      try {
+        await expect(
+          startDetachedBackgroundTask({
+            storageDir,
+            command: held.command,
+            cwd: storageDir
+          })
+        ).rejects.toThrow(/is still running/)
+      } finally {
+        killSpy.mockRestore()
+      }
+
+      const record = await readRecoveryRecord()
+      expect(record.status).toBe('running')
+      await held.release()
+      await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+    }
+  )
 
   it.skipIf(process.platform === 'win32')(
     'names the task that is still running when the record cannot be written at all',
