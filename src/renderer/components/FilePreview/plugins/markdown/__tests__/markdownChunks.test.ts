@@ -783,6 +783,36 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks.filter((chunk) => chunk.text.includes('[a]:'))).toHaveLength(1)
   })
+
+  it('carries a definition across a slash the parser does not complete into a tag', () => {
+    // `<div/ >` ends a type-6 name only if the `>` follows the slash directly, so the parser reads
+    // it as prose and the title runs on to its closing quote. Taking the lone slash for the name's
+    // end truncated the definition to the line before it and left every later chunk without it.
+    const forms = ['<div/ > marks the spot', '<div/x> marks the spot']
+    for (const form of forms) {
+      const content = ["[spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('carries a definition across an ordered marker that cannot interrupt it', () => {
+    // A paragraph is interrupted by an ordered marker only when it is numbered 1, so `2.` stays
+    // title text and the title runs on to its closing quote. Reading any number as an interrupting
+    // marker truncated the definition to the line before it and left every later chunk without it.
+    const forms = ['2. item marks the spot', '2) item marks the spot']
+    for (const form of forms) {
+      const content = ["[spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
 })
 
 describe('the window a split reports', () => {
