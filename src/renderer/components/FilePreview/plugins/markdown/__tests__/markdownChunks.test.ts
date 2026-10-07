@@ -914,6 +914,164 @@ describe('splitMarkdownChunks', () => {
       expect(chunks.filter((chunk) => chunk.text.includes(form))).toHaveLength(1)
     }
   })
+
+  it('carries a quote-held definition across a lazy setext underline', () => {
+    // A line without the quote marker continues the open title only lazily, and a setext underline
+    // cannot pair with a paragraph it did not see open, so the parser keeps it as title text at any
+    // indent. Reading it as an underline dropped the definition from every later chunk.
+    const forms = ['--', '   --', '==']
+    for (const form of forms) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a quote-held definition an empty item lazily opens a list at', () => {
+    // The lazy line is checked against none of the interrupt rules, so even an item with nothing
+    // after its marker opens a list there and the open title ends before it closes. Reading the
+    // empty marker as title text carried a definition the parser never made into every chunk.
+    const forms = ['1. ', '1.', '*  ']
+    for (const form of forms) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('does not carry a quote-held definition an ordered marker of any number lazily opens a list at', () => {
+    // `2.` cannot interrupt a paragraph written in the document, but a lazy line takes any number,
+    // so the list opens and the title that never closes leaves a plain paragraph behind.
+    const content = ["> [spec]: /url 'the long", '2. x', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it('does not carry a quote-held definition a tag lazily opens an HTML block at', () => {
+    // A tag that cannot interrupt a paragraph still opens its block on a lazy line, where the
+    // parser applies no interrupt rule — the open title ends at the tag and never closes, so the
+    // label line stays a paragraph.
+    const forms = ['<a>', '</a>', '<a/>']
+    for (const form of forms) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('carries a list-held definition across a lazy setext underline', () => {
+    // An indent short of the column the definition starts at continues the title only lazily, and
+    // the underline cannot pair with the paragraph, so it stays title text however shallow the
+    // line sits. Reading it as an underline at the document's own three-column rule dropped the
+    // definition from every later chunk.
+    const forms = ['--', ' --']
+    for (const form of forms) {
+      const content = ["- [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a list-held definition an empty item lazily opens a list at', () => {
+    // The lazy line takes an empty item as a list all the same, so the open title ends before it
+    // closes and the marker line stays a plain list. Reading the empty marker as title text
+    // carried a definition the parser never made into every chunk.
+    const forms = ['1. ', ' 1. ']
+    for (const form of forms) {
+      const content = ["- [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('does not carry a list-held definition a setext underline inside the item breaks', () => {
+    // The parser measures the line's blocks from the column the definition starts at, so an
+    // underline indented to four or five columns — or one tab — still pairs with the open title.
+    // Reading that indent as the document's own code boundary carried a definition the parser had
+    // turned into a heading.
+    const forms = ['    --', '     --', '\t--']
+    for (const form of forms) {
+      const content = ["- [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('carries a list-held definition across an underline the item reads as code', () => {
+    // Four columns past the one the definition starts at is indented code inside the item, which
+    // interrupts nothing, so the underline stays title text.
+    const forms = ['      --', '\t\t--']
+    for (const form of forms) {
+      const content = ["- [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('carries a definition nested behind a list and a quote across a lazy underline', () => {
+    // The line reproduces neither the item's marker nor the quote's, so it continues the open
+    // title only lazily and the underline stays title text.
+    const content = ["- > [spec]: /url 'the long", '     --', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('does not carry a nested definition a quote fallen out of the item opens at', () => {
+    // A quote one column short of the item's content column has left it, so the quote that opens
+    // there ends the open title before it closes.
+    const content = ["- > [spec]: /url 'the long", ' > --', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it('carries a definition nested in a list inside a list across a lazy underline', () => {
+    // The inner item's content starts four columns in, so an underline short of that column
+    // continues the open title only lazily and stays title text.
+    const forms = ['  --', '   --']
+    for (const form of forms) {
+      const content = ["- - [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a definition nested in a list inside a list an underline inside it breaks', () => {
+    // Four columns in — where the inner item's content starts — the underline pairs with the open
+    // title and turns it into a heading, at relative columns a document-level rule would read as
+    // code.
+    const content = ["- - [spec]: /url 'the long", '    --', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
 })
 
 describe('the window a split reports', () => {
