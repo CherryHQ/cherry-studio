@@ -61,6 +61,45 @@ describe('toMcpServerFields', () => {
   })
 })
 
+describe('env and headers round trip through the edit form', () => {
+  // Values reach the DB intact through JSON import or migration. Opening the edit form and
+  // saving an unrelated field must hand them back unchanged instead of re-parsing a lossy line.
+  it('preserves env values containing # or newlines', () => {
+    const server = {
+      id: '6559f6b3-0f0e-4dc7-aab8-8f0906a9eaa3',
+      name: 'pg-analytics',
+      type: 'stdio',
+      command: 'npx',
+      isActive: false,
+      env: { PGPASSWORD: 'Q7#mk29p', PRIVATE_KEY: '-----BEGIN KEY-----\nabc\n-----END KEY-----' }
+    } satisfies McpServer
+
+    const values = stdioFormValues({ env: toMcpFormDefaultValues(server).env })
+
+    expect(toMcpServerFields(values).env).toEqual(server.env)
+  })
+
+  it('preserves header values containing #', () => {
+    const server = {
+      id: '6559f6b3-0f0e-4dc7-aab8-8f0906a9eaa3',
+      name: 'Remote server',
+      type: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp',
+      isActive: false,
+      headers: { Authorization: 'Bearer x#y' }
+    } satisfies McpServer
+
+    const values = stdioFormValues({
+      serverType: 'streamableHttp',
+      baseUrl: server.baseUrl,
+      command: '',
+      headers: toMcpFormDefaultValues(server).headers
+    })
+
+    expect(toMcpServerFields(values).headers).toEqual(server.headers)
+  })
+})
+
 describe('toMcpFormDefaultValues', () => {
   it('maps persisted server values into the initial form state', () => {
     const server = {
