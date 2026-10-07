@@ -7,8 +7,12 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import type { Client } from '@modelcontextprotocol/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServer'
+import { connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -293,21 +297,19 @@ describe('buildMcpServers', () => {
     expect(result?.exa).toBeUndefined()
   })
 
-  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+  // One client per built server set: a v1 server instance accepts a single connection.
+  const clients = new WeakMap<object, Promise<Client>>()
+  function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
     if (!result) throw new Error('buildMcpServers returned no servers')
-    const instance = (
-      result['cherry-tools'] as unknown as {
-        instance: {
-          server: {
-            _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>>
-          }
-        }
-      }
-    ).instance
-    const listHandler = instance.server._requestHandlers.get('tools/list')
-    if (!listHandler) throw new Error('tools/list handler not registered')
-    const listed = await listHandler({ method: 'tools/list', params: {} }, {})
-    return listed.tools.map((tool) => tool.name)
+    const { instance } = result['cherry-tools'] as McpSdkServerConfigWithInstance
+    const connect = (instance as unknown as AgentMcpServer).connect
+    if (!clients.has(result)) clients.set(result, connectAgentMcpClient({ name: 'cherry-tools', connect }, 'test'))
+    return clients.get(result)!
+  }
+
+  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+    const { tools } = await (await cherryToolsClient(result)).listTools()
+    return tools.map((tool) => tool.name)
   }
 
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
@@ -368,18 +370,8 @@ describe('buildMcpServers', () => {
 
   /** Run kb_list through the server and report the id set the scope closure handed to the core. */
   async function scopePassedToKnowledgeCore(result: ReturnType<typeof buildMcpServers>): Promise<readonly string[]> {
-    if (!result) throw new Error('buildMcpServers returned no servers')
     mockListOrOutlineKnowledge.mockReset().mockResolvedValue({ bases: [] })
-    const instance = (
-      result['cherry-tools'] as unknown as {
-        instance: {
-          server: { _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<unknown>> }
-        }
-      }
-    ).instance
-    const callHandler = instance.server._requestHandlers.get('tools/call')
-    if (!callHandler) throw new Error('tools/call handler not registered')
-    await callHandler({ method: 'tools/call', params: { name: 'kb_list', arguments: {} } }, {})
+    await (await cherryToolsClient(result)).callTool({ name: 'kb_list', arguments: {} })
     expect(mockListOrOutlineKnowledge).toHaveBeenCalledTimes(1)
     return mockListOrOutlineKnowledge.mock.calls[0][1]
   }

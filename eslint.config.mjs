@@ -91,6 +91,7 @@ const BAN_DRIZZLE_MIGRATOR = {
 // These current-main consumers still exchange SDK v1 McpServer instances with agent and
 // gateway hosts. Keep the exception explicit so new v1 imports cannot spread unnoticed.
 const MCP_V1_COMPATIBILITY_FILES = [
+  'src/main/ai/mcp/__tests__/createMcpBridgeServer.cache.test.ts',
   'src/main/ai/mcp/__tests__/createMcpBridgeServer.test.ts',
   'src/main/ai/mcp/createMcpBridgeServer.ts',
   'src/main/ai/mcp/servers/agentMemory.ts',
@@ -106,18 +107,14 @@ const MCP_V1_COMPATIBILITY_FILES = [
   'src/main/ai/mcp/servers/skills.ts',
   'src/main/ai/mcp/servers/__tests__/assistant.test.ts',
   'src/main/ai/runtime/agentMcpServers.ts',
-  'src/main/ai/runtime/dsh/DshCherryToolBridge.ts',
-  'src/main/ai/runtime/dsh/__tests__/DshCherryToolBridge.test.ts',
   'src/main/ai/runtime/dsh/__tests__/dshToolResultProjection.test.ts',
   'src/main/ai/runtime/dsh/dshToolResultProjection.ts',
-  'src/main/ai/runtime/pi/piNativeTools.test.ts',
   'src/main/features/browser/mcp/server.ts',
   'src/main/features/browser/BrowserSessionService.ts',
   'src/main/features/browser/mcp/tools/registry.ts',
   'src/main/features/browser/mcp/tools/utils.ts',
   'src/main/ai/tools/adapters/aiSdk/builtin/BrowserTools.ts',
   'src/main/features/browser/__tests__/mcp/browser.test.ts',
-  'src/main/ai/runtime/pi/piMcpExtension.ts',
   'src/main/features/apiGateway/McpSessionStore.ts',
   'src/main/features/apiGateway/errors.ts',
   'src/main/features/apiGateway/routes/mcp.ts'
@@ -1049,7 +1046,7 @@ export default defineConfig([
     // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
-    ignores: ['src/main/ai/runtime/claudeCode/mcpV1/**', ...MCP_V1_COMPATIBILITY_FILES],
+    ignores: MCP_V1_COMPATIBILITY_FILES,
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -1070,7 +1067,7 @@ export default defineConfig([
   {
     // Compatibility files still obey the normal main→renderer and migration boundaries;
     // only their MCP SDK v1 imports are exempted from the generic main-process rule above.
-    files: ['src/main/ai/runtime/claudeCode/mcpV1/**/*.{ts,tsx,js,jsx}', ...MCP_V1_COMPATIBILITY_FILES],
+    files: MCP_V1_COMPATIBILITY_FILES,
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

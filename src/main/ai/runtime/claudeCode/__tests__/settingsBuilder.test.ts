@@ -3,9 +3,11 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type AgentMcpServer, connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -51,7 +53,6 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
-  createSdkMcpServerInstance: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   listMcpTools: vi.fn(),
@@ -171,10 +172,6 @@ vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
   createMcpBridgeServer: mocks.createMcpBridgeServer
 }))
 
-vi.mock('@main/ai/runtime/claudeCode/mcpV1/createSdkMcpServerInstance', () => ({
-  createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
-}))
-
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
   createClaudeAgentToolPolicySnapshot: mocks.createToolPolicySnapshot
 }))
@@ -283,6 +280,16 @@ const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStat
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
 const sessionStateService = new ClaudeCodeSessionStateService()
+
+async function listCherryTools(settings: { mcpServers?: Record<string, unknown> }) {
+  const { instance } = settings.mcpServers?.['cherry-tools'] as McpSdkServerConfigWithInstance
+  const client = await connectAgentMcpClient(instance as unknown as AgentMcpServer, 'test')
+  try {
+    return await client.listTools()
+  } finally {
+    await client.close()
+  }
+}
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -859,11 +866,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith(
-      'mcp-1',
-      materializedServer,
-      expect.objectContaining({ topicId: 'agent-session:session-1', model: 'anthropic::claude-sonnet' })
-    )
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
+      interactionContext: expect.objectContaining({
+        topicId: 'agent-session:session-1',
+        model: 'anthropic::claude-sonnet'
+      })
+    })
   })
 
   it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {
@@ -2631,9 +2639,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspacePath: '/workspace/project'
     })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
     )
@@ -2648,9 +2654,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
 
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['cli_list', 'cli_search', 'cli_install'])
@@ -2703,11 +2707,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       notificationContext
     })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toContain('notify')
     expect(mocks.getTurnTrustedNotifyChannels).not.toHaveBeenCalled()
   })
@@ -2803,11 +2803,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never)
     ).resolves.toMatchObject({ behavior: 'allow' })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )

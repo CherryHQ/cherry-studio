@@ -4,13 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  CallToolRequestSchema,
-  type CallToolResult,
-  ListToolsRequestSchema,
-  type Tool
-} from '@modelcontextprotocol/sdk/types.js'
+import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,17 +26,24 @@ vi.mock('@application', () => ({
 }))
 
 const { buildDshCherryToolBridge, buildDshCherryToolName } = await import('../DshCherryToolBridge')
+const { serveAgentMcpServer } = await import('../../agentMcpServer')
 
 function createServer(
   tools: Tool[],
-  call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => Promise<CallToolResult>
-): McpServer {
-  const server = new McpServer({ name: 'test', version: '1.0.0' }, { capabilities: { tools: {} } })
-  server.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }))
-  server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
-    call(request.params.name, request.params.arguments ?? {}, extra.signal)
-  )
-  return server
+  call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => Promise<CallToolResult>,
+  listTools: () => Promise<{ tools: Tool[] }> = async () => ({ tools })
+) {
+  const onClose = vi.fn()
+  const connect = serveAgentMcpServer(() => {
+    const server = new Server({ name: 'test', version: '1.0.0' }, { capabilities: { tools: {} } })
+    server.setRequestHandler('tools/list', listTools)
+    server.setRequestHandler('tools/call', async (request, ctx) =>
+      call(request.params.name, request.params.arguments ?? {}, ctx.mcpReq.signal)
+    )
+    server.onclose = onClose
+    return server
+  })
+  return { connect, onClose }
 }
 
 const tool = (name: string): Tool => ({
@@ -85,34 +86,34 @@ describe('DshCherryToolBridge', () => {
   it('fails closed when two MCP identities map to the same public name', async () => {
     const first = createServer([tool('same')], async () => ({ content: [] }))
     const second = createServer([tool('same')], async () => ({ content: [] }))
-    const firstClosed = vi.fn()
-    first.server.onclose = firstClosed
-
     await expect(
       buildDshCherryToolBridge(
         {
-          first: { name: 'duplicate', instance: first },
-          second: { name: 'duplicate', instance: second }
+          first: { name: 'duplicate', connect: first.connect },
+          second: { name: 'duplicate', connect: second.connect }
         },
         bridgeOptions()
       )
     ).rejects.toThrow('Duplicate dsh Cherry tool name: mcp__duplicate__same')
-    expect(firstClosed).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(first.onClose).toHaveBeenCalledOnce())
   })
 
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
-    const unavailable = new McpServer({ name: 'bad', version: '1.0.0' }, { capabilities: { tools: {} } })
-    unavailable.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      throw new Error('offline')
-    })
+    const unavailable = createServer(
+      [],
+      async () => ({ content: [] }),
+      async () => {
+        throw new Error('offline')
+      }
+    )
     const available = createServer([tool('kb_search')], async () => ({
       content: [{ type: 'text', text: 'ok' }]
     }))
 
     const bridge = await buildDshCherryToolBridge(
       {
-        unavailable: { name: 'offline', instance: unavailable },
-        available: { name: 'cherry-tools', instance: available }
+        unavailable: { name: 'offline', connect: unavailable.connect },
+        available: { name: 'cherry-tools', connect: available.connect }
       },
       bridgeOptions()
     )
@@ -160,7 +161,10 @@ describe('DshCherryToolBridge', () => {
       structuredContent: { total: 7 }
     }))
     const server = createServer([tool('run')], call)
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
 
     const imageHash = createHash('sha256').update(image).digest('hex')
     const audioHash = createHash('sha256').update(audio).digest('hex')
@@ -227,7 +231,10 @@ describe('DshCherryToolBridge', () => {
       })
       return { content: [{ type: 'text', text: 'cancelled' }], isError: true }
     })
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
     const controller = new AbortController()
 
     const pending = bridge.callTool('mcp__server__run', {}, controller.signal)
@@ -247,7 +254,10 @@ describe('DshCherryToolBridge', () => {
       ],
       isError: true
     }))
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
 
     await expect(bridge.callTool('mcp__server__run', {})).rejects.toThrow('tool failed')
     await expect(access(toolResultRoot)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -271,7 +281,10 @@ describe('DshCherryToolBridge', () => {
         await new Promise((resolve) => setTimeout(resolve, 65_000))
         return { content: [{ type: 'text', text: 'slow but done' }] }
       })
-      const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+      const bridge = await buildDshCherryToolBridge(
+        { server: { name: 'server', connect: server.connect } },
+        bridgeOptions()
+      )
 
       const completion = expect(bridge.callTool('mcp__server__run', { value: 'x' })).resolves.toMatchObject({
         text: 'slow but done'

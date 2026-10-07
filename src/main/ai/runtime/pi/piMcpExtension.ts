@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 
 import type { ExtensionFactory, McpTransportFactory } from '@earendil-works/pi-coding-agent'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
-import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 import type { loadPiSdk } from './piSdk'
 
@@ -63,7 +63,7 @@ export function createPiMcpExtension(
       const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
       return {
         async start() {
-          await server.instance.connect(serverTransport)
+          await server.connect(serverTransport)
           await clientTransport.start()
         },
         send: (message) => clientTransport.send(message as Parameters<InMemoryTransport['send']>[0]),

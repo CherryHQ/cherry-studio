@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url'
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer as LegacyMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
@@ -24,6 +24,8 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
+import type { AgentMcpServer } from './agentMcpServer'
+
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
@@ -41,13 +43,10 @@ export interface AgentNotificationContext {
   allowAnyOwnedChannel: boolean
 }
 
-export interface AgentMcpServer {
-  id?: string
-  name: string
-  instance: McpServer
+// TODO(mcp-v2): remove once every agent server is a v2 McpServer.
+function serveLegacyAgentMcpServer(instance: LegacyMcpServer): AgentMcpServer['connect'] {
+  return (transport) => instance.connect(transport)
 }
-
-type ConfiguredMcpServerFactory = (mcpId: string, serverSnapshot?: McpServerEntity) => McpServer
 
 /** Build the complete MCP server set exposed by an agent session, independent of runtime transport. */
 export function buildAgentMcpServers(
@@ -58,16 +57,14 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
-  configuredServerFactory: ConfiguredMcpServerFactory = (mcpId, snapshot) =>
-    createMcpBridgeServer(mcpId, snapshot, {
-      interactionContext: {
-        sessionId: session.id,
-        model: agent.model ?? undefined,
-        roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
-      }
-    })
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
 ): Record<string, AgentMcpServer> {
+  const interactionContext = {
+    sessionId: session.id,
+    topicId: `agent-session:${session.id}`,
+    model: agent.model ?? undefined,
+    roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
+  }
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
@@ -86,7 +83,8 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      servers[mcpId] = { id: legacyServer?.id, name: mcpId, instance: configuredServerFactory(mcpId, serverSnapshot) }
+      const bridge = createMcpBridgeServer(mcpId, serverSnapshot, { interactionContext })
+      servers[mcpId] = { id: legacyServer?.id, name: mcpId, connect: serveLegacyAgentMcpServer(bridge) }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
@@ -95,57 +93,64 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.BROWSER)) {
     servers.browser = {
       name: CHERRY_MCP_SERVER.BROWSER,
-      instance: application
-        .get('BrowserSessionService')
-        .createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
+      connect: serveLegacyAgentMcpServer(
+        application.get('BrowserSessionService').createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
+      )
     }
   }
 
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
-    instance: new CherryBuiltinMcpServer({
-      agentId: agent.id,
-      agentDataPath,
-      sessionId: session.id,
-      workspaceSource,
-      workspacePath: session.workspace.path,
-      trustedNotifyChannels: notificationContext.channels,
-      allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
-      canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
-      getKnowledgeBaseIds: () => {
-        const liveAgent = agentService.getAgent(agent.id)
-        return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
-      }
-    }).mcpServer
+    connect: serveLegacyAgentMcpServer(
+      new CherryBuiltinMcpServer({
+        agentId: agent.id,
+        agentDataPath,
+        sessionId: session.id,
+        workspaceSource,
+        workspacePath: session.workspace.path,
+        trustedNotifyChannels: notificationContext.channels,
+        allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
+        canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
+        getKnowledgeBaseIds: () => {
+          const liveAgent = agentService.getAgent(agent.id)
+          return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
+        }
+      }).mcpServer
+    )
   }
   servers['agent-memory'] = {
     name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-    instance: new AgentMemoryMcpServer(agent.id, agentDataPath).mcpServer
+    connect: serveLegacyAgentMcpServer(new AgentMemoryMcpServer(agent.id, agentDataPath).mcpServer)
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
-    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsMcpServer(agent.id).mcpServer }
+    servers.skills = {
+      name: CHERRY_MCP_SERVER.SKILLS,
+      connect: serveLegacyAgentMcpServer(new SkillsMcpServer(agent.id).mcpServer)
+    }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {
       name: CHERRY_MCP_SERVER.MCP_MANAGER,
-      instance: new McpManagerServer(agent.id).mcpServer
+      connect: serveLegacyAgentMcpServer(new McpManagerServer(agent.id).mcpServer)
     }
   }
 
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      instance: new AssistantMcpServer(agent.model ?? undefined, hostTools?.tools).mcpServer
+      connect: serveLegacyAgentMcpServer(new AssistantMcpServer(agent.model ?? undefined, hostTools?.tools).mcpServer)
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
-      instance: new AssistantFileToolsServer({
-        sessionId: session.id,
-        workspacePath: session.workspace.path
-      }).mcpServer
+      connect: serveLegacyAgentMcpServer(
+        new AssistantFileToolsServer({
+          sessionId: session.id,
+          workspacePath: session.workspace.path
+        }).mcpServer
+      )
     }
   }
 

@@ -4,9 +4,7 @@
  * keeps a cold or dead server from stalling session start (issue #16242).
  */
 
-import { pathToFileURL } from 'node:url'
-
-import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+import type { McpSdkServerConfigWithInstance, McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -23,7 +21,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 
-import { createSdkMcpServerInstance } from './mcpV1/createSdkMcpServerInstance'
 import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeMcpCatalog')
@@ -38,12 +35,6 @@ export function buildMcpServers(
   selectedKnowledgeBaseIds: readonly string[] = [],
   notificationContext?: AgentNotificationContext
 ): Record<string, McpServerConfig> | undefined {
-  const interactionContext = {
-    sessionId: session.id,
-    topicId: `agent-session:${session.id}`,
-    model: agent.model ?? undefined,
-    roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
-  }
   const servers = buildAgentMcpServers(
     session,
     agent,
@@ -52,12 +43,19 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext,
-    (mcpId, serverSnapshot) => createSdkMcpServerInstance(mcpId, serverSnapshot, interactionContext)
+    notificationContext
   )
 
   return Object.fromEntries(
-    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+    Object.entries(servers).map(([id, { name, connect }]) => [
+      id,
+      {
+        type: 'sdk',
+        name,
+        // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
+        instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
+      } satisfies McpServerConfig
+    ])
   )
 }
 
