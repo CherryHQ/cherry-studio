@@ -1,82 +1,34 @@
 {
-  "generated_at": "2026-10-05T08:00:00Z",
+  "generated_at": "2026-10-07T17:00:00Z",
+  "repository": "CherryHQ/cherry-studio",
   "v2_branch_status": {
-    "open_prs_base_v2": 0,
-    "note": "No open PRs targeting the v2 branch. All active development merged into main. V2 feature work tracked via labels and internal-team issues."
+    "open_prs_targeting_v2": 0,
+    "note": "No open PRs found with base branch = v2; v2 features are tracked via 'v2' label on issues"
   },
-  "active_v2_label_issues": [
-    {"number": 21085, "title": "File/KB scopes inline large builtin tool schemas — context overflow", "labels": ["bug","p1","rag","v2","chat"], "age_days": 9},
-    {"number": 20941, "title": "Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "age_days": 13},
-    {"number": 20940, "title": "Responses API stream events fail client TypeValidation", "labels": ["bug","p1","models","v2","chat"], "age_days": 13},
-    {"number": 20937, "title": "DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"], "age_days": 13},
-    {"number": 21051, "title": "Windows restore fails with EPERM renaming Local Storage after restart", "labels": ["bug","p2","windows","data","v2"], "age_days": 10},
-    {"number": 20993, "title": "MCP tools/list fails when tool outputSchema has boolean sub-schema", "labels": ["bug","mcp","v2"], "age_days": 12},
-    {"number": 21044, "title": "Support one-click migration when changing notes working directory", "labels": ["feature","data","v2"], "age_days": 10},
-    {"number": 19625, "title": "Windows in-app update exits but leaves old 1.9.x version installed", "labels": ["bug","p1","windows","v2"], "age_days": 38},
-    {"number": 19929, "title": "Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "age_days": 33},
-    {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt", "labels": ["bug","p1","assistant","ui-ux","v2"], "age_days": 38},
-    {"number": 20026, "title": "Ignore SSE keep-alive frames instead of parsing as text parts", "labels": ["bug","p1","connectivity","v2","chat"], "age_days": 30},
-    {"number": 20374, "title": "Unable to read Word and PDF documents", "labels": ["bug","p1","needs-repro","data","v2"], "age_days": 25}
+  "v2_labeled_open_issues": [
+    {"number": 21085, "title": "[Bug]: File/KB scopes inline large builtin tool schemas and overflow context", "labels": ["bug","p1","rag","v2","chat"]},
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"]},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation and abort turn", "labels": ["bug","p1","models","v2","chat"]},
+    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"]},
+    {"number": 20374, "title": "Unable to read Word and PDF documents", "labels": ["bug","p1","needs-repro","data","v2"]},
+    {"number": 21051, "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart", "labels": ["bug","p2","windows","data","v2"]},
+    {"number": 20028, "title": "Managed update feed remains on 2.0.9 after newer production releases", "labels": ["bug","p2","v2"]},
+    {"number": 19753, "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions", "labels": ["bug","p1","windows","needs-repro","v2","agent"]},
+    {"number": 21044, "title": "[Feature]: Support one-click migration of notes when changing working directory", "labels": ["feature","data","v2"]}
   ],
-  "v2_p1_open_count": 10,
-  "v2_p2_open_count": 3,
-  "new_critical_unlabeled": [
-    {
-      "number": 21282,
-      "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row (worked in 2.1.3)",
-      "created_at": "2026-10-02",
-      "age_days": 3,
-      "note": "DAY 4 — Effectively a P1 startup regression. One invalid DB row bricks all 2.1.4 users with legacy order_key. Needs P1 label + assignee + hotfix."
-    }
-  ],
-  "active_feature_branches": {
-    "voice": {
-      "branches": ["codex/voice-runtime-foundation", "codex/voice-renderer-foundation", "codex/voice-funasr-runtime", "codex/voice-primary-consumers"],
-      "status": "Active multi-PR voice feature — FunASR, TTS, renderer foundation"
-    },
-    "feishu_kb": {
-      "branches": ["codex/issue-15970-feishu-connection", "codex/issue-15970-external-knowledge-domain", "codex/issue-15970-feishu-scope-adapter", "codex/issue-15970-manual-sync", "codex/issue-15970-lifecycle-completion"],
-      "status": "Feishu Wiki KB integration — 5 stacked PRs, active"
-    },
-    "ai_sdk_v7": {
-      "branches": ["DeJeune/ai-sdk-v7-research", "DeJeune/ai-sdk-v7-upgrade"],
-      "prs": [21310, 21313],
-      "status": "Major AI SDK v7 upgrade — research + implementation branches open"
-    },
-    "subagent_resume": {
-      "branches": ["fix/subagent-resume-routing-a", "fix/subagent-resume-rendering-b"],
-      "status": "Subagent routing and rendering fixes — active"
-    },
-    "channels": {
-      "branches": ["wecom-channel-plan"],
-      "status": "WeChat Work (WeCom) + DingTalk channel integration"
-    }
+  "v2_priority_breakdown": {
+    "p1_v2_bugs": 6,
+    "p2_v2_bugs": 2,
+    "v2_features": 1,
+    "total_v2_open": 9
   },
-  "internal_team_roadmap": [
-    {"number": 21002, "title": "Stage 2 — Model-Selectable Agent Diagnosis and Repair", "labels": ["feature","ui-ux","agent"]},
-    {"number": 20675, "title": "Support for Server-side Agent Integration: Hermes, Stella, and OpenAI"},
-    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "labels": ["p1","ui-ux","internal-team"]}
-  ],
-  "main_branch_active_prs_sample": [
-    {"number": 21349, "title": "feat(provider-registry): add TopxAI as OpenAI- and Anthropic-compatible provider"},
-    {"number": 21348, "title": "fix(ai): keep SSE error frames out of message text"},
-    {"number": 21340, "title": "fix(terminal-state): preserve turn terminal information"},
-    {"number": 21332, "title": "fix(composer): accept any file type on agent surface"},
-    {"number": 20712, "title": "feat(agent-session): turn-level model fallback for Claude Code Agent"}
-  ],
-  "pr_velocity": {
-    "open_prs_main": 100,
-    "open_prs_v2": 0,
-    "closed_issues_30d": 443,
-    "note": "High fix velocity. 443 issue closes in 30 days."
-  },
-  "key_risks": [
-    "URGENT: #21282 is a startup-crash regression in 2.1.4 — day 4 unlabeled, needs same-day P1 label + hotfix release",
-    "V2 Agent/DSH runtime has 10 open P1 bugs — ongoing quality risk",
-    "Windows EPERM/spawn failures on Agent startup are cross-issue (19929, 20937) — root cause may be shared",
-    "Context overflow in KB+Agent flow (#21085) affects all RAG-heavy users",
-    "Agent compaction transcript leak (#20692) has 13 comments — no fix merged after 18 days",
-    "AI SDK v7 upgrade (#21310) is a major architectural change — needs careful review before merge",
-    "New compaction/Responses-API bugs filed today (#21343, #21341) — may indicate regression from recent PRs"
-  ]
+  "v2_recent_merged_prs": {
+    "note": "Closed PRs search not run for v2-base; v2-labeled open PRs indicate active development focus",
+    "visible_active_prs": [
+      {"number": 20711, "title": "feat(background-tasks): detached background tasks that survive session close"},
+      {"number": 21176, "title": "fix(file-preview): stop large text previews from freezing the renderer"},
+      {"number": 21033, "title": "fix(agent-session): stop blocking the next user turn on detached task"},
+      {"number": 20776, "title": "Prevent runtime compaction summaries from leaking into chat transcript"}
+    ]
+  }
 }

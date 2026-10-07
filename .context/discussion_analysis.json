@@ -1,63 +1,27 @@
 {
-  "generated_at": "2026-10-05T08:00:00Z",
-  "note": "Discussions GraphQL API unavailable via current GitHub MCP scope. Hot topics inferred from high-comment/high-engagement open issues and today's issue sample.",
-  "hot_topics_from_issues": [
-    {
-      "number": 21282,
-      "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row",
-      "labels": [],
-      "comments": 1,
-      "engagement": "DAY 4 unlabeled startup crash regression — one invalid DB row bricks 2.1.4 upgraders. No P1 label, no assignee."
-    },
-    {
-      "number": 20692,
-      "title": "Agent compaction summary leaks into visible chat transcript as a normal message",
-      "labels": ["bug", "p1", "agent"],
-      "comments": 13,
-      "engagement": "Still active (last update Oct 4) — high community pain, 18 days, no fix merged yet"
-    },
-    {
-      "number": 19793,
-      "title": "Chat fails when a response stream ends without a finish reason",
-      "labels": ["bug", "p1", "models", "chat"],
-      "comments": 22,
-      "engagement": "22 comments — broad multi-provider issue"
-    },
-    {
-      "number": 19847,
-      "title": "Agent with DashScope Qwen3.8-Max terminates on server error without recovery",
-      "labels": ["bug", "p1", "needs-triage", "models", "agent"],
-      "comments": 20,
-      "engagement": "20 comments — DashScope/Qwen users, recovery/retry gap"
-    },
-    {
-      "number": 20920,
-      "title": "Cherry Studio 2 cannot connect FastMCP in WSL with 127.0.0.1",
-      "labels": ["bug", "mcp"],
-      "comments": 11,
-      "engagement": "WSL/loopback networking gap for MCP users"
-    }
+  "generated_at": "2026-10-07T17:00:00Z",
+  "repository": "CherryHQ/cherry-studio",
+  "note": "Discussions data not available via MCP tools in this run; data sourced from issue labels and discussion-tagged issues",
+  "discussion_labeled_issues": {
+    "open_with_discussion_label": 4,
+    "examples": [
+      {"number": 21362, "title": "[Discussion]: Unable to use some models in Qwen token plan"},
+      {"number": 21257, "title": "[Discussion]: Why can the drawing feature upload reference images but Agent cannot"},
+      {"number": 21177, "title": "[Discussion]: Computer broke causing previous data loss"},
+      {"number": 19340, "title": "[Discussion]: Claude Sonnet 5 called via OpenRouter lacks vision capability"},
+      {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 370}
+    ]
+  },
+  "high_engagement_issues": [
+    {"number": 6505, "title": "Selection Assistant FAQ", "comments": 370},
+    {"number": 20692, "title": "Agent compaction summary leaks into chat", "comments": 15},
+    {"number": 19753, "title": "DeepSeek Harness runtime crashes in Agent sessions", "comments": 15},
+    {"number": 20028, "title": "Managed update feed remains on 2.0.9", "comments": 12}
   ],
-  "new_issues_today": [
-    {"number": 21343, "title": "Cancelling a chat turn leaves in-loop context compaction running — delays stream cleanup", "note": "Filed by dakjdakd — compaction-related regression"},
-    {"number": 21341, "title": "Responses gateway drops assistant output_text when replaying history", "note": "Filed by dakjdakd — Responses API regression"},
-    {"number": 21345, "title": "Node options-only requests ignore proxy bypass rules for local S3", "note": "Filed by dakjdakd — proxy regression"},
-    {"number": 21325, "title": "Claude Code agent ignores Small model setting for auto-mode classifier", "comments": 3},
-    {"number": 21321, "title": "Agent MCP tools: serverName uses server id (UUID) instead of name", "comments": 1, "note": "Fix PR already opened"}
-  ],
-  "fix_velocity_today": [
-    "3+ issues filed with fix PRs opened same day — healthy reactive fix velocity",
-    "#21306 MCP tool-result image/audio blocks unconditionally flattened — closed Oct 4",
-    "#21295 Back arrow in Skills returns to All tab — closed Oct 4",
-    "#21287 DSH launch fails with HTTP 303 — closed Oct 3"
-  ],
-  "unanswered_themes": [
-    "2.1.4 startup crash #21282: day 4 unlabeled — critical upgrade regression",
-    "Agent compaction transcript leak #20692: 13 comments, still no merged fix",
-    "Agent runtime stability: DSH crashes, EPERM on Windows, context compaction loops",
-    "Context/stream failures with no finish_reason — multi-provider issue",
-    "V2 regression: topic prompt management, compaction leaks, Windows EPERM cluster",
-    "Reasoning model compatibility: hardcoded reasoning_effort breaks model detection",
-    "MCP tool UUID naming: filed and fixed same day, but symptom of broader tool-name pipeline issue"
+  "trending_topics": [
+    "Agent mode reliability and crash recovery",
+    "Model compatibility across OpenAI-compatible providers",
+    "Context compression and compaction behavior",
+    "Windows path and permission issues"
   ]
 }

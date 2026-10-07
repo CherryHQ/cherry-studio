@@ -1,92 +1,41 @@
 {
-  "generated_at": "2026-10-05T08:00:00Z",
-  "total_open_issues": 1126,
-  "p1_critical_count": 102,
-  "p1_delta_30d": 71,
+  "generated_at": "2026-10-07T17:00:00Z",
+  "repository": "CherryHQ/cherry-studio",
+  "summary": {
+    "open_issues_total": 1131,
+    "closed_last_30d": 324,
+    "close_rate_per_day_est": 10.8,
+    "inflow_rate_note": "Cannot compute without open-date histogram; latest 100 issues span ~11 days suggesting ~9/day new"
+  },
+  "health_tiers": {
+    "method": "Classified by days since last update on top-100 most recently updated issues",
+    "sample_size": 100,
+    "active_le7d": {"count": 72, "pct": 72.0},
+    "aging_8_30d": {"count": 28, "pct": 28.0},
+    "stale_31_90d": {"count": 0, "pct": 0.0, "note": "Underrepresented — top-100 sample excludes older issues"},
+    "zombie_gt90d": {"count": 0, "pct": 0.0, "note": "Underrepresented — top-100 sample excludes older issues"}
+  },
+  "triage_gap": {
+    "unlabeled_open": 203,
+    "unlabeled_pct": 17.9,
+    "needs_triage_label": "Present in data — some issues labeled needs-triage"
+  },
   "p1_breakdown": {
-    "active_assigned": 12,
-    "active_unassigned": 42,
-    "aging_7_30d": 28,
-    "stale_30_90d": 14,
-    "zombie_gt90d": 6,
-    "needs_repro_or_more_info": 15,
-    "v2_labeled": 10
+    "total_p1_open": 102,
+    "p1_pct_of_open": 9.0,
+    "p1_agent_related": "High — many P1s involve agent mode, Windows, and model compatibility",
+    "oldest_active_p1": {"number": 8730, "created_at": "2025-07-31", "title": "[讨论]: cherry studio是否无法接入商汤大模型？"}
   },
-  "p1_platform_breakdown": {
-    "windows_specific": 39,
-    "linux_specific": 8,
-    "macos_specific": 7,
-    "cross_platform": 48
+  "platform_distribution_sample100": {
+    "windows": 8,
+    "linux": 2,
+    "macos": 0,
+    "cross_platform": 90
   },
-  "p1_category_breakdown": {
-    "agent_runtime": 32,
-    "models_inference": 28,
-    "ui_ux": 15,
-    "connectivity": 12,
-    "data_startup": 9,
-    "performance": 5,
-    "rag_knowledge": 3
-  },
-  "high_urgency_p1": [
-    {"number": 21282, "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row", "age_days": 3, "note": "DAY 4 UNLABELED — startup crash regression, needs P1 label + hotfix"},
-    {"number": 20692, "title": "Agent compaction summary leaks into visible chat transcript", "age_days": 18, "note": "13 comments active, no fix merged after 18 days"},
-    {"number": 21343, "title": "Cancelling a chat turn leaves in-loop context compaction running", "age_days": 0, "note": "New today — unlabeled, related to compaction pipeline"},
-    {"number": 21341, "title": "Responses gateway drops assistant output_text when replaying history", "age_days": 0, "note": "New today — unlabeled"},
-    {"number": 20365, "title": "Clearing chat context still reports ~90K cached prompt tokens", "age_days": 25},
-    {"number": 19753, "title": "DeepSeek Harness repeatedly crashes during Agent sessions", "age_days": 36},
-    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "age_days": 39},
-    {"number": 19171, "title": "Model connectivity check hardcodes reasoning_effort: none", "age_days": 44, "assignee": "DeJeune"}
-  ],
-  "aging_p1_risk": [
-    {"number": 20695, "title": "Parallel edit calls to same file cause lost updates", "age_days": 17},
-    {"number": 19865, "title": "Claude Code Agent exhausts Windows virtual memory", "age_days": 33, "assignee": "404-Page-Found"},
-    {"number": 19864, "title": "Large local Ollama context allocation ends in opaque 500 and OOM", "age_days": 33, "assignee": "404-Page-Found"},
-    {"number": 19441, "title": "Video generation feature urgently needed", "age_days": 40, "assignee": "SiinXu+DeJeune"}
-  ],
-  "stale_zombie_p1_sample": [
-    {"number": 16863, "title": "ARM: cannot upload docs / switch input methods", "age_days": 98},
-    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "age_days": 121, "note": "internal-team"},
-    {"number": 14356, "title": "v2 fresh install — every message fails with Topic not found", "age_days": 169},
-    {"number": 12397, "title": "Expected function.name to be a string (MCP)", "age_days": 271},
-    {"number": 10512, "title": "Cloud Backup Complete Failure BUG", "age_days": 329},
-    {"number": 8730, "title": "cherry studio是否无法接入商汤大模型", "age_days": 432}
-  ],
-  "health_summary": {
-    "Active_le7d": "~130 issues (12%)",
-    "Aging_7_30d": "~275 issues (25%)",
-    "Stale_30_90d": "~425 issues (38%)",
-    "Zombie_gt90d": "~296 issues (26%)",
-    "methodology": "100-issue sample (sorted by updated_at DESC); remaining extrapolated from historical drift rate."
-  },
-  "unclassified_issues": {
-    "no_labels": "~46% (widening — new issues flooding unlabeled)",
-    "needs_triage": "~14%",
-    "no_priority": "~40%",
-    "recommendation": "Labeling backlog widening. 46% of sampled open issues unlabeled — triage velocity lagging issue intake."
-  },
-  "key_alerts": [
-    "ALERT DAY 4: #21282 startup crash regression (2.1.3→2.1.4) still unlabeled and unassigned — needs P1 + assignee immediately",
-    "P1 count: 102 (stable from yesterday)",
-    "+8 net new open issues today (1118→1126) — above daily average of ~2",
-    "#21343/#21341 filed today suggest ongoing compaction/Responses-API regression sweep by user 'dakjdakd'",
-    "#20692 agent compaction leak: 13 comments, 18 days unresolved — escalation recommended"
-  ],
-  "volume_trend": {
-    "2026-08-30": 1008,
-    "2026-09-29": 1105,
-    "2026-09-30": 1109,
-    "2026-10-01": 1115,
-    "2026-10-02": 1113,
-    "2026-10-03": 1116,
-    "2026-10-04": 1118,
-    "2026-10-05": 1126,
-    "delta_30d": 118,
-    "delta_1d": 8,
-    "p1_2026-09-30": 104,
-    "p1_2026-10-02": 104,
-    "p1_2026-10-03": 103,
-    "p1_2026-10-04": 102,
-    "p1_2026-10-05": 102,
-    "p1_delta_1d": 0
-  }
+  "top_areas_of_concern": [
+    "Agent mode stability (DSH bridge, crashes, OOM)",
+    "OpenAI-compatible gateway compatibility (max_tokens, tool_calls parsing)",
+    "Context management (compaction leaks, cache token over-report)",
+    "Windows-specific bugs (EPERM, path handling, VC++ runtime)"
+  ]
 }

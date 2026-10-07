@@ -1,95 +1,72 @@
 {
-  "generated_at": "2026-10-05T08:00:00Z",
-  "date": "2026-10-05",
-  "source": "GitHub MCP API — CherryHQ/cherry-studio",
-  "open_issues": {
-    "total": 1126,
-    "labeled_estimate": 607,
-    "unlabeled_estimate": 519,
-    "unlabeled_ratio": 0.461,
-    "delta_1d": 8,
-    "note": "Up 8 from yesterday's 1,118"
-  },
-  "closed_issues_30d": {
-    "total": 443,
-    "velocity_note": "High — 443 closes in 30 days"
-  },
-  "open_prs": {
-    "total_main": 100,
-    "total_v2": 0,
-    "note": "V2 branch frozen since May 2026; all development targets main"
-  },
-  "p1_issues_open": {
-    "count": 102,
-    "note": "Stable from yesterday; full-label scan estimate from prior run"
-  },
-  "p1_issues_sample": [
-    {"number": 20692, "title": "Agent compaction summary leaks into visible chat transcript", "age_days": 18, "comments": 13, "assignee": "404-Page-Found"},
-    {"number": 20315, "title": "DSH bridge fails while loading cordis:include", "age_days": 25, "comments": 6, "assignee": "404-Page-Found"},
-    {"number": 19753, "title": "DeepSeek Harness runtime repeatedly crashes during Agent sessions", "age_days": 36, "comments": 15},
-    {"number": 21085, "title": "File/KB scopes inline large builtin tool schemas — context overflow", "age_days": 9, "comments": 6, "assignee": "404-Page-Found"},
-    {"number": 20365, "title": "Clearing chat context still shows 90K cached prompt tokens", "age_days": 25, "comments": 2},
-    {"number": 19865, "title": "Claude Code Agent exhausts Windows virtual memory", "age_days": 33, "comments": 3, "assignee": "404-Page-Found"},
-    {"number": 19864, "title": "Large local Ollama context allocation ends in opaque 500 and OOM", "age_days": 33, "comments": 2, "assignee": "404-Page-Found"},
-    {"number": 19171, "title": "Model connectivity check hardcodes reasoning_effort: none", "age_days": 44, "comments": 13, "assignee": "DeJeune"},
-    {"number": 19578, "title": "Linux arm64 main window continuously flickers", "age_days": 39, "comments": 1},
-    {"number": 19441, "title": "Video generation feature urgently needed", "age_days": 40, "comments": 6, "assignee": "SiinXu+DeJeune"},
-    {"number": 8730, "title": "cherry studio是否无法接入商汤大模型", "age_days": 431, "comments": 4}
-  ],
-  "unlabeled_p1_watch": [
-    {
-      "number": 21282,
-      "title": "2.1.4 startup fatality on legacy provider order_key — DbService force-exits on invalid row",
-      "created_at": "2026-10-02",
-      "age_days": 3,
-      "alert": "DAY 4 UNLABELED — startup crash regression, needs P1 label + hotfix"
-    }
-  ],
-  "new_issues_today": [
-    {"number": 21347, "title": "[Feature]: Add SkyAccess as built-in MCP server"},
-    {"number": 21345, "title": "[Bug]: Node options-only requests ignore proxy bypass rules for local S3"},
-    {"number": 21343, "title": "[Bug]: Cancelling chat turn leaves context compaction running — delays stream cleanup"},
-    {"number": 21341, "title": "[Bug]: Responses gateway drops assistant output_text when replaying history"},
-    {"number": 21333, "title": "Feature: detect and guide CLI dependency installation required by skills"},
-    {"number": 21332, "title": "[Feature]: Add Crawl4AI as a web search (fetchUrls) provider"},
-    {"number": 21329, "title": "[Feature]: Support message queuing during AI processing (Ctrl+X/Ctrl+S)"},
-    {"number": 21328, "title": "[Feature]: Add StepFun as a web search service"}
-  ],
-  "issue_health_summary": {
-    "Active_le7d": "~130 issues (12%)",
-    "Aging_7_30d": "~275 issues (25%)",
-    "Stale_30_90d": "~425 issues (38%)",
-    "Zombie_gt90d": "~296 issues (26%)"
-  },
-  "v2_pr_stats": {
-    "open_v2": 0,
-    "closed_v2_sampled": 50,
-    "v2_labeled_open_issues": 12,
-    "v2_p1_open": 10,
-    "status": "V2 branch complete — all development targets main"
-  },
-  "volume_trend": {
-    "2026-08-30": 1008,
-    "2026-09-29": 1105,
-    "2026-09-30": 1109,
-    "2026-10-01": 1115,
-    "2026-10-02": 1113,
-    "2026-10-03": 1116,
-    "2026-10-04": 1118,
-    "2026-10-05": 1126,
-    "p1_trend": {
-      "2026-09-30": 104,
-      "2026-10-02": 104,
-      "2026-10-03": 103,
-      "2026-10-04": 102,
-      "2026-10-05": 102
+  "generated_at": "2026-10-07T17:00:00Z",
+  "data_source": "GitHub MCP API",
+  "repository": "CherryHQ/cherry-studio",
+  "issues": {
+    "open_total": 1131,
+    "closed_last_30d": 324,
+    "unlabeled": 203,
+    "unlabeled_pct": 17.9,
+    "p1_open": 102,
+    "p2_open": null,
+    "by_priority": {
+      "p1": 102,
+      "note": "p2/p3 counts require additional query"
+    },
+    "top_labels_sample100": {
+      "bug": 26,
+      "agent": 17,
+      "feature": 13,
+      "p1": 11,
+      "models": 11,
+      "p2": 11,
+      "windows": 8,
+      "mcp": 6,
+      "assistant": 5,
+      "v2": 5
     }
   },
-  "key_alerts": [
-    "ALERT DAY 4: #21282 startup crash regression (2.1.3→2.1.4) still unlabeled and unassigned — P1 label + hotfix needed",
-    "Open issues +8 today (1118→1126) — above daily average of ~2",
-    "P1 count stable at 102",
-    "#21343/#21341 filed today by 'dakjdakd' — suggest ongoing compaction/Responses-API regression sweep",
-    "Agent compaction transcript leak #20692: 13 comments, 18 days old, no fix merged"
-  ]
+  "pull_requests": {
+    "open_total_page1": 100,
+    "draft": 10,
+    "by_base": {
+      "main": 85,
+      "v2": 0,
+      "other_personal_branches": 15
+    },
+    "top_pr_labels": {
+      "needs-review": 6,
+      "ready-to-merge": 4,
+      "review:rerun": 4
+    }
+  },
+  "issue_health_estimate": {
+    "note": "Based on top-100 most-recently-updated open issues",
+    "active_7d": 72,
+    "active_7d_pct": 72.0,
+    "aging_8_30d": 28,
+    "aging_8_30d_pct": 28.0,
+    "stale_31_90d_pct_in_sample": 0,
+    "zombie_gt90d_pct_in_sample": 0,
+    "interpretation": "Recent activity is high; stale/zombie distribution requires full scan"
+  },
+  "p1_urgent_issues": [
+    {"number": 20692, "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message", "updated_at": "2026-10-07T15:48:38Z", "comments": 15, "labels": ["bug","p1","agent"]},
+    {"number": 18765, "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400", "updated_at": "2026-10-07T04:00:42Z", "comments": 5, "labels": ["bug","p1","models","agent"]},
+    {"number": 19441, "title": "[Feature]: Video generation feature urgently needed", "updated_at": "2026-10-05T18:38:13Z", "comments": 7, "labels": ["p1","feature","models"]},
+    {"number": 20315, "title": "[Bug]: DSH bridge fails while loading cordis:include", "updated_at": "2026-10-04T14:15:36Z", "comments": 6, "labels": ["bug","p1","windows","mcp","agent"]},
+    {"number": 21085, "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context", "updated_at": "2026-09-27T21:15:39Z", "comments": 6, "labels": ["bug","p1","rag","assistant","performance","v2","chat"]},
+    {"number": 19865, "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system", "updated_at": "2026-09-28T03:15:14Z", "comments": 3, "labels": ["bug","p1","windows","performance","agent"]},
+    {"number": 19864, "title": "Large local Ollama context allocation ends in an opaque 500 and OOM", "updated_at": "2026-09-28T03:14:29Z", "comments": 2, "labels": ["bug","p1","models","agent"]},
+    {"number": 19753, "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions", "updated_at": "2026-09-29T02:10:41Z", "comments": 15, "labels": ["bug","p1","windows","needs-repro","v2","agent"]},
+    {"number": 19578, "title": "[Bug]: Linux arm64 main window continuously flickers", "updated_at": "2026-09-29T02:22:22Z", "comments": 1, "labels": ["bug","p1","needs-more-info","linux","ui-ux"]},
+    {"number": 20365, "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens", "updated_at": "2026-09-26T18:29:48Z", "comments": 2, "labels": ["bug","p1","windows","models","performance","chat"]},
+    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "updated_at": "2026-09-22T16:32:14Z", "comments": 2, "labels": ["bug","p1","windows","v2","agent"]},
+    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error", "updated_at": "2026-09-22T17:31:00Z", "comments": 4, "labels": ["bug","p1","v2","agent","chat"]},
+    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn", "updated_at": "2026-09-22T16:32:21Z", "comments": 2, "labels": ["bug","p1","models","v2","chat"]}
+  ],
+  "v2_branch": {
+    "open_prs": 0,
+    "note": "No open PRs targeting v2 branch detected; v2 work may be tracked via labels or merged"
+  }
 }
