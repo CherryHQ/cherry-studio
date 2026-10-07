@@ -77,8 +77,14 @@ const FOOTNOTE_DEFINITION_START = /^\s{0,3}\[\^[^\]]+\]:/
  */
 const DEFINITION_CONTAINER = /^(?:(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+)+/
 
-/** A block quote marker. */
-const QUOTE_MARKER = /^[ \t]*>[ \t]?/
+/**
+ * A block quote marker. Each marker of a nesting must sit within three columns of the one it
+ * follows — deeper, the line is the content of a code block rather than a deeper quote.
+ */
+const QUOTE_MARKER = /^ {0,3}>[ \t]?/
+
+/** A line opening a block quote: a marker at three columns or less, at any depth of nesting. */
+const QUOTE_START = /^ {0,3}>/
 
 /** A list item marker, which on a continuation line always opens a list rather than continuing. */
 const LIST_MARKER = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+/
@@ -123,10 +129,11 @@ const INDENTED_LINE = /^\s+\S/
  * A fenced, heading or ruled block that ends an open definition where it appears, so a title that
  * never closes cannot swallow it. The three-column allowance is load-bearing: such a line indented
  * four or more is content of the definition rather than a block of its own, and a tab is four
- * columns, so neither ends it.
+ * columns, so neither ends it. A backtick fence's info string may not hold a backtick, so `` ```x`y ``
+ * opens no fence — the parser reads it as prose.
  */
 const BLOCK_START =
-  /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$|=+[ \t]*$)/
+  /^ {0,3}(?:`{3,}[^`]*$|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$)/
 
 /** CommonMark's type-6 block-level tag names; a tag outside the two sets opens no block. */
 const HTML_BLOCK_TAGS = new Set([
@@ -229,29 +236,57 @@ function opensHtmlBlock(line: string): boolean {
  */
 const INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+/
 
+/** A marker with nothing after it: an empty item, which opens a list only outside paragraphs. */
+const EMPTY_LIST_ITEM = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]*$/
+
 /**
  * A marker that ends a paragraph where it appears: a bullet in any form, an ordered one only
  * numbered `1`. Any other number cannot interrupt a paragraph, so on a definition's open title it
- * is title text rather than the list that would end the definition.
+ * is title text rather than the list that would end the definition — and an empty item cannot
+ * interrupt either, so only a marker with content after it counts.
  */
-const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+/
+const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+\S/
+
+/**
+ * A setext heading underline: `=+` for h1, one or two `-` for h2 (three or more is a thematic
+ * break, which BLOCK_START already holds). Deeper than three columns it is indented code, which
+ * interrupts nothing.
+ */
+const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-{1,2})[ \t]*$/
 
 /**
  * Whether a line opens a block that ends a footnote definition where it appears: a marker at
  * three columns or less closes it, because the footnote holds its continuation lines only at
- * four columns of indent.
+ * four columns of indent. An empty list item closes it too — the footnote's own continuation
+ * check has no interrupt rule, so even an item with no content opens a list — but a setext
+ * underline does not: it cannot pair with a paragraph held by another container, so it stays
+ * footnote prose.
  */
 function startsBlock(line: string): boolean {
-  return INTERRUPTING_LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
+  return (
+    QUOTE_START.test(line) ||
+    INTERRUPTING_LIST_MARKER.test(line) ||
+    EMPTY_LIST_ITEM.test(line) ||
+    BLOCK_START.test(line) ||
+    opensHtmlBlock(line)
+  )
 }
 
 /**
  * Whether a line opens a block that ends a paragraph where it appears. A definition's open title
  * reads the lines below it the way a paragraph does, so the interrupt rule for its markers is the
- * parser's: only `1.` or `1)` takes the line, and a marker deeper than three columns is code.
+ * parser's: only `1.` or `1)` takes the line, and a marker deeper than three columns is code. A
+ * quote marker and a setext underline end the paragraph as well — the title sits in the document,
+ * so both pair with it.
  */
 function interruptsParagraph(line: string): boolean {
-  return PARAGRAPH_INTERRUPTING_LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
+  return (
+    QUOTE_START.test(line) ||
+    PARAGRAPH_INTERRUPTING_LIST_MARKER.test(line) ||
+    SETEXT_UNDERLINE.test(line) ||
+    BLOCK_START.test(line) ||
+    opensHtmlBlock(line)
+  )
 }
 
 /**

@@ -813,6 +813,107 @@ describe('splitMarkdownChunks', () => {
       expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
     }
   })
+
+  it('carries a definition across an empty list item that cannot interrupt it', () => {
+    // An empty item cannot interrupt a paragraph, so a bare marker line stays title text and the
+    // title runs on to its closing quote. Reading the marker alone as an interrupt truncated the
+    // definition to the line before it and left every later chunk without it.
+    const forms = ['1. ', '1.  \t', '*  ']
+    for (const form of forms) {
+      const content = ["[spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a label line a setext underline breaks', () => {
+    // One or two `-` under the title line is an h2 underline and `=` an h1 one — the paragraph the
+    // open title belongs to turns into a heading, so the definition fails and the label line
+    // never becomes a carried definition. Reading the underline as title text spanned the
+    // definition across lines the parser had already given to the heading.
+    const forms = ['-', '--', '- ', '==']
+    for (const form of forms) {
+      const content = ["[spec]: /url 'the long", form, 'tail of title', '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('does not repeat a block a quote marker closes the footnote definition at', () => {
+    // A quote marker at three columns or less ends the footnote and opens a block quote of its
+    // own. Reading it as footnote content printed the quote once per chunk.
+    const content = ['[^n]: note', '  > quoted', '', 'tail', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('> quoted'))).toHaveLength(1)
+  })
+
+  it('does not carry a label line a quote marker breaks', () => {
+    // A block quote interrupts a paragraph, so the open title ends at the marker and the
+    // definition fails. Reading the marker as title text would span the definition across a line
+    // the parser had already opened a quote on.
+    const content = ["[spec]: /url 'the long", '> quoted tail', '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it('carries a definition across an indented quote line that stays title text', () => {
+    // A quote marker needs three columns or less of indent — at four the line is indented code,
+    // which interrupts nothing, so the title runs on to its closing quote. Stripping any leading
+    // run of spaces before the marker read the line as a quote and dropped the definition.
+    const content = ["[spec]: /url 'the long", '    > quoted tail', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('carries a definition across a fence-shaped line whose info holds a backtick', () => {
+    // A backtick fence's info string may not hold a backtick, so ```x`y opens no fence — the
+    // parser reads it as prose and the title runs on to its closing quote. Matching the opening
+    // run alone truncated the definition to the line before it.
+    const content = ["[spec]: /url 'the long", '```x`y marks', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('carries footnote prose an indented setext underline stays inside the footnote as', () => {
+    // An underline cannot pair with a paragraph held by another container, so `==` under the
+    // footnote line stays footnote prose. Reading it as a block of its own dropped the line —
+    // and every line the footnote still held — from all later chunks.
+    const content = ['[^n]: note', ' ==', '', 'tail', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes(' =='))).toHaveLength(chunks.length)
+  })
+
+  it('does not carry footnote content an indented empty item closes the footnote at', () => {
+    // The footnote's own continuation check has no interrupt rule, so even a marker with nothing
+    // after it opens a list and closes the footnote. Reading it as footnote prose carried the
+    // line into every chunk.
+    const forms = [' 1.', ' -']
+    for (const form of forms) {
+      const content = ['[^n]: note', form, '', 'tail', '', 'see [^n]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes(form))).toHaveLength(1)
+    }
+  })
 })
 
 describe('the window a split reports', () => {
