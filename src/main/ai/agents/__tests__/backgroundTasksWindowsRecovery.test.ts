@@ -84,7 +84,9 @@ describe('a Windows task whose record write fails', () => {
     }
 
     expect(record.status).toBe('completed')
-    expect(onExit).toHaveBeenCalledTimes(1)
+    // `finalize` writes the completed record, then the sentinel, and only then notifies — the
+    // poll above can observe the record between those writes, so the notification needs its own wait.
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
     expect(failure.message).toContain('already finished')
     expect(failure.message).not.toMatch(/is still running/)
   })

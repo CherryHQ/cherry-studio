@@ -176,7 +176,9 @@ describe('a task whose record write fails', () => {
     }
     expect(settled.status).toBe('completed')
     expect(settled.exitCode).toBe(0)
-    expect(onExit).toHaveBeenCalledTimes(1)
+    // `finalize` writes the completed record, then the sentinel, and only then notifies — the
+    // poll above can observe the record between those writes, so the notification needs its own wait.
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
     expect(onExit.mock.calls[0][0].summary).toContain(record.id)
   })
 
