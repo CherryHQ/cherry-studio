@@ -213,10 +213,12 @@ export async function startDetachedBackgroundTask(
               process.kill(-record.pid, 'SIGKILL')
             } catch (killError) {
               // macOS answers EPERM for a process group holding only exited-but-unreaped
-              // children — for a group this process spawned, that is proof the group has
-              // nothing left to signal, not proof the kill failed. Anything still alive in it
-              // (same user) would take the signal and the kill would succeed.
-              if ((killError as NodeJS.ErrnoException).code !== 'EPERM') throw killError
+              // children — proof the group has nothing left to signal — but also when every
+              // live member fails the credential check (a setuid `sudo` the task exec'd), so
+              // the errno alone cannot tell an exit from a refusal: no live member can.
+              if ((killError as NodeJS.ErrnoException).code !== 'EPERM' || groupHasLiveMember(record.pid)) {
+                throw killError
+              }
             }
           }
           cleaned = true
@@ -369,6 +371,23 @@ function getPidStartTime(pid: number): string | undefined {
     )
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Whether the process group still holds a member the OS schedules. A group kill answers EPERM
+ * both when every member has exited unreaped and when every live member fails the credential
+ * check (a setuid `sudo` the task exec'd), so the exit is only proven once nothing is alive.
+ */
+function groupHasLiveMember(pgid: number): boolean {
+  try {
+    const table = execFileSync('ps', ['-axo', 'pgid=,state='], { encoding: 'utf8', timeout: 5_000 })
+    return table.split('\n').some((row) => {
+      const [group, state] = row.trim().split(/\s+/)
+      return Number(group) === pgid && state !== undefined && !state.startsWith('Z')
+    })
+  } catch {
+    return true // an unreadable table must not be read as the task having exited
   }
 }
 
