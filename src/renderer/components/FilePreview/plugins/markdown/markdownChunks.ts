@@ -101,8 +101,8 @@ function quoteDepth(container: string): number {
  * already outside it keeps the line inside the quote whatever column it sits in.
  */
 function listContentColumn(container: string): number {
-  if (!LIST_MARKER.test(container)) return -1
-  return container.match(/[ \t]+/)?.[0].length ?? -1
+  const segment = LIST_MARKER.exec(container)
+  return segment ? segment[0].length : -1
 }
 
 /**
@@ -289,6 +289,46 @@ function interruptsParagraph(line: string): boolean {
   )
 }
 
+/** A tag the tokenizer reads as one, in any form — including type 7, which cannot interrupt. */
+const TAG_START = /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|$)/
+
+/**
+ * Whether a line opens a block that ends a paragraph it continues lazily — one that fell short of
+ * the container holding the paragraph, so the parser checks none of its interrupt rules: any list
+ * marker, an empty item and any ordered number included, and any tag open a block there. A setext
+ * underline is the one construct barred from a lazy line outright, so it stays paragraph text.
+ */
+function endsLazyParagraph(line: string): boolean {
+  return startsBlock(line) || TAG_START.test(line)
+}
+
+/** The columns a line is indented by — a tab advances to the next multiple of four. */
+function leadingColumns(line: string): number {
+  let columns = 0
+  for (const character of line) {
+    if (character === ' ') columns += 1
+    else if (character === '\t') columns += 4 - (columns % 4)
+    else return columns
+  }
+  return columns
+}
+
+/**
+ * The line with `columns` of leading whitespace removed — the offset a list item's continuation
+ * measures its blocks from, so `    --` inside an item whose content starts at column two is a
+ * setext underline. A tab that spans past the boundary leaves the columns it overshoots as spaces,
+ * so what remains keeps the column it had.
+ */
+function afterColumns(columns: number, line: string): string {
+  let seen = 0
+  let index = 0
+  while (index < line.length && (line[index] === ' ' || line[index] === '\t') && seen < columns) {
+    seen = line[index] === ' ' ? seen + 1 : seen + (4 - (seen % 4))
+    index += 1
+  }
+  return ' '.repeat(Math.max(0, seen - columns)) + line.slice(index)
+}
+
 /**
  * The indent a line needs to continue a definition across a blank one. The parser requires four
  * columns there, so a shallower indented line after a blank is a paragraph of its own — and
@@ -296,15 +336,7 @@ function interruptsParagraph(line: string): boolean {
  */
 function continuesDefinitionAfterBlank(line: string | undefined): boolean {
   if (line === undefined || !INDENTED_LINE.test(line)) return false
-  // A tab advances to the next multiple of four, so the columns a line is indented by are not the
-  // characters it is indented with.
-  let columns = 0
-  for (const character of line) {
-    if (character === ' ') columns += 1
-    else if (character === '\t') columns += 4 - (columns % 4)
-    else return columns >= 4
-  }
-  return false
+  return leadingColumns(line) >= 4
 }
 
 /**
@@ -319,13 +351,16 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   const start = DEFINITION_CONTAINER.exec(lines[index])
   const quotes = start ? quoteDepth(start[0]) : 0
   const contentColumn = start ? listContentColumn(start[0]) : -1
+  // The column the definition itself starts at, behind the list markers alone — the base its
+  // continuation lines are measured from once the item, not a quote, holds them.
+  const labelColumn = start !== null && quotes === 0 ? start[0].length : -1
   const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
   if (!label) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
   let tail = label[3]
   let span = 1
   if (!LINK_DESTINATION.test(tail)) {
-    const next = continuation(lines[index + 1], quotes, contentColumn)
+    const next = continuation(lines[index + 1], quotes, contentColumn, labelColumn)
     if (next === undefined) return null
     tail = next
     body.push(next)
@@ -338,7 +373,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // any title that never closes, is a paragraph rather than a definition.
   let title: string | undefined = /^[ \t]*$/.test(tail) ? undefined : tail
   if (title === undefined) {
-    const below = continuation(lines[index + span], quotes, contentColumn)
+    const below = continuation(lines[index + span], quotes, contentColumn, labelColumn)
     if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
       title = below
       body.push(below)
@@ -348,7 +383,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     return null
   }
   while (title !== undefined && !LINK_TITLE.test(title)) {
-    const next = continuation(lines[index + span], quotes, contentColumn)
+    const next = continuation(lines[index + span], quotes, contentColumn, labelColumn)
     if (next === undefined) return null
     body.push(next)
     span += 1
@@ -368,7 +403,12 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
  * ends the definition. The indentation that follows a marker is what tells the parser the line
  * continues this definition rather than starting a new block, so it is left in place.
  */
-function continuation(line: string | undefined, quotes: number, contentColumn: number): string | undefined {
+function continuation(
+  line: string | undefined,
+  quotes: number,
+  contentColumn: number,
+  labelColumn: number
+): string | undefined {
   if (line === undefined) return undefined
   let content = line
   let seen = 0
@@ -379,7 +419,19 @@ function continuation(line: string | undefined, quotes: number, contentColumn: n
     content = content.slice(quote[0].length)
     seen += 1
   }
-  if (seen > quotes || interruptsParagraph(content)) return undefined
+  if (seen > quotes) return undefined
+  // A line that falls short of the container — a quote marker it does not reproduce, or an indent
+  // that does not reach the column the definition itself starts at — continues it only as a lazy
+  // paragraph line, which the parser guards with none of its interrupt rules.
+  const lazy = seen < quotes || (labelColumn > 0 && leadingColumns(content) < labelColumn)
+  if (lazy) {
+    if (endsLazyParagraph(content)) return undefined
+  } else {
+    // Inside the item, the parser measures the line's blocks from the column the definition starts
+    // at, so the indent in front of them belongs to the definition rather than turning them into
+    // code.
+    if (interruptsParagraph(labelColumn > 0 ? afterColumns(labelColumn, content) : content)) return undefined
+  }
   return /\S/.test(content) ? content : undefined
 }
 
