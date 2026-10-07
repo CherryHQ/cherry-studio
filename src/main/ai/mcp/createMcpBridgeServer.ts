@@ -85,7 +85,7 @@ export function createMcpBridgeServer(
     throw new Error(`MCP server not found: ${mcpId}`)
   }
 
-  const rawServer = new Server(
+  const server = new Server(
     { name: serverConfig.name, version: '0.1.0' },
     // `listChanged` is load-bearing twice over: the SDK client only attaches its re-list
     // handler for servers that declared it, and the local `sendToolListChanged` below
@@ -115,23 +115,23 @@ export function createMcpBridgeServer(
     string,
     { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation }
   >()
-  rawServer.oninitialized = () => {
+  server.oninitialized = () => {
     // Nothing to relay through on a transport that declared no `listChanged`; subscribing
     // anyway would only build notifications the client never asked for and cannot receive.
     if (!listChanged) return
     resourceSubscription ??= application.get('McpRuntimeService').onResourceUpdated(({ serverId, uri }) => {
       if (serverId === serverConfig.id && observations.has(uri)) {
-        void rawServer.sendResourceUpdated({ uri }).catch(() => undefined)
+        void server.sendResourceUpdated({ uri }).catch(() => undefined)
       }
     })
     catalogSubscription ??= application.get('McpRuntimeService').onCatalogChanged(({ serverId, kind }) => {
       if (serverId !== serverConfig.id) return
-      const notification = kind === 'prompts' ? rawServer.sendPromptListChanged() : rawServer.sendResourceListChanged()
+      const notification = kind === 'prompts' ? server.sendPromptListChanged() : server.sendResourceListChanged()
       void notification.catch((error) => logger.debug('MCP bridge catalog notification failed', { mcpId, error }))
     })
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
-      rawServer.sendToolListChanged().catch((error) => {
+      server.sendToolListChanged().catch((error) => {
         // "Not connected" is the expected race between an emitter dispatch and transport
         // teardown — the session is going away, nothing to heal. Anything else means a live
         // session missed an invalidation (it re-syncs only if the cache changes again), so
@@ -144,7 +144,7 @@ export function createMcpBridgeServer(
       })
     })
   }
-  rawServer.onclose = () => {
+  server.onclose = () => {
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
     catalogSubscription?.dispose()
@@ -159,7 +159,7 @@ export function createMcpBridgeServer(
   }
 
   if (listChanged) {
-    rawServer.setRequestHandler('resources/subscribe', async ({ params }, ctx) => {
+    server.setRequestHandler('resources/subscribe', async ({ params }, ctx) => {
       const existing = observations.get(params.uri)
       if (existing) {
         await existing.ready
@@ -212,7 +212,7 @@ export function createMcpBridgeServer(
       await entry.ready
       return {}
     })
-    rawServer.setRequestHandler('resources/unsubscribe', async ({ params }) => {
+    server.setRequestHandler('resources/unsubscribe', async ({ params }) => {
       const entry = observations.get(params.uri)
       observations.delete(params.uri)
       entry?.abort.abort()
@@ -231,13 +231,13 @@ export function createMcpBridgeServer(
     }
   }
 
-  rawServer.setRequestHandler('tools/list', () =>
+  server.setRequestHandler('tools/list', () =>
     logged('listing tools', {}, async () => ({
       tools: application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false }).map(toSdkTool)
     }))
   )
 
-  rawServer.setRequestHandler('tools/call', async (request, ctx) => {
+  server.setRequestHandler('tools/call', async (request, ctx) => {
     const { signal } = ctx.mcpReq
     // Relay upstream progress only when the client asked for it — the protocol keys
     // progress notifications to the token it supplied, so without one there is nothing
@@ -281,13 +281,13 @@ export function createMcpBridgeServer(
     }
   })
 
-  rawServer.setRequestHandler('resources/list', () =>
+  server.setRequestHandler('resources/list', () =>
     logged('listing resources', {}, async () => ({
       resources: (await application.get('McpCatalogService').listResources(serverConfig.id)).map(stripCatalogFields)
     }))
   )
 
-  rawServer.setRequestHandler('resources/templates/list', () =>
+  server.setRequestHandler('resources/templates/list', () =>
     logged('listing resource templates', {}, async () => ({
       resourceTemplates: (await application.get('McpCatalogService').listResourceTemplates(serverConfig.id)).map(
         stripCatalogFields
@@ -295,7 +295,7 @@ export function createMcpBridgeServer(
     }))
   )
 
-  rawServer.setRequestHandler('resources/read', (request, ctx) => {
+  server.setRequestHandler('resources/read', (request, ctx) => {
     const { uri } = request.params
     return logged('reading resource', { uri }, async () => {
       const { contents } = await application
@@ -305,13 +305,13 @@ export function createMcpBridgeServer(
     })
   })
 
-  rawServer.setRequestHandler('prompts/list', () =>
+  server.setRequestHandler('prompts/list', () =>
     logged('listing prompts', {}, async () => ({
       prompts: (await application.get('McpCatalogService').listPrompts(serverConfig.id)).map(stripCatalogFields)
     }))
   )
 
-  rawServer.setRequestHandler('prompts/get', (request, ctx) => {
+  server.setRequestHandler('prompts/get', (request, ctx) => {
     const { name, arguments: args } = request.params
     return logged('getting prompt', { prompt: name }, () =>
       application.get('McpRuntimeService').getPrompt({
@@ -325,5 +325,5 @@ export function createMcpBridgeServer(
   })
 
   logger.info(`Created SDK MCP bridge for "${serverConfig.name}"`)
-  return rawServer
+  return server
 }
