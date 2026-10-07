@@ -216,6 +216,9 @@ function opensHtmlBlock(line: string): boolean {
   if (!tag) return false
   const name = tag[2].toLowerCase()
   if (HTML_RAW_TAGS.has(name)) return tag[1] === '' && tag[3] !== '/'
+  // A slash ends the name only once its `>` follows, so `<div/ >` is prose the same way — the
+  // parser takes a type-6 name as closed just by the complete `/>`.
+  if (tag[3] === '/' && line[tag[0].length] !== '>') return false
   return HTML_BLOCK_TAGS.has(name)
 }
 
@@ -227,12 +230,28 @@ function opensHtmlBlock(line: string): boolean {
 const INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+/
 
 /**
- * Whether a line opens a block where it appears. Both callers ask the same question — one ends a
- * run that would otherwise swallow the line, the other decides the line is not the block's own
- * content — so the answer must not differ between them.
+ * A marker that ends a paragraph where it appears: a bullet in any form, an ordered one only
+ * numbered `1`. Any other number cannot interrupt a paragraph, so on a definition's open title it
+ * is title text rather than the list that would end the definition.
+ */
+const PARAGRAPH_INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|1[.)])[ \t]+/
+
+/**
+ * Whether a line opens a block that ends a footnote definition where it appears: a marker at
+ * three columns or less closes it, because the footnote holds its continuation lines only at
+ * four columns of indent.
  */
 function startsBlock(line: string): boolean {
   return INTERRUPTING_LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
+}
+
+/**
+ * Whether a line opens a block that ends a paragraph where it appears. A definition's open title
+ * reads the lines below it the way a paragraph does, so the interrupt rule for its markers is the
+ * parser's: only `1.` or `1)` takes the line, and a marker deeper than three columns is code.
+ */
+function interruptsParagraph(line: string): boolean {
+  return PARAGRAPH_INTERRUPTING_LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
 }
 
 /**
@@ -325,7 +344,7 @@ function continuation(line: string | undefined, quotes: number, contentColumn: n
     content = content.slice(quote[0].length)
     seen += 1
   }
-  if (seen > quotes || startsBlock(content)) return undefined
+  if (seen > quotes || interruptsParagraph(content)) return undefined
   return /\S/.test(content) ? content : undefined
 }
 
