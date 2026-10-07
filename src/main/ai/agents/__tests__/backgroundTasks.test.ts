@@ -35,8 +35,9 @@ describe('backgroundTasks', () => {
 
   afterEach(async () => {
     // A force-killed detached child releases its log fd and cwd handle a beat after taskkill
-    // returns — Windows can take over a second on a loaded runner, which surfaces as EBUSY.
-    const deadline = Date.now() + 5_000
+    // returns — the kernel reaps them asynchronously, and a loaded Windows runner was observed
+    // holding the directory well past five seconds (EBUSY exhausting the retry window whole).
+    const deadline = Date.now() + 15_000
     for (;;) {
       try {
         await rm(storageDir, { recursive: true, force: true })
