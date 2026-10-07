@@ -4,9 +4,11 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { requireToolInputSchema } from '../../schema'
+import { isTextByContent } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
 import type { GrepMatch } from '../types'
-import { isBinaryFile, logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
+import { logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
 
 // Schema definition
 export const GrepToolSchema = z.object({
@@ -20,7 +22,6 @@ export const GrepToolSchema = z.object({
 
 // Tool definition with detailed description
 export const grepToolDefinition = {
-  name: 'grep',
   description: `Fast content search tool that works with any codebase size.
 
 - Searches file contents using regular expressions
@@ -32,7 +33,7 @@ export const grepToolDefinition = {
 - Common directories (node_modules, .git, dist) are excluded
 - The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
-  inputSchema: requireToolInputSchema(z.toJSONSchema(GrepToolSchema))
+  inputSchema: GrepToolSchema
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -77,14 +78,7 @@ function parseRipgrepMatch(line: string): GrepMatch | null {
 }
 
 // Handler implementation
-export async function handleGrepTool(args: unknown, baseDir: string): Promise<CallToolResult> {
-  const parsed = GrepToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for grep: ${parsed.error}`)
-  }
-
-  const data = parsed.data
-
+export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseDir: string): Promise<CallToolResult> {
   if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
@@ -134,7 +128,7 @@ export async function handleGrepTool(args: unknown, baseDir: string): Promise<Ca
 
     try {
       // Skip binary files
-      if (await isBinaryFile(filePath)) {
+      if (!(await isTextByContent(AbsoluteFilePathSchema.parse(filePath)))) {
         return
       }
 
@@ -263,7 +257,7 @@ export async function handleGrepTool(args: unknown, baseDir: string): Promise<Ca
           // explicitly on the command line is searched up to its first NUL byte.
           let binary = binaryFileCache.get(absoluteFilePath)
           if (binary === undefined) {
-            binary = await isBinaryFile(absoluteFilePath)
+            binary = !(await isTextByContent(AbsoluteFilePathSchema.parse(absoluteFilePath)))
             binaryFileCache.set(absoluteFilePath, binary)
           }
           if (binary) {

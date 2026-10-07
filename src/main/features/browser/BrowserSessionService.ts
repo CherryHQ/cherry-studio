@@ -1,4 +1,5 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Transport } from '@modelcontextprotocol/server'
+import type { StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { application } from '@application'
@@ -132,36 +133,35 @@ export class BrowserSessionService extends BaseService {
     )
   }
 
-  async createMcpServer() {
-    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
-      throw new BrowserSessionError('debugger_unavailable')
-    const server = new BrowserServer(this, () => this.servers.delete(server))
-    this.servers.add(server)
-    return server.server
-  }
-
   async createMcpEndpoint() {
-    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
-      throw new BrowserSessionError('debugger_unavailable')
+    this.assertServing()
     const server = new BrowserServer(this, () => this.servers.delete(server))
     this.servers.add(server)
     return { createServer: () => server.createServer(), close: () => server.close() }
   }
 
-  createAgentMcpServer(context: AgentBrowserContext) {
+  /** Serves the visible Agent pane per connection; each connection owns its controller. */
+  createAgentMcpServer(context: AgentBrowserContext): (transport: Transport) => Promise<StdioServerHandle> {
+    this.assertServing()
+    return async (transport) => {
+      this.assertServing()
+      const server = new BrowserServer(
+        this,
+        () => {
+          this.servers.delete(server)
+          this.agentServers.delete(server)
+        },
+        new AgentBrowserController(this, this.agentBrowser, context)
+      )
+      this.servers.add(server)
+      this.agentServers.add(server)
+      return server.serve(transport)
+    }
+  }
+
+  private assertServing(): void {
     if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
       throw new BrowserSessionError('debugger_unavailable')
-    const server = new BrowserServer(
-      this,
-      () => {
-        this.servers.delete(server)
-        this.agentServers.delete(server)
-      },
-      new AgentBrowserController(this, this.agentBrowser, context)
-    )
-    this.servers.add(server)
-    this.agentServers.add(server)
-    return server.server
   }
 
   async callTopicTool(

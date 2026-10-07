@@ -1,11 +1,9 @@
-import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
+import { type CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { net } from 'electron'
 import * as z from 'zod'
 
 // inspired by https://dify.ai/blog/turn-your-dify-app-into-an-mcp-server
 import { loggerService } from '@logger'
-
-import { requireToolInputSchema } from './schema'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
@@ -47,13 +45,8 @@ const SearchKnowledgeArgsSchema = z.object({
   topK: z.number().optional().describe('Number of top results to return')
 })
 
-type McpResponse = {
-  content: Array<{ type: 'text'; text: string }>
-  isError?: boolean
-}
-
 class DifyKnowledgeServer {
-  public server: Server
+  public server: McpServer
   private config: DifyKnowledgeServerConfig
 
   constructor(difyKey: string, args: string[]) {
@@ -64,77 +57,27 @@ class DifyKnowledgeServer {
       difyKey: difyKey,
       apiHost: args[0]
     }
-    this.server = new Server(
-      {
-        name: '@cherry/dify-knowledge-server',
-        version: '0.1.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
+    this.server = new McpServer({
+      name: '@cherry/dify-knowledge-server',
+      version: '0.1.0'
+    })
     this.initialize()
   }
 
   initialize() {
-    this.server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
-      return {
-        tools: [
-          {
-            name: 'list_knowledges',
-            description: 'List all knowledges',
-            inputSchema: {
-              type: 'object',
-              properties: {},
-              required: []
-            }
-          },
-          {
-            name: 'search_knowledge',
-            description: 'Search knowledge by id and query',
-            inputSchema: requireToolInputSchema(z.toJSONSchema(SearchKnowledgeArgsSchema))
-          }
-        ]
-      }
-    })
+    this.server.registerTool('list_knowledges', { description: 'List all knowledges' }, () =>
+      this.performListKnowledges(this.config.difyKey, this.config.apiHost)
+    )
 
-    this.server.setRequestHandler('tools/call', async (request) => {
-      try {
-        const { name, arguments: args } = request.params
-        switch (name) {
-          case 'list_knowledges': {
-            return await this.performListKnowledges(this.config.difyKey, this.config.apiHost)
-          }
-          case 'search_knowledge': {
-            const parsed = SearchKnowledgeArgsSchema.safeParse(args)
-            if (!parsed.success) {
-              const errorDetails = JSON.stringify(parsed.error.format(), null, 2)
-              throw new Error(`Invalid arguments:\n${errorDetails}`)
-            }
-            return await this.performSearchKnowledge(
-              parsed.data.id,
-              parsed.data.query,
-              parsed.data.topK ?? 6,
-              this.config.difyKey,
-              this.config.apiHost
-            )
-          }
-          default:
-            throw new Error(`Unknown tool: ${name}`)
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        return {
-          content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-          isError: true
-        }
-      }
-    })
+    this.server.registerTool(
+      'search_knowledge',
+      { description: 'Search knowledge by id and query', inputSchema: SearchKnowledgeArgsSchema },
+      ({ id, query, topK }) =>
+        this.performSearchKnowledge(id, query, topK ?? 6, this.config.difyKey, this.config.apiHost)
+    )
   }
 
-  private async performListKnowledges(difyKey: string, apiHost: string): Promise<McpResponse> {
+  private async performListKnowledges(difyKey: string, apiHost: string): Promise<CallToolResult> {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets`
       const response = await net.fetch(url, {
@@ -170,12 +113,7 @@ class DifyKnowledgeServer {
       }
     } catch (error) {
       logger.error('Error fetching knowledge list:', error as Error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      // 返回包含错误信息的 MCP 响应
-      return {
-        content: [{ type: 'text', text: `Accessing Knowledge Error: ${errorMessage}` }],
-        isError: true
-      }
+      throw error
     }
   }
 
@@ -185,7 +123,7 @@ class DifyKnowledgeServer {
     topK: number,
     difyKey: string,
     apiHost: string
-  ): Promise<McpResponse> {
+  ): Promise<CallToolResult> {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets/${id}/retrieve`
 
@@ -250,11 +188,7 @@ class DifyKnowledgeServer {
       }
     } catch (error) {
       logger.error('Error searching knowledge:', error as Error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      return {
-        content: [{ type: 'text', text: `Search Knowledge Error: ${errorMessage}` }],
-        isError: true
-      }
+      throw error
     }
   }
 }

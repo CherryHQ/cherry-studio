@@ -1,7 +1,5 @@
 import { pathToFileURL } from 'node:url'
 
-import type { McpServer as LegacyMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -10,11 +8,11 @@ import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
-import AssistantMcpServer from '@main/ai/mcp/servers/assistant'
-import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
-import CherryBuiltinMcpServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
-import SkillsMcpServer from '@main/ai/mcp/servers/skills'
+import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
+import { createAssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
+import { createCherryToolsServer } from '@main/ai/mcp/servers/cherryBuiltinTools'
+import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
+import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
@@ -41,11 +39,6 @@ export interface AgentNotificationContext {
   sourceChannel: NotifyChannel | null
   channels: readonly NotifyChannel[]
   allowAnyOwnedChannel: boolean
-}
-
-// TODO(mcp-v2): remove once every agent server is a v2 McpServer.
-function serveLegacyAgentMcpServer(instance: LegacyMcpServer): AgentMcpServer['connect'] {
-  return (transport) => instance.connect(transport)
 }
 
 /** Build the complete MCP server set exposed by an agent session, independent of runtime transport. */
@@ -83,8 +76,12 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      const bridge = createMcpBridgeServer(mcpId, serverSnapshot, { interactionContext })
-      servers[mcpId] = { id: legacyServer?.id, name: mcpId, connect: serveLegacyAgentMcpServer(bridge) }
+      if (!legacyServer) throw new Error(`MCP server not found: ${mcpId}`)
+      servers[mcpId] = {
+        id: legacyServer.id,
+        name: mcpId,
+        connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
+      }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
@@ -93,17 +90,17 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.BROWSER)) {
     servers.browser = {
       name: CHERRY_MCP_SERVER.BROWSER,
-      connect: serveLegacyAgentMcpServer(
-        application.get('BrowserSessionService').createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
-      )
+      connect: application
+        .get('BrowserSessionService')
+        .createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
     }
   }
 
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
-    connect: serveLegacyAgentMcpServer(
-      new CherryBuiltinMcpServer({
+    connect: serveAgentMcpServer(() =>
+      createCherryToolsServer({
         agentId: agent.id,
         agentDataPath,
         sessionId: session.id,
@@ -111,12 +108,14 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
-        canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
-        getKnowledgeBaseIds: () => {
+        getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
-          return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
+          return {
+            allKnowledgeBases: resolveAgentCapabilities(liveAgent).allKnowledgeBases,
+            baseIds: liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
+          }
         }
-      }).mcpServer
+      })
     )
   }
   servers['agent-memory'] = {
@@ -126,30 +125,27 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {
       name: CHERRY_MCP_SERVER.SKILLS,
-      connect: serveLegacyAgentMcpServer(new SkillsMcpServer(agent.id).mcpServer)
+      connect: serveAgentMcpServer(() => createSkillsServer(agent.id))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {
       name: CHERRY_MCP_SERVER.MCP_MANAGER,
-      connect: serveLegacyAgentMcpServer(new McpManagerServer(agent.id).mcpServer)
+      connect: serveAgentMcpServer(() => createMcpManagerServer(agent.id))
     }
   }
 
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      connect: serveLegacyAgentMcpServer(new AssistantMcpServer(agent.model ?? undefined, hostTools?.tools).mcpServer)
+      connect: serveAgentMcpServer(() => createAssistantServer(agent.model ?? undefined, hostTools?.tools))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
-      connect: serveLegacyAgentMcpServer(
-        new AssistantFileToolsServer({
-          sessionId: session.id,
-          workspacePath: session.workspace.path
-        }).mcpServer
+      connect: serveAgentMcpServer(() =>
+        createAssistantFileToolsServer({ sessionId: session.id, workspacePath: session.workspace.path })
       )
     }
   }

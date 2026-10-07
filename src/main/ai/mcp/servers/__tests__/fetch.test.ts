@@ -1,50 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fetchMock = vi.hoisted(() => vi.fn())
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
-
-vi.mock('electron', () => ({
-  net: {
-    fetch: fetchMock
-  }
-}))
 
 vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
 }))
 
-import { Fetcher } from '../fetch'
+import FetchServer from '../fetch'
+import { callBuiltinTool, toolText } from './builtinMcpClient'
 
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-describe('Fetcher', () => {
+const callFetchTool = (name: string, args: Record<string, unknown>) =>
+  callBuiltinTool(() => new FetchServer().createServer(), name, args)
+
+describe('fetch MCP server', () => {
   beforeEach(() => {
-    fetchMock.mockReset()
     fetchRemoteTextMock.mockReset()
   })
 
-  it('fetches HTML through the strict remote target helper', async () => {
+  it('fetches HTML through the strict remote target helper with a default User-Agent', async () => {
     fetchRemoteTextMock.mockResolvedValue('<html><body><h1>Hello</h1></body></html>')
 
-    const result = await Fetcher.html({
+    const result = await callFetchTool('fetch_html', {
       url: 'https://example.com/page',
-      headers: {
-        'X-Test': 'yes'
-      }
+      headers: { 'X-Test': 'yes' }
     })
 
-    expect(result).toEqual({
-      content: [{ type: 'text', text: '<html><body><h1>Hello</h1></body></html>' }],
-      isError: false
-    })
-    expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
-    expect(fetchRemoteTextMock.mock.calls[0]?.[0]).toBe('https://example.com/page')
-
-    const options = fetchRemoteTextMock.mock.calls[0]?.[1] as { headers: Headers }
+    expect(result.isError).toBeFalsy()
+    expect(toolText(result)).toBe('<html><body><h1>Hello</h1></body></html>')
+    const [url, options] = fetchRemoteTextMock.mock.calls[0] as [string, { headers: Headers }]
+    expect(url).toBe('https://example.com/page')
     expect(options.headers.get('User-Agent')).toBe(DEFAULT_USER_AGENT)
     expect(options.headers.get('X-Test')).toBe('yes')
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('follows a redirect instead of failing the tool call', async () => {
@@ -54,18 +43,36 @@ describe('Fetcher', () => {
       return '<h1>Skill</h1>'
     })
 
-    await expect(Fetcher.html({ url: 'https://officecli.ai/SKILL.md' })).resolves.toEqual({
-      content: [{ type: 'text', text: '<h1>Skill</h1>' }],
-      isError: false
-    })
+    const result = await callFetchTool('fetch_html', { url: 'https://officecli.ai/SKILL.md' })
+
+    expect(result.isError).toBeFalsy()
+    expect(toolText(result)).toBe('<h1>Skill</h1>')
   })
 
-  it('parses JSON from strict remote target text', async () => {
-    fetchRemoteTextMock.mockResolvedValue('{"ok":true}')
+  it('returns compact JSON, markdown and plain text renderings', async () => {
+    fetchRemoteTextMock.mockResolvedValueOnce('{ "ok": true }')
+    expect(toolText(await callFetchTool('fetch_json', { url: 'https://example.com/data.json' }))).toBe('{"ok":true}')
 
-    await expect(Fetcher.json({ url: 'https://example.com/data.json' })).resolves.toEqual({
-      content: [{ type: 'text', text: '{"ok":true}' }],
-      isError: false
-    })
+    const html =
+      '<html><head><style>p{}</style></head><body><h1>Title</h1><script>x()</script><p>Body  text</p></body></html>'
+    fetchRemoteTextMock.mockResolvedValueOnce(html)
+    expect(toolText(await callFetchTool('fetch_markdown', { url: 'https://example.com' }))).toContain('Title\n=====')
+
+    fetchRemoteTextMock.mockResolvedValueOnce(html)
+    expect(toolText(await callFetchTool('fetch_txt', { url: 'https://example.com' }))).toBe('TitleBody text')
+  })
+
+  it('reports fetch failures, unparsable JSON and invalid URLs as tool errors', async () => {
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 500'))
+    const failed = await callFetchTool('fetch_html', { url: 'https://example.com' })
+    expect(failed.isError).toBe(true)
+    expect(toolText(failed)).toContain('HTTP error: 500')
+
+    fetchRemoteTextMock.mockResolvedValueOnce('not json')
+    expect((await callFetchTool('fetch_json', { url: 'https://example.com' })).isError).toBe(true)
+
+    const invalid = await callFetchTool('fetch_html', { url: 'not a url' })
+    expect(invalid.isError).toBe(true)
+    expect(fetchRemoteTextMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -4,8 +4,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
-import { acceptedContent, inputRequired, Server } from '@modelcontextprotocol/server'
+import { acceptedContent, inputRequired, McpServer } from '@modelcontextprotocol/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -33,21 +34,8 @@ function callOptions(): McpCallToolOptions {
 function createElicitationEndpoint(): BuiltinMcpEndpoint {
   return {
     createServer: () => {
-      const server = new Server({ name: 'elicitation-test', version: '1.0.0' }, { capabilities: { tools: {} } })
-      server.setRequestHandler('tools/list', async () => ({
-        tools: [
-          {
-            name: 'confirm',
-            inputSchema: {
-              type: 'object',
-              properties: { id: { type: 'string' } },
-              required: ['id']
-            }
-          }
-        ]
-      }))
-      server.setRequestHandler('tools/call', async (request, context) => {
-        const id = String(request.params.arguments?.id)
+      const server = new McpServer({ name: 'elicitation-test', version: '1.0.0' })
+      server.registerTool('confirm', { inputSchema: z.object({ id: z.string() }) }, async ({ id }, context) => {
         const accepted = acceptedContent<{ approved: boolean }>(context.mcpReq.inputResponses, 'confirm')
         if (!accepted?.approved) {
           return inputRequired({
@@ -205,8 +193,9 @@ serveStdio(() => {
   it('lets the v2 client aggregate paginated tool lists', async () => {
     const endpoint: BuiltinMcpEndpoint = {
       createServer: () => {
-        const server = new Server({ name: 'pagination-test', version: '1.0.0' }, { capabilities: { tools: {} } })
-        server.setRequestHandler('tools/list', async (request) =>
+        const server = new McpServer({ name: 'pagination-test', version: '1.0.0' }, { capabilities: { tools: {} } })
+        // McpServer never paginates its own registry, so page through the underlying protocol server.
+        server.server.setRequestHandler('tools/list', async (request) =>
           request.params?.cursor
             ? {
                 tools: [{ name: 'second', inputSchema: { type: 'object', properties: {} } }]
@@ -357,11 +346,8 @@ serveStdio(() => {
 
   it('stops an embedded-request flow at the configured ten-round limit', async () => {
     const createServer = () => {
-      const server = new Server({ name: 'round-limit-test', version: '1.0.0' }, { capabilities: { tools: {} } })
-      server.setRequestHandler('tools/list', async () => ({
-        tools: [{ name: 'never_done', inputSchema: { type: 'object', properties: {} } }]
-      }))
-      server.setRequestHandler('tools/call', async () =>
+      const server = new McpServer({ name: 'round-limit-test', version: '1.0.0' })
+      server.registerTool('never_done', {}, async () =>
         inputRequired({
           inputRequests: {
             confirm: inputRequired.elicit({

@@ -1,8 +1,9 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 
-import { type ListToolsResult, ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
+import { McpServer } from '@modelcontextprotocol/server'
 import { Mutex } from 'async-mutex' // 引入 Mutex
+import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -25,6 +26,12 @@ interface Relation {
   to: string
   relationType: string
 }
+
+const RelationSchema = z.object({
+  from: z.string().describe('The name of the entity where the relation starts'),
+  to: z.string().describe('The name of the entity where the relation ends'),
+  relationType: z.string().describe('The type of the relation')
+})
 
 // Structure for storing the graph in memory and in the file
 interface KnowledgeGraph {
@@ -67,11 +74,7 @@ class KnowledgeGraphManager {
       }
     } catch (error) {
       logger.error('Failed to ensure memory path exists:', error as Error)
-      // Propagate the error or handle it more gracefully depending on requirements
-      throw new ProtocolError(
-        ProtocolErrorCode.InternalError,
-        `Failed to ensure memory path: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw error
     }
   }
 
@@ -106,10 +109,7 @@ class KnowledgeGraphManager {
         await this._persistGraph()
       } else {
         logger.error('Failed to load knowledge graph from disk:', error as Error)
-        throw new ProtocolError(
-          ProtocolErrorCode.InternalError,
-          `Failed to load graph: ${error instanceof Error ? error.message : String(error)}`
-        )
+        throw error
       }
     }
   }
@@ -125,11 +125,7 @@ class KnowledgeGraphManager {
       await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
     } catch (error) {
       logger.error('Failed to save knowledge graph:', error as Error)
-      // Decide how to handle write errors - potentially retry or notify
-      throw new ProtocolError(
-        ProtocolErrorCode.InternalError,
-        `Failed to save graph: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw error
     } finally {
       release()
     }
@@ -193,11 +189,7 @@ class KnowledgeGraphManager {
     observations.forEach((o) => {
       const entity = this.entities.get(o.entityName)
       if (!entity) {
-        // Option 1: Throw error
-        throw new ProtocolError(ProtocolErrorCode.InvalidParams, `Entity with name ${o.entityName} not found`)
-        // Option 2: Skip and warn
-        // logger.warn(`Entity with name ${o.entityName} not found when adding observations. Skipping.`);
-        // return;
+        throw new Error(`Entity with name ${o.entityName} not found`)
       }
       // Ensure observations array exists
       if (!Array.isArray(entity.observations)) {
@@ -354,19 +346,12 @@ class MemoryServer {
     this.initializationPromise = this._initializeManager(memoryPath)
   }
 
-  public createServer(): Server {
-    const server = new Server(
-      {
-        name: 'memory-server',
-        version: '1.1.0' // Incremented version for changes
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.setupRequestHandlers(server)
+  public createServer(): McpServer {
+    const server = new McpServer({
+      name: 'memory-server',
+      version: '1.1.0'
+    })
+    this.registerTools(server)
     return server
   }
 
@@ -387,338 +372,133 @@ class MemoryServer {
   private async _getManager(): Promise<KnowledgeGraphManager> {
     await this.initializationPromise // Wait for initialization to complete
     if (!this.knowledgeGraphManager) {
-      throw new ProtocolError(
-        ProtocolErrorCode.InternalError,
-        'Memory server failed to initialize. Cannot process requests.'
-      )
+      throw new Error('Memory server failed to initialize. Cannot process requests.')
     }
     return this.knowledgeGraphManager
   }
 
-  // Setup handlers (can be called from constructor)
-  private setupRequestHandlers(server: Server) {
-    // ListTools remains largely the same, descriptions might be updated if needed
-    server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
-      // Ensure manager is ready before listing tools that depend on it
-      // Although ListTools itself doesn't *call* the manager, it implies the
-      // manager is ready to handle calls for those tools.
-      try {
-        await this._getManager() // Wait for initialization before confirming tools are available
-      } catch (error) {
-        // If manager failed to init, maybe return an empty tool list or throw?
-        logger.error('Cannot list tools, manager initialization failed:', error as Error)
-        return { tools: [] } // Return empty list if server is not ready
-      }
+  private registerTools(server: McpServer) {
+    const json = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] })
+    const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] })
 
-      return {
-        tools: [
-          {
-            name: 'create_entities',
-            description: 'Create multiple new entities in the knowledge graph. Skips existing entities.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                entities: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      name: { type: 'string', description: 'The name of the entity' },
-                      entityType: { type: 'string', description: 'The type of the entity' },
-                      observations: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: 'An array of observation contents associated with the entity',
-                        default: [] // Add default empty array
-                      }
-                    },
-                    required: ['name', 'entityType'] // Observations are optional now on creation
-                  }
-                }
-              },
-              required: ['entities']
-            }
-          },
-          {
-            name: 'create_relations',
-            description:
-              'Create multiple new relations between EXISTING entities. Skips existing relations or relations with non-existent entities.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                relations: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      from: { type: 'string', description: 'The name of the entity where the relation starts' },
-                      to: { type: 'string', description: 'The name of the entity where the relation ends' },
-                      relationType: { type: 'string', description: 'The type of the relation' }
-                    },
-                    required: ['from', 'to', 'relationType']
-                  }
-                }
-              },
-              required: ['relations']
-            }
-          },
-          {
-            name: 'add_observations',
-            description: 'Add new observations to existing entities. Skips duplicate observations.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                observations: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      entityName: { type: 'string', description: 'The name of the entity to add the observations to' },
-                      contents: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: 'An array of observation contents to add'
-                      }
-                    },
-                    required: ['entityName', 'contents']
-                  }
-                }
-              },
-              required: ['observations']
-            }
-          },
-          {
-            name: 'delete_entities',
-            description: 'Delete multiple entities and their associated relations.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                entityNames: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'An array of entity names to delete'
-                }
-              },
-              required: ['entityNames']
-            }
-          },
-          {
-            name: 'delete_observations',
-            description: 'Delete specific observations from entities.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                deletions: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      entityName: { type: 'string', description: 'The name of the entity containing the observations' },
-                      observations: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: 'An array of observations to delete'
-                      }
-                    },
-                    required: ['entityName', 'observations']
-                  }
-                }
-              },
-              required: ['deletions']
-            }
-          },
-          {
-            name: 'delete_relations',
-            description: 'Delete multiple specific relations.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                relations: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      from: { type: 'string', description: 'The name of the entity where the relation starts' },
-                      to: { type: 'string', description: 'The name of the entity where the relation ends' },
-                      relationType: { type: 'string', description: 'The type of the relation' }
-                    },
-                    required: ['from', 'to', 'relationType']
-                  },
-                  description: 'An array of relations to delete'
-                }
-              },
-              required: ['relations']
-            }
-          },
-          {
-            name: 'read_graph',
-            description: 'Read the entire knowledge graph from memory.',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
-          },
-          {
-            name: 'search_nodes',
-            description: 'Search nodes (entities and relations) in memory based on a query.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'The search query to match against entity names, types, and observation content'
-                }
-              },
-              required: ['query']
-            }
-          },
-          {
-            name: 'open_nodes',
-            description: 'Retrieve specific entities and their connecting relations from memory by name.',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                names: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'An array of entity names to retrieve'
-                }
-              },
-              required: ['names']
-            }
-          }
-        ]
-      }
-    })
+    server.registerTool(
+      'create_entities',
+      {
+        description: 'Create multiple new entities in the knowledge graph. Skips existing entities.',
+        inputSchema: z.object({
+          entities: z.array(
+            z.object({
+              name: z.string().describe('The name of the entity'),
+              entityType: z.string().describe('The type of the entity'),
+              observations: z
+                .array(z.string())
+                .default([])
+                .describe('An array of observation contents associated with the entity')
+            })
+          )
+        })
+      },
+      async ({ entities }) => json(await (await this._getManager()).createEntities(entities))
+    )
 
-    // CallTool handler needs to await the manager and the async methods
-    server.setRequestHandler('tools/call', async (request) => {
-      const manager = await this._getManager() // Ensure manager is ready
-      const { name, arguments: args } = request.params
+    server.registerTool(
+      'create_relations',
+      {
+        description:
+          'Create multiple new relations between EXISTING entities. Skips existing relations or relations with non-existent entities.',
+        inputSchema: z.object({ relations: z.array(RelationSchema) })
+      },
+      async ({ relations }) => json(await (await this._getManager()).createRelations(relations))
+    )
 
-      if (!args) {
-        throw new ProtocolError(ProtocolErrorCode.InvalidParams, `No arguments provided for tool: ${name}`)
-      }
+    server.registerTool(
+      'add_observations',
+      {
+        description: 'Add new observations to existing entities. Skips duplicate observations.',
+        inputSchema: z.object({
+          observations: z.array(
+            z.object({
+              entityName: z.string().describe('The name of the entity to add the observations to'),
+              contents: z.array(z.string()).describe('An array of observation contents to add')
+            })
+          )
+        })
+      },
+      async ({ observations }) => json(await (await this._getManager()).addObservations(observations))
+    )
 
-      try {
-        switch (name) {
-          case 'create_entities':
-            // Validate args structure if necessary, though SDK might do basic validation
-            if (!args.entities || !Array.isArray(args.entities)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'entities' array is required.`
-              )
-            }
-            return {
-              content: [
-                { type: 'text', text: JSON.stringify(await manager.createEntities(args.entities as Entity[]), null, 2) }
-              ]
-            }
-          case 'create_relations':
-            if (!args.relations || !Array.isArray(args.relations)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'relations' array is required.`
-              )
-            }
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(await manager.createRelations(args.relations as Relation[]), null, 2)
-                }
-              ]
-            }
-          case 'add_observations':
-            if (!args.observations || !Array.isArray(args.observations)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'observations' array is required.`
-              )
-            }
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(
-                    await manager.addObservations(args.observations as { entityName: string; contents: string[] }[]),
-                    null,
-                    2
-                  )
-                }
-              ]
-            }
-          case 'delete_entities':
-            if (!args.entityNames || !Array.isArray(args.entityNames)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'entityNames' array is required.`
-              )
-            }
-            await manager.deleteEntities(args.entityNames as string[])
-            return { content: [{ type: 'text', text: 'Entities deleted successfully' }] }
-          case 'delete_observations':
-            if (!args.deletions || !Array.isArray(args.deletions)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'deletions' array is required.`
-              )
-            }
-            await manager.deleteObservations(args.deletions as { entityName: string; observations: string[] }[])
-            return { content: [{ type: 'text', text: 'Observations deleted successfully' }] }
-          case 'delete_relations':
-            if (!args.relations || !Array.isArray(args.relations)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'relations' array is required.`
-              )
-            }
-            await manager.deleteRelations(args.relations as Relation[])
-            return { content: [{ type: 'text', text: 'Relations deleted successfully' }] }
-          case 'read_graph':
-            // No arguments expected or needed for read_graph based on original schema
-            return {
-              content: [{ type: 'text', text: JSON.stringify(await manager.readGraph(), null, 2) }]
-            }
-          case 'search_nodes':
-            if (typeof args.query !== 'string') {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'query' string is required.`
-              )
-            }
-            return {
-              content: [{ type: 'text', text: JSON.stringify(await manager.searchNodes(args.query), null, 2) }]
-            }
-          case 'open_nodes':
-            if (!args.names || !Array.isArray(args.names)) {
-              throw new ProtocolError(
-                ProtocolErrorCode.InvalidParams,
-                `Invalid arguments for ${name}: 'names' array is required.`
-              )
-            }
-            return {
-              content: [
-                { type: 'text', text: JSON.stringify(await manager.openNodes(args.names as string[]), null, 2) }
-              ]
-            }
-          default:
-            throw new ProtocolError(ProtocolErrorCode.MethodNotFound, `Unknown tool: ${name}`)
-        }
-      } catch (error) {
-        // Catch errors from manager methods (like entity not found) or other issues
-        if (error instanceof ProtocolError) {
-          throw error
-        }
-        logger.error(`Error executing tool ${name}:`, error as Error)
-        // Throw a generic internal error for unexpected issues
-        throw new ProtocolError(
-          ProtocolErrorCode.InternalError,
-          `Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}`
-        )
+    server.registerTool(
+      'delete_entities',
+      {
+        description: 'Delete multiple entities and their associated relations.',
+        inputSchema: z.object({
+          entityNames: z.array(z.string()).describe('An array of entity names to delete')
+        })
+      },
+      async ({ entityNames }) => {
+        await (await this._getManager()).deleteEntities(entityNames)
+        return text('Entities deleted successfully')
       }
-    })
+    )
+
+    server.registerTool(
+      'delete_observations',
+      {
+        description: 'Delete specific observations from entities.',
+        inputSchema: z.object({
+          deletions: z.array(
+            z.object({
+              entityName: z.string().describe('The name of the entity containing the observations'),
+              observations: z.array(z.string()).describe('An array of observations to delete')
+            })
+          )
+        })
+      },
+      async ({ deletions }) => {
+        await (await this._getManager()).deleteObservations(deletions)
+        return text('Observations deleted successfully')
+      }
+    )
+
+    server.registerTool(
+      'delete_relations',
+      {
+        description: 'Delete multiple specific relations.',
+        inputSchema: z.object({
+          relations: z.array(RelationSchema).describe('An array of relations to delete')
+        })
+      },
+      async ({ relations }) => {
+        await (await this._getManager()).deleteRelations(relations)
+        return text('Relations deleted successfully')
+      }
+    )
+
+    server.registerTool('read_graph', { description: 'Read the entire knowledge graph from memory.' }, async () =>
+      json(await (await this._getManager()).readGraph())
+    )
+
+    server.registerTool(
+      'search_nodes',
+      {
+        description: 'Search nodes (entities and relations) in memory based on a query.',
+        inputSchema: z.object({
+          query: z.string().describe('The search query to match against entity names, types, and observation content')
+        })
+      },
+      async ({ query }) => json(await (await this._getManager()).searchNodes(query))
+    )
+
+    server.registerTool(
+      'open_nodes',
+      {
+        description: 'Retrieve specific entities and their connecting relations from memory by name.',
+        inputSchema: z.object({
+          names: z.array(z.string()).describe('An array of entity names to retrieve')
+        })
+      },
+      async ({ names }) => json(await (await this._getManager()).openNodes(names))
+    )
   }
 }
 

@@ -9,7 +9,7 @@ import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import type { Client } from '@modelcontextprotocol/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import { connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
@@ -89,15 +89,11 @@ vi.mock('@main/i18n', () => ({
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: class {
-    readonly mcpServer = {}
-  }
+  createAssistantServer: vi.fn()
 }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
-  AssistantFileToolsServer: class {
-    readonly mcpServer = {}
-  }
+  createAssistantFileToolsServer: vi.fn()
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -287,14 +283,18 @@ describe('buildMcpServers', () => {
     expect(result?.exa).toBeUndefined()
   })
 
-  // One client per built server set: a v1 server instance accepts a single connection.
-  const clients = new WeakMap<object, Promise<Client>>()
-  function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
+  // Each call opens a new connection, so the per-connection tool decisions re-read the Agent.
+  const clients: Client[] = []
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+  async function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
     if (!result) throw new Error('buildMcpServers returned no servers')
     const { instance } = result['cherry-tools'] as McpSdkServerConfigWithInstance
     const connect = (instance as unknown as AgentMcpServer).connect
-    if (!clients.has(result)) clients.set(result, connectAgentMcpClient({ name: 'cherry-tools', connect }, 'test'))
-    return clients.get(result)!
+    const client = await connectAgentMcpClient({ name: 'cherry-tools', connect }, 'test')
+    clients.push(client)
+    return client
   }
 
   async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
@@ -402,7 +402,7 @@ describe('buildMcpServers', () => {
     expect(await cherryToolNames(servers)).not.toContain('kb_search')
   })
 
-  it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
+  it('re-reads knowledge bindings for each new cherry-tools connection', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
     const servers = buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS)

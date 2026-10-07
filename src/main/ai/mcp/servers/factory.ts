@@ -1,4 +1,4 @@
-import type { Server } from '@modelcontextprotocol/server'
+import type { McpServer as McpProtocolServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -8,11 +8,11 @@ import { type BuiltinMcpServerName, BuiltinMcpServerNames, isBuiltinMcpServerNam
 const logger = loggerService.withContext('McpFactory')
 
 export interface BuiltinMcpEndpoint {
-  createServer(): Server
+  createServer(): McpProtocolServer
   close(): Promise<void>
 }
 
-const statelessEndpoint = (createServer: () => Server): BuiltinMcpEndpoint => ({
+const statelessEndpoint = (createServer: () => McpProtocolServer): BuiltinMcpEndpoint => ({
   createServer,
   close: async () => undefined
 })

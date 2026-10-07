@@ -3,66 +3,39 @@
 
 import { randomUUID } from 'node:crypto'
 
-import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
+import { type CallToolResult, McpServer } from '@modelcontextprotocol/server'
 // Fixed chalk import for ESM
 import chalk from 'chalk'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('McpServer:SequentialThinking')
 
-interface ThoughtData {
-  chainId?: string
-  thought: string
-  thoughtNumber: number
-  totalThoughts: number
-  isRevision?: boolean
-  revisesThought?: number
-  branchFromThought?: number
-  branchId?: string
-  needsMoreThoughts?: boolean
-  nextThoughtNeeded: boolean
-}
+const ThoughtDataSchema = z.object({
+  chainId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Identifier returned by the first thought; required for every continuation of that chain'),
+  thought: z.string().min(1).describe('Your current thinking step'),
+  nextThoughtNeeded: z.boolean().describe('Whether another thought step is needed'),
+  thoughtNumber: z.number().int().min(1).describe('Current thought number'),
+  totalThoughts: z.number().int().min(1).describe('Estimated total thoughts needed'),
+  isRevision: z.boolean().optional().describe('Whether this revises previous thinking'),
+  revisesThought: z.number().int().min(1).optional().describe('Which thought is being reconsidered'),
+  branchFromThought: z.number().int().min(1).optional().describe('Branching point thought number'),
+  branchId: z.string().optional().describe('Branch identifier'),
+  needsMoreThoughts: z.boolean().optional().describe('If more thoughts are needed')
+})
+
+type ThoughtData = z.infer<typeof ThoughtDataSchema>
 
 class SequentialThinkingServer {
   private readonly chains = new Map<string, { history: ThoughtData[]; branches: Map<string, ThoughtData[]> }>()
 
   public close(): void {
     this.chains.clear()
-  }
-
-  private validateThoughtData(input: unknown): ThoughtData {
-    const data = (input ?? {}) as Record<string, unknown>
-
-    if (data.chainId !== undefined && (typeof data.chainId !== 'string' || !data.chainId)) {
-      throw new Error('Invalid chainId: must be a non-empty string')
-    }
-
-    if (!data.thought || typeof data.thought !== 'string') {
-      throw new Error('Invalid thought: must be a string')
-    }
-    if (!data.thoughtNumber || typeof data.thoughtNumber !== 'number') {
-      throw new Error('Invalid thoughtNumber: must be a number')
-    }
-    if (!data.totalThoughts || typeof data.totalThoughts !== 'number') {
-      throw new Error('Invalid totalThoughts: must be a number')
-    }
-    if (typeof data.nextThoughtNeeded !== 'boolean') {
-      throw new Error('Invalid nextThoughtNeeded: must be a boolean')
-    }
-
-    return {
-      chainId: data.chainId,
-      thought: data.thought,
-      thoughtNumber: data.thoughtNumber,
-      totalThoughts: data.totalThoughts,
-      nextThoughtNeeded: data.nextThoughtNeeded,
-      isRevision: data.isRevision as boolean | undefined,
-      revisesThought: data.revisesThought as number | undefined,
-      branchFromThought: data.branchFromThought as number | undefined,
-      branchId: data.branchId as string | undefined,
-      needsMoreThoughts: data.needsMoreThoughts as boolean | undefined
-    }
   }
 
   private formatThought(thoughtData: ThoughtData): string {
@@ -94,79 +67,57 @@ class SequentialThinkingServer {
 └${border}┘`
   }
 
-  public processThought(input: unknown): CallToolResult {
-    try {
-      const validatedInput = this.validateThoughtData(input)
-      const chainId = validatedInput.chainId ?? randomUUID()
-      let chain = this.chains.get(chainId)
-      if (!chain) {
-        if (validatedInput.chainId) throw new Error('Unknown or completed chainId. Start a new chain without chainId.')
-        if (validatedInput.thoughtNumber !== 1)
-          throw new Error('Start a new chain with thoughtNumber 1, or pass its chainId.')
-        chain = { history: [], branches: new Map() }
-        this.chains.set(chainId, chain)
-      }
+  public processThought(validatedInput: ThoughtData): CallToolResult {
+    const chainId = validatedInput.chainId ?? randomUUID()
+    let chain = this.chains.get(chainId)
+    if (!chain) {
+      if (validatedInput.chainId) throw new Error('Unknown or completed chainId. Start a new chain without chainId.')
+      if (validatedInput.thoughtNumber !== 1)
+        throw new Error('Start a new chain with thoughtNumber 1, or pass its chainId.')
+      chain = { history: [], branches: new Map() }
+      this.chains.set(chainId, chain)
+    }
 
-      if (validatedInput.thoughtNumber > validatedInput.totalThoughts) {
-        validatedInput.totalThoughts = validatedInput.thoughtNumber
-      }
+    if (validatedInput.thoughtNumber > validatedInput.totalThoughts) {
+      validatedInput.totalThoughts = validatedInput.thoughtNumber
+    }
 
-      chain.history.push(validatedInput)
+    chain.history.push(validatedInput)
 
-      if (validatedInput.branchFromThought && validatedInput.branchId) {
-        const branch = chain.branches.get(validatedInput.branchId) ?? []
-        branch.push(validatedInput)
-        chain.branches.set(validatedInput.branchId, branch)
-      }
+    if (validatedInput.branchFromThought && validatedInput.branchId) {
+      const branch = chain.branches.get(validatedInput.branchId) ?? []
+      branch.push(validatedInput)
+      chain.branches.set(validatedInput.branchId, branch)
+    }
 
-      const formattedThought = this.formatThought(validatedInput)
-      logger.error(formattedThought)
-      if (!validatedInput.nextThoughtNeeded) this.chains.delete(chainId)
+    const formattedThought = this.formatThought(validatedInput)
+    logger.error(formattedThought)
+    if (!validatedInput.nextThoughtNeeded) this.chains.delete(chainId)
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                chainId,
-                thought: validatedInput.thought,
-                thoughtNumber: validatedInput.thoughtNumber,
-                totalThoughts: validatedInput.totalThoughts,
-                nextThoughtNeeded: validatedInput.nextThoughtNeeded,
-                branches: [...chain.branches.keys()],
-                thoughtHistoryLength: chain.history.length
-              },
-              null,
-              2
-            )
-          }
-        ]
-      }
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                error: error instanceof Error ? error.message : String(error),
-                status: 'failed'
-              },
-              null,
-              2
-            )
-          }
-        ],
-        isError: true
-      }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              chainId,
+              thought: validatedInput.thought,
+              thoughtNumber: validatedInput.thoughtNumber,
+              totalThoughts: validatedInput.totalThoughts,
+              nextThoughtNeeded: validatedInput.nextThoughtNeeded,
+              branches: [...chain.branches.keys()],
+              thoughtHistoryLength: chain.history.length
+            },
+            null,
+            2
+          )
+        }
+      ]
     }
   }
 }
 
-const SEQUENTIAL_THINKING_TOOL: Tool = {
-  name: 'sequentialthinking',
-  description: `A detailed tool for dynamic and reflective problem-solving through thoughts.
+const SEQUENTIAL_THINKING_DESCRIPTION = `A detailed tool for dynamic and reflective problem-solving through thoughts.
 This tool helps analyze problems through a flexible thinking process that can adapt and evolve.
 Each thought can build on, question, or revise previous insights as understanding deepens.
 Start a chain with thoughtNumber 1 and no chainId. Pass the returned chainId on every subsequent thought.
@@ -221,59 +172,7 @@ You should:
 8. Verify the hypothesis based on the Chain of Thought steps
 9. Repeat the process until satisfied with the solution
 10. Provide a single, ideally correct answer as the final output
-11. Only set next_thought_needed to false when truly done and a satisfactory answer is reached`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chainId: {
-        type: 'string',
-        minLength: 1,
-        description: 'Identifier returned by the first thought; required for every continuation of that chain'
-      },
-      thought: {
-        type: 'string',
-        description: 'Your current thinking step'
-      },
-      nextThoughtNeeded: {
-        type: 'boolean',
-        description: 'Whether another thought step is needed'
-      },
-      thoughtNumber: {
-        type: 'integer',
-        description: 'Current thought number',
-        minimum: 1
-      },
-      totalThoughts: {
-        type: 'integer',
-        description: 'Estimated total thoughts needed',
-        minimum: 1
-      },
-      isRevision: {
-        type: 'boolean',
-        description: 'Whether this revises previous thinking'
-      },
-      revisesThought: {
-        type: 'integer',
-        description: 'Which thought is being reconsidered',
-        minimum: 1
-      },
-      branchFromThought: {
-        type: 'integer',
-        description: 'Branching point thought number',
-        minimum: 1
-      },
-      branchId: {
-        type: 'string',
-        description: 'Branch identifier'
-      },
-      needsMoreThoughts: {
-        type: 'boolean',
-        description: 'If more thoughts are needed'
-      }
-    },
-    required: ['thought', 'nextThoughtNeeded', 'thoughtNumber', 'totalThoughts']
-  }
-}
+11. Only set next_thought_needed to false when truly done and a satisfactory answer is reached`
 
 class ThinkingServer {
   private readonly thinkingServer = new SequentialThinkingServer()
@@ -282,42 +181,17 @@ class ThinkingServer {
     this.thinkingServer.close()
   }
 
-  public createServer(): Server {
-    const server = new Server(
-      {
-        name: 'sequential-thinking-server',
-        version: '0.2.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.initialize(server)
-    return server
-  }
-
-  private initialize(server: Server) {
-    server.setRequestHandler('tools/list', async () => ({
-      tools: [SEQUENTIAL_THINKING_TOOL]
-    }))
-
-    server.setRequestHandler('tools/call', async (request) => {
-      if (request.params.name === 'sequentialthinking') {
-        return this.thinkingServer.processThought(request.params.arguments)
-      }
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Unknown tool: ${request.params.name}`
-          }
-        ],
-        isError: true
-      }
+  public createServer(): McpServer {
+    const server = new McpServer({
+      name: 'sequential-thinking-server',
+      version: '0.2.0'
     })
+    server.registerTool(
+      'sequentialthinking',
+      { description: SEQUENTIAL_THINKING_DESCRIPTION, inputSchema: ThoughtDataSchema },
+      (args) => this.thinkingServer.processThought(args)
+    )
+    return server
   }
 }
 

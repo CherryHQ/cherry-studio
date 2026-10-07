@@ -60,9 +60,10 @@ Request headers, bodies and console remote-object handles are never retained in 
 Annotation capture preserves the existing isolated-world selector resolution,
 Shadow DOM traversal, request budgets, cancellation, and form-value suppression.
 
-The MCP adapter and input tools live in `mcp/` and `actions/`. The factory calls
-`BrowserSessionService.createMcpEndpoint()` for modern MCP requests; Agent SDK consumers retain
-`createAgentMcpServer()`. The factory has no direct feature import.
+The MCP adapter and input tools live in `mcp/` and `actions/`. The builtin factory calls
+`BrowserSessionService.createMcpEndpoint()`; Agent runtimes connect through
+`createAgentMcpServer()`, which serves each transport with its own pane controller. Both build the
+same v2 `McpServer`. The factory has no direct feature import.
 See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limits.
 
 `AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP

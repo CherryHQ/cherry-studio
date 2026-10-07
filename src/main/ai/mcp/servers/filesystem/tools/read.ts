@@ -4,8 +4,10 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { requireToolInputSchema } from '../../schema'
-import { DEFAULT_READ_LIMIT, isBinaryFile, MAX_LINE_LENGTH, validatePath } from '../types'
+import { isTextByContent } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { DEFAULT_READ_LIMIT, MAX_LINE_LENGTH, validatePath } from '../types'
 
 // Schema definition
 export const ReadToolSchema = z.object({
@@ -16,7 +18,6 @@ export const ReadToolSchema = z.object({
 
 // Tool definition with detailed description
 export const readToolDefinition = {
-  name: 'read',
   description: `Reads a file from the local filesystem.
 
 - Only files within the configured workspace root can be read
@@ -27,17 +28,12 @@ export const readToolDefinition = {
 - Results are returned with line numbers starting at 1
 - Binary files are detected and rejected with an error
 - Empty files return a warning`,
-  inputSchema: requireToolInputSchema(z.toJSONSchema(ReadToolSchema))
+  inputSchema: ReadToolSchema
 }
 
 // Handler implementation
-export async function handleReadTool(args: unknown, baseDir: string): Promise<CallToolResult> {
-  const parsed = ReadToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for read: ${parsed.error}`)
-  }
-
-  const filePath = parsed.data.file_path
+export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const filePath = args.file_path
   const validPath = await validatePath(filePath, baseDir)
 
   // Check if file exists
@@ -54,7 +50,7 @@ export async function handleReadTool(args: unknown, baseDir: string): Promise<Ca
   }
 
   // Check if file is binary
-  if (await isBinaryFile(validPath)) {
+  if (!(await isTextByContent(AbsoluteFilePathSchema.parse(validPath)))) {
     throw new Error(`Cannot read binary file: ${filePath}`)
   }
 
@@ -63,8 +59,8 @@ export async function handleReadTool(args: unknown, baseDir: string): Promise<Ca
   const lines = content.split('\n')
 
   // Apply offset and limit
-  const offset = (parsed.data.offset || 1) - 1 // Convert to 0-based
-  const limit = parsed.data.limit || DEFAULT_READ_LIMIT
+  const offset = (args.offset || 1) - 1 // Convert to 0-based
+  const limit = args.limit || DEFAULT_READ_LIMIT
 
   if (offset < 0 || offset >= lines.length) {
     throw new Error(`Invalid offset: ${offset + 1}. File has ${lines.length} lines.`)

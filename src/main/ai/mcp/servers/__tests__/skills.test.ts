@@ -1,5 +1,7 @@
-// v1 compatibility island regression tests.
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Client } from '@modelcontextprotocol/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 const { installMock, toggleMock } = vi.hoisted(() => ({ installMock: vi.fn(), toggleMock: vi.fn() }))
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -9,23 +11,26 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 vi.mock('electron', () => ({ net: { fetch: fetchMock } }))
 
-const { default: SkillsServer } = await import('../skills')
-type SkillsServerInstance = InstanceType<typeof SkillsServer>
+const { createSkillsServer } = await import('../skills')
 
-function createServer(agentId = 'agent-1') {
-  return new SkillsServer(agentId)
+type Result = { isError?: boolean; content: Array<{ type: string; text: string }> }
+const clients: Client[] = []
+
+async function createServer(agentId = 'agent-1'): Promise<Client> {
+  const client = await connectAgentMcpClient(
+    { name: 'skills', connect: serveAgentMcpServer(() => createSkillsServer(agentId)) },
+    'test'
+  )
+  clients.push(client)
+  return client
 }
 
-function handlers(server: SkillsServerInstance) {
-  return (server.mcpServer.server as any)._requestHandlers
+async function listTools(client: Promise<Client>) {
+  return (await client).listTools()
 }
 
-async function listTools(server: SkillsServerInstance): Promise<any> {
-  return handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
-}
-
-async function callTool(server: SkillsServerInstance, name: string, args: Record<string, unknown>): Promise<any> {
-  return handlers(server).get('tools/call')({ method: 'tools/call', params: { name, arguments: args } }, {})
+async function callTool(client: Client | Promise<Client>, name: string, args: Record<string, unknown>) {
+  return (await (await client).callTool({ name, arguments: args })) as Result
 }
 
 function mockMarketplace(skills: unknown[]) {
@@ -41,14 +46,18 @@ function mockMarketplace(skills: unknown[]) {
   }))
 }
 
-describe('SkillsServer', () => {
+describe('skills MCP server', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
   it('exposes exactly search_skills and install_skill', async () => {
     const result = await listTools(createServer())
-    expect(result.tools.map((t: any) => t.name)).toEqual(['search_skills', 'install_skill'])
+    expect(result.tools.map((t) => t.name)).toEqual(['search_skills', 'install_skill'])
   })
 
   describe('search_skills', () => {
@@ -210,10 +219,10 @@ describe('SkillsServer', () => {
       expect(result.content[0].text).toContain('No installable skills found')
     })
 
-    it('errors when the query is missing', async () => {
-      const result = await callTool(createServer(), 'search_skills', {})
+    it.each([{}, { query: '' }])('rejects a missing or empty query without searching: %j', async (args) => {
+      const result = await callTool(createServer(), 'search_skills', args)
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toMatch(/query/i)
+      expect(result.content[0].text).toContain('Input validation error')
       expect(fetchMock).not.toHaveBeenCalled()
     })
   })
@@ -264,6 +273,19 @@ describe('SkillsServer', () => {
     it('errors when install_source is missing (never touches SkillService)', async () => {
       const result = await callTool(createServer(), 'install_skill', {})
       expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Input validation error')
+      expect(installMock).not.toHaveBeenCalled()
+    })
+
+    it('does not honor an install_source issued to a different connection', async () => {
+      mockMarketplace([
+        { id: 'c', name: 'C', namespace: 'a', metadata: { repoOwner: 'a', repoName: 'b', directoryPath: 'c' } }
+      ])
+      await callTool(createServer(), 'search_skills', { query: 'c' })
+
+      const result = await callTool(createServer(), 'install_skill', { install_source: 'claude-plugins:a/b/c' })
+
+      expect(result.isError).toBe(true)
       expect(installMock).not.toHaveBeenCalled()
     })
 
@@ -283,10 +305,5 @@ describe('SkillsServer', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('clone failed')
     })
-  })
-
-  it('rejects an unknown tool', async () => {
-    const result = await callTool(createServer(), 'nope', {})
-    expect(result.isError).toBe(true)
   })
 })

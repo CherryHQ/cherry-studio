@@ -1,4 +1,4 @@
-import { ProtocolError, ProtocolErrorCode, Server } from '@modelcontextprotocol/server'
+import { McpServer } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -11,41 +11,36 @@ const MIN_TIMEOUT_MS = 1000
 const MAX_TIMEOUT_MS = 10 * 60 * 1000
 
 const PythonExecuteArgsSchema = z.object({
-  code: z.string().min(1, 'Code parameter is required and must be a string'),
-  context: z.record(z.string(), z.any()).optional().default({}),
-  timeout: z.number().positive().optional().default(DEFAULT_TIMEOUT_MS)
+  code: z.string().min(1, 'Code parameter is required and must be a string').describe('The Python code to execute'),
+  context: z
+    .record(z.string(), z.any())
+    .optional()
+    .default({})
+    .describe('Optional context variables to pass to the Python execution environment'),
+  timeout: z
+    .number()
+    .positive()
+    .optional()
+    .default(DEFAULT_TIMEOUT_MS)
+    .describe('Timeout in milliseconds (default: 60000)')
 })
 
 /**
  * Python MCP Server for executing Python code using Pyodide
  */
 class PythonServer {
-  public server: Server
+  public server: McpServer
 
   constructor() {
-    this.server = new Server(
-      {
-        name: 'python-server',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
+    this.server = new McpServer({
+      name: 'python-server',
+      version: '1.0.0'
+    })
 
-    this.setupRequestHandlers()
-  }
-
-  private setupRequestHandlers() {
-    // List available tools
-    this.server.setRequestHandler('tools/list', async () => {
-      return {
-        tools: [
-          {
-            name: 'python_execute',
-            description: `Execute Python code using Pyodide in a sandboxed environment. Supports most Python standard library and scientific packages.
+    this.server.registerTool(
+      'python_execute',
+      {
+        description: `Execute Python code using Pyodide in a sandboxed environment. Supports most Python standard library and scientific packages.
 The code will be executed with Python 3.12.
 Dependencies may be defined via PEP 723 script metadata, e.g. to install "pydantic", the script should start
 with a comment of the form:
@@ -53,71 +48,23 @@ with a comment of the form:
 # dependencies = ['pydantic']
 # ///
 print('python code here')`,
-            inputSchema: {
-              type: 'object',
-              properties: {
-                code: {
-                  type: 'string',
-                  description: 'The Python code to execute'
-                },
-                context: {
-                  type: 'object',
-                  description: 'Optional context variables to pass to the Python execution environment',
-                  additionalProperties: true
-                },
-                timeout: {
-                  type: 'number',
-                  description: 'Timeout in milliseconds (default: 60000)',
-                  default: 60000
-                }
-              },
-              required: ['code']
-            }
-          }
-        ]
-      }
-    })
-
-    // Handle tool calls
-    this.server.setRequestHandler('tools/call', async (request) => {
-      const { name, arguments: args } = request.params
-
-      if (name !== 'python_execute') {
-        throw new ProtocolError(ProtocolErrorCode.MethodNotFound, `Tool ${name} not found`)
-      }
-
-      try {
-        const parsed = PythonExecuteArgsSchema.safeParse(args)
-        if (!parsed.success) {
-          throw new ProtocolError(
-            ProtocolErrorCode.InvalidParams,
-            `Invalid arguments for python_execute: ${parsed.error.message}`
-          )
-        }
-
-        const { code, context } = parsed.data
+        inputSchema: PythonExecuteArgsSchema
+      },
+      async ({ code, context, timeout }) => {
         // Clamp timeout to a sane range to prevent runaway or pointless executions.
-        const timeout = Math.min(Math.max(parsed.data.timeout, MIN_TIMEOUT_MS), MAX_TIMEOUT_MS)
+        const clampedTimeout = Math.min(Math.max(timeout, MIN_TIMEOUT_MS), MAX_TIMEOUT_MS)
 
         logger.debug('Executing Python code via Pyodide')
 
-        const result = await application.get('PythonService').executeScript(code, context, timeout)
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: result
-            }
-          ]
+        try {
+          const result = await application.get('PythonService').executeScript(code, context, clampedTimeout)
+          return { content: [{ type: 'text', text: result }] }
+        } catch (error) {
+          logger.error('Python execution error', error as Error)
+          throw error
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Python execution error: ${errorMessage}`)
-
-        throw new ProtocolError(ProtocolErrorCode.InternalError, `Python execution failed: ${errorMessage}`)
       }
-    })
+    )
   }
 }
 

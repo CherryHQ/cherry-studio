@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-import { type ListToolsResult, Server } from '@modelcontextprotocol/server'
+import { McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 
@@ -24,7 +24,7 @@ import {
 import { expandHome, logger, normalizePath } from './types'
 
 export class FileSystemServer {
-  public server: Server
+  public server: McpServer
   private baseDir: string
 
   constructor(baseDir?: string) {
@@ -38,17 +38,10 @@ export class FileSystemServer {
       logger.info(`Using default workspace for filesystem MCP baseDir: ${this.baseDir}`)
     }
 
-    this.server = new Server(
-      {
-        name: 'filesystem-server',
-        version: '2.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
+    this.server = new McpServer({
+      name: 'filesystem-server',
+      version: '2.0.0'
+    })
 
     this.registerHandlers()
     void this.ensureBaseDir()
@@ -63,59 +56,14 @@ export class FileSystemServer {
   }
 
   private registerHandlers() {
-    this.server.setRequestHandler('tools/list', async (): Promise<ListToolsResult> => {
-      return {
-        tools: [
-          globToolDefinition,
-          lsToolDefinition,
-          grepToolDefinition,
-          readToolDefinition,
-          editToolDefinition,
-          writeToolDefinition,
-          deleteToolDefinition
-        ]
-      }
-    })
-
-    // Register tool call handler
-    this.server.setRequestHandler('tools/call', async (request) => {
-      try {
-        const { name, arguments: args } = request.params
-
-        switch (name) {
-          case 'glob':
-            return await handleGlobTool(args, this.baseDir)
-
-          case 'ls':
-            return await handleLsTool(args, this.baseDir)
-
-          case 'grep':
-            return await handleGrepTool(args, this.baseDir)
-
-          case 'read':
-            return await handleReadTool(args, this.baseDir)
-
-          case 'edit':
-            return await handleEditTool(args, this.baseDir)
-
-          case 'write':
-            return await handleWriteTool(args, this.baseDir)
-
-          case 'delete':
-            return await handleDeleteTool(args, this.baseDir)
-
-          default:
-            throw new Error(`Unknown tool: ${name}`)
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool execution error for ${request.params.name}:`, { error })
-        return {
-          content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-          isError: true
-        }
-      }
-    })
+    const baseDir = this.baseDir
+    this.server.registerTool('glob', globToolDefinition, (args) => handleGlobTool(args, baseDir))
+    this.server.registerTool('ls', lsToolDefinition, (args) => handleLsTool(args, baseDir))
+    this.server.registerTool('grep', grepToolDefinition, (args) => handleGrepTool(args, baseDir))
+    this.server.registerTool('read', readToolDefinition, (args) => handleReadTool(args, baseDir))
+    this.server.registerTool('edit', editToolDefinition, (args) => handleEditTool(args, baseDir))
+    this.server.registerTool('write', writeToolDefinition, (args) => handleWriteTool(args, baseDir))
+    this.server.registerTool('delete', deleteToolDefinition, (args) => handleDeleteTool(args, baseDir))
   }
 }
 

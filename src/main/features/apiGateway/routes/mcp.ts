@@ -1,6 +1,8 @@
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import { isLegacyRequest } from '@modelcontextprotocol/server'
+import {
+  isInitializeRequest,
+  isLegacyRequest,
+  WebStandardStreamableHTTPServerTransport
+} from '@modelcontextprotocol/server'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
 

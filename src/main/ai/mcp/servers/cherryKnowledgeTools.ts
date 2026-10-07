@@ -1,20 +1,16 @@
-// SDK v1 tool definitions shared by agent runtimes.
 /**
  * Knowledge-base tools (kb_search / kb_read / kb_list / kb_manage) hosted by the
  * in-process `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).
  *
- * This provider owns the whole knowledge-base domain on the agent path: it exposes the
- * kb_* tools only when the agent's *effective* knowledge scope is non-empty (unless the
- * built-in Assistant has unrestricted access), re-derives that scope on every tool listing
- * and call, rejects an unscoped call (fail-closed), and scopes every `knowledgeLookup` core
- * call to it. The effective scope is
+ * This provider owns the whole knowledge-base domain on the agent path: it registers the
+ * kb_* tools only when the agent's *effective* knowledge scope is non-empty when the
+ * connection opens (unless the built-in Assistant has unrestricted access), re-derives that
+ * scope on every call, rejects an unscoped call (fail-closed), and scopes every
+ * `knowledgeLookup` core call to it. The effective scope is
  * `resolveKnowledgeBaseScope(binding, composerSelection)`, so an agent with no static
  * binding still gets the tools when the composer picked bases for the turn. Only the
- * binding half is live — the composer selection is frozen when the connection is built, so
- * changing it takes a connection rebuild, not a re-listing. The generic builtin
- * pipeline (`cherryBuiltinTools.ts`) stays unaware of knowledge authorization — it only
- * aggregates providers and dispatches by protocol, mirroring how `CherryAutonomyTools`
- * owns the autonomy domain. The destructive `kb_manage` tool relies on Claude Code's own
+ * binding half is live — the composer selection is frozen when the server set is built, so
+ * changing it takes a rebuild. The destructive `kb_manage` tool relies on Claude Code's own
  * per-call permission prompt for approval (the AI-SDK path uses `needsApproval` instead).
  *
  * Scope is modelled as an explicit {@link KnowledgeScope} rather than a bare id array so
@@ -23,10 +19,10 @@
  * `unrestricted` variant may pass an empty list down.
  */
 
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import * as z from 'zod'
+import type { McpServer } from '@modelcontextprotocol/server'
 
 import { loggerService } from '@logger'
+import { modelOutputToMcpResult } from '@main/ai/mcp/toolResult'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
   KNOWLEDGE_MANAGE_DESCRIPTION,
@@ -52,7 +48,18 @@ import {
   kbSearchInputSchema
 } from '@shared/ai/builtinTools'
 
-import type { CherryAgentContext } from './cherryAutonomyTools'
+/** One live read of the agent's knowledge grant. */
+export interface KnowledgeAccess {
+  /** Built-in Assistant can use every knowledge base without a configured binding. */
+  allKnowledgeBases: boolean
+  /** `resolveKnowledgeBaseScope(binding, composerSelection)`; empty means neither source granted access. */
+  baseIds: readonly string[]
+}
+
+export interface KnowledgeToolsContext {
+  /** Re-read on every call so a deleted agent or narrowed binding fails closed. */
+  getKnowledgeAccess: () => KnowledgeAccess
+}
 
 const logger = loggerService.withContext('McpServer:CherryKnowledgeTools')
 
@@ -69,129 +76,58 @@ type KnowledgeScope =
   | { kind: 'unrestricted' }
   | { kind: 'restricted'; baseIds: readonly [string, ...string[]] }
 
-function resolveKnowledgeScope(boundBaseIds: readonly string[], canAccessAllKnowledgeBases: boolean): KnowledgeScope {
-  if (canAccessAllKnowledgeBases) return { kind: 'unrestricted' }
+function resolveKnowledgeScope({ allKnowledgeBases, baseIds: boundBaseIds }: KnowledgeAccess): KnowledgeScope {
+  if (allKnowledgeBases) return { kind: 'unrestricted' }
   // The tuple cast is sound only right here, guarded by the length check: everything downstream
   // then sees a provably non-empty `baseIds`, so no path can hand the core an empty allow-list.
   if (boundBaseIds.length === 0) return { kind: 'none' }
   return { kind: 'restricted', baseIds: boundBaseIds as readonly [string, ...string[]] }
 }
 
-/** kb cores return text or json; the agent transcript only carries text content. */
-type KnowledgeToolOutput = { type: 'text'; value: string } | { type: 'json'; value: unknown }
+export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }: KnowledgeToolsContext): void {
+  if (resolveKnowledgeScope(getKnowledgeAccess()).kind === 'none') return
 
-interface KnowledgeTool {
-  description: string
-  inputSchema: z.ZodType
-  // kb cores take no AbortSignal: KnowledgeService exposes no cancellation plumbing (see knowledgeLookup).
-  run: (args: unknown, baseIds: readonly string[]) => Promise<KnowledgeToolOutput>
-}
-
-const KNOWLEDGE_TOOLS: Record<string, KnowledgeTool> = {
-  [KB_SEARCH_TOOL_NAME]: {
-    description: KNOWLEDGE_SEARCH_DESCRIPTION,
-    inputSchema: kbSearchInputSchema,
-    run: async (args, baseIds) => {
-      const { query, baseIds: requestedIds } = kbSearchInputSchema.parse(args)
-      return knowledgeSearchModelOutput(await searchKnowledge(query, requestedIds, baseIds))
-    }
-  },
-  // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
-  [KB_READ_TOOL_NAME]: {
-    description: KNOWLEDGE_READ_DESCRIPTION,
-    inputSchema: kbReadInputSchema,
-    run: async (args, baseIds) => {
-      const input = kbReadInputSchema.parse(args)
-      return knowledgeReadModelOutput(await readOrGrepConcept(input, baseIds))
-    }
-  },
-  // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
-  [KB_LIST_TOOL_NAME]: {
-    description: KNOWLEDGE_LIST_DESCRIPTION,
-    inputSchema: kbListInputSchema,
-    run: async (args, baseIds) => {
-      const input = kbListInputSchema.parse(args)
-      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, baseIds), input)
-    }
-  },
-  [KB_MANAGE_TOOL_NAME]: {
-    description: KNOWLEDGE_MANAGE_DESCRIPTION,
-    inputSchema: kbManageInputSchema,
-    run: async (args, baseIds) => {
-      const input = kbManageInputSchema.parse(args)
-      return knowledgeManageModelOutput(await manageKnowledge(input, baseIds))
-    }
-  }
-}
-
-/** Drop the `$schema` marker so strict MCP clients don't reject the advertised input schema. */
-function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
-  const json = z.toJSONSchema(schema) as Record<string, unknown>
-  delete json.$schema
-  return json as Tool['inputSchema']
-}
-
-const KNOWLEDGE_TOOL_LIST: readonly Tool[] = Object.entries(KNOWLEDGE_TOOLS).map(([name, tool]) => ({
-  name,
-  description: tool.description,
-  inputSchema: toMcpInputSchema(tool.inputSchema)
-}))
-
-function toTextResult(output: KnowledgeToolOutput): CallToolResult {
-  const text = output.type === 'text' ? output.value : JSON.stringify(output.value)
-  return { content: [{ type: 'text', text }] }
-}
-
-export class CherryKnowledgeTools {
-  private getKnowledgeBaseIds: () => string[]
-  private canAccessAllKnowledgeBases: () => boolean
-
-  constructor(context: CherryAgentContext) {
-    this.getKnowledgeBaseIds = context.getKnowledgeBaseIds
-    this.canAccessAllKnowledgeBases = context.canAccessAllKnowledgeBases ?? (() => false)
-  }
-
-  /**
-   * The kb_* tools, exposed only when the effective knowledge scope is currently non-empty —
-   * a static binding, or the composer selection frozen into this connection. An empty scope
-   * hides them entirely (mirrors the assistant path).
-   */
-  tools(): Tool[] {
-    return this.scope().kind === 'none' ? [] : [...KNOWLEDGE_TOOL_LIST]
-  }
-
-  handles(toolName: string): boolean {
-    return Object.hasOwn(KNOWLEDGE_TOOLS, toolName)
-  }
-
-  async call(toolName: string, args: unknown): Promise<CallToolResult> {
-    if (!this.handles(toolName)) {
-      return { content: [{ type: 'text', text: `Unknown tool: ${toolName}` }], isError: true }
-    }
-    const tool = KNOWLEDGE_TOOLS[toolName]
-    // Fail-closed: the kb_* tools are hidden from the listing for an empty scope, but reject a
-    // direct call too so an unscoped lookup can never run — and never reaches the shared core with
-    // an empty `allowedIds`, which that core would treat as "all bases".
-    const scope = this.scope()
+  // Fail-closed: an unscoped lookup must never reach the shared core with an empty `allowedIds`,
+  // which that core would treat as "all bases".
+  const allowedIds = (tool: string): readonly string[] => {
+    const scope = resolveKnowledgeScope(getKnowledgeAccess())
     if (scope.kind === 'none') {
-      logger.warn('Rejected direct knowledge tool call with an empty knowledge scope', { tool: toolName })
-      // "in scope", not "bound": an empty scope means no static binding AND no composer selection,
-      // so naming only the binding would point the model at the wrong remedy.
-      return {
-        content: [{ type: 'text', text: `Tool unavailable: ${toolName} (no knowledge base in scope)` }],
-        isError: true
-      }
+      logger.warn('Rejected knowledge tool call with an empty knowledge scope', { tool })
+      // "in scope", not "bound": naming only the binding would point the model at the wrong remedy.
+      throw new Error(`Tool unavailable: ${tool} (no knowledge base in scope)`)
     }
-    try {
-      return toTextResult(await tool.run(args ?? {}, scope.kind === 'unrestricted' ? [] : scope.baseIds))
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('cherry-tools knowledge call failed', normalizedError, { tool: toolName })
-      return { content: [{ type: 'text', text: `Error: ${normalizedError.message}` }], isError: true }
-    }
+    return scope.kind === 'unrestricted' ? [] : scope.baseIds
   }
 
-  private scope(): KnowledgeScope {
-    return resolveKnowledgeScope(this.getKnowledgeBaseIds(), this.canAccessAllKnowledgeBases())
-  }
+  // kb cores take no AbortSignal: KnowledgeService exposes no cancellation plumbing (see knowledgeLookup).
+  server.registerTool(
+    KB_SEARCH_TOOL_NAME,
+    { description: KNOWLEDGE_SEARCH_DESCRIPTION, inputSchema: kbSearchInputSchema },
+    async ({ query, baseIds }) =>
+      modelOutputToMcpResult(
+        knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds(KB_SEARCH_TOOL_NAME)))
+      )
+  )
+  // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
+  server.registerTool(
+    KB_READ_TOOL_NAME,
+    { description: KNOWLEDGE_READ_DESCRIPTION, inputSchema: kbReadInputSchema },
+    async (input) =>
+      modelOutputToMcpResult(knowledgeReadModelOutput(await readOrGrepConcept(input, allowedIds(KB_READ_TOOL_NAME))))
+  )
+  // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
+  server.registerTool(
+    KB_LIST_TOOL_NAME,
+    { description: KNOWLEDGE_LIST_DESCRIPTION, inputSchema: kbListInputSchema },
+    async (input) =>
+      modelOutputToMcpResult(
+        knowledgeListModelOutput(await listOrOutlineKnowledge(input, allowedIds(KB_LIST_TOOL_NAME)), input)
+      )
+  )
+  server.registerTool(
+    KB_MANAGE_TOOL_NAME,
+    { description: KNOWLEDGE_MANAGE_DESCRIPTION, inputSchema: kbManageInputSchema },
+    async (input) =>
+      modelOutputToMcpResult(knowledgeManageModelOutput(await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME))))
+  )
 }

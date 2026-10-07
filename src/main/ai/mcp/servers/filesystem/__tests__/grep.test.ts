@@ -3,14 +3,17 @@ import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { handleGrepTool } from '../tools/grep'
+import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
+import { FileSystemServer } from '../server'
 import * as types from '../types'
 
-function getTextContent(result: Awaited<ReturnType<typeof handleGrepTool>>): string {
-  const content = result.content[0]
-  if (content?.type !== 'text') throw new Error('Expected text content')
-  return content.text
+async function grepTool(args: Record<string, unknown>, root: string) {
+  const result = await callBuiltinTool(() => new FileSystemServer(root).server, 'grep', args)
+  if (result.isError) throw new Error(toolText(result))
+  return result
 }
+
+const getTextContent = toolText
 
 describe('grep MCP ripgrep integration', () => {
   const tempDirs: string[] = []
@@ -36,7 +39,7 @@ describe('grep MCP ripgrep integration', () => {
       .mockResolvedValue({ ok: true, stdout: '', stderr: '', exitCode: 1 })
 
     // A pattern that, without `--`, ripgrep would interpret as its preprocessor flag (→ RCE).
-    await handleGrepTool({ pattern: '--pre=/bin/sh', path: workspaceRoot }, workspaceRoot)
+    await grepTool({ pattern: '--pre=/bin/sh', path: workspaceRoot }, workspaceRoot)
 
     expect(runRipgrepSpy).toHaveBeenCalledTimes(1)
     const rgArgs = runRipgrepSpy.mock.calls[0][0]
@@ -58,7 +61,7 @@ describe('grep MCP ripgrep integration', () => {
       .spyOn(types, 'runRipgrep')
       .mockResolvedValue({ ok: true, stdout: '', stderr: '', exitCode: 1 })
 
-    const result = await handleGrepTool({ pattern, path: workspaceRoot }, workspaceRoot)
+    const result = await grepTool({ pattern, path: workspaceRoot }, workspaceRoot)
 
     expect(runRipgrepSpy).toHaveBeenCalledOnce()
     expect(runRipgrepSpy.mock.calls[0][0]).toContain(pattern)
@@ -70,7 +73,7 @@ describe('grep MCP ripgrep integration', () => {
     const pattern = '(?P<word>foo)'
     vi.spyOn(types, 'runRipgrep').mockResolvedValue({ ok: false, stdout: '', stderr: '', exitCode: null })
 
-    await expect(handleGrepTool({ pattern, path: workspaceRoot }, workspaceRoot)).rejects.toThrow(
+    await expect(grepTool({ pattern, path: workspaceRoot }, workspaceRoot)).rejects.toThrow(
       `Invalid regex pattern: ${pattern}`
     )
   })
@@ -101,7 +104,7 @@ describe('grep MCP ripgrep integration', () => {
       exitCode: 0
     })
 
-    const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
+    const result = await grepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
     const rgArgs = runRipgrepSpy.mock.calls[0][0]
 
     expect(rgArgs).toContain('--no-config')
@@ -129,7 +132,7 @@ describe('grep MCP ripgrep integration', () => {
       exitCode: 0
     })
 
-    const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
+    const result = await grepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
 
     expect(getTextContent(result)).toContain(matchedFile)
     expect(getTextContent(result)).toContain('1: needle')
@@ -152,7 +155,7 @@ describe('grep MCP ripgrep integration', () => {
       exitCode: 0
     })
 
-    const result = await handleGrepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
+    const result = await grepTool({ pattern: 'needle', path: matchedFile }, workspaceRoot)
 
     expect(getTextContent(result)).toContain(`${matchedFile}:`)
     expect(getTextContent(result)).toContain('7: needle here')
@@ -161,8 +164,7 @@ describe('grep MCP ripgrep integration', () => {
   it('skips a binary file that ripgrep searched because it was named explicitly', async () => {
     const workspaceRoot = await createTempDir('grep-binary-root-')
     const binaryFile = path.join(workspaceRoot, 'blob.bin')
-    // A run of pure NULs reads as UTF-16 text to isBinaryFile; real binaries carry
-    // mixed low bytes, so use those to land on the NUL-density branch.
+    // Real binaries carry mixed low control bytes, not a run of pure NULs.
     const binaryTail = Buffer.alloc(512)
     binaryTail.forEach((_, index) => (binaryTail[index] = index % 8))
     await fs.writeFile(binaryFile, Buffer.concat([Buffer.from('needle in the head\n'), binaryTail]))
@@ -182,7 +184,7 @@ describe('grep MCP ripgrep integration', () => {
       exitCode: 0
     })
 
-    const result = await handleGrepTool({ pattern: 'needle', path: binaryFile }, workspaceRoot)
+    const result = await grepTool({ pattern: 'needle', path: binaryFile }, workspaceRoot)
 
     expect(getTextContent(result)).not.toContain('needle in the head')
     expect(getTextContent(result)).toBe('No matches found')

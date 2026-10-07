@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Client } from '@modelcontextprotocol/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 const { createMock, deleteMock, updateAgentMock, getAgentMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -14,23 +17,26 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: getAgentMock, updateAgent: updateAgentMock }
 }))
 
-const { default: McpManagerServer } = await import('../mcpManager')
-type McpManagerServerInstance = InstanceType<typeof McpManagerServer>
+const { createMcpManagerServer } = await import('../mcpManager')
 
-function createServer(agentId = 'agent-1') {
-  return new McpManagerServer(agentId)
+type Result = { isError?: boolean; content: Array<{ type: string; text: string }> }
+const clients: Client[] = []
+
+async function createServer(agentId = 'agent-1'): Promise<Client> {
+  const client = await connectAgentMcpClient(
+    { name: 'mcp-manager', connect: serveAgentMcpServer(() => createMcpManagerServer(agentId)) },
+    'test'
+  )
+  clients.push(client)
+  return client
 }
 
-function handlers(server: McpManagerServerInstance) {
-  return (server.mcpServer.server as any)._requestHandlers
+async function listTools(client: Promise<Client>) {
+  return (await client).listTools()
 }
 
-async function listTools(server: McpManagerServerInstance): Promise<any> {
-  return handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
-}
-
-async function callTool(server: McpManagerServerInstance, name: string, args: Record<string, unknown>): Promise<any> {
-  return handlers(server).get('tools/call')({ method: 'tools/call', params: { name, arguments: args } }, {})
+async function callTool(client: Client | Promise<Client>, name: string, args: Record<string, unknown>) {
+  return (await (await client).callTool({ name, arguments: args })) as Result
 }
 
 function mockAgent(mcps: string[] = []) {
@@ -49,14 +55,18 @@ function mockCreatedServer(overrides: Record<string, unknown> = {}) {
   })
 }
 
-describe('McpManagerServer', () => {
+describe('mcp-manager MCP server', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
   it('exposes exactly install_mcp_server', async () => {
     const result = await listTools(createServer())
-    expect(result.tools.map((t: any) => t.name)).toEqual(['install_mcp_server'])
+    expect(result.tools.map((t) => t.name)).toEqual(['install_mcp_server'])
   })
 
   describe('install_mcp_server', () => {
@@ -89,7 +99,6 @@ describe('McpManagerServer', () => {
       // The activate gate is stripped before the shared strict schema, so it never
       // leaks into the persisted record.
       expect(createMock.mock.calls[0][0]).not.toHaveProperty('activate')
-      expect(getAgentMock).toHaveBeenCalledWith('agent-1')
       expect(updateAgentMock).toHaveBeenCalledWith('agent-1', { mcps: ['server-1'] })
       expect(result.content[0].text).toContain('registered for this agent')
       expect(result.content[0].text).toContain('NOT yet active')
@@ -169,6 +178,16 @@ describe('McpManagerServer', () => {
       expect(createMock).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['an in-memory transport type', { type: 'inMemory' }],
+      ['a field outside the install contract', { isTrusted: true }]
+    ])('rejects %s without creating anything', async (_case, extra) => {
+      const result = await callTool(createServer(), 'install_mcp_server', { name: 'my-mcp', command: 'npx', ...extra })
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Input validation error')
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
     it('rejects invalid field types via the shared schema (zod parse failure)', async () => {
       const result = await callTool(createServer(), 'install_mcp_server', {
         name: 'my-mcp',
@@ -224,10 +243,5 @@ describe('McpManagerServer', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('bind write failed')
     })
-  })
-
-  it('rejects an unknown tool', async () => {
-    const result = await callTool(createServer(), 'nope', {})
-    expect(result.isError).toBe(true)
   })
 })

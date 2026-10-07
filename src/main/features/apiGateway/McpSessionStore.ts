@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import type { McpServer as McpBridgeServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import { type Server as McpBridgeServer, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server'
 
 import { loggerService } from '@logger'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'

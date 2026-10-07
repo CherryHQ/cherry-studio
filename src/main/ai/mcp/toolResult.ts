@@ -1,6 +1,15 @@
 import { isDeepStrictEqual } from 'node:util'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
+
 import type { McpCallToolResponse } from './types'
+
+/** Serve an AI-SDK text/json tool output as MCP text content; the inverse of `mcpResultToModelOutput`. */
+export function modelOutputToMcpResult(
+  output: { type: 'text'; value: string } | { type: 'json'; value: unknown }
+): CallToolResult {
+  return { content: [{ type: 'text', text: output.type === 'text' ? output.value : JSON.stringify(output.value) }] }
+}
 
 /** v1 accepts only objects in structuredContent; its text fallback carries other JSON values. */
 export function mcpLegacyResult(result: McpCallToolResponse) {

@@ -1,5 +1,5 @@
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
-import { createMcpHandler, Server } from '@modelcontextprotocol/server'
+import { createMcpHandler, McpServer, Server } from '@modelcontextprotocol/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ClientMcpConnection } from '../ClientMcpConnection'
@@ -75,7 +75,8 @@ describe('MCP catalog over modern handler.fetch', () => {
       events,
       endpoint: {
         createServer: () => {
-          const server = new Server({ name: 'cached-catalog', version: '1' }, { capabilities: { tools: {} } })
+          const mcp = new McpServer({ name: 'cached-catalog', version: '1' }, { capabilities: { tools: {} } })
+          const server = mcp.server
           server.setRequestHandler('tools/list', async () => {
             listRequests++
             return {
@@ -84,7 +85,7 @@ describe('MCP catalog over modern handler.fetch', () => {
               cacheScope: 'private'
             }
           })
-          return server
+          return mcp
         },
         close: async () => undefined
       }
@@ -108,13 +109,14 @@ describe('MCP catalog over modern handler.fetch', () => {
       events,
       endpoint: {
         createServer: () => {
-          const server = new Server(
+          const mcp = new McpServer(
             { name: 'templates', version: '1' },
             {
               capabilities: { resources: {} },
               instructions: 'Expand the document template before reading.'
             }
           )
+          const server = mcp.server
           server.setRequestHandler('resources/templates/list', async ({ params }) => ({
             resourceTemplates: [
               params?.cursor
@@ -126,7 +128,7 @@ describe('MCP catalog over modern handler.fetch', () => {
           server.setRequestHandler('resources/read', async ({ params }) => ({
             contents: [{ uri: params.uri, text: 'dynamic document' }]
           }))
-          return server
+          return mcp
         },
         close: async () => undefined
       }
@@ -155,7 +157,8 @@ describe('MCP catalog over modern handler.fetch', () => {
         events,
         endpoint: {
           createServer: () => {
-            const server = new Server({ name: 'changing-schema', version: '1' }, { capabilities: { tools: {} } })
+            const mcp = new McpServer({ name: 'changing-schema', version: '1' }, { capabilities: { tools: {} } })
+            const server = mcp.server
             server.setRequestHandler('tools/list', async () => ({
               ttlMs: 0,
               cacheScope: 'private',
@@ -171,7 +174,7 @@ describe('MCP catalog over modern handler.fetch', () => {
               content: [],
               structuredContent: arrayOutput ? ['updated'] : 'original'
             }))
-            return server
+            return mcp
           },
           close: async () => undefined
         }
