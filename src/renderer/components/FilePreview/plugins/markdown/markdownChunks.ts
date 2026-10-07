@@ -62,7 +62,7 @@ function htmlBlockTerminator(line: string): RegExp | null {
   if (/^\s{0,3}<!--/.test(line)) return /-->/
   if (/^\s{0,3}<\?/.test(line)) return /\?>/
   if (/^\s{0,3}<!\[CDATA\[/.test(line)) return /\]\]>/
-  if (/^\s{0,3}<![A-Z]/.test(line)) return />/
+  if (/^\s{0,3}<![A-Za-z]/.test(line)) return />/
   return null
 }
 
@@ -128,7 +128,7 @@ const INDENTED_LINE = /^\s+\S/
 const BLOCK_START =
   /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$|=+[ \t]*$)/
 
-/** CommonMark's block-level tag names, plus the four raw ones; a tag outside opens no block. */
+/** CommonMark's type-6 block-level tag names; a tag outside the two sets opens no block. */
 const HTML_BLOCK_TAGS = new Set([
   'address',
   'article',
@@ -191,12 +191,14 @@ const HTML_BLOCK_TAGS = new Set([
   'title',
   'tr',
   'track',
-  'ul',
-  'pre',
-  'script',
-  'style',
-  'textarea'
+  'ul'
 ])
+
+/**
+ * CommonMark's raw-text tags (type 1), which open a block only in their plain opening form — the
+ * parser reads `</pre>` and `<pre/>` as type 7, which cannot interrupt.
+ */
+const HTML_RAW_TAGS = new Set(['pre', 'script', 'style', 'textarea'])
 
 /**
  * A line opening an HTML block the parser takes even inside the construct it is reading: a comment,
@@ -206,10 +208,23 @@ const HTML_BLOCK_TAGS = new Set([
  * but the span measurement reaches that verdict on its own, so the predicate need not encode it.
  */
 function opensHtmlBlock(line: string): boolean {
-  if (/^ {0,3}<(?:!--|\?|!\[CDATA\[|![A-Z])/.test(line)) return true
-  const tag = /^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)/.exec(line)
-  return tag !== null && HTML_BLOCK_TAGS.has(tag[1].toLowerCase())
+  if (/^ {0,3}<(?:!--|\?|!\[CDATA\[|![A-Za-z])/.test(line)) return true
+  // The name has to end at whitespace, `>`, `/>` or the line's end — the parser reads `<div"x>` as
+  // a paragraph continuation, not a block, so accepting any suffix here would end the definition
+  // the title runs on.
+  const tag = /^ {0,3}<(\/?)([A-Za-z][A-Za-z0-9-]*)([ \t/>]|$)/.exec(line)
+  if (!tag) return false
+  const name = tag[2].toLowerCase()
+  if (HTML_RAW_TAGS.has(name)) return tag[1] === '' && tag[3] !== '/'
+  return HTML_BLOCK_TAGS.has(name)
 }
+
+/**
+ * A list marker indented at most three columns — the deepest a marker may sit and still open the
+ * list where it stands. Four or more columns is code at the document level and, inside a
+ * footnote definition, content the footnote owns, so it interrupts nothing.
+ */
+const INTERRUPTING_LIST_MARKER = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+/
 
 /**
  * Whether a line opens a block where it appears. Both callers ask the same question — one ends a
@@ -217,7 +232,7 @@ function opensHtmlBlock(line: string): boolean {
  * content — so the answer must not differ between them.
  */
 function startsBlock(line: string): boolean {
-  return LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
+  return INTERRUPTING_LIST_MARKER.test(line) || BLOCK_START.test(line) || opensHtmlBlock(line)
 }
 
 /**
