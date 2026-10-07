@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "Không có tài nguyên khả dụng",
   "settings.mcp.resources.size": "Kích thước",
   "settings.mcp.resources.text": "Văn bản",
+  "settings.mcp.runtimeStatus.authorizing": "Đang chờ ủy quyền",
   "settings.mcp.runtimeStatus.connected": "Đã kết nối",
   "settings.mcp.runtimeStatus.connecting": "Kết nối",
   "settings.mcp.runtimeStatus.disabled": "Vô hiệu hóa",

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 
+import { SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -373,6 +374,96 @@ describe('McpRuntimeService connection ownership', () => {
     health.resolve()
     await removed
     expect(create).not.toHaveBeenCalled()
+  })
+})
+
+describe('McpRuntimeService connect retry gate', () => {
+  const server = { id: 'server-1', name: 'docs', isActive: true, baseUrl: 'https://a.example/mcp' } as McpServer
+  const rejected = new SseError(412, 'Non-200 status code (412)', {} as ErrorEvent)
+  const connection = { era: 'modern', listTools: async () => [], close: async () => {} }
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
+    getByIdMock.mockReturnValue(server)
+    connectionFactoryMocks.createExternal.mockReset()
+  })
+
+  it('does not reconnect after a non-retryable failure until restart or a config change', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockRejectedValueOnce(rejected)
+
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    await expect(service.getServerVersion(server.id)).resolves.toBeNull()
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    expect(create).toHaveBeenCalledTimes(1)
+
+    create.mockResolvedValue(connection)
+    getByIdMock.mockReturnValue({ ...server, baseUrl: 'https://b.example/mcp' })
+    await expect(service.listTools(server.id)).resolves.toEqual([])
+
+    getByIdMock.mockReturnValue(server)
+    await expect(service.listTools(server.id)).rejects.toBe(rejected)
+    await service.restartServer(server.id)
+    expect(create).toHaveBeenCalledTimes(3)
+  })
+
+  it('shows browser authorization and stops reconnecting after the user cancels it', async () => {
+    const service = new McpRuntimeService()
+    connectionFactoryMocks.createExternal.mockImplementation(
+      ({ onAuthorizationStarted, signal }: { onAuthorizationStarted: () => void; signal: AbortSignal }) => {
+        onAuthorizationStarted()
+        return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
+      }
+    )
+
+    const pending = service.listTools(server.id)
+    const status = () => MockMainCacheServiceUtils.getSharedCacheValue(`mcp.status.${server.id}`)
+    await vi.waitFor(() => expect(status()).toMatchObject({ state: 'connecting', authorizing: true }))
+
+    service.cancelAuthorization(server.id)
+    await expect(pending).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(status()).toMatchObject({ state: 'error' })
+    expect(status()).not.toHaveProperty('authorizing')
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets a caller that can open the browser sign in after a background attempt needed authorization', async () => {
+    const service = new McpRuntimeService()
+    const connection = { era: 'modern', serverVersion: '1.0.0', close: async () => {} }
+    connectionFactoryMocks.createExternal.mockImplementation(
+      async ({ allowInteractiveAuthorization }: { allowInteractiveAuthorization: boolean }) => {
+        if (!allowInteractiveAuthorization) throw new UnauthorizedError('sign-in required')
+        return connection
+      }
+    )
+
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    await expect(service.listTools(server.id)).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(1)
+
+    await expect(service.getServerVersion(server.id)).resolves.toBe('1.0.0')
+    expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a transient failure only after its backoff and stops after the attempt budget', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockRejectedValue(new Error('ECONNRESET'))
+    let now = 1_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+      await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+      expect(create).toHaveBeenCalledTimes(attempt)
+      now += 10_000 * 2 ** (attempt - 1)
+    }
+    now += 24 * 60 * 60 * 1000
+    await expect(service.listTools(server.id)).rejects.toThrow('ECONNRESET')
+    expect(create).toHaveBeenCalledTimes(5)
+    vi.mocked(Date.now).mockRestore()
   })
 })
 

@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "Kullanılabilir kaynak yok",
   "settings.mcp.resources.size": "Boyut",
   "settings.mcp.resources.text": "Metin",
+  "settings.mcp.runtimeStatus.authorizing": "Yetkilendirme bekleniyor",
   "settings.mcp.runtimeStatus.connected": "Bağlandı",
   "settings.mcp.runtimeStatus.connecting": "Bağlanıyor",
   "settings.mcp.runtimeStatus.disabled": "Devre dışı",

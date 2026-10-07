@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "利用可能なリソースはありません",
   "settings.mcp.resources.size": "サイズ",
   "settings.mcp.resources.text": "テキスト",
+  "settings.mcp.runtimeStatus.authorizing": "ブラウザーでの認可待ち",
   "settings.mcp.runtimeStatus.connected": "接続済み",
   "settings.mcp.runtimeStatus.connecting": "接続中",
   "settings.mcp.runtimeStatus.disabled": "無効",

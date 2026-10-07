@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "Нет доступных ресурсов",
   "settings.mcp.resources.size": "Размер",
   "settings.mcp.resources.text": "Текст",
+  "settings.mcp.runtimeStatus.authorizing": "Ожидание авторизации",
   "settings.mcp.runtimeStatus.connected": "Подключено",
   "settings.mcp.runtimeStatus.connecting": "Подключение",
   "settings.mcp.runtimeStatus.disabled": "Отключено",

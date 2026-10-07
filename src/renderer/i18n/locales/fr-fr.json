@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "Aucune ressource disponible",
   "settings.mcp.resources.size": "Taille",
   "settings.mcp.resources.text": "Texte",
+  "settings.mcp.runtimeStatus.authorizing": "En attente d'autorisation",
   "settings.mcp.runtimeStatus.connected": "Connecté",
   "settings.mcp.runtimeStatus.connecting": "Connexion",
   "settings.mcp.runtimeStatus.disabled": "Désactivé",

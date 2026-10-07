@@ -2,6 +2,8 @@ import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
 
+import { UnauthorizedError } from '@modelcontextprotocol/client'
+
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 
@@ -139,9 +141,12 @@ export class CallBackServer {
         this.events.off('auth-callback-received', onCallback)
         signal?.removeEventListener('abort', onAbort)
       }
+      // Consent pages often close without redirecting on cancel, so an expired wait means abandoned.
+      const notCompleted = () => new UnauthorizedError(t('settings.mcp.oauth.not_completed'))
       const onAbort = () => {
         cleanup()
-        reject(signal?.reason)
+        const reason = signal?.reason
+        reject(reason instanceof DOMException && reason.name === 'TimeoutError' ? notCompleted() : reason)
       }
       const onCallback = (params: URLSearchParams) => {
         cleanup()
@@ -149,7 +154,7 @@ export class CallBackServer {
       }
       const timer = setTimeout(() => {
         cleanup()
-        reject(new Error(`Timed out waiting for OAuth callback after ${Math.round(timeoutMs / 1000)}s`))
+        reject(notCompleted())
       }, timeoutMs)
       this.events.once('auth-callback-received', onCallback)
       signal?.addEventListener('abort', onAbort, { once: true })

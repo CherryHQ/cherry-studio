@@ -32,6 +32,9 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.stop': async ({ serverId }) => {
     await application.get('McpRuntimeService').stopServer(serverId)
   },
+  'mcp.server.cancel_authorization': async ({ serverId }) => {
+    application.get('McpRuntimeService').cancelAuthorization(serverId)
+  },
   'mcp.server.refresh_tools': async ({ serverId }) => {
     await application.get('McpCatalogService').refreshTools(serverId)
   },

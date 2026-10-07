@@ -194,6 +194,18 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     }
   }
 
+  const retryConnection = async () => {
+    setLoadingServer(server.id)
+    try {
+      await ipcApi.request('mcp.server.restart', { serverId: server.id })
+      await fetchServerVersion()
+    } catch (error) {
+      logger.warn('MCP server retry failed', { error })
+    } finally {
+      setLoadingServer(null)
+    }
+  }
+
   const refreshCatalog = useEffectEvent((kind: 'prompts' | 'resources') => {
     if (kind === 'prompts') void fetchPrompts()
     else void fetchResources()
@@ -456,9 +468,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   )
 
   const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
+  const authorizing = server.isActive && runtimeStatus.state === 'connecting' && runtimeStatus.authorizing
   const runtimeStatusLabel = {
     disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
-    connecting: t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
+    connecting: authorizing
+      ? t('settings.mcp.runtimeStatus.authorizing')
+      : t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
     connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
     error: t('settings.mcp.runtimeStatus.error', 'Error')
   }[server.isActive ? runtimeStatus.state : 'disabled']
@@ -607,6 +622,29 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                     <McpRuntimeStatusBadge state={server.isActive ? runtimeStatus.state : 'disabled'}>
                       {runtimeStatusLabel}
                     </McpRuntimeStatusBadge>
+                    {authorizing && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void ipcApi
+                            .request('mcp.server.cancel_authorization', { serverId: server.id })
+                            .catch((error) => logger.warn('Failed to cancel MCP authorization', { error }))
+                        }>
+                        {t('common.cancel')}
+                      </Button>
+                    )}
+                    {runtimeError && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={loadingServer === server.id}
+                        onClick={() => void retryConnection()}>
+                        {t('common.retry')}
+                      </Button>
+                    )}
                     {serverVersion && <VersionText>{serverVersion}</VersionText>}
                   </Flex>
                 </Flex>

@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "無可用資源",
   "settings.mcp.resources.size": "大小",
   "settings.mcp.resources.text": "文字",
+  "settings.mcp.runtimeStatus.authorizing": "等待瀏覽器授權",
   "settings.mcp.runtimeStatus.connected": "已連線",
   "settings.mcp.runtimeStatus.connecting": "連接",
   "settings.mcp.runtimeStatus.disabled": "已停用",

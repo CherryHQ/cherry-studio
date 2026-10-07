@@ -98,6 +98,7 @@ export async function createExternalMcpConnection({
   oauthCoordinator = new McpOAuthCoordinator(),
   allowInteractiveAuthorization = true,
   authorizationWindowId,
+  onAuthorizationStarted,
   signal
 }: {
   server: McpServer
@@ -108,6 +109,7 @@ export async function createExternalMcpConnection({
   oauthCoordinator?: McpOAuthCoordinator
   allowInteractiveAuthorization?: boolean
   authorizationWindowId?: string
+  onAuthorizationStarted?: () => void
   signal?: AbortSignal
 }): Promise<McpConnection> {
   const authProvider = new McpOAuthClientProvider({
@@ -133,7 +135,7 @@ export async function createExternalMcpConnection({
     const windowId = connecting ? authorizationWindowId : activeConnection?.getInteractionContext()?.windowId
     const window = windowId ? application.get('WindowManager').getWindow(windowId) : undefined
     if (connecting ? !allowInteractiveAuthorization || (Boolean(windowId) && !window) : !window)
-      throw new UnauthorizedError('MCP authorization requires an interactive request')
+      throw new UnauthorizedError(t('settings.mcp.oauth.required'))
     const windowClosed = new AbortController()
     const close = () => windowClosed.abort(new Error('MCP authorization window closed'))
     window?.once('closed', close)
@@ -143,6 +145,7 @@ export async function createExternalMcpConnection({
         AbortSignal.any([operation.signal, windowClosed.signal])
       )
       operation.lease.signal.addEventListener('abort', () => window?.removeListener('closed', close), { once: true })
+      if (connecting) onAuthorizationStarted?.()
     } catch (error) {
       window?.removeListener('closed', close)
       throw error

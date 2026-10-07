@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 
+import { UnauthorizedError } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CallBackServer } from '../callback'
@@ -44,14 +45,19 @@ describe('CallBackServer.waitForAuthCallback', () => {
     })
   })
 
-  it('rejects when no callback arrives within the timeout', async () => {
-    const promise = server.waitForAuthCallback(1000)
-    const assertion = expect(promise).rejects.toThrow(/Timed out waiting for OAuth callback/)
+  it.each(['own timer', 'connect deadline'])(
+    'reports an abandoned consent page as unauthorized when the %s expires',
+    async (source) => {
+      const controller = new AbortController()
+      const promise = server.waitForAuthCallback(1000, controller.signal)
+      const assertion = expect(promise).rejects.toBeInstanceOf(UnauthorizedError)
 
-    await vi.advanceTimersByTimeAsync(1000)
+      if (source === 'own timer') await vi.advanceTimersByTimeAsync(1000)
+      else controller.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
 
-    await assertion
-  })
+      await assertion
+    }
+  )
 
   it('does not reject after resolving (timer is cleared on success)', async () => {
     const promise = server.waitForAuthCallback(1000)

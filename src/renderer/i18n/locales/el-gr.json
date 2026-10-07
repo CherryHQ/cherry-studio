@@ -4652,6 +4652,7 @@
   "settings.mcp.resources.noResourcesAvailable": "Δεν υπάρχουν διαθέσιμοι πόροι",
   "settings.mcp.resources.size": "Μέγεθος",
   "settings.mcp.resources.text": "Κείμενο",
+  "settings.mcp.runtimeStatus.authorizing": "Αναμονή εξουσιοδότησης",
   "settings.mcp.runtimeStatus.connected": "Συνδεδεμένος",
   "settings.mcp.runtimeStatus.connecting": "Σύνδεση",
   "settings.mcp.runtimeStatus.disabled": "Απενεργοποιημένο",

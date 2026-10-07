@@ -3,6 +3,9 @@ import fs from 'node:fs/promises'
 
 import {
   isInputRequiredResult,
+  SdkHttpError,
+  SseError,
+  UnauthorizedError,
   type CacheMode,
   type GetPromptResult,
   type Progress,
@@ -28,6 +31,7 @@ import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -120,6 +124,30 @@ const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 const MCP_INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
+const MCP_CONNECT_RETRY_BASE_MS = 10_000
+const MCP_CONNECT_MAX_ATTEMPTS = 5
+
+interface ConnectFailure {
+  error: unknown
+  attempts: number
+  retryAt: number
+  interactive: boolean
+}
+
+function canAuthorizeInteractively(requestContext?: McpInteractionContext | null): boolean {
+  return requestContext === undefined || Boolean(requestContext?.windowId)
+}
+
+/** Delay before the next automatic connect; Infinity waits for restart or a config change. */
+export function connectRetryDelayMs(error: unknown, attempts: number): number {
+  if (attempts >= MCP_CONNECT_MAX_ATTEMPTS) return Infinity
+  for (let cause = error, depth = 0; cause && depth < 5; cause = (cause as Error).cause, depth++) {
+    if (UnauthorizedError.isInstance(cause)) return Infinity
+    const status = SseError.isInstance(cause) ? cause.code : SdkHttpError.isInstance(cause) ? cause.status : undefined
+    if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) return Infinity
+  }
+  return MCP_CONNECT_RETRY_BASE_MS * 2 ** (attempts - 1)
+}
 
 interface PendingInteraction {
   windowId: WindowId
@@ -205,6 +233,8 @@ export class McpRuntimeService extends BaseService {
   private pendingConnectionControllers = new Map<string, AbortController>()
   // Removal waits for initialization cleanup, but must not wait out a liveness probe.
   private pendingProbes = new Map<string, Promise<McpConnection | undefined>>()
+  // Keyed by server key, so a config change starts fresh; restart/stop/remove clear it.
+  private connectFailures = new Map<string, ConnectFailure>()
   private removedServerIds = new Set<string>()
   private pendingRemovals = new Map<string, Promise<void>>()
   private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
@@ -245,6 +275,7 @@ export class McpRuntimeService extends BaseService {
     this.pendingConnections.clear()
     this.pendingConnectionControllers.clear()
     this.pendingProbes.clear()
+    this.connectFailures.clear()
     this.connections.clear()
     this.serverLogs.clear()
   }
@@ -253,7 +284,7 @@ export class McpRuntimeService extends BaseService {
     return mcpServerService.getById(serverId)
   }
 
-  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown, authorizing?: boolean): void {
     if (this.removedServerIds.has(serverId)) return
 
     const lastError =
@@ -261,12 +292,14 @@ export class McpRuntimeService extends BaseService {
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
     const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
-    if (current && current.state === state && current.lastError === lastError) return
+    if (current && current.state === state && current.lastError === lastError && current.authorizing === authorizing)
+      return
 
     cacheService.setShared(key, {
       state,
       lastCheckedAt: Date.now(),
-      ...(lastError !== undefined ? { lastError } : {})
+      ...(lastError !== undefined ? { lastError } : {}),
+      ...(authorizing ? { authorizing } : {})
     } satisfies McpRuntimeStatus)
   }
 
@@ -365,8 +398,9 @@ export class McpRuntimeService extends BaseService {
     return createExternalMcpConnection({
       server: resolveBuiltinExternalMcpServer(server),
       oauthCoordinator: this.oauthCoordinator,
-      allowInteractiveAuthorization: requestContext === undefined || Boolean(requestContext?.windowId),
+      allowInteractiveAuthorization: canAuthorizeInteractively(requestContext),
       authorizationWindowId: requestContext?.windowId,
+      onAuthorizationStarted: () => this.setServerStatus(server.id, 'connecting', undefined, true),
       signal,
       appVersion: app.getVersion(),
       events,
@@ -403,10 +437,7 @@ export class McpRuntimeService extends BaseService {
 
     const serverKey = this.getServerKey(server)
     const pending = this.pendingConnections.get(serverKey)
-    if (pending) {
-      this.setServerStatus(server.id, 'connecting')
-      return waitForConnection(pending, signal)
-    }
+    if (pending) return waitForConnection(pending, signal)
 
     const existing = this.connections.get(serverKey)
     const pendingProbe = this.pendingProbes.get(serverKey)
@@ -420,6 +451,11 @@ export class McpRuntimeService extends BaseService {
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     const pendingAfterProbe = this.pendingConnections.get(serverKey)
     if (pendingAfterProbe) return waitForConnection(pendingAfterProbe, signal)
+    const interactive = canAuthorizeInteractively(requestContext)
+    const failure = this.connectFailures.get(serverKey)
+    // A background attempt cannot open the browser, so it must not block a caller that can sign in.
+    const signInPending = failure && !failure.interactive && interactive && UnauthorizedError.isInstance(failure.error)
+    if (failure && Date.now() < failure.retryAt && !signInPending) throw failure.error
 
     this.setServerStatus(server.id, 'connecting')
     const controller = new AbortController()
@@ -442,6 +478,7 @@ export class McpRuntimeService extends BaseService {
           throw new Error('MCP runtime is stopping')
         }
         this.connections.set(serverKey, connection)
+        this.connectFailures.delete(serverKey)
         this.setServerStatus(server.id, 'connected')
         this.emitServerLog(server, {
           timestamp: Date.now(),
@@ -451,6 +488,12 @@ export class McpRuntimeService extends BaseService {
         })
         return connection
       } catch (error) {
+        const cancelled = controller.signal.aborted && !UnauthorizedError.isInstance(controller.signal.reason)
+        if (!cancelled && !this.stopping && !this.removedServerIds.has(server.id)) {
+          const attempts = (this.connectFailures.get(serverKey)?.attempts ?? 0) + 1
+          const retryAt = Date.now() + connectRetryDelayMs(error, attempts)
+          this.connectFailures.set(serverKey, { error, attempts, retryAt, interactive })
+        }
         this.setServerStatus(server.id, 'error', error)
         this.emitServerLog(server, {
           timestamp: Date.now(),
@@ -849,6 +892,7 @@ export class McpRuntimeService extends BaseService {
 
   public async checkMcpConnectivity(serverId: string): Promise<boolean> {
     const server = this.getServerById(serverId)
+    this.connectFailures.delete(this.getServerKey(server))
     try {
       await (await this.getOrCreateConnection(server)).health()
       this.setServerStatus(server.id, 'connected')
@@ -858,6 +902,14 @@ export class McpRuntimeService extends BaseService {
       application.get('McpCatalogService').clearSharedToolsCache(server.id)
       this.setServerStatus(server.id, 'error', error)
       return false
+    }
+  }
+
+  /** Abandons a pending browser authorization; the server stays in error until an explicit retry. */
+  public cancelAuthorization(serverId: string): void {
+    const reason = new UnauthorizedError(t('settings.mcp.oauth.cancelled'))
+    for (const [key, controller] of this.pendingConnectionControllers) {
+      if (this.isServerKeyForId(key, serverId)) controller.abort(reason)
     }
   }
 
@@ -1087,6 +1139,9 @@ export class McpRuntimeService extends BaseService {
 
   private async closeConnectionsForServer(serverId: string): Promise<void> {
     this.abortActiveToolCalls(serverId)
+    for (const key of this.connectFailures.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.connectFailures.delete(key)
+    }
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
     for (const key of pendingKeys) {
       this.connectionGenerations.delete(key)
