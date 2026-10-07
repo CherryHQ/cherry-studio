@@ -1708,6 +1708,32 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
+  it('refuses to replace parts on a terminal error row', () => {
+    // Delivery settles a placeholder it has stopped hearing from as a terminal error; a late
+    // background flush landing after that must not resurrect success-shaped content under a
+    // failure status.
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'gave up' } }] }
+      }
+    })
+
+    const saved = agentSessionMessageService.replaceMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, [
+      { type: 'text', text: 'Subagent finished anyway' }
+    ])
+
+    const after = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.status).toBe('error')
+    expect(after.status).toBe('error')
+    expect(after.data.parts).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'gave up' }) })
+    ])
+  })
+
   it('keeps the session timestamp aligned with a newly saved message batch', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_001_000).mockReturnValue(1_700_000_002_000)
 
