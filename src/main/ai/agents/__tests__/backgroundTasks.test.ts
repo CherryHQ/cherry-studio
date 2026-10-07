@@ -38,15 +38,19 @@ describe('backgroundTasks', () => {
   afterEach(async () => {
     // A force-killed detached child releases its log fd and cwd handle a beat after taskkill
     // returns — the kernel reaps them asynchronously, and a loaded Windows runner was observed
-    // holding the directory well past five seconds (EBUSY exhausting the retry window whole).
+    // holding the directory well past fifteen seconds too. No fixed window covers every load,
+    // and a temp dir the runner's own scanners still hold is not the tests' business to fight:
+    // past the deadline the directory is left to the disposable machine instead of failing here.
     const deadline = Date.now() + 15_000
     for (;;) {
       try {
         await rm(storageDir, { recursive: true, force: true })
-        break
+        return
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code
-        if (Date.now() >= deadline || (code !== 'EBUSY' && code !== 'ENOTEMPTY' && code !== 'EPERM')) throw error
+        const retryable = code === 'EBUSY' || code === 'ENOTEMPTY' || code === 'EPERM'
+        if (!retryable) throw error
+        if (Date.now() >= deadline) return
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
     }
