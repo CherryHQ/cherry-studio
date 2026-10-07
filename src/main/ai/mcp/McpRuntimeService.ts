@@ -7,6 +7,7 @@ import {
   SseError,
   UnauthorizedError,
   type CacheMode,
+  type CallToolResult,
   type GetPromptResult,
   type Progress,
   type ServerCapabilities,
@@ -56,7 +57,6 @@ import { mcpTransportKind } from './mcpTransportKind'
 import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
 import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
-import type { GetResourceResponse, McpCallToolResponse } from './types'
 
 type CallToolArgs = {
   serverId: string
@@ -206,9 +206,9 @@ function getServerLogger(server: McpServer, extra?: Record<string, unknown>) {
  * in durable session history, so failing the call would strand the turn over one screenshot.
  */
 async function clampToolResultImages(
-  response: McpCallToolResponse,
+  response: CallToolResult,
   serverLogger: ReturnType<typeof getServerLogger>
-): Promise<McpCallToolResponse> {
+): Promise<CallToolResult> {
   const content = await Promise.all(
     response.content.map(async (part) => {
       if (part.type !== 'image' || !part.data) return part
@@ -651,7 +651,7 @@ export class McpRuntimeService extends BaseService {
     interactionContext?: McpInteractionContext,
     scope?: string,
     signal?: AbortSignal
-  ): Promise<McpCallToolResponse> {
+  ): Promise<CallToolResult> {
     const [serverId, ...toolNameParts] = toolId.split('__')
     if (!serverId || toolNameParts.length === 0) throw new Error(`Invalid tool ID format: ${toolId}`)
     return this.callTool({
@@ -665,7 +665,7 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
-  public async callTool(args: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool(args: CallToolArgs): Promise<CallToolResult> {
     return this.callToolByServer({ ...args, server: this.getServerById(args.serverId) })
   }
 
@@ -678,7 +678,7 @@ export class McpRuntimeService extends BaseService {
     signal,
     onProgress,
     interactionContext
-  }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+  }: RuntimeCallToolArgs): Promise<CallToolResult> {
     const toolCallId = callId || uuidv4()
     const registrationKey = toolCallKey(toolCallId, scope)
     const controller = new AbortController()
@@ -688,7 +688,7 @@ export class McpRuntimeService extends BaseService {
     activeCalls.add(activeCall)
     this.activeToolCalls.set(registrationKey, activeCalls)
 
-    const run = async (): Promise<McpCallToolResponse> => {
+    const run = async (): Promise<CallToolResult> => {
       try {
         if (effectiveSignal.aborted) throw getAbortReason(effectiveSignal)
 
@@ -786,7 +786,7 @@ export class McpRuntimeService extends BaseService {
       maxTotalTimeoutMs: policy.maxTotalTimeout
     })
     if (method === 'tools/call' && !isInputRequiredResult(result) && 'content' in result) {
-      return clampToolResultImages(result as McpCallToolResponse, getServerLogger(server))
+      return clampToolResultImages(result as CallToolResult, getServerLogger(server))
     }
     return result
   }
@@ -867,7 +867,7 @@ export class McpRuntimeService extends BaseService {
     signal?: AbortSignal
     interactionContext?: McpInteractionContext
     cacheMode?: CacheMode
-  }): Promise<GetResourceResponse> {
+  }): Promise<{ contents: McpResource[] }> {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)

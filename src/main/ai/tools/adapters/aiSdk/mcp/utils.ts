@@ -1,9 +1,9 @@
 /** MCP tool-result formatters. */
 
 import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { CallToolResult } from '@modelcontextprotocol/client'
 
 import { mcpModelContent } from '@main/ai/mcp/toolResult'
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 /** A single item in a tool-result `{type:'content'}` output. */
 type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['value'][number]
@@ -12,7 +12,7 @@ type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['val
 const unseenByModel = (label: string): string => `${label} — the model cannot see this content]`
 
 /** True if the call produced any image / audio / binary resource. */
-export function hasMultimodalContent(result: McpCallToolResponse): boolean {
+export function hasMultimodalContent(result: CallToolResult): boolean {
   return (
     Array.isArray(result?.content) &&
     result.content.some(
@@ -25,7 +25,7 @@ export function hasMultimodalContent(result: McpCallToolResponse): boolean {
 }
 
 /** Text summary for errors and results that cannot carry structured content. */
-export function mcpResultToTextSummary(result: McpCallToolResponse): string {
+export function mcpResultToTextSummary(result: CallToolResult): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
   }
@@ -65,7 +65,7 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
 }
 
 /** Preserve media for request-level routing and expose embedded blobs through the resource reader. */
-export function mcpResultToModelOutput(result: McpCallToolResponse, serverId?: string): ToolResultOutput {
+export function mcpResultToModelOutput(result: CallToolResult, serverId?: string): ToolResultOutput {
   if (!result || !Array.isArray(result.content)) {
     return { type: 'text', value: mcpResultToTextSummary(result) }
   }

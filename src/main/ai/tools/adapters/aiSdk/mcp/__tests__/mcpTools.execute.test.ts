@@ -1,6 +1,6 @@
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 
 import { createMcpJsonSchemaValidator } from '../../mcpSchema'
@@ -9,7 +9,7 @@ import { ToolRegistry } from '../../registry'
 const listTools = vi.fn()
 const list = vi.fn()
 const getById = vi.fn()
-const callTool = vi.fn<(req: unknown) => Promise<McpCallToolResponse>>()
+const callTool = vi.fn<(req: unknown) => Promise<CallToolResult>>()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -105,14 +105,14 @@ describe('mcpTools execute wrapper', () => {
     const execute = await registerToolExecute(reg)
 
     getById.mockReturnValue(activeServer('s1'))
-    const runtimeResult: McpCallToolResponse = {
+    const runtimeResult: CallToolResult = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
     }
     callTool.mockResolvedValue(runtimeResult)
     const abortSignal = new AbortController().signal
 
-    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3', abortSignal } as any)) as McpCallToolResponse & {
+    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3', abortSignal } as any)) as CallToolResult & {
       metadata: { description: string; name: string; serverId: string; serverName: string; type: string }
     }
 

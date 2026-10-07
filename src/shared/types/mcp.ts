@@ -48,6 +48,3 @@ export type McpTool = z.infer<typeof ToolSchema> & {
 export type McpPrompt = z.infer<typeof McpPromptSchema>
 export type McpPromptArguments = NonNullable<McpPrompt['arguments']>[number]
 export type McpResource = z.infer<typeof McpResourceSchema>
-
-// McpCallToolResponse / McpToolResultContent / GetResourceResponse are
-// main-process-only protocol shapes — they live in `src/main/ai/mcp/types.ts`.

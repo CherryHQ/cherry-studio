@@ -1,6 +1,5 @@
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { describe, expect, it } from 'vitest'
-
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 import { mcpResultToModelOutput, mcpResultToTextSummary } from '../utils'
 
@@ -33,11 +32,9 @@ describe('mcpResultToTextSummary', () => {
   })
 
   it('returns JSON string for null / invalid shapes', () => {
-    expect(mcpResultToTextSummary(null as unknown as McpCallToolResponse)).toBe('null')
-    expect(mcpResultToTextSummary({} as McpCallToolResponse)).toBe('{}')
-    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as McpCallToolResponse)).toContain(
-      '"not-an-array"'
-    )
+    expect(mcpResultToTextSummary(null as unknown as CallToolResult)).toBe('null')
+    expect(mcpResultToTextSummary({} as CallToolResult)).toBe('{}')
+    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as CallToolResult)).toContain('"not-an-array"')
   })
 })
 
@@ -106,7 +103,7 @@ describe('MCP tool-result delivery', () => {
 
   it('keeps binary payloads out of text summaries while preserving readable content', () => {
     const data = Buffer.from('binary payload must not consume text context').toString('base64')
-    const result: McpCallToolResponse = {
+    const result: CallToolResult = {
       content: [
         { type: 'text', text: 'Result description' },
         { type: 'image', data, mimeType: 'image/png' },
