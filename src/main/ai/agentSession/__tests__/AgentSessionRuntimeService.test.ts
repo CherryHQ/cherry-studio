@@ -2919,6 +2919,77 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
     })
 
+    it('does not overlay flow parts onto a row the flush refused as terminal error', async () => {
+      // Delivery settles a stopped-writing placeholder as a terminal error and the flush refuses to
+      // write it (AgentSessionMessageService.replaceMessageParts status guard). Publishing the
+      // refused parts to the live overlay anyway would resurrect success-shaped content under the
+      // failure status in the renderer projection.
+      mocks.replaceMessageParts.mockReturnValue({ id: 'assistant-1', status: 'error' })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Subagent finished anyway' }]
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => expect(mocks.replaceMessageParts).toHaveBeenCalledWith('session-1', 'assistant-1', parts))
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        parts,
+        60_000
+      )
+    })
+
+    it('does not overlay flow parts onto a terminal error row', () => {
+      // The row was already explained to the user as failed; a still-streaming or closing flow must
+      // not replace its parts in the renderer projection — not live (no TTL on live publishes), and
+      // not via the close handoff.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [] }
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const parts = [{ type: 'text', text: 'Zombie writer output' }]
+
+      ;(service as any).publishBackgroundFlowParts(entry, { messageId: 'assistant-1', latest: { parts } })
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.flow_parts.session-1.assistant-1', parts)
+
+      entry.backgroundFlowAccumulators = new Map([
+        [
+          'assistant-1',
+          {
+            messageId: 'assistant-1',
+            controller: { close: vi.fn() },
+            done: Promise.resolve(),
+            closed: false,
+            latest: { parts }
+          }
+        ]
+      ])
+      void service.closeSession('session-1')
+      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(
+        'agent.session.flow_parts.session-1.assistant-1',
+        parts,
+        60_000
+      )
+    })
+
     it('does not finish closing while detached flow parts can still write', async () => {
       let releaseFlow!: () => void
       const flowDone = new Promise<void>((resolve) => {

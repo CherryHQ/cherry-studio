@@ -2451,9 +2451,21 @@ export class AgentSessionRuntimeService extends BaseService {
     }, BACKGROUND_FLOW_PUBLISH_THROTTLE_MS - elapsed)
   }
 
+  /** Terminal `error` rows are closed to background-flow convergence: the delivery layer has
+   *  already reported them failed, so overlaying parts would resurrect success-shaped content
+   *  under the failure status. */
+  private backgroundFlowRowAcceptsOverlay(entry: AgentSessionRuntimeEntry, messageId: string): boolean {
+    try {
+      return agentSessionMessageService.getSessionMessage(entry.sessionId, messageId).status !== 'error'
+    } catch {
+      return false
+    }
+  }
+
   private publishBackgroundFlowParts(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
     const parts = accumulator.latest?.parts
     if (!parts || !this.isCurrentEntry(entry)) return
+    if (!this.backgroundFlowRowAcceptsOverlay(entry, accumulator.messageId)) return
     accumulator.lastPublishedAt = Date.now()
     application
       .get('CacheService')
@@ -2483,7 +2495,9 @@ export class AgentSessionRuntimeService extends BaseService {
           const parts = accumulator.latest?.parts
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          const saved = agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
+          // The flush refuses terminal error rows; the refused parts must not reach the overlay either.
+          if (saved?.status === 'error') continue
           completedFlows.push({ messageId: accumulator.messageId, parts })
         }
 
@@ -3443,6 +3457,7 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts
       if (!parts) continue
+      if (!this.backgroundFlowRowAcceptsOverlay(entry, accumulator.messageId)) continue
       application
         .get('CacheService')
         .setShared(
