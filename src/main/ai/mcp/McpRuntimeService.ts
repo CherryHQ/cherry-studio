@@ -890,21 +890,6 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
-    const server = this.getServerById(serverId)
-    this.connectFailures.delete(this.getServerKey(server))
-    try {
-      await (await this.getOrCreateConnection(server)).health()
-      this.setServerStatus(server.id, 'connected')
-      return true
-    } catch (error) {
-      await this.closeConnection(this.getServerKey(server)).catch(() => undefined)
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'error', error)
-      return false
-    }
-  }
-
   /** Abandons a pending browser authorization; the server stays in error until an explicit retry. */
   public cancelAuthorization(serverId: string): void {
     const reason = new UnauthorizedError(t('settings.mcp.oauth.cancelled'))
