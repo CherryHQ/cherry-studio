@@ -1,7 +1,9 @@
-import { Server } from '@modelcontextprotocol/server'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { createMcpHandler, Server } from '@modelcontextprotocol/server'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createInProcessMcpConnection } from '../InProcessMcpConnection'
+import { ClientMcpConnection } from '../ClientMcpConnection'
+import { createInProcessMcpConnection, fetchInProcessMcpRequest } from '../InProcessMcpConnection'
 
 const events = {
   toolsChanged: vi.fn(),
@@ -14,6 +16,55 @@ const events = {
 const options = () => ({ signal: new AbortController().signal, timeoutMs: 5_000 })
 
 describe('MCP catalog over modern handler.fetch', () => {
+  it.each(['listTools', 'listPrompts', 'listResources'] as const)(
+    'cancels an in-flight %s refresh without closing the connection',
+    async (method) => {
+      const handler = createMcpHandler(
+        () =>
+          new Server({ name: 'catalog', version: '1' }, { capabilities: { tools: {}, prompts: {}, resources: {} } }),
+        { legacy: 'reject' }
+      )
+      const connection = new ClientMcpConnection(
+        { name: 'test', version: '1' },
+        {
+          capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} },
+          versionNegotiation: { mode: { pin: '2026-07-28' } }
+        },
+        events
+      )
+      const started = Promise.withResolvers<AbortSignal>()
+      await connection.connect(
+        new StreamableHTTPClientTransport(new URL('http://catalog.test/mcp'), {
+          fetch: async (input, init) => {
+            const request = new Request(input, init)
+            if (request.method === 'POST' && (await request.json()).method.endsWith('/list')) {
+              const signal = request.signal
+              started.resolve(signal)
+              return new Promise<Response>((_resolve, reject) => {
+                signal.throwIfAborted()
+                signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+              })
+            }
+            return fetchInProcessMcpRequest(handler, input, init)
+          }
+        })
+      )
+      try {
+        const controller = new AbortController()
+        const result = connection[method]('refresh', controller.signal)
+        const cancelled = expect(result).rejects.toThrow('catalog refresh cancelled')
+        const requestSignal = await started.promise
+        controller.abort(new Error('catalog refresh cancelled'))
+        await cancelled
+        expect(requestSignal.aborted).toBe(true)
+        await connection.health()
+      } finally {
+        await connection.close()
+        await handler.close()
+      }
+    }
+  )
+
   it('uses the SDK positive TTL cache and bypasses it on explicit refresh', async () => {
     let description = 'original'
     let listRequests = 0

@@ -210,10 +210,14 @@ export class ClientMcpConnection implements McpConnection {
                 ? [this.listTools('refresh', signal).then((tools) => this.events.toolsChanged(null, tools))]
                 : []),
               ...(filter.promptsListChanged
-                ? [this.listPrompts('refresh').then((prompts) => this.events.promptsChanged(null, prompts))]
+                ? [this.listPrompts('refresh', signal).then((prompts) => this.events.promptsChanged(null, prompts))]
                 : []),
               ...(filter.resourcesListChanged
-                ? [this.listResources('refresh').then((resources) => this.events.resourcesChanged(null, resources))]
+                ? [
+                    this.listResources('refresh', signal).then((resources) =>
+                      this.events.resourcesChanged(null, resources)
+                    )
+                  ]
                 : [])
             ])
           }
@@ -325,9 +329,9 @@ export class ClientMcpConnection implements McpConnection {
     })
   }
 
-  public async listPrompts(cacheMode: CacheMode = 'use'): Promise<Prompt[]> {
+  public async listPrompts(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Prompt[]> {
     // The SDK reads the negotiated server capabilities and returns [] when prompts are not advertised.
-    const { prompts } = await this.client.listPrompts(this.paramsWithLogLevel({}), { cacheMode })
+    const { prompts } = await this.client.listPrompts(this.paramsWithLogLevel({}), { cacheMode, signal })
     return prompts
   }
 
@@ -408,9 +412,9 @@ export class ClientMcpConnection implements McpConnection {
     return resourceTemplates
   }
 
-  public async listResources(cacheMode: CacheMode = 'use'): Promise<Resource[]> {
+  public async listResources(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Resource[]> {
     // The SDK reads the negotiated server capabilities and returns [] when resources are not advertised.
-    const { resources } = await this.client.listResources(this.paramsWithLogLevel({}), { cacheMode })
+    const { resources } = await this.client.listResources(this.paramsWithLogLevel({}), { cacheMode, signal })
     return resources
   }
 
