@@ -505,6 +505,7 @@ export class CherryAutonomyTools {
           return await this.sendSessionMessage(args)
         case CONFIG_TOOL_NAME: {
           const action = args.action
+          if (action !== 'status') this.assertConfigMutationAuthorized()
           switch (action) {
             case 'status':
               return this.configStatus()
@@ -565,6 +566,16 @@ export class CherryAutonomyTools {
       throw new AgentSessionDeliveryRoutingError(
         'SESSION_TOOL_FORBIDDEN',
         'Cross-Session discovery and delegation require an interactive user turn'
+      )
+    }
+  }
+
+  private assertConfigMutationAuthorized(): void {
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
+    if (interaction.currentTurn === 'headless') {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
       )
     }
   }

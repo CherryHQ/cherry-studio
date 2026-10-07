@@ -265,39 +265,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('headless-config-mutation', () => {
-    const configTool = toCherryBuiltinRuntimeName('config')
-
-    it('denies mutating actions on headless turns, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({
-            toolName: configTool,
-            permissionMode: mode,
-            input: { action: 'add_channel' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-        expect(decision?.ruleId).toBe('headless-config-mutation')
-      }
-    })
-
-    it('leaves reads and interactive mutations alone', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: configTool,
-            input: { action: 'status' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-      await expect(
-        evaluate(makeCtx({ toolName: configTool, input: { action: 'add_channel' } }))
-      ).resolves.toBeUndefined()
-    })
-  })
-
   describe('skill-install', () => {
     const install = 'mcp__skills__install_skill'
 

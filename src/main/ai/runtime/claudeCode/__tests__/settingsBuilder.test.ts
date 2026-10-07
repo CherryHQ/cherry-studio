@@ -2200,47 +2200,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
-    const getInteractionState = vi.fn(() => ({ currentTurn: 'headless', userResponse: 'unavailable' }))
-    mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
-      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const runConfigAction = (action: string) =>
-      Promise.all(
-        (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
-          hook(
-            {
-              hook_event_name: 'PreToolUse',
-              tool_name: 'mcp__cherry-tools__config',
-              tool_input: { action }
-            } as never,
-            'tool-use-1',
-            {} as never
-          )
-        )
-      )
-
-    for (const action of ['add_channel', 'complete_bootstrap', 'reset_bootstrap']) {
-      await expect(runConfigAction(action)).resolves.toContainEqual(
-        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
-      )
-    }
-
-    await expect(runConfigAction('status')).resolves.not.toContainEqual(
-      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
-    )
-  })
-
   it.each([
     { permissionMode: 'default', headless: false, shouldDeny: false },
     { permissionMode: 'acceptEdits', headless: false, shouldDeny: false },
