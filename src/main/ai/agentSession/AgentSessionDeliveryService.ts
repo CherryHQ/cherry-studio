@@ -455,12 +455,14 @@ export class AgentSessionDeliveryService extends BaseService {
       const runtime = application.get('AgentSessionRuntimeService')
       // Background work targets this very assistant row: a turn that settles while detached
       // subagents run reports idle, and `markFlowMessagePersisted` admits their chunks once the row
-      // persists. Bounded by the row's own staleness, because a background writer bumps its
-      // `updatedAt` — so a row nothing has written to for the grace period has no writer left to
-      // wait for, whatever the session-wide predicate still says.
+      // persists. Those chunks publish to the shared cache — the row itself is written only at
+      // flush — so the grace anchors on whichever is fresher: the row's `updatedAt` or the
+      // flow's own last publish. A streaming writer keeps renewing the latter; silence for the
+      // grace period leaves no observable writer left to wait for.
       const backgroundWriter =
         runtime.hasPendingBackgroundWork(sessionId) &&
-        Date.now() - Date.parse(assistant.updatedAt) < DELIVERY_PENDING_WRITER_GRACE_MS
+        Date.now() - Math.max(Date.parse(assistant.updatedAt), runtime.lastBackgroundFlowActivityAt(sessionId)) <
+          DELIVERY_PENDING_WRITER_GRACE_MS
       if (
         runtime.isSessionBusy(sessionId) ||
         backgroundWriter ||

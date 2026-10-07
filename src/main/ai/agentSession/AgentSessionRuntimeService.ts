@@ -1284,6 +1284,22 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry !== undefined && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
   }
 
+  /**
+   * Epoch ms of the newest detached-background publish for the session. A background flow
+   * chunks into the shared cache and writes the row itself only at flush, so a staleness bound
+   * on "is the background writer still working" must anchor here, not on the row's `updatedAt`.
+   * 0 before the first publish.
+   */
+  lastBackgroundFlowActivityAt(sessionId: string): number {
+    let latest = 0
+    for (const accumulator of this.entries.get(sessionId)?.backgroundFlowAccumulators?.values() ?? []) {
+      if (accumulator.lastPublishedAt !== undefined && accumulator.lastPublishedAt > latest) {
+        latest = accumulator.lastPublishedAt
+      }
+    }
+    return latest
+  }
+
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
   getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
     const entry = this.entries.get(sessionId)
