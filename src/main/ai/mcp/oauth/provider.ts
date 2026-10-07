@@ -140,9 +140,13 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
     logger.debug(`Invalidating credentials with scope: ${scope}`)
-    await this.storage.clear(scope)
-    if (scope === 'tokens' && !(await this.storage.getDiscoveryState())?.authorizationServerUrl) {
-      await this.storage.clear('client')
+    const discovery = this.authorizationFlow.getStore()?.discovery
+    const ctx = discovery
+      ? { issuer: discovery.authorizationServerMetadata?.issuer ?? discovery.authorizationServerUrl }
+      : undefined
+    await this.storage.clear(scope, ctx)
+    if (scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl) {
+      await this.storage.clear('client', ctx)
     }
   }
 }

@@ -117,15 +117,40 @@ describe('McpOAuthClientProvider.invalidateCredentials', () => {
     expect(await provider.codeVerifier()).toBe('verifier-xyz')
   })
 
-  it('ignores an unknown scope without touching stored credentials', async () => {
-    await seedRegisteredClient('https://auth.example.com')
-    const provider = makeProvider()
-    await provider.invalidateCredentials('bogus' as 'all')
+  it.each(['tokens', 'client'] as const)(
+    'invalidates %s for the authorization flow issuer rather than the last saved issuer',
+    async (scope) => {
+      const provider = makeProvider()
+      const current = { issuer: 'https://current.example.com' }
+      const other = { issuer: 'https://other.example.com' }
+      for (const ctx of [current, other]) {
+        await provider.saveClientInformation({ client_id: ctx.issuer }, ctx)
+        await provider.saveTokens({ access_token: ctx.issuer, token_type: 'Bearer' }, ctx)
+      }
+      await provider.withAuthorizationFlow(async () => {
+        await provider.saveDiscoveryState({
+          authorizationServerUrl: `${current.issuer}/`,
+          authorizationServerMetadata: {
+            issuer: current.issuer,
+            authorization_endpoint: `${current.issuer}/authorize`,
+            token_endpoint: `${current.issuer}/token`,
+            response_types_supported: ['code']
+          }
+        })
+        await provider.invalidateCredentials(scope)
+      })
 
-    expect(await provider.tokens()).toMatchObject({ access_token: 'at' })
-    expect(await provider.clientInformation()).toMatchObject({ client_id: 'cid' })
-    expect(await provider.codeVerifier()).toBe('verifier-xyz')
-  })
+      const reader = makeProvider()
+      expect(await reader.clientInformation(other)).toEqual({ client_id: other.issuer })
+      expect(await reader.tokens(other)).toMatchObject({ access_token: other.issuer })
+      expect(await reader.clientInformation(current)).toEqual(
+        scope === 'client' ? undefined : { client_id: current.issuer }
+      )
+      expect(await reader.tokens(current)).toEqual(
+        scope === 'tokens' ? undefined : { access_token: current.issuer, token_type: 'Bearer' }
+      )
+    }
+  )
 
   it('rejects a callback with a mismatched state and consumes the saved state', async () => {
     const provider = makeProvider()

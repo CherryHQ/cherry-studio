@@ -66,7 +66,10 @@ export interface IOAuthStorage {
   saveState(state: string | undefined): Promise<void>
   getDiscoveryState(): Promise<OAuthDiscoveryState | undefined>
   saveDiscoveryState(state: OAuthDiscoveryState | undefined): Promise<void>
-  clear(scope?: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void>
+  clear(
+    scope?: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery',
+    ctx?: OAuthClientInformationContext
+  ): Promise<void>
 }
 
 export interface OAuthCallbackServerOptions {

@@ -224,7 +224,10 @@ export class JsonFileStorage implements IOAuthStorage {
     })
   }
 
-  async clear(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery' = 'all'): Promise<void> {
+  async clear(
+    scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery' = 'all',
+    ctx?: OAuthClientInformationContext
+  ): Promise<void> {
     if (scope === 'discovery') {
       await this.saveDiscoveryState(undefined)
       return
@@ -240,9 +243,9 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     if (scope === 'client') {
-      secrets.clientInfoByIssuer = {}
+      delete secrets.clientInfoByIssuer[this.issuerKey(ctx)]
     } else if (scope === 'tokens') {
-      secrets.tokensByIssuer = {}
+      delete secrets.tokensByIssuer[this.issuerKey(ctx)]
     } else if (scope === 'verifier') {
       secrets.codeVerifier = undefined
     }

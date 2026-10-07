@@ -134,6 +134,35 @@ describe('JsonFileStorage round-trip', () => {
     })
   })
 
+  it.each(['tokens', 'client'] as const)('clears only the last active issuer for scope %s', async (scope) => {
+    const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    const first = { issuer: 'https://issuer-a' }
+    const current = { issuer: 'https://issuer-b' }
+    for (const ctx of [first, current]) {
+      await storage.saveClientInformation({ client_id: ctx.issuer }, ctx)
+      await storage.saveTokens({ access_token: ctx.issuer, token_type: 'Bearer' }, ctx)
+    }
+
+    await new JsonFileStorage(serverUrlHash, configDir, cipher).clear(scope)
+
+    const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(reader.getClientInformation(first)).resolves.toEqual({ client_id: first.issuer })
+    await expect(reader.getTokens(first)).resolves.toMatchObject({ access_token: first.issuer })
+    await expect(reader.getClientInformation(current)).resolves.toEqual(
+      scope === 'client' ? undefined : { client_id: current.issuer }
+    )
+    await expect(reader.getTokens(current)).resolves.toEqual(
+      scope === 'tokens' ? undefined : { access_token: current.issuer, token_type: 'Bearer' }
+    )
+
+    await reader.clear('all')
+    const cleared = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    for (const ctx of [first, current]) {
+      await expect(cleared.getTokens(ctx)).resolves.toBeUndefined()
+      await expect(cleared.getClientInformation(ctx)).resolves.toBeUndefined()
+    }
+  })
+
   it.each(['cached', 'fresh', 'legacy'])(
     'clears discovery without redundant writes or credential loss (%s)',
     async (mode) => {
