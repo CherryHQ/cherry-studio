@@ -33,6 +33,8 @@ describe('backgroundTasks', () => {
     storageDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-tasks-'))
   })
 
+  // The 15s retry loop below outlives vitest's default 10s hookTimeout, so the hook must
+  // carry its own budget or the runner kills it mid-retry with an anonymous timeout error.
   afterEach(async () => {
     // A force-killed detached child releases its log fd and cwd handle a beat after taskkill
     // returns — the kernel reaps them asynchronously, and a loaded Windows runner was observed
@@ -48,7 +50,7 @@ describe('backgroundTasks', () => {
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
     }
-  })
+  }, 20_000)
 
   describe('buildDetachedBackgroundTaskSpawn', () => {
     it('detaches the child into its own session with the log fds wired to stdio', () => {
