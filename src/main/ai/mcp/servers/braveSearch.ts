@@ -239,40 +239,25 @@ Description: ${descData.descriptions[poi.id] || 'No description available'}
   )
 }
 
-class BraveSearchServer {
-  public server: McpServer
-  private apiKey: string
+export function createBraveSearchServer(apiKey: string): McpServer {
+  if (!apiKey) throw new Error('BRAVE_API_KEY is required for Brave Search MCP server')
+  const server = new McpServer({ name: 'brave-search-server', version: '0.1.0' })
 
-  constructor(apiKey: string) {
-    if (!apiKey) {
-      throw new Error('BRAVE_API_KEY is required for Brave Search MCP server')
-    }
-    this.apiKey = apiKey
-    this.server = new McpServer({
-      name: 'brave-search-server',
-      version: '0.1.0'
+  server.registerTool(
+    'brave_web_search',
+    { description: WEB_SEARCH_DESCRIPTION, inputSchema: WebSearchArgsSchema },
+    // offset is advertised but has never been forwarded to the API.
+    async ({ query, count }) => ({
+      content: [{ type: 'text', text: await performWebSearch(apiKey, query, count) }]
     })
-    this.initialize()
-  }
+  )
 
-  initialize() {
-    this.server.registerTool(
-      'brave_web_search',
-      { description: WEB_SEARCH_DESCRIPTION, inputSchema: WebSearchArgsSchema },
-      // offset is advertised but has never been forwarded to the API.
-      async ({ query, count }) => ({
-        content: [{ type: 'text', text: await performWebSearch(this.apiKey, query, count) }]
-      })
-    )
-
-    this.server.registerTool(
-      'brave_local_search',
-      { description: LOCAL_SEARCH_DESCRIPTION, inputSchema: LocalSearchArgsSchema },
-      async ({ query, count }) => ({
-        content: [{ type: 'text', text: await performLocalSearch(this.apiKey, query, count) }]
-      })
-    )
-  }
+  server.registerTool(
+    'brave_local_search',
+    { description: LOCAL_SEARCH_DESCRIPTION, inputSchema: LocalSearchArgsSchema },
+    async ({ query, count }) => ({
+      content: [{ type: 'text', text: await performLocalSearch(apiKey, query, count) }]
+    })
+  )
+  return server
 }
-
-export default BraveSearchServer

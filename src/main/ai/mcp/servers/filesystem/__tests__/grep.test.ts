@@ -4,11 +4,11 @@ import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
-import { FileSystemServer } from '../server'
+import { createFileSystemServer } from '../server'
 import * as types from '../types'
 
 async function grepTool(args: Record<string, unknown>, root: string) {
-  const result = await callBuiltinTool(() => new FileSystemServer(root).server, 'grep', args)
+  const result = await callBuiltinTool(() => createFileSystemServer(root), 'grep', args)
   if (result.isError) throw new Error(toolText(result))
   return result
 }

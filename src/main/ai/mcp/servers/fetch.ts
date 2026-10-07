@@ -55,46 +55,43 @@ async function htmlToMarkdown(html: string): Promise<string> {
   return turndownService.turndown(html)
 }
 
-class FetchServer {
-  public createServer(): McpServer {
-    const server = new McpServer({
-      name: 'zcaceres/fetch',
-      version: '0.1.0'
-    })
+export function createFetchServer(): McpServer {
+  const server = new McpServer({
+    name: 'zcaceres/fetch',
+    version: '0.1.0'
+  })
 
-    const register = (
-      name: string,
-      description: string,
-      urlDescription: string,
-      transform: (text: string) => string | Promise<string>
-    ) =>
-      server.registerTool(name, { description, inputSchema: requestPayloadSchema(urlDescription) }, async (args) => ({
-        content: [{ type: 'text', text: await transform(await fetchText(args)) }]
-      }))
+  const register = (
+    name: string,
+    description: string,
+    urlDescription: string,
+    transform: (text: string) => string | Promise<string>
+  ) =>
+    server.registerTool(name, { description, inputSchema: requestPayloadSchema(urlDescription) }, async (args) => ({
+      content: [{ type: 'text', text: await transform(await fetchText(args)) }]
+    }))
 
-    register(
-      'fetch_html',
-      'Fetch a website and return the content as HTML',
-      'URL of the website to fetch',
-      (html) => html
-    )
-    register(
-      'fetch_markdown',
-      'Fetch a website and return the content as Markdown',
-      'URL of the website to fetch',
-      htmlToMarkdown
-    )
-    register(
-      'fetch_txt',
-      'Fetch a website, return the content as plain text (no HTML)',
-      'URL of the website to fetch',
-      htmlToText
-    )
-    register('fetch_json', 'Fetch a JSON file from a URL', 'URL of the JSON to fetch', (text) =>
-      JSON.stringify(JSON.parse(text))
-    )
+  register(
+    'fetch_html',
+    'Fetch a website and return the content as HTML',
+    'URL of the website to fetch',
+    (html) => html
+  )
+  register(
+    'fetch_markdown',
+    'Fetch a website and return the content as Markdown',
+    'URL of the website to fetch',
+    htmlToMarkdown
+  )
+  register(
+    'fetch_txt',
+    'Fetch a website, return the content as plain text (no HTML)',
+    'URL of the website to fetch',
+    htmlToText
+  )
+  register('fetch_json', 'Fetch a JSON file from a URL', 'URL of the JSON to fetch', (text) =>
+    JSON.stringify(JSON.parse(text))
+  )
 
-    return server
-  }
+  return server
 }
-export default FetchServer

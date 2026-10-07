@@ -10,6 +10,8 @@ import * as z from 'zod'
 
 import { loggerService } from '@logger'
 
+import type { BuiltinMcpEndpoint } from './factory'
+
 const logger = loggerService.withContext('McpServer:SequentialThinking')
 
 const ThoughtDataSchema = z.object({
@@ -31,7 +33,7 @@ const ThoughtDataSchema = z.object({
 
 type ThoughtData = z.infer<typeof ThoughtDataSchema>
 
-class SequentialThinkingServer {
+class ThoughtProcessor {
   private readonly chains = new Map<string, { history: ThoughtData[]; branches: Map<string, ThoughtData[]> }>()
 
   public close(): void {
@@ -174,25 +176,19 @@ You should:
 10. Provide a single, ideally correct answer as the final output
 11. Only set next_thought_needed to false when truly done and a satisfactory answer is reached`
 
-class ThinkingServer {
-  private readonly thinkingServer = new SequentialThinkingServer()
-
-  public close(): void {
-    this.thinkingServer.close()
-  }
-
-  public createServer(): McpServer {
-    const server = new McpServer({
-      name: 'sequential-thinking-server',
-      version: '0.2.0'
-    })
-    server.registerTool(
-      'sequentialthinking',
-      { description: SEQUENTIAL_THINKING_DESCRIPTION, inputSchema: ThoughtDataSchema },
-      (args) => this.thinkingServer.processThought(args)
-    )
-    return server
+/** Builtin sequential-thinking endpoint; thought chains are shared across its protocol instances. */
+export function createSequentialThinkingEndpoint(): BuiltinMcpEndpoint {
+  const thinking = new ThoughtProcessor()
+  return {
+    createServer: () => {
+      const server = new McpServer({ name: 'sequential-thinking-server', version: '0.2.0' })
+      server.registerTool(
+        'sequentialthinking',
+        { description: SEQUENTIAL_THINKING_DESCRIPTION, inputSchema: ThoughtDataSchema },
+        (args) => thinking.processThought(args)
+      )
+      return server
+    },
+    close: async () => thinking.close()
   }
 }
-
-export default ThinkingServer

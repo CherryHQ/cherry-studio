@@ -4,19 +4,20 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import MemoryServer from '../memory'
+import type { BuiltinMcpEndpoint } from '../factory'
+import { createMemoryEndpoint } from '../memory'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
 
 describe('memory MCP server', () => {
   let tempDir: string
-  let memory: MemoryServer
+  let memory: BuiltinMcpEndpoint
 
   const call = (name: string, args: Record<string, unknown> = {}) =>
     callBuiltinTool(() => memory.createServer(), name, args)
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-memory-mcp-'))
-    memory = new MemoryServer(path.join(tempDir, 'memory.json'))
+    memory = createMemoryEndpoint(path.join(tempDir, 'memory.json'))
   })
 
   afterEach(async () => {

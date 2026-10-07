@@ -7,11 +7,6 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
-interface DifyKnowledgeServerConfig {
-  difyKey: string
-  apiHost: string
-}
-
 interface DifyListKnowledgeResponse {
   id: string
   name: string
@@ -45,152 +40,133 @@ const SearchKnowledgeArgsSchema = z.object({
   topK: z.number().optional().describe('Number of top results to return')
 })
 
-class DifyKnowledgeServer {
-  public server: McpServer
-  private config: DifyKnowledgeServerConfig
+export function createDifyKnowledgeServer(difyKey: string, args: string[]): McpServer {
+  if (args.length === 0) throw new Error('DifyKnowledgeServer requires at least one argument')
+  const apiHost = args[0]
+  const server = new McpServer({ name: '@cherry/dify-knowledge-server', version: '0.1.0' })
 
-  constructor(difyKey: string, args: string[]) {
-    if (args.length === 0) {
-      throw new Error('DifyKnowledgeServer requires at least one argument')
-    }
-    this.config = {
-      difyKey: difyKey,
-      apiHost: args[0]
-    }
-    this.server = new McpServer({
-      name: '@cherry/dify-knowledge-server',
-      version: '0.1.0'
+  server.registerTool('list_knowledges', { description: 'List all knowledges' }, () =>
+    performListKnowledges(difyKey, apiHost)
+  )
+  server.registerTool(
+    'search_knowledge',
+    { description: 'Search knowledge by id and query', inputSchema: SearchKnowledgeArgsSchema },
+    ({ id, query, topK }) => performSearchKnowledge(id, query, topK ?? 6, difyKey, apiHost)
+  )
+  return server
+}
+
+async function performListKnowledges(difyKey: string, apiHost: string): Promise<CallToolResult> {
+  try {
+    const url = `${apiHost.replace(/\/$/, '')}/datasets`
+    const response = await net.fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${difyKey}`
+      }
     })
-    this.initialize()
-  }
 
-  initialize() {
-    this.server.registerTool('list_knowledges', { description: 'List all knowledges' }, () =>
-      this.performListKnowledges(this.config.difyKey, this.config.apiHost)
-    )
-
-    this.server.registerTool(
-      'search_knowledge',
-      { description: 'Search knowledge by id and query', inputSchema: SearchKnowledgeArgsSchema },
-      ({ id, query, topK }) =>
-        this.performSearchKnowledge(id, query, topK ?? 6, this.config.difyKey, this.config.apiHost)
-    )
-  }
-
-  private async performListKnowledges(difyKey: string, apiHost: string): Promise<CallToolResult> {
-    try {
-      const url = `${apiHost.replace(/\/$/, '')}/datasets`
-      const response = await net.fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${difyKey}`
-        }
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API request failed, status code ${response.status}: ${errorText}`)
-      }
-
-      const apiResponse = await response.json()
-
-      const knowledges: DifyListKnowledgeResponse[] =
-        apiResponse?.data?.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description || ''
-        })) || []
-
-      const listText =
-        knowledges.length > 0
-          ? knowledges.map((k) => `- **${k.name}** (ID: ${k.id})\n  ${k.description || 'No Description'}`).join('\n')
-          : '- No knowledges found.'
-
-      const formattedText = `### Available Knowledge Bases:\n\n${listText}`
-
-      return {
-        content: [{ type: 'text', text: formattedText }]
-      }
-    } catch (error) {
-      logger.error('Error fetching knowledge list:', error as Error)
-      throw error
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API request failed, status code ${response.status}: ${errorText}`)
     }
-  }
 
-  private async performSearchKnowledge(
-    id: string,
-    query: string,
-    topK: number,
-    difyKey: string,
-    apiHost: string
-  ): Promise<CallToolResult> {
-    try {
-      const url = `${apiHost.replace(/\/$/, '')}/datasets/${id}/retrieve`
+    const apiResponse = await response.json()
 
-      const response = await net.fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${difyKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          query: query,
-          retrieval_model: {
-            top_k: topK,
-            // will be error if not set
-            search_method: 'semantic_search',
-            reranking_enable: false,
-            score_threshold_enabled: false
-          }
-        })
-      })
+    const knowledges: DifyListKnowledgeResponse[] =
+      apiResponse?.data?.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description || ''
+      })) || []
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API request failed, status code ${response.status}: ${errorText}`)
-      }
+    const listText =
+      knowledges.length > 0
+        ? knowledges.map((k) => `- **${k.name}** (ID: ${k.id})\n  ${k.description || 'No Description'}`).join('\n')
+        : '- No knowledges found.'
 
-      const searchResponse: DifySearchKnowledgeResponse = await response.json()
+    const formattedText = `### Available Knowledge Bases:\n\n${listText}`
 
-      if (!searchResponse || !Array.isArray(searchResponse.records)) {
-        throw new Error(`Invalid response format from Dify API: ${JSON.stringify(searchResponse)}`)
-      }
-
-      const header = `### Query: ${query}\n\n`
-      let body: string
-
-      if (searchResponse.records.length === 0) {
-        body = 'No results found.'
-      } else {
-        const resultsText = searchResponse.records
-          .map((record, index) => {
-            const docName = record.segment.document?.name || 'Unknown Document'
-            const content = record.segment.content.trim()
-            const score = record.score
-            const keywords = record.segment.keywords || []
-
-            let resultEntry = `#### ${index + 1}. ${docName} (Relevant Score: ${(score * 100).toFixed(1)}%)`
-            resultEntry += `\n${content}`
-            if (keywords.length > 0) {
-              resultEntry += `\n*Keywords: ${keywords.join(', ')}*`
-            }
-            return resultEntry
-          })
-          .join('\n\n')
-
-        body = `Found ${searchResponse.records.length} results:\n\n${resultsText}`
-      }
-
-      const formattedText = header + body
-
-      return {
-        content: [{ type: 'text', text: formattedText }]
-      }
-    } catch (error) {
-      logger.error('Error searching knowledge:', error as Error)
-      throw error
+    return {
+      content: [{ type: 'text', text: formattedText }]
     }
+  } catch (error) {
+    logger.error('Error fetching knowledge list:', error as Error)
+    throw error
   }
 }
 
-export default DifyKnowledgeServer
+async function performSearchKnowledge(
+  id: string,
+  query: string,
+  topK: number,
+  difyKey: string,
+  apiHost: string
+): Promise<CallToolResult> {
+  try {
+    const url = `${apiHost.replace(/\/$/, '')}/datasets/${id}/retrieve`
+
+    const response = await net.fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${difyKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: query,
+        retrieval_model: {
+          top_k: topK,
+          // will be error if not set
+          search_method: 'semantic_search',
+          reranking_enable: false,
+          score_threshold_enabled: false
+        }
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API request failed, status code ${response.status}: ${errorText}`)
+    }
+
+    const searchResponse: DifySearchKnowledgeResponse = await response.json()
+
+    if (!searchResponse || !Array.isArray(searchResponse.records)) {
+      throw new Error(`Invalid response format from Dify API: ${JSON.stringify(searchResponse)}`)
+    }
+
+    const header = `### Query: ${query}\n\n`
+    let body: string
+
+    if (searchResponse.records.length === 0) {
+      body = 'No results found.'
+    } else {
+      const resultsText = searchResponse.records
+        .map((record, index) => {
+          const docName = record.segment.document?.name || 'Unknown Document'
+          const content = record.segment.content.trim()
+          const score = record.score
+          const keywords = record.segment.keywords || []
+
+          let resultEntry = `#### ${index + 1}. ${docName} (Relevant Score: ${(score * 100).toFixed(1)}%)`
+          resultEntry += `\n${content}`
+          if (keywords.length > 0) {
+            resultEntry += `\n*Keywords: ${keywords.join(', ')}*`
+          }
+          return resultEntry
+        })
+        .join('\n\n')
+
+      body = `Found ${searchResponse.records.length} results:\n\n${resultsText}`
+    }
+
+    const formattedText = header + body
+
+    return {
+      content: [{ type: 'text', text: formattedText }]
+    }
+  } catch (error) {
+    logger.error('Error searching knowledge:', error as Error)
+    throw error
+  }
+}

@@ -5,17 +5,17 @@ const fetchMock = vi.hoisted(() => vi.fn())
 vi.mock('electron', () => ({ net: { fetch: fetchMock } }))
 
 import { callBuiltinTool, toolText } from '../servers/__tests__/builtinMcpClient'
-import DifyKnowledgeServer from '../servers/difyKnowledge'
+import { createDifyKnowledgeServer } from '../servers/difyKnowledge'
 
 const searchKnowledge = (args: Record<string, unknown>) =>
-  callBuiltinTool(() => new DifyKnowledgeServer('key', ['https://api.example.com']).server, 'search_knowledge', args)
+  callBuiltinTool(() => createDifyKnowledgeServer('key', ['https://api.example.com']), 'search_knowledge', args)
 
 function sentTopK(): unknown {
   const [, init] = fetchMock.mock.calls[0] as [string, { body: string }]
   return JSON.parse(init.body).retrieval_model.top_k
 }
 
-describe('DifyKnowledgeServer.search_knowledge', () => {
+describe('dify-knowledge search_knowledge', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ records: [] }) })

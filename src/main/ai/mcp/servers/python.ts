@@ -25,22 +25,14 @@ const PythonExecuteArgsSchema = z.object({
     .describe('Timeout in milliseconds (default: 60000)')
 })
 
-/**
- * Python MCP Server for executing Python code using Pyodide
- */
-class PythonServer {
-  public server: McpServer
+/** Python MCP server that executes code with Pyodide. */
+export function createPythonServer(): McpServer {
+  const server = new McpServer({ name: 'python-server', version: '1.0.0' })
 
-  constructor() {
-    this.server = new McpServer({
-      name: 'python-server',
-      version: '1.0.0'
-    })
-
-    this.server.registerTool(
-      'python_execute',
-      {
-        description: `Execute Python code using Pyodide in a sandboxed environment. Supports most Python standard library and scientific packages.
+  server.registerTool(
+    'python_execute',
+    {
+      description: `Execute Python code using Pyodide in a sandboxed environment. Supports most Python standard library and scientific packages.
 The code will be executed with Python 3.12.
 Dependencies may be defined via PEP 723 script metadata, e.g. to install "pydantic", the script should start
 with a comment of the form:
@@ -48,24 +40,22 @@ with a comment of the form:
 # dependencies = ['pydantic']
 # ///
 print('python code here')`,
-        inputSchema: PythonExecuteArgsSchema
-      },
-      async ({ code, context, timeout }) => {
-        // Clamp timeout to a sane range to prevent runaway or pointless executions.
-        const clampedTimeout = Math.min(Math.max(timeout, MIN_TIMEOUT_MS), MAX_TIMEOUT_MS)
+      inputSchema: PythonExecuteArgsSchema
+    },
+    async ({ code, context, timeout }) => {
+      // Clamp timeout to a sane range to prevent runaway or pointless executions.
+      const clampedTimeout = Math.min(Math.max(timeout, MIN_TIMEOUT_MS), MAX_TIMEOUT_MS)
 
-        logger.debug('Executing Python code via Pyodide')
+      logger.debug('Executing Python code via Pyodide')
 
-        try {
-          const result = await application.get('PythonService').executeScript(code, context, clampedTimeout)
-          return { content: [{ type: 'text', text: result }] }
-        } catch (error) {
-          logger.error('Python execution error', error as Error)
-          throw error
-        }
+      try {
+        const result = await application.get('PythonService').executeScript(code, context, clampedTimeout)
+        return { content: [{ type: 'text', text: result }] }
+      } catch (error) {
+        logger.error('Python execution error', error as Error)
+        throw error
       }
-    )
-  }
+    }
+  )
+  return server
 }
-
-export default PythonServer

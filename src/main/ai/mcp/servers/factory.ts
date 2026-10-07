@@ -56,49 +56,33 @@ export async function createBuiltinMcpEndpoint(
 ): Promise<BuiltinMcpEndpoint> {
   logger.debug(`[MCP] Creating builtin MCP endpoint: ${name}`, { args, envNames: Object.keys(envs) })
   switch (name) {
-    case BuiltinMcpServerNames.memory: {
-      const { default: MemoryServer } = await import('./memory')
-      const envPath = envs.MEMORY_FILE_PATH
-      const server = new MemoryServer(envPath)
-      return {
-        createServer: () => server.createServer(),
-        close: async () => undefined
-      }
-    }
-    case BuiltinMcpServerNames.sequentialThinking: {
-      const { default: ThinkingServer } = await import('./sequentialthinking')
-      const server = new ThinkingServer()
-      return {
-        createServer: () => server.createServer(),
-        close: async () => server.close()
-      }
-    }
+    case BuiltinMcpServerNames.memory:
+      return (await import('./memory')).createMemoryEndpoint(envs.MEMORY_FILE_PATH)
+    case BuiltinMcpServerNames.sequentialThinking:
+      return (await import('./sequentialthinking')).createSequentialThinkingEndpoint()
     case BuiltinMcpServerNames.braveSearch: {
-      const { default: BraveSearchServer } = await import('./braveSearch')
-      return statelessEndpoint(() => new BraveSearchServer(envs.BRAVE_API_KEY).server)
+      const { createBraveSearchServer } = await import('./braveSearch')
+      return statelessEndpoint(() => createBraveSearchServer(envs.BRAVE_API_KEY))
     }
     case BuiltinMcpServerNames.fetch: {
-      const { default: FetchServer } = await import('./fetch')
-      const server = new FetchServer()
-      return statelessEndpoint(() => server.createServer())
+      const { createFetchServer } = await import('./fetch')
+      return statelessEndpoint(createFetchServer)
     }
     case BuiltinMcpServerNames.filesystem: {
-      const { FileSystemServer, resolveFilesystemBaseDir } = await import('./filesystem')
-      return statelessEndpoint(() => new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server)
+      const { createFileSystemServer, resolveFilesystemBaseDir } = await import('./filesystem')
+      return statelessEndpoint(() => createFileSystemServer(resolveFilesystemBaseDir(args, envs)))
     }
     case BuiltinMcpServerNames.difyKnowledge: {
-      const { default: DifyKnowledgeServer } = await import('./difyKnowledge')
-      const difyKey = envs.DIFY_KEY
-      return statelessEndpoint(() => new DifyKnowledgeServer(difyKey, args).server)
+      const { createDifyKnowledgeServer } = await import('./difyKnowledge')
+      return statelessEndpoint(() => createDifyKnowledgeServer(envs.DIFY_KEY, args))
     }
     case BuiltinMcpServerNames.python: {
-      const { default: PythonServer } = await import('./python')
-      return statelessEndpoint(() => new PythonServer().server)
+      const { createPythonServer } = await import('./python')
+      return statelessEndpoint(createPythonServer)
     }
     case BuiltinMcpServerNames.didiMcp: {
-      const { default: DiDiMcpServer } = await import('./didiMcp')
-      const apiKey = envs.DIDI_API_KEY
-      return statelessEndpoint(() => new DiDiMcpServer(apiKey).server)
+      const { createDiDiMcpServer } = await import('./didiMcp')
+      return statelessEndpoint(() => createDiDiMcpServer(envs.DIDI_API_KEY))
     }
     case BuiltinMcpServerNames.browser: {
       return application.get('BrowserSessionService').createMcpEndpoint()

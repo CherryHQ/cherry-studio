@@ -9,6 +9,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
 
+import type { BuiltinMcpEndpoint } from './factory'
+
 const logger = loggerService.withContext('McpServer:Memory')
 
 // Define memory file path
@@ -329,177 +331,156 @@ class KnowledgeGraphManager {
   }
 }
 
-class MemoryServer {
-  // Hold the manager instance, initialized asynchronously
-  private knowledgeGraphManager: KnowledgeGraphManager | null = null
-  private initializationPromise: Promise<void> // To track initialization
-
-  constructor(envPath: string = '') {
-    const memoryPath = envPath
-      ? path.isAbsolute(envPath)
-        ? envPath
-        : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
-      : getDefaultMemoryPath()
-
-    // Start initialization once for the whole endpoint activation; every
-    // protocol instance the endpoint creates shares this manager.
-    this.initializationPromise = this._initializeManager(memoryPath)
+/**
+ * Builtin memory endpoint. The knowledge graph loads once per endpoint activation and every
+ * protocol instance it creates shares it.
+ */
+export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
+  const memoryPath = envPath
+    ? path.isAbsolute(envPath)
+      ? envPath
+      : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
+    : getDefaultMemoryPath()
+  const manager = KnowledgeGraphManager.create(memoryPath).catch((error: unknown) => {
+    logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
+    return null
+  })
+  const getManager = async (): Promise<KnowledgeGraphManager> => {
+    const initialized = await manager
+    if (!initialized) throw new Error('Memory server failed to initialize. Cannot process requests.')
+    return initialized
   }
 
-  public createServer(): McpServer {
-    const server = new McpServer({
-      name: 'memory-server',
-      version: '1.1.0'
-    })
-    this.registerTools(server)
-    return server
-  }
-
-  // Private async method to handle manager initialization
-  private async _initializeManager(memoryPath: string): Promise<void> {
-    try {
-      this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
-      logger.debug('KnowledgeGraphManager initialized successfully.')
-    } catch (error) {
-      logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
-      // Server might be unusable, consider how to handle this state
-      // Maybe set a flag and return errors for all tool calls?
-      this.knowledgeGraphManager = null // Ensure it's null if init fails
-    }
-  }
-
-  // Ensures the manager is initialized before handling tool calls
-  private async _getManager(): Promise<KnowledgeGraphManager> {
-    await this.initializationPromise // Wait for initialization to complete
-    if (!this.knowledgeGraphManager) {
-      throw new Error('Memory server failed to initialize. Cannot process requests.')
-    }
-    return this.knowledgeGraphManager
-  }
-
-  private registerTools(server: McpServer) {
-    const json = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] })
-    const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] })
-
-    server.registerTool(
-      'create_entities',
-      {
-        description: 'Create multiple new entities in the knowledge graph. Skips existing entities.',
-        inputSchema: z.object({
-          entities: z.array(
-            z.object({
-              name: z.string().describe('The name of the entity'),
-              entityType: z.string().describe('The type of the entity'),
-              observations: z
-                .array(z.string())
-                .default([])
-                .describe('An array of observation contents associated with the entity')
-            })
-          )
-        })
-      },
-      async ({ entities }) => json(await (await this._getManager()).createEntities(entities))
-    )
-
-    server.registerTool(
-      'create_relations',
-      {
-        description:
-          'Create multiple new relations between EXISTING entities. Skips existing relations or relations with non-existent entities.',
-        inputSchema: z.object({ relations: z.array(RelationSchema) })
-      },
-      async ({ relations }) => json(await (await this._getManager()).createRelations(relations))
-    )
-
-    server.registerTool(
-      'add_observations',
-      {
-        description: 'Add new observations to existing entities. Skips duplicate observations.',
-        inputSchema: z.object({
-          observations: z.array(
-            z.object({
-              entityName: z.string().describe('The name of the entity to add the observations to'),
-              contents: z.array(z.string()).describe('An array of observation contents to add')
-            })
-          )
-        })
-      },
-      async ({ observations }) => json(await (await this._getManager()).addObservations(observations))
-    )
-
-    server.registerTool(
-      'delete_entities',
-      {
-        description: 'Delete multiple entities and their associated relations.',
-        inputSchema: z.object({
-          entityNames: z.array(z.string()).describe('An array of entity names to delete')
-        })
-      },
-      async ({ entityNames }) => {
-        await (await this._getManager()).deleteEntities(entityNames)
-        return text('Entities deleted successfully')
-      }
-    )
-
-    server.registerTool(
-      'delete_observations',
-      {
-        description: 'Delete specific observations from entities.',
-        inputSchema: z.object({
-          deletions: z.array(
-            z.object({
-              entityName: z.string().describe('The name of the entity containing the observations'),
-              observations: z.array(z.string()).describe('An array of observations to delete')
-            })
-          )
-        })
-      },
-      async ({ deletions }) => {
-        await (await this._getManager()).deleteObservations(deletions)
-        return text('Observations deleted successfully')
-      }
-    )
-
-    server.registerTool(
-      'delete_relations',
-      {
-        description: 'Delete multiple specific relations.',
-        inputSchema: z.object({
-          relations: z.array(RelationSchema).describe('An array of relations to delete')
-        })
-      },
-      async ({ relations }) => {
-        await (await this._getManager()).deleteRelations(relations)
-        return text('Relations deleted successfully')
-      }
-    )
-
-    server.registerTool('read_graph', { description: 'Read the entire knowledge graph from memory.' }, async () =>
-      json(await (await this._getManager()).readGraph())
-    )
-
-    server.registerTool(
-      'search_nodes',
-      {
-        description: 'Search nodes (entities and relations) in memory based on a query.',
-        inputSchema: z.object({
-          query: z.string().describe('The search query to match against entity names, types, and observation content')
-        })
-      },
-      async ({ query }) => json(await (await this._getManager()).searchNodes(query))
-    )
-
-    server.registerTool(
-      'open_nodes',
-      {
-        description: 'Retrieve specific entities and their connecting relations from memory by name.',
-        inputSchema: z.object({
-          names: z.array(z.string()).describe('An array of entity names to retrieve')
-        })
-      },
-      async ({ names }) => json(await (await this._getManager()).openNodes(names))
-    )
+  return {
+    createServer: () => {
+      const server = new McpServer({ name: 'memory-server', version: '1.1.0' })
+      registerMemoryTools(server, getManager)
+      return server
+    },
+    close: async () => undefined
   }
 }
 
-export default MemoryServer
+function registerMemoryTools(server: McpServer, getManager: () => Promise<KnowledgeGraphManager>): void {
+  const json = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] })
+  const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] })
+
+  server.registerTool(
+    'create_entities',
+    {
+      description: 'Create multiple new entities in the knowledge graph. Skips existing entities.',
+      inputSchema: z.object({
+        entities: z.array(
+          z.object({
+            name: z.string().describe('The name of the entity'),
+            entityType: z.string().describe('The type of the entity'),
+            observations: z
+              .array(z.string())
+              .default([])
+              .describe('An array of observation contents associated with the entity')
+          })
+        )
+      })
+    },
+    async ({ entities }) => json(await (await getManager()).createEntities(entities))
+  )
+
+  server.registerTool(
+    'create_relations',
+    {
+      description:
+        'Create multiple new relations between EXISTING entities. Skips existing relations or relations with non-existent entities.',
+      inputSchema: z.object({ relations: z.array(RelationSchema) })
+    },
+    async ({ relations }) => json(await (await getManager()).createRelations(relations))
+  )
+
+  server.registerTool(
+    'add_observations',
+    {
+      description: 'Add new observations to existing entities. Skips duplicate observations.',
+      inputSchema: z.object({
+        observations: z.array(
+          z.object({
+            entityName: z.string().describe('The name of the entity to add the observations to'),
+            contents: z.array(z.string()).describe('An array of observation contents to add')
+          })
+        )
+      })
+    },
+    async ({ observations }) => json(await (await getManager()).addObservations(observations))
+  )
+
+  server.registerTool(
+    'delete_entities',
+    {
+      description: 'Delete multiple entities and their associated relations.',
+      inputSchema: z.object({
+        entityNames: z.array(z.string()).describe('An array of entity names to delete')
+      })
+    },
+    async ({ entityNames }) => {
+      await (await getManager()).deleteEntities(entityNames)
+      return text('Entities deleted successfully')
+    }
+  )
+
+  server.registerTool(
+    'delete_observations',
+    {
+      description: 'Delete specific observations from entities.',
+      inputSchema: z.object({
+        deletions: z.array(
+          z.object({
+            entityName: z.string().describe('The name of the entity containing the observations'),
+            observations: z.array(z.string()).describe('An array of observations to delete')
+          })
+        )
+      })
+    },
+    async ({ deletions }) => {
+      await (await getManager()).deleteObservations(deletions)
+      return text('Observations deleted successfully')
+    }
+  )
+
+  server.registerTool(
+    'delete_relations',
+    {
+      description: 'Delete multiple specific relations.',
+      inputSchema: z.object({
+        relations: z.array(RelationSchema).describe('An array of relations to delete')
+      })
+    },
+    async ({ relations }) => {
+      await (await getManager()).deleteRelations(relations)
+      return text('Relations deleted successfully')
+    }
+  )
+
+  server.registerTool('read_graph', { description: 'Read the entire knowledge graph from memory.' }, async () =>
+    json(await (await getManager()).readGraph())
+  )
+
+  server.registerTool(
+    'search_nodes',
+    {
+      description: 'Search nodes (entities and relations) in memory based on a query.',
+      inputSchema: z.object({
+        query: z.string().describe('The search query to match against entity names, types, and observation content')
+      })
+    },
+    async ({ query }) => json(await (await getManager()).searchNodes(query))
+  )
+
+  server.registerTool(
+    'open_nodes',
+    {
+      description: 'Retrieve specific entities and their connecting relations from memory by name.',
+      inputSchema: z.object({
+        names: z.array(z.string()).describe('An array of entity names to retrieve')
+      })
+    },
+    async ({ names }) => json(await (await getManager()).openNodes(names))
+  )
+}
