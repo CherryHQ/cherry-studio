@@ -1603,7 +1603,12 @@ export default function ComposerSurfaceRuntime({
             return true
           }
           const editor = editorRef.current
-          if (!editor) return detach()
+          if (!editor) {
+            // Mount-frame window: the view answers keys before the passive effect assigns the
+            // ref, and the merge base gated this branch on the prose term too — text present
+            // means the keystroke was not aimed at the attachment.
+            return textRef.current.trim().length === 0 ? detach() : false
+          }
           // Emptiness needs both terms: a chip is an atom whose text lives in attributes, so a file
           // chip contributes `''` while still being content — and prose with no chip at all is
           // content too, which the painting composer produces by attaching files it never chips.

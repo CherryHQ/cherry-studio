@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   currentView: undefined as any,
   stabilizeEditor: false,
   simulateDeferredEditorStyle: false,
+  editorAbsent: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorClientHeight: 28,
   deferredEditorMinHeight: 46,
@@ -183,6 +184,10 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
+    // The real kernel answers null before the view exists (SSR guard); the runtime assigns the
+    // ref from this return value, so `true` simulates the mount-frame window where the guard's
+    // editor branch is unreachable.
+    if (mocks.editorAbsent) return null
     const editor = {
       isDestroyed: false,
       isEditable: true,
@@ -464,6 +469,7 @@ describe('ComposerSurface', () => {
     mocks.currentView = undefined
     mocks.stabilizeEditor = false
     mocks.simulateDeferredEditorStyle = false
+    mocks.editorAbsent = false
     mocks.actions = undefined
     mocks.editorClientHeight = 28
     mocks.deferredEditorMinHeight = 46
@@ -3648,6 +3654,54 @@ describe('ComposerSurface', () => {
     expect(setFiles).not.toHaveBeenCalled()
     expect(event.preventDefault).not.toHaveBeenCalled()
     expect(handled).toBe(false)
+  })
+
+  it('keeps an attachment when a mount-frame Backspace arrives while the draft holds prose', async () => {
+    // The view answers keys before the passive effect assigns editorRef (tiptap renders
+    // synchronously, the ref lands after commit). The merge base put the prose term ahead of
+    // the `!editor` disjunct, so a draft restored with text must not lose its attachment to a
+    // keystroke from that window.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="make it blue" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('detaches an attachment on a mount-frame Backspace when the draft holds no prose', async () => {
+    // The other direction of the same window: with nothing to delete, the keystroke falls
+    // through to the attachment, exactly as it does once the editor exists.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).toHaveBeenCalledWith(expect.any(Function))
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(handled).toBe(true)
   })
 
   it('opens the QuickPanel root when slash follows whitespace', async () => {
