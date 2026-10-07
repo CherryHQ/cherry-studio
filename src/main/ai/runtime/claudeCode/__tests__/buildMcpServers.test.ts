@@ -25,7 +25,6 @@ const {
   mockGetPath,
   mockPreferenceGet,
   mockListOrOutlineKnowledge,
-  mockMemoryConstructor,
   mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
@@ -35,7 +34,6 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
-  mockMemoryConstructor: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
 }))
 
@@ -115,16 +113,6 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
   ...(await importOriginal<typeof KnowledgeLookup>()),
   listOrOutlineKnowledge: mockListOrOutlineKnowledge
-}))
-
-vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
-  default: class {
-    mcpServer = {}
-
-    constructor(agentId: string, agentDataPath: string) {
-      mockMemoryConstructor(agentId, agentDataPath)
-    }
-  }
 }))
 
 const {
@@ -275,13 +263,15 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
-    mockMemoryConstructor.mockClear()
   })
 
   it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
-    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
+    const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
+    const client = await connectAgentMcpClient(instance as unknown as AgentMcpServer, 'test')
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
+    await client.close()
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {

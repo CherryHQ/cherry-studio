@@ -9,7 +9,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
-import AgentMemoryMcpServer from '@main/ai/mcp/servers/agentMemory'
+import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import AssistantMcpServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinMcpServer from '@main/ai/mcp/servers/cherryBuiltinTools'
@@ -24,7 +24,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
-import type { AgentMcpServer } from './agentMcpServer'
+import { type AgentMcpServer, serveAgentMcpServer } from './agentMcpServer'
 
 const logger = loggerService.withContext('AgentMcpServers')
 
@@ -121,7 +121,7 @@ export function buildAgentMcpServers(
   }
   servers['agent-memory'] = {
     name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-    connect: serveLegacyAgentMcpServer(new AgentMemoryMcpServer(agent.id, agentDataPath).mcpServer)
+    connect: serveAgentMcpServer(() => createAgentMemoryServer({ agentId: agent.id, agentDataPath }))
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
     servers.skills = {
