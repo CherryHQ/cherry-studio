@@ -26,6 +26,7 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSess
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -1403,6 +1404,24 @@ describe('AgentSessionMessageService', () => {
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
     ])
+  })
+
+  it('evicts the row flow-parts overlay when terminalizing a pending assistant', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    const overlayKey = AGENT_SESSION_FLOW_PARTS_CACHE_KEY(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    application.get('CacheService').setShared(overlayKey, [{ type: 'text', text: 'streamed but unsettled' }])
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(application.get('CacheService').getShared(overlayKey)).toBeUndefined()
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
