@@ -10,19 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
-const mocks = vi.hoisted(() => ({
-  findByIdOrName: vi.fn(),
-  refreshTools: vi.fn()
-}))
-
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
-}))
-vi.mock('@data/services/McpServerService', () => ({
-  mcpServerService: { findByIdOrName: mocks.findByIdOrName }
-}))
-vi.mock('@application', () => ({
-  application: { get: () => ({ refreshTools: mocks.refreshTools }) }
 }))
 
 const { buildDshCherryToolBridge, buildDshCherryToolName } = await import('../DshCherryToolBridge')

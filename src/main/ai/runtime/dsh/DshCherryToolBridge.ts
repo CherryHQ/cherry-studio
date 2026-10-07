@@ -2,9 +2,7 @@ import { createHash } from 'node:crypto'
 
 import type { Client, Tool } from '@modelcontextprotocol/client'
 
-import { application } from '@application'
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
-import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import { mcpModelContent } from '@main/ai/mcp/toolResult'
@@ -62,21 +60,6 @@ export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = ne
     buildDshCherryToolName(serverName, toolName)
   )
 )
-
-/** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
-export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
-  const catalog = application.get('McpCatalogService')
-  const serverIds = new Set<string>()
-  for (const idOrName of mcpIds) {
-    const server = mcpServerService.findByIdOrName(idOrName)
-    if (!server) {
-      logger.warn('Skipping unresolvable MCP server referenced by dsh agent', { idOrName })
-      continue
-    }
-    serverIds.add(server.id)
-  }
-  await Promise.allSettled([...serverIds].map((serverId) => catalog.refreshTools(serverId)))
-}
 
 /** Adapt every runtime-neutral MCP server into host-dispatched dsh native tools. */
 export async function buildDshCherryToolBridge(

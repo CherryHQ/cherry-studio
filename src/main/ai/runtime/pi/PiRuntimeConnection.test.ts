@@ -155,7 +155,10 @@ vi.mock('@main/utils/commandResolver', () => ({
   autoDiscoverGitBash: mocks.autoDiscoverGitBash,
   validateGitBashPath: mocks.validateGitBashPath
 }))
-vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
+vi.mock('@main/ai/runtime/agentMcpServers', () => ({
+  buildAgentMcpServers: mocks.buildAgentMcpServers,
+  warmAgentMcpToolCatalogs: mocks.warmMcpToolCatalogs
+}))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
@@ -166,7 +169,6 @@ vi.mock('@main/ai/agents/prompt', () => ({
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how the complete server set becomes customTools and how the approval gate treats those names.
 vi.mock('./piMcpExtension', () => ({
-  warmMcpToolCatalogs: mocks.warmMcpToolCatalogs,
   createPiMcpExtension: mocks.createPiMcpExtension,
   buildPiMcpToolName: (serverName: string, toolName: string) =>
     `mcp__${serverName}__${toolName}`.replace(/[^A-Za-z0-9_]/g, '_')

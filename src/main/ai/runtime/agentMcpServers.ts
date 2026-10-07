@@ -201,3 +201,18 @@ function resolveSourceChannelSafely(sessionId: string, agentId: string): LinkedC
     return null
   }
 }
+
+/**
+ * Warm configured catalogs before a runtime snapshots their tool schemas. Single-flighted and
+ * cache-respecting, so a warm cache costs nothing and a dead server waits out its retry backoff.
+ */
+export async function warmAgentMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {
+  const catalog = application.get('McpCatalogService')
+  await Promise.allSettled(
+    mcpIds.flatMap((idOrName) => {
+      const server = mcpServerService.findByIdOrName(idOrName)
+      if (!server) logger.warn('Skipping unresolvable MCP server referenced by agent', { idOrName })
+      return server ? [catalog.warmToolsCache(server.id)] : []
+    })
+  )
+}
