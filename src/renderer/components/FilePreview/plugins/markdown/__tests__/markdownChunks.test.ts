@@ -735,6 +735,54 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks.filter((chunk) => chunk.text.includes('# heading'))).toHaveLength(1)
   })
+
+  it('carries a definition whose title holds a tag-shaped run the parser reads as prose', () => {
+    // `<div"x>` is no HTML block — the name has to end at whitespace, `>` or `/>` — so the title
+    // runs on to its closing quote. Matching any character after the name truncated the
+    // definition to the line before it and left every later chunk without it. (The title is
+    // single-quoted because the run's own `"` would close a double-quoted one first.)
+    const content = ["[spec]: /url 'the long", '<div"x marks the spot', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('carries an indented list as content of the footnote definition that owns it', () => {
+    // Four columns of indent is footnote content, where the list opens inside the footnote — only
+    // a marker at three columns or less closes the definition and starts a list of its own.
+    // Reading the indented item as a block dropped it from every chunk but the first.
+    const content = ['[^n]: note', '    - item', 'more note', '', 'tail', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes('    - item'))).toHaveLength(chunks.length)
+  })
+
+  it('carries a definition across a closing or self-closing raw tag in its title', () => {
+    // `</pre>` and `<pre/>` are type 7 to the parser — only the plain opening `<pre>` opens a raw
+    // block — so the title runs across them to its closing quote.
+    const forms = ['</pre> marks the spot', '<pre/> marks the spot']
+    for (const form of forms) {
+      const content = ['[spec]: /url "the long', form, 'tail of title"', '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes('[spec]: /url "the long'))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a label line a lowercase declaration breaks', () => {
+    // A declaration starts with any ASCII letter, not only an uppercase one, so `<!doctype` ends
+    // the would-be definition — reading the line as a continuation carried a pseudo-definition.
+    const content = ['[a]:', '<!doctype html>', '', 'para one', '', 'see [a]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('[a]:'))).toHaveLength(1)
+  })
 })
 
 describe('the window a split reports', () => {
