@@ -1,5 +1,5 @@
 import type * as NodeFs from 'node:fs'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -43,11 +43,23 @@ describe('a task whose record write fails', () => {
   })
 
   // The recovery record read straight off disk. `listDetachedBackgroundTasks` reconciles, and a pid
-  // that has already exited folds to `unknown`, so going through it races the task's own 50ms exit —
+  // that has already exited folds to `unknown`, so going through it races the task's own exit —
   // which is how a loaded runner came to assert `running` about a process that was gone.
   const readRecoveryRecord = async (): Promise<BackgroundTaskRecord> => {
     const [entry] = (await readdir(storageDir)).filter((name) => name.endsWith(BACKGROUND_TASK_RECORD_EXT))
     return JSON.parse(await readFile(path.join(storageDir, entry), 'utf8'))
+  }
+
+  // A task that exits cleanly the moment its marker file disappears, so a test holds the task
+  // open while it asserts the `running` record and then commands the exit itself — asserting the
+  // record while the task self-terminates races the completion write onto the same file.
+  const markerHeldTask = async (name: string): Promise<{ command: string; release: () => Promise<void> }> => {
+    const marker = path.join(storageDir, name)
+    await writeFile(marker, '')
+    return {
+      command: `${nodeBin} -e "const fs=require('fs');setInterval(()=>{try{fs.statSync(process.argv[1])}catch{process.exit(0)}},20)" "${marker}"`,
+      release: () => rm(marker, { force: true })
+    }
   }
 
   it.skipIf(process.platform === 'win32')(
@@ -94,13 +106,14 @@ describe('a task whose record write fails', () => {
     // stoppable only while the app still owns the pid in memory. Once the task exits that
     // ownership has to go with it — the OS is free to hand the same pid to something else, and a
     // stop that still believed the pid was ours would signal that unrelated process.
+    const held = await markerHeldTask('exit-claim.marker')
     const killFailSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
       throw new Error('ESRCH')
     })
     await expect(
       startDetachedBackgroundTask({
         storageDir,
-        command: `${nodeBin} -e "setTimeout(() => {}, 50)"`,
+        command: held.command,
         cwd: storageDir
       })
     ).rejects.toThrow()
@@ -108,6 +121,7 @@ describe('a task whose record write fails', () => {
 
     const record = await readRecoveryRecord()
     expect(record.status).toBe('running')
+    await held.release()
     await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
 
     // The pid is free for the OS to hand to something else now, so present it as taken: a stop
@@ -130,13 +144,14 @@ describe('a task whose record write fails', () => {
     // record at `running` for a pid that is gone, and leave every channel that asked for a
     // notification waiting for one that never comes.
     const onExit = vi.fn()
+    const held = await markerHeldTask('exit-complete.marker')
     const killFailSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
       throw new Error('ESRCH')
     })
     await expect(
       startDetachedBackgroundTask({
         storageDir,
-        command: `${nodeBin} -e "setTimeout(() => {}, 50)"`,
+        command: held.command,
         cwd: storageDir,
         onExit
       })
@@ -145,6 +160,7 @@ describe('a task whose record write fails', () => {
 
     const record = await readRecoveryRecord()
     expect(record.status).toBe('running')
+    await held.release()
     await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
 
     // Polled to a deadline rather than inside waitFor, so a regression reports the status it
@@ -161,6 +177,27 @@ describe('a task whose record write fails', () => {
     expect(settled.exitCode).toBe(0)
     expect(onExit).toHaveBeenCalledTimes(1)
     expect(onExit.mock.calls[0][0].summary).toContain(record.id)
+  })
+
+  it.skipIf(process.platform === 'win32')('treats an EPERM group kill as proof the task already exited', async () => {
+    // macOS answers EPERM when the child's group holds only exited-but-unreaped members — the
+    // child provably gone — and reading that as a failed kill announced a finished task as
+    // still running, inviting the retry that duplicates work that already completed. The task
+    // self-terminates, so nothing outlives the test however the start settles.
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
+    })
+    try {
+      await expect(
+        startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setTimeout(() => {}, 300)"`,
+          cwd: storageDir
+        })
+      ).rejects.toThrow(/was stopped/)
+    } finally {
+      killSpy.mockRestore()
+    }
   })
 
   it.skipIf(process.platform === 'win32')(

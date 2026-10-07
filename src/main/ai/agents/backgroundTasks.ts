@@ -209,7 +209,15 @@ export async function startDetachedBackgroundTask(
           if (process.platform === 'win32') {
             await execTaskkill(['/PID', String(record.pid), '/T', '/F'])
           } else {
-            process.kill(-record.pid, 'SIGKILL')
+            try {
+              process.kill(-record.pid, 'SIGKILL')
+            } catch (killError) {
+              // macOS answers EPERM for a process group holding only exited-but-unreaped
+              // children — for a group this process spawned, that is proof the group has
+              // nothing left to signal, not proof the kill failed. Anything still alive in it
+              // (same user) would take the signal and the kill would succeed.
+              if ((killError as NodeJS.ErrnoException).code !== 'EPERM') throw killError
+            }
           }
           cleaned = true
         }
