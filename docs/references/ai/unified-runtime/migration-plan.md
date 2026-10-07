@@ -21,6 +21,10 @@ sources:
   - src/renderer/pages/paintings/model
   - src/renderer/services/aiTransport
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - packages/provider-registry/src/reasoningProfiles.ts
+  - src/main/data/services/ProviderRegistryService.ts
+  - src/shared/ai/reasoning.ts
+  - src/main/features/apiGateway/adapters/converters/providerOptionsMapper.ts
 ---
 
 # AI SDK Upgrade & Unified Runtime — Migration Assessment
@@ -50,7 +54,7 @@ discovery/execution have focused plans linked below.
 | Workstream | Plan and entry condition | Status |
 |---|---|---|
 | 1. SDK/V4 upgrade | [Dependencies, patches, codemods and SDK-01–12](./sdk-upgrade-plan.md); preserve all existing callers | Implemented in draft [PR #21310](https://github.com/CherryHQ/cherry-studio/pull/21310); real-account and packaged-matrix validation remains open |
-| Agent controls and reasoning | Existing caller after the SDK baseline; adoption contracts below | Decision pending; native V4 does not expose every new control |
+| Agent controls and reasoning | Existing caller after the SDK baseline; [reasoning adoption](#unified-reasoning-adoption) below | Local implementation and serializer coverage; provider-account acceptance pending |
 | Files and provider skills | [F/S plan](./large-file-upload-port.md); provider reference and lifecycle decisions after existing attachment parity | Files planned; remote skills decision pending |
 | Images, tool media and recovery | [I/R work](#images-recovery-and-media); capability/result ownership and partial-output/effect policies | Planned; multipart content, retries and restart recovery require explicit adoption |
 | 2. Tool Search | [TS plan](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path); SDK baseline accepted | Planned on the aiSdk path |
@@ -75,10 +79,31 @@ and TUI integration remain separate decisions; none introduces a scheduler or ne
 
 ## Unified reasoning adoption
 
-The [reasoning research](./aisdk-v7-research.md#unified-reasoning-control) records the
-SDK contract and fixed-source provider differences. This is an explicit **decision-pending** adoption
-item on the existing aiSdk path, independent of Tool Search, Code Mode and Harness. Phase 1 preserves
-current reasoning behavior; protocol compatibility alone does not complete this item.
+The aiSdk implementation resolves each model call after SDK step-option merging, using the request's
+registry contract and the current output limit. Equivalent paths use SDK `reasoning`; exact budgets,
+extended efforts and custom protocols retain native delivery. The implementation contract lives in
+[registry reasoning control](../../../../packages/provider-registry/docs/reasoning-control.md#ai-sdk-v7-delivery).
+This remains SDK adaptation; Harness and model calls inside Code Mode are separate workstreams.
+
+Local coverage includes real installed provider serializers, a four-step Cherry Agent run, model retry,
+assistant-less calls, explicit native overrides, summaries, budget headroom and sampling. Tests use fake
+transport responses; representative provider-account verification is still outstanding. Gateway and
+Claude Agent SDK retain their shared native encoder, and reasoning output/replay middleware remains.
+
+Retained native cases are intentional: Cherry's budget ratios differ from the SDK's, Claude `max` is
+not `xhigh`, and the pinned xAI SDK maps Grok 4.7 portable `xhigh` to `high`. The last case needs an
+upstream mapping fix before portable delivery can replace its working native field. Google deployment
+aliases and adapters without demonstrated equivalent translation also keep their registry encoding.
+No catalog schema or persisted selection vocabulary changes are required.
+
+### Acceptance
+
+Use the existing RG gates below as the completion criteria. Tests intercept the real SDK
+adapter's HTTP body and inspect stream-start warnings, alongside portable-input assertions. Include `high → low → baseline`
+across three steps, explicit native override conflicts, summary-only overrides, model/endpoint switches,
+budget bounds and mandatory thinking. Check SDK warnings as well as the emitted fields so a coerced or
+ignored choice cannot count as success. Local captures do not replace representative account tests;
+record untested provider routes explicitly.
 
 | Gate | Required evidence before cutover |
 |---|---|

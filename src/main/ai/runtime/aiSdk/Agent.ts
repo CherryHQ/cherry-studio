@@ -166,6 +166,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         instructions: params.system,
         // CallSettings (model parameters)
         maxOutputTokens: opts.maxOutputTokens,
+        reasoning: opts.reasoning,
         temperature: opts.temperature,
         topP: opts.topP,
         topK: opts.topK,

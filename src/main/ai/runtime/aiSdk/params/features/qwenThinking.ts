@@ -2,6 +2,9 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 
+import { type ReasoningControl, resolveCallReasoning } from '../reasoningControl'
+import { createRequestReasoningControl } from './reasoningControl'
+
 /**
  * Qwen Thinking Middleware
  * Controls thinking mode for Qwen models on providers that don't support enable_thinking parameter (like Ollama)
@@ -9,16 +12,17 @@ import { definePlugin } from '@cherrystudio/ai-core'
  *
  * NOTE: Qwen3.5 does not officially support the soft switch of Qwen3, i.e., /think and /nothink.
  *
- * @param enableThinking - Whether thinking mode is enabled (based on reasoning_effort !== undefined)
+ * @param control - Registry contract and request baseline, resolved independently for each call.
  * @returns LanguageModelMiddleware
  */
-function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMiddleware {
-  const suffix = enableThinking ? ' /think' : ' /no_think'
-
+function createQwenThinkingMiddleware(control: ReasoningControl): LanguageModelMiddleware {
   return {
     specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
+      const reasoning = resolveCallReasoning(control, params)
+      if (reasoning.kind === 'omit') return params
+      const suffix = reasoning.kind === 'off' ? ' /no_think' : ' /think'
       const transformedParams = { ...params }
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
@@ -44,14 +48,14 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
   }
 }
 
-const createQwenThinkingPlugin = (enableThinking: boolean) =>
+const createQwenThinkingPlugin = (control: ReasoningControl) =>
   definePlugin({
     name: 'qwen-thinking',
     enforce: 'pre',
 
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(createQwenThinkingMiddleware(enableThinking))
+      context.middlewares.push(createQwenThinkingMiddleware(control))
     }
   })
 
@@ -65,11 +69,9 @@ import type { RequestFeature } from '../feature'
 export const qwenThinkingFeature: RequestFeature = {
   name: 'qwen-thinking',
   applies: (scope) =>
-    (Boolean(scope.assistant) || scope.request.reasoningEffort !== undefined) &&
     !isOllamaProvider(scope.provider) &&
     isSupportedThinkingTokenQwenModel(scope.model) &&
     !isQwen35to39Model(scope.model) &&
-    !isSupportEnableThinkingProvider(scope.provider) &&
-    scope.reasoning.kind !== 'omit',
-  contributeModelAdapters: (scope) => [createQwenThinkingPlugin(scope.reasoning.kind !== 'off')]
+    !isSupportEnableThinkingProvider(scope.provider),
+  contributeModelAdapters: (scope) => [createQwenThinkingPlugin(createRequestReasoningControl(scope))]
 }

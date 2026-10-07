@@ -3,6 +3,8 @@ import { isQwenModel } from '@shared/utils/model'
 import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
 
 import type { RequestFeature } from '../feature'
+import { resolveCallReasoning } from '../reasoningControl'
+import { createRequestReasoningControl } from './reasoningControl'
 
 /**
  * Inject `enable_thinking` into providerOptions for Qwen models on providers
@@ -19,26 +21,36 @@ export const qwenEnableThinkingFeature: RequestFeature = {
   applies: (scope) =>
     isQwenModel(scope.model) &&
     isSupportEnableThinkingProvider(scope.provider) &&
-    scope.reasoning.kind !== 'omit' &&
-    !scope.reasoning.emissions.some((e) => e.target === 'enable_thinking'),
+    !Object.values(scope.reasoningProfile.wire).some(
+      (mode) => typeof mode === 'object' && mode.operations.some((operation) => operation.target === 'enable_thinking')
+    ),
   contributeModelAdapters: (scope) => [
     definePlugin({
       name: 'qwen-enable-thinking',
       enforce: 'pre',
 
       configureContext: (context) => {
-        context.extensions.set('__qwenEnableThinkingKey', scope.sdkConfig.providerOptionsKey)
-        context.extensions.set('__qwenEnableThinkingOn', scope.reasoning.kind !== 'off')
-      },
-
-      transformParams: (params, context) => {
-        const key = context.extensions.get('__qwenEnableThinkingKey') as string | undefined
-        const enabled = context.extensions.get('__qwenEnableThinkingOn') as boolean | undefined
-        if (!key || enabled === undefined) return params
-
-        const providerOptions = { ...params.providerOptions }
-        providerOptions[key] = { ...providerOptions[key], enable_thinking: enabled }
-        return { ...params, providerOptions }
+        const control = createRequestReasoningControl(scope)
+        const key = scope.sdkConfig.providerOptionsKey
+        context.middlewares ??= []
+        context.middlewares.push({
+          specificationVersion: 'v4',
+          transformParams: async ({ params }) => {
+            const reasoning = resolveCallReasoning(control, params)
+            if (reasoning.kind === 'omit' || params.providerOptions?.[key]?.enable_thinking !== undefined) return params
+            const effort = params.providerOptions?.[key]?.reasoningEffort
+            return {
+              ...params,
+              providerOptions: {
+                ...params.providerOptions,
+                [key]: {
+                  ...params.providerOptions?.[key],
+                  enable_thinking: effort !== undefined ? effort !== 'none' : reasoning.kind !== 'off'
+                }
+              }
+            }
+          }
+        })
       }
     })
   ]

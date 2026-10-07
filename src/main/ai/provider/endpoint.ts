@@ -131,9 +131,10 @@ export function resolveProviderOptionsKey(
     case 'google':
       return 'google'
     case 'google-vertex':
-    case 'google-vertex-anthropic':
     case 'google-vertex-maas':
       return 'vertex'
+    case 'google-vertex-anthropic':
+      return 'googleVertex'
     case 'xai':
     case 'xai-responses':
       return 'xai'

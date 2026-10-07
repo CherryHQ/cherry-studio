@@ -27,6 +27,7 @@ import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
 import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
+import { reasoningControlFeature } from './reasoningControl'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
@@ -36,6 +37,7 @@ import { terminalToolFailureFeature } from './terminalToolFailure'
 import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
+  reasoningControlFeature,
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.

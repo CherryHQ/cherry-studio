@@ -1,16 +1,15 @@
 import path from 'node:path'
 
-import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { wrapLanguageModel } from 'ai'
+import { isStepCount, tool, wrapLanguageModel } from 'ai'
 import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { generateText as aiCoreGenerateText, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
@@ -23,6 +22,7 @@ import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
+import { Agent } from '../../Agent'
 import type { AgentOptions } from '../../loop/types'
 import { getDeferredToolsSystemPrompt } from '../../prompts/deferredTools'
 
@@ -62,6 +62,39 @@ const {
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
+
+async function captureBuiltRequest(
+  result: Awaited<ReturnType<typeof buildAgentParams>>,
+  overrides: Partial<LanguageModelV4CallOptions> = {}
+) {
+  let body: any
+  const model = await resolveLanguageModel<AppProviderSettingsMap>(
+    result.sdkConfig.providerId,
+    {
+      ...result.sdkConfig.providerSettings,
+      apiKey: 'test',
+      baseURL: 'https://test.invalid/v1',
+      fetch: async (_url: unknown, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    },
+    result.sdkConfig.modelId,
+    result.plugins
+  )
+  await expect(
+    model.doGenerate({
+      providerOptions: result.options.providerOptions,
+      maxOutputTokens: result.options.maxOutputTokens,
+      reasoning: result.options.reasoning,
+      temperature: result.options.temperature,
+      topP: result.options.topP,
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+      ...overrides
+    })
+  ).rejects.toThrow('request captured')
+  return body
+}
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
@@ -390,7 +423,6 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
-        reasoningEffort: 'high',
         chat_template_kwargs: { enable_thinking: true }
       }
     })
@@ -880,10 +912,10 @@ describe('buildAgentParams standard model parameters', () => {
       model
     })
 
-    expect(result.options.providerOptions).toMatchObject({
-      anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+    expect(await captureBuiltRequest(result)).toMatchObject({
+      thinking: { type: 'enabled', budget_tokens: 4000 },
+      max_tokens: 10_000
     })
-    expect(result.options.maxOutputTokens).toBe(6000)
   })
 
   it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {
@@ -943,10 +975,10 @@ describe('buildAgentParams standard model parameters', () => {
       model,
       assistant
     })
-    const thinking = result.options.providerOptions?.anthropic?.thinking as { budgetTokens: number }
-
-    expect(thinking.budgetTokens).toBeGreaterThan(0)
-    expect(result.options.maxOutputTokens).toBe(10_000 - thinking.budgetTokens)
+    const body = await captureBuiltRequest(result)
+    expect(body.thinking.type).toBe('enabled')
+    expect(body.thinking.budget_tokens).toBeGreaterThan(0)
+    expect(body.max_tokens).toBe(10_000)
   })
 
   it('does not subtract an adaptive thinking mode without a budget', async () => {
@@ -989,8 +1021,7 @@ describe('buildAgentParams standard model parameters', () => {
       assistant
     })
 
-    expect(result.options.providerOptions).toMatchObject({ anthropic: { thinking: { type: 'adaptive' } } })
-    expect(result.options.maxOutputTokens).toBe(10_000)
+    expect(await captureBuiltRequest(result)).toMatchObject({ thinking: { type: 'adaptive' }, max_tokens: 10_000 })
   })
 })
 
@@ -1015,7 +1046,7 @@ describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claud
         endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
         capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
       })
-      const { options } = await buildAgentParams({
+      const result = await buildAgentParams({
         request: { conversation: CONVERSATION, reasoningEffort: selection },
         provider: makeProvider({
           id: 'anthropic',
@@ -1025,21 +1056,7 @@ describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claud
         assistant: makeAssistant(),
         signal: undefined
       })
-      let body: Record<string, unknown> | undefined
-      const sdkModel = wrapLanguageModel({
-        model: createAnthropic({
-          apiKey: 'test',
-          fetch: async (_url, init) => {
-            body = JSON.parse(String(init?.body))
-            return new Response('{}')
-          }
-        })(modelId),
-        middleware: []
-      })
-      await sdkModel.doStream({
-        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
-        providerOptions: options.providerOptions
-      })
+      const body = await captureBuiltRequest(result)
       if (modelId === 'claude-opus-4-6' || modelId === 'claude-sonnet-4-5') {
         expect(body).not.toHaveProperty('thinking')
       } else if (selection === 'none') {
@@ -1363,6 +1380,127 @@ describe('buildAgentParams web-tool routing', () => {
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
+  it.each(['my-vllm', 'lmstudio'])(
+    'applies Qwen step choices on %s without pinning the request toggle',
+    async (providerId) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: { name: providerId } },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const built = await buildAgentParams({
+        request: { conversation: CONVERSATION, reasoningEffort: 'high' },
+        provider: makeProvider({ id: providerId, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }),
+        model: makeModel({
+          id: `${providerId}::qwen3-32b`,
+          providerId,
+          apiModelId: 'qwen3-32b',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: {
+            controls: [{ kind: 'toggle' }, { kind: 'budget', min: 1024, max: 38912 }],
+            selectableEfforts: ['none', 'low', 'high'],
+            thinkingTokenLimits: { min: 1024, max: 38912 }
+          }
+        }),
+        signal: undefined
+      })
+      const bodies: any[] = []
+      for (const reasoning of [undefined, 'none', 'provider-default', undefined] as const) {
+        bodies.push(await captureBuiltRequest(built, { reasoning }))
+      }
+      if (providerId === 'my-vllm') {
+        expect(bodies.map((body) => body.enable_thinking)).toEqual([true, false, undefined, true])
+        const explicit = await captureBuiltRequest(built, {
+          providerOptions: { [providerId]: { enable_thinking: false } }
+        })
+        expect(explicit.enable_thinking).toBe(false)
+      } else {
+        expect(bodies.map((body) => body.messages[0].content)).toEqual([
+          'Hello /think',
+          'Hello /no_think',
+          'Hello',
+          'Hello /think'
+        ])
+        expect(bodies.every((body) => body.enable_thinking === undefined)).toBe(true)
+      }
+    }
+  )
+
+  it.each([undefined, 'medium'] as const)(
+    'restores the request baseline with SDK override %s after one-step overrides',
+    async (reasoning) => {
+      const bodies: any[] = []
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: 'openai-chat',
+          providerSettings: {
+            apiKey: 'test',
+            fetch: async (_url: unknown, init?: RequestInit) => {
+              bodies.push(JSON.parse(String(init?.body)))
+              const more = bodies.length < 4
+              return Response.json({
+                id: `response-${bodies.length}`,
+                object: 'chat.completion',
+                created: 0,
+                model: 'gpt-5',
+                choices: [
+                  {
+                    index: 0,
+                    finish_reason: more ? 'tool_calls' : 'stop',
+                    message: {
+                      role: 'assistant',
+                      content: more ? null : 'Done',
+                      ...(more && {
+                        tool_calls: [
+                          { id: `call-${bodies.length}`, type: 'function', function: { name: 'tick', arguments: '{}' } }
+                        ]
+                      })
+                    }
+                  }
+                ],
+                usage: { prompt_tokens: 10, completion_tokens: 5, completion_tokens_details: { reasoning_tokens: 2 } }
+              })
+            }
+          }
+        },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const built = await buildAgentParams({
+        request: { conversation: CONVERSATION, reasoningEffort: 'high', callOverrides: { reasoning } },
+        provider: makeProvider({ id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }),
+        model: makeModel({
+          id: 'openai::gpt-5',
+          apiModelId: 'gpt-5',
+          presetModelId: 'gpt-5',
+          providerId: 'openai',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }),
+        signal: undefined
+      })
+      const agent = new Agent({
+        ...built.sdkConfig,
+        plugins: built.plugins,
+        options: { ...built.options, stopWhen: isStepCount(5) },
+        tools: { tick: tool({ inputSchema: z.object({}), execute: () => 'ok' }) },
+        hookParts: [
+          {
+            prepareStep: ({ stepNumber }) =>
+              stepNumber === 1 ? { reasoning: 'low' } : stepNumber === 2 ? { reasoning: 'provider-default' } : undefined
+          }
+        ]
+      })
+      const result = await agent.generate({ prompt: 'Run the steps.' })
+      expect(result.text).toBe('Done')
+      expect(result.usage.outputTokens).toBe(20)
+      expect(result.usage.outputTokenDetails.reasoningTokens).toBe(8)
+      expect(bodies.map((body) => body.reasoning_effort)).toEqual([
+        reasoning ?? 'high',
+        'low',
+        undefined,
+        reasoning ?? 'high'
+      ])
+    }
+  )
+
   it('disables Bailian qwen3.7-max reasoning in the serialized Responses request', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -1397,31 +1535,13 @@ describe('buildAgentParams assistant-less reasoning', () => {
       provider,
       model
     })
-    const prompt: LanguageModelV4CallOptions['prompt'] = [
-      { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
-    ]
-    let requestBody: Record<string, unknown> | undefined
-    const sdkModel = wrapLanguageModel({
-      model: createOpenAI({
-        apiKey: 'sk-test',
-        baseURL: 'https://example.com/v1',
-        fetch: async (_input, init) => {
-          requestBody = JSON.parse(String(init?.body))
-          throw new Error('request captured')
-        }
-      }).responses('qwen3.7-max'),
-      middleware: []
-    })
-
-    await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
-      'request captured'
-    )
+    const requestBody = await captureBuiltRequest(result)
     expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
   })
 
   it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'newapi', providerSettings: {} },
+      config: { providerId: 'newapi', providerSettings: { endpointType: 'openai-response' } },
       credentialReceipt: { attribution: 'unknown' }
     })
     const provider = makeProvider({
@@ -1470,7 +1590,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
 
   it('serializes reasoning.summary when a compatible Responses endpoint explicitly opts in', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'newapi', providerSettings: {} },
+      config: { providerId: 'newapi', providerSettings: { endpointType: 'openai-response' } },
       credentialReceipt: { attribution: 'unknown' }
     })
     const provider = makeProvider({
@@ -1506,25 +1626,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model,
       assistant
     })
-    let requestBody: Record<string, unknown> | undefined
-    const sdkModel = wrapLanguageModel({
-      model: createOpenAI({
-        apiKey: 'sk-test',
-        baseURL: 'https://example.com/v1',
-        fetch: async (_input, init) => {
-          requestBody = JSON.parse(String(init?.body))
-          throw new Error('request captured')
-        }
-      }).responses('gpt-5.6-sol'),
-      middleware: []
-    })
-
-    await expect(
-      sdkModel.doGenerate({
-        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
-        providerOptions: result.options.providerOptions
-      })
-    ).rejects.toThrow('request captured')
+    const requestBody = await captureBuiltRequest(result)
     expect(requestBody).toMatchObject({
       store: false,
       reasoning: { effort: 'high', summary: 'detailed' }
@@ -1533,7 +1635,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
 
   it('omits reasoning.summary for a Responses endpoint without explicit support', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'newapi', providerSettings: {} },
+      config: { providerId: 'newapi', providerSettings: { endpointType: 'openai-response' } },
       credentialReceipt: { attribution: 'unknown' }
     })
     const provider = makeProvider({
@@ -1563,8 +1665,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       assistant
     })
 
-    expect(result.options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'high' })
-    expect(result.options.providerOptions?.openai).not.toHaveProperty('reasoningSummary')
+    expect((await captureBuiltRequest(result)).reasoning).toEqual({ effort: 'high' })
   })
 
   const makeOffCapableSetup = () => {
@@ -1633,7 +1734,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    expect(result.options.providerOptions).toEqual({ anthropic: { thinking: { type: 'disabled' } } })
+    expect((await captureBuiltRequest(result)).thinking).toEqual({ type: 'disabled' })
   })
 
   it("omits reasoning params when the model cannot be turned off ('none' degrades to omit)", async () => {
@@ -1734,8 +1835,9 @@ describe('buildAgentParams assistant-less reasoning', () => {
     // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
     // the shape that used to leak the Gemini 3 field: a catalog-backed custom
     // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
-    expect(result.options.providerOptions?.google).toMatchObject({
-      thinkingConfig: { includeThoughts: false, thinkingBudget: 0 }
+    expect((await captureBuiltRequest(result)).generationConfig.thinkingConfig).toEqual({
+      includeThoughts: false,
+      thinkingBudget: 0
     })
     expect(Object.keys(result.options.providerOptions ?? {})).toEqual(['google'])
   })
@@ -1820,19 +1922,19 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
       model,
       assistant
     })
-    return result.options.providerOptions ?? {}
+    return captureBuiltRequest(result)
   }
 
   it('keeps Claude 4.5 on the budget dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-sonnet-4-5')
-    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    const thinking = options.thinking
     expect(thinking?.type).toBe('enabled')
-    expect(thinking?.budgetTokens).toBeGreaterThan(0)
+    expect(thinking?.budget_tokens).toBeGreaterThan(0)
   })
 
   it('keeps Gemini 2.5 on the budget dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-2.5-flash')
-    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    const config = options.generationConfig.thinkingConfig
     expect(config).toHaveProperty('thinkingBudget')
     expect(config).not.toHaveProperty('thinkingLevel')
   })
@@ -1840,16 +1942,16 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
   // Positive control: the fallback must not force every model onto budget.
   it('leaves Gemini 3 on the level dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-3-flash')
-    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    const config = options.generationConfig.thinkingConfig
     expect(config).toHaveProperty('thinkingLevel')
     expect(config).not.toHaveProperty('thinkingBudget')
   })
 
   it('leaves Claude 4.6+ on the adaptive dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-opus-4-6')
-    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    const thinking = options.thinking
     expect(thinking?.type).toBe('adaptive')
-    expect(thinking?.budgetTokens).toBeUndefined()
+    expect(thinking?.budget_tokens).toBeUndefined()
   })
 })
 

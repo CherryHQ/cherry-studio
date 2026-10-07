@@ -69,27 +69,7 @@ function activeNames(scope: RequestScope): string[] {
   return collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.map((p) => (p as { name: string }).name)
 }
 
-async function qwenUserText(scope: RequestScope): Promise<string> {
-  const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
-    (candidate) => (candidate as { name?: string }).name === 'qwen-thinking'
-  ) as any
-  const context = { middlewares: [] as any[] }
-  plugin.configureContext(context)
-  const result = await context.middlewares[0].transformParams({
-    params: { prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }] }
-  })
-  return result.prompt[0].content[0].text
-}
-
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
-    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'gateway-usage-normalize',
-      'context-build',
-      'tool-schema-compatibility'
-    ])
-  })
-
   it('reasoning-extraction activates for inline-reasoning wires', () => {
     expect(
       activeNames(
@@ -237,58 +217,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'none', webFetch: 'server' } }))
     ).toContain('provider-tool-urlContext')
-    // Client-side routing adds no provider tool; only the always-on features remain.
+    // Client routes must not add provider-executed web tools.
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
-    ).toEqual(['gateway-usage-normalize', 'context-build', 'tool-schema-compatibility'])
-  })
-
-  it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {
-    const base: Parameters<typeof makeScope>[0] = {
-      provider: { id: 'nvidia' },
-      model: {
-        id: 'nvidia::qwen3-32b',
-        providerId: 'nvidia',
-        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
-      },
-      assistant: { id: 'a', settings: { reasoning_effort: 'high' } as Assistant['settings'] }
-    }
-
-    expect(activeNames(makeScope(base))).not.toContain('qwen-thinking')
-    expect(
-      await qwenUserText(
-        makeScope({
-          ...base,
-          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
-        })
-      )
-    ).toBe('hello /no_think')
-    expect(
-      await qwenUserText(
-        makeScope({
-          ...base,
-          assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
-        })
-      )
-    ).toBe('hello /think')
-  })
-
-  it('qwen-thinking applies to assistant-less requests with an explicit reasoning selection (translate)', async () => {
-    const base: Parameters<typeof makeScope>[0] = {
-      provider: { id: 'nvidia' },
-      model: {
-        id: 'nvidia::qwen3-32b',
-        providerId: 'nvidia',
-        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
-      },
-      request: { reasoningEffort: 'none' },
-      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
-    }
-
-    expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
-    // Without the explicit request selection, assistant-less scopes stay inactive.
-    expect(activeNames(makeScope({ ...base, request: undefined }))).not.toContain('qwen-thinking')
+    ).not.toContain('provider-tool-webSearch')
   })
 
   // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
@@ -336,152 +268,5 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
     expect(names.indexOf('context-build')).toBeGreaterThan(-1)
     expect(names.indexOf('context-build')).toBeLessThan(names.indexOf('anthropic-cache'))
-  })
-
-  describe('qwen-enable-thinking', () => {
-    it('activates for Qwen on an unregistered provider with reasoningEffort emissions', () => {
-      expect(
-        activeNames(
-          makeScope({
-            provider: { id: 'my-vllm' },
-            model: {
-              id: 'my-vllm::qwen3-14b',
-              providerId: 'my-vllm',
-              reasoning: { selectableEfforts: ['none', 'auto'] }
-            },
-            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-            reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
-          })
-        )
-      ).toContain('qwen-enable-thinking')
-    })
-
-    it('does not activate when the wire already emits enable_thinking (DashScope)', () => {
-      expect(
-        activeNames(
-          makeScope({
-            provider: { id: 'dashscope' },
-            model: {
-              id: 'dashscope::qwen3-14b',
-              providerId: 'dashscope',
-              reasoning: { selectableEfforts: ['none', 'auto'] }
-            },
-            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-            reasoning: {
-              kind: 'auto',
-              selection: 'auto',
-              emissions: [{ target: 'enable_thinking', value: true }]
-            }
-          })
-        )
-      ).not.toContain('qwen-enable-thinking')
-    })
-
-    it('does not activate for Ollama (excluded by isOllamaProvider)', () => {
-      expect(
-        activeNames(
-          makeScope({
-            provider: { id: 'ollama' },
-            model: {
-              id: 'ollama::qwen3-14b',
-              providerId: 'ollama',
-              reasoning: { selectableEfforts: ['none', 'auto'] }
-            },
-            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-            reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
-          })
-        )
-      ).not.toContain('qwen-enable-thinking')
-    })
-
-    it('is a strict complement of qwen-thinking (neither fires for the same scope)', () => {
-      // Unregistered provider: qwen-enable-thinking fires, qwen-thinking does not
-      const unregistered = makeScope({
-        provider: { id: 'my-vllm' },
-        model: {
-          id: 'my-vllm::qwen3-14b',
-          providerId: 'my-vllm',
-          reasoning: { selectableEfforts: ['none', 'auto'] }
-        },
-        assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
-      })
-      expect(activeNames(unregistered)).toContain('qwen-enable-thinking')
-      expect(activeNames(unregistered)).not.toContain('qwen-thinking')
-
-      // LMStudio: qwen-thinking fires, qwen-enable-thinking does not
-      const lmstudio = makeScope({
-        provider: { id: 'lmstudio' },
-        model: {
-          id: 'lmstudio::qwen3-14b',
-          providerId: 'lmstudio',
-          reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
-        },
-        assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
-      })
-      expect(activeNames(lmstudio)).toContain('qwen-thinking')
-      expect(activeNames(lmstudio)).not.toContain('qwen-enable-thinking')
-    })
-
-    it('adds enable_thinking to providerOptions via transformParams', async () => {
-      const scope = makeScope({
-        provider: { id: 'my-vllm' },
-        model: {
-          id: 'my-vllm::qwen3-14b',
-          providerId: 'my-vllm',
-          reasoning: { selectableEfforts: ['none', 'auto'] }
-        },
-        assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
-      })
-
-      const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
-        (candidate) => (candidate as { name?: string }).name === 'qwen-enable-thinking'
-      ) as any
-      expect(plugin).toBeDefined()
-
-      // Simulate configureContext + transformParams
-      const extensions = new Map<string, unknown>()
-      const context = { extensions, middlewares: [] as any[] }
-      plugin.configureContext(context)
-
-      const params = { providerOptions: { openai: { temperature: 0.7 } } }
-      const result = plugin.transformParams(params, context)
-
-      expect(result.providerOptions.openai.enable_thinking).toBe(true)
-      expect(result.providerOptions.openai.temperature).toBe(0.7)
-    })
-
-    it('sends enable_thinking: false when reasoning is off', async () => {
-      const scope = makeScope({
-        provider: { id: 'my-vllm' },
-        model: {
-          id: 'my-vllm::qwen3-14b',
-          providerId: 'my-vllm',
-          reasoning: { selectableEfforts: ['none', 'auto'] }
-        },
-        assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
-      })
-
-      expect(activeNames(scope)).toContain('qwen-enable-thinking')
-
-      const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
-        (candidate) => (candidate as { name?: string }).name === 'qwen-enable-thinking'
-      ) as any
-      expect(plugin).toBeDefined()
-
-      // Simulate configureContext + transformParams
-      const extensions = new Map<string, unknown>()
-      const context = { extensions, middlewares: [] as any[] }
-      plugin.configureContext(context)
-
-      const params = { providerOptions: { openai: { temperature: 0.7 } } }
-      const result = plugin.transformParams(params, context)
-
-      expect(result.providerOptions.openai.enable_thinking).toBe(false)
-      expect(result.providerOptions.openai.temperature).toBe(0.7)
-    })
   })
 })

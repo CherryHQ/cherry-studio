@@ -53,7 +53,7 @@ describe('resolveWireModelId', () => {
 })
 
 describe('resolveProviderOptionsKey', () => {
-  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(
+  it.each(['google-vertex', 'google-vertex-maas'])(
     'maps the %s runtime adapter to the Vertex provider-options namespace',
     (providerId) => {
       expect(resolveProviderOptionsKey(providerId)).toBe('vertex')
