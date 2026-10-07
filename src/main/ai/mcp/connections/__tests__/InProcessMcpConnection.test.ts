@@ -166,7 +166,7 @@ serveStdio(() => {
     }
   })
 
-  it('keeps memory state across independent createMcpHandler.fetch requests', async () => {
+  it('keeps memory state across calls on one in-process connection', async () => {
     const endpoint = await createBuiltinMcpEndpoint(BuiltinMcpServerNames.memory, [], {
       MEMORY_FILE_PATH: path.join(tempDir, 'memory.jsonl')
     })

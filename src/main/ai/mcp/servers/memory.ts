@@ -349,8 +349,8 @@ class MemoryServer {
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
 
-    // Start initialization once for the whole endpoint activation. Every HTTP
-    // request gets a fresh protocol shell, but all shells share this manager.
+    // Start initialization once for the whole endpoint activation; every
+    // protocol instance the endpoint creates shares this manager.
     this.initializationPromise = this._initializeManager(memoryPath)
   }
 

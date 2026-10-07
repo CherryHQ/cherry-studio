@@ -3,7 +3,8 @@ import { createMcpHandler, Server } from '@modelcontextprotocol/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ClientMcpConnection } from '../ClientMcpConnection'
-import { createInProcessMcpConnection, fetchInProcessMcpRequest } from '../InProcessMcpConnection'
+import { createInProcessMcpConnection } from '../InProcessMcpConnection'
+import { fetchMcpHandler } from './fetchMcpHandler'
 
 const events = {
   toolsChanged: vi.fn(),
@@ -45,7 +46,7 @@ describe('MCP catalog over modern handler.fetch', () => {
                 signal.addEventListener('abort', () => reject(signal.reason), { once: true })
               })
             }
-            return fetchInProcessMcpRequest(handler, input, init)
+            return fetchMcpHandler(handler, input, init)
           }
         })
       )

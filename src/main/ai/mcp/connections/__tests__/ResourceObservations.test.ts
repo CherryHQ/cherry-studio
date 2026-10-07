@@ -3,7 +3,7 @@ import { createMcpHandler, Server, InMemoryServerEventBus } from '@modelcontextp
 import { describe, expect, it } from 'vitest'
 
 import { ClientMcpConnection } from '../ClientMcpConnection'
-import { fetchInProcessMcpRequest } from '../InProcessMcpConnection'
+import { fetchMcpHandler } from './fetchMcpHandler'
 
 const options = {
   capabilities: { elicitation: { form: {} }, sampling: {}, roots: {} },
@@ -32,7 +32,7 @@ describe('resource subscription leases over modern handler.fetch', () => {
           const request = new Request(input, init)
           if (request.method === 'POST' && (await request.json()).method === 'subscriptions/listen')
             signals.push(init!.signal!)
-          return fetchInProcessMcpRequest(handler, input, init)
+          return fetchMcpHandler(handler, input, init)
         }
       })
     )
@@ -74,7 +74,7 @@ describe('resource subscription leases over modern handler.fetch', () => {
     })
     await connection.connect(
       new StreamableHTTPClientTransport(new URL('http://subscription.test/mcp'), {
-        fetch: (input, init) => fetchInProcessMcpRequest(handler, input, init)
+        fetch: (input, init) => fetchMcpHandler(handler, input, init)
       })
     )
     const states: string[] = []
