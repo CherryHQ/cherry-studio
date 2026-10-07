@@ -128,6 +128,8 @@ describe('TemporaryChatContextProvider', () => {
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
     expect(prepared.models[0].request.assistantId).toBeUndefined()
+    // Assistant-less scratch chats opt into globally active MCP tools.
+    expect(prepared.models[0].request.fallbackGlobalMcpTools).toBe(true)
   })
 
   it('uses the default model preference when topic.assistantId is undefined', async () => {
@@ -138,6 +140,8 @@ describe('TemporaryChatContextProvider', () => {
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
     expect(prepared.models[0].request.assistantId).toBeUndefined()
+    // Assistant-less scratch chats opt into globally active MCP tools.
+    expect(prepared.models[0].request.fallbackGlobalMcpTools).toBe(true)
   })
 
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
@@ -220,6 +224,9 @@ describe('TemporaryChatContextProvider', () => {
     // invocation records can link to it before later promotion rebuilds the
     // same message projection.
     expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
+    // Assistant-bound topics never opt into the global MCP fallback — the
+    // assistant's own MCP resolution governs.
+    expect(request.fallbackGlobalMcpTools).toBeUndefined()
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {
