@@ -533,6 +533,7 @@ export class AgentService {
 
   /** Publish an Agent creation/restore only after the caller-owned transaction commits. */
   emitAgentCreated(agent: AgentEntity): void {
+    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }])
     this._onAgentCreated.fire({ agentId: agent.id, agent })
   }
 
@@ -943,14 +944,28 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /** Restore a trashed agent. Related sessions remain independently restorable. */
+  /**
+   * Restore a trashed agent together with the sessions trashed by the same
+   * operation. Sessions archived on their own stay independently restorable.
+   */
   restoreAgent(id: string): AgentEntity {
-    const agent = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
+    const { agent, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
+    agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
     this.notifyReadModelChange([id], 'membership')
     return agent
   }
 
-  restoreAgentTx(tx: DbOrTx, id: string): AgentEntity {
+  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+    const [target] = tx
+      .select({ deletedAt: agentsTable.deletedAt })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
+
+    const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
+
     const [row] = tx
       .update(agentsTable)
       .set({ deletedAt: null })
@@ -969,7 +984,7 @@ export class AgentService {
       fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
     )
     logger.info('Restored agent', { id })
-    return agent
+    return { agent, restoredSessionIds }
   }
 
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): AgentPurgeImpact {

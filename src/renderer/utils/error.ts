@@ -1,4 +1,3 @@
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
@@ -121,7 +120,7 @@ export const isAbortError = (error: any): boolean => {
 }
 
 // TODO: format
-export const formatMcpError = (error: McpError) => {
+export const formatMcpError = (error: { message: string }) => {
   return error.message
 }
 

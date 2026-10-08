@@ -40,6 +40,8 @@ export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**
@@ -135,7 +137,7 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string
@@ -174,6 +176,13 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   workspaceKey: string
   agentId: string
   shouldValidateSkills?: boolean
+}
+
+/** Unsubmitted AskUserQuestion answers, keyed per question index. Survives composer remounts. */
+export interface CacheAskUserQuestionDraft {
+  selectedAnswers: Record<number, string[]>
+  customAnswers: Record<number, string>
+  currentIndex: number
 }
 
 export type ExternalOpenTargetPreferences = Record<string, string>

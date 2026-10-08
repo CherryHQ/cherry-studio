@@ -1,15 +1,20 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -19,6 +24,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -54,6 +60,9 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (error) {
+    if (error instanceof AgentSessionEditError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.reason, { reason: error.reason })
+    }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
@@ -148,10 +157,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream.open': async (request, { senderId }) => {
+    if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, request))
+    const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -203,6 +214,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
   // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
@@ -246,12 +258,48 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
+  'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
+    exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
+  'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) return
+    application.get('AgentSessionRuntimeService').setPendingInputCount(wc, sessionId, count)
+  },
+  'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
+    exposeAiStreamAdmission(async () => {
+      const wc = senderWebContents(senderId)
+      if (!wc) throw new Error('Edit and resend requires a managed window')
+      try {
+        return await application
+          .get('AiStreamManager')
+          .dispatch(new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)), {
+            ...input,
+            trigger: 'edit-agent-message',
+            topicId: buildAgentSessionTopicId(sessionId),
+            editTarget: target
+          })
+      } catch (error) {
+        if (error instanceof AgentSessionForkError) {
+          if (error.reason === 'unsupported_checkpoint') {
+            throw new AgentSessionEditError('checkpoint_unsupported')
+          }
+          const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
+          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+        }
+        throw error
+      }
+    }),
+
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
     application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.session.open_path': async ({ sessionId, path }) => {
+    const workspacePath = agentSessionService.getById(sessionId).workspace.path
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+  },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),

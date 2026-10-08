@@ -12,8 +12,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
@@ -43,7 +43,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://docs.cherry-ai.com/advanced-basic/siyuan')
+    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/siyuan')
   }
 
   const handleCheckConnection = async () => {
