@@ -75,6 +75,9 @@ export interface ComfyuiCancelCapabilities {
 /** Per-request overrides are the HTTP surface's; this is the transport's own. */
 export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
   baseURL?: string
+  /** A Comfy API key. Partner (API) nodes read it from the prompt's `extra_data`;
+   * it is never sent as a header, since the server itself takes no auth. */
+  apiKey?: string
 }
 
 /** One `/history/{id}` entry: the images it produced, or the failure it reported. */
@@ -129,6 +132,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   private readonly baseURL: string
   private readonly headers: Record<string, string>
   private readonly doFetch: FetchFunction
+  private readonly apiKey?: string
   /** Cached target-specific interrupt capability promise. Resolved once on
    *  first `cancel()` call and cached for the transport's lifetime; failures
    *  are also cached (fail-closed: persistent false result, never retry). */
@@ -138,6 +142,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     this.baseURL = normalizeComfyuiBaseUrl(settings.baseURL || DEFAULT_COMFYUI_BASE_URL)
     this.headers = settings.headers ?? {}
     this.doFetch = settings.fetch ?? fetch
+    this.apiKey = settings.apiKey?.trim() || undefined
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -202,7 +207,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
             body: JSON.stringify({
               prompt: graph,
               client_id: `cherry-studio-${Date.now()}`,
-              prompt_id: requestedPromptId
+              prompt_id: requestedPromptId,
+              // Where the frontend puts it too; ComfyUI redacts it from history.
+              ...(this.apiKey && { extra_data: { api_key_comfy_org: this.apiKey } })
             }),
             signal: deadlineSignal
           })

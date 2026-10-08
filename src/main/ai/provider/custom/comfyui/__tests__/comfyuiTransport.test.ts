@@ -236,6 +236,31 @@ describe('ComfyuiTransport', () => {
     expect(body.prompt['2'].inputs.seed).toBe(42)
   })
 
+  it('hands a Comfy API key to partner nodes in extra_data, and never as a header', async () => {
+    const bodies: Record<string, any>[] = []
+    const headers: unknown[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      headers.push(init?.headers)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(workflow)
+      bodies.push(JSON.parse(String(init?.body)))
+      return respond({ prompt_id: 'pid-1' })
+    })
+
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', apiKey: ' comfyui-key ', fetch: doFetch }).submit(
+      submitInput
+    )
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', apiKey: '  ', fetch: doFetch }).submit(submitInput)
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch }).submit(submitInput)
+
+    expect(bodies[0].extra_data).toEqual({ api_key_comfy_org: 'comfyui-key' })
+    // Without a key the body is what it was: no empty credential for a node to send.
+    expect(bodies[1]).not.toHaveProperty('extra_data')
+    expect(bodies[2]).not.toHaveProperty('extra_data')
+    expect(JSON.stringify(headers)).not.toContain('comfyui-key')
+  })
+
   it('writes the prompt into the branch of an If/Else Switch that reaches the encoder', async () => {
     const posts: Record<string, any>[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
