@@ -454,8 +454,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // quotes alone hold their content wherever the marker chain leaves it, but an item's continuation
   // lines are measured from the column its content begins at, so that column gates them. Counted in
   // columns: a tab inside a marker advances to the next stop, so `-\t` spans four of them.
-  const labelColumn =
-    start !== null && /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(start[0]) ? columnCount(start[0]) : -1
+  const labelColumn = start !== null && /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(start[0]) ? columnCount(start[0]) : -1
   const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
   // A label the parser would refuse — one of whitespace alone — leaves the line a paragraph.
   if (!label || !/[^\s]/.test(label[1])) return null
