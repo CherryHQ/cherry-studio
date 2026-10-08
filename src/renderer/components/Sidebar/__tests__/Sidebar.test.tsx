@@ -358,6 +358,12 @@ describe('Sidebar resize handle', () => {
         setWidth={vi.fn()}
         entries={entries}
         user={{ name: 'User', onClick: onAccountClick }}
+        actions={(layout) => (
+          <>
+            <button type="button">Settings {layout}</button>
+            <button type="button">Help {layout}</button>
+          </>
+        )}
         userAction={(layout) => (
           <button type="button" aria-label={`Install update ${layout}`} onClick={onUpdateClick}>
             update
@@ -370,7 +376,14 @@ describe('Sidebar resize handle', () => {
 
     expect(onUpdateClick).toHaveBeenCalledOnce()
     expect(onAccountClick).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'User' })).not.toHaveTextContent('›')
+    const accountButton = screen.getByRole('button', { name: 'User' })
+    const updateButton = screen.getByRole('button', { name: 'Install update full' })
+    const settingsButton = screen.getByRole('button', { name: 'Settings full' })
+    const helpButton = screen.getByRole('button', { name: 'Help full' })
+    expect(accountButton).not.toHaveTextContent('›')
+    expect(updateButton.parentElement?.parentElement).toBe(accountButton.parentElement)
+    expect(settingsButton.parentElement).not.toBe(accountButton.parentElement)
+    expect(helpButton.parentElement).not.toBe(accountButton.parentElement)
   })
 
   it('renders the full footer user action without a user identity', () => {
