@@ -34,7 +34,7 @@ describe('ExternalKnowledgeCredentialStore', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  it('encrypts every secret and atomically writes a 0600 versioned file', async () => {
+  it('encrypts every secret and atomically writes a versioned file', async () => {
     const safeStorage = createSafeStorage()
     const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage })
 
@@ -51,7 +51,6 @@ describe('ExternalKnowledgeCredentialStore', () => {
     const contents = await readFile(filePath, 'utf8')
     for (const secret of secretValues) expect(contents).not.toContain(secret)
     expect(JSON.parse(contents)).toMatchObject({ version: 1, entries: { 'credential-ref': { appId: 'cli_test' } } })
-    expect((await stat(filePath)).mode & 0o777).toBe(0o600)
     expect((await readdir(path.dirname(filePath))).filter((name) => name.endsWith('.tmp'))).toEqual([])
 
     await expect(store.read('credential-ref')).resolves.toEqual({
@@ -66,6 +65,17 @@ describe('ExternalKnowledgeCredentialStore', () => {
         grantedScopes: ['wiki:node:read', 'offline_access']
       }
     })
+  })
+
+  it.skipIf(process.platform === 'win32')('restricts credential file permissions to the owner', async () => {
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage: createSafeStorage() })
+    await store.put('credential-ref', {
+      appId: 'cli_test',
+      appSecret: secretValues[0],
+      grantedScopes: []
+    })
+
+    expect((await stat(filePath)).mode & 0o777).toBe(0o600)
   })
 
   it('reports a strict-schema corruption without deleting the file', async () => {
