@@ -1,11 +1,10 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { StreamDoneResult, StreamErrorResult } from '../../types'
 import { SseListener } from '../SseListener'
 
 function delta(text: string): UIMessageChunk {
-  return { type: 'text-delta', id: 't', delta: text } as UIMessageChunk
+  return { type: 'text-delta', id: 't', delta: text }
 }
 
 describe('SseListener', () => {
@@ -15,8 +14,8 @@ describe('SseListener', () => {
     const listener = new SseListener(write, end, () => false)
 
     listener.onChunk(delta('hi'))
-    listener.onDone({ status: 'success' } as StreamDoneResult)
-    listener.onError({ status: 'error', error: { name: 'E', message: 'boom', stack: null } } as StreamErrorResult)
+    listener.onDone({ status: 'success' })
+    listener.onError({ status: 'error', error: { name: 'E', message: 'boom', stack: null } })
 
     expect(write).not.toHaveBeenCalled()
     expect(end).not.toHaveBeenCalled()

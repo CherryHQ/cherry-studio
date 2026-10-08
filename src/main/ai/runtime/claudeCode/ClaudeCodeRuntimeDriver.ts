@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import type {
   Options,
   Query,
-  query,
   SDKAssistantMessage,
   SDKMessage,
   SDKPartialAssistantMessage,
@@ -32,6 +31,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -49,32 +49,40 @@ import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import type {
-  AgentRuntimeConnectInput,
-  AgentRuntimeConnection,
-  AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
-  AgentRuntimeTraceContext,
-  AgentRuntimeUserInput,
-  AgentSessionRuntimeDriver,
-  AgentSessionUsageCapture
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeConnection,
+  type AgentRuntimeEvent,
+  AgentRuntimeInputDeliveryError,
+  type AgentRuntimeReconcileResult,
+  type AgentRuntimeTraceContext,
+  type AgentRuntimeUserInput,
+  type AgentSessionRuntimeDriver,
+  type AgentSessionUsageCapture
 } from '../types'
-import { AgentRuntimeInputDeliveryError } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import {
+  type ClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  isClaudeCodeProcessFailure
+} from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
-import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
+import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -92,28 +100,6 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
     .trimStart()
 
   return /^\/fast(?:\s|$)/i.test(text)
-}
-
-type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
-
-function classifyResumeRecoveryResult(
-  subtype: SDKResultMessage['subtype'],
-  errors: readonly string[]
-): ResumeRecoveryReason | undefined {
-  if (subtype !== 'error_during_execution') return undefined
-  if (errors.some((entry) => /no conversation found with session id/i.test(entry))) {
-    return 'conversation-not-found'
-  }
-  if (errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
-    return 'duplicate-tool-use-id'
-  }
-  return undefined
-}
-
-/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
-function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
-  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
-  return classifyResumeRecoveryResult(error.subtype, error.errors)
 }
 
 function isTurnScopedSystemMessage(message: SDKMessage): boolean {
@@ -334,7 +320,7 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
     if (this.waitResolve) {
       const resolve = this.waitResolve
       this.waitResolve = undefined
-      resolve({ value: undefined as unknown as SDKUserMessage, done: true })
+      resolve({ value: undefined, done: true })
     }
   }
 
@@ -360,16 +346,9 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
 
 type PendingInputDelivery = {
   queue: SdkInputQueue
-  message: SDKUserMessage
   promise: Promise<void>
   resolve: () => void
   reject: (error: unknown) => void
-}
-
-type InflightMaterialization = {
-  claimed: boolean
-  isRecoveryInput: boolean
-  recoveredSessionId?: string
 }
 
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
@@ -377,19 +356,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
-  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
-  private createQuery?: typeof query
   private closePromise?: Promise<void>
-  /** The exact spawn options of the live query — resume recovery re-spawns from these. */
+  /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
-  private lastSdkUserMessage?: SDKUserMessage
-  private resumeRecoveryRetried = false
+  private processDiagnostics?: ClaudeCodeProcessDiagnostics
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastMainAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -403,17 +380,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private pendingInputClaims = 0
   private reservedInputClaim?: { active: boolean }
   private initialResumedInputClaimed: boolean
-  private pendingInputMaterialization = false
-  private readonly inflightMaterializations: InflightMaterialization[] = []
-  /** Replacement session id that still belongs to the input recovery is for. */
-  private withheldRecoveredSessionId?: string
-  /** Queued recovery input waiting for the replacement query to publish its session id. */
-  private recoveryInputMessage?: SDKUserMessage
   private pendingInputDelivery?: PendingInputDelivery
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
-  /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
-   *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
+  /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
+   *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
@@ -456,8 +427,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
+    const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
+      ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
       ...(traceEnv
         ? {
             env: {
@@ -467,7 +440,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -487,10 +460,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
-    this.spawnOptions = options
+    this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
+    this.spawnOptions = consumedWarmQuery
+      ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
+      : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
-    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -550,6 +525,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -563,50 +539,24 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.pendingInputClaims += 1
       }
     }
-    // The replacement session id stays on this input when recovery overlaps its materialization.
-    const materialization: InflightMaterialization = { claimed: requiresInputClaim, isRecoveryInput: false }
-    this.inflightMaterializations.push(materialization)
-    const resumeRecoveryRetriedBeforeMaterialization = this.resumeRecoveryRetried
-    const resumeTokenBeforeMaterialization = this.resumeToken
+
     let sdkMessage: SDKUserMessage
-    if (requiresInputClaim) this.pendingInputMaterialization = true
     try {
-      sdkMessage = await toSdkUserMessage(input.message, resumeTokenBeforeMaterialization, input.systemReminder, {
+      sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
-      const sessionId = this.sessionIdAfterMaterialization(
-        materialization,
-        resumeRecoveryRetriedBeforeMaterialization,
-        resumeTokenBeforeMaterialization
-      )
-      sdkMessage = { ...sdkMessage, session_id: sessionId }
-      if (materialization.isRecoveryInput) {
-        if (materialization.recoveredSessionId) {
-          this.withheldRecoveredSessionId = undefined
-          this.recoveryInputMessage = undefined
-        } else {
-          this.recoveryInputMessage = sdkMessage
-        }
-      }
     } catch (error) {
-      // The recovered id was reserved for this input; drop it if the input never queues.
-      if (materialization.isRecoveryInput) {
-        this.withheldRecoveredSessionId = undefined
-        this.recoveryInputMessage = undefined
-      }
       if (requiresInputClaim) this.pendingInputClaims -= 1
       throw error
-    } finally {
-      const index = this.inflightMaterializations.indexOf(materialization)
-      if (index >= 0) this.inflightMaterializations.splice(index, 1)
-      this.pendingInputMaterialization = this.inflightMaterializations.some((slot) => slot.claimed)
     }
-    this.lastSdkUserMessage = sdkMessage
+
     if (!requiresInputClaim) {
       this.adapter?.beginTurn()
       if (!this.sdkInputQueue.push(sdkMessage)) {
-        throw new Error('Claude Code connection closed before input could be queued')
+        throw new AgentRuntimeInputDeliveryError(
+          new Error('Claude Code connection closed before input could be queued')
+        )
       }
       return
     }
@@ -618,20 +568,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       resolveDelivery = resolve
       rejectDelivery = reject
     })
-    const delivery = {
-      queue,
-      message: sdkMessage,
-      promise: deliveryPromise,
-      resolve: resolveDelivery,
-      reject: rejectDelivery
-    }
+    const delivery = { queue, promise: deliveryPromise, resolve: resolveDelivery, reject: rejectDelivery }
     this.pendingInputDelivery = delivery
     const queued = queue.push(sdkMessage, () => this.acknowledgeInputDelivery(delivery))
     if (!queued) {
-      const error = new AgentRuntimeInputDeliveryError(
-        new Error('Claude Code connection closed before input could be queued')
+      this.rejectInputDelivery(
+        new AgentRuntimeInputDeliveryError(new Error('Claude Code connection closed before input could be queued'))
       )
-      this.rejectInputDelivery(error)
     }
     await delivery.promise
   }
@@ -649,8 +592,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // A steer is only injectable into a running turn. The adapter lives for the whole connection,
     // so its turn flag — not its existence — reports whether one is open.
     if (!this.adapter?.isTurnActive || !this.steerHolder || !canInject) return false
-    // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
-    // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
+    // Stash for the steer hooks to inject as `additionalContext` at the next tool boundary
+    // (PostToolBatch after the running batch, or the next PreToolUse). If the turn ends with no
+    // tool boundary at all, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
     return true
   }
@@ -760,9 +704,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
-   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
-   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
-   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   * Project a top-level `message_start`/`message_delta`'s input usage into a live reading: the
+   * request the CLI just sent carries exactly the tokens now occupying the window. `categories` stays
+   * empty (only the CLI's probe produces the breakdown); the host's post-turn pull remains authoritative.
    */
   private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
     const totalTokens =
@@ -808,6 +752,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this.closePromise
   }
 
+  async closeForEdit(): Promise<void> {
+    const closing = this.close()
+    const exited = this.processDiagnostics?.exited
+    if (this.query && !exited) throw new Error('Claude Code process exit cannot be confirmed')
+    await Promise.all([closing, exited])
+  }
+
   private async closeQuery(): Promise<void> {
     const query = this.query
     this.settlePendingInvocations()
@@ -819,32 +770,27 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.steerBoundaryPending = undefined
     this.teardownSession()
     this.eventQueue.close()
-    if (!query) return
+    const exited = this.processDiagnostics?.exited
+    if (!query && !exited) return
     try {
-      query.close()
+      query?.close()
     } catch (error) {
       logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
     }
-    try {
-      await query.return(undefined)
-    } catch (error) {
+    // The runtime owner bounds its wait; retain completion so a late teardown can unblock the session.
+    await query?.return(undefined).catch((error) => {
       logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
-    }
+    })
   }
 
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        const recoverableResumeResult =
-          message.type === 'result'
-            ? classifyResumeRecoveryResult(message.subtype, message.subtype === 'success' ? [] : (message.errors ?? []))
-            : undefined
         if (
           this.pendingInputClaims > 0 &&
           this.adapter?.isTurnActive !== true &&
           (message.type !== 'system' || isTurnScopedSystemMessage(message)) &&
-          !isDetachedBackgroundMessage(message) &&
-          !recoverableResumeResult
+          !isDetachedBackgroundMessage(message)
         ) {
           if (message.type === 'result') {
             logger.warn('Dropping stale resumed result before the pending host input was consumed', {
@@ -878,9 +824,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.emitLiveContextUsage(message.event.message?.usage)
         }
 
+        // Bridge gateways report full input usage on trailing deltas; zero uncached tokens is valid.
+        // Skip sparse direct-Anthropic deltas whose input_tokens is absent or null.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_delta' &&
+          message.parent_tool_use_id == null &&
+          message.event.usage?.input_tokens != null
+        ) {
+          this.emitLiveContextUsage(message.event.usage)
+        }
+
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -908,36 +868,47 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          const checkpoint = ClaudeForkCheckpointSchema.safeParse({
+            runtime: 'claude-code',
+            runtimeSessionId: result.sessionId,
+            messageUuid: this.lastMainAssistantUuid,
+            configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
+          })
+          const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
+          this.lastMainAssistantUuid = undefined
+          this.eventQueue.push({ type: 'turn-complete', forkAnchor })
         }
       }
     } catch (error) {
       this.settlePendingInvocations()
-      if (this.tryRecoverWithoutResume(error)) {
-        // `await` is load-bearing: without it the finally below closes the event queue while the
-        // recovered loop is still streaming.
-        return await this.runQueryLoop()
-      }
       this.sdkInputQueue.close()
       this.rejectInputDelivery(new AgentRuntimeInputDeliveryError(error))
       // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
-      const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      const isProcessFailure = isClaudeCodeProcessFailure(error, this.processDiagnostics)
+      const surfacedError =
+        isProcessFailure && this.processDiagnostics
+          ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
+          : error
+      const salvaged = this.adapter?.handleTruncationError(surfacedError) ?? false
       this.adapter?.finalizeOpenTextParts()
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
-          error
+          err: chatErrorContext(surfacedError),
+          ...(isProcessFailure && this.processDiagnostics
+            ? { diagnosticReference: this.processDiagnostics.reference }
+            : {})
         })
       }
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
       this.teardownSession()
-      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
+      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfacedError })
     } finally {
       this.settlePendingInvocations()
       this.query = undefined
@@ -945,72 +916,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
-  private tryRecoverWithoutResume(error: unknown): boolean {
-    const createClaudeQuery = this.createQuery
-    if (
-      this.resumeRecoveryRetried ||
-      !this.resumeToken ||
-      !this.spawnOptions ||
-      !createClaudeQuery ||
-      this.abortController.signal.aborted
-    ) {
-      return false
-    }
-    const reason = getResumeRecoveryReason(error)
-    if (!reason) return false
-    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
-    // failed request actually resumed prior history rather than merely reporting a new session id.
-    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id && this.pendingInputClaims === 0) {
-      return false
-    }
-    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
-      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
-        sessionId: this.input.sessionId,
-        reason
-      })
-      return false
-    }
-    this.resumeRecoveryRetried = true
-
-    logger.warn('Recovering Claude Code conversation without its resume history', {
-      sessionId: this.input.sessionId,
-      reason
-    })
-    this.resumeToken = undefined
-    this.withheldRecoveredSessionId = undefined
-    this.recoveryInputMessage = undefined
-    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
-    // recovered turn like any other data part.
-    this.eventQueue.push({
-      type: 'chunk',
-      chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
-    })
-    this.sdkInputQueue.close()
-    this.sdkInputQueue = new SdkInputQueue()
-    // A queued delivery already is the input recovery is for. A later materialization must not take
-    // its session id, and must not suppress replaying that delivery onto the replacement query.
-    const recoveryInput = this.pendingInputDelivery
-      ? undefined
-      : this.inflightMaterializations.find((slot) => slot.claimed)
-    if (recoveryInput) recoveryInput.isRecoveryInput = true
-    const replayMessage = recoveryInput ? undefined : (this.pendingInputDelivery?.message ?? this.lastSdkUserMessage)
-    if (replayMessage) {
-      const queue = this.sdkInputQueue
-      const delivery = this.pendingInputDelivery
-      const rebound = { ...replayMessage, session_id: '' }
-      this.recoveryInputMessage = rebound
-      queue.push(rebound, delivery ? () => this.acknowledgeInputDelivery(delivery, queue) : undefined)
-    }
-    this.query = createClaudeQuery({
-      prompt: this.sdkInputQueue,
-      options: { ...this.spawnOptions, resume: undefined }
-    })
-    return true
-  }
-
-  private acknowledgeInputDelivery(delivery: PendingInputDelivery, queue = delivery.queue): void {
-    if (this.pendingInputDelivery !== delivery || this.sdkInputQueue !== queue) return
+  private acknowledgeInputDelivery(delivery: PendingInputDelivery): void {
+    if (this.pendingInputDelivery !== delivery || this.sdkInputQueue !== delivery.queue) return
     this.pendingInputDelivery = undefined
     this.pendingInputClaims -= 1
     this.initialResumedInputClaimed = true
@@ -1093,40 +1000,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private updateResumeToken(resumeToken: string): void {
-    if (this.recoveryInputMessage) {
-      this.recoveryInputMessage.session_id = resumeToken
-      this.recoveryInputMessage = undefined
-      this.withheldRecoveredSessionId = undefined
-    } else {
-      const owner = this.inflightMaterializations.find((slot) => slot.isRecoveryInput)
-      if (owner) {
-        owner.recoveredSessionId = resumeToken
-        this.withheldRecoveredSessionId = resumeToken
-      }
-    }
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
     this.eventQueue.push({ type: 'resume-token', token: resumeToken })
-  }
-
-  private sessionIdAfterMaterialization(
-    materialization: InflightMaterialization,
-    resumeRecoveryRetriedBeforeMaterialization: boolean,
-    resumeTokenBeforeMaterialization: string | undefined
-  ): string {
-    if (materialization.isRecoveryInput) return materialization.recoveredSessionId ?? ''
-    const recoveryOverlapped = resumeRecoveryRetriedBeforeMaterialization !== this.resumeRecoveryRetried
-    if (this.withheldRecoveredSessionId || recoveryOverlapped) {
-      if (
-        !recoveryOverlapped &&
-        resumeTokenBeforeMaterialization &&
-        resumeTokenBeforeMaterialization !== this.withheldRecoveredSessionId
-      ) {
-        return resumeTokenBeforeMaterialization
-      }
-      return ''
-    }
-    return this.resumeToken ?? ''
   }
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
@@ -1442,9 +1318,7 @@ async function materializeUserContent(
   let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
-    turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
-    ])
+    turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
   }
   if (firstPartyImageParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
@@ -1615,6 +1489,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

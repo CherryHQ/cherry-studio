@@ -1,6 +1,8 @@
+import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { DoctorState } from '@shared/types/doctor'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
-import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
@@ -8,6 +10,7 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
@@ -37,6 +40,8 @@ export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**
@@ -132,7 +137,7 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string
@@ -173,6 +178,13 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
+/** Unsubmitted AskUserQuestion answers, keyed per question index. Survives composer remounts. */
+export interface CacheAskUserQuestionDraft {
+  selectedAnswers: Record<number, string[]>
+  customAnswers: Record<number, string>
+  currentIndex: number
+}
+
 export type ExternalOpenTargetPreferences = Record<string, string>
 
 export type CachePaintingGenerationState = {
@@ -189,6 +201,7 @@ export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
 export type CacheAgentSessionFlowParts = AgentSessionFlowParts
+export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
@@ -225,3 +238,6 @@ export type CacheMiniAppAttention = {
   /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
   updating: { version: string; fraction: number | null } | null
 }
+
+/** System Doctor run state; see `@shared/types/doctor`. */
+export type CacheDoctorState = DoctorState

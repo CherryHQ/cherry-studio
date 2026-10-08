@@ -11,7 +11,7 @@ describe('Ollama chat reasoning boundary', () => {
     const request = await captureWithFetch((fetch) =>
       createOllamaWithImageModel({ baseURL: 'https://ollama.example/api', fetch })
         .languageModel('qwen3:8b')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(request.url).toBe('https://ollama.example/api/chat')
@@ -25,7 +25,7 @@ describe('Ollama chat reasoning boundary', () => {
         .doGenerate({
           prompt: PROMPT,
           providerOptions: { ollama: { think: false } }
-        } as LanguageModelV3CallOptions)
+        })
     )
 
     expect(request.body).toHaveProperty('think', false)

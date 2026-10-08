@@ -107,6 +107,15 @@ export const allHandlers: ApiImplementation = {
 
 **Scope limit:** A DataApi service is the **data** business-logic layer — its domain workflows orchestrate **SQLite reads/writes only**, never fs/network/process/external-service side effects, even alongside a legitimate DB write and no matter how deeply nested. See [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects).
 
+For example, active conversation removal uses `trash.topic.archive` or
+`trash.topic.delete_permanently` IPC. `TrashService` holds dispatch admission and
+rejects unsettled generation before calling the DB-only `TopicService` mutation.
+Archive retains the conversation for restore; confirmed permanent deletion removes
+it and its messages atomically. The existing DataApi permanent-delete endpoint
+accepts only archived conversations, so stale Recycle Bin views cannot delete
+already-restored conversations. UI archive and permanent-delete actions use
+separate labels, busy hints, and confirmation policies.
+
 ### Cross-Service Table Access
 
 Each table has exactly **one owning service** — the rule is split by access kind:
@@ -324,6 +333,16 @@ Service methods accepting a Drizzle transaction:
 | Parameter type | `Pick<DbType, '...'>` with the minimum operations needed |
 | Non-Tx wrapper | optional; thin `db.transaction(...)` wrapper, only when a caller needs to own the transaction |
 
+The transaction contract includes indirect reads: a `*Tx` method must not reach
+the global `DbService` accessor through a helper or another service. Startup
+seeders have a valid transaction while `DbService` is still initializing. Pass
+`tx` through database helpers, or pass the already-read rows/context to a resolver
+that does not query the database. An optional cache must never decide which
+database handle a call uses.
+
+Accepting a handle does not open a transaction: ordinary reads may pass `db`;
+reads composed inside an existing transaction pass `tx`.
+
 ```ts
 // ✅
 purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): void
@@ -364,6 +383,23 @@ Registry Services:
 - Named `{Domain}RegistryService` (e.g., `ProviderRegistryService`)
 - Primary data source is static preset data (JSON files, TS constants)
 - All methods are read-only (no inserts, updates, or deletes)
+
+Provider model resolution has two explicit entry points:
+
+- `ProviderRegistryService.resolveModel(context, modelId)` resolves registry
+  metadata without querying SQLite. `ModelService` obtains the context through
+  `ProviderService.getReasoningContextsByProviderIdsTx(tx, ids)` using its caller's
+  handle, then calls this resolver. Missing/unavailable provider rows are filtered
+  before resolution.
+- `ProviderRegistryService.lookupModel(providerId, modelId)` is a runtime
+  convenience wrapper that reads provider context before calling `resolveModel`.
+  It must not be called from a transaction-scoped path.
+
+The `tx-boundary/no-ambient-db-in-tx` lint rule is an error. In `ModelService` and
+`ProviderRegistryService`, it also follows same-class helpers/getters and protects
+`resolveModel` as a database-free entry point. It does not infer arbitrary
+cross-module call graphs; database-free behavior is additionally covered by
+regressions that make the global accessor throw.
 
 See [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) for the general architecture.
 

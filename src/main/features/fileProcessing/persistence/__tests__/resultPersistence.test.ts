@@ -20,11 +20,13 @@ vi.mock('node:stream/promises', () => ({
 
 vi.mock('node-stream-zip', () => ({
   default: {
-    async: vi.fn(() => ({
-      entries: entriesMock,
-      entryData: entryDataMock,
-      close: closeMock
-    }))
+    async: vi.fn(function StreamZipAsyncMock() {
+      return {
+        entries: entriesMock,
+        entryData: entryDataMock,
+        close: closeMock
+      }
+    })
   }
 }))
 

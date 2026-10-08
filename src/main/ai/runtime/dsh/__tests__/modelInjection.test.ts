@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse } from 'yaml'
 
 const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
@@ -154,7 +155,7 @@ describe('buildDshGatewayInjection', () => {
     })
 
     expect(yaml).not.toContain(GATEWAY_KEY)
-    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm')?.config
+    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm-pi-ai')?.config
       ?.providers?.[injection.providerName]
     expect(route).toMatchObject({
       apiKeyEnv: 'CHERRY_DSH_API_KEY',
@@ -188,6 +189,31 @@ describe('buildDshGatewayInjection', () => {
 })
 
 describe('buildDshProviderInjection', () => {
+  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      reportsActualCost: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      providerId: 'custom-provider',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('coerces user headers to the strings the dsh route schema accepts', () => {
     const provider = {
       ...nativeProvider,
@@ -198,6 +224,20 @@ describe('buildDshProviderInjection', () => {
     const injection = buildDshProviderInjection(provider, model, 'sk-native')
 
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
+  })
+
+  it('adds stable TokenDance app attribution', () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'tokendance::gpt-5', providerId: 'tokendance', apiModelId: 'gpt-5' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'X-App-URL': 'app://cherryai.com.cn' })
   })
 })
 
@@ -256,6 +296,27 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
   })
 
+  it('substitutes a stand-in credential for a keyless local provider', async () => {
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    const keylessProvider = {
+      ...nativeProvider,
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:8000'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({ id: 'omlx::qwen3-coder', providerId: 'omlx', apiModelId: 'qwen3-coder' })
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', keylessProvider, model)
+
+    expect(injection.apiKey).toBe('no-key-required')
+  })
+
   it('falls back to the gateway without consuming native key rotation', async () => {
     const injection = await resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, makeModel())
 
@@ -284,9 +345,103 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
 })
 
 describe('assertDshProviderUsable', () => {
+  it('allows a keyless provider whose registry entry marks auth optional', async () => {
+    const keylessProvider = {
+      ...nativeProvider,
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:8000'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({ id: 'omlx::qwen3-coder', providerId: 'omlx', apiModelId: 'qwen3-coder' })
+    mocks.getByProviderId.mockReturnValue(keylessProvider)
+    mocks.getByKey.mockReturnValue(model)
+    mocks.getApiKeys.mockReturnValue([])
+
+    await expect(assertDshProviderUsable('omlx::qwen3-coder')).resolves.toBeUndefined()
+  })
+})
+
+describe('OpenCode dsh session headers', () => {
+  const opencodeProvider = {
+    id: 'opencode',
+    name: 'OpenCode Go',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://opencode.ai/zen/go/v1' }
+    }
+  } as unknown as Provider
+
+  function makeOpenCodeModel(overrides: Partial<Model> = {}): Model {
+    return makeModel({
+      id: 'opencode::deepseek-flash',
+      providerId: 'opencode',
+      apiModelId: 'deepseek-flash',
+      ...overrides
+    })
+  }
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES] as const)(
+    'keeps the session header stable and isolates sessions for %s',
+    async (endpointType) => {
+      const provider = { ...opencodeProvider, defaultChatEndpoint: endpointType } as unknown as Provider
+      const model = makeOpenCodeModel({ endpointTypes: [endpointType] })
+
+      const first = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+      const repeated = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+      const second = await resolveDshProviderInjectionFromSnapshot('session-2', provider, model)
+
+      expect(first.headers).toEqual({ 'x-opencode-session': 'session-1' })
+      expect(repeated.headers).toEqual(first.headers)
+      expect(second.headers).toEqual({ 'x-opencode-session': 'session-2' })
+    }
+  )
+
+  it('recognizes providers created from the OpenCode preset', async () => {
+    const provider = { ...opencodeProvider, id: 'my-console', presetProviderId: 'opencode' } as unknown as Provider
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, makeOpenCodeModel())
+
+    expect(injection.headers).toEqual({ 'x-opencode-session': 'session-1' })
+  })
+
+  it('preserves an explicit session header regardless of its casing', async () => {
+    const provider = {
+      ...opencodeProvider,
+      settings: { extraHeaders: { 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' } }
+    } as unknown as Provider
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, makeOpenCodeModel())
+
+    expect(injection.headers).toEqual({ 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' })
+  })
+
+  it('does not add an OpenCode session header to unrelated providers', async () => {
+    const model = makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' })
+    const configured = { ...nativeProvider, settings: { extraHeaders: { 'x-tenant': 'tenant-1' } } }
+
+    const bare = await resolveDshProviderInjectionFromSnapshot('session-1', nativeProvider, model)
+    const withCustomHeaders = await resolveDshProviderInjectionFromSnapshot('session-1', configured, model)
+
+    expect(bare.headers).not.toHaveProperty('x-opencode-session')
+    expect(withCustomHeaders.headers).toEqual({ 'x-tenant': 'tenant-1' })
+  })
+})
+
+describe('assertDshProviderUsable', () => {
   it('defers Cherry Cloud gateway consent until connection materialization', async () => {
-    mocks.getByProviderId.mockResolvedValue(cloudProvider)
-    mocks.getByKey.mockResolvedValue(makeCloudModel())
+    mocks.getByProviderId.mockReturnValue(cloudProvider)
+    mocks.getByKey.mockReturnValue(makeCloudModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: false })
 
     await expect(assertDshProviderUsable('cherryai-subscription::deepseek-free')).resolves.toBeUndefined()
@@ -295,8 +450,8 @@ describe('assertDshProviderUsable', () => {
   })
 
   it('accepts a gateway-routable model when the gateway is enabled, without key side effects', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel())
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: true })
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).resolves.toBeUndefined()
@@ -305,16 +460,16 @@ describe('assertDshProviderUsable', () => {
   })
 
   it('fails closed on the persisted intent when the gateway is disabled', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel())
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: false })
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(mocks.ApiGatewayNotRunningError)
   })
 
   it('still reports unsupported when the model is not gateway-routable either', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
   })

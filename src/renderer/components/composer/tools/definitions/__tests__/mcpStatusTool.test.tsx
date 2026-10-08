@@ -1,11 +1,12 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { act, render, waitFor } from '@testing-library/react'
 import { Globe2, Settings2 } from 'lucide-react'
 import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as { mcps?: string[] } | undefined,
@@ -29,7 +30,7 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: (id: string | null) => {
     mocks.agentIds.push(id)
-    return { agent: mocks.agent }
+    return { agent: id ? mocks.agent : undefined }
   }
 }))
 
@@ -82,6 +83,7 @@ import {
   resolveMcpConfigTarget,
   updateMcpBinding
 } from '../mcpStatusTool'
+import { isMcpToolbarActive } from '../mcpToolbarState'
 
 const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connected': 'Connected',
@@ -104,11 +106,10 @@ const translations: Record<string, string> = {
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any
 
-const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer =>
-  ({
-    type: 'stdio',
-    ...overrides
-  }) as McpServer
+const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer => ({
+  type: 'stdio',
+  ...overrides
+})
 
 const status = (state: McpRuntimeStatus['state']): McpRuntimeStatus => ({
   state,
@@ -408,7 +409,7 @@ describe('mcpStatusTool', () => {
   it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
     const launcher = createMcpStatusLauncher([], t, 'disabled', false)
 
-    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
+    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled', active: false })
     expect(launcher.disabled).toBeFalsy()
     expect(launcher.action).toEqual(expect.any(Function))
 
@@ -416,6 +417,42 @@ describe('mcpStatusTool', () => {
     launcher.action?.({ quickPanel } as any)
     expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [] }))
     expect(quickPanel.open.mock.calls[0][0]).not.toHaveProperty('footerActions')
+  })
+
+  // Catches #20198: toolbar consumers need a pure activation contract so the MCP shortcut
+  // can highlight when tools are enabled without opening the status panel.
+  it('reports MCP toolbar activation from assistant mode or agent bindings', () => {
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'disabled' }, mcpServerIds: [] }
+      })
+    ).toBe(false)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'auto' }, mcpServerIds: [] }
+      })
+    ).toBe(true)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'manual' }, mcpServerIds: [] }
+      })
+    ).toBe(false)
+    expect(
+      isMcpToolbarActive({
+        scope: TopicType.Chat,
+        assistant: { settings: { mcpMode: 'manual' }, mcpServerIds: ['server-1'] }
+      })
+    ).toBe(true)
+    expect(isMcpToolbarActive({ scope: TopicType.Session, agent: { mcps: [] } })).toBe(false)
+    expect(isMcpToolbarActive({ scope: TopicType.Session, agent: { mcps: ['server-1'] } })).toBe(true)
+  })
+
+  it('marks the MCP launcher active when the conversation has enabled MCP tools', () => {
+    expect(createMcpStatusLauncher([], t, 'auto', false, undefined, true)).toMatchObject({ active: true })
+    expect(createMcpStatusLauncher([], t, 'disabled', false, undefined, false)).toMatchObject({ active: false })
   })
 
   it('registers scoped MCP management actions alongside its launcher', async () => {
@@ -436,12 +473,15 @@ describe('mcpStatusTool', () => {
     ])
   })
 
-  it('defers MCP server and session-agent reads until the launcher opens', async () => {
+  it('highlights a bound session agent before the MCP panel opens while deferring server status', async () => {
+    mocks.agent = { mcps: ['server-1'] }
     renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
     await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
 
+    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0] as ComposerToolLauncher
+    expect(launcher.active).toBe(true)
     expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
-    expect(mocks.agentIds.at(-1)).toBeNull()
+    expect(mocks.agentIds.at(-1)).toBe('agent-1')
 
     act(() => {
       openLatestRegisteredPanel()
@@ -453,9 +493,7 @@ describe('mcpStatusTool', () => {
 
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
     let resolveUpdate: (value: unknown) => void = () => undefined
-    mocks.updateAssistant.mockImplementationOnce(
-      () => new Promise((resolve) => (resolveUpdate = resolve as (value: unknown) => void))
-    )
+    mocks.updateAssistant.mockImplementationOnce(() => new Promise((resolve) => (resolveUpdate = resolve)))
     mocks.mcpServers = [server({ id: 'filesystem', name: 'filesystem', isActive: true })]
     const assistant = {
       id: 'assistant-1',

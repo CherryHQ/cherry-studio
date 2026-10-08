@@ -29,7 +29,7 @@ import {
 } from './chartXmlParser'
 import { createFormulaEvaluator, type EvalContext, type FormulaCellRef } from './formulaEvaluator'
 import { dateToExcelSerial, formatCellValue } from './numberFormat'
-import { type ExcelColorRef, parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
+import { parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
 
 const FORMULA_BUDGET_MS = 5000
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
@@ -407,7 +407,7 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
       hasAny = true
     }
     if (font.color) {
-      const resolved = resolveColor(font.color as ExcelColorRef, theme)
+      const resolved = resolveColor(font.color, theme)
       if (resolved) {
         style.color = resolved
         hasAny = true
@@ -418,14 +418,14 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   const fill = cell.fill
   if (fill && fill.type === 'pattern') {
     if (fill.pattern === 'solid' && fill.fgColor) {
-      const resolved = resolveColor(fill.fgColor as ExcelColorRef, theme)
+      const resolved = resolveColor(fill.fgColor, theme)
       if (resolved) {
         style.bg = resolved
         hasAny = true
       }
     } else if (fill.pattern !== 'none' && fill.fgColor) {
       // Non-solid pattern: approximate fgColor as a solid fill.
-      const resolved = resolveColor(fill.fgColor as ExcelColorRef, theme)
+      const resolved = resolveColor(fill.fgColor, theme)
       if (resolved) {
         style.bg = resolved
         hasAny = true
@@ -439,12 +439,12 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
     BORDER_SIDES.forEach((side, i) => {
       const edge = border[side]
       if (edge?.style && SUPPORTED_BORDER_STYLES.has(edge.style as BorderEdge['style'])) {
-        const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
+        const color = resolveColor(edge.color, theme) ?? '#000000'
         style[BORDER_STYLE_KEYS[i]] = { style: edge.style as BorderEdge['style'], color }
         hasAny = true
       } else if (edge?.style) {
         warnings.add('border-style-unsupported-approximated-as-thin')
-        const color = resolveColor(edge.color as ExcelColorRef, theme) ?? '#000000'
+        const color = resolveColor(edge.color, theme) ?? '#000000'
         style[BORDER_STYLE_KEYS[i]] = { style: 'thin', color }
         hasAny = true
       }
@@ -539,6 +539,44 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
   return zip.generateAsync({ type: 'arraybuffer' })
 }
 
+// eachCell({ includeEmpty: true }) creates a Cell for every gap up to the row's last column (16384 for XFD), and the
+// non-empty variant drops styled-but-empty cells, so read existing cells by index instead.
+function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, colNumber: number) => void): void {
+  const lastCol = Math.min(row.cellCount, MAX_COLS)
+  for (let colNumber = 1; colNumber <= lastCol; colNumber++) {
+    const cell = row.findCell(colNumber)
+    if (cell) iteratee(cell, colNumber)
+  }
+}
+
+interface XlsxWorkbookPartParser {
+  parseWorkbook(stream: unknown): Promise<{ definedNames?: unknown[] }>
+}
+
+const MERGE_CELL_REF_PATTERN = /<mergeCell\b[^>]*?\sref\s*=\s*(["'])(.*?)\1/g
+
+// ExcelJS expands merges, data validations and defined names into one entry per covered cell while loading. The
+// preview reads merges itself and uses neither of the others; ignoreNodes cannot reach workbook.xml's defined names.
+export async function loadExcelJsWorkbook(data: ArrayBuffer): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook()
+  const xlsx = workbook.xlsx as unknown as XlsxWorkbookPartParser
+  const parseWorkbookPart = xlsx.parseWorkbook.bind(xlsx)
+  xlsx.parseWorkbook = async (stream) => ({ ...(await parseWorkbookPart(stream)), definedNames: [] })
+  await workbook.xlsx.load(data, { ignoreNodes: ['mergeCells', 'dataValidations'] })
+  return workbook
+}
+
+async function readMergeRefs(zip: JSZip, sheetPartPath: string): Promise<string[]> {
+  const xml = await zip.file(sheetPartPath)?.async('string')
+  if (!xml) return []
+  const refs: string[] = []
+  for (const match of xml.matchAll(MERGE_CELL_REF_PATTERN)) {
+    refs.push(match[2])
+    if (refs.length > MAX_MERGED_RANGES) break
+  }
+  return refs
+}
+
 /**
  * Main parse entry point. This pure function can be tested directly by Vitest in Node without going through the Worker.
  * Fixed pipeline order: unzip -> ExcelJS cells/styles -> formula evaluation -> charts -> images -> assembly.
@@ -557,17 +595,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
-  const hasDrawingParts = zip.file(/^xl\/drawings\/[a-zA-Z0-9]+\.xml$/).length > 0
-  const chartSheetPartPathsPromise = hasDrawingParts
-    ? createChartSheetPartPathMap(zip).catch((err) => {
-        warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
-        return new Map<string, string>()
-      })
-    : Promise.resolve<ReadonlyMap<string, string>>(new Map())
+  const sheetPartPathsPromise = createChartSheetPartPathMap(zip).catch((err) => {
+    warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
+    return new Map<string, string>()
+  })
 
-  const workbook = new ExcelJS.Workbook()
+  let workbook: ExcelJS.Workbook
   try {
-    await workbook.xlsx.load(dataForExcelJs)
+    workbook = await loadExcelJsWorkbook(dataForExcelJs)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
@@ -604,6 +639,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     return sheetCellsByName.get(sheetName)?.[`${row}:${col}`]?.raw ?? null
   }
 
+  const sheetPartPaths = await sheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const cells: Record<string, CellRenderModel> = {}
     sheetCellsByName.set(worksheet.name, cells)
@@ -612,7 +648,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     let maxCol = 0
 
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (row.cellCount > MAX_COLS) warnings.add('sheet-truncated')
+      forEachExistingCell(row, (cell, colNumber) => {
         const value = cell.value
         const style = buildCellStyle(cell, theme, warnings)
 
@@ -620,7 +657,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           return
         }
 
-        if (rowNumber > MAX_ROWS || colNumber > MAX_COLS) {
+        if (rowNumber > MAX_ROWS) {
           warnings.add('sheet-truncated')
           return
         }
@@ -727,7 +764,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     // Merged ranges.
     const merges: MergeRange[] = []
-    const mergeRefs = worksheet.model.merges ?? []
+    const sheetPartPath = sheetPartPaths.get(worksheet.name)
+    const mergeRefs = sheetPartPath ? await readMergeRefs(zip, sheetPartPath) : []
     const mergeCount = Math.min(mergeRefs.length, MAX_MERGED_RANGES)
     for (let index = 0; index < mergeCount; index++) {
       const ref = mergeRefs[index]
@@ -928,7 +966,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   }
 
   // Charts must parse after formula evaluation so reference backfill can use evaluated cell values.
-  const chartSheetPartPaths = await chartSheetPartPathsPromise
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
     const axisIndexes = axisIndexesBySheet.get(worksheet.name)
@@ -957,7 +994,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         layout,
         dataAccessor,
         MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length,
-        chartSheetPartPaths
+        sheetPartPaths
       )
       sheetModel.charts = charts
       for (const chart of charts) {

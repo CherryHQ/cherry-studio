@@ -1,5 +1,7 @@
-import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { UIMessageChunk } from 'ai'
+
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
 
@@ -35,7 +37,7 @@ export interface AgentSessionRuntimeConnectionTarget {
  */
 export interface AgentSessionRuntimeConnectionOccupancy {
   /** Detached tasks keep the connection alive. Deliberately not "busy": user turns may still start. */
-  background?: { responder: 'interactive' | 'headless' }
+  background?: { responder: 'interactive' | 'headless'; awaitingReply?: boolean }
   /** A context rewrite is in flight; it holds the session busy and the topic stream alive. */
   compaction?: true
 }
@@ -60,6 +62,8 @@ export type AgentSessionRuntimeExecution<TTurn, TReservation> =
       admission: AgentSessionRuntimeAdmissionPhase
       reservation?: TReservation
       terminal?: AgentSessionTerminalOutcome
+      /** Content of an already-admitted turn that arrived before its relaunched stream opened. */
+      buffer?: UIMessageChunk[]
     }
   | {
       kind: 'steer-transition'
@@ -75,9 +79,16 @@ export type AgentSessionRuntimeExecution<TTurn, TReservation> =
     }
   | {
       kind: 'autonomous-turn'
+      /** Why the runtime opened this turn; persisted on the receive-only assistant message. */
+      origin: AutonomousTurnOrigin
       turn?: TTurn
       contextTurn?: TTurn
       deferredTurn?: TTurn
+      /** The deferred turn's admission when it was deferred; an admitted prompt must not be re-sent. */
+      deferredAdmission?: AgentSessionRuntimeAdmissionPhase
+      /** The deferred turn's content that the runtime produced before its stream was relaunched. */
+      deferredBuffer?: UIMessageChunk[]
+      deferredTerminal?: AgentSessionTerminalOutcome
       ownership: 'active' | 'released'
       buffer: UIMessageChunk[]
       stream: AgentSessionRuntimeStreamPhase
@@ -110,10 +121,12 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[]; headless: boolean }
   | {
       type: 'autonomous-turn-state'
-      state: 'started' | 'finished'
+      state: 'started'
+      origin: AutonomousTurnOrigin
       deferCurrentTurn?: boolean
       contextTurn?: TTurn
     }
+  | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'autonomous-turn-abandoned' }
   | { type: 'autonomous-turn-created'; turn: TTurn }
   | { type: 'continuation-turn-created'; turn: TTurn }
@@ -132,6 +145,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
       type: 'connection-occupancy'
       occupancy: 'background' | 'compaction'
       active: boolean
+      awaitingReply?: boolean
       responder?: 'interactive' | 'headless'
     }
   | { type: 'connection-started'; attemptId: string }
@@ -204,7 +218,9 @@ function resumeAfterAutonomous<TTurn, TPendingTurn, TReservation>(
           kind: 'turn',
           turn: execution.deferredTurn,
           stream: 'unopened',
-          admission: 'pending'
+          admission: execution.deferredAdmission ?? 'pending',
+          ...(execution.deferredBuffer?.length ? { buffer: execution.deferredBuffer } : {}),
+          ...(execution.deferredTerminal ? { terminal: execution.deferredTerminal } : {})
         },
         launch: canSchedule ? { kind: 'scheduled', target: 'deferred-turn' } : state.launch,
         lastTerminal: execution.settled
@@ -292,17 +308,25 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       }
     case 'autonomous-turn-state': {
       if (event.state === 'started') {
+        if (isAgentSessionRuntimeAwaitingBackground(state) && event.origin.kind === 'background-work') {
+          const execution = { ...state.execution } as Extract<
+            AgentSessionRuntimeExecution<TTurn, TReservation>,
+            { kind: 'turn' }
+          >
+          delete execution.terminal
+          return { state: { ...state, execution }, effects: [] }
+        }
         if (state.execution.kind === 'autonomous-turn') return { state, effects: [] }
         if (state.execution.kind === 'steer-transition') return invalid(state, event)
-        const deferredTurn =
-          event.deferCurrentTurn && state.execution.kind === 'turn' ? state.execution.turn : undefined
+        const deferred = event.deferCurrentTurn && state.execution.kind === 'turn' ? state.execution : undefined
         return {
           state: {
             ...state,
             execution: {
               kind: 'autonomous-turn',
+              origin: event.origin,
               ...(event.contextTurn ? { contextTurn: event.contextTurn } : {}),
-              ...(deferredTurn ? { deferredTurn } : {}),
+              ...(deferred ? { deferredTurn: deferred.turn, deferredAdmission: deferred.admission } : {}),
               ownership: 'active',
               buffer: [],
               stream: 'unopened'
@@ -324,7 +348,10 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
                 kind: 'turn',
                 turn: state.execution.deferredTurn,
                 stream: 'unopened',
-                admission: 'pending'
+                // An admitted prompt must not be re-sent because the receive-only placeholder failed.
+                admission: state.execution.deferredAdmission ?? 'pending',
+                ...(state.execution.deferredBuffer?.length ? { buffer: state.execution.deferredBuffer } : {}),
+                ...(state.execution.deferredTerminal ? { terminal: state.execution.deferredTerminal } : {})
               }
             : { kind: 'idle', ...(state.execution.contextTurn ? { lastTurn: state.execution.contextTurn } : {}) }
         },
@@ -369,24 +396,55 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         state: { ...state, execution: { ...state.execution, admission: 'admitted' } },
         effects: []
       }
-    case 'buffer-chunk':
+    case 'buffer-chunk': {
+      const execution = state.execution
+      // An admitted turn the runtime resumed before its relaunched stream opened.
+      if (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted') {
+        return {
+          state: { ...state, execution: { ...execution, buffer: [...(execution.buffer ?? []), event.chunk] } },
+          effects: []
+        }
+      }
+      // The receive-only generation has released ownership (or ended): anything after it belongs to
+      // the deferred admitted turn, even if the receive-only stream itself was never created.
       if (
-        (state.execution.kind !== 'steer-transition' && state.execution.kind !== 'autonomous-turn') ||
-        state.execution.stream !== 'unopened' ||
-        state.execution.terminal
+        execution.kind === 'autonomous-turn' &&
+        execution.deferredTurn &&
+        (execution.ownership === 'released' || execution.terminal !== undefined || execution.stream !== 'unopened')
+      ) {
+        return {
+          state: {
+            ...state,
+            execution: { ...execution, deferredBuffer: [...(execution.deferredBuffer ?? []), event.chunk] }
+          },
+          effects: []
+        }
+      }
+      if (
+        (execution.kind !== 'steer-transition' && execution.kind !== 'autonomous-turn') ||
+        execution.stream !== 'unopened' ||
+        execution.terminal
       ) {
         return invalid(state, event)
       }
       return {
         state: {
           ...state,
-          execution: { ...state.execution, buffer: [...state.execution.buffer, event.chunk] }
+          execution: { ...execution, buffer: [...execution.buffer, event.chunk] }
         },
         effects: []
       }
+    }
     case 'runtime-terminal': {
       const execution = state.execution
       if (execution.kind === 'turn') {
+        if (
+          event.outcome.status === 'success' &&
+          hasAgentSessionRuntimePendingReply(state) &&
+          (execution.stream === 'open' || execution.stream === 'unopened')
+        ) {
+          return { state: { ...state, execution: { ...execution, terminal: event.outcome } }, effects: [] }
+        }
         if (execution.stream === 'unopened') {
           if (execution.terminal) return { state, effects: [] }
           return {
@@ -419,6 +477,18 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return { state, effects: [] }
       }
       if (execution.kind === 'autonomous-turn') {
+        if (
+          execution.deferredTurn &&
+          execution.deferredAdmission === 'admitted' &&
+          execution.ownership === 'released' &&
+          (execution.terminal || execution.stream === 'awaiting-persistence' || execution.stream === 'settled')
+        ) {
+          if (execution.deferredTerminal) return { state, effects: [] }
+          return {
+            state: { ...state, execution: { ...execution, deferredTerminal: event.outcome } },
+            effects: []
+          }
+        }
         if (execution.stream === 'unopened') {
           if (execution.terminal) return { state, effects: [] }
           return resumeAfterAutonomous(state, { ...execution, terminal: event.outcome })
@@ -436,42 +506,45 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'flush-transition': {
       const execution = state.execution
       if (execution.kind === 'turn') {
-        if (execution.stream !== 'open' || !execution.terminal) return { state, effects: [] }
+        if (execution.stream !== 'open' || (!execution.buffer?.length && !execution.terminal)) {
+          return { state, effects: [] }
+        }
+        const { buffer, terminal: recordedTerminal, ...rest } = execution
+        const held = recordedTerminal?.status === 'success' && hasAgentSessionRuntimePendingReply(state)
+        const terminal = held ? undefined : recordedTerminal
         return {
           state: {
             ...state,
             execution: {
-              kind: 'turn',
-              turn: execution.turn,
-              stream: 'awaiting-persistence',
-              admission: execution.admission,
-              ...(execution.reservation ? { reservation: execution.reservation } : {})
+              ...rest,
+              ...(held ? { terminal: recordedTerminal } : {}),
+              stream: terminal ? 'awaiting-persistence' : 'open'
             }
           },
-          effects: [{ type: 'settle-turn', turn: execution.turn, outcome: execution.terminal }]
+          effects: [
+            ...(buffer?.length ? [{ type: 'deliver-buffer', turn: execution.turn, chunks: buffer } as const] : []),
+            ...(terminal ? [{ type: 'settle-turn', turn: execution.turn, outcome: terminal } as const] : [])
+          ]
         }
       }
       if (execution.kind === 'steer-transition') {
         if (!execution.continuationTurn || execution.sourceStream !== 'settled' || execution.stream !== 'open') {
           return invalid(state, event)
         }
-        return {
-          state: {
+        return transitionAgentSessionRuntime(
+          {
             ...state,
             execution: {
               kind: 'turn',
               turn: execution.continuationTurn,
-              stream: execution.terminal ? 'awaiting-persistence' : 'open',
-              admission: 'admitted'
+              stream: 'open',
+              admission: 'admitted',
+              buffer: execution.buffer,
+              ...(execution.terminal ? { terminal: execution.terminal } : {})
             }
           },
-          effects: [
-            { type: 'deliver-buffer', turn: execution.continuationTurn, chunks: execution.buffer },
-            ...(execution.terminal
-              ? [{ type: 'settle-turn', turn: execution.continuationTurn, outcome: execution.terminal } as const]
-              : [])
-          ]
-        }
+          { type: 'flush-transition' }
+        )
       }
       if (execution.kind === 'autonomous-turn' && execution.turn && execution.stream === 'open') {
         return {
@@ -570,26 +643,37 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return { state: { ...state, connection: { ...connection, occupancy } }, effects: [] }
       }
       if (event.active) {
-        // Keep the first responder for the whole occupancy — a later edge cannot relax it.
-        if (connection.occupancy.background) return { state, effects: [] }
-        return {
-          state: {
-            ...state,
-            connection: {
-              ...connection,
-              occupancy: { ...connection.occupancy, background: { responder: event.responder ?? 'headless' } }
+        const updated: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> = {
+          ...state,
+          connection: {
+            ...connection,
+            occupancy: {
+              ...connection.occupancy,
+              background: {
+                responder: connection.occupancy.background?.responder ?? event.responder ?? 'headless',
+                ...(event.awaitingReply === false ? { awaitingReply: false } : {})
+              }
             }
-          },
-          effects: []
+          }
         }
+        return isAgentSessionRuntimeAwaitingBackground(state) && event.awaitingReply === false
+          ? transitionAgentSessionRuntime(updated, { type: 'runtime-terminal', outcome: { status: 'success' } })
+          : { state: updated, effects: [] }
       }
       if (!connection.occupancy.background) return { state, effects: [] }
       const occupancy = { ...connection.occupancy }
       delete occupancy.background
       // Draining background work also releases any rebuild it was blocking.
+      const released: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation> = {
+        ...state,
+        connection: { kind: 'connected', connection: connection.connection, occupancy }
+      }
+      const completion = isAgentSessionRuntimeAwaitingBackground(state)
+        ? transitionAgentSessionRuntime(released, { type: 'runtime-terminal', outcome: { status: 'success' } })
+        : { state: released, effects: [] }
       return {
-        state: { ...state, connection: { kind: 'connected', connection: connection.connection, occupancy } },
-        effects: [{ type: 'release-background-waiter', connection: connection.connection }]
+        state: completion.state,
+        effects: [{ type: 'release-background-waiter', connection: connection.connection }, ...completion.effects]
       }
     }
     case 'connection-started':
@@ -796,5 +880,27 @@ export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn, TReservatio
     state.launch.kind !== 'idle' ||
     state.execution.kind === 'steer-transition' ||
     hasDeferredTurn
+  )
+}
+
+/** The SDK ended a generation, but the user reply still owns its background work. */
+export function isAgentSessionRuntimeAwaitingBackground<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): boolean {
+  return (
+    state.execution.kind === 'turn' &&
+    (state.execution.stream === 'open' || state.execution.stream === 'unopened') &&
+    state.execution.terminal?.status === 'success' &&
+    hasAgentSessionRuntimePendingReply(state)
+  )
+}
+
+function hasAgentSessionRuntimePendingReply<TTurn, TPendingTurn, TReservation>(
+  state: AgentSessionRuntimeState<TTurn, TPendingTurn, TReservation>
+): boolean {
+  return (
+    state.connection.kind === 'connected' &&
+    Boolean(state.connection.occupancy.background) &&
+    state.connection.occupancy.background?.awaitingReply !== false
   )
 }

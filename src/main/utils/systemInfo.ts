@@ -1,8 +1,10 @@
-import { application } from '@application'
+import os from 'os'
+
 import { app } from 'electron'
 import macosRelease from 'macos-release'
-import os from 'os'
 import { v4 as uuidv4, validate as isUuid } from 'uuid'
+
+import { application } from '@application'
 
 /**
  * System information interface

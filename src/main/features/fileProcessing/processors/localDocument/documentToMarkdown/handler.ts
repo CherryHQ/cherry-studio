@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 
-import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { createPdfParser } from '@main/utils/pdf'
 

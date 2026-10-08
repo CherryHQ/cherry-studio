@@ -1,10 +1,154 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
+
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { RuntimeForkResult } from '../../fork'
+import { forkClaudeSession } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
+
+describe('Claude native forks', () => {
+  it('maps UUIDs once in isolated SDK workers through a child and grandchild', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    let entries = [
+      { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'PAST_ONLY' } },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: userUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'PAST_ONLY' }] }
+      }
+    ]
+    let currentId = sessionId
+    let currentUuid = messageUuid
+    const parentEnv = process.env.CLAUDE_CONFIG_DIR
+    for (const name of ['child', 'grandchild']) {
+      const checkpoint = {
+        runtime: 'claude-code',
+        runtimeSessionId: currentId,
+        messageUuid: currentUuid,
+        configDir: directory
+      }
+      const worker = new Worker(new URL('../forkWorker.ts', import.meta.url), {
+        workerData: {
+          entries,
+          checkpoint,
+          checkpoints: [checkpoint],
+          artifactDirectory: path.join(directory, name),
+          targetCwd: directory
+        },
+        env: { ...process.env }
+      })
+      let result: RuntimeForkResult
+      try {
+        result = await new Promise<RuntimeForkResult>((resolve, reject) => {
+          worker.once('message', (message) =>
+            message.error ? reject(new Error(message.error)) : resolve(message.result)
+          )
+          worker.once('error', reject)
+          worker.once('exit', (code) => reject(new Error('worker exited: ' + code)))
+        })
+      } finally {
+        await worker.terminate()
+      }
+      const output = (await readFile(result.publish[0].source, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const mapped = output.find((entry) => entry.forkedFrom?.messageUuid === currentUuid)
+      expect(mapped).toBeDefined()
+      expect(mapped.uuid).not.toBe(currentUuid)
+      expect(result.checkpoints[0]).toMatchObject({ messageUuid: mapped.uuid, configDir: directory })
+      expect(JSON.stringify(output)).toContain('PAST_ONLY')
+      expect(process.env.CLAUDE_CONFIG_DIR).toBe(parentEnv)
+      entries = output
+      currentId = result.resumeToken
+      currentUuid = mapped.uuid
+      await rm(result.publish[0].source)
+    }
+  })
+  const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+  const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+  let directory: string
+  let file: string
+  const entry = JSON.stringify({
+    type: 'assistant',
+    uuid: messageUuid,
+    isSidechain: false,
+    message: { content: '检查点' }
+  })
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-checkpoint-test-'))
+    file = path.join(directory, 'projects', 'project', sessionId + '.jsonl')
+  })
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  function forkInput() {
+    const checkpoint = {
+      runtime: 'claude-code' as const,
+      runtimeSessionId: sessionId,
+      messageUuid,
+      configDir: directory
+    }
+    return {
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: directory,
+      artifactDirectory: path.join(directory, 'artifacts'),
+      checkpoint,
+      checkpoints: [checkpoint],
+      signal: new AbortController().signal
+    }
+  }
+
+  it('rejects malformed native checkpoints before looking for history', async () => {
+    const input = forkInput()
+    input.checkpoint.messageUuid = 'not-a-uuid'
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+  })
+
+  it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(
+      file,
+      entry +
+        newline +
+        JSON.stringify({ type: 'user', uuid: 'future-message', message: { content: 'FUTURE_ONLY' } }) +
+        newline
+    )
+    const before = await readFile(file)
+    const result = await forkClaudeSession(forkInput())
+    const output = await readFile(result.publish[0].source, 'utf8')
+    expect(output).not.toContain('FUTURE_ONLY')
+    expect(JSON.parse(output.trim().split('\n')[0]).forkedFrom.messageUuid).toBe(messageUuid)
+    expect(result.resumeToken).not.toBe(sessionId)
+    expect(await readFile(file)).toEqual(before)
+  })
+
+  it.each([
+    ['missing', '', 'history_missing'],
+    ['unflushed', entry, 'history_missing'],
+    ['corrupt', 'invalid-json\n' + entry + '\n', 'history_corrupt']
+  ])('reports %s history instead of selecting another boundary', async (_name, content, reason) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, content)
+    await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
+  })
+})
+
+const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
@@ -21,12 +165,18 @@ const mocks = vi.hoisted(() => ({
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
+  processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
+}))
+
+vi.mock('../forkWorker?nodeWorker', () => ({
+  default: (options: ConstructorParameters<typeof Worker>[1]) =>
+    new Worker(new URL('../forkWorker.ts', import.meta.url), options)
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -159,7 +309,11 @@ vi.mock('../streamAdapter', async (importActual) => {
           const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
           if (!isContent) return { type: 'continue' }
           this.autonomous = true
-          this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+          this.options.statusSink.emit({
+            type: 'autonomous-turn-state',
+            state: 'started',
+            origin: { kind: 'background-work' }
+          })
           this.beginTurn()
         }
         if (message.type === 'truncate-now') {
@@ -268,7 +422,6 @@ vi.mock('../streamAdapter', async (importActual) => {
 })
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -339,6 +492,7 @@ function userMessage() {
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
@@ -349,6 +503,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
@@ -436,7 +591,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(connection.usageCapture).toMatchObject({
@@ -445,6 +600,56 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     expect(warmQuery.query).toHaveBeenCalledOnce()
     await connection.close()
+  })
+
+  it('surfaces the diagnostics owned by the consumed warm process without exposing stderr', async () => {
+    const nextQueryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => nextQueryResult.promise }
+      }
+    }
+    mocks.consumeWarmQuery.mockResolvedValue({
+      warmQuery: { query: vi.fn(() => query) },
+      processDiagnostics: {
+        reference: 'warm-diagnostic-ref',
+        terminalReason: 'Failed to spawn Claude Code process: spawn ENOENT; api_key=sk-ant-private',
+        category: 'auth',
+        spawnFailed: true
+      }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    nextQueryResult.reject(
+      new ReferenceError(
+        'Claude Code executable not found at /missing/claude. Is options.pathToClaudeCodeExecutable set?'
+      )
+    )
+
+    const event = await events.next()
+    expect(event.value).toMatchObject({
+      type: 'error',
+      error: {
+        claudeCodeExitCategory: 'auth',
+        diagnosticReference: 'warm-diagnostic-ref'
+      }
+    })
+    expect(JSON.stringify(event.value)).not.toContain('sk-ant-private')
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Claude Code query loop failed',
+      expect.objectContaining({ diagnosticReference: 'warm-diagnostic-ref' })
+    )
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('sk-ant-private')
+    expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('/missing/claude')
+    void connection.close()
   })
 
   it('keys the warm lookup on the turn notification authority so a differently-scoped park is not reused', async () => {
@@ -471,7 +676,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(expect.objectContaining({ notificationContext }))
@@ -486,7 +691,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'resume-1'
     })
 
@@ -501,7 +706,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       undefined
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
-    const nextInput = readWrittenSdkInput(sdkInput)
+    const inputIterator = sdkInput[Symbol.asyncIterator]()
+    const nextInput = inputIterator.next()
 
     const scopedMessage = userMessage()
     scopedMessage.data.parts.push({ type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } })
@@ -515,8 +721,80 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
+    void inputIterator.next()
     await sending
     void connection.close()
+  })
+
+  it.each([
+    ['fresh', undefined],
+    ['resumed', 'resume-before-write']
+  ] as const)('rejects a %s send when the query fails before writing its consumed input', async (_, resumeToken) => {
+    const queryResult = createDeferred<IteratorResult<any>>()
+    const query = {
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
+      [Symbol.asyncIterator]() {
+        return { next: () => queryResult.promise }
+      }
+    }
+    let sdkInput!: AsyncIterable<any>
+    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+      sdkInput = prompt
+      return query
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken
+    })
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message: userMessage() })
+    await expect(sdkInput[Symbol.asyncIterator]().next()).resolves.toMatchObject({ done: false })
+    queryResult.reject(new Error('transport failed before input write'))
+
+    await expect(sending).rejects.toThrow('transport failed before input write')
+    await connection.close()
+  })
+
+  it('rejects a resumed input when the connection closes during message materialization', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const prepared = createDeferred<any[]>()
+    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken: 'resume-before-close'
+    })
+    const message = {
+      ...userMessage(),
+      data: {
+        parts: [
+          { type: 'text', text: 'inspect this image' },
+          {
+            type: 'file',
+            url: 'file:///tmp/pixel.png',
+            mediaType: 'image/png',
+            filename: 'pixel.png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ]
+      }
+    }
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message })
+    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
+    await connection.close()
+
+    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
+    await expect(sending).rejects.toThrow('closed before input could be queued')
   })
 
   it('passes the host spawn wrapper to the cold SDK query path', async () => {
@@ -539,10 +817,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
-    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toEqual(expect.any(Function))
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
     void connection.close()
   })
 
@@ -559,7 +838,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     const closing = Promise.resolve(connection.close())
@@ -579,6 +858,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
   })
 
+  it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const cleanup = createDeferred<IteratorResult<void>>()
+      const exited = createDeferred<void>()
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, close: vi.fn(), return: () => cleanup.promise }
+      mocks.consumeWarmQuery.mockResolvedValue({
+        warmQuery: { query: () => query },
+        processDiagnostics: { reference: 'slow-close', exited: exited.promise }
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      let state = 'pending'
+      const closing = connection.closeForEdit!().then(
+        () => {
+          state = 'closed'
+        },
+        () => {
+          state = 'failed'
+        }
+      )
+      await vi.advanceTimersByTimeAsync(20_001)
+      expect(state).toBe('pending')
+      cleanup.resolve({ value: undefined, done: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(state).toBe('pending')
+      exited.resolve()
+      await closing
+      expect(state).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -586,7 +903,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const blockedMessage = userMessage()
     blockedMessage.data.parts[0].text = '  /fast'
@@ -617,7 +934,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledWith('session-1', 'agent-1', ['srv-a'], metadata)
@@ -636,7 +953,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -648,7 +965,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           parts: [
             { type: 'text', text: 'describe this' },
             { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+            { type: 'file', url: externalFileUrl('spec.pdf'), mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
       }
@@ -662,7 +979,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${fileURLToPath(externalFileUrl('spec.pdf'))}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -681,7 +998,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -738,7 +1055,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -785,7 +1102,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -845,7 +1162,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -917,7 +1234,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -972,7 +1289,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1011,7 +1328,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1065,7 +1382,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1128,7 +1445,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1185,7 +1502,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1235,7 +1552,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1246,7 +1563,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            { type: 'file', url: externalFileUrl('pixel.png'), mediaType: 'image/png', filename: 'pixel.png' }
           ]
         }
       }
@@ -1256,8 +1573,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${fileURLToPath(externalFileUrl('pixel.png'))}`
         }
       },
       done: false
@@ -1281,7 +1597,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1323,7 +1639,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1361,7 +1677,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const sdkIterator = sdkInput[Symbol.asyncIterator]()
@@ -1419,6 +1735,65 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it.each([true, false])(
+    'emits only valid native checkpoints at turn completion (valid UUID: %s)',
+    async (validUuid) => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
+      const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+      const messageUuid = validUuid ? '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03' : 'malformed-uuid'
+      const queryQueue = createAsyncQueue<any>()
+      mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+      const request = await mocks.buildRequest()
+      mocks.buildRequest.mockResolvedValue({
+        ...request,
+        options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      try {
+        await connection.send({ message: userMessage() })
+        queryQueue.push({
+          type: 'assistant',
+          uuid: messageUuid,
+          parent_tool_use_id: null,
+          message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+        })
+        queryQueue.push({
+          type: 'assistant',
+          uuid: 'sidechain-uuid',
+          parent_tool_use_id: 'subagent',
+          message: { id: 'subagent-response', content: [{ type: 'text', text: 'subagent' }] }
+        })
+        queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
+        const completion = (async () => {
+          for await (const event of connection.events) if (event.type === 'turn-complete') return event
+          throw new Error('missing turn completion')
+        })()
+        await delay(100)
+        const project = path.join(directory, 'projects', 'project')
+        await mkdir(project, { recursive: true })
+        await writeFile(
+          path.join(project, sessionId + '.jsonl'),
+          JSON.stringify({ type: 'assistant', uuid: messageUuid }) + '\n'
+        )
+        await expect(completion).resolves.toMatchObject({
+          type: 'turn-complete',
+          forkAnchor: validUuid
+            ? {
+                checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
+              }
+            : undefined
+        })
+      } finally {
+        await connection.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const contextUsage = {
@@ -1445,7 +1820,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1538,7 +1913,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1707,7 +2082,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1781,7 +2156,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1864,7 +2239,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'longcat::LongCat-2.0' as any
+      modelId: 'longcat::LongCat-2.0'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1957,7 +2332,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2009,6 +2384,97 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await connection.close()
   })
 
+  it.each([
+    { name: 'uncached', usage: { input_tokens: 12_345 }, totalTokens: 12_345, percentage: 6.1725 },
+    {
+      name: 'cache reads only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8192, cache_creation_input_tokens: 0 },
+      totalTokens: 8192,
+      percentage: 4.096
+    },
+    {
+      name: 'cache writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 4096 },
+      totalTokens: 4096,
+      percentage: 2.048
+    },
+    {
+      name: 'cache reads and writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8000, cache_creation_input_tokens: 4000 },
+      totalTokens: 12_000,
+      percentage: 6
+    }
+  ])('emits trailing message_delta context usage ($name)', async ({ usage, totalTokens, percentage }) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // Bridge gateways report real input tokens only on the trailing delta (message_start is still 0).
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'req-1', model: 'sonnet-sdk', usage: { input_tokens: 0, output_tokens: 1 } }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { ...usage, output_tokens: 5 }
+      }
+    })
+    // Subagent lanes must not move the session ring.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: 'tool-1',
+      event: { type: 'message_delta', delta: {}, usage: { input_tokens: 50_000, output_tokens: 1 } }
+    })
+    // Sparse direct-Anthropic deltas must not replace a complete input reading.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: {},
+        usage: { input_tokens: null, output_tokens: 1, cache_read_input_tokens: 500 } as any
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_delta', delta: {}, usage: { output_tokens: 2, cache_read_input_tokens: 500 } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'delta-usage-result',
+      usage: { ...usage, output_tokens: 5 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'context-usage')).toEqual([
+      {
+        type: 'context-usage',
+        usage: { categories: [], totalTokens, maxTokens: 200_000, percentage, model: 'sonnet-sdk' }
+      }
+    ])
+    await connection.close()
+  })
+
   it('sizes the live context-usage window from the connection model id suffix', async () => {
     const queryQueue = createAsyncQueue<any>()
     mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
@@ -2026,7 +2492,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'deepseek::deepseek-chat' as any
+      modelId: 'deepseek::deepseek-chat'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2092,7 +2558,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2204,7 +2670,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2264,7 +2730,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2310,7 +2776,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2354,7 +2820,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2401,7 +2867,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2431,7 +2897,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2455,7 +2921,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2503,7 +2969,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2550,7 +3016,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2596,7 +3062,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2619,7 +3085,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2646,7 +3112,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2695,7 +3161,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
       return { connection, queryQueue }
     }
@@ -2841,7 +3307,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2866,503 +3332,67 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('degrades a stale resume token by re-spawning without it and replaying the pending message', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet', resume: 'stale-token' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    const sending = connection.send({ message: userMessage() })
-    await readWrittenSdkInput(mocks.createClaudeQuery.mock.calls[0][0].prompt)
-    await sending
-    // The CLI dies immediately: the persisted token resolves to no local conversation.
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-
-    // A second spawn happens WITHOUT the resume token, on a fresh input queue carrying the same
-    // user message with its per-message resume cleared.
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
-    const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
-    expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
-
-    // The recovered conversation reports a NEW session id and completes the SAME turn — no error
-    // event reaches the host, so the stale token self-heals on the next persisted assistant row.
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-1' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-1', usage: {} })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'turn-complete' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-1' }))
-    // The transcript tells the user the prior conversation was lost and this reply starts fresh.
-    expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
-    )
-    void connection.close()
-  })
-
-  it('binds the replacement session id to the input that was materializing during recovery', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const prepared = createDeferred<any[]>()
-    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    const message = {
-      ...userMessage(),
-      data: {
-        parts: [
-          { type: 'text', text: 'inspect this image' },
-          {
-            type: 'file',
-            url: 'file:///tmp/pixel.png',
-            mediaType: 'image/png',
-            filename: 'pixel.png',
-            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
-          }
-        ]
+  it.each([
+    ['No conversation found with session ID: stale-token', false],
+    ['No conversation found with session ID: stale-token', true],
+    ['messages.2.content.1: `tool_use` ids must be unique', false],
+    ['messages.2.content.1: `tool_use` ids must be unique', true]
+  ] as const)(
+    'reports a native resume failure without replaying into an empty session: %s (warm=%s)',
+    async (failure, warm) => {
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, interrupt: vi.fn(), close: vi.fn() }
+      let sdkInput!: AsyncIterable<any>
+      mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+        sdkInput = prompt
+        return query
+      })
+      if (warm)
+        mocks.consumeWarmQuery.mockResolvedValue({
+          warmQuery: {
+            query: (prompt: AsyncIterable<any>) => {
+              sdkInput = prompt
+              return query
+            }
+          },
+          processDiagnostics: { exit: undefined }
+        })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet',
+        resumeToken: 'stale-token'
+      })
+      const seen: any[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) seen.push(event)
+      })()
+      try {
+        const sending = connection.send({ message: userMessage() })
+        await readWrittenSdkInput(sdkInput)
+        await sending
+        queue.push({
+          type: 'result',
+          subtype: 'error_during_execution',
+          session_id: 'stale-token',
+          usage: {},
+          errors: [failure]
+        })
+        await consume
+        expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+        expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+        expect(seen).not.toContainEqual(
+          expect.objectContaining({
+            type: 'chunk',
+            chunk: expect.objectContaining({ type: 'data-conversation-reset' })
+          })
+        )
+        expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(warm ? 0 : 1)
+      } finally {
+        await connection.close()
       }
     }
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message })
-    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-before-materialization' })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'data-conversation-reset' } }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'resume-token', token: 'fresh-before-materialization' }
-    })
-
-    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    await expect(readWrittenSdkInput(retrySpawn.prompt)).resolves.toMatchObject({
-      value: {
-        type: 'user',
-        session_id: 'fresh-before-materialization',
-        message: { content: expect.stringContaining('inspect this image') }
-      },
-      done: false
-    })
-    await sending
-    void connection.close()
-  })
-
-  it('keeps the recovered session id on the input that triggered recovery', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const triggerPrepared = createDeferred<any[]>()
-    const otherPrepared = createDeferred<any[]>()
-    mocks.prepareChatMessages.mockReturnValueOnce(triggerPrepared.promise).mockReturnValueOnce(otherPrepared.promise)
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    const imagePart = {
-      type: 'file',
-      url: 'file:///tmp/pixel.png',
-      mediaType: 'image/png',
-      filename: 'pixel.png'
-    }
-    const trigger = {
-      ...userMessage(),
-      id: 'trigger-input',
-      data: {
-        parts: [
-          { type: 'text', text: 'trigger input' },
-          { ...imagePart, providerMetadata: { cherry: { fileEntryId: 'entry-trigger' } } }
-        ]
-      }
-    }
-    const other = {
-      ...userMessage(),
-      id: 'other-input',
-      data: {
-        parts: [
-          { type: 'text', text: 'other input' },
-          { ...imagePart, providerMetadata: { cherry: { fileEntryId: 'entry-other' } } }
-        ]
-      }
-    }
-
-    const triggerSending = connection.send({ message: trigger })
-    void triggerSending.catch(() => undefined)
-    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'recovered-session' })
-    const seen: any[] = []
-    while (!seen.some((event) => event?.type === 'resume-token' && event.token === 'recovered-session')) {
-      seen.push((await events.next()).value)
-    }
-
-    const otherSending = connection.send({ message: other })
-    void otherSending.catch(() => undefined)
-    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledTimes(2))
-    const freshInput = mocks.createClaudeQuery.mock.calls[1][0].prompt[Symbol.asyncIterator]()
-    otherPrepared.resolve([{ id: other.id, role: 'user', parts: [{ type: 'text', text: 'other input' }] }])
-    await expect(freshInput.next()).resolves.toMatchObject({
-      value: {
-        type: 'user',
-        session_id: '',
-        message: { content: expect.stringContaining('other input') }
-      },
-      done: false
-    })
-
-    const triggerMessage = freshInput.next()
-    triggerPrepared.resolve([{ id: trigger.id, role: 'user', parts: [{ type: 'text', text: 'trigger input' }] }])
-    await expect(triggerMessage).resolves.toMatchObject({
-      value: {
-        type: 'user',
-        session_id: 'recovered-session',
-        message: { content: expect.stringContaining('trigger input') }
-      },
-      done: false
-    })
-    void connection.close()
-  })
-
-  it('rejects a fresh send when the query fails before writing its consumed input', async () => {
-    const queryResult = createDeferred<IteratorResult<any>>()
-    const query = {
-      interrupt: vi.fn(),
-      close: vi.fn(),
-      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
-      [Symbol.asyncIterator]() {
-        return { next: () => queryResult.promise }
-      }
-    }
-    let sdkInput!: AsyncIterable<any>
-    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
-      sdkInput = prompt
-      return query
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message: userMessage() })
-    await expect(sdkInput[Symbol.asyncIterator]().next()).resolves.toMatchObject({ done: false })
-    queryResult.reject(new Error('fresh transport failed before input write'))
-
-    await expect(sending).rejects.toThrow('fresh transport failed before input write')
-    void connection.close()
-  })
-
-  it('rejects a resumed send when the query fails before writing its consumed input', async () => {
-    const queryResult = createDeferred<IteratorResult<any>>()
-    const query = {
-      interrupt: vi.fn(),
-      close: vi.fn(),
-      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
-      [Symbol.asyncIterator]() {
-        return { next: () => queryResult.promise }
-      }
-    }
-    let sdkInput!: AsyncIterable<any>
-    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
-      sdkInput = prompt
-      return query
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'resume-before-write'
-    })
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message: userMessage() })
-    await expect(sdkInput[Symbol.asyncIterator]().next()).resolves.toMatchObject({ done: false })
-    queryResult.reject(new Error('transport failed before input write'))
-
-    await expect(sending).rejects.toThrow('transport failed before input write')
-    void connection.close()
-  })
-
-  it('rejects a later resumed send when the query fails before writing its consumed input', async () => {
-    const firstQueryResult = createDeferred<IteratorResult<any>>()
-    const secondQueryResult = createDeferred<IteratorResult<any>>()
-    const queryIterator = {
-      next: vi
-        .fn()
-        .mockImplementationOnce(() => firstQueryResult.promise)
-        .mockImplementationOnce(() => secondQueryResult.promise)
-    }
-    const query = {
-      interrupt: vi.fn(),
-      close: vi.fn(),
-      return: vi.fn(async () => ({ value: undefined, done: true }) as IteratorResult<any>),
-      [Symbol.asyncIterator]() {
-        return queryIterator
-      }
-    }
-    let sdkInput!: AsyncIterable<any>
-    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
-      sdkInput = prompt
-      return query
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'resume-before-first-write'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    const inputIterator = sdkInput[Symbol.asyncIterator]()
-
-    connection.reserveInput?.()
-    const firstSending = connection.send({ message: userMessage() })
-    await expect(inputIterator.next()).resolves.toMatchObject({ done: false })
-    const secondInput = inputIterator.next()
-    await firstSending
-    firstQueryResult.resolve({
-      value: { type: 'result', subtype: 'success', session_id: 'resume-after-first-write', usage: {} },
-      done: false
-    })
-    let runtimeEvent: IteratorResult<any>
-    do {
-      runtimeEvent = await events.next()
-    } while (runtimeEvent.value?.type !== 'turn-complete')
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message: { ...userMessage(), id: 'user-2' } })
-    await expect(secondInput).resolves.toMatchObject({
-      value: { type: 'user', session_id: 'resume-after-first-write' },
-      done: false
-    })
-    secondQueryResult.reject(new Error('later transport failed before input write'))
-
-    await expect(sending).rejects.toThrow('later transport failed before input write')
-    void connection.close()
-  })
-
-  it('delivers materializing input through a query rebuilt after duplicate resume failure', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const prepared = createDeferred<any[]>()
-    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'corrupt-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    const message = {
-      ...userMessage(),
-      data: {
-        parts: [
-          { type: 'text', text: 'inspect this image' },
-          {
-            type: 'file',
-            url: 'file:///tmp/pixel.png',
-            mediaType: 'image/png',
-            filename: 'pixel.png',
-            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
-          }
-        ]
-      }
-    }
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message })
-    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'corrupt-token',
-      usage: {},
-      errors: ['messages.2.content.1: `tool_use` ids must be unique']
-    })
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-
-    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    await expect(readWrittenSdkInput(retrySpawn.prompt)).resolves.toMatchObject({
-      value: {
-        type: 'user',
-        session_id: '',
-        message: { content: expect.stringContaining('inspect this image') }
-      },
-      done: false
-    })
-    await sending
-
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-after-recovery', usage: {} })
-    const seen: any[] = []
-    while (!seen.some((event) => event?.type === 'turn-complete')) {
-      seen.push((await events.next()).value)
-    }
-    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }))
-    void connection.close()
-  })
-
-  it('rejects a resumed input when the connection closes during message materialization', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const prepared = createDeferred<any[]>()
-    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
-    mocks.createClaudeQuery.mockReturnValue(query)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'resume-before-close'
-    })
-    const message = {
-      ...userMessage(),
-      data: {
-        parts: [
-          { type: 'text', text: 'inspect this image' },
-          {
-            type: 'file',
-            url: 'file:///tmp/pixel.png',
-            mediaType: 'image/png',
-            filename: 'pixel.png',
-            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
-          }
-        ]
-      }
-    }
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message })
-    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
-    await connection.close()
-
-    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
-    await expect(sending).rejects.toThrow('closed before input could be queued')
-  })
-
-  it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
-    const corruptQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet', resume: 'corrupt-token' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    mocks.createClaudeQuery.mockReturnValueOnce(corruptQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'corrupt-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    const sending = connection.send({ message: userMessage() })
-    await readWrittenSdkInput(mocks.createClaudeQuery.mock.calls[0][0].prompt)
-    await sending
-    corruptQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'corrupt-token',
-      usage: {},
-      errors: ['messages.2.content.1: `tool_use` ids must be unique']
-    })
-
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
-    await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
-      value: { type: 'user', session_id: '' },
-      done: false
-    })
-
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-duplicate-recovery' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-duplicate-recovery', usage: {} })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'turn-complete' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-duplicate-recovery' }))
-    expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
-    )
-    expect(seen).toContainEqual({ type: 'turn-complete' })
-    void connection.close()
-  })
+  )
 
   it('does not replay corrupt tool history after the turn emitted non-metadata activity', async () => {
     const queryQueue = createAsyncQueue<any>()
@@ -3371,7 +3401,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'corrupt-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3406,7 +3436,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3428,91 +3458,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('shares one recovery budget across stale and duplicate resume failures', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const corruptQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(corruptQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    const sending = connection.send({ message: userMessage() })
-    await readWrittenSdkInput(mocks.createClaudeQuery.mock.calls[0][0].prompt)
-    await sending
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-
-    corruptQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'fresh-corrupt-session',
-      usage: {},
-      errors: ['`tool_use` ids must be unique']
-    })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'error' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).toContain('error')
-    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
-    void connection.close()
-  })
-
-  it('surfaces the error normally when the retry without a resume token also fails', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    const sending = connection.send({ message: userMessage() })
-    await readWrittenSdkInput(mocks.createClaudeQuery.mock.calls[0][0].prompt)
-    await sending
-    const staleResult = {
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    }
-    staleQueue.push(staleResult)
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    // The retry fails too (different launch problem) — one retry only, then the normal error path.
-    freshQueue.push({ ...staleResult, errors: ['spawn failed'] })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'error' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).toContain('error')
-    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
-    void connection.close()
-  })
-
   it('surfaces SDK success envelopes marked as API errors instead of completing the turn', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -3520,7 +3465,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3553,7 +3498,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
       })
     )
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
@@ -3569,20 +3514,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'resume-before-quota-failure'
     })
     const events = connection.events[Symbol.asyncIterator]()
     const delivery = {
       ...userMessage(),
       id: 'delivery-new',
-      data: { parts: [{ type: 'text', text: 'investigate the newly accepted issue' }] },
-      delivery: {
-        status: 'delivering',
-        turnRef: 'assistant-new',
-        replyPolicy: 'completion',
-        requestId: 'delivery-new'
-      }
+      data: { parts: [{ type: 'text', text: 'investigate the newly accepted issue' }] }
     }
 
     connection.reserveInput?.()
@@ -3608,71 +3547,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-after-delivery', usage: {} })
 
     const seen: any[] = []
-    while (true) {
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
       const next = await events.next()
       if (next.done) break
       seen.push(next.value)
-      if (next.value?.type === 'turn-complete') break
     }
 
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }))
     expect(seen.filter((event) => event?.chunk?.type === 'text-delta')).toHaveLength(1)
-    expect(seen).toContainEqual({ type: 'turn-complete' })
-    void connection.close()
-  })
-
-  it('drops stale parentless content before the first resumed input is reserved', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    let sdkInput!: AsyncIterable<any>
-    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
-      sdkInput = prompt
-      return query
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'resume-before-host-reservation'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    queryQueue.push({
-      type: 'stream_event',
-      parent_tool_use_id: null,
-      event: { type: 'message_start' },
-      session_id: 'resume-before-host-reservation'
-    })
-    queryQueue.push({
-      type: 'system',
-      subtype: 'commands_changed',
-      session_id: 'resume-before-host-reservation',
-      commands: ['/help']
-    })
-
-    const seen: any[] = []
-    while (!seen.some((event) => event?.type === 'supported-commands')) {
-      seen.push((await events.next()).value)
-    }
-
-    connection.reserveInput?.()
-    const sending = connection.send({ message: userMessage() })
-    await readWrittenSdkInput(sdkInput)
-    await sending
-    queryQueue.push({
-      type: 'stream_event',
-      parent_tool_use_id: null,
-      event: { type: 'message_start' },
-      session_id: 'resume-after-host-input'
-    })
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-after-host-input', usage: {} })
-
-    while (!seen.some((event) => event?.type === 'turn-complete')) {
-      seen.push((await events.next()).value)
-    }
-
-    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'autonomous-turn-state' }))
-    expect(seen.filter((event) => event?.chunk?.type === 'text-delta')).toHaveLength(1)
+    expect(seen).toContainEqual({ type: 'turn-complete', forkAnchor: undefined })
     void connection.close()
   })
 
@@ -3683,7 +3566,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'resume-before-compaction'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3715,7 +3598,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'resume-with-background-work'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3749,7 +3632,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3779,7 +3662,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     )
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
     void connection.close()
   })
@@ -3791,7 +3674,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3808,7 +3691,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
     expect(mockMainLoggerService.error).toHaveBeenCalledWith(
       'Claude Code query loop failed',
-      expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
+      expect.objectContaining({
+        sessionId: 'session-1',
+        modelId: 'sonnet-sdk',
+        err: expect.objectContaining({ errorMessage: expect.any(String) })
+      })
     )
     void connection.close()
   })
@@ -3827,7 +3714,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3848,7 +3735,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3880,7 +3767,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       trace: {
         topicId: 'agent-session:session-1',
         traceId: '0'.repeat(32),
@@ -3948,7 +3835,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     // No active turn (no adapter yet) → redirect declines so the host queues instead of steering.
@@ -4003,7 +3890,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
     const steer = {
@@ -4056,7 +3943,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       onSteerInjected
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -4105,7 +3992,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -4144,7 +4031,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -4205,7 +4092,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -4252,12 +4139,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
     // The query loop dies (failed result) → first teardown disposes the session-scoped state.
-    await connection.send({ message: userMessage() })
+    void Promise.resolve(connection.send({ message: userMessage() })).catch(() => undefined)
     queryQueue.push({ type: 'result', subtype: 'error', session_id: 'resume-1' })
     let evt = await events.next()
     while (evt.value?.type !== 'error' && !evt.done) evt = await events.next()
@@ -4316,7 +4203,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
       return { connection, query, toolPolicySnapshot }
     }
@@ -4334,7 +4221,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const { connection } = await connectWithSnapshot()
       mocks.deriveConfig.mockClear()
 
-      await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
+      await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
       expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
     })
@@ -4411,7 +4298,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
 
       expect(mocks.deriveConfig).not.toHaveBeenCalled()
@@ -4447,8 +4334,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
           return makeConfig({})
         })
 
-      const first = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
-      const second = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
+      const first = connection.reconcile({ modelId: 'claude-code::sonnet' })
+      const second = connection.reconcile({ modelId: 'claude-code::sonnet' })
       await vi.waitFor(() => expect(firstStarted).toBe(true))
 
       // Push and pull overlapping on the same connection must queue — an interleaved

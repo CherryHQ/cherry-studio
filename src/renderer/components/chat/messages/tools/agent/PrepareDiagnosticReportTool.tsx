@@ -1,7 +1,8 @@
-import { Button } from '@cherrystudio/ui'
-import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import { Check, FilePenLine } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
+import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 
 import type { PrepareDiagnosticReportResult } from './prepareDiagnosticReportResult'
 

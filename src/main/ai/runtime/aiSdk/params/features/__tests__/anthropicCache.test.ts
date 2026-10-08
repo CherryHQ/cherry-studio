@@ -1,8 +1,9 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import { describe, expect, it } from 'vitest'
+
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { anthropicCacheFeature, transformAnthropicCacheParams } from '../anthropicCache'
 
@@ -84,7 +85,7 @@ async function transform(
     {
       prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
       ...input
-    } as LanguageModelV3CallOptions,
+    },
     provider,
     assistant
   )

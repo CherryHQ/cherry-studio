@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
-import { describe, expect, it, vi } from 'vitest'
 
 import { resolveMcpPackageIconUrl } from '../mcpPackage'
 import { formatMcpLogs, isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'

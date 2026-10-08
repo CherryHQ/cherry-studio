@@ -1,5 +1,3 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
@@ -9,6 +7,9 @@ import {
   useRef,
   useState
 } from 'react'
+
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { Header } from './parts/header'
 import { ItemContextMenu, useItemContextMenu } from './parts/item-context-menu'

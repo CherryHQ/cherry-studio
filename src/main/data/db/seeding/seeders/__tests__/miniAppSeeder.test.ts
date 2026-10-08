@@ -1,10 +1,11 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc, eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { MiniAppSeeder } from '@data/db/seeding/seeders/miniAppSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { setupTestDatabase } from '@test-helpers/db'
-import { asc, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('MiniAppSeeder', () => {
   const dbh = setupTestDatabase()

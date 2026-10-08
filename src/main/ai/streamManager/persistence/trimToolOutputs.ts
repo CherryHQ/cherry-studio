@@ -20,6 +20,8 @@
  * saw in-flight.
  */
 
+import { getToolName, isToolUIPart } from 'ai'
+
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
@@ -38,7 +40,6 @@ import {
 } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { getToolName, isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('TrimToolOutputs')
 
@@ -133,7 +134,7 @@ export async function trimOversizedToolOutputs(
       if (!ref) continue
       const output: PersistedToolOutput = { $persistedToolOutput: ref }
       trimmed ??= [...parts]
-      trimmed[index] = { ...part, output } as CherryMessagePart
+      trimmed[index] = { ...part, output }
     } catch (error) {
       logger.error('tool-output trim failed; keeping the full output in message data', error as Error, {
         toolCallId: part.toolCallId

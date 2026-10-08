@@ -1,8 +1,9 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
-import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'

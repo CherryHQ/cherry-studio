@@ -56,7 +56,7 @@ function setupAnimationHarness(initialScrollTop = 0) {
   const fake = createFakeRaf()
 
   const { result, unmount } = renderHook(() => {
-    const ref = useRef<HTMLDivElement | null>(scroller as unknown as HTMLDivElement)
+    const ref = useRef<HTMLDivElement | null>(scroller)
     return useSmoothScrollAnimation(ref, { raf: fake.raf, caf: fake.caf })
   })
 

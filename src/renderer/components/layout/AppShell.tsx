@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
@@ -10,7 +12,6 @@ import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTi
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -41,6 +42,7 @@ export const AppShell = () => {
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
+  const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
@@ -118,7 +120,19 @@ export const AppShell = () => {
     [tabs, activeTabId, setActiveTab]
   )
 
+  const handleCloseActiveTab = useCallback(() => {
+    if (!activeTabId) return
+    // Closing the last tab would strand the shell in the empty Launchpad state;
+    // browsers close the window for the final tab (Safari / Chrome convention).
+    if (tabs.length === 1) {
+      void ipcApi.request('window.close')
+      return
+    }
+    handleCloseTab(activeTabId)
+  }, [activeTabId, handleCloseTab, tabs])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
   useCommandHandler('tab.next', () => cycleTab('next'), { enabled: canCycleTabs })
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
