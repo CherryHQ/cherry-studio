@@ -8,6 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 
 import { createSidebarShortcutTarget } from '../../../utils/sidebar'
+import type * as ShellTabBarActionsModule from '../../layout/ShellTabBarActions'
+import type * as SidebarConstantsModule from '../../Sidebar/constants'
+import type * as SidebarFooterModule from '../../Sidebar/SidebarFooter'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
@@ -49,9 +52,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
 }))
 vi.mock('../../layout/ShellTabBarActions', async () => {
-  const actual = await vi.importActual<typeof import('../../layout/ShellTabBarActions')>(
-    '../../layout/ShellTabBarActions'
-  )
+  const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../../layout/ShellTabBarActions')
 
   return {
     AppUpdateButton: () => (
@@ -63,9 +64,8 @@ vi.mock('../../layout/ShellTabBarActions', async () => {
   }
 })
 vi.mock('../../Sidebar', async () => {
-  const constants = await vi.importActual<typeof import('../../Sidebar/constants')>('../../Sidebar/constants')
-  const { SidebarFooter } =
-    await vi.importActual<typeof import('../../Sidebar/SidebarFooter')>('../../Sidebar/SidebarFooter')
+  const constants = await vi.importActual<typeof SidebarConstantsModule>('../../Sidebar/constants')
+  const { SidebarFooter } = await vi.importActual<typeof SidebarFooterModule>('../../Sidebar/SidebarFooter')
 
   return {
     getSidebarDisplayWidth: constants.getSidebarDisplayWidth,
