@@ -15,7 +15,6 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { useOptionalTopicRightPaneActions } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
@@ -57,7 +56,6 @@ function ChatComposerSlot({
   onConversationControlsChange
 }: ChatComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
-  const topicRightPaneActions = useOptionalTopicRightPaneActions()
   const fallback =
     placement === 'home' ? (
       <ChatPlacementComposer
@@ -74,7 +72,6 @@ function ChatComposerSlot({
         resolvedProviders={providers}
         externalContextControls
         compactWhenSingleLine={compactWhenSingleLine}
-        previewInputFile={topicRightPaneActions?.previewInputFile}
         onConversationControlsChange={onConversationControlsChange}
       />
     ) : (
@@ -93,7 +90,6 @@ function ChatComposerSlot({
         resolvedProviders={providers}
         externalContextControls
         compactWhenSingleLine={compactWhenSingleLine}
-        previewInputFile={topicRightPaneActions?.previewInputFile}
         onConversationControlsChange={onConversationControlsChange}
       />
     )

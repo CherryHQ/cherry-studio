@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { ipcApi } from '@renderer/ipc'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
@@ -103,7 +104,6 @@ export function useArtifactPanePreviewNavigation({
         requestFileSelection(null)
         return
       }
-      requestFileSelection(initialSelection)
 
       void (async () => {
         let previewPath = input.previewPath
@@ -113,6 +113,16 @@ export function useArtifactPanePreviewNavigation({
             const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
             if (!isCurrentRequest(requestId)) return
             if (originalMetadata?.kind === 'file') previewPath = input.originalPath
+          } catch {
+            if (!isCurrentRequest(requestId)) return
+          }
+        }
+
+        if (previewPath === input.previewPath && input.fileEntryId) {
+          try {
+            const managedPath = await window.api.file.getPhysicalPath({ id: input.fileEntryId })
+            if (!isCurrentRequest(requestId)) return
+            previewPath = AbsoluteFilePathSchema.safeParse(managedPath).data ?? input.previewPath
           } catch {
             if (!isCurrentRequest(requestId)) return
           }

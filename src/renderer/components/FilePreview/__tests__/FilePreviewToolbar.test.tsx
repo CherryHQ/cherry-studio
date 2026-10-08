@@ -1,14 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { Eye } from 'lucide-react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  FilePreviewModeTabs,
-  FilePreviewModeToolbarPortalHost,
-  FilePreviewModeToolbarPortalProvider
-} from '../FilePreviewToolbar'
+import { FilePreviewModeTabs } from '../FilePreviewToolbar'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'> & { size?: string; variant?: string }) => {
@@ -60,26 +56,5 @@ describe('FilePreviewModeTabs', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Source' }))
 
     expect(onValueChange).toHaveBeenCalledWith('source')
-  })
-
-  it('portals mode selection into the registered mode toolbar host', () => {
-    render(
-      <FilePreviewModeToolbarPortalProvider>
-        <FilePreviewModeToolbarPortalHost />
-        <FilePreviewModeTabs
-          aria-label="View mode"
-          value="preview"
-          onValueChange={vi.fn()}
-          options={[
-            { value: 'source', label: 'Source', icon: <Eye /> },
-            { value: 'preview', label: 'Preview', icon: <Eye /> }
-          ]}
-        />
-      </FilePreviewModeToolbarPortalProvider>
-    )
-
-    const host = screen.getByTestId('file-preview-mode-toolbar-host')
-
-    expect(within(host).getByRole('radiogroup', { name: 'View mode' })).toBeInTheDocument()
   })
 })

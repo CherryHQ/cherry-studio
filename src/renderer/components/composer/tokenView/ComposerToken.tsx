@@ -43,10 +43,12 @@ const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
+const PASTED_TEXT_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000
+const PASTED_TEXT_PREVIEW_CACHE_MAX_ENTRIES = 64
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
   'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
-const pastedTextPreviewCache = new Map<string, Promise<string>>()
+const pastedTextPreviewCache = new Map<string, { expiresAt: number; request: Promise<string> }>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <ToolCase className={tokenIconClassName} />,
@@ -88,6 +90,7 @@ export interface ComposerTokenProps {
 
 export interface ReadOnlyComposerFileTokenPreview {
   url?: string
+  fileEntryId?: string
   mediaType?: string
   composerFileKind?: ComposerFileKind
   originalPath?: AbsoluteFilePath
@@ -331,14 +334,29 @@ function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
 }
 
 function readPastedTextPreview(path: string) {
-  let request = pastedTextPreviewCache.get(path)
-  if (!request) {
-    request = window.api.fs.readText(path).catch((error) => {
-      pastedTextPreviewCache.delete(path)
-      throw error
-    })
-    pastedTextPreviewCache.set(path, request)
+  const now = Date.now()
+  const cached = pastedTextPreviewCache.get(path)
+  if (cached && cached.expiresAt > now) {
+    pastedTextPreviewCache.delete(path)
+    pastedTextPreviewCache.set(path, cached)
+    return cached.request
   }
+  if (cached) pastedTextPreviewCache.delete(path)
+
+  const request = window.api.fs.readText(path).catch((error) => {
+    if (pastedTextPreviewCache.get(path)?.request === request) {
+      pastedTextPreviewCache.delete(path)
+    }
+    throw error
+  })
+  pastedTextPreviewCache.set(path, { expiresAt: now + PASTED_TEXT_PREVIEW_CACHE_TTL_MS, request })
+
+  while (pastedTextPreviewCache.size > PASTED_TEXT_PREVIEW_CACHE_MAX_ENTRIES) {
+    const oldestPath = pastedTextPreviewCache.keys().next().value
+    if (oldestPath === undefined) break
+    pastedTextPreviewCache.delete(oldestPath)
+  }
+
   return request
 }
 

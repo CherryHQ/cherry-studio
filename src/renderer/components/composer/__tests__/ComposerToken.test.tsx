@@ -956,6 +956,43 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
+  it('reloads pasted text after the bounded preview cache expires', async () => {
+    let now = 1_800_000_000_000
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const token = {
+      id: 'file:pasted-text-cache-expiry',
+      kind: 'file' as const,
+      label: 'cache-expiry.txt',
+      payload: createFileMetadata({
+        name: 'cache-expiry.txt',
+        origin_name: 'cache-expiry.txt',
+        path: '/tmp/cache-expiry.txt',
+        ext: '.txt',
+        type: FILE_TYPE.TEXT,
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      })
+    }
+
+    try {
+      const first = render(<FileComposerToken token={token} />)
+      await openFileTokenPopover(first.container)
+      await waitFor(() => expect(readPastedTextMock).toHaveBeenCalledTimes(1))
+      first.unmount()
+
+      now += 5 * 60 * 1000 + 1
+      readPastedTextMock.mockResolvedValueOnce('refreshed pasted text')
+      const second = render(<FileComposerToken token={token} />)
+      await openFileTokenPopover(second.container)
+
+      await waitFor(() => {
+        expect(readPastedTextMock).toHaveBeenCalledTimes(2)
+        expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('refreshed pasted text')
+      })
+    } finally {
+      dateNow.mockRestore()
+    }
+  })
+
   it('keeps sent pasted-text hover preview while click opens the external preview target', async () => {
     const user = userEvent.setup()
     const onActivate = vi.fn()

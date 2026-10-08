@@ -5,6 +5,7 @@ import type { ComposerFileKind } from './file'
 export interface InputFilePreview {
   displayName: string
   previewPath: AbsoluteFilePath
+  fileEntryId?: string
   originalPath?: AbsoluteFilePath
   mediaType?: string
   composerFileKind?: ComposerFileKind

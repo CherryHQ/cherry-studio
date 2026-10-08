@@ -11,15 +11,6 @@ interface FilePreviewToolbarPortalContextValue {
 
 const FilePreviewToolbarPortalContext = createContext<FilePreviewToolbarPortalContextValue | undefined>(undefined)
 
-interface FilePreviewModeToolbarPortalContextValue {
-  setTarget: (target: HTMLDivElement | null) => void
-  target: HTMLDivElement | null
-}
-
-const FilePreviewModeToolbarPortalContext = createContext<FilePreviewModeToolbarPortalContextValue | undefined>(
-  undefined
-)
-
 export function FilePreviewToolbarPortalProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
   const value = useMemo(() => ({ setTarget, target }), [target])
@@ -37,21 +28,6 @@ export function FilePreviewToolbarPortalHost() {
       className="ml-3 flex max-w-[70%] min-w-0 items-center justify-end overflow-x-auto"
     />
   )
-}
-
-export function FilePreviewModeToolbarPortalProvider({ children }: { children: ReactNode }) {
-  const [target, setTarget] = useState<HTMLDivElement | null>(null)
-  const value = useMemo(() => ({ setTarget, target }), [target])
-
-  return <FilePreviewModeToolbarPortalContext value={value}>{children}</FilePreviewModeToolbarPortalContext>
-}
-
-export function FilePreviewModeToolbarPortalHost() {
-  const context = use(FilePreviewModeToolbarPortalContext)
-
-  if (!context) return null
-
-  return <div ref={context.setTarget} data-testid="file-preview-mode-toolbar-host" className="contents" />
 }
 
 interface FilePreviewToolbarProps {
@@ -109,7 +85,6 @@ export function FilePreviewModeTabs<TValue extends string = string>({
   options,
   value
 }: FilePreviewModeTabsProps<TValue>) {
-  const context = use(FilePreviewModeToolbarPortalContext)
   const control = (
     <SegmentedControl
       aria-label={ariaLabel}
@@ -128,8 +103,6 @@ export function FilePreviewModeTabs<TValue extends string = string>({
       }))}
     />
   )
-
-  if (context) return context.target ? createPortal(control, context.target) : null
 
   return (
     <FilePreviewToolbar aria-label={ariaLabel} align="start">

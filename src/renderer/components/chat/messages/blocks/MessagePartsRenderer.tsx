@@ -416,6 +416,7 @@ function getReadOnlyFileTokenPreviews(
 
     previews.set(sourceId, {
       url: part.url,
+      ...(cherryMeta.fileEntryId && { fileEntryId: cherryMeta.fileEntryId }),
       mediaType: part.mediaType,
       ...(originalPath && { originalPath }),
       ...(cherryMeta.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
@@ -1557,6 +1558,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       return previewInputFile({
         displayName: token.label,
         previewPath,
+        ...(preview.fileEntryId && { fileEntryId: preview.fileEntryId }),
         ...(preview.originalPath && { originalPath: preview.originalPath }),
         ...(preview.mediaType && { mediaType: preview.mediaType }),
         ...(preview.composerFileKind && { composerFileKind: preview.composerFileKind })

@@ -61,11 +61,9 @@ The embedded host owns page-level interactions such as back, close, and file sel
 on the left and portals the active plugin toolbar to the right. Do not pass format controls through `header` or add
 `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
 
-Two portal channels keep embedded headers composable. `FilePreviewToolbarPortalProvider` places a plugin's full
-format toolbar in the header action area. `FilePreviewModeToolbarPortalProvider` places only a plugin's mutually
-exclusive view control, such as preview/source, beside the host-owned file title. Hosts render the matching portal
-host; plugins continue to declare controls through `FilePreviewToolbar` or `FilePreviewModeTabs` and never target a
-host DOM node directly.
+`FilePreviewToolbarPortalProvider` keeps embedded headers composable by placing a plugin's format toolbar in the
+header action area. Hosts render the matching portal host; plugins continue to declare controls through
+`FilePreviewToolbar` and never target a host DOM node directly. `FilePreviewModeTabs` stays within the preview body.
 
 When an embedded host owns in-app file navigation, wrap the preview in `FilePreviewNavigationProvider` and provide
 the workspace root and its absolute-path opener. The Markdown plugin then resolves schemeless links relative to that

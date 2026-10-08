@@ -19,7 +19,6 @@ import {
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIpcOn } from '@renderer/ipc'
@@ -97,16 +96,6 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
-interface TopicRightPaneActions {
-  previewInputFile: ComposerInputFilePreviewAction
-  closeFilePreview: () => void
-}
-const TopicRightPaneActionsContext = createContext<TopicRightPaneActions | null>(null)
-
-export function useOptionalTopicRightPaneActions(): TopicRightPaneActions | undefined {
-  return use(TopicRightPaneActionsContext) ?? undefined
-}
-
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
@@ -248,10 +237,6 @@ function TopicRightPaneProvider({
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
-  const topicActions = useMemo<TopicRightPaneActions>(
-    () => ({ previewInputFile: () => {}, closeFilePreview: () => {} }),
-    []
-  )
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
       topicId,
@@ -277,9 +262,7 @@ function TopicRightPaneProvider({
       present={present}>
       <TopicBrowserPaneOpener topicId={topicId} />
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
-      <TopicRightPaneActionsContext value={topicActions}>
-        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
-      </TopicRightPaneActionsContext>
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
     </RightPanelProvider>
   )
 }

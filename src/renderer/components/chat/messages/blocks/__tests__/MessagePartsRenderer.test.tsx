@@ -1119,6 +1119,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-pasted-text')).toEqual({
         url: 'file:///internal/message-files/pasted-text.txt',
+        fileEntryId: 'entry-pasted-text',
         mediaType: 'text/plain',
         originalPath: '/Users/alice/Notes/Pasted text.txt',
         composerFileKind: 'pasted-text'
@@ -1180,6 +1181,7 @@ describe('MessagePartsRenderer', () => {
       expect(previewInputFile).toHaveBeenCalledWith({
         displayName: 'report.md',
         previewPath: '/internal/message-files/report.md',
+        fileEntryId: 'entry-report',
         originalPath: '/Users/alice/report.md',
         mediaType: 'text/markdown'
       })

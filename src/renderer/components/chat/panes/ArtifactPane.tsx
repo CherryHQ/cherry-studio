@@ -61,6 +61,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type ArtifactPaneFileSelection,
   getArtifactPaneSelectionPath,
+  getArtifactPaneSelectionDisplayPath,
   getCopyableAbsolutePath,
   WORKSPACE_ROOT_ID
 } from './artifactPanePath'
@@ -376,8 +377,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   isEditDirtyRef.current = isEditDirty
   const fileSessionReloadRef = useRef(fileSessionReload)
   fileSessionReloadRef.current = fileSessionReload
-  const overlayPathsRef = useRef<{ filePath?: string; workspacePath?: string }>({})
-  overlayPathsRef.current = { filePath: overlayFilePath, workspacePath: overlayWorkspacePath }
+  const overlayPathsRef = useRef<{ displayPath?: string; filePath?: string; workspacePath?: string }>({})
+  overlayPathsRef.current = {
+    displayPath: overlaySelection ? getArtifactPaneSelectionDisplayPath(overlaySelection) : undefined,
+    filePath: overlayFilePath,
+    workspacePath: overlayWorkspacePath
+  }
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
@@ -443,9 +448,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   )
 
   const handleCopyPreviewPath = useCallback(async () => {
-    const { filePath, workspacePath } = overlayPathsRef.current
-    if (!filePath || !workspacePath) return
-    await copyPath(getCopyableAbsolutePath(filePath, isWin))
+    const { displayPath } = overlayPathsRef.current
+    if (!displayPath) return
+    await copyPath(getCopyableAbsolutePath(displayPath, isWin))
   }, [copyPath])
 
   const handleCopyPreviewContent = useCallback(async () => {
