@@ -18,6 +18,7 @@ import { assertZipLimits } from '../../officeZipPreflight'
 import { usePreviewHost, usePreviewLogger } from '../../previewContext'
 import { createPreviewSelection } from '../../selection'
 import { PreviewError, readPreviewDocument } from '../../source'
+import { attachTouchPinch } from '../../touchPinch'
 import type { FilePreviewPluginProps } from '../../types'
 import { paragraphToDocxAnchor } from './docxSelectionAnchor'
 import { WordFilePreviewToolbar } from './WordFilePreviewToolbar'
@@ -265,6 +266,15 @@ export default function WordFilePreview({
     bodyRef.current?.querySelector<HTMLElement>('[data-docx-picked="true"]')?.removeAttribute('data-docx-picked')
   }, [onSelection])
 
+  // Pinch steps are tiny, so they compound unrounded; rounding each one would stall a slow pinch.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    return attachTouchPinch(container, (scaleFactor) =>
+      setZoom((value) => clamp(value * scaleFactor, DOCX_PREVIEW_MIN_ZOOM, DOCX_PREVIEW_MAX_ZOOM))
+    )
+  }, [])
+
   const hasPages = !error && pageCount > 0
   const contentStyle = { zoom } as CSSProperties
 
@@ -291,7 +301,7 @@ export default function WordFilePreview({
             ref={containerRef}
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="absolute inset-0 touch-pan-x touch-pan-y overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
             tabIndex={0}>
             <div ref={styleRef} />
             <div

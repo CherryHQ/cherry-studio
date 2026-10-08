@@ -71,13 +71,15 @@ const virtualizerImpl = (options: any) => {
 
 /**
  * jsdom ships neither PointerEvent nor pointer capture, so range dragging would have no event to fire.
- * A MouseEvent subclass carrying pointerId covers everything the grid reads: clientX/clientY/button/pointerId.
+ * A MouseEvent subclass carrying pointerId and pointerType covers everything the grid reads.
  */
 class TestPointerEvent extends MouseEvent {
   readonly pointerId: number
-  constructor(type: string, init: MouseEventInit & { pointerId?: number } = {}) {
+  readonly pointerType: string
+  constructor(type: string, init: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) {
     super(type, init)
     this.pointerId = init.pointerId ?? 1
+    this.pointerType = init.pointerType ?? 'mouse'
   }
 }
 
@@ -518,7 +520,7 @@ const COL_HEADER_HEIGHT = 22
  * Pointer event init for a zoom=1 content coordinate. The sticky headers offset the content layer, and jsdom's
  * zeroed getBoundingClientRect leaves the scroll container's origin at (0, 0) with no scroll offset.
  */
-const pointerAt = (contentX: number, contentY: number, init: MouseEventInit = {}) => ({
+const pointerAt = (contentX: number, contentY: number, init: MouseEventInit & { pointerType?: string } = {}) => ({
   button: 0,
   pointerId: 1,
   clientX: contentX + ROW_HEADER_WIDTH,
@@ -585,6 +587,38 @@ describe('XlsxGrid — range selection', () => {
     expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
       expect.objectContaining({ range: 'B3', rect: { top: 3, left: 2, bottom: 3, right: 2 } })
     )
+  })
+
+  it('selects a touch press on release, since it could still have become a scroll', () => {
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+    const touch = { pointerType: 'touch' }
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
+    expect(onSelectCell).not.toHaveBeenCalled()
+    fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
+
+    expect(onSelectCell).toHaveBeenCalledTimes(1)
+    expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(
+      expect.objectContaining({ range: 'B3', rect: { top: 3, left: 2, bottom: 3, right: 2 } })
+    )
+  })
+
+  it('leaves the selection alone when a touch press turns into a scroll', () => {
+    // The browser cancels the pointer once it takes the gesture over for scrolling; a swipe is not a pick.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+    const touch = { pointerType: 'touch' }
+
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y, touch))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
+    fireEvent.pointerCancel(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
   })
 
   it('commits the drawn range when the pointer is cancelled instead of released', () => {

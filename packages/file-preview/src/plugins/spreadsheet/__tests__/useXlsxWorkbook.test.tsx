@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   workers: [] as unknown[],
   requests: [] as Array<{ id: number; fileName: string; data: ArrayBuffer }>,
   postMessageError: null as Error | null,
+  host: {} as { resources?: { createWorker?: (kind: 'pdf' | 'xlsx') => Worker } },
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -39,7 +40,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../previewContext', () => ({
   usePreviewLogger: () => mocks.logger,
-  usePreviewHost: () => ({})
+  usePreviewHost: () => mocks.host
 }))
 
 const lastWorker = () => {
@@ -54,6 +55,7 @@ describe('useXlsxWorkbook', () => {
     mocks.workers.length = 0
     mocks.requests.length = 0
     mocks.postMessageError = null
+    mocks.host = {}
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3, 4]))
     vi.stubGlobal('Worker', FakeXlsxWorker)
   })
@@ -86,6 +88,28 @@ describe('useXlsxWorkbook', () => {
 
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(result.current).toEqual({ status: 'ready', model })
+  })
+
+  it('parses on the worker the host creates when the bundled worker cannot load', async () => {
+    // An inline WebView bundle has no URL for the bundled worker; constructing it there throws.
+    vi.stubGlobal(
+      'Worker',
+      class {
+        constructor() {
+          throw new Error('bundled worker URL is unavailable')
+        }
+      }
+    )
+    const createWorker = vi.fn(() => new FakeXlsxWorker() as unknown as Worker)
+    mocks.host = { resources: { createWorker } }
+    const model = createMockWorkbookModel()
+    const { result } = renderHook(() => useXlsxWorkbook(previewTestDocument(4, 1, mocks.fsRead, 0), 'book.xlsx'))
+
+    await waitFor(() => expect(mocks.requests).toHaveLength(1))
+    act(() => lastWorker().respond({ id: mocks.requests[0].id, ok: true, model }))
+
+    await waitFor(() => expect(result.current).toEqual({ status: 'ready', model }))
+    expect(createWorker).toHaveBeenCalledWith('xlsx')
   })
 
   it('terminates the worker after a successful parse and not again on unmount', async () => {

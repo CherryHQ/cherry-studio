@@ -13,6 +13,8 @@ export interface PreviewDiagnostic {
 
 export interface PreviewResources {
   baseUrl?: string
+  /** Creates the module worker for a format; takes precedence over `baseUrl` for workers. */
+  createWorker?: (kind: 'pdf' | 'xlsx') => Worker
   readPdfResource?: (kind: 'cmap' | 'standard_font', name: string) => Promise<Uint8Array>
 }
 

@@ -349,6 +349,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // Pointer and key handlers extend the live selection, so they read it from a ref instead of the render snapshot.
   const selectionRef = useRef<GridSelection | null>(null)
   const dragRef = useRef<{ pointerId: number; selection: GridSelection } | null>(null)
+  const touchTapRef = useRef<number | null>(null)
   /** Last pointer client position while picking, so a scroll can re-resolve the hover with the pointer standing still. */
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const suppressClickRef = useRef(false)
@@ -659,6 +660,21 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     [colLayout, rowLayout, scaledHeaderHeight, scaledHeaderWidth, zoom]
   )
 
+  const selectionAtPointer = useCallback(
+    (clientX: number, clientY: number, extend: boolean): GridSelection | null => {
+      const target = cellAtPointer(clientX, clientY)
+      if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return null
+      // Address a merged range by its master, the way selectCell does: the stored corner is where later
+      // Shift+Arrow steps start from, and stepping off a follower walks back into the same merge.
+      const merge = findMerge(target.row, target.col)
+      const cell: CellRef = { row: merge?.top ?? target.row, col: merge?.left ?? target.col }
+      const current = selectionRef.current
+      // Shift+Click is the v1 way to select a range whose corners sit in different viewports.
+      return extend && current !== null ? { anchor: current.anchor, active: cell } : { anchor: cell, active: cell }
+    },
+    [cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
+  )
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       // A drag released outside the window never gets its trailing click, so clear the flag when the next one starts.
@@ -667,23 +683,20 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       // swallow the click ECharts needs for its legend and tooltip.
       if (isFloatingObject(e.target)) return
       if (e.button !== 0) return
+      // A touch press may turn into a scroll, so it selects on release as a tap instead of starting a drag.
+      if (e.pointerType === 'touch') {
+        touchTapRef.current = e.pointerId
+        return
+      }
       // The selection visuals own the screen from here, so the hover highlight steps aside.
       if (pickerActive) setHoverRect(null)
-      const target = cellAtPointer(e.clientX, e.clientY)
-      if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return
-      // Address a merged range by its master, the way selectCell does: the stored corner is where later
-      // Shift+Arrow steps start from, and stepping off a follower walks back into the same merge.
-      const merge = findMerge(target.row, target.col)
-      const cell: CellRef = { row: merge?.top ?? target.row, col: merge?.left ?? target.col }
-      const current = selectionRef.current
-      // Shift+Click is the v1 way to select a range whose corners sit in different viewports.
-      const extending = e.shiftKey && current !== null
-      const next: GridSelection = extending ? { anchor: current.anchor, active: cell } : { anchor: cell, active: cell }
+      const next = selectionAtPointer(e.clientX, e.clientY, e.shiftKey)
+      if (!next) return
       applySelection(next)
       dragRef.current = { pointerId: e.pointerId, selection: next }
       e.currentTarget.setPointerCapture?.(e.pointerId)
     },
-    [applySelection, cellAtPointer, findMerge, pickerActive, sheet.colCount, sheet.rowCount]
+    [applySelection, pickerActive, selectionAtPointer]
   )
 
   // pointermove fires at display refresh rate, so an unchanged hover keeps the current rect and never reaches render.
@@ -769,6 +782,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // without committing, and the trailing click cannot be relied on — the grid captured the pointer.
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (touchTapRef.current === e.pointerId) {
+        touchTapRef.current = null
+        const tapped = selectionAtPointer(e.clientX, e.clientY, false)
+        if (!tapped) return
+        applySelection(tapped)
+        commitSelection(tapped)
+        return
+      }
       const drag = dragRef.current
       if (!drag || drag.pointerId !== e.pointerId) return
       dragRef.current = null
@@ -776,12 +797,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       suppressClickRef.current = true
       commitSelection(drag.selection)
     },
-    [commitSelection]
+    [applySelection, commitSelection, selectionAtPointer]
   )
 
   // A cancelled pointer (lost capture, gesture taken over by the OS) still leaves the extended selection on
   // screen, so it commits like a release rather than abandoning the parent on the pre-drag selection.
   const handlePointerCancel = useCallback(() => {
+    touchTapRef.current = null
     const drag = dragRef.current
     if (!drag) return
     dragRef.current = null

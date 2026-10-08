@@ -6,6 +6,7 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+import { dispatchTouch } from '../../../__tests__/touchEvents'
 import type { PreviewDocument } from '../../../source'
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   requestOpen: vi.fn(),
   unusedRead: vi.fn(),
   readResource: vi.fn(),
+  workerCreate: vi.fn(),
   workerDestroy: vi.fn(),
   linkServiceGoToDestination: vi.fn(),
   linkServiceSetDocument: vi.fn(),
@@ -48,7 +50,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('pdfjs-dist', () => ({
   AnnotationMode: { ENABLE: 1 },
   PDFWorker: class {
-    static create() {
+    static create(options?: unknown) {
+      mocks.workerCreate(options)
       return new this()
     }
     destroy = mocks.workerDestroy
@@ -228,7 +231,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const resources = { readPdfResource: mocks.readResource }
+const resources: { readPdfResource: typeof mocks.readResource; createWorker?: (kind: 'pdf' | 'xlsx') => Worker } = {
+  readPdfResource: mocks.readResource
+}
 vi.mock('../../../previewContext', () => ({
   usePreviewLogger: () => mockRendererLoggerService,
   usePreviewHost: () => ({ resources, onRequestOpen: mocks.requestOpen })
@@ -595,6 +600,54 @@ describe('PdfFilePreview', () => {
       origin: [24, 36],
       scaleFactor: expect.any(Number)
     })
+  })
+
+  it('zooms around the fingers on a two-finger pinch instead of zooming the page', async () => {
+    let animationFrame: FrameRequestCallback | undefined
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrame = callback
+      return 1
+    })
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const zoomBefore = screen.getByTestId('pdf-preview-zoom-value').textContent
+
+    const container = screen.getByTestId('pdfjs-viewer-container')
+    dispatchTouch(container, 'touchstart', [
+      [100, 100],
+      [200, 100]
+    ])
+    const pinch = dispatchTouch(container, 'touchmove', [
+      [50, 100],
+      [250, 100]
+    ])
+    act(() => animationFrame?.(0))
+
+    expect(pinch.defaultPrevented).toBe(true)
+    expect(mocks.pdfViewerUpdateScale).toHaveBeenLastCalledWith({
+      drawingDelay: 400,
+      origin: [150, 100],
+      scaleFactor: 2
+    })
+    expect(screen.getByTestId('pdf-preview-zoom-value').textContent).not.toBe(zoomBefore)
+  })
+
+  it('runs pdf.js on the worker the host creates', async () => {
+    // An inline WebView bundle has no URL to load the bundled worker from, so the host must supply it.
+    const hostWorker = { terminate: vi.fn() } as unknown as Worker
+    const createWorker = vi.fn(() => hostWorker)
+    resources.createWorker = createWorker
+    try {
+      const view = renderPreview()
+      await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+
+      expect(createWorker).toHaveBeenCalledWith('pdf')
+      expect(mocks.workerCreate).toHaveBeenCalledWith({ port: hostWorker })
+      view.unmount()
+      expect(hostWorker.terminate).toHaveBeenCalled()
+    } finally {
+      delete resources.createWorker
+    }
   })
 
   it('allows text selection and direct page jumps', async () => {

@@ -12,6 +12,7 @@ import { usePreviewHost, usePreviewLogger } from '../../previewContext'
 import { resolveResourceBase } from '../../resources'
 import { createPreviewSelection } from '../../selection'
 import { PreviewError } from '../../source'
+import { attachTouchPinch } from '../../touchPinch'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
@@ -333,6 +334,9 @@ export default function PdfFilePreview({
     const target = document.documentElement
     const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateBackground)
     observer?.observe(target, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+    // Hosts may theme the preview root itself (a `dark` class or token overrides) instead of the page.
+    const previewRoot = rootRef.current?.closest('.file-preview-root')
+    if (previewRoot) observer?.observe(previewRoot, { attributes: true, attributeFilter: ['class', 'style'] })
 
     return () => observer?.disconnect()
   }, [updateBackground])
@@ -389,9 +393,11 @@ export default function PdfFilePreview({
       try {
         if (cancelled) return
         const resourceBase = resolveResourceBase(resources?.baseUrl)
-        workerPort = resources?.baseUrl
-          ? new Worker(new URL('pdf.worker.js', resourceBase), { type: 'module' })
-          : new Worker(new URL('./pdf.worker.ts', import.meta.url), { type: 'module' })
+        workerPort = resources?.createWorker
+          ? resources.createWorker('pdf')
+          : resources?.baseUrl
+            ? new Worker(new URL('pdf.worker.js', new URL(resources.baseUrl, document.baseURI)), { type: 'module' })
+            : new Worker(new URL('./pdf.worker.ts', import.meta.url), { type: 'module' })
         worker = PDFWorker.create({ port: workerPort })
         rangeTransport = new PdfFileRangeTransport(previewDocument, failLoad)
         loadingTask = getDocument({
@@ -400,9 +406,13 @@ export default function PdfFilePreview({
           rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
           disableAutoFetch: true,
           disableStream: true,
-          cMapUrl: new URL('cmaps/', resourceBase).href,
           cMapPacked: true,
-          standardFontDataUrl: new URL('standard_fonts/', resourceBase).href,
+          ...(resourceBase
+            ? {
+                cMapUrl: new URL('cmaps/', resourceBase).href,
+                standardFontDataUrl: new URL('standard_fonts/', resourceBase).href
+              }
+            : {}),
           useWorkerFetch: !resources?.readPdfResource,
           ...(resources?.readPdfResource ? createPdfResourceFactories(resources.readPdfResource) : {})
         })
@@ -557,6 +567,21 @@ export default function PdfFilePreview({
       schedulePinchWheelReset()
       schedulePinchWheelAnimationFrame()
     }
+    let touchPinchFactor = 1
+    let touchPinchOrigin: [number, number] = [0, 0]
+    let touchPinchFrame: number | null = null
+    // Coalesce a gesture's steps per frame; drawingDelay CSS-scales pages until the fingers settle.
+    const detachTouchPinch = attachTouchPinch(container, (scaleFactor, origin) => {
+      touchPinchFactor *= scaleFactor
+      touchPinchOrigin = origin
+      if (touchPinchFrame !== null) return
+      touchPinchFrame = window.requestAnimationFrame(() => {
+        touchPinchFrame = null
+        const factor = touchPinchFactor
+        touchPinchFactor = 1
+        pdfViewer.updateScale({ ...zoomOptions, origin: touchPinchOrigin, scaleFactor: factor })
+      })
+    })
     const handleKeyboardZoom = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
 
@@ -630,6 +655,8 @@ export default function PdfFilePreview({
       container.removeEventListener('keydown', handleKeyboardZoom)
       container.removeEventListener('pointerdown', focusContainer)
       clearPinchWheelTimers()
+      detachTouchPinch()
+      if (touchPinchFrame !== null) window.cancelAnimationFrame(touchPinchFrame)
       detachDocument(pdfViewer)
       pdfViewer.cleanup()
       if (pdfViewerRef.current === pdfViewer) {
@@ -687,7 +714,7 @@ export default function PdfFilePreview({
                     data-picker={onSelection ? 'true' : undefined}
                     role="region"
                     aria-label={fileName}
-                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-2 [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_.page]:cursor-pointer [&_.page[data-pdf-picked=true]]:outline [&_.page[data-pdf-picked=true]]:outline-2 [&_.page[data-pdf-picked=true]]:outline-primary"
+                    className="absolute inset-0 touch-pan-x touch-pan-y overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-2 [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_.page]:cursor-pointer [&_.page[data-pdf-picked=true]]:outline [&_.page[data-pdf-picked=true]]:outline-2 [&_.page[data-pdf-picked=true]]:outline-primary"
                     tabIndex={0}
                     onClick={handlePick}>
                     <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer selectable" />

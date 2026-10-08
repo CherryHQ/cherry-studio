@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { usePreviewHost, usePreviewLogger } from '../../previewContext'
-import { resolveResourceBase } from '../../resources'
 import { type PreviewDocument, PreviewError, readPreviewDocument } from '../../source'
+import type { PreviewResources } from '../../types'
 import type { WorkbookRenderModel, XlsxParseRequest, XlsxParseResponse } from './renderModel'
 
 /** Files above this size are not parsed and fall back to opening in an external app. */
@@ -23,6 +23,7 @@ type XlsxWorker = Pick<Worker, 'postMessage' | 'terminate'> & {
 export function useXlsxWorkbook(document: PreviewDocument, fileName: string): XlsxWorkbookState {
   const logger = usePreviewLogger('useXlsxWorkbook')
   const { failDocument, resources } = usePreviewHost()
+  const { baseUrl, createWorker } = resources ?? {}
   const [state, setState] = useState<XlsxWorkbookState>({ status: 'idle' })
   const workerRef = useRef<XlsxWorker | null>(null)
   const requestIdRef = useRef(0)
@@ -58,7 +59,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
 
       let worker: XlsxWorker
       try {
-        worker = createXlsxWorker(resources?.baseUrl)
+        worker = createXlsxWorker(baseUrl, createWorker)
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -126,12 +127,16 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       workerRef.current?.terminate()
       workerRef.current = null
     }
-  }, [document, fileName, logger, failDocument, resources?.baseUrl])
+  }, [document, fileName, logger, failDocument, baseUrl, createWorker])
 
   return state
 }
 
-function createXlsxWorker(baseUrl?: string): XlsxWorker {
-  if (baseUrl) return new Worker(new URL('xlsx.worker.js', resolveResourceBase(baseUrl)), { type: 'module' })
+function createXlsxWorker(
+  baseUrl: PreviewResources['baseUrl'],
+  createWorker: PreviewResources['createWorker']
+): XlsxWorker {
+  if (createWorker) return createWorker('xlsx')
+  if (baseUrl) return new Worker(new URL('xlsx.worker.js', new URL(baseUrl, document.baseURI)), { type: 'module' })
   return new Worker(new URL('./worker/xlsxParser.worker.ts', import.meta.url), { type: 'module' })
 }

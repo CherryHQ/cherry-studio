@@ -1,9 +1,20 @@
 import { FileQuestion, FileWarning, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  lazy,
+  type ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { I18nextProvider, useTranslation } from 'react-i18next'
 
 import { EmptyState, PortalContainerProvider } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { resolvePreviewPlugin } from './filePreviewRegistry'
@@ -17,6 +28,9 @@ import type { PreviewDiagnostic, PreviewResources } from './types'
 export interface PreviewProps {
   source: PreviewSource
   locale?: string
+  /** Classes for the preview root, such as `dark`; token overrides set on the root apply to the whole preview. */
+  className?: string
+  style?: CSSProperties
   header?: ReactNode
   refreshKey?: number
   resources?: PreviewResources
@@ -63,6 +77,8 @@ export function Preview({ locale = 'en-us', ...props }: PreviewProps) {
 function PreviewSession({
   source,
   header,
+  className,
+  style,
   refreshKey = 0,
   resources,
   onSelection,
@@ -188,7 +204,11 @@ function PreviewSession({
   )
 
   return (
-    <div ref={setRoot} data-file-preview-root="" className="file-preview-root h-full min-h-0 w-full">
+    <div
+      ref={setRoot}
+      data-file-preview-root=""
+      className={cn('file-preview-root h-full min-h-0 w-full', className)}
+      style={style}>
       <PortalContainerProvider container={root}>
         <PreviewHostContext value={host}>
           {header === undefined ? (

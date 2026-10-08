@@ -1,5 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Preview } from '../Preview'
@@ -35,6 +35,23 @@ function document(): PreviewDocument {
 function source(id: string, open: PreviewSource['open']): PreviewSource {
   return { id, name: 'test.pdf', open }
 }
+
+describe('preview root', () => {
+  it('carries host classes and token overrides, which is how mobile themes the preview', async () => {
+    const view = render(
+      <Preview
+        source={source('styled', async () => document())}
+        className="dark"
+        style={{ '--background': 'black' } as CSSProperties}
+      />
+    )
+    await screen.findByText('styled')
+
+    const root = view.container.querySelector('[data-file-preview-root]')
+    expect(root).toHaveClass('file-preview-root', 'dark')
+    expect(root).toHaveStyle({ '--background': 'black' })
+  })
+})
 
 describe('preview sessions', () => {
   it('closes a late open after unmount instead of leaking its document', async () => {

@@ -61,6 +61,51 @@ origin as the application, or configure the server's cross-origin permissions.
 When no base URL is provided, the bundler handles the native worker URLs; hosts
 must still deploy the PDF resource directories or provide `readPdfResource`.
 
+## WebView and inline hosts
+
+A page whose bundle has no URL, such as inline HTML loaded into a mobile WebView, cannot
+resolve the bundled workers or PDF resources. Supply both through `resources`:
+
+```tsx
+import pdfWorker from '@cherrystudio/file-preview/assets/pdf.worker.js?raw'
+import xlsxWorker from '@cherrystudio/file-preview/assets/xlsx.worker.js?raw'
+
+const workerSources = { pdf: pdfWorker, xlsx: xlsxWorker }
+const resources = {
+  createWorker: (kind: 'pdf' | 'xlsx') =>
+    new Worker(URL.createObjectURL(new Blob([workerSources[kind]], { type: 'text/javascript' })), {
+      type: 'module'
+    }),
+  readPdfResource: (kind: 'cmap' | 'standard_font', name: string) => bridge.readPdfResource(kind, name)
+}
+```
+
+`createWorker` takes precedence over `baseUrl` for both workers. Each worker file is
+self-contained. `readPdfResource` serves names from `assets/cmaps/` (without `.bcmap`)
+and `assets/standard_fonts/`.
+
+PDF and DOCX zoom with a two-finger pinch, and images pinch-zoom in their viewport.
+PPTX and XLSX zoom through the toolbar. A spreadsheet touch selects a cell on tap, and
+swiping scrolls without selecting. Disable page zoom in the host page
+(`<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">`)
+so a pinch outside these surfaces does not scale the whole preview.
+
+## Styling
+
+`className` and `style` apply to the preview root. Add `dark` for the dark theme, and
+set these custom properties to retheme it. Root overrides win over the packaged values.
+
+| Property | Used for |
+| --- | --- |
+| `--background`, `--foreground` | Surfaces and text |
+| `--primary` | Picks, focus and active controls |
+| `--muted`, `--muted-foreground` | Secondary surfaces, icons and labels |
+| `--border`, `--border-subtle`, `--ring` | Dividers, outlines and focus rings |
+| `--file-preview-toolbar-button-size` | Toolbar button size, default `1.75rem` |
+| `--file-preview-bottom-inset` | Trailing space under scrolling content |
+
+## Building
+
 ```sh
 pnpm --dir packages/file-preview build
 pnpm --dir packages/file-preview pack --pack-destination /path/to/artifacts

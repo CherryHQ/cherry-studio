@@ -6,6 +6,7 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+import { dispatchTouch } from '../../../__tests__/touchEvents'
 
 const mocks = vi.hoisted(() => {
   const createValidDocxBytes = () => {
@@ -292,6 +293,37 @@ describe('WordFilePreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
     expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('110%')
     expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '1.1')
+  })
+
+  it('pinch-zooms the document within its zoom bounds', async () => {
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    const content = screen.getByTestId('docx-preview-content')
+
+    dispatchTouch(region, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    const pinch = dispatchTouch(region, 'touchmove', [
+      [0, 0],
+      [150, 0]
+    ])
+    await waitFor(() => expect(content).toHaveAttribute('data-zoom', '1.5'))
+    expect(pinch.defaultPrevented).toBe(true)
+
+    dispatchTouch(region, 'touchmove', [
+      [0, 0],
+      [600, 0]
+    ])
+    await waitFor(() => expect(content).toHaveAttribute('data-zoom', '2'))
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('200%')
   })
 
   it('sanitizes unsafe hyperlinks rendered by docx-preview', async () => {
