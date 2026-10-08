@@ -39,6 +39,8 @@ const mainKeybindings = REGISTERED_KEYBINDINGS.filter((rule) => rule.scope !== '
 const relevantKeybindings = mainKeybindings.filter(
   (rule) =>
     !(isMac && rule.command === 'app.settings.open') &&
+    // The native app menu owns the window-close accelerator on macOS.
+    rule.command !== 'app.window.close' &&
     (!rule.supportedPlatforms || rule.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
@@ -264,7 +266,7 @@ export class ShortcutService extends BaseService {
     for (const [accelerator, { key, handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
         const reason: ShortcutRegistrationConflictReason =
-          isLinux && process.env.XDG_SESSION_TYPE === 'wayland' ? 'wayland' : 'occupied'
+          isLinux && process.env.XDG_SESSION_TYPE === 'wayland' ? 'wayland-session' : 'occupied'
         try {
           const success = globalShortcut.register(accelerator, () => {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
@@ -279,7 +281,7 @@ export class ShortcutService extends BaseService {
             this.clearRegistrationConflict(key)
           } else {
             logger.warn(
-              `Failed to register shortcut ${accelerator}: ${reason === 'wayland' ? 'global shortcuts may be unavailable in this Wayland session' : 'accelerator is held by another application'}`
+              `Failed to register shortcut ${accelerator}: ${reason === 'wayland-session' ? 'registration failed in a Wayland session; the specific cause is unavailable' : 'accelerator is held by another application'}`
             )
             this.markRegistrationConflict(key, accelerator, reason)
           }

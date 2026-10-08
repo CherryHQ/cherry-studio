@@ -56,6 +56,33 @@ export class SubWindowService extends BaseService {
 
   protected async onInit() {
     this.registerIpcHandlers()
+    this.registerZoomTracking()
+  }
+
+  /**
+   * electron#10572 workaround, mirroring MainWindowService.setupWindowEvents: a window's
+   * zoom can snap back to its webPreferences-cached value on resize. Attached via
+   * onWindowCreatedByType so pre-warmed pool standbys are covered too — attaching at the
+   * open() call site would miss them (destroy-on-close pool: each BrowserWindow instance
+   * is opened exactly once, so the listeners never accumulate).
+   */
+  private registerZoomTracking() {
+    const preferenceService = application.get('PreferenceService')
+    const wm = application.get('WindowManager')
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SubWindow, ({ window }) => {
+        const reapplyZoom = () => {
+          if (!window.isDestroyed()) {
+            window.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
+          }
+        }
+        window.on('will-resize', reapplyZoom)
+        window.on('restore', reapplyZoom)
+        if (isLinux) {
+          window.on('resize', reapplyZoom)
+        }
+      })
+    )
   }
 
   private registerIpcHandlers() {
@@ -152,6 +179,8 @@ export class SubWindowService extends BaseService {
     const { id: tabId, url, title, icon, type, isPinned, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
+    const preferenceService = application.get('PreferenceService')
+    const zoomFactor = preferenceService.get('app.zoom_factor')
 
     const initData: SubWindowInitData = {
       tabId,
@@ -165,12 +194,14 @@ export class SubWindowService extends BaseService {
     // Dynamic options injected per-call (registry carries platform-static defaults only).
     // Deliberately omit `backgroundColor` on macOS — an undefined value can still overwrite
     // the vibrancy-enabled default through the options merge path.
+    // zoomFactor mirrors MainWindowService: PreferenceService-dependent, so injected per-call.
     const options: Partial<WindowOptions> = {
       title: title || 'Cherry Studio Tab',
       darkTheme: dark,
       ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' }),
       ...(isLinux && { icon: linuxIcon }),
-      ...(hasPosition && { x, y })
+      ...(hasPosition && { x, y }),
+      webPreferences: { zoomFactor }
     }
 
     const windowId = wm.open(WindowType.SubWindow, { initData, options })
@@ -179,6 +210,11 @@ export class SubWindowService extends BaseService {
       logger.error('wm.open returned windowId but getWindow is undefined', { windowId, tabId })
       return windowId
     }
+
+    // open() may pop a pre-warmed standby whose webPreferences carry the Electron default
+    // zoom (1.0) — the value injected above only reaches freshly constructed windows.
+    // Re-apply so a detached tab never opens at 100% while app.zoom_factor is e.g. 130%.
+    win.webContents.setZoomFactor(zoomFactor)
 
     this.tabIdToWindowId.set(tabId, windowId)
 

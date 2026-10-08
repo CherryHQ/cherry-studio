@@ -4,7 +4,7 @@ import type { ShortcutBinding } from '@shared/utils/shortcut'
 /** Preference keys under the `shortcut.` namespace (one per command). */
 export type ShortcutPreferenceKey = Extract<PreferenceKeyType, `shortcut.${string}`>
 
-export type ShortcutRegistrationConflictReason = 'occupied' | 'wayland'
+export type ShortcutRegistrationConflictReason = 'occupied' | 'wayland-session'
 
 export type ShortcutRegistrationConflictPayload =
   | { key: ShortcutPreferenceKey; accelerator: string; hasConflict: true; reason: ShortcutRegistrationConflictReason }

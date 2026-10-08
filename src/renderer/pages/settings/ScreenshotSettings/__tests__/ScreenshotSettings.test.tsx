@@ -31,7 +31,7 @@ let conflictListener: ConflictListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
-  platform: { isMac: true }
+  platform: { isMac: true, isWin: false }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -42,7 +42,9 @@ vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platform.isMac
   },
-  isWin: false,
+  get isWin() {
+    return platform.isWin
+  },
   isLinux: false
 }))
 
@@ -102,6 +104,7 @@ describe('ScreenshotSettings', () => {
       enabled: true
     })
     platform.isMac = true
+    platform.isWin = false
 
     // The row subscribes on mount; tests that need a conflict call the captured listener.
     conflictListener = null
@@ -117,7 +120,8 @@ describe('ScreenshotSettings', () => {
     } as unknown as typeof window.api
   })
 
-  it('keeps the auto-OCR switch inoperable until the OCR model is ready', async () => {
+  it('requires the local OCR model on Linux before enabling auto OCR', async () => {
+    platform.isMac = false
     stubIpc()
     const { unmount } = render(<ScreenshotSettings />)
 
@@ -132,6 +136,18 @@ describe('ScreenshotSettings', () => {
 
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
     expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+  })
+
+  it.each(['macOS', 'Windows'])('enables auto OCR on %s without downloading Paddle', async (os) => {
+    platform.isMac = os === 'macOS'
+    platform.isWin = os === 'Windows'
+    stubIpc()
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    expect(screen.getByText('provider.system')).toBeInTheDocument()
+    expect(screen.queryByText('settings.screenshot.ocr.model.unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.screenshot.ocr.model.link')).not.toBeInTheDocument()
   })
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {
@@ -206,14 +222,14 @@ describe('ScreenshotSettings', () => {
         key: 'shortcut.screenshot.capture',
         accelerator: 'CommandOrControl+Shift+A',
         hasConflict: true,
-        reason: 'wayland'
+        reason: 'wayland-session'
       })
     )
-    expect(screen.getByLabelText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     act(() => conflictListener?.({ key: 'shortcut.screenshot.capture', hasConflict: false }))
-    expect(screen.queryByLabelText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
   })
 
   it('ignores a conflict reported for a different shortcut', async () => {
@@ -257,11 +273,11 @@ describe('ScreenshotSettings', () => {
   it('renders no permission section on macOS once the permission is already granted', async () => {
     publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
     stubIpc({ permission: 'authorized' })
-    render(<ScreenshotSettings />)
+    await act(async () => {
+      render(<ScreenshotSettings />)
+    })
 
-    // The OCR badge settles strictly after the permission status does, so an absent
-    // section here is a verdict on 'authorized' rather than on a status not yet read.
-    expect(await screen.findByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+    expect(await screen.findByText('provider.system')).toBeInTheDocument()
     expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
   })
 

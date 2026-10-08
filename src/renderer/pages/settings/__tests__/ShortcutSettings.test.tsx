@@ -149,13 +149,15 @@ const makeShortcut = ({
   binding = [],
   enabled = binding.length > 0,
   defaultPreference = { binding: [], enabled: false },
-  label = 'Search everywhere'
+  label = 'Search everywhere',
+  editable
 }: {
   command?: CommandId
   binding?: ShortcutBinding
   enabled?: boolean
   defaultPreference?: PreferenceShortcutType
   label?: string
+  editable?: boolean
 } = {}): ShortcutListItem => {
   const key = commandShortcutPreferenceKey(command)
 
@@ -168,7 +170,8 @@ const makeShortcut = ({
       command,
       scope: 'renderer',
       preferenceKey: key,
-      defaultBinding: ['CommandOrControl', 'Shift', 'F']
+      defaultBinding: ['CommandOrControl', 'Shift', 'F'],
+      editable
     },
     preference: {
       binding,
@@ -222,13 +225,18 @@ describe('ShortcutSettings shortcut recorder', () => {
     const notify = registrationConflictMock.mock.calls[0]?.[0]
 
     act(() =>
-      notify({ key: 'shortcut.app.search', accelerator: 'CommandOrControl+0', hasConflict: true, reason: 'wayland' })
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'wayland-session'
+      })
     )
-    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.queryByText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
-    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
   })
 
   it('retains inline warnings for every conflicting shortcut at once', () => {
@@ -248,7 +256,7 @@ describe('ShortcutSettings shortcut recorder', () => {
         key: 'shortcut.app.search',
         accelerator: 'CommandOrControl+0',
         hasConflict: true,
-        reason: 'wayland'
+        reason: 'wayland-session'
       })
       notify({
         key: 'shortcut.app.settings.open',
@@ -258,12 +266,12 @@ describe('ShortcutSettings shortcut recorder', () => {
       })
     })
 
-    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.getByText('settings.shortcuts.registration_failed_in_wayland_session')).toBeInTheDocument()
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
 
     act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
 
-    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.shortcuts.registration_failed_in_wayland_session')).not.toBeInTheDocument()
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
   })
 
@@ -477,6 +485,40 @@ describe('ShortcutSettings shortcut recorder', () => {
         'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
       })
     })
+  })
+
+  // Disabling a fixed command persists enabled:false, which for app.window.close
+  // drops the native close-role override and lets Command+W reclaim window close.
+  it('excludes non-editable commands from bulk toggling', async () => {
+    const user = userEvent.setup()
+    shortcutsMock.shortcuts = [
+      makeShortcut({
+        command: 'tab.next',
+        binding: ['Ctrl', 'Tab'],
+        enabled: true,
+        defaultPreference: { binding: ['Ctrl', 'Tab'], enabled: true }
+      }),
+      makeShortcut({
+        command: 'app.settings.open',
+        binding: ['CommandOrControl', ','],
+        enabled: true,
+        editable: false
+      })
+    ]
+
+    renderShortcutSettings()
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
+      })
+    })
+    expect(preferenceServiceSetMultipleMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ 'shortcut.app.settings.open': expect.anything() })
+    )
   })
 
   it('clears the search when switching shortcut categories', async () => {

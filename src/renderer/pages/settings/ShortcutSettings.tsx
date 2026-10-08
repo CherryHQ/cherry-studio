@@ -66,7 +66,7 @@ const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
 const keyCodeToAccelerator: Record<string, ShortcutToken> = {
   Backquote: '`',
   Period: '.',
-  NumpadEnter: 'Enter',
+  NumpadEnter: 'numenter',
   NumpadAdd: 'numadd',
   NumpadSubtract: 'numsub',
   Space: 'Space',
@@ -215,8 +215,8 @@ const ShortcutSettings: FC = () => {
       if (hasConflict) {
         toast.error(
           t(
-            reason === 'wayland'
-              ? 'settings.shortcuts.unavailable_on_wayland'
+            reason === 'wayland-session'
+              ? 'settings.shortcuts.registration_failed_in_wayland_session'
               : 'settings.shortcuts.occupied_by_other_application'
           )
         )
@@ -374,7 +374,9 @@ const ShortcutSettings: FC = () => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
-        if (!record.preference.binding.length) return acc
+        // Non-editable commands are fixed reservations (e.g. the native close
+        // role); toggling them off would silently revert their accelerator.
+        if (!record.preference.binding.length || record.keybinding.editable === false) return acc
         nextPreferencesByCommand[record.command] = {
           binding: record.preference.binding,
           enabled
@@ -423,8 +425,8 @@ const ShortcutSettings: FC = () => {
       conflictLabel ??
       (hasSystemConflict
         ? t(
-            systemConflictReason === 'wayland'
-              ? 'settings.shortcuts.unavailable_on_wayland'
+            systemConflictReason === 'wayland-session'
+              ? 'settings.shortcuts.registration_failed_in_wayland_session'
               : 'settings.shortcuts.occupied_by_other_application'
           )
         : null)
@@ -524,7 +526,7 @@ const ShortcutSettings: FC = () => {
       <Switch
         size="sm"
         checked={record.preference.enabled}
-        disabled={!record.preference.binding.length}
+        disabled={!record.preference.binding.length || record.keybinding.editable === false}
         onCheckedChange={() => {
           const nextPreference = {
             binding: record.preference.binding,

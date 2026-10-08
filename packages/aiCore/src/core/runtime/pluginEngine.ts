@@ -39,7 +39,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     private readonly providerId: T,
     plugins: AiPlugin[] = []
   ) {
-    this.basePlugins = plugins
+    this.basePlugins = [...plugins]
   }
 
   /**
@@ -82,6 +82,11 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     return [...this.basePlugins]
   }
 
+  private createManager<TParams = any, TResult = any>(requestPlugins: AiPlugin<any, any>[]) {
+    const plugins = [...this.basePlugins, ...requestPlugins] as AiPlugin<TParams, TResult>[]
+    return new PluginManager<TParams, TResult>(plugins)
+  }
+
   /**
    * Run the `transformParams` chain over settings that are supplied ONCE at
    * construction time instead of per request — the agent path (`createAgent` →
@@ -106,14 +111,15 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   /**
    * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
    * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
+   * `requestPlugins` join the stored chain for this call only and never persist.
    *
    * Note: This is a model-resolution-only path, not a full request lifecycle.
    * - `originalParams` in context will be `{}` since no request params exist at resolution time.
    * - `onError` hooks are NOT invoked on failure — callers should handle errors directly.
    */
-  async resolveModel(modelId: string): Promise<LanguageModelV3> {
+  async resolveModel(modelId: string, requestPlugins: AiPlugin<any, any>[] = []): Promise<LanguageModelV3> {
     const context = createContext(this.providerId, modelId, {})
-    const manager = new PluginManager(this.basePlugins)
+    const manager = this.createManager(requestPlugins)
 
     // 1. configureContext — collect middlewares
     await manager.executeConfigureContext(context)
@@ -150,7 +156,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     methodName: string,
     params: TParams,
     executor: (model: LanguageModel, transformedParams: TParams) => TResult,
-    _context?: AiRequestContext<TParams, TResult>
+    _context?: AiRequestContext<TParams, TResult>,
+    requestPlugins: AiPlugin<any, any>[] = []
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: LanguageModel | undefined
@@ -169,7 +176,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
+    const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -188,7 +195,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           methodName,
           { ...params, ...newParams },
           executor,
-          context
+          context,
+          requestPlugins
         )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复
@@ -256,7 +264,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     methodName: string,
     params: TParams,
     executor: (model: ImageModelV3, transformedParams: TParams) => TResult,
-    _context?: AiRequestContext<TParams, TResult>
+    _context?: AiRequestContext<TParams, TResult>,
+    requestPlugins: AiPlugin<any, any>[] = []
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: ImageModelV3 | undefined
@@ -275,7 +284,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
+    const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -294,7 +303,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           methodName,
           { ...params, ...newParams },
           executor,
-          context
+          context,
+          requestPlugins
         )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复
@@ -351,7 +361,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     methodName: string,
     params: TParams,
     executor: (model: LanguageModel, transformedParams: TParams, streamTransforms: any[]) => TResult,
-    _context?: AiRequestContext<TParams, TResult>
+    _context?: AiRequestContext<TParams, TResult>,
+    requestPlugins: AiPlugin<any, any>[] = []
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: LanguageModel | undefined
@@ -370,7 +381,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     const context = _context ?? createContext(this.providerId, model, params)
 
     // ✅ 创建类型化的 manager（逆变安全）
-    const manager = new PluginManager<TParams, TResult>(this.basePlugins as AiPlugin<TParams, TResult>[])
+    const manager = this.createManager<TParams, TResult>(requestPlugins)
 
     // ✅ 递归调用泛型化，增加深度限制
     context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
@@ -389,7 +400,8 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           methodName,
           { ...params, ...newParams },
           executor,
-          context
+          context,
+          requestPlugins
         )) as unknown as R
       } finally {
         // ✅ finally 确保状态恢复

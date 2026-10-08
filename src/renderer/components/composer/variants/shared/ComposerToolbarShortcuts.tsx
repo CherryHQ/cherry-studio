@@ -23,6 +23,8 @@ export interface ComposerToolbarCustomTool {
   label: string
   icon: ReactNode
   disabled?: boolean
+  /** When true, the pinned shortcut uses the same accent activation treatment as launcher tools. */
+  active?: boolean
   /** Places the tool first in the default customize-menu order while keeping it reorderable. */
   customizePlacement?: 'leading'
   /** Defaults to true for category shortcuts that need the unified panel. */
@@ -85,7 +87,8 @@ interface CustomizeOrderState {
 
 const CUSTOMIZE_ROW_CLASS = 'flex h-8 items-center gap-1.5 rounded-md px-1.5 hover:bg-accent/60'
 const CUSTOMIZE_ROW_ICON_CLASS =
-  'flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:!size-[16px]'
+  'flex size-5 shrink-0 items-center justify-center text-muted-foreground [&>svg]:!size-[16px]'
+const TOOLBAR_ICON_CLASS = 'flex size-[18px] shrink-0 items-center justify-center [&>svg]:!size-[18px]'
 
 const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((id, index) => id === right[index])
@@ -205,7 +208,7 @@ export const ComposerToolbarShortcuts = ({
         label: tool.label,
         icon: tool.icon,
         customizePlacement: tool.customizePlacement,
-        active: false,
+        active: Boolean(tool.active),
         disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
@@ -360,7 +363,9 @@ export const ComposerToolbarShortcuts = ({
                   disabled={!blockedByMissingModel && shortcut.disabled}
                   data-active={shortcut.active || undefined}
                   onClick={blockedByMissingModel ? showModelRequiredToast : shortcut.select}>
-                  {shortcut.icon}
+                  <span data-slot="composer-toolbar-icon" className={TOOLBAR_ICON_CLASS}>
+                    {shortcut.icon}
+                  </span>
                 </Button>
               </Tooltip>
             )

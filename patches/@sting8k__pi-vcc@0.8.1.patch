@@ -1,0 +1,33 @@
+diff --git a/index.ts b/index.ts
+index 93a0e02a1232c3912034ef34ddb6fdccfc28a6b3..7d6f640124e93e4c1ed855e58de1465a9808ea22 100644
+--- a/index.ts
++++ b/index.ts
+@@ -1,14 +1,11 @@
+ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+ import { scaffoldSettings } from "./src/core/settings";
+ import { registerBeforeCompactHook } from "./src/hooks/before-compact";
+-import { registerPiVccCommand } from "./src/commands/pi-vcc";
+-import { registerVccRecallCommand } from "./src/commands/vcc-recall";
+ import { registerRecallTool } from "./src/tools/recall";
+ 
+ export default (pi: ExtensionAPI) => {
+   scaffoldSettings();
+   registerBeforeCompactHook(pi);
+-  registerPiVccCommand(pi);
+-  registerVccRecallCommand(pi);
++  // Cherry owns turn completion; CLI commands bypass its compaction and message tracking.
+   registerRecallTool(pi);
+ };
+diff --git a/src/hooks/before-compact.ts b/src/hooks/before-compact.ts
+index f977b501af8bb01bcc94073208316d46bc977658..e221d56b4a22e154ef59c905fc886739cf34dd2a 100644
+--- a/src/hooks/before-compact.ts
++++ b/src/hooks/before-compact.ts
+@@ -550,6 +550,8 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI, piVersion: string =
+     // Always handle explicit /pi-vcc marker.
+     // Otherwise, only handle when user opted in via settings.
+     const { isPiVcc, keepUserTurns, keepUserTurnsExplicit, followUpPrompt } = parseCompactionInstructions(customInstructions);
++    // Native /compact instructions belong to Pi's LLM summarizer, not a follow-up turn.
++    if (!isPiVcc && customInstructions?.trim()) return;
+     pendingFollowUpPrompt = null;
+     if (!isPiVcc && !settings.overrideDefaultCompaction) return;
+     // Provider-level opt-out (#27): defer to the provider's own compaction

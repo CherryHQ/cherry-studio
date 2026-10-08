@@ -459,7 +459,7 @@ describe('ShortcutService', () => {
     )
   })
 
-  it('does not misclassify a failed Wayland registration as an occupied accelerator', async () => {
+  it('reports a generic Wayland-session failure without assigning a specific cause', async () => {
     platformState.isLinux = true
     vi.stubEnv('XDG_SESSION_TYPE', 'wayland')
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
@@ -477,7 +477,7 @@ describe('ShortcutService', () => {
         key: 'shortcut.app.window.show',
         accelerator: 'CommandOrControl+0',
         hasConflict: true,
-        reason: 'wayland'
+        reason: 'wayland-session'
       }
     )
   })

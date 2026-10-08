@@ -6,8 +6,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on
- * the FIRST `:` (v1 used `::`). See the breaking-changes entry
- * `2026-06-06-api-gateway-model-id-separator.md`.
+ * the FIRST `:` (v1 used `::`).
  */
 
 const {

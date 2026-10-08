@@ -5,15 +5,39 @@ import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-cl
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
+import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
+
+// Distinct name so the SDK retry classifier treats it as non-retriable.
+class ConsentRevokedError extends Error {
+  constructor() {
+    super('Analytics consent revoked')
+    this.name = 'ConsentRevokedError'
+  }
+}
+
+function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSignal {
+  if (!second) return first
+  const anySignals = (AbortSignal as typeof AbortSignal & { any?: (s: AbortSignal[]) => AbortSignal }).any
+  if (typeof anySignals === 'function') return anySignals.call(AbortSignal, [first, second])
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (first.aborted || second.aborted) abort()
+  else {
+    first.addEventListener('abort', abort, { once: true })
+    second.addEventListener('abort', abort, { once: true })
+  }
+  return controller.signal
+}
 
 @Injectable('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
@@ -39,9 +63,10 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   private refreshDesiredEnabled(): void {
     const preferenceService = application.get('PreferenceService')
-    this.desiredEnabled =
-      preferenceService.get('app.privacy.data_collection.enabled') &&
-      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    this.desiredEnabled = isDataCollectionConsented(
+      preferenceService.get('app.privacy.data_collection.enabled'),
+      preferenceService.get('app.privacy.policy_version')
+    )
     this.reconciler.request()
   }
 
@@ -68,9 +93,25 @@ export class AnalyticsService extends BaseService implements Activatable {
     const clientId = getClientId()
     const { AnalyticsClient } = await import('@cherrystudio/analytics-client')
 
+    const revokeController = new AbortController()
+    this.revokeController = revokeController
+    const revokedFetch: typeof fetch = async (input, init) => {
+      if (revokeController.signal.aborted) throw new ConsentRevokedError()
+      try {
+        return await globalThis.fetch(input, {
+          ...init,
+          signal: linkSignals(revokeController.signal, init?.signal)
+        } as RequestInit)
+      } catch (error) {
+        if (revokeController.signal.aborted) throw new ConsentRevokedError()
+        throw error
+      }
+    }
+
     this.client = new AnalyticsClient({
       clientId,
       channel: 'cherry-studio',
+      fetch: revokedFetch,
       onError: (error) => logger.error('Analytics error:', error),
       headers: {
         'User-Agent': generateUserAgent(),
@@ -94,9 +135,21 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   async onDeactivate(): Promise<void> {
     if (this.client) {
-      await this.client.destroy()
+      if (!this.desiredEnabled) {
+        this.revokeController?.abort()
+        try {
+          const pending = this.client.getQueueSize()
+          logger.info('Analytics queue discarded after consent revocation', { pending })
+        } catch {
+          logger.info('Analytics queue discarded after consent revocation')
+        }
+        await this.client.destroy({ flush: false })
+      } else {
+        await this.client.destroy()
+      }
       this.client = null
     }
+    this.revokeController = null
     logger.info('Analytics service deactivated')
   }
 
