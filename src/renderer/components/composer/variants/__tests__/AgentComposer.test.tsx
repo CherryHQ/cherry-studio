@@ -2014,11 +2014,16 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
-    const [saved = ''] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+    const [first] = MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history') ?? []
+    const saved = typeof first === 'string' ? first : (first?.text ?? '')
     expect(saved).not.toContain(knowledgeBaseOne.id)
     expect(saved).not.toContain(knowledgePrompt)
     expect(saved).toContain(pdfSkillToken.promptText)
     expect(saved).toContain('summarize')
+    // The skill chip rides with the entry so recall restores the attachment.
+    expect(typeof first === 'object' && first !== null ? first.skillTokens : []).toEqual([
+      expect.objectContaining({ id: pdfSkillToken.id, kind: 'skill' })
+    ])
   })
 
   it('resets input history navigation after a successful agent send, so a subsequent ArrowDown does not restore the recalled draft', async () => {
@@ -3133,7 +3138,8 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
-        filterText: 'pdf'
+        // Description folds into filterText so the root slash menu matches it too.
+        filterText: 'pdf Read and analyze PDFs'
       })
     )
     expect(skillItem?.suffix).toBeUndefined()
