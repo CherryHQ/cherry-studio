@@ -1007,7 +1007,7 @@ describe('splitMarkdownChunks', () => {
       ["> - [spec]: /url 'the long", "> 2. tail of title'"],
       ["> - [spec]: /url 'the long", "> 3. tail of title'"],
       ["> 1. [spec]: /url 'the long", "> 2) tail of title'"],
-      ["> - [spec]: /url 'the long", "> <a b=c>"]
+      ["> - [spec]: /url 'the long", '> <a b=c>']
     ]
     for (const [label, tail] of forms) {
       const content = [label, tail, '', 'see [spec]'].join('\n')
@@ -1022,8 +1022,8 @@ describe('splitMarkdownChunks', () => {
     // An underline cannot pair with a paragraph another container holds, and a line that starts
     // nothing continues the item's paragraph lazily, so the underline is title text.
     const forms = [
-      ["> - [spec]: /url 'the long", "> ==="],
-      ["> 1. [spec]: /url 'the long", "> ==="]
+      ["> - [spec]: /url 'the long", '> ==='],
+      ["> 1. [spec]: /url 'the long", '> ===']
     ]
     for (const [label, mid] of forms) {
       const content = [label, mid, "> tail of title'", '', 'see [spec]'].join('\n')
@@ -1038,14 +1038,14 @@ describe('splitMarkdownChunks', () => {
     // The tab expands to the item's content column, so the marker it precedes continues the quote
     // after all, and the underline behind it pairs with the title — a spaces-only reading of the
     // indent took the line for lazy prose the title swallowed.
-    const content = ['- > [spec]: /url \'the long', '\t> ===', '  > tail of title\'', '', 'see [spec]'].join('\n')
+    const content = ["- > [spec]: /url 'the long", '\t> ===', "  > tail of title'", '', 'see [spec]'].join('\n')
 
     const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
     // At the document level the same tab is four columns of indent, not a marker, and the line
     // stays the lazy prose the title takes in.
-    const quoted = ['> [spec]: /url \'the long', '\t> ===', '> tail of title\'', '', 'see [spec]'].join('\n')
+    const quoted = ["> [spec]: /url 'the long", '\t> ===', "> tail of title'", '', 'see [spec]'].join('\n')
     const quotedChunks = chunksOf(quoted, 1)
     expect(quotedChunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(
       quotedChunks.length
