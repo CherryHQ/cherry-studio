@@ -12,6 +12,8 @@ export type McpToolDisplayMetadata = {
   description?: string
 }
 
+export type ClaudeCodeSubagentImageSupport = Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
+
 export type {
   AgentMcpServerSpec,
   CanUseTool,

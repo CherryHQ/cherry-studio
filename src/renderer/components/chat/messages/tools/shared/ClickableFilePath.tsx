@@ -18,17 +18,25 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  preserveWrappingPunctuation?: boolean
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  preserveWrappingPunctuation = false
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
-  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(path), [path])
+  const displayPath = useMemo(
+    () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
+    [path, preserveWrappingPunctuation]
+  )
+  const unresolvedTargetPath = useMemo(
+    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+    [path, preserveWrappingPunctuation]
+  )
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
@@ -60,14 +68,16 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      await openFileTarget(targetPath, {
+      // Each action takes the unresolved path and resolves it itself — the pane and `isDirectory`
+      // against the workspace, `openPath` in main. `targetPath` is left for the menu and the toast.
+      await openFileTarget(unresolvedTargetPath, {
         openArtifactFile,
         openPath,
         isDirectory,
         onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
       })
     },
-    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath, unresolvedTargetPath]
   )
 
   const handleKeyDown = useCallback(
@@ -88,7 +98,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           tabIndex={canOpen ? 0 : undefined}
           onClick={canOpen ? handleOpen : undefined}
           onKeyDown={canOpen ? handleKeyDown : undefined}
-          className={`inline-flex items-center gap-1 break-all ${
+          className={`inline-flex items-center gap-1 break-all [table_&]:break-normal ${
             canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
           }`}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />

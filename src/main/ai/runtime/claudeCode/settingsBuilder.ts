@@ -81,7 +81,7 @@ import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
-import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
+import type { ClaudeCodeSettings, ClaudeCodeSubagentImageSupport, McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 
@@ -92,6 +92,10 @@ const sessionState = () => application.get('ClaudeCodeSessionStateService')
 
 const OUT_OF_TURN_APPROVAL_DENIAL =
   'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
+
+// Claude has no cleanup-off value while transcript persistence remains enabled.
+// Cherry owns transcript retention through Agent Session purge and orphan reconciliation.
+const CLAUDE_SESSION_RETENTION_DAYS = 365_000
 
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function disposeToolPolicySnapshot(sessionId: string): void {
@@ -115,7 +119,7 @@ export interface ClaudeCodeSessionOptions {
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
   /** Image support for Claude's built-in subagent model aliases. */
-  subagentImageSupport?: Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
+  subagentImageSupport?: ClaudeCodeSubagentImageSupport
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
@@ -173,7 +177,10 @@ export async function buildClaudeCodeSessionSettings(
   const notificationContext =
     options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
-  const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
+  const mountedServers = resolveMountedMcpServers(agent, {
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    channelLinked: linkedChannelSnapshot !== null
+  })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
@@ -278,7 +285,11 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+  // Newer models omit task tracking from the SDK's default tool surface.
+  const finalAllowedTools = [
+    ...['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList'].filter((name) => !disallowedTools.includes(name)),
+    ...adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+  ]
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -311,6 +322,10 @@ export async function buildClaudeCodeSessionSettings(
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
+  // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
+  // every other value (including an unreadable preference), so nothing changes unless asked.
+  const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
+
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
@@ -322,12 +337,16 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
+      cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
       // Disable Claude Code's separate auto-memory store so the preset does not introduce a
       // second, conflicting memory contract.
       autoMemoryEnabled: false,
       ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
-      fastMode: options?.fastMode === true
+      fastMode: options?.fastMode === true,
+      // Left unset while attribution is on: the runtime then signs with its own default text,
+      // and an explicit `attribution` in the user's own Claude Code settings file still wins.
+      ...(hideCommitAttribution ? { attribution: { commit: '', pr: '' } } : {})
     },
     includePartialMessages: true,
     agentProgressSummaries: true,
@@ -391,17 +410,38 @@ export async function buildSkillWhitelist(
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
-  if (resolveAgentCapabilities(agent).environment === 'sealed') {
-    return bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
+  let names = bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
+  if (resolveAgentCapabilities(agent).environment !== 'sealed') {
+    const [installedSkills, workspaceNames] = await Promise.all([
+      skillService.list({ agentId: agent.id }),
+      skillService.listLocalFolderNames(cwd)
+    ])
+    const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+    names = [...enabledNames, ...workspaceNames, ...bundledNames]
   }
 
-  const [installedSkills, workspaceNames] = await Promise.all([
-    skillService.list({ agentId: agent.id }),
-    skillService.listLocalFolderNames(cwd)
-  ])
-  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-
-  return Array.from(new Set([...enabledNames, ...workspaceNames, ...bundledNames]))
+  // The SDK validates the entire list before spawning; never rewrite a name into a different skill.
+  return [...new Set(names)].filter((name) => {
+    const valid =
+      name.length > 0 &&
+      name === name.trim() &&
+      name.isWellFormed() &&
+      !/[(),\p{Cc}]/u.test(name) &&
+      name !== '*' &&
+      !name.endsWith(':*') &&
+      !name.endsWith(' *') &&
+      !name.startsWith('/') &&
+      !name.includes('\\\\') &&
+      !name.endsWith('\\')
+    if (!valid) {
+      logger.warn('Skipping SDK-incompatible skill name; rename its directory to enable it', {
+        agentId: agent.id,
+        cwd,
+        skillName: name
+      })
+    }
+    return valid
+  })
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
@@ -434,7 +474,7 @@ async function buildToolPermissions(
   agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
   supportsImages: boolean,
-  subagentImageSupport?: Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
+  subagentImageSupport?: ClaudeCodeSubagentImageSupport
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -498,7 +538,11 @@ async function buildToolPermissions(
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
-    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
+    if (
+      toolName !== ASK_USER_QUESTION_TOOL_NAME &&
+      !approvalHoldsInThisMode &&
+      (policy?.approval === 'auto' || access?.approval === 'auto')
+    ) {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -623,11 +667,15 @@ export async function buildSystemPrompt(
     effectiveLanguage
   })
 
-  // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.
+  // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.
   if (prompt.base.kind === 'native') {
-    return { type: 'preset', preset: 'claude_code', append: prompt.append }
+    return { type: 'preset', preset: 'claude_code', append: prompt.append, snapshot: false }
   }
-  return prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append
+  return {
+    type: 'custom',
+    prompt: prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append,
+    snapshot: false
+  }
 }
 
 /**

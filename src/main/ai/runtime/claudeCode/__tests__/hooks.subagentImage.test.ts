@@ -26,6 +26,7 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
 }))
 
 import { buildClaudeCodeHooks } from '../hooks'
+import type { ClaudeCodeSubagentImageSupport } from '../types'
 
 const SESSION_ID = 'subagent-image-session'
 const AGENT_TYPES = {
@@ -37,7 +38,7 @@ type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions'
 
 function makeHooks(
   supportsImages: boolean,
-  subagentImageSupport: Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
+  subagentImageSupport: ClaudeCodeSubagentImageSupport
 ): {
   preToolUse: HookCallback
   subagentStart: HookCallback
@@ -165,7 +166,7 @@ describe('Claude Code subagent image capability hooks', () => {
     })
   })
 
-  it('preserves an untyped launch while binding a typed sibling', async () => {
+  it('binds concurrent launches by FIFO when requested and started agent types differ', async () => {
     const hooks = makeHooks(true, { opus: true, sonnet: false, haiku: true })
 
     await hooks.preToolUse(
@@ -178,17 +179,21 @@ describe('Claude Code subagent image capability hooks', () => {
       { signal: new AbortController().signal }
     )
     await hooks.preToolUse(
-      { hook_event_name: 'PreToolUse', tool_name: 'Task', tool_input: { model: 'sonnet' } } as never,
-      'untyped-launch',
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Task',
+        tool_input: { model: 'sonnet', subagent_type: AGENT_TYPES.text }
+      } as never,
+      'text-launch',
       { signal: new AbortController().signal }
     )
     await hooks.subagentStart(
-      { hook_event_name: 'SubagentStart', agent_id: 'agent-vision', agent_type: AGENT_TYPES.vision } as never,
+      { hook_event_name: 'SubagentStart', agent_id: 'agent-vision', agent_type: 'general-purpose' } as never,
       undefined,
       { signal: new AbortController().signal }
     )
     await hooks.subagentStart(
-      { hook_event_name: 'SubagentStart', agent_id: 'agent-text', agent_type: AGENT_TYPES.text } as never,
+      { hook_event_name: 'SubagentStart', agent_id: 'agent-text', agent_type: 'Explore' } as never,
       undefined,
       { signal: new AbortController().signal }
     )
@@ -239,7 +244,7 @@ describe('Claude Code subagent image capability hooks', () => {
       }
     }
   ] as const)(
-    'forgets a queued vision capability after $label so a later same-type child cannot steal it',
+    'forgets a queued vision capability after $label so the next child cannot steal it',
     async ({ event }) => {
       const hooks = makeHooks(false, { opus: true, sonnet: false, haiku: false })
 
@@ -257,7 +262,7 @@ describe('Claude Code subagent image capability hooks', () => {
         signal: new AbortController().signal
       })
 
-      await launchSubagent(hooks, 'sonnet', AGENT_TYPES.vision, 'agent-later')
+      await launchSubagent(hooks, 'sonnet', AGENT_TYPES.text, 'agent-later')
 
       await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-later')).resolves.toMatchObject({
         hookSpecificOutput: expect.objectContaining({

@@ -26,7 +26,10 @@ const electronMocks = vi.hoisted(() => ({
   }
 }))
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+
 vi.mock('electron', () => electronMocks)
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -70,6 +73,7 @@ describe('FileManager (integration)', () => {
     BaseService.resetInstances()
     danglingCache.clear()
     hasPendingRestoreMock.mockReturnValue(false)
+    notifyDataApiDataChangeMock.mockClear()
     const jobManager = application.get('JobManager')
     vi.mocked(jobManager.registerHandler).mockReset()
     vi.mocked(jobManager.enqueue)
@@ -347,8 +351,30 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
+    await writeFile(path.join(internalRoot, `${id}.pdf`), 'doc')
+
     await fm.open(id)
     expect(electronMocks.shell.openPath).toHaveBeenCalledWith(path.join(internalRoot, `${id}.pdf`))
+  })
+
+  it('INT-3h: open refuses an entry whose file is gone instead of handing it to the OS', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff38' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'ghost',
+      ext: 'png',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    // On Linux an unresolvable path kills the child Electron forks inside `shell.openPath`.
+    await expect(fm.open(id)).rejects.toMatchObject({ code: fileErrorCodes.OPEN_TARGET_UNAVAILABLE })
+    expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
   })
 
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
@@ -369,30 +395,85 @@ describe('FileManager (integration)', () => {
     const read = await fm.read(created.id, { encoding: 'binary' })
     expect(Array.from(read.content)).toEqual([0xaa, 0xbb, 0xcc])
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.trash(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     const trashed = await fm.getById(created.id)
     if (trashed.origin === 'internal') {
       expect(typeof trashed.deletedAt).toBe('number')
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     const restored = await fm.restore(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     if (restored.origin === 'internal') {
       expect(restored.deletedAt).toBeUndefined()
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.permanentDelete(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
   })
 
-  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
+  it('publishes batch lifecycle changes only for successful entries', async () => {
+    const first = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'first',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const second = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x02]),
+      name: 'second',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const missing = '019606a0-0000-7000-8000-00000000ffff' as FileEntryId
+    const ids = [first.id, missing, second.id]
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchRestore(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    await fm.batchTrash([first.id, second.id])
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchPermanentDeleteFromTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+  })
+
+  it('INT-5: trash on external entry is rejected without mutating the row', async () => {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
     const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await expect(fm.trash(e.id)).rejects.toThrow()
-    // External BO has no `deletedAt` field by construction; if the trash
-    // attempt had slipped through, the DB CHECK fe_external_no_delete would
-    // have rejected it, so reading the row back must still surface as
-    // origin='external' with no deletedAt projection.
+    // External BOs have no `deletedAt` field, so the rejected trash attempt
+    // must leave the origin and projection unchanged.
     const refreshed = await fm.getById(e.id)
     expect(refreshed.origin).toBe('external')
     expect(refreshed).not.toHaveProperty('deletedAt')
@@ -404,6 +485,17 @@ describe('FileManager (integration)', () => {
     const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await fm.permanentDelete(e.id)
     await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
+    const { readFile } = await import('node:fs/promises')
+    expect(await readFile(file, 'utf-8')).toBe('preserve me')
+  })
+
+  it('INT-6a: batchRemoveFromLibrary removes the row and leaves the user file untouched', async () => {
+    const file = path.join(tmp, 'library-remove-keep.txt')
+    await writeFile(file, 'preserve me')
+    const entry = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
+
+    expect(await fm.batchRemoveFromLibrary([entry.id])).toEqual({ succeeded: [entry.id], failed: [] })
+    await expect(fm.getById(entry.id)).rejects.toThrow(/not found/i)
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(file, 'utf-8')).toBe('preserve me')
   })

@@ -22,6 +22,11 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass
+} from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -44,11 +49,6 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders, getProviderAppHeaders } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
-import {
-  createAgentProxyEnvironmentFingerprint,
-  isAgentProxyEnvironmentKey,
-  mergeAgentLoopbackProxyBypass
-} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -58,13 +58,15 @@ import {
   getClaudeCodeLoginShellEnvironment,
   type McpServerSnapshotMap
 } from './settingsBuilder'
-import type { ClaudeCodeSettings } from './types'
+import type { ClaudeCodeSettings, ClaudeCodeSubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
 
-type SubagentImageSupport = Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
-
-function resolveSubagentImageSupport(primaryModel: Model, planModel?: Model, smallModel?: Model): SubagentImageSupport {
+function resolveSubagentImageSupport(
+  primaryModel: Model,
+  planModel?: Model,
+  smallModel?: Model
+): ClaudeCodeSubagentImageSupport {
   const primary = Array.isArray(primaryModel.capabilities) && isVisionModel(primaryModel)
   const configured = (model: Model | undefined): boolean => {
     if (!model || !Array.isArray(model.capabilities)) return primary
@@ -105,7 +107,7 @@ interface ClaudeCodeRouteFacts {
     haiku: string
   }
   /** Image support for each SDK model alias, after route pinning has selected the effective refs. */
-  subagentImageSupport: SubagentImageSupport
+  subagentImageSupport: ClaudeCodeSubagentImageSupport
   /**
    * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
    * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
@@ -416,6 +418,7 @@ async function deriveConnectionConfigFromSnapshot(
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -450,7 +453,7 @@ async function deriveConnectionConfigFromSnapshot(
   }
 }
 
-/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+/** Server definitions and connected metadata; never starts client connections. */
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
@@ -459,6 +462,7 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       mcpId,
       id: server.id,
       name: server.name,
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(server.id) ?? null,
       type: server.type,
       command: server.command ?? null,
       args: server.args ?? null,
@@ -831,8 +835,16 @@ async function resolveClaudeCodeRuntimeRoute(
     }
     case 'direct': {
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      // Keyless local servers (registry authOptional) carry no credential; the
+      // SDK still needs a non-empty token. Ollama-endpoint custom providers
+      // keep their established stand-in.
       const runtimeApiKey =
-        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+        resolvedApiKey.value ||
+        (primaryProvider.authOptional === true
+          ? (primaryProvider.presetProviderId ?? primaryProvider.id)
+          : isOllamaProvider(primaryProvider)
+            ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+            : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,

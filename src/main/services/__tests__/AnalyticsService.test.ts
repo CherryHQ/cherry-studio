@@ -9,31 +9,44 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
  * still be honoured.
  */
 
-const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy, MockAnalyticsClient, captured } =
-  vi.hoisted(() => {
-    const trackAppLaunch = vi.fn()
-    const trackTokenUsage = vi.fn()
-    const trackAppUpdate = vi.fn()
-    const destroy = vi.fn()
-    return {
-      mockTrackAppLaunch: trackAppLaunch,
-      mockTrackTokenUsage: trackTokenUsage,
-      mockTrackAppUpdate: trackAppUpdate,
-      mockDestroy: destroy,
-      MockAnalyticsClient: vi.fn(function AnalyticsClientMock() {
-        return {
-          trackAppLaunch,
-          trackTokenUsage,
-          trackAppUpdate,
-          destroy
-        }
-      }),
-      captured: {
-        prefHandlers: {},
-        preferenceValues: {}
+const {
+  mockTrackAppLaunch,
+  mockTrackTokenUsage,
+  mockTrackAppUpdate,
+  mockDestroy,
+  mockGetQueueSize,
+  MockAnalyticsClient,
+  captured
+} = vi.hoisted(() => {
+  const trackAppLaunch = vi.fn()
+  const trackTokenUsage = vi.fn()
+  const trackAppUpdate = vi.fn()
+  const destroy = vi.fn()
+  const getQueueSize = vi.fn(() => 0)
+  const clientOptions: { fetch?: typeof fetch } = {}
+  return {
+    mockTrackAppLaunch: trackAppLaunch,
+    mockTrackTokenUsage: trackTokenUsage,
+    mockTrackAppUpdate: trackAppUpdate,
+    mockDestroy: destroy,
+    mockGetQueueSize: getQueueSize,
+    MockAnalyticsClient: vi.fn(function AnalyticsClientMock(options: { fetch?: typeof fetch }) {
+      clientOptions.fetch = options?.fetch
+      return {
+        trackAppLaunch,
+        trackTokenUsage,
+        trackAppUpdate,
+        destroy,
+        getQueueSize
       }
+    }),
+    captured: {
+      prefHandlers: {},
+      preferenceValues: {},
+      clientOptions
     }
-  })
+  }
+})
 
 vi.mock('@cherrystudio/analytics-client', () => ({
   AnalyticsClient: MockAnalyticsClient
@@ -78,6 +91,9 @@ beforeEach(() => {
   mockTrackTokenUsage.mockReset()
   mockTrackAppUpdate.mockReset()
   mockDestroy.mockReset()
+  mockGetQueueSize.mockReset()
+  mockGetQueueSize.mockReturnValue(0)
+  delete captured.clientOptions.fetch
   MockAnalyticsClient.mockClear()
   mockDestroy.mockImplementation(() => new Promise<void>((resolve) => destroyResolvers.push(resolve)))
 })
@@ -127,6 +143,7 @@ describe('AnalyticsService data collection preference', () => {
     expect(mockTrackTokenUsage).not.toHaveBeenCalled()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
 
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
@@ -159,12 +176,126 @@ describe('AnalyticsService data collection preference', () => {
 
     changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
 
     changePreference('app.privacy.data_collection.enabled', true)
     await vi.waitFor(() => expect(MockAnalyticsClient).toHaveBeenCalledTimes(2))
     expect(mockTrackAppLaunch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AnalyticsService consent revocation', () => {
+  function isNonRetriable(error: unknown): boolean {
+    if (!(error instanceof Error)) return false
+    if (error.name === 'AbortError') return false
+    if (error.name === 'TypeError' && error.message.includes('fetch')) return false
+    return !['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN'].some((code) =>
+      error.message.includes(code)
+    )
+  }
+
+  it('discards the pending queue without flushing on revoke', async () => {
+    mockGetQueueSize.mockReturnValue(3)
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+    expect(injectedFetch).toBeDefined()
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+
+    expect(mockGetQueueSize).toHaveBeenCalled()
+    await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).rejects.toSatisfy(isNonRetriable)
+  })
+
+  it('still aborts and deactivates when reading the queue size throws', async () => {
+    mockGetQueueSize.mockImplementation(() => {
+      throw new Error('queue unavailable')
+    })
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+    expect(injectedFetch).toBeDefined()
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+
+    await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).rejects.toSatisfy(isNonRetriable)
+  })
+
+  it('aborts in-flight requests on revoke with a non-retriable error', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+    expect(injectedFetch).toBeDefined()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_input: unknown, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+              once: true
+            })
+          })
+      )
+    )
+    const inFlight = injectedFetch!('https://analytics.cherry-ai.com/api/events')
+    const assertion = expect(inFlight).rejects.toSatisfy(isNonRetriable)
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    destroyResolvers[0]()
+    await assertion
+    vi.unstubAllGlobals()
+  })
+
+  it('treats privacy policy invalidation the same as switching collection off', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+
+    changePreference('app.privacy.policy_version', '20200101')
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith({ flush: false })
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+
+    await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).rejects.toSatisfy(isNonRetriable)
+  })
+
+  it('preserves flush behavior on normal stop with consent still valid', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const injectedFetch = captured.clientOptions.fetch
+    expect(injectedFetch).toBeDefined()
+
+    const response = new Response('{}', { status: 200 })
+    const baseFetch = vi.fn(async () => response)
+    vi.stubGlobal('fetch', baseFetch)
+    await expect(injectedFetch!('https://analytics.cherry-ai.com/api/events')).resolves.toBe(response)
+    expect(baseFetch).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+
+    const stopPromise = service._doStop()
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(mockDestroy).toHaveBeenCalledWith()
+    destroyResolvers[0]?.()
+    await stopPromise
+    expect(mockGetQueueSize).not.toHaveBeenCalled()
   })
 })
 

@@ -27,7 +27,7 @@ import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
-import type { ClaudeCodeSettings } from './types'
+import type { ClaudeCodeSettings, ClaudeCodeSubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
@@ -75,14 +75,14 @@ export interface ClaudeCodeHookContext {
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
   /** Image support for Claude's built-in subagent model aliases. */
-  subagentImageSupport?: Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
+  subagentImageSupport?: ClaudeCodeSubagentImageSupport
   agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
   type PendingSubagentImageEntry = { toolUseId: string; support: boolean }
-  const pendingSubagentImageSupport = new Map<string, PendingSubagentImageEntry[]>()
+  const pendingSubagentImageSupport: PendingSubagentImageEntry[] = []
   const activeSubagentImageSupport = new Map<string, boolean>()
 
   const extractSubagentType = (input: Record<string, unknown> | undefined): string =>
@@ -105,21 +105,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const rememberSubagentLaunch = (toolUseId: string | undefined, input: Record<string, unknown> | undefined): void => {
     const modelSupport = resolveSubagentImageSupport(input)
-    const agentType = extractSubagentType(input)
-    const queue = pendingSubagentImageSupport.get(agentType) ?? []
-    queue.push({ toolUseId: toolUseId ?? '', support: modelSupport })
-    pendingSubagentImageSupport.set(agentType, queue)
+    pendingSubagentImageSupport.push({ toolUseId: toolUseId ?? '', support: modelSupport })
   }
 
-  const forgetSubagentLaunch = (toolUseId: string | undefined, input: Record<string, unknown> | undefined): void => {
-    const agentType = extractSubagentType(input)
-    const queueKey = pendingSubagentImageSupport.has(agentType) ? agentType : ''
-    const queue = pendingSubagentImageSupport.get(queueKey)
-    if (!queue?.length) return
-    const idx = toolUseId ? queue.findIndex((entry) => entry.toolUseId === toolUseId) : 0
+  const forgetSubagentLaunch = (toolUseId: string | undefined): void => {
+    const idx = toolUseId ? pendingSubagentImageSupport.findIndex((entry) => entry.toolUseId === toolUseId) : 0
     if (idx < 0) return
-    queue.splice(idx, 1)
-    if (queue.length === 0) pendingSubagentImageSupport.delete(queueKey)
+    pendingSubagentImageSupport.splice(idx, 1)
   }
 
   const forgetPendingSubagentLaunchIfNeeded = (
@@ -132,16 +124,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!(typeof input?.subagent_type === 'string' || typeof input?.agent_type === 'string' || input?.model)) {
       return
     }
-    forgetSubagentLaunch(toolUseId, input)
+    forgetSubagentLaunch(toolUseId)
   }
 
-  const bindSubagent = (agentId: string, agentType: string): void => {
-    const queueKey = pendingSubagentImageSupport.has(agentType) ? agentType : ''
-    const queue = pendingSubagentImageSupport.get(queueKey)
-    const entry = queue?.shift()
-    if (queue?.length === 0) {
-      pendingSubagentImageSupport.delete(queueKey)
-    }
+  // The SDK provides no launch id on SubagentStart and does not guarantee that its agent_type
+  // matches the requested subagent_type. Launch and start event order is the only correlation.
+  const bindSubagent = (agentId: string): void => {
+    const entry = pendingSubagentImageSupport.shift()
     if (entry !== undefined) activeSubagentImageSupport.set(agentId, entry.support)
   }
 
@@ -306,12 +295,12 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
-    bindSubagent(input.agent_id, input.agent_type)
+    bindSubagent(input.agent_id)
     return {}
   }
 
   // Drop queued capability when the launch never reaches SubagentStart (permission deny/cancel or
-  // tool failure); otherwise a later same-type child can consume the stale entry.
+  // tool failure); otherwise the next child can consume the stale entry.
   const subagentLaunchCleanupHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
     if (!input) return {}
     if (input.hook_event_name === 'PermissionDenied') {

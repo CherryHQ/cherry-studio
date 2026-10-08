@@ -126,9 +126,9 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   /** RFC 7396 merge patch; null removes a stored setting. */
   providerSettings: ProviderSettingsMergePatchSchema.optional(),
   /**
-   * Whether this provider is enabled. A persisted false-to-true transition also
-   * moves the provider to the first position atomically; redundant true updates
-   * preserve the existing order.
+   * Whether this provider is enabled. Enabling or disabling an existing
+   * provider preserves its current order; only creation inserts first.
+   * Explicit order endpoints remain the ordering mechanism.
    */
   isEnabled: z.boolean().optional()
   // Logo edits (preset key / image upload / clear) go through the
@@ -212,18 +212,6 @@ export type ProviderSchemas = {
     POST: {
       body: CreateProviderDto
       response: Provider
-    }
-  }
-
-  /**
-   * IDs of persisted providers hidden from the current edition by registry policy.
-   * Lets the settings UI explain intentionally-unavailable providers (#20405).
-   * @example GET /providers/edition-hidden
-   */
-  '/providers/edition-hidden': {
-    /** List edition-hidden provider IDs */
-    GET: {
-      response: string[]
     }
   }
 

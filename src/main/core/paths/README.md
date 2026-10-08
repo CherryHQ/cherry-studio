@@ -22,7 +22,7 @@ application.getPath('invalid.key')
 
 | File | Role |
 |------|------|
-| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
+| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) and dev-profile isolation — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
 **No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
@@ -31,7 +31,7 @@ application.getPath('invalid.key')
 
 | Namespace | Ownership | Examples |
 |-----------|-----------|----------|
-| `cherry.*` | Generic infra under `~/.cherrystudio` | `cherry.home`, `cherry.bin` |
+| `cherry.*` | Generic infra under `{cherryHome}` (`~/.cherrystudio` by default) | `cherry.home`, `cherry.bin` |
 | `sys.*` | OS-managed directories | `sys.home`, `sys.temp`, `sys.downloads` |
 | `app.*` | Electron app: install dir, userData, database, logs, temp root | `app.userdata`, `app.database.file` |
 | `feature.*` | Cherry-owned feature data (grouped by feature) | `feature.files.data`, `feature.mcp.oauth` |
@@ -87,7 +87,7 @@ Type-checked via `satisfies` — typos and stale references fail at compile time
 
 | Key | Physical location | Note |
 |-----|-------------------|------|
-| `feature.mcp.oauth` | `~/.cherrystudio/config/mcp/oauth` | Under `config/`, not `mcp/` |
+| `feature.mcp.oauth` | `{cherryHome}/config/mcp/oauth` | Under `config/`, not `mcp/` |
 | `feature.agents.skills.install.temp` | `{app.temp}/skill-install` | Sibling `feature.agents.skills` lives at `{userData}/Data/Skills` |
 | `feature.pdf_translation.babeldoc` | `{userData}/Runtime/models/babeldoc` | Grouped with the other downloaded model caches, not under a `pdf_translation/` dir |
 
@@ -148,6 +148,7 @@ No object literals besides the registry itself — the ESLint rule validates eve
   user's home instead of aborting startup
 - Calling `application.getPath()` before `initPathRegistry()` throws
 - `LoggerService` and `BootConfigService` bypass the registry — they read from `paths/constants.ts` directly (they run before the registry exists)
+- Unpackaged runs can set `CS_DEV_PROFILE_ROOT` to keep Cherry home, BootConfig, legacy config discovery, Electron `userData`, and logs below one absolute non-root directory
 
 ## Testing
 
