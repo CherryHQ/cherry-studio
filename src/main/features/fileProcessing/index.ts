@@ -1,4 +1,8 @@
 export { FileProcessingService } from './FileProcessingService'
+export type { MediaExtractAudioRequest, MediaExtractFramesRequest, MediaProbeRequest } from './media/MediaFfmpegService'
+export { MediaFfmpegService } from './media/MediaFfmpegService'
+export type { MediaExtractAudioResult, MediaExtractFramesResult } from './media/mediaFfmpegProcess'
+export type { ClassifiedMediaProbe } from './media/probeClassification'
 export { getFileProcessingFailureMessage, getFileProcessingMarkdownArtifactPath } from './persistence/artifacts'
 export { TesseractRuntimeService } from './processors/tesseract/runtime/TesseractRuntimeService'
 export type { FileProcessingJobPayload } from './tasks/shared'
