@@ -25,6 +25,8 @@ import {
 } from './skillArchive'
 import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 
+const MAX_MARKETPLACE_JSON_BYTES = 16 * 1024 * 1024
+
 async function readMarketplace<T>(url: string, read: (response: Response) => Promise<T>, timeout = 15_000): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -35,6 +37,26 @@ async function readMarketplace<T>(url: string, read: (response: Response) => Pro
   } finally {
     clearTimeout(timer)
     controller.abort()
+  }
+}
+
+async function readMarketplaceJson(response: Response): Promise<unknown> {
+  if (!response.body) throw new Error('Empty CherryIN response')
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_MARKETPLACE_JSON_BYTES) throw new Error('CherryIN response exceeds the size limit')
+      chunks.push(value)
+    }
+    return JSON.parse(new TextDecoder().decode(Buffer.concat(chunks, size)))
+  } finally {
+    // readMarketplace aborts the request on every exit, including an oversized body.
+    reader.releaseLock()
   }
 }
 
@@ -52,14 +74,16 @@ export async function listMarketplaceSkills(input: { offset: number; limit: numb
   url.searchParams.set('limit', String(input.limit))
   url.searchParams.set('offset', String(input.offset))
   url.searchParams.set('sort', 'popular')
-  const page = await readMarketplace(url.href, async (response) => CherrySkillPageSchema.parse(await response.json()))
+  const page = await readMarketplace(url.href, async (response) =>
+    CherrySkillPageSchema.parse(await readMarketplaceJson(response))
+  )
   return { items: page.items.map(summarizeSkill), pagination: page.pagination }
 }
 
 export async function getMarketplaceSkill(id: string, readMembers = false): Promise<MarketplaceSkillDetail> {
   const skill = await readMarketplace(
     `${CHERRY_SKILL_MARKETPLACE_URL}/api/skills/${encodeURIComponent(id)}`,
-    async (response) => CherrySkillDetailSchema.parse(await response.json())
+    async (response) => CherrySkillDetailSchema.parse(await readMarketplaceJson(response))
   )
   if (skill.id !== id) throw new Error('CherryIN skill is unavailable')
   const detail = { ...summarizeSkill(skill), longDescription: skill.longDescription }
