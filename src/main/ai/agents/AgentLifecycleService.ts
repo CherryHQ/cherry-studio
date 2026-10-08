@@ -78,12 +78,17 @@ export class AgentLifecycleService extends BaseService {
   restoreAgent(agentId: string) {
     return this.runOperation('restore-agent:' + agentId, () =>
       this.agentLocks.runExclusive(agentId, () => {
-        const { agent, scheduleIds } = application.get('DbService').withWriteTx((tx) => ({
-          agent: agentService.restoreAgentTx(tx, agentId),
-          scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
-        }))
+        const { agent, scheduleIds, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
+          const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+          return {
+            agent,
+            restoredSessionIds,
+            scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+          }
+        })
         this.syncSchedules(scheduleIds)
         application.get('ChannelManager').reconcileAgent(agentId)
+        agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
         agentService.notifyReadModelChange([agentId], 'membership')
         return agent
       })

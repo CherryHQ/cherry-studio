@@ -646,8 +646,16 @@ function AgentBasicFields({
         form={form}
         name="modelId"
         includeAgentOnlyModels
-        label={t('library.config.agent.field.model.label')}
-        help={t('library.config.agent.field.model.hint')}
+        label={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.label.claude_code'
+            : 'library.config.agent.field.model.label'
+        )}
+        help={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.hint.claude_code'
+            : 'library.config.agent.field.model.hint'
+        )}
         filter={modelFilter}
         isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}

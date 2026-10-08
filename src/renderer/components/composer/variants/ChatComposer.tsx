@@ -25,6 +25,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
@@ -119,15 +120,11 @@ const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
-const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
-  {
-    id: ComposerPanelSymbol.McpStatus,
-    label: 'MCP',
-    icon: <McpLogo width={18} height={18} aria-hidden />,
-    onSelect: ({ unifiedPanelControl }) =>
-      unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
-  }
-]
+const openChatMcpStatusPanel = ({
+  unifiedPanelControl
+}: {
+  unifiedPanelControl?: Parameters<ComposerToolbarCustomTool['onSelect']>[0]['unifiedPanelControl']
+}) => unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
 
 export type ChatComposerResolvedContext = Pick<
   ReturnType<typeof useAssistant>,
@@ -1314,6 +1311,7 @@ const ChatComposerInner = ({
 
     return items
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Chat, assistant })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
       ...(hasNewTopicAction
@@ -1343,9 +1341,24 @@ const ChatComposerInner = ({
             }
           ]
         : []),
-      ...CHAT_TOOLBAR_CUSTOM_TOOLS
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <McpLogo width={18} height={18} aria-hidden />,
+        active: mcpToolbarActive,
+        onSelect: openChatMcpStatusPanel
+      }
     ],
-    [addNewTopic, chatWrite, clearContextDisabled, handleStartNewContext, hasNewTopicAction, newTopicDisabled, t]
+    [
+      addNewTopic,
+      chatWrite,
+      clearContextDisabled,
+      handleStartNewContext,
+      hasNewTopicAction,
+      mcpToolbarActive,
+      newTopicDisabled,
+      t
+    ]
   )
 
   const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {

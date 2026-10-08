@@ -41,7 +41,7 @@ import {
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
-export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
+export type BuiltinToolApproval = 'auto' | 'required'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
@@ -58,10 +58,7 @@ export const CHERRY_MCP_SERVER = {
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
   readonly toolName: string
-  /**
-   * `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed;
-   * `runtime`: the runtime's ordinary permission-mode semantics decide.
-   */
+  /** `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed. */
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
@@ -108,7 +105,8 @@ const BUILTIN_TOOL_POLICIES = {
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
-  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
+  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
   // like cli_install rather than deferring to the runtime's permission mode.
   installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
