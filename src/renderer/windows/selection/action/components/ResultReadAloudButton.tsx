@@ -24,6 +24,7 @@ export function ResultReadAloudButton({ text, sourceEntityId }: { text: string; 
       type="button"
       variant="ghost"
       size="sm"
+      className="h-[22px] min-h-0 min-w-0 shrink gap-1.5 rounded bg-muted px-2 text-muted-foreground hover:bg-muted hover:text-foreground dark:text-muted-foreground dark:hover:text-foreground"
       aria-label={t('selection.action.voice.read_result')}
       onClick={() =>
         void readTextAloud({
@@ -35,8 +36,8 @@ export function ResultReadAloudButton({ text, sourceEntityId }: { text: string; 
           focusOnClose: () => buttonRef.current?.focus()
         })
       }>
-      <Volume2 className="size-4" />
-      {t('selection.action.voice.read_result')}
+      <Volume2 className="size-3.5" />
+      <span className="truncate">{t('selection.action.voice.read_result')}</span>
     </Button>
   )
 }

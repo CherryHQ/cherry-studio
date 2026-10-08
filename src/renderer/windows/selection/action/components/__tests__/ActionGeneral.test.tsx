@@ -106,17 +106,22 @@ vi.mock('@renderer/components/CopyButton', () => ({
 
 vi.mock('../WindowFooter', () => ({
   default: ({
+    children,
     loading,
     onPause,
     onRegenerate
   }: {
+    children?: React.ReactNode
     loading: boolean
     onPause: () => void
     onRegenerate: () => void
   }) => (
-    <button type="button" data-testid="window-footer" onClick={loading ? onPause : onRegenerate}>
-      {loading ? 'stop' : 'regenerate'}
-    </button>
+    <div data-testid="window-footer">
+      <button type="button" onClick={loading ? onPause : onRegenerate}>
+        {loading ? 'stop' : 'regenerate'}
+      </button>
+      {children}
+    </div>
   )
 }))
 

@@ -120,7 +120,7 @@ vi.mock('@renderer/components/CopyButton', () => ({
 }))
 
 vi.mock('../WindowFooter', () => ({
-  default: () => <div data-testid="window-footer" />
+  default: ({ children }: { children?: React.ReactNode }) => <div data-testid="window-footer">{children}</div>
 }))
 
 vi.mock('react-i18next', () => ({

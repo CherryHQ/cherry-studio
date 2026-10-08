@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -8,30 +7,23 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 
 import ActionWindow from '../ActionWindow'
 
-const { actionState, generalMounts, ipcRequest, opacityPreference, platform, readAloud, stopPlayback } = vi.hoisted(
-  () => ({
-    actionState: {
-      value: {
-        id: 'test-action',
-        name: 'Test action',
-        icon: 'test-icon',
-        isBuiltIn: false
-      } as SelectionActionItem
-    },
-    generalMounts: { count: 0 },
-    ipcRequest: vi.fn(),
-    opacityPreference: { value: 100 },
-    platform: { isMac: false },
-    readAloud: vi.fn<(input: { text: string; sourceEntityId: string; isCurrent: () => boolean }) => Promise<void>>(
-      async () => undefined
-    ),
-    stopPlayback: vi.fn(async () => undefined)
-  })
-)
+const { actionState, ipcRequest, opacityPreference, platform, stopPlayback } = vi.hoisted(() => ({
+  actionState: {
+    value: {
+      id: 'test-action',
+      name: 'Test action',
+      icon: 'test-icon',
+      isBuiltIn: false
+    } as SelectionActionItem
+  },
+  ipcRequest: vi.fn(),
+  opacityPreference: { value: 100 },
+  platform: { isMac: false },
+  stopPlayback: vi.fn(async () => undefined)
+}))
 
 vi.mock('@renderer/services/voice', () => ({
-  readTextAloud: readAloud,
-  speechPlaybackService: { getSnapshot: () => ({ phase: 'playing', sourceLabel: 'selection' }), stop: stopPlayback }
+  speechPlaybackService: { getSnapshot: () => ({ phase: 'playing', sourceLabel: 'preview' }), stop: stopPlayback }
 }))
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
@@ -75,15 +67,7 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('../components/ActionGeneral', () => {
-  const MockActionGeneral = () => {
-    useEffect(() => {
-      generalMounts.count += 1
-    }, [])
-    return null
-  }
-  return { default: MockActionGeneral }
-})
+vi.mock('../components/ActionGeneral', () => ({ default: () => null }))
 vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
 describe('ActionWindow surface', () => {
@@ -96,48 +80,16 @@ describe('ActionWindow surface', () => {
     } as SelectionActionItem
     opacityPreference.value = 100
     platform.isMac = false
-    generalMounts.count = 0
-    readAloud.mockClear()
     stopPlayback.mockClear()
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('remounts the chat subtree on reuse so the previous selection is not carried over', async () => {
-    const { rerender } = render(<ActionWindow />)
-    await waitFor(() => expect(generalMounts.count).toBe(1))
-
-    actionState.value = { ...actionState.value, selectedText: 'next selection' }
-    rerender(<ActionWindow />)
-
-    await waitFor(() => expect(generalMounts.count).toBe(2))
-  })
-
-  it('manually reads the original selection with a fresh opaque identity after reuse', async () => {
+  it('stops result playback when the selection window is reused', async () => {
     actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_1' }
     const view = render(<ActionWindow />)
-    expect(readAloud).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'selection.action.voice.read_original' }))
-    const first = readAloud.mock.lastCall![0]
-    expect(first).toEqual(
-      expect.objectContaining({ text: 'PRIVATE_SELECTION_1', mode: 'selection', sourceLabel: 'selection' })
-    )
-    expect(first.sourceEntityId).not.toContain('PRIVATE_SELECTION_1')
-
     actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_2' }
     view.rerender(<ActionWindow />)
     await waitFor(() => expect(stopPlayback).toHaveBeenCalledTimes(1))
-    expect(readAloud).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'selection.action.voice.read_original' }))
-    const second = readAloud.mock.lastCall![0]
-    expect(second.sourceEntityId).not.toBe(first.sourceEntityId)
-    expect(second.sourceEntityId).not.toContain('PRIVATE_SELECTION_2')
-    expect(first.isCurrent()).toBe(false)
-  })
-
-  it('does not offer original playback when the selection is empty', () => {
-    actionState.value = { ...actionState.value, selectedText: '   ' }
-    render(<ActionWindow />)
-    expect(screen.queryByRole('button', { name: 'selection.action.voice.read_original' })).not.toBeInTheDocument()
   })
 
   it('uses an opaque popover surface at 100% window opacity', () => {

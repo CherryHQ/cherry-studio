@@ -428,10 +428,11 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
         )}
       </div>
       <div className="min-h-3" />
-      {!isStreaming && !error && content.trim() && (
-        <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
-      )}
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
+        {!isStreaming && !error && content.trim() && (
+          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+        )}
+      </WindowFooter>
     </>
   )
 }
