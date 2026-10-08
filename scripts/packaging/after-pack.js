@@ -2,7 +2,7 @@ const { Arch } = require('electron-builder')
 const fs = require('fs')
 const path = require('path')
 
-const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('./linux-native/compat')
+const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('../linux-native/compat')
 
 exports.default = async function (context) {
   const platform = context.packager.platform.name
@@ -13,7 +13,7 @@ exports.default = async function (context) {
     const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
     if (!arch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
 
-    const projectRoot = path.join(__dirname, '..')
+    const projectRoot = path.join(__dirname, '../..')
     const { destination, manifest } = replacePackagedBetterSqlite3({
       projectRoot,
       appOutDir: context.appOutDir,

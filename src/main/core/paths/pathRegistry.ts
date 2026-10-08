@@ -99,6 +99,12 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.selection.native_panel_file': path.join(
+      appRootResources,
+      'binaries',
+      `darwin-${process.arch}`,
+      'selection-panel.node'
+    ),
 
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
 
@@ -375,6 +381,7 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
   'app.database.migrations',
