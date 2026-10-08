@@ -2,6 +2,9 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   BaseService,
   DependsOn,
@@ -11,8 +14,6 @@ import {
   ServiceContainer,
   ServicePhase
 } from '@main/core/lifecycle'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ClaudeCodeProcessManager,
@@ -88,6 +89,24 @@ const spawnOptions: SpawnOptions = {
 }
 
 describe('ClaudeCodeProcessManager', () => {
+  it('confirms native exit only after the OS exit event, not after a kill request', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(() => child.process)
+    const diagnostics = createClaudeCodeProcessDiagnostics()
+    manager.spawn(spawnOptions, diagnostics)
+    let exited = false
+    void diagnostics.exited!.then(() => {
+      exited = true
+    })
+    manager.killAll('SIGTERM')
+    await Promise.resolve()
+    expect(exited).toBe(false)
+    child.emitExit()
+    await diagnostics.exited
+    expect(exited).toBe(true)
+    child.stderr.end()
+  })
+
   beforeEach(() => {
     LifecycleManager.reset()
     ServiceContainer.reset()

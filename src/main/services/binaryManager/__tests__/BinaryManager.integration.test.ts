@@ -2,16 +2,17 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 import { BinaryManager } from '../BinaryManager'
 
 const { shellEnvRef } = vi.hoisted(() => ({
-  shellEnvRef: { current: {} as Record<string, string> }
+  shellEnvRef: { current: {} }
 }))
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => {

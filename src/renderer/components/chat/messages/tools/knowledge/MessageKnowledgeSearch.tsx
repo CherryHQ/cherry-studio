@@ -21,7 +21,7 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
       }
     />
   ) : (
-    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-muted-foreground leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+    <span className="flex items-center gap-1.5 py-0.5 text-[13px] leading-5 text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground">
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
   )

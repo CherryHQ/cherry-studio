@@ -1,6 +1,7 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { type CSSProperties, type FC, type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'

@@ -1,15 +1,16 @@
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+
 import { KnowledgeEmbeddingModelSelect } from '../KnowledgeEmbeddingModelSelect'
 
 const { localModel, mockModelSelectorProps, mockShowDownloadPopup } = vi.hoisted(() => ({
   localModel: {
-    status: 'not_downloaded' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    status: 'not_downloaded',
     isStatusResolved: true
   },
   mockModelSelectorProps: [] as Array<Record<string, any>>,
@@ -71,16 +72,15 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const makeEmbeddingModel = (id: UniqueModelId, providerId: string, name: string): Model =>
-  ({
-    id,
-    providerId,
-    name,
-    capabilities: [MODEL_CAPABILITY.EMBEDDING],
-    supportsStreaming: false,
-    isEnabled: true,
-    isHidden: false
-  }) as Model
+const makeEmbeddingModel = (id: UniqueModelId, providerId: string, name: string): Model => ({
+  id,
+  providerId,
+  name,
+  capabilities: [MODEL_CAPABILITY.EMBEDDING],
+  supportsStreaming: false,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('KnowledgeEmbeddingModelSelect', () => {
   beforeEach(() => {

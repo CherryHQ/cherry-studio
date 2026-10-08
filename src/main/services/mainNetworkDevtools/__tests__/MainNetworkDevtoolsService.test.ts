@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
+
+import { BaseService } from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -378,8 +379,8 @@ function waitForRejectedSocket(port: number, origin: string): Promise<number> {
 
 function createMockClientRequest() {
   const request = new EventEmitter() as EventEmitter & {
-    write: ReturnType<typeof vi.fn>
-    end: ReturnType<typeof vi.fn>
+    write: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    end: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   request.write = vi.fn(() => true)
   request.end = vi.fn(() => request)

@@ -1,6 +1,3 @@
-import AppLogo from '@renderer/assets/images/logo.png'
-import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check'
 import ClipboardCopy from 'lucide-react/dist/esm/icons/clipboard-copy'
 import ClipboardX from 'lucide-react/dist/esm/icons/clipboard-x'
@@ -8,6 +5,10 @@ import MessageSquareHeart from 'lucide-react/dist/esm/icons/message-square-heart
 import type { FC, Ref } from 'react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import AppLogo from '@renderer/assets/images/logo.png'
+import { cn } from '@renderer/utils/style'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import SelectionActionIcon from './SelectionActionIcon'
 
@@ -99,7 +100,7 @@ const ActionIcons: FC<{
           {!isCompact && (
             <span
               className={cn(
-                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-card-foreground text-sm leading-[1.1] transition-colors duration-100',
+                'btn-title m-0 max-w-[120px] overflow-hidden bg-transparent text-sm leading-[1.1] text-ellipsis whitespace-nowrap text-card-foreground transition-colors duration-100',
                 'group-hover:text-primary'
               )}>
               {displayName}
@@ -149,13 +150,13 @@ const SelectionToolbarView = ({
       data-ui="selection.toolbar"
       ref={ref}
       className={cn(
-        'm-[2px_3px_5px_3px]! box-border inline-flex h-9 select-none flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)]',
+        'm-[2px_3px_5px_3px]! box-border inline-flex h-9 flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)] select-none',
         'shadow-[var(--selection-toolbar-shadow)] [--selection-toolbar-border:rgb(0_0_0_/_0.08)] [--selection-toolbar-shadow:0_2px_3px_rgb(50_50_50_/_0.1)]',
         'dark:[--selection-toolbar-border:rgb(255_255_255_/_0.2)] dark:[--selection-toolbar-shadow:0_2px_3px_rgb(50_50_50_/_0.3)]'
       )}>
       <div
         className={cn(
-          'm-0 flex items-center justify-center rounded-l-[10px] border-[var(--selection-toolbar-border)] border-solid bg-transparent [border-width:0.5px_0_0.5px_0.5px] [padding:0_6px_0_8px]',
+          'm-0 flex items-center justify-center rounded-l-[10px] [border-width:0.5px_0_0.5px_0.5px] border-solid border-[var(--selection-toolbar-border)] bg-transparent [padding:0_6px_0_8px]',
           draggable && '[-webkit-app-region:drag]'
         )}>
         <img src={AppLogo} className="size-[22px] rounded-full object-cover" draggable={false} alt="" />
@@ -163,7 +164,7 @@ const SelectionToolbarView = ({
       <div
         className={cn(
           'flex flex-row items-center justify-center bg-transparent [-webkit-app-region:no-drag]',
-          'rounded-[0_10px_10px_0] border-[var(--selection-toolbar-border)] border-solid [border-width:0.5px_0.5px_0.5px_0]'
+          'rounded-[0_10px_10px_0] [border-width:0.5px_0.5px_0.5px_0] border-solid border-[var(--selection-toolbar-border)]'
         )}>
         <ActionIcons
           actionItems={actionItems}

@@ -18,7 +18,7 @@ beforeAll(async () => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as unknown as typeof ResizeObserver
+  }
 
   previousLanguage = i18n.language
   await i18n.changeLanguage('en-US')

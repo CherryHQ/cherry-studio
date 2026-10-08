@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from '@storybook/react'
+
 import {
   Field,
   FieldContent,
@@ -10,7 +12,6 @@ import {
   FieldSet,
   Input
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
 
 const meta: Meta<typeof Field> = {
   title: 'Components/Primitives/Field',

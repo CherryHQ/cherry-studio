@@ -1,3 +1,6 @@
+import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
 import {
   agentSessionMessageRoles,
   agentSessionMessageSourceType,
@@ -14,8 +17,6 @@ import {
   translateHistoryRoles,
   translateHistorySourceType
 } from '@shared/data/types/file'
-import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
-import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentSessionMessageTable } from './agentSessionMessage'

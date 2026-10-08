@@ -5,7 +5,16 @@ export type {
   SendMessageOptions
 } from './ChannelAdapter'
 export { ChannelAdapter } from './ChannelAdapter'
-export { ChannelManager, registerAdapterFactory } from './ChannelManager'
+export {
+  createAgentChannel,
+  createAgentChannelAndWaitForQr,
+  deleteAgentChannel,
+  reconnectAgentChannel,
+  reconnectAgentChannelWithQr,
+  updateAgentChannel,
+  updateAgentChannelAndWaitForQr
+} from './channelCommands'
+export { ChannelManager } from './ChannelManager'
 export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHandler'
 export { resolveLocalFile } from './security/localFileResolver'
 export { sanitizeChannelOutput } from './security/OutputSanitizer'

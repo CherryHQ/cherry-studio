@@ -13,6 +13,9 @@
  * once Phase 2 finishes.
  */
 
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
@@ -26,7 +29,7 @@ import {
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
@@ -37,8 +40,6 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
 
@@ -190,7 +191,7 @@ function isRenderableTopicMessage(message: SharedMessage): boolean {
  */
 export async function getTopicMessages(
   id: string,
-  options: { maxMessages?: number; nodeId?: string; includeSiblings?: boolean } = {}
+  options: { maxMessages?: number } = {}
 ): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
@@ -200,12 +201,7 @@ export async function getTopicMessages(
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
-        query: {
-          limit: MESSAGES_PAGE_SIZE,
-          nodeId: options.nodeId,
-          includeSiblings: options.includeSiblings ?? true,
-          cursor
-        }
+        query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
       })) as BranchMessagesResponse
 
       // Topic-level fields are stable across pages; first response wins.
@@ -388,7 +384,7 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
 }
 
 /**
- * Topic mutations (create / update / delete) backed by DataApi.
+ * Topic mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
@@ -402,16 +398,9 @@ export function useTopicMutations() {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
-    // After delete, only invalidate the list — refreshing `/topics/:id` would
-    // trigger a fetch that 404s and caches an error in SWR.
-    refresh: ['/topics']
-  })
-  const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
-    refresh: ['/topics', '/pins']
-  })
-  const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
-    refresh: ['/topics', '/pins']
+  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id')
+  const { trigger: restoreTrigger } = useMutation('POST', '/topics/:id/restore', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
@@ -435,32 +424,67 @@ export function useTopicMutations() {
   )
 
   const deleteTopic = useCallback(
-    async (topicId: string): Promise<void> => {
-      await deleteTrigger({ params: { id: topicId } })
+    async (
+      topicId: string,
+      options?: { permanent?: boolean; refresh?: boolean; targetState?: 'active' | 'trashed' }
+    ): Promise<void> => {
+      const shouldRefresh = options?.refresh !== false
+      try {
+        if (options?.permanent && options.targetState === 'active') {
+          await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+        } else if (options?.permanent) {
+          await deleteTrigger({ params: { id: topicId }, query: { permanent: true } })
+        } else {
+          await ipcApi.request('trash.topic.archive', { topicIds: [topicId] })
+        }
+      } catch (error) {
+        if (shouldRefresh) {
+          await invalidate('/topics').catch((refreshError) => {
+            logger.warn('Failed to refresh topics after delete failed', refreshError as Error, { topicId })
+          })
+        }
+        throw error
+      }
+      if (shouldRefresh) {
+        await invalidate('/topics').catch((refreshError) => {
+          logger.warn('Failed to refresh topics after delete succeeded', refreshError as Error, { topicId })
+        })
+      }
       closeConversationTabs('assistants', [topicId])
-      logger.info('Deleted topic', { id: topicId })
+      logger.info(options?.permanent ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id: topicId })
     },
-    [closeConversationTabs, deleteTrigger]
+    [closeConversationTabs, deleteTrigger, invalidate]
+  )
+
+  const restoreTopic = useCallback(
+    async (topicId: string): Promise<Topic> => {
+      const topic = await restoreTrigger({ params: { id: topicId } })
+      logger.info('Restored topic', { id: topicId })
+      return topic
+    },
+    [restoreTrigger]
   )
 
   const deleteTopics = useCallback(
     async (ids: string[]): Promise<DeleteTopicsResult> => {
-      const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+      const result = await ipcApi.request('trash.topic.archive', { topicIds: ids })
+      await invalidate(['/topics', '/pins'])
       closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted topics', { count: result.deletedCount })
       return result
     },
-    [closeConversationTabs, deleteManyTrigger]
+    [closeConversationTabs, invalidate]
   )
 
   const deleteTopicsByAssistantId = useCallback(
     async (assistantId: string): Promise<DeleteTopicsResult> => {
-      const result = await deleteByAssistantTrigger({ params: { assistantId } })
+      const result = await ipcApi.request('trash.assistant_topics.archive', { assistantId })
+      await invalidate(['/topics', '/pins'])
       closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
       return result
     },
-    [closeConversationTabs, deleteByAssistantTrigger]
+    [closeConversationTabs, invalidate]
   )
 
   /**
@@ -528,6 +552,7 @@ export function useTopicMutations() {
     createTopic,
     updateTopic,
     deleteTopic,
+    restoreTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
     moveTopic,
@@ -535,7 +560,7 @@ export function useTopicMutations() {
     refreshTopics,
     isCreating,
     isUpdating,
-    isDeleting: isDeleting || isDeletingMany
+    isDeleting
   }
 }
 

@@ -74,34 +74,34 @@ export const MultipleUsage: Story = {
   render: () => (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-medium mb-4">登录表单示例</h3>
-        <div className="max-w-md mx-auto space-y-4">
+        <h3 className="mb-4 text-lg font-medium">登录表单示例</h3>
+        <div className="mx-auto max-w-md space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">邮箱</label>
+            <label className="mb-1 block text-sm font-medium">邮箱</label>
             <input
               type="email"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full rounded-md border border-gray-300 px-3 py-2"
               placeholder="请输入邮箱"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">密码</label>
+            <label className="mb-1 block text-sm font-medium">密码</label>
             <input
               type="password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full rounded-md border border-gray-300 px-3 py-2"
               placeholder="请输入密码"
             />
           </div>
-          <button type="button" className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">
+          <button type="button" className="w-full rounded-md bg-blue-600 py-2 text-white hover:bg-blue-700">
             登录
           </button>
 
           <DividerWithText text="或" />
 
-          <button type="button" className="w-full border border-gray-300 py-2 rounded-md hover:bg-gray-50">
+          <button type="button" className="w-full rounded-md border border-gray-300 py-2 hover:bg-gray-50">
             使用 Google 登录
           </button>
-          <button type="button" className="w-full border border-gray-300 py-2 rounded-md hover:bg-gray-50">
+          <button type="button" className="w-full rounded-md border border-gray-300 py-2 hover:bg-gray-50">
             使用 GitHub 登录
           </button>
         </div>
@@ -114,13 +114,13 @@ export const InSections: Story = {
   render: () => (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold mb-4">文章内容</h2>
-        <p className="text-gray-600 mb-4">这是文章的第一段内容。在这里我们可以看到一些基本信息和介绍性的内容。</p>
+        <h2 className="mb-4 text-xl font-bold">文章内容</h2>
+        <p className="mb-4 text-gray-600">这是文章的第一段内容。在这里我们可以看到一些基本信息和介绍性的内容。</p>
 
         <DividerWithText text="正文开始" />
 
-        <p className="text-gray-600 mb-4">文章的正文部分开始了。这里包含了详细的内容和分析。</p>
-        <p className="text-gray-600 mb-4">更多的内容段落，提供深入的见解和分析。</p>
+        <p className="mb-4 text-gray-600">文章的正文部分开始了。这里包含了详细的内容和分析。</p>
+        <p className="mb-4 text-gray-600">更多的内容段落，提供深入的见解和分析。</p>
 
         <DividerWithText text="总结" />
 
@@ -176,7 +176,7 @@ export const DifferentSizes: Story = {
 
         <DividerWithText
           text="带背景的文字"
-          className="[&>span]:bg-gray-100 [&>span]:dark:bg-gray-800 [&>span]:px-2 [&>span]:py-1 [&>span]:rounded"
+          className="[&>span]:rounded [&>span]:bg-gray-100 [&>span]:px-2 [&>span]:py-1 [&>span]:dark:bg-gray-800"
         />
       </div>
     </div>
@@ -189,28 +189,28 @@ export const Timeline: Story = {
       <h3 className="text-lg font-medium">项目时间线</h3>
 
       <div className="space-y-3">
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
+        <div className="rounded bg-blue-50 p-3 dark:bg-blue-900/20">
           <h4 className="font-medium">项目启动</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">确定项目需求和目标</p>
         </div>
 
         <DividerWithText text="2024年1月" />
 
-        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded">
+        <div className="rounded bg-green-50 p-3 dark:bg-green-900/20">
           <h4 className="font-medium">开发阶段</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">功能开发和测试</p>
         </div>
 
         <DividerWithText text="2024年3月" />
 
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+        <div className="rounded bg-yellow-50 p-3 dark:bg-yellow-900/20">
           <h4 className="font-medium">测试阶段</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">全面测试和优化</p>
         </div>
 
         <DividerWithText text="2024年5月" />
 
-        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded">
+        <div className="rounded bg-purple-50 p-3 dark:bg-purple-900/20">
           <h4 className="font-medium">发布上线</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">正式发布产品</p>
         </div>

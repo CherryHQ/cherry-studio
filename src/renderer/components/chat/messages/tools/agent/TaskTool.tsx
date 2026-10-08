@@ -1,5 +1,6 @@
-import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
+
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'

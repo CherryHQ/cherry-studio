@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ ipcApiRequest: vi.fn() }))
 

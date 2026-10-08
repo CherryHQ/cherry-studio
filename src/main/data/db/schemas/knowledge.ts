@@ -1,3 +1,6 @@
+import { sql } from 'drizzle-orm'
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
 import {
   type KnowledgeBaseErrorCode,
   type KnowledgeBaseStatus,
@@ -6,8 +9,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { groupTable } from './group'

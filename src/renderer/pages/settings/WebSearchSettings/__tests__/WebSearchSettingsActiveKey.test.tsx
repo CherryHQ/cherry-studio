@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'

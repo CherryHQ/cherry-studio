@@ -1,5 +1,6 @@
-import { HelpTooltip, InfoTooltip, WarnTooltip } from '@cherrystudio/ui'
 import type { Meta } from '@storybook/react'
+
+import { HelpTooltip, InfoTooltip, WarnTooltip } from '@cherrystudio/ui'
 
 const meta: Meta = {
   title: 'Components/Composites/icon-tooltips',

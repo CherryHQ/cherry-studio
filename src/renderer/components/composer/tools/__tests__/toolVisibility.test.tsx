@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import { TopicType } from '@renderer/components/composer/tools/types'
-import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
   mockIsGenerateImageModel: vi.fn(),

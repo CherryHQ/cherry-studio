@@ -1,5 +1,6 @@
-import { cacheService } from '@data/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 import type { ComposerSerializedToken } from '../../tokens'
 import {

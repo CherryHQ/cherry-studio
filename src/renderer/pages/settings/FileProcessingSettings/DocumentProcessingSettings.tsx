@@ -1,9 +1,10 @@
-import { compactSettingsFieldClassName, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
-import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
-import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { compactSettingsFieldClassName, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'

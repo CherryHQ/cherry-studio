@@ -16,7 +16,7 @@ writeFileSync(path.join(agentData, 'memory.md'), 'mem')
 writeFileSync(path.join(outside, 'secret.txt'), 'out')
 mkdirSync(path.join(workspace, 'sub'))
 // Symlink escape: lexically inside the workspace, physically outside.
-symlinkSync(path.join(outside, 'secret.txt'), path.join(workspace, 'escape.txt'))
+symlinkSync(outside, path.join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 
 const policy = (overrides: Partial<BridgePolicy> = {}): BridgePolicy => ({
   permissionMode: 'default',
@@ -55,7 +55,14 @@ describe('decideToolCall', () => {
       'allow'
     ],
     ['default', 'read outside asks', policy(), 'read', { file_path: path.join(outside, 'secret.txt') }, 'ask'],
-    ['default', 'read of a symlink escaping the workspace asks', policy(), 'read', { file_path: 'escape.txt' }, 'ask'],
+    [
+      'default',
+      'read of a symlink escaping the workspace asks',
+      policy(),
+      'read',
+      { file_path: 'escape/secret.txt' },
+      'ask'
+    ],
     ['default', 'read of ../ traversal out of the workspace asks', policy(), 'read', { file_path: '../x' }, 'ask'],
     ['default', 'read of a file:// URL asks (ambiguous)', policy(), 'read', { file_path: 'file:///etc/passwd' }, 'ask'],
     ['default', 'read of a non-string path asks (ambiguous)', policy(), 'read', { file_path: 42 }, 'ask'],

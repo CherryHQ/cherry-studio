@@ -19,7 +19,7 @@ describe('UserAvatar', () => {
     const emojiIcon = screen.getByTestId('emoji-icon')
     expect(emojiIcon).toHaveTextContent('🌈')
     expect(emojiIcon).toHaveAttribute('data-fluid', 'true')
-    expect(emojiIcon).toHaveAttribute('data-font-size', '17')
+    expect(emojiIcon).not.toHaveAttribute('data-font-size')
     expect(screen.getByTestId('emoji-icon-background')).toHaveTextContent('🌈')
     // Emoji avatars must not fall through to the gradient-initial branch.
     // The gradient classes live on the inner fallback div, so query that element directly.

@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for PreferenceService BootConfig routing logic.
  * Verifies that keys with 'BootConfig.' prefix are correctly routed
@@ -5,7 +7,6 @@
  */
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from main.setup.ts — we want the REAL PreferenceService
 vi.unmock('@main/data/PreferenceService')

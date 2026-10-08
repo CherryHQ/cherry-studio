@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -182,6 +183,12 @@ export class ClaudeCodeProcessManager extends BaseService {
       // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
+    })
+    diagnostics.exited = new Promise<void>((resolve) => {
+      rawChild.once('exit', () => resolve())
+      rawChild.once('error', () => {
+        if (rawChild.pid === undefined) resolve()
+      })
     })
     const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
     this.processes.add(child)

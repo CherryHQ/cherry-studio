@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
   const nativeThemeState = { shouldUseDarkColors: false }
+  const preferenceServiceMock = { get: vi.fn(() => 1.3) }
   const windowManagerMock = {
     open: vi.fn<(type: string, args?: { initData?: unknown; options?: Record<string, unknown> }) => string>(
       () => 'mock-window-id'
@@ -35,6 +37,7 @@ const {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
       if (name === 'IpcApiService') return ipcApiServiceMock
+      if (name === 'PreferenceService') return preferenceServiceMock
       throw new Error(`unexpected service: ${name}`)
     }),
     getPath: vi.fn(() => '/mock/app/root')
@@ -95,25 +98,27 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { BrowserWindow, ipcMain } from 'electron'
+
 // Import after mocks
 import { WindowType } from '@main/core/window/types'
-import { BrowserWindow, ipcMain } from 'electron'
 
 import { SubWindowService } from '../SubWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
-  isDestroyed: ReturnType<typeof vi.fn>
-  isVisible: ReturnType<typeof vi.fn>
-  show: ReturnType<typeof vi.fn>
-  setContentBounds: ReturnType<typeof vi.fn>
-  setPosition: ReturnType<typeof vi.fn>
-  setOpacity: ReturnType<typeof vi.fn>
-  getOpacity: ReturnType<typeof vi.fn>
-  getBounds: ReturnType<typeof vi.fn>
-  getContentBounds: ReturnType<typeof vi.fn>
-  setAlwaysOnTop: ReturnType<typeof vi.fn>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isVisible: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setPosition: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
-    isLoadingMainFrame: ReturnType<typeof vi.fn>
+    isLoadingMainFrame: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    setZoomFactor: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 
@@ -130,7 +135,7 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
   win.setAlwaysOnTop = vi.fn()
   // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
-  win.webContents = { isLoadingMainFrame: vi.fn(() => true) }
+  win.webContents = { isLoadingMainFrame: vi.fn(() => true), setZoomFactor: vi.fn() }
   Object.assign(win, overrides)
   return win
 }
@@ -146,6 +151,14 @@ function getNativeOnHandler(channel: string) {
   const call = vi.mocked(ipcMain.on).mock.calls.find(([c]) => c === channel)
   if (!call) throw new Error(`ipcMain.on handler not registered for channel: ${channel}`)
   return call[1] as (event: any, payload: any) => void
+}
+
+function getOnWindowCreatedListener(): (managed: { window: unknown }) => void {
+  const call = windowManagerMock.onWindowCreatedByType.mock.calls.at(-1) as unknown as
+    | [string, (managed: { window: unknown }) => void]
+    | undefined
+  if (!call) throw new Error('onWindowCreatedByType was not subscribed')
+  return call[1]
 }
 
 describe('SubWindowService', () => {
@@ -300,6 +313,56 @@ describe('SubWindowService', () => {
     })
   })
 
+  describe('zoom factor', () => {
+    it('injects the persisted app.zoom_factor via options.webPreferences and applies it to the window', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-zoom', url: 'u', title: 'Chat' })
+
+      const { args } = lastOpenCall()
+      expect(args.options).toMatchObject({ webPreferences: { zoomFactor: 1.3 } })
+      // Covers the pooled-standby path: a popped standby was constructed at warmup time
+      // with the default zoom, so options.webPreferences alone would not reach it.
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledWith(1.3)
+    })
+
+    it('subscribes zoom tracking for SubWindow instances via onWindowCreatedByType', () => {
+      expect(windowManagerMock.onWindowCreatedByType).toHaveBeenCalledWith('subWindow', expect.any(Function))
+    })
+
+    it('re-applies app.zoom_factor on will-resize/restore so a standby does not snap back to 100%', () => {
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+
+      win.emit('will-resize')
+      win.emit('restore')
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledTimes(2)
+      expect(win.webContents.setZoomFactor).toHaveBeenLastCalledWith(1.3)
+    })
+
+    it('re-applies zoom on plain resize on Linux only (resize fires instead of will-resize there)', async () => {
+      platformState.isLinux = true
+      const linuxSvc = new SubWindowService()
+      await (linuxSvc as any).onInit()
+
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+
+      win.emit('resize')
+      expect(win.webContents.setZoomFactor).toHaveBeenCalledWith(1.3)
+    })
+
+    it('skips zoom re-apply on a destroyed window', () => {
+      const win = createMockWindow()
+      getOnWindowCreatedListener()({ window: win })
+      win.isDestroyed = vi.fn(() => true)
+
+      win.emit('will-resize')
+      expect(win.webContents.setZoomFactor).not.toHaveBeenCalled()
+    })
+  })
+
   describe('createWindow - tabId → windowId mapping + cleanup', () => {
     it('populates tabIdToWindowId after open and cleans up on "closed"', () => {
       const win = createMockWindow()
@@ -370,7 +433,7 @@ describe('SubWindowService', () => {
     it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      svc.attachTab(tab, 'sub1' as never)
+      svc.attachTab(tab, 'sub1')
 
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
@@ -379,7 +442,7 @@ describe('SubWindowService', () => {
     it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      svc.attachTab(tab, 'main1' as never)
+      svc.attachTab(tab, 'main1')
 
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
@@ -390,14 +453,14 @@ describe('SubWindowService', () => {
     it('pins a SubWindow caller and returns true', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      expect(svc.setAlwaysOnTop('sub1' as never, true)).toBe(true)
+      expect(svc.setAlwaysOnTop('sub1', true)).toBe(true)
       expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub1', true)
     })
 
     it('rejects (false) a non-SubWindow caller without touching setAlwaysOnTop', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      expect(svc.setAlwaysOnTop('main1' as never, true)).toBe(false)
+      expect(svc.setAlwaysOnTop('main1', true)).toBe(false)
       expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
     })
 

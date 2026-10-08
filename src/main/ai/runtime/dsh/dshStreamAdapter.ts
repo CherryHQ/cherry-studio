@@ -1,10 +1,10 @@
 /**
- * Translate dsh `session.event` envelopes (`{type, seq, time, data}`) into
+ * Translate dsh durable session events and transient assistant chunks into
  * Cherry `UIMessageChunk`s plus connection callbacks.
  *
  * Maps only the content/tool/usage surface; turn lifecycle (`turn/end` →
  * turn-complete/error, resume tokens) is owned by `DshRuntimeConnection` via
- * the sink callbacks. Events are typed as dsh's `SessionEvent` union (cast
+ * the sink callbacks. Durable events use dsh's `SessionEvent` union (cast
  * once at the connection's wire boundary); the union is open via declaration
  * merging, so unknown types fall through the `default:` branch.
  *
@@ -12,20 +12,27 @@
  * - `assistant/chunk` block-start/deltas/block-end → text and reasoning chunks
  * - `tool/call` → tool-input-start + tool-input-available (raw JSON args parsed defensively)
  * - `tool/result` → tool-output-available / tool-output-error
- * - terminal usage chunks → per-attempt accounting; `assistant/message` → successful-turn metadata
+ * - `assistant/attempt|message` → per-attempt accounting and successful-turn metadata
  * - `turn/end` → sink callback with the wire reason
  * - `compaction/start|summary|end` → host compaction runtime events via the sink
- * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
- * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
+ * - `llm/retry` / `llm/retry-started` → retry status and timing
+ * - `user/message` (entering batch) → classifies the turn as host-prompted or autonomous
+ * - content with no host-opened turn → autonomous-turn lifecycle
  */
-// The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap merges.
+// The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap
+// merges; dsh-goal loads its MessageSourceMap merge.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { CallId, ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-goal'
+import type { ContentBlock, MessageSource, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
+import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type {} from '@deepseek-ai/dsh-plan-mode'
-import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
+import type { SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
+
+import type { DshAssistantChunk, DshRuntimeEvent } from '@cherrystudio/dsh-bridge'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -55,17 +62,25 @@ export interface DshStreamSink {
     model?: string
     metrics?: DshInvocationMetrics
   }): void
-  onTurnEnd(reason: TurnEndReason): void
+  onTurnEnd(reason: TurnEndReason, boundary?: number): void
   /** One scheduled provider retry (`llm/retry`); the host clears the status when content resumes. */
   onApiRetry(retry: AgentSessionApiRetryInfo): void
   /** Compaction lifecycle (`compaction/start|end`) mapped to host runtime events. */
   onCompaction(event: DshCompactionRuntimeEvent): void
-  /** A runtime-started turn (goal round): `started` fires before the turn's first chunk,
-   *  `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
-  onAutonomousTurnState(state: 'started' | 'finished'): void
+  /** A runtime-started turn: `started` fires before the turn's first chunk with why the runtime
+   *  opened it, `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
+  onAutonomousTurnState(event: { state: 'started'; origin: AutonomousTurnOrigin } | { state: 'finished' }): void
   /** Committed `plan/mode` fold (last one wins). `false` after an approved exit —
    *  the connection re-opens its policy since Cherry's stored mode is not rewritten. */
   onPlanMode(active: boolean): void
+}
+
+/**
+ * An automatic goal-round continuation, which the `goal-round-driver` queues without user input.
+ * Round 0 is the goal statement itself, not a driven round.
+ */
+function isGoalRoundSource(source: MessageSource): source is Extract<MessageSource, { kind: 'goal' }> {
+  return source.kind === 'goal' && source.round > 0
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
@@ -102,14 +117,6 @@ export class DshStreamAdapter {
   private firstTokenAt?: number
   private thinkingMs = 0
   private readonly reasoningOpenedAt = new Map<number, number>()
-  /** Terminal usage arrives before either assistant/message or retry/failure boundaries. */
-  private pendingProviderUsage?: {
-    turn: number
-    step: number
-    seq: number
-    usage: TokenUsage
-    metrics?: DshInvocationMetrics
-  }
   /** Open compaction folds by compactionId — dsh's lock pairs every start with an end. */
   private readonly activeCompactions = new Map<
     string,
@@ -126,18 +133,34 @@ export class DshStreamAdapter {
   private turnActive = false
   /** The current turn was opened by runtime content (a goal round), not a host prompt. */
   private autonomousTurn = false
+  /** A host prompt is queued but no turn has claimed it yet — dsh may run other turns first. */
+  private hostPromptPending = false
+  /** `beginTurn()` opened the current turn for the host (as opposed to leaving a runtime turn alone). */
+  private hostClaimedTurn = false
+  /** Why the runtime opened the current turn on its own, read off its entering batch. */
+  private turnOrigin?: AutonomousTurnOrigin
+  /** Still reading the open turn's entering `user/message` batch; later input never reclassifies. */
+  private enteringTurn = false
 
   constructor(private readonly sink: DshStreamSink) {}
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
+    this.hostPromptPending = true
+    // A runtime-started turn is already under way (classified from its entering batch, or open):
+    // the prompt queues behind it in dsh, so it must not take over that turn's stream.
+    if (this.turnOrigin !== undefined || (this.turnActive && this.autonomousTurn)) return
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
+    this.hostClaimedTurn = true
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
   abortTurn(): void {
+    this.hostPromptPending = false
+    if (!this.hostClaimedTurn) return
+    this.hostClaimedTurn = false
     this.turnActive = false
     this.autonomousTurn = false
   }
@@ -150,33 +173,64 @@ export class DshStreamAdapter {
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
     this.ensureTurnOpen()
-    this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
+    this.handleToolCall({ callId: callId as ToolCallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
-  /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
+  /** Content with no host-opened turn = the runtime started its own turn. */
   private ensureTurnOpen(): void {
     if (this.turnActive) return
-    this.sink.onAutonomousTurnState('started')
+    // A turn whose entering batch never reached us (bridge-first approval, legacy log) is still
+    // runtime-started; the neutral reason is the honest fallback.
+    this.sink.onAutonomousTurnState({ state: 'started', origin: this.turnOrigin ?? { kind: 'background-work' } })
     this.turnActive = true
     this.autonomousTurn = true
   }
 
-  handleEvent(event: SessionEvent): void {
+  // Entering context can surround the claimed prompt; once claimed, host ownership is final.
+  private classifyEnteringMessage(source: MessageSource): void {
+    if (source.kind === 'user') {
+      // The host's queued prompt was claimed by this turn. A `user` message dsh raised on its own
+      // is left to open an autonomous turn, as before.
+      if (!this.hostPromptPending) return
+      this.hostPromptPending = false
+      this.enteringTurn = false
+      this.turnOrigin = undefined
+      this.turnActive = true
+      this.autonomousTurn = false
+      return
+    }
+    this.turnOrigin = isGoalRoundSource(source)
+      ? { kind: 'goal-round', round: source.round }
+      : { kind: 'background-work' }
+    // Not the host's turn even if a prompt is queued: dsh runs this one first, so it must open its
+    // own receive-only stream rather than consume the one the host's prompt will own.
+    this.turnActive = false
+    this.autonomousTurn = false
+    this.hostClaimedTurn = false
+  }
+
+  handleEvent(event: DshRuntimeEvent): void {
     switch (event.type) {
       case 'turn/start':
-        this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
         // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
         // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
         if (!this.turnActive) this.startedTools.clear()
+        this.turnOrigin = undefined
+        this.enteringTurn = true
         this.resetStepTiming()
         return
+      case 'user/message':
+        if (this.enteringTurn) this.classifyEnteringMessage(event.data.source)
+        return
       case 'step/start':
+        // dsh appends the entering batch inside step 1 only; later steps carry mid-turn input.
+        if (event.data.step > 1) this.enteringTurn = false
         this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
         this.ensureTurnOpen()
-        this.handleAssistantChunk(event.data, event.seq)
+        this.handleAssistantChunk(event.data)
         return
       case 'tool/call':
         this.ensureTurnOpen()
@@ -186,12 +240,21 @@ export class DshStreamAdapter {
         this.ensureTurnOpen()
         this.handleToolResult(event.data)
         return
+      case 'assistant/attempt': {
+        const usage = lastAssistantStreamChunk(event.data.stream, 'usage')?.usage
+        const metrics = this.takeStepMetrics()
+        if (usage)
+          this.sink.onAssistantUsage({ turn: event.data.turn, seq: event.seq, usage, ...(metrics ? { metrics } : {}) })
+        return
+      }
       case 'assistant/message':
         this.ensureTurnOpen()
         this.handleAssistantMessage(event.data, event.seq)
         return
       case 'turn/end': {
-        this.flushPendingProviderUsage()
+        this.turnOrigin = undefined
+        this.enteringTurn = false
+        this.hostClaimedTurn = false
         // A turn that never carried content (a stale goal round rejected at pre-step)
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
@@ -199,20 +262,18 @@ export class DshStreamAdapter {
         if (this.autonomousTurn) {
           this.autonomousTurn = false
           // Ownership release must precede the terminal turn-complete (host contract).
-          this.sink.onAutonomousTurnState('finished')
+          this.sink.onAutonomousTurnState({ state: 'finished' })
         }
-        this.sink.onTurnEnd(event.data.reason)
+        this.sink.onTurnEnd(event.data.reason, event.seq)
         return
       }
       case 'llm/retry':
-        this.flushPendingProviderUsage()
         this.handleRetry(event.data)
         return
       case 'llm/retry-started':
         this.startProviderAttempt(event.data, false)
         return
       case 'step/end':
-        this.flushPendingProviderUsage()
         this.resetStepTiming()
         return
       case 'compaction/start':
@@ -228,10 +289,9 @@ export class DshStreamAdapter {
         this.sink.onPlanMode(event.data.active)
         return
       default:
-        // user/message, todo/write, request/*, approval/*,
-        // compaction/prune, session/end-seed, and merge-extended types the union
-        // does not know: the unknown-event MUST-refuse rule applies to log
-        // reconstruction (the runtime's job), not here.
+        // todo/write, request/*, approval/*, compaction/prune, session/end-seed,
+        // and merge-extended types the union does not know: the unknown-event
+        // MUST-refuse rule applies to log reconstruction (the runtime's job), not here.
         return
     }
   }
@@ -240,7 +300,7 @@ export class DshStreamAdapter {
     return `dsh-${this.turnSeq}-${index}`
   }
 
-  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], seq: number): void {
+  private handleAssistantChunk(data: Omit<DshAssistantChunk, 'sessionId'>): void {
     const stepKey = `${data.turn}:${data.step}`
     if (stepKey !== this.lastStepKey) {
       // Compatibility fallback for logs produced without a visible step/start.
@@ -277,9 +337,6 @@ export class DshStreamAdapter {
         }
         return
       }
-      case 'usage':
-        this.captureProviderUsage(data, seq, chunk.usage)
-        return
       default:
         // tool-call-delta / finish surface through durable tool and message events.
         return
@@ -288,7 +345,6 @@ export class DshStreamAdapter {
 
   private startProviderAttempt(data: { turn: number; step: number }, newStep: boolean): void {
     if (newStep) {
-      this.flushPendingProviderUsage()
       const stepKey = `${data.turn}:${data.step}`
       if (stepKey !== this.lastStepKey) {
         this.lastStepKey = stepKey
@@ -354,16 +410,15 @@ export class DshStreamAdapter {
   }
 
   private handleToolResult(data: SessionEventMap['tool/result']): void {
-    const block = data.message.content[0]
-    const toolCallId = block.toolCallId
+    const toolCallId = data.message.toolCallId
     if (!toolCallId) return
     // A result with no preceding tool/call (defensive) still needs its input parts.
     if (!this.startedTools.has(toolCallId)) {
       this.handleToolCall({ callId: toolCallId, name: 'unknown', arguments: '{}' })
     }
     const toolName = this.startedTools.get(toolCallId) ?? 'unknown'
-    const output = block.content
-    if (data.error !== undefined || block.isError === true) {
+    const output = data.message.content
+    if (data.error !== undefined || data.message.isError === true) {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
@@ -414,43 +469,16 @@ export class DshStreamAdapter {
       })
     }
 
-    const pending = this.takePendingProviderUsage(data.turn, data.step)
-    const usage = pending?.usage ?? messageUsage
+    const usage = messageUsage
     if (!usage) return
-    const metrics = pending?.metrics ?? this.takeStepMetrics()
+    const metrics = this.takeStepMetrics()
     this.sink.onAssistantUsage({
       turn: data.turn,
-      seq: pending?.seq ?? seq,
+      seq,
       usage,
       model: data.message.source.model,
       ...(metrics ? { metrics } : {})
     })
-  }
-
-  private captureProviderUsage(data: { turn: number; step: number }, seq: number, usage: TokenUsage): void {
-    this.flushPendingProviderUsage()
-    const metrics = this.takeStepMetrics()
-    this.pendingProviderUsage = {
-      turn: data.turn,
-      step: data.step,
-      seq,
-      usage,
-      ...(metrics ? { metrics } : {})
-    }
-  }
-
-  private takePendingProviderUsage(turn: number, step: number) {
-    const pending = this.pendingProviderUsage
-    if (!pending || pending.turn !== turn || pending.step !== step) return undefined
-    this.pendingProviderUsage = undefined
-    return pending
-  }
-
-  private flushPendingProviderUsage(): void {
-    const pending = this.pendingProviderUsage
-    if (!pending) return
-    this.pendingProviderUsage = undefined
-    this.sink.onAssistantUsage(pending)
   }
 
   /** `maxRetries` is absent only in the retry plugin's `always` mode, which this composition never selects. */
@@ -556,7 +584,7 @@ function parseToolArguments(raw: string): Record<string, unknown> {
  * inside a JSON string. Unwrap it the way the Claude Code adapter does, so downstream consumers
  * (tool cards, citation resolution, persisted projection) see one shape across runtimes.
  */
-function normalizeToolOutput(output: ContentBlock[]): unknown {
+function normalizeToolOutput(output: readonly ContentBlock[]): unknown {
   const texts = output.filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
   if (texts.length === 0 || texts.length !== output.length) return output
 
@@ -568,7 +596,7 @@ function normalizeToolOutput(output: ContentBlock[]): unknown {
   }
 }
 
-function stringifyToolOutput(output: ContentBlock[]): string {
+function stringifyToolOutput(output: readonly ContentBlock[]): string {
   const text = output
     .filter((entry): entry is Extract<ContentBlock, { type: 'text' }> => entry.type === 'text')
     .map((entry) => entry.text)

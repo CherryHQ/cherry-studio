@@ -1,5 +1,6 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const { appGetMock, cancelPdfMock, ipcSendMock, openMock, translatePdfMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -16,9 +17,7 @@ import { translateHandlers } from '../translate'
 const webContents = {}
 const windowManager = { getWindow: vi.fn(() => ({ webContents })) }
 const pdfTranslationService = { cancel: cancelPdfMock, translate: translatePdfMock }
-const req = { streamId: 'translate:1', text: 'hi', targetLangCode: 'en' } as Parameters<
-  (typeof translateHandlers)['translate.open']
->[0]
+const req = { streamId: 'translate:1', text: 'hi', targetLangCode: 'en' }
 
 beforeEach(() => {
   vi.clearAllMocks()

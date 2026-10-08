@@ -1,5 +1,6 @@
-import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { describe, expect, it } from 'vitest'
+
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 import { interpretBinarySnapshot } from '../binarySnapshot'
 

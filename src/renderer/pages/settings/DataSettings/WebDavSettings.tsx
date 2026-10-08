@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { SecretInput } from '@renderer/components/SecretInput'
@@ -14,11 +20,6 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
-import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
