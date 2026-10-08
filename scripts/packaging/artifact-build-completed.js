@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const { getReleaseProductName } = require('./release/edition')
+const { getReleaseProductName } = require('../release/edition')
 
 const PLATFORM_PREFIXES = {
   linux: 'linux',

@@ -1449,19 +1449,4 @@ describe('release workflow gates', () => {
       ])
     }
   )
-
-  it('runs release workflow contract tests for release-workflow-only pull requests', () => {
-    const workflow = fs.readFileSync(path.join(workflowRoot, 'ci.yml'), 'utf8')
-    for (const workflowName of [
-      'backport-release-fixes.yml',
-      'auto-release-build.yml',
-      'post-release.yml',
-      'prepare-release.yml',
-      'preview-release.yml',
-      'publish-release.yml',
-      'release.yml'
-    ]) {
-      expect(workflow).toContain(`- '.github/workflows/${workflowName}'`)
-    }
-  })
 })

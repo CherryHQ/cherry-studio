@@ -5,7 +5,8 @@ const fs = require('fs')
 const path = require('path')
 const { parse } = require('yaml')
 
-const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { ensureLinuxNativeArtifact } = require('../linux-native/download')
+const { buildSelectionPanel } = require('../../native/darwin/build')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -117,7 +118,7 @@ async function prepareNativeModulesForElectron(
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
   const electronVersion = context.packager.config.electronVersion
-  const projectRoot = path.join(__dirname, '..')
+  const projectRoot = path.join(__dirname, '../..')
 
   if (!platform || !electronVersion) {
     throw new Error(`Cannot resolve Electron rebuild target for ${platformName}-${arch}`)
@@ -168,7 +169,7 @@ const keepPackages = (platform, arch) => {
 const assertPrebuiltPackages = (platform, arch) => {
   const missingPackages = keepPackages(platform, arch)
     .filter((p) => !p.includes('musl'))
-    .filter((p) => !fs.existsSync(path.join(__dirname, '..', 'node_modules', p)))
+    .filter((p) => !fs.existsSync(path.join(__dirname, '../..', 'node_modules', p)))
   if (missingPackages.length > 0) {
     throw new Error(
       `Missing prebuilt packages for ${platform}-${arch}: ${missingPackages.join(', ')}\n` +
@@ -199,18 +200,19 @@ exports.default = async function (context) {
   const platform = platformToArch[platformName]
 
   await prepareNativeModulesForElectron(context)
+  buildSelectionPanel({ platform, arch })
   assertPrebuiltPackages(platform, arch)
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
-  execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch} --packaging`, {
+  execSync(`node "${path.join(__dirname, '../download-binaries.js')}" ${platform} ${arch} --packaging`, {
     stdio: 'inherit'
   })
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
-  require('./download-binaries').verifyBundledBinaries(platform, arch)
+  require('../download-binaries').verifyBundledBinaries(platform, arch)
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
-    const electronBuilderConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
+    const electronBuilderConfigPath = path.join(__dirname, '../..', 'electron-builder.yml')
     const electronBuilderConfig = parse(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
     let filters = electronBuilderConfig.files
 
