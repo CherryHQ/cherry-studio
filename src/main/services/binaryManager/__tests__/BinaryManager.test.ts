@@ -4218,5 +4218,60 @@ describe('BinaryManager', () => {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }
     })
+
+    it('restores FFmpeg support DLLs without treating them as executables', async () => {
+      platformMock.isWin = true
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'win32' },
+        arch: { value: 'x64' }
+      })
+
+      try {
+        const service = new BinaryManager()
+        mockFs.readFileSync.mockImplementation((path: string) => {
+          if (path.includes('-version')) return 'same-version'
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+        mockFs.existsSync.mockImplementation((...args: unknown[]) => {
+          const path = String(args[0])
+          if (path.includes('app.root.resources.binaries')) return true
+          return !path.endsWith('cherry.bin/libopenh264-7.dll')
+        })
+
+        await (service as any).extractBundledBinaries()
+
+        expect(mockFsp.copyFile).toHaveBeenCalledWith(
+          expect.stringContaining('app.root.resources.binaries/win32-x64/libopenh264-7.dll'),
+          expect.stringContaining('cherry.bin/libopenh264-7.dll.tmp-')
+        )
+        expect(mockFsp.chmod.mock.calls.some(([path]) => String(path).endsWith('.dll'))).toBe(false)
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
+
+    it('does not inspect or extract FFmpeg on Linux', async () => {
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+      Object.defineProperties(process, {
+        platform: { value: 'linux' },
+        arch: { value: 'x64' }
+      })
+
+      try {
+        const service = new BinaryManager()
+        mockFs.existsSync.mockReturnValue(true)
+        mockFs.readFileSync.mockReturnValue('same-version')
+
+        await (service as any).extractBundledBinaries()
+
+        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(false)
+        expect(mockFsp.copyFile.mock.calls.some(([path]) => String(path).includes('ffmpeg'))).toBe(false)
+      } finally {
+        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+      }
+    })
   })
 })
