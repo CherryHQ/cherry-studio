@@ -25,7 +25,9 @@ import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
@@ -228,9 +230,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
     : fastModeProviderOptions
+  const agentSessionRoutingHeaders =
+    agentSessionId &&
+    resolvedEndpoint.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    usesOpenRouterSessionRouting(provider, resolvedEndpoint.endpointType)
+      ? { 'x-session-id': config.requestHeaders?.get('x-session-id') ?? deriveAgentSessionRoutingKey(agentSessionId) }
+      : undefined
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -383,6 +392,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            ...(agentSessionRoutingHeaders ? { headers: agentSessionRoutingHeaders } : {}),
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
@@ -467,6 +477,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      ...(agentSessionRoutingHeaders ? { headers: agentSessionRoutingHeaders } : {}),
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
       ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),

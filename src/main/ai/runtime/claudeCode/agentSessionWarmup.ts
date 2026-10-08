@@ -19,6 +19,7 @@ import {
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -179,6 +180,22 @@ function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string |
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, { name, value }]) => `${name}: ${value}`)
     .join('\n')
+}
+
+function selectAnthropicCustomHeader(
+  source: string | undefined,
+  headerName: string
+): Record<string, string> | undefined {
+  if (!source) return undefined
+  const expectedName = headerName.toLowerCase()
+  let selectedHeader: Record<string, string> | undefined
+  for (const line of source.split('\n')) {
+    const separator = line.indexOf(':')
+    if (separator < 0) continue
+    const name = line.slice(0, separator).trim()
+    if (name.toLowerCase() === expectedName) selectedHeader = { [name]: line.slice(separator + 1).trim() }
+  }
+  return selectedHeader
 }
 
 function buildUsageModels(
@@ -816,11 +833,18 @@ async function resolveClaudeCodeRuntimeRoute(
           : isOllamaProvider(primaryProvider)
             ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
             : '')
+      const sessionRoutingHeaders = usesOpenRouterSessionRouting(
+        primaryProvider,
+        resolveEffectiveEndpoint(primaryProvider, primaryModel, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
+      )
+        ? { 'x-session-id': deriveAgentSessionRoutingKey(sessionId) }
+        : undefined
       return {
         ...facts,
         apiKey: runtimeApiKey,
         customHeaders: mergeAnthropicCustomHeaders(
           getProviderAppHeaders(primaryProvider),
+          sessionRoutingHeaders,
           getExtraHeaders(primaryProvider)
         ),
         usageCapture: {
@@ -918,9 +942,11 @@ function mergeRuntimeSettings(
     route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
       ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
       : undefined
+  const explicitAgentSessionHeader = selectAnthropicCustomHeader(settings.env?.ANTHROPIC_CUSTOM_HEADERS, 'x-session-id')
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
     route.customHeaders,
+    explicitAgentSessionHeader,
     fastModeHeaders
   )
   const env = mergeAgentLoopbackProxyBypass(
