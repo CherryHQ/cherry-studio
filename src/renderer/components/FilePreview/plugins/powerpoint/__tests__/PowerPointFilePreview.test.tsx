@@ -396,7 +396,7 @@ describe('PowerPointFilePreview', () => {
     expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
   })
 
-  it('rejects oversized PPTX via metadata before reading bytes', async () => {
+  it('shows the dedicated fallback for oversized PPTX metadata before reading bytes', async () => {
     render(
       <PowerPointFilePreview
         filePath={filePath}
@@ -406,7 +406,7 @@ describe('PowerPointFilePreview', () => {
       />
     )
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.powerpoint.too_large.title')
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
   })

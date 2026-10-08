@@ -67,7 +67,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
   })
 
-  it('returns through nested file previews in reverse order', () => {
+  it('automatically returns through nested input-file previews in reverse order', () => {
     const requestFileSelection = vi.fn()
     vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
     const first = fileSelection('/workspace', 'first.md')
@@ -85,7 +85,6 @@ describe('useArtifactPanePreviewNavigation', () => {
       })
     })
     rerender({ previewFileSelection: second })
-    act(() => result.current.captureInputPreviewReturnTarget())
     act(() => {
       result.current.previewInputFile({
         displayName: 'third.md',

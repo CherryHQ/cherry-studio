@@ -95,9 +95,20 @@ export function useArtifactPanePreviewNavigation({
     [isCurrentRequest, requestFileSelection]
   )
 
+  const captureInputPreviewReturnTarget = useCallback(() => {
+    if (previewFileSelection?.previewType !== 'file') return
+    returnRef.current = {
+      closePane: false,
+      panelId: paneId,
+      previous: returnRef.current ?? undefined,
+      selection: previewFileSelection
+    }
+  }, [paneId, previewFileSelection])
+
   const previewInputFile = useCallback(
     (input: InputFilePreview) => {
       if (!enabled) return
+      captureInputPreviewReturnTarget()
       const requestId = beginPreview()
       const initialSelection = createInputFileSelection(input, workspacePath, input.previewPath)
       if (!initialSelection) {
@@ -136,7 +147,15 @@ export function useArtifactPanePreviewNavigation({
         await validateSelection(selection, requestId)
       })()
     },
-    [beginPreview, enabled, isCurrentRequest, requestFileSelection, validateSelection, workspacePath]
+    [
+      beginPreview,
+      captureInputPreviewReturnTarget,
+      enabled,
+      isCurrentRequest,
+      requestFileSelection,
+      validateSelection,
+      workspacePath
+    ]
   )
 
   const closeFilePreview = useCallback(() => {
@@ -157,16 +176,6 @@ export function useArtifactPanePreviewNavigation({
     requestRef.current += 1
     returnRef.current = null
   }, [])
-
-  const captureInputPreviewReturnTarget = useCallback(() => {
-    if (previewFileSelection?.previewType !== 'file') return
-    returnRef.current = {
-      closePane: false,
-      panelId: paneId,
-      previous: returnRef.current ?? undefined,
-      selection: previewFileSelection
-    }
-  }, [paneId, previewFileSelection])
 
   return { captureInputPreviewReturnTarget, clearReturnTarget, closeFilePreview, previewInputFile }
 }

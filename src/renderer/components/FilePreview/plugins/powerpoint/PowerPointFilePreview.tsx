@@ -239,11 +239,7 @@ export default function PowerPointFilePreview({
 
     void (async () => {
       try {
-        // Preserve the generic load-error state for stale metadata; validate the actual bytes below
-        // so an oversized source that was misreported still gets the dedicated fallback.
-        if (metadata.size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
-          throw new Error('PPTX preview supports files up to 25 MB')
-        }
+        assertSourceSize(metadata.size)
 
         const pptxData = toUint8Array(await window.api.fs.read(filePath))
         assertSourceSize(pptxData.byteLength)
