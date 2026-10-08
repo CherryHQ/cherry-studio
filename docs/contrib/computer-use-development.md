@@ -26,10 +26,10 @@ COMPUTER_USE_CHECKOUT=/path/to/cherry-computer-use
 npm --prefix "$COMPUTER_USE_CHECKOUT" install
 npm --prefix "$COMPUTER_USE_CHECKOUT" run sdk:build
 # macOS: build the complete helper app.
-(cd "$COMPUTER_USE_CHECKOUT" && ./scripts/build-open-computer-use-app.sh debug)
+(cd "$COMPUTER_USE_CHECKOUT" && ./scripts/build-open-computer-use-app.sh release)
 mkdir -p .context
 ln -s "$COMPUTER_USE_CHECKOUT/packages/sdk" .context/computer-use-sdk
-ln -s "$COMPUTER_USE_CHECKOUT/dist/Open Computer Use (Dev).app" .context/computer-use-runtime
+ln -s "$COMPUTER_USE_CHECKOUT/dist/Open Computer Use.app" .context/computer-use-runtime
 pnpm install --frozen-lockfile
 pnpm debug
 ```
@@ -68,7 +68,7 @@ The junction setup is for a fresh checkout. Copy the rebuilt executable again af
 
 ## Permission flow
 
-Open **Settings → Computer Use**. Loading or refreshing the page only queries permission state. Selecting a permission button explicitly requests that permission through the native helper. On macOS, grant access to the **Open Computer Use** helper shown in System Settings; Cherry's own screen-recording permission is a separate identity. Development builds use the **Open Computer Use (Dev)** name.
+Open **Settings → Computer Use**. Loading or refreshing the page only queries permission state. Selecting a permission button explicitly requests that permission through the native helper. On macOS, grant access to the **Open Computer Use** helper shown in System Settings; Cherry's own screen-recording permission is a separate identity. Build the helper with the `release` configuration: the `debug` build keeps the **Open Computer Use (Dev)** name and `.dev` bundle id in its Info.plist, and packaging copies that plist verbatim.
 
 The macOS SDK opens the existing native onboarding window and a draggable helper app tile beside System Settings. An accepted drag immediately dismisses the panel and ends the SDK guide. Complete any remaining system confirmation there; Cherry rechecks the actual grant with a new helper. **Done** and the window close button also end the guide. Dismissing without granting is allowed. The helper remains alive during this interaction; the request defaults to a five-minute deadline and supports cancellation.
 
