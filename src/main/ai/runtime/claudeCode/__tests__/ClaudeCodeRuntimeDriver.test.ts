@@ -2303,7 +2303,27 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await connection.close()
   })
 
-  it('emits a live context-usage reading from trailing message_delta input usage', async () => {
+  it.each([
+    { name: 'uncached', usage: { input_tokens: 12_345 }, totalTokens: 12_345, percentage: 6.1725 },
+    {
+      name: 'cache reads only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8192, cache_creation_input_tokens: 0 },
+      totalTokens: 8192,
+      percentage: 4.096
+    },
+    {
+      name: 'cache writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 4096 },
+      totalTokens: 4096,
+      percentage: 2.048
+    },
+    {
+      name: 'cache reads and writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8000, cache_creation_input_tokens: 4000 },
+      totalTokens: 12_000,
+      percentage: 6
+    }
+  ])('emits trailing message_delta context usage ($name)', async ({ usage, totalTokens, percentage }) => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -2330,7 +2350,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       event: {
         type: 'message_delta',
         delta: { stop_reason: 'end_turn' },
-        usage: { input_tokens: 12_345, output_tokens: 5 }
+        usage: { ...usage, output_tokens: 5 }
       }
     })
     // Subagent lanes must not move the session ring.
@@ -2339,7 +2359,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       parent_tool_use_id: 'tool-1',
       event: { type: 'message_delta', delta: {}, usage: { input_tokens: 50_000, output_tokens: 1 } }
     })
-    // Direct-Anthropic deltas carry cache-only usage: must not emit a lower reading than the ring.
+    // Sparse direct-Anthropic deltas must not replace a complete input reading.
     queryQueue.push({
       type: 'stream_event',
       parent_tool_use_id: null,
@@ -2350,10 +2370,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_delta', delta: {}, usage: { output_tokens: 2, cache_read_input_tokens: 500 } }
+    })
+    queryQueue.push({
       type: 'result',
       subtype: 'success',
       session_id: 'delta-usage-result',
-      usage: { input_tokens: 12_345, output_tokens: 5 }
+      usage: { ...usage, output_tokens: 5 }
     })
 
     const seen: any[] = []
@@ -2363,7 +2388,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen.filter((event) => event?.type === 'context-usage')).toEqual([
       {
         type: 'context-usage',
-        usage: { categories: [], totalTokens: 12_345, maxTokens: 200_000, percentage: 6.1725, model: 'sonnet-sdk' }
+        usage: { categories: [], totalTokens, maxTokens: 200_000, percentage, model: 'sonnet-sdk' }
       }
     ])
     await connection.close()

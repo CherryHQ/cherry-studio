@@ -712,13 +712,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.emitLiveContextUsage(message.event.message?.usage)
         }
 
-        // Bridge gateways only report real input tokens on the trailing message_delta (message_start
-        // is still 0); gate on input_tokens so direct-Anthropic cache-only deltas can't emit a low reading.
+        // Bridge gateways report full input usage on trailing deltas; zero uncached tokens is valid.
+        // Skip sparse direct-Anthropic deltas whose input_tokens is absent or null.
         if (
           message.type === 'stream_event' &&
           message.event.type === 'message_delta' &&
           message.parent_tool_use_id == null &&
-          (message.event.usage?.input_tokens ?? 0) > 0
+          message.event.usage?.input_tokens != null
         ) {
           this.emitLiveContextUsage(message.event.usage)
         }
