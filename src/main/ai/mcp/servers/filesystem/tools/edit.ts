@@ -42,8 +42,13 @@ async function writeEdit(validPath: AbsoluteFilePath, content: string, filePath:
 }
 
 // Handler implementation
-export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
+export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const {
+    file_path: filePath,
+    old_string: oldString,
+    new_string: newString,
+    replace_all: replaceAll = false
+  } = args
 
   return filesystemMutationService.runExclusive(filePath, baseDir, async () => {
     const validPath = await validatePath(filePath, baseDir)
