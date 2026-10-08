@@ -105,7 +105,13 @@ describe('Agent Computer Use adapter', () => {
       'list_apps',
       'open_app',
       'get_app_state',
-      'click'
+      'click',
+      'perform_secondary_action',
+      'scroll',
+      'drag',
+      'type_text',
+      'press_key',
+      'set_value'
     ])
     expect(await openApp()).toMatchObject({ content: [{ text: expect.stringContaining('"id":"app-session-1"') }] })
     messageId = undefined

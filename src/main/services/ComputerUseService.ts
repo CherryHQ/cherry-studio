@@ -2,6 +2,7 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import {
+  type Action,
   type AppInfo,
   type AppSession,
   ComputerUse,
@@ -150,16 +151,12 @@ export class ComputerUseService extends BaseService {
     return client.getAppState({ ...input, activation: 'never' }, { signal: this.signal(task, signal) })
   }
 
-  async click(
-    context: ComputerUseTask,
-    input: { appSessionId: string; snapshotId: string; elementId: string },
-    signal?: AbortSignal
-  ) {
+  async act(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
     const task = this.getTask(context)
-    const control = this.getApp(task, input.appSessionId)
+    const control = this.getApp(task, action.appSessionId)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
-    return client.act({ ...input, type: 'click', allowGlobalInput: false }, { signal: this.signal(task, signal) })
+    return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
   }
 
   getControls(): ComputerUseControl[] {

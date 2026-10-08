@@ -14,7 +14,7 @@ export function createComputerUseToolEntries(): ToolEntry[] {
     defer: 'never',
     truncatable: false,
     applies: (scope) => scope.computerUseEnabled === true,
-    tool: tool<Record<string, string>, NeutralToolResult>({
+    tool: tool<Record<string, unknown>, NeutralToolResult>({
       description,
       inputSchema,
       execute: (args, options) => {

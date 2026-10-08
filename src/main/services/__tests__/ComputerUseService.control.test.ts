@@ -86,14 +86,14 @@ describe('desktop control ownership and user stop', () => {
     await service.getAppState(first, { appSessionId: app.id })
     await expect(service.openApp(other, 'app')).rejects.toMatchObject({ code: 'APP_BUSY' })
     await expect(
-      service.click(other, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button' })
+      service.act(other, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     ).rejects.toMatchObject({ code: 'UNKNOWN_APP_SESSION' })
-    await service.click(first, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button' })
+    await service.act(first, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     expect(native.events).toEqual(['open:app', 'click:app-1'])
     expect(ComputerUse.start).toHaveBeenCalledTimes(1)
     await service.finishTask(first)
     await expect(
-      service.click(first, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button' })
+      service.act(first, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     ).rejects.toMatchObject({ code: 'TASK_CLOSED' })
     expect(native.events.at(-1)).toBe('close')
     await expect(service.openApp(other, 'app')).resolves.toMatchObject({ status: 'active' })
@@ -118,9 +118,9 @@ describe('desktop control ownership and user stop', () => {
     service.allowControl('owner', 'app')
     await expect(service.openApp(task, 'app')).rejects.toMatchObject({ code: 'USER_STOPPED' })
     await expect(
-      service.click(task, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button' })
+      service.act(task, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     ).rejects.toMatchObject({ code: 'USER_STOPPED' })
-    await service.click(task, { appSessionId: second.id, snapshotId: 'snapshot', elementId: 'button' })
+    await service.act(task, { appSessionId: second.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     stopped.resolve()
     await stopping
     expect(service.getControls().find((row) => row.appId === 'app')?.status).toBe('stopped')
@@ -216,7 +216,7 @@ describe('desktop control ownership and user stop', () => {
     const app = await service.openApp(task, 'app')
     MockMainPreferenceServiceUtils.simulateExternalPreferenceChange('app.computer_use.agent_control.enabled', false)
     await expect(
-      service.click(task, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button' })
+      service.act(task, { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' })
     ).rejects.toBeInstanceOf(Error)
     await vi.waitFor(() => expect(native.events).toEqual(['open:app', 'close']))
     MockMainPreferenceServiceUtils.simulateExternalPreferenceChange('app.computer_use.agent_control.enabled', true)

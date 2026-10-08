@@ -58,9 +58,52 @@ describe('Computer Use model boundary', () => {
     expect(JSON.stringify(model)).not.toContain('dataBase64')
   })
 
+  it('sends the runtime outline as its own text part instead of the element JSON', async () => {
+    const snapshot: Snapshot = {
+      id: 'snapshot-1',
+      appSessionId: 'session-1',
+      app: { id: 'editor', name: 'Editor' },
+      window: { id: 'window-1', title: 'Document' },
+      tree: {
+        status: 'available',
+        elements: [{ id: '3', role: 'AXButton', name: 'Save', actions: ['click'], secondaryActions: [] }],
+        text: '0 standard window Document\n\t3 button Save',
+        truncated: ['nodes']
+      },
+      screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'Capture unavailable' } }
+    }
+    vi.spyOn(service, 'getAppState').mockResolvedValue(snapshot)
+    const entry = entries.find((entry) => entry.name === 'computer_get_app_state')!
+    const output = await entry.tool.execute!({ appSessionId: 'session-1' }, options)
+    expect(output.content).toEqual([
+      { type: 'text', text: expect.stringContaining('"truncated":["nodes"]') },
+      { type: 'text', text: '0 standard window Document\n\t3 button Save' }
+    ])
+    expect(output.content[0]).not.toMatchObject({ text: expect.stringContaining('"elements"') })
+  })
+
+  it('maps coordinate clicks and typed input to runtime actions and rejects ambiguous clicks', async () => {
+    const act = vi.spyOn(service, 'act').mockResolvedValue({
+      status: 'completed',
+      observation: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'Capture unavailable' } }
+    })
+    const call = (name: string, input: Record<string, unknown>) =>
+      entries.find((entry) => entry.name === name)!.tool.execute!(input, options)
+    const ids = { appSessionId: 'session-1', snapshotId: 'snapshot-1' }
+    await call('computer_click', { ...ids, x: 12, y: 34, button: 'right' })
+    await call('computer_type_text', { ...ids, text: 'hello' })
+    expect(act.mock.calls.map(([, action]) => action)).toEqual([
+      { type: 'click', ...ids, x: 12, y: 34, button: 'right' },
+      { type: 'typeText', ...ids, text: 'hello' }
+    ])
+    await expect(call('computer_click', { ...ids, elementId: '3', x: 1, y: 2 })).rejects.toThrow('either elementId')
+    await expect(call('computer_click', ids)).rejects.toThrow('either elementId')
+    expect(act).toHaveBeenCalledTimes(2)
+  })
+
   it('returns uncertain effects without replaying clicks and preserves completed-but-unobserved results', async () => {
     const click = vi
-      .spyOn(service, 'click')
+      .spyOn(service, 'act')
       .mockRejectedValueOnce(new ComputerUseError('TIMEOUT', 'Effect uncertain', { effect: 'possible' }))
       .mockResolvedValueOnce({
         status: 'completed',
@@ -81,7 +124,13 @@ describe('Computer Use model boundary', () => {
       'computer_list_apps',
       'computer_open_app',
       'computer_get_app_state',
-      'computer_click'
+      'computer_click',
+      'computer_perform_secondary_action',
+      'computer_scroll',
+      'computer_drag',
+      'computer_type_text',
+      'computer_press_key',
+      'computer_set_value'
     ])
     expect(entries.every((entry) => !entry.applies!({ mcpToolIds: new Set() }))).toBe(true)
     expect(entries.every((entry) => entry.applies!({ mcpToolIds: new Set(), computerUseEnabled: true }))).toBe(true)
