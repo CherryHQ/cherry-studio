@@ -35,9 +35,9 @@ import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
-import { sanitizeAnthropicRequestImages } from './utils/sanitizeAnthropicImages'
 import { resolveGatewayModelAddress } from './utils/models'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
+import { sanitizeAnthropicRequestImages } from './utils/sanitizeAnthropicImages'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
