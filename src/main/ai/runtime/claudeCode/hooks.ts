@@ -27,7 +27,7 @@ import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
-import type { ClaudeCodeSettings } from './types'
+import type { ClaudeCodeSettings, SubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
@@ -74,11 +74,70 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  subagentImageSupport?: SubagentImageSupport
   agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
+  const pendingSubagentLaunches = new Map<string, { agentType: string; support: boolean }>()
+  const activeSubagentImageSupport = new Map<string, boolean>()
+  const maxPendingSubagentLaunches = 50
+
+  const launchType = (input: Record<string, unknown> | undefined): string => {
+    const value = input?.subagent_type ?? input?.agent_type
+    return typeof value === 'string' ? value : ''
+  }
+
+  const launchSupport = (input: Record<string, unknown> | undefined): boolean => {
+    const type = launchType(input).trim().toLowerCase()
+    if (type === 'fork') return ctx.supportsImages
+    const requested = typeof input?.model === 'string' ? input.model.trim().toLowerCase() : ''
+    if (requested === '' || requested === 'inherit') return ctx.supportsImages
+    if (requested === 'opus' || requested === 'sonnet' || requested === 'haiku') {
+      return ctx.subagentImageSupport?.[requested] ?? ctx.supportsImages
+    }
+    if (requested) logger.warn('Unknown subagent model alias; denying image reads', { requested })
+    return false
+  }
+
+  const rememberSubagentLaunch = (toolUseId: string, input: Record<string, unknown> | undefined): void => {
+    if (pendingSubagentLaunches.size >= maxPendingSubagentLaunches) {
+      const oldest = pendingSubagentLaunches.keys().next()
+      if (!oldest.done) pendingSubagentLaunches.delete(oldest.value)
+    }
+    pendingSubagentLaunches.set(toolUseId, { agentType: launchType(input), support: launchSupport(input) })
+  }
+
+  const forgetSubagentLaunch = (input: HookInput | undefined): void => {
+    if (!input || (input.hook_event_name !== 'PostToolUseFailure' && input.hook_event_name !== 'PermissionDenied')) {
+      return
+    }
+    if (input.tool_name !== 'Task' && input.tool_name !== 'Agent') return
+    if (typeof input.tool_use_id === 'string') pendingSubagentLaunches.delete(input.tool_use_id)
+  }
+
+  const bindSubagent = (agentId: string, agentType: string): void => {
+    const matches = [...pendingSubagentLaunches].filter(([, entry]) => entry.agentType === agentType)
+    const fallbackMatches =
+      matches.length === 0 ? [...pendingSubagentLaunches].filter(([, entry]) => !entry.agentType) : []
+    const candidates = matches.length > 0 ? matches : fallbackMatches
+    if (candidates.length > 1) {
+      logger.warn('Ambiguous subagent image capability; denying image reads', { agentType, count: candidates.length })
+      for (const [id] of candidates) pendingSubagentLaunches.delete(id)
+      activeSubagentImageSupport.set(agentId, false)
+      return
+    }
+    const selectedId = candidates[0]?.[0]
+    if (!selectedId) {
+      logger.warn('Subagent image capability launch was not observed; denying image reads', { agentId, agentType })
+      activeSubagentImageSupport.set(agentId, false)
+      return
+    }
+    const entry = pendingSubagentLaunches.get(selectedId)
+    pendingSubagentLaunches.delete(selectedId)
+    if (entry) activeSubagentImageSupport.set(agentId, entry.support)
+  }
 
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
@@ -102,11 +161,16 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       signal: options?.signal,
-      supportsImages: ctx.supportsImages,
+      supportsImages: input.agent_id
+        ? (activeSubagentImageSupport.get(input.agent_id) ?? ctx.supportsImages)
+        : ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
+    if ((toolName === 'Task' || toolName === 'Agent') && decision?.effect !== 'deny' && typeof toolUseId === 'string') {
+      rememberSubagentLaunch(toolUseId, toolInput)
+    }
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
@@ -225,7 +289,26 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
+    activeSubagentImageSupport.delete(input.agent_id)
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    return {}
+  }
+
+  const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStart') return {}
+    bindSubagent(input.agent_id, input.agent_type)
+    return {}
+  }
+
+  const subagentLaunchCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    forgetSubagentLaunch(input)
+    return {}
+  }
+
+  const sessionEndHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SessionEnd') return {}
+    pendingSubagentLaunches.clear()
+    activeSubagentImageSupport.clear()
     return {}
   }
 
@@ -306,8 +389,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, subagentLaunchCleanupHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
-    SubagentStop: [{ hooks: [subagentStopHook] }]
+    PermissionDenied: [{ hooks: [subagentLaunchCleanupHook] }],
+    SubagentStart: [{ hooks: [subagentStartHook] }],
+    SubagentStop: [{ hooks: [subagentStopHook] }],
+    SessionEnd: [{ hooks: [sessionEndHook] }]
   }
 }
