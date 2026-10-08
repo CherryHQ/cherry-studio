@@ -62,6 +62,15 @@ describe('OpenTargetButton', () => {
     expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
   })
 
+  it('labels a single-target custom primary action with the selected target', async () => {
+    const user = userEvent.setup()
+    render(<OpenTargetButton targetPath="/tmp/My Workspace" pathKind="directory" primaryContent="Open workspace" />)
+
+    await user.click(screen.getByRole('button', { name: 'Open in Visual Studio Code' }))
+
+    expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
+  })
+
   it('keeps a custom workspace trigger as the primary action with a separate target menu', async () => {
     const user = userEvent.setup()
     mocks.usePreferredExternalOpenTarget.mockReturnValue({
@@ -71,7 +80,7 @@ describe('OpenTargetButton', () => {
     })
     render(<OpenTargetButton targetPath="/tmp/My Workspace" pathKind="directory" primaryContent="Open workspace" />)
 
-    await user.click(screen.getByRole('button', { name: 'Open workspace' }))
+    await user.click(screen.getByRole('button', { name: 'Open in Visual Studio Code' }))
 
     expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
 

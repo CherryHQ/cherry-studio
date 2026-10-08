@@ -93,7 +93,7 @@ export function OpenTargetButton({
           size={hasCustomPrimary ? 'sm' : 'icon-sm'}
           disabled={!selectedTarget}
           className={cn(hasCustomPrimary ? primaryClassName : TOOLBAR_BUTTON_CLASS, className)}
-          aria-label={hasCustomPrimary ? tooltip : primaryLabel}
+          aria-label={hasCustomPrimary ? (tooltip ?? primaryLabel) : primaryLabel}
           onClick={() => void handleOpen()}>
           {primaryContent ?? primaryIcon}
         </Button>
@@ -113,7 +113,7 @@ export function OpenTargetButton({
           )}
           variant="ghost"
           size={hasCustomPrimary ? 'sm' : 'icon-sm'}
-          aria-label={hasCustomPrimary ? tooltip : primaryLabel}
+          aria-label={hasCustomPrimary ? (tooltip ?? primaryLabel) : primaryLabel}
           onClick={() => void handleOpen()}>
           {primaryContent ?? primaryIcon}
         </Button>
