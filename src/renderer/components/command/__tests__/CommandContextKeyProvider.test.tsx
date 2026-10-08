@@ -141,6 +141,44 @@ describe('CommandContextKeyProvider', () => {
     })
   })
 
+  it('keeps webview.focused when a later host registers false', async () => {
+    const { rerender } = render(
+      <CommandContextKeyProvider>
+        <ScopedContextKey key="guest" contextKey="webview.focused" value />
+        <ScopedContextKey key="pool" contextKey="webview.focused" value />
+        <SnapshotView />
+      </CommandContextKeyProvider>
+    )
+
+    await waitFor(() => {
+      expect(readSnapshot()['webview.focused']).toBe(true)
+    })
+
+    rerender(
+      <CommandContextKeyProvider>
+        <ScopedContextKey key="guest" contextKey="webview.focused" value />
+        <ScopedContextKey key="pool" contextKey="webview.focused" value={false} />
+        <SnapshotView />
+      </CommandContextKeyProvider>
+    )
+
+    await waitFor(() => {
+      expect(readSnapshot()['webview.focused']).toBe(true)
+    })
+
+    rerender(
+      <CommandContextKeyProvider>
+        <ScopedContextKey key="guest" contextKey="webview.focused" value={false} />
+        <ScopedContextKey key="pool" contextKey="webview.focused" value={false} />
+        <SnapshotView />
+      </CommandContextKeyProvider>
+    )
+
+    await waitFor(() => {
+      expect(readSnapshot()['webview.focused']).toBe(false)
+    })
+  })
+
   it('keeps provider instances isolated', async () => {
     render(
       <>
