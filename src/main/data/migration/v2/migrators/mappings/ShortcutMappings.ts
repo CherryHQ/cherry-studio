@@ -15,7 +15,6 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { inferLegacySidebarShortcutCustomized } from '@shared/utils/command'
 import { normalizeShortcutBinding } from '@shared/utils/shortcut'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
@@ -63,6 +62,12 @@ const LEGACY_KEY_PRIORITY: Record<string, number> = {
   toggle_show_assistants: 0,
   toggle_sidebar: 1
 }
+
+const LEGACY_SIDEBAR_SHORTCUT_KEYS = new Set(['shortcut.app.sidebar.toggle', 'shortcut.topic.sidebar.toggle'])
+
+/** v1 has no provenance. Every migrated sidebar chord is kept, including the old default. */
+const inferLegacySidebarShortcutCustomized = (preferenceKey: string): boolean | undefined =>
+  LEGACY_SIDEBAR_SHORTCUT_KEYS.has(preferenceKey) ? true : undefined
 
 export const transformShortcuts: TransformFunction = (sources) => {
   const shortcuts = sources.shortcuts

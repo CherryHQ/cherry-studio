@@ -1,4 +1,4 @@
-import type { RouterHistory } from '@tanstack/react-router'
+import { createMemoryHistory, type RouterHistory } from '@tanstack/react-router'
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -72,5 +72,40 @@ describe('useTabHistoryNavigation', () => {
 
     expect(history.back).toHaveBeenCalledTimes(1)
     expect(history.forward).toHaveBeenCalledTimes(1)
+  })
+
+  it('walks one tab memory stack from its commands and stops at both ends', () => {
+    const history = createMemoryHistory({ initialEntries: ['/a'] })
+    renderHook(() => useTabHistoryNavigation(history, true))
+
+    const back = commandMocks.handlers.get('tab.history.back')
+    const forward = commandMocks.handlers.get('tab.history.forward')
+
+    act(() => {
+      back?.handler()
+      forward?.handler()
+    })
+    expect(history.location.pathname).toBe('/a')
+
+    act(() => {
+      history.push('/b')
+      history.push('/c')
+    })
+    expect(history.location.pathname).toBe('/c')
+
+    act(() => {
+      back?.handler()
+    })
+    expect(history.location.pathname).toBe('/b')
+
+    act(() => {
+      forward?.handler()
+    })
+    expect(history.location.pathname).toBe('/c')
+
+    act(() => {
+      forward?.handler()
+    })
+    expect(history.location.pathname).toBe('/c')
   })
 })

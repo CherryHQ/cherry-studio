@@ -2,10 +2,27 @@ import type { RouterHistory } from '@tanstack/react-router'
 import { useCallback, useEffect } from 'react'
 
 import { useCommandHandler } from '@renderer/hooks/command'
-import { goTabHistoryBack, goTabHistoryForward } from '@renderer/utils/tabHistoryNavigation'
 
 const MOUSE_BACK_BUTTON = 3
 const MOUSE_FORWARD_BUTTON = 4
+
+/** Memory history exposes canGoBack but not canGoForward. */
+const canGoForward = (history: Pick<RouterHistory, 'length' | 'location'>): boolean => {
+  const index = history.location.state.__TSR_index
+  return typeof index === 'number' && index < history.length - 1
+}
+
+const goTabHistoryBack = (history: Pick<RouterHistory, 'back' | 'canGoBack'>): boolean => {
+  if (!history.canGoBack()) return false
+  history.back()
+  return true
+}
+
+const goTabHistoryForward = (history: Pick<RouterHistory, 'forward' | 'length' | 'location'>): boolean => {
+  if (!canGoForward(history)) return false
+  history.forward()
+  return true
+}
 
 const isWebviewEventTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof Element)) return false

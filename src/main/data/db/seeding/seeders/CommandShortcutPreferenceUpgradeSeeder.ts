@@ -1,12 +1,41 @@
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { preferenceTable } from '@data/db/schemas/preference'
-import { isLegacySidebarDefaultBinding } from '@shared/utils/command'
-import { normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
+import { canonicalTriggerToken, normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { DbType, ISeeder } from '../../types'
 
 const LEGACY_SIDEBAR_SHORTCUT_KEYS = ['shortcut.app.sidebar.toggle', 'shortcut.topic.sidebar.toggle'] as const
+
+type LegacySidebarShortcutKey = (typeof LEGACY_SIDEBAR_SHORTCUT_KEYS)[number]
+
+const LEGACY_SIDEBAR_DEFAULT_BINDINGS: Record<LegacySidebarShortcutKey, readonly ShortcutBinding[]> = {
+  'shortcut.app.sidebar.toggle': [
+    ['CommandOrControl', '['],
+    ['Command', '['],
+    ['Ctrl', '[']
+  ],
+  'shortcut.topic.sidebar.toggle': [
+    ['CommandOrControl', ']'],
+    ['Command', ']'],
+    ['Ctrl', ']']
+  ]
+}
+
+const bindingsMatch = (left: ShortcutBinding, right: ShortcutBinding): boolean => {
+  if (left.length !== right.length) return false
+  const leftTokens = new Set(left.map(canonicalTriggerToken))
+  if (leftTokens.size !== right.length) return false
+  return right.every((token) => leftTokens.has(canonicalTriggerToken(token)))
+}
+
+/** Old sidebar defaults, including the shared Cmd+[ / Cmd+] chord, are saved bindings. */
+const isLegacySidebarDefaultBinding = (preferenceKey: string, binding: ShortcutBinding): boolean => {
+  const defaults = LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutKey]
+  if (!defaults) return false
+  const normalized = normalizeShortcutBinding(binding)
+  return defaults.some((candidate) => bindingsMatch(normalized, candidate))
+}
 
 function isShortcutPreference(value: unknown): value is Record<string, unknown> & { binding: ShortcutBinding } {
   return (

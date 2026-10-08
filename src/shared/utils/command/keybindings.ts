@@ -110,37 +110,6 @@ const shortcutBindingMatches = (left: ShortcutBinding, right: ShortcutBinding): 
   return right.every((token) => leftTokens.has(canonicalTriggerToken(token)))
 }
 
-type LegacySidebarShortcutPreferenceKey = 'shortcut.app.sidebar.toggle' | 'shortcut.topic.sidebar.toggle'
-
-const LEGACY_SIDEBAR_DEFAULT_BINDINGS: Record<LegacySidebarShortcutPreferenceKey, readonly ShortcutBinding[]> = {
-  'shortcut.app.sidebar.toggle': [
-    ['CommandOrControl', '['],
-    ['Command', '['],
-    ['Ctrl', '[']
-  ],
-  'shortcut.topic.sidebar.toggle': [
-    ['CommandOrControl', ']'],
-    ['Command', ']'],
-    ['Ctrl', ']']
-  ]
-}
-
-export const isLegacySidebarDefaultBinding = (preferenceKey: string, binding: ShortcutBinding): boolean => {
-  const defaults = LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]
-  if (!defaults) return false
-  const normalized = normalizeShortcutBinding(binding)
-  return defaults.some((candidate) => shortcutBindingMatches(normalized, candidate))
-}
-
-export const inferLegacySidebarShortcutCustomized = (preferenceKey: string): boolean | undefined => {
-  if (!LEGACY_SIDEBAR_DEFAULT_BINDINGS[preferenceKey as LegacySidebarShortcutPreferenceKey]) {
-    return undefined
-  }
-  // Every stored sidebar row keeps its chord. Equal v1 timestamps cannot prove
-  // the old default was unused, so they must not opt the row into a remap.
-  return true
-}
-
 const getTriggerBindings = (
   binding: ShortcutBinding,
   additionalBindings: readonly ShortcutBinding[] = []
@@ -198,19 +167,10 @@ const getDefaultShortcutPreferenceForRule = (
   }
 }
 
-const SIDEBAR_SHORTCUT_PREFERENCE_KEYS = new Set<string>([
-  'shortcut.app.sidebar.toggle',
-  'shortcut.topic.sidebar.toggle'
-])
-
-/**
- * Stored binding to honour, or undefined to fall back to the default.
- * A sidebar row without `customized` keeps its chord, including Cmd+[ / Cmd+].
- */
+// A saved row's chord is authoritative, whatever `customized` says. Platform
+// defaults apply only when no row is passed. An empty binding stays cleared.
 const resolvePreferredBinding = (
-  rule: RegisteredKeybindingRule,
-  preference: PreferenceShortcutType | null | undefined,
-  platform?: SupportedPlatform
+  preference: PreferenceShortcutType | null | undefined
 ): ShortcutBinding | undefined => {
   if (preference == null) {
     return undefined
@@ -218,25 +178,7 @@ const resolvePreferredBinding = (
   if (!preference.binding?.length) {
     return []
   }
-
-  const binding = normalizeShortcutBinding(preference.binding)
-  const sidebarShortcut = SIDEBAR_SHORTCUT_PREFERENCE_KEYS.has(rule.preferenceKey)
-  if (preference.customized === true || (sidebarShortcut && preference.customized !== false)) {
-    return binding
-  }
-  const platformBinding = getRulePlatformBinding(rule.defaultBinding, platform)
-  if (preference.customized === false) {
-    // Fresh defaults use the shared schema chord. Any other stored chord,
-    // including a migrated Command+[ tagged uncustomized, stays as saved.
-    if (sidebarShortcut && !shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
-      return binding
-    }
-    return platformBinding ?? getSharedDefaultBinding(rule)
-  }
-  if (platformBinding && shortcutBindingMatches(binding, getSharedDefaultBinding(rule))) {
-    return platformBinding
-  }
-  return binding
+  return normalizeShortcutBinding(preference.binding)
 }
 
 export const getCommandDefaultShortcutPreference = (
@@ -263,7 +205,7 @@ export const resolveCommandShortcutPreference = (
   const fallback = getDefaultShortcutPreferenceForRule(rule, platform)
 
   return {
-    binding: resolvePreferredBinding(rule, preference, platform) ?? fallback.binding,
+    binding: resolvePreferredBinding(preference) ?? fallback.binding,
     enabled: typeof preference?.enabled === 'boolean' ? preference.enabled : fallback.enabled
   }
 }
