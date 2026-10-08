@@ -1480,14 +1480,7 @@
   "file_preview.markdown.too_large.description": "无法预览大于 {{limit}} MiB 的 Markdown 文件。",
   "file_preview.markdown.too_large.title": "文件过大",
   "file_preview.pdf.navigation_error": "无法跳转到此 PDF 章节",
-  "file_preview.pdf.outline.empty": "此 PDF 没有目录。",
-  "file_preview.pdf.outline.load_error": "无法加载目录。",
-  "file_preview.pdf.outline.title": "目录",
-  "file_preview.pdf.page_number": "页码",
-  "file_preview.pdf.too_large.action": "用默认应用打开",
-  "file_preview.pdf.too_large.description": "该 PDF 部分内容过大，无法安全地在应用内预览。",
   "file_preview.pdf.too_large.open_error": "无法打开此文件",
-  "file_preview.pdf.too_large.title": "无法预览此 PDF",
   "file_preview.text.empty.description": "此文本文件没有内容。",
   "file_preview.text.empty.title": "文件为空",
   "file_preview.text.read_error.title": "无法读取此文件",
@@ -5874,12 +5867,5 @@
   "webview.navigation.invalid_address": "请输入有效的 HTTP、HTTPS 或文件地址",
   "webview.navigation.load_failed": "页面加载失败",
   "webview.navigation.open_external": "在外部浏览器中打开",
-  "webview.navigation.reload": "刷新",
-  "xlsx_preview.chart": "图表",
-  "xlsx_preview.chart_unsupported": "暂不支持此图表类型",
-  "xlsx_preview.error.description": "无法预览此电子表格。",
-  "xlsx_preview.formula_not_evaluated": "公式无法求值",
-  "xlsx_preview.sheet_tabs_label": "工作表",
-  "xlsx_preview.too_large.description": "文件大小 {{size}} 超过 {{limit}} 的预览大小限制。",
-  "xlsx_preview.too_large.title": "文件过大，无法预览"
+  "webview.navigation.reload": "刷新"
 }

@@ -1480,14 +1480,7 @@
   "file_preview.markdown.too_large.description": "Các tệp Markdown lớn hơn {{limit}} MiB không thể được xem trước.",
   "file_preview.markdown.too_large.title": "Tệp quá lớn",
   "file_preview.pdf.navigation_error": "Không thể chuyển đến phần này của PDF",
-  "file_preview.pdf.outline.empty": "PDF này không có mục lục.",
-  "file_preview.pdf.outline.load_error": "Không thể tải mục lục.",
-  "file_preview.pdf.outline.title": "Mục lục",
-  "file_preview.pdf.page_number": "Số trang",
-  "file_preview.pdf.too_large.action": "Mở bằng ứng dụng mặc định",
-  "file_preview.pdf.too_large.description": "Một phần của tệp PDF này quá lớn để xem trước an toàn trong ứng dụng.",
   "file_preview.pdf.too_large.open_error": "Không thể mở tệp này",
-  "file_preview.pdf.too_large.title": "Tệp quá lớn",
   "file_preview.text.empty.description": "Tệp văn bản này không có nội dung.",
   "file_preview.text.empty.title": "Tệp rỗng",
   "file_preview.text.read_error.title": "Không thể đọc tệp này",
@@ -5874,12 +5867,5 @@
   "webview.navigation.invalid_address": "Nhập URL HTTP, HTTPS hoặc tệp hợp lệ",
   "webview.navigation.load_failed": "Tải trang thất bại",
   "webview.navigation.open_external": "Mở trong trình duyệt bên ngoài",
-  "webview.navigation.reload": "Tải lại",
-  "xlsx_preview.chart": "Biểu đồ",
-  "xlsx_preview.chart_unsupported": "Loại biểu đồ này chưa được hỗ trợ",
-  "xlsx_preview.error.description": "Không thể xem trước bảng tính này.",
-  "xlsx_preview.formula_not_evaluated": "Không thể tính giá trị công thức",
-  "xlsx_preview.sheet_tabs_label": "Trang tính",
-  "xlsx_preview.too_large.description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
-  "xlsx_preview.too_large.title": "Tệp quá lớn để xem trước"
+  "webview.navigation.reload": "Tải lại"
 }
