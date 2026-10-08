@@ -34,6 +34,8 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
+  getInteractionWindow: vi.fn(),
+  getWindow: vi.fn(),
   abortStream: vi.fn(),
   suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
   pauseRuntimeTurn: vi.fn(),
@@ -46,7 +48,6 @@ const mocks = vi.hoisted(() => ({
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
-  getConversationById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -85,7 +86,6 @@ vi.mock('../fork/resources', async (importOriginal) => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
-    getConversationById: mocks.getConversationById,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -480,7 +480,7 @@ describe('AgentSessionRuntimeService', () => {
       id: message.id ?? 'generated-message-id',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.getConversationById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
+    mocks.getSessionById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
@@ -509,6 +509,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
+          getInteractionWindow: mocks.getInteractionWindow,
           abort: mocks.abortStream,
           suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
@@ -526,6 +527,7 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -2776,10 +2778,14 @@ describe('AgentSessionRuntimeService', () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
       const interactiveEntry = getEntry(interactive)
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
       interactiveEntry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
       ;(interactive as any).handleRuntimeEvent(interactiveEntry, { type: 'background-work-state', active: true })
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).not.toBe('unavailable')
+      mocks.getInteractionWindow.mockReturnValue(undefined)
+      expect(interactive.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
 
       void interactive.closeSession('session-1')
       interactive.beginTurn({ ...baseTurnInput, headless: true })
@@ -2788,6 +2794,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(interactive as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
       interactive.markTurnTerminal('session-1', 'success')
       expect(interactive.getInteractionState('session-1').userResponse).toBe('unavailable')
+      expect(interactive.getMcpInteractionHost('session-1')).toBeUndefined()
     })
 
     it('republishes the membership snapshot as session-scoped status', () => {
@@ -4200,6 +4207,65 @@ describe('AgentSessionRuntimeService', () => {
         expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', latestUsage)
       )
       expect(getContextUsage).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('post-turn context usage pull — session-scoped persistence', () => {
+    const reading = (percentage: number, model: string) => ({
+      categories: [],
+      totalTokens: percentage,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage,
+      gridRows: [],
+      model,
+      memoryFiles: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    })
+
+    it('persists a late reading after the connection was replaced mid-read', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const lateReading = reading(11, 'old-model')
+      const late = createDeferred<typeof lateReading>()
+      entry.connection = { getContextUsage: vi.fn().mockReturnValue(late.promise) } as any
+
+      ;(service as any).refreshContextUsage(entry)
+      entry.connection = { getContextUsage: vi.fn().mockResolvedValue(reading(99, 'new-model')) } as any
+      late.resolve(lateReading)
+
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', lateReading)
+      )
+    })
+
+    it('drops the reading once the session entry is gone', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const late = createDeferred<ReturnType<typeof reading>>()
+      entry.connection = { getContextUsage: vi.fn().mockReturnValue(late.promise) } as any
+
+      ;(service as any).refreshContextUsage(entry)
+      ;(service as any).entries.delete('session-1')
+      late.resolve(reading(12, 'claude-sonnet-4-5'))
+
+      await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
+      expect(mocks.cacheSetShared).not.toHaveBeenCalled()
+    })
+
+    it('skips publishing when the probe answers null (cancelled by close)', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { getContextUsage: vi.fn().mockResolvedValue(null) } as any
+
+      ;(service as any).refreshContextUsage(entry)
+      await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
+      expect(mocks.cacheSetShared).not.toHaveBeenCalled()
     })
   })
 

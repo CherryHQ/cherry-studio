@@ -9,6 +9,37 @@ export default defineCreator({
   idPrefixes: ['claude'],
   models: [
     {
+      id: 'claude-sonnet-5-5',
+      name: 'Claude Sonnet 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 }
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' },
+          { kind: 'toggle' }
+        ]
+      }
+    },
+    {
       id: 'claude-opus-5-5',
       name: 'Claude Opus 5.5',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
@@ -38,12 +69,19 @@ export default defineCreator({
     }
   ],
   reasoningFamilies: [
-    // Opus 5.5 only accepts adaptive thinking; disabling it is an API error.
+    // Sonnet's lowest setting skips up-front thinking but retains progress updates between tools.
     {
-      pattern: '^(?:anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: true,
+      wireDialect: 'adaptive-between-tools'
+    },
+    // Opus 5.5 always uses adaptive thinking.
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
       effort: ['low', 'medium', 'high', 'xhigh', 'max'],
       toggle: false,
-      wireDialect: 'effort'
+      wireDialect: 'adaptive-always'
     },
     // Fable always reasons. The API rejects attempts to disable thinking.
     {

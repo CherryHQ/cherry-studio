@@ -4,6 +4,26 @@ import { agentAuthorizationSchema, agentMethods, encodeAgentCommand } from '../s
 import { connectionMethods, jsonRpcNotificationSchema, jsonRpcRequestSchema, negotiateProtocol } from '../src/index'
 
 describe('remote contracts', () => {
+  it('keeps old hello replies compatible and bounds address handoff to approved domains and valid endpoints', () => {
+    const methods = connectionMethods(agentAuthorizationSchema)
+    expect(
+      methods['connection.hello'].result.parse({ protocolVersion: 1, limits: {}, heartbeatMs: 20000 })
+        .connectionEndpointsVersion
+    ).toBeUndefined()
+    const handoff = methods['connection.endpoints']
+    expect(handoff.params.safeParse({ domain: 'admin' }).success).toBe(false)
+    const endpoint = { host: 'desktop.example.com', port: 23333, security: 'ws' }
+    expect(handoff.result.parse({ desktopIdentity: 'desktop', endpoints: [endpoint] }).endpoints).toEqual([endpoint])
+    expect(handoff.result.safeParse({ desktopIdentity: 'desktop', endpoints: Array(33).fill(endpoint) }).success).toBe(
+      false
+    )
+    expect(
+      handoff.result.safeParse({
+        desktopIdentity: 'desktop',
+        endpoints: [{ ...endpoint, host: 'user:secret@desktop.example.com' }]
+      }).success
+    ).toBe(false)
+  })
   it('preserves null request IDs without treating a missing ID as a request', () => {
     const envelope = { jsonrpc: '2.0', method: 'connection.ping', params: { nonce: 'a' } }
     expect(jsonRpcRequestSchema.safeParse(envelope).success).toBe(false)

@@ -498,7 +498,7 @@ function buildCodexFetch() {
  * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
  * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
  * headers, and rewrites the body into the shape the proxy accepts (hoisting
- * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * system turns into `instructions`, normalizing reasoning) — none of which
  * the generic Responses adapter does on its own.
  */
 function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {

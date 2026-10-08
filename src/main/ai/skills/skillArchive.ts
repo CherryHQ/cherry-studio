@@ -7,7 +7,10 @@ import StreamZip from 'node-stream-zip'
 import { loggerService } from '@logger'
 import { isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
-import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import {
+  assertNoFoldedPathCollisions as assertNoFoldedPathCollisionsShared,
+  assertZipEntriesWithin
+} from '@main/utils/zipSafety'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
@@ -85,15 +88,21 @@ export async function validateZipFile(zipFilePath: string): Promise<void> {
   }
 }
 
+/**
+ * Paths differing only in case or Unicode composition land on one file on macOS and Windows, so the
+ * installed content would depend on the platform and on which entry was written last.
+ */
+export const assertNoFoldedPathCollisions = (paths: readonly string[]): void =>
+  assertNoFoldedPathCollisionsShared(paths, 'Skill')
+
 export async function extractZip(zipFilePath: string, destDir: string): Promise<void> {
   const zip = new StreamZip.async({ file: zipFilePath })
 
   try {
     const entries = Object.values(await zip.entries())
-    assertZipEntriesWithin(
-      entries.map((entry) => entry.name),
-      destDir
-    )
+    const entryNames = entries.map((entry) => entry.name)
+    assertZipEntriesWithin(entryNames, destDir)
+    assertNoFoldedPathCollisions(entryNames)
     // Measure the whole archive before rejecting it. Stopping at the entry that crosses a ceiling
     // reports the running counter — always the limit plus one entry — so an archive many times
     // over the limit reads as barely over it, and the user cannot tell why the install failed.

@@ -10,6 +10,11 @@ import { application } from '@application'
 import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
 import { remoteLimits } from '@cherrystudio/remote-protocol'
 import {
+  agentEventBatchSchema as legacyBatchSchema,
+  applyAgentEvents as applyLegacyEvents,
+  installAgentCheckpoint as installLegacyCheckpoint
+} from '@cherrystudio/remote-protocol-v0/agent'
+import {
   type AgentCheckpointPage,
   type AgentEventBatch,
   type AgentProjection,
@@ -28,6 +33,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
@@ -40,7 +46,7 @@ import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { RemoteAgentHub } from '../agentJournal'
+import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
 import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
@@ -59,6 +65,7 @@ const fake = vi.hoisted(() => {
       isWriteQuiesced: false,
       send: vi.fn(),
       hasLiveStream: (topicId: string) => streams.has(topicId),
+      hasUnsettledTopicWork: (topicId: string) => streams.has(topicId),
       addListener: (topicId: string, listener: StreamListener) => {
         const listeners = streams.get(topicId)
         if (!listeners) return false
@@ -69,7 +76,15 @@ const fake = vi.hoisted(() => {
         beforeAbort?.()
       })
     },
-    runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+    runtime: {
+      assertSessionWritable() {},
+      isSessionBusy: () => false,
+      respondToolApproval: vi.fn(() => true),
+      cancelSessionForks: async () => {},
+      closeSession: async () => {},
+      recoverSessionForks: async () => {}
+    },
+    delivery: { drainSessionQueues: async () => {}, kick() {} }
   }
 })
 
@@ -88,7 +103,11 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: fake.manager, AgentSessionRuntimeService: fake.runtime } as never)
+  return mockApplicationFactory({
+    AiStreamManager: fake.manager,
+    AgentSessionRuntimeService: fake.runtime,
+    AgentSessionDeliveryService: fake.delivery
+  } as never)
 })
 
 vi.mock('@main/ai/streamManager', () => ({
@@ -121,6 +140,10 @@ vi.mock('@main/ai/streamManager', () => ({
 
 const integrity = { sha256 }
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 3))
+const settleDeltas = async () => {
+  await new Promise<void>((resolve) => setTimeout(resolve, COALESCE_WINDOW_MS))
+  for (let i = 0; i < 5; i++) await tick()
+}
 
 function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureChannel {
   return {
@@ -216,7 +239,7 @@ describe('remote agent access', () => {
     }
   }
   const drain = async (projection: AgentProjection): Promise<AgentProjection> => {
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     for (const notification of notifications.splice(0) as Array<{ method: string; params: AgentEventBatch }>) {
       expect(notification.method).toBe('agent.events')
       const applied = applyAgentEvents(projection, notification.params, {}, integrity)
@@ -289,7 +312,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
@@ -1136,7 +1160,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await other.rpc.receive(
       { jsonrpc: '2.0', id: 1, method: 'connection.hello', params: { protocolVersions: [1] } },
@@ -1149,6 +1174,218 @@ describe('remote agent access', () => {
     expect(
       await other.rpc.receive({ jsonrpc: '2.0', id: 3, method: 'agent.sessions.list', params: {} }, undefined)
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
+  })
+
+  it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    emit({ type: 'text-delta', id: 'text', delta: '你' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2)
+    emit({ type: 'text-delta', id: 'text', delta: '好🌍' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2 - 1)
+    expect(journal.cursor).toEqual(checkpoint.descriptor.cursor)
+    await vi.advanceTimersByTimeAsync(1)
+    emit({ type: 'text-delta', id: 'text', delta: '！' }, 'answer')
+    emit({ type: 'text-end', id: 'text' }, 'answer')
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { offsetUtf8: '0', text: '你好🌍' },
+      { offsetUtf8: '10', text: '！' }
+    ])
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.parts['answer:text:text']).toMatchObject({
+      content: { text: '你好🌍！' },
+      state: 'completed'
+    })
+    const replayed = applyAgentEvents(applied.projection, batch, {}, integrity)
+    expect(replayed).toEqual(applied)
+  })
+
+  it.each(['你', '你'.repeat(6000)])(
+    'keeps journal checkpoints and merged events compatible with published 0.1.0 (%#)',
+    async (prefix) => {
+      const answerId = randomUUID()
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+      emit({ type: 'text-start', id: 'text' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: prefix }, answerId)
+      await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+      const checkpoint = journal.capture()
+      const baseline = installLegacyCheckpoint(
+        JSON.parse(JSON.stringify(checkpoint.descriptor)),
+        JSON.parse(JSON.stringify(checkpoint.pages)),
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!baseline.ok) throw new Error(baseline.reason)
+      const before = baseline.projection.parts[`${answerId}:text:text`]
+      expect(Object.keys(before).sort()).toEqual(['content', 'executionId', 'kind', 'partId', 'revision', 'state'])
+      expect(before.content).toEqual({ text: prefix })
+      emit({ type: 'text-delta', id: 'text', delta: '好' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: '🌍' }, answerId)
+      emit({ type: 'text-end', id: 'text' }, answerId)
+      let projection = baseline.projection
+      const applySuffix = () => {
+        while (Number(projection.cursor.seq) < Number(journal.cursor.seq)) {
+          const events = journal.eventsAfter(Number(projection.cursor.seq), 12_000)
+          const batch = legacyBatchSchema.parse(
+            JSON.parse(
+              JSON.stringify({
+                subscriptionId: 'legacy-phone',
+                sessionId,
+                streamEpoch: journal.epoch,
+                events
+              })
+            )
+          )
+          const applied = applyLegacyEvents(projection, batch, {}, integrity)
+          if (!applied.ok) throw new Error(applied.reason)
+          projection = applied.projection
+        }
+      }
+      const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+      const append = events.find((event) => event.kind === 'part.append')!
+      expect(append.payload).toMatchObject({
+        baseRevision: before.revision,
+        offsetUtf8: String(prefix.length * 3),
+        text: '好🌍'
+      })
+      expect(BigInt(append.payload.revision)).toBeGreaterThan(BigInt(before.revision))
+      applySuffix()
+      expect(projection.parts[`${answerId}:text:text`]).toMatchObject({
+        content: { text: prefix + '好🌍' },
+        state: 'completed'
+      })
+      const finalCheckpoint = journal.capture()
+      expect(
+        installLegacyCheckpoint(
+          JSON.parse(JSON.stringify(finalCheckpoint.descriptor)),
+          JSON.parse(JSON.stringify(finalCheckpoint.pages)),
+          Object.fromEntries(finalCheckpoint.content),
+          integrity
+        ).ok
+      ).toBe(true)
+      vi.useRealTimers()
+      await finish(answerId, [{ type: 'text', text: prefix + '好🌍' }])
+      applySuffix()
+      expect(projection.messages[answerId]).toBeUndefined()
+      expect(Object.values(projection.executions)).toEqual([
+        expect.objectContaining({ status: 'completed', durable: true })
+      ])
+    }
+  )
+
+  it('rejects deleting an active session without dropping its buffered text', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, 'answer')
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.archiveSessions([sessionId])).rejects.toMatchObject({ name: 'AgentSessionArchiveBusyError' })
+    expect(agentSessionService.getConversationById(sessionId).id).toBe(sessionId)
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Tail' } })
+  })
+
+  it('flushes the terminal tail before deleting the containing workspace', async () => {
+    const answerId = randomUUID()
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const workspaceId = agentSessionService.getConversationById(sessionId).workspaceId
+    emit({ type: 'text-start', id: 'text' }, answerId)
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, answerId)
+    fake.manager.abortAndDrain.mockImplementationOnce(async () => {
+      expect(journal.projection.parts[`${answerId}:text:text`]).toMatchObject({ content: { text: '' } })
+      await finish(answerId, [{ type: 'text', text: 'Tail' }], 'paused')
+      expect(agentSessionMessageService.getSessionMessage(sessionId, answerId).data.parts).toEqual([
+        { type: 'text', text: 'Tail' }
+      ])
+    })
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.deleteWorkspace(workspaceId)).resolves.toEqual({ deletedIds: [sessionId] })
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.find((event) => event.kind === 'part.append')?.payload).toMatchObject({ text: 'Tail' })
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.removed')
+    )
+    expect(() => agentSessionService.getConversationById(sessionId)).toThrow()
+  })
+
+  it('flushes reasoning and tool input before changing parts or replacing input', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    emit({ type: 'reasoning-start', id: 'reason' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: 'Think' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: ' first' }, 'answer')
+    emit({ type: 'tool-input-start', toolCallId: 'call', toolName: 'read' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '{"path":' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '"a"}' }, 'answer')
+    emit({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: { path: 'a' } }, 'answer')
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { partId: 'answer:reasoning:reason', text: 'Think first' },
+      { partId: 'answer:tool:call:in', text: '{"path":"a"}' }
+    ])
+    expect(events.at(-1)?.kind).toBe('part.replaced')
+    expect(journal.projection.parts['answer:tool:call:in']).toMatchObject({
+      content: { text: '{"path":"a"}' },
+      state: 'completed'
+    })
+  })
+
+  it.each(['success', 'paused', 'error'] as const)('flushes pending text before terminal %s events', async (status) => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Last words' }, 'answer')
+    const listener = fake.streams.get(`agent-session:${sessionId}`)![0]
+    if (status === 'success') await listener.onDone({ status, anchorMessageId: 'answer' })
+    else if (status === 'paused') await listener.onPaused({ status, anchorMessageId: 'answer' })
+    else
+      await listener.onError({
+        status,
+        anchorMessageId: 'answer',
+        error: { name: 'Error', message: 'Failed', stack: null }
+      })
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Last words' } })
+    expect(journal.projection.messages.answer.status).toBe(status)
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.updated')
+    )
+    const cursor = journal.cursor
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+  })
+
+  it('splits escaped text below the wire limit and cancels pending flushes on disposal', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const epoch = journal.epoch
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const text = '\u0000'.repeat(8192) + '🌍'
+    emit({ type: 'text-delta', id: 'text', delta: text }, 'answer')
+    expect(journal.epoch).toBe(epoch)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
+    emit({ type: 'text-delta', id: 'text', delta: 'pending' }, 'answer')
+    const cursor = journal.cursor
+    journal.dispose()
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
   })
 
   it('streams a remote send through checkpoint, live events, approval and durable history without gaps', async () => {
@@ -1330,7 +1567,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     const { device } = { device: apiGatewayPairedDeviceService.list()[0] }
     await reconnect.rpc.receive(
@@ -1355,7 +1593,7 @@ describe('remote agent access', () => {
       },
       undefined
     )
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     const batch = (other[0] as { params: AgentEventBatch }).params
     expect(Number(batch.events[0].seq)).toBe(Number(projection.cursor.seq) + 1)
     const applied = applyAgentEvents(projection, batch, {}, integrity)

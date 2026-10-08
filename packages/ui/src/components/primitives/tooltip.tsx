@@ -323,9 +323,19 @@ const contentStyles =
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
 
+/**
+ * Default gap between tooltip content and its trigger. Content rendered flush with the trigger
+ * (sideOffset = 0) overlaps the trigger's hit area: once the pointer lands on the tooltip, the
+ * anchor loses :hover, hover-driven regions around it collapse and move the anchor, and the
+ * tooltip instantly reopens within Radix's skipDelayDuration - a hover feedback loop. Keeping
+ * the floating content clear of the trigger breaks that loop at the root. Callers can still
+ * pass sideOffset explicitly to opt out.
+ */
+export const TOOLTIP_DEFAULT_SIDE_OFFSET = 8
+
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   children,
   portalContainer,
   showArrow = true,
@@ -401,7 +411,7 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
-  sideOffset = 0,
+  sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   showArrow = true,
   fullWidthTrigger = false,
   classNames,

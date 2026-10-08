@@ -64,6 +64,7 @@ interface UseChatRuntimeStateParams {
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
+  composerModelId?: UniqueModelId
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
 }
 
@@ -112,6 +113,7 @@ export function useChatRuntimeState({
   activeNodeId,
   messagesCacheMutate,
   assistant,
+  composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
@@ -457,7 +459,8 @@ export function useChatRuntimeState({
       isTopicAwaitingApproval ||
       turnPhase === 'persisting' ||
       turnPhase === 'opening',
-    assistant
+    assistant,
+    composerModelId
   })
 
   const sendMessage = useCallback(
