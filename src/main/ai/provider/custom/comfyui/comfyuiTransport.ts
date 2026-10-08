@@ -163,7 +163,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
       )
     ])
 
-    const { prompt: graph, warnings, promotedText } = convertUiWorkflowToPrompt(workflow, objectInfo)
+    // A seed the workflow set to `randomize` is redrawn per run, as the frontend
+    // does per queue; a seed the user typed still wins below.
+    const conversion = convertUiWorkflowToPrompt(workflow, objectInfo, { random: Math.random })
+    const { prompt: graph, warnings, promotedText } = conversion
     for (const warning of warnings) logger.warn(`workflow conversion: ${warning}`)
 
     const target = findPromptTarget(graph, { promotedText, objectInfo })
@@ -181,7 +184,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       applySeed(graph, input.seed, target.samplerId)
     } else {
       // Nothing in the graph says which node the run's seed belongs to, so the
-      // whole run — the seed included — stays exactly as the workflow saved it.
+      // run keeps the workflow's own seeds; a `randomize` one is still redrawn.
       logger.warn(`workflow ${input.modelId} holds no prompt; running it as it was saved`)
     }
 
