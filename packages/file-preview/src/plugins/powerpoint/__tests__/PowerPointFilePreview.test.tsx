@@ -119,7 +119,7 @@ const mocks = vi.hoisted(() => {
     }
   }
 
-  return { ...state, createMockPresentation, MockPptxViewer }
+  return Object.assign(state, { createMockPresentation, MockPptxViewer })
 })
 
 vi.mock('@aiden0z/pptx-renderer', () => ({

@@ -8,7 +8,12 @@
   "changelog": ["@changesets/changelog-github", { "repo": "CherryHQ/cherry-studio" }],
   "commit": false,
   "fixed": [],
-  "ignore": ["@cherrystudio/ui", "@cherrystudio/provider-registry", "@cherrystudio/dsh-bridge"],
+  "ignore": [
+    "@cherrystudio/ui",
+    "@cherrystudio/provider-registry",
+    "@cherrystudio/dsh-bridge",
+    "@cherrystudio/file-preview"
+  ],
   "linked": [],
   "updateInternalDependencies": "patch"
 }

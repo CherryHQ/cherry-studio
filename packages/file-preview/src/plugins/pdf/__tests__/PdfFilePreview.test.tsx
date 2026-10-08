@@ -460,11 +460,10 @@ describe('PdfFilePreview', () => {
 
   beforeEach(() => {
     previewOptions = undefined
-    vi.stubGlobal(
-      'Worker',
+    vi.spyOn(globalThis, 'Worker').mockImplementation(
       class {
         terminate = vi.fn()
-      }
+      } as unknown as typeof Worker
     )
     vi.clearAllMocks()
     mocks.pdfViewerPageNumbers.length = 0
@@ -494,7 +493,6 @@ describe('PdfFilePreview', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
     if (initialDataTheme === null) {
       document.documentElement.removeAttribute('data-theme')
     } else {
