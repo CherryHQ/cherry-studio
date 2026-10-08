@@ -1,5 +1,6 @@
 import { type CallToolResult, fromJsonSchema, type JsonSchemaType, McpServer } from '@modelcontextprotocol/server'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DOCTOR_TOOLS, ToolError } from '@main/ai/agents/doctor/doctorTools'
 
@@ -22,6 +23,7 @@ export function createDoctorServer(sessionId: string): McpServer {
       },
       async (args): Promise<CallToolResult> => {
         try {
+          application.get('DoctorAgentService').reportBindingForSession(sessionId)
           return await tool.handler(args, { sessionId })
         } catch (error) {
           const message = formatToolError(error)

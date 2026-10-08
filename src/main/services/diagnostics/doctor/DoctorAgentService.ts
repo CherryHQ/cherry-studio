@@ -3,16 +3,18 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { applyWrite, undoWrite, writeRisk } from '@main/ai/agents/doctor/doctorWrites'
 import { loadBuiltinAgentEnsureInput } from '@main/ai/agents/ensureBuiltinAgent'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorReport, DoctorScopeKey } from '@shared/types/doctor'
 import type {
   DoctorAgentApplyResult,
@@ -26,17 +28,20 @@ import type {
   DoctorAgentWrite
 } from '@shared/types/doctorAgent'
 import { doctorAgentStateCacheKey, doctorStateCacheKey, projectDoctorReport } from '@shared/utils/doctor'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('DoctorAgentService')
 
 const RUN_TIMEOUT_MS = 5 * 60_000
 const TEXT_PUBLISH_INTERVAL_MS = 200
+const ABORT_SETTLE_TIMEOUT_MS = 1_000
 
 interface ActiveRun {
   readonly runId: string
   readonly sessionId: string
   readonly topicId: string
   readonly timer: NodeJS.Timeout
+  abortTimer?: NodeJS.Timeout
 }
 
 export type DoctorAgentWriteOutcome =
@@ -51,6 +56,7 @@ export type DoctorAgentWriteOutcome =
  */
 @Injectable('DoctorAgentService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['DoctorService'])
 export class DoctorAgentService extends BaseService {
   private readonly active = new Map<DoctorScopeKey, ActiveRun>()
   /** Session → scope, so a tool call can find the run it belongs to without carrying the scope. */
@@ -78,7 +84,7 @@ export class DoctorAgentService extends BaseService {
     if (!report || report.runId !== reportRunId) return { status: 'stale' }
 
     const agent = this.ensureDoctorAgent(input.modelId as UniqueModelId | undefined)
-    if (!agent.model) return { status: 'no_model' }
+    if (!agent?.model) return { status: 'no_model' }
 
     const session = agentSessionService.create(
       { agentId: agent.id, name: 'System Doctor', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } },
@@ -115,11 +121,13 @@ export class DoctorAgentService extends BaseService {
         requireIdle: { expectedAgentId: agent.id }
       })
       if (started.mode !== 'started') {
+        const message = `not started: ${started.reason}`
         this.finish(scope, runId, (current) => ({
           status: 'failed',
-          error: `not started: ${started.reason}`,
+          error: message,
           ...current
         }))
+        return { status: 'failed', message }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -175,8 +183,9 @@ export class DoctorAgentService extends BaseService {
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
       const change = state.changes.find((item) => item.id === input.changeId)
       if (!change || !change.undoable || change.undone) return { status: 'stale' }
+      if (this.currentReport(input.scope)?.runId !== state.reportRunId) return { status: 'stale' }
       try {
-        await undoWrite(change.write, change.before)
+        await undoWrite(change.write, change.before, change.after)
       } catch (error) {
         return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
@@ -240,16 +249,29 @@ export class DoctorAgentService extends BaseService {
   /** The user's pick wins; otherwise keep the Agent's model, falling back to the chat default. */
   private ensureDoctorAgent(requestedModel?: UniqueModelId) {
     const agent = agentService.ensureBuiltinAgent(loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.DOCTOR))
-    const model =
-      requestedModel ??
-      agent.model ??
-      (application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null)
-    if (!model || model === agent.model) return agent
+    const defaultModel = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
+    const candidates = requestedModel ? [requestedModel] : [agent.model, defaultModel]
+    const model = candidates.find(
+      (candidate): candidate is UniqueModelId => !!candidate && this.isUsableModel(candidate)
+    )
+    if (!model) return undefined
+    if (model === agent.model) return agent
     try {
-      return agentService.updateAgent(agent.id, { model }) ?? agent
+      return agentService.updateAgent(agent.id, { model }) ?? undefined
     } catch (error) {
       logger.warn('Could not assign the requested model to the doctor Agent', error as Error)
-      return agent
+      return undefined
+    }
+  }
+
+  private isUsableModel(modelId: UniqueModelId): boolean {
+    try {
+      const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+      const provider = providerService.getByProviderId(providerId)
+      const model = modelService.getByKey(providerId, rawModelId)
+      return provider.isEnabled && model.isEnabled && isGatewayRoutableModel(model)
+    } catch {
+      return false
     }
   }
 
@@ -293,8 +315,8 @@ export class DoctorAgentService extends BaseService {
           scheduleFlush()
         }
       },
-      onDone: () => settle('completed'),
-      onPaused: () => settle(this.active.get(scope)?.runId === runId ? 'completed' : 'canceled'),
+      onDone: () => settle(this.active.get(scope)?.abortTimer ? 'canceled' : 'completed'),
+      onPaused: () => settle(this.active.get(scope)?.abortTimer ? 'canceled' : 'completed'),
       onError: (result) => settle('failed', result.error.message ?? 'Execution failed'),
       isAlive: () => this.active.get(scope)?.runId === runId
     }
@@ -305,7 +327,7 @@ export class DoctorAgentService extends BaseService {
     runId: string,
     write: DoctorAgentWrite,
     summary: string,
-    applied: { before: unknown; undoable: boolean },
+    applied: { before: unknown; after: unknown; undoable: boolean },
     proposalId?: string
   ): DoctorAgentChange {
     const change: DoctorAgentChange = {
@@ -313,6 +335,7 @@ export class DoctorAgentService extends BaseService {
       write,
       summary,
       before: applied.before,
+      after: applied.after,
       undoable: applied.undoable,
       undone: false,
       appliedAt: new Date().toISOString(),
@@ -338,9 +361,12 @@ export class DoctorAgentService extends BaseService {
     const active = this.active.get(scope)
     if (!active) return
     logger.info('Aborting doctor analysis', { scope, runId: active.runId, reason })
+    active.abortTimer ??= setTimeout(
+      () => this.finish(scope, active.runId, (current) => ({ status: 'canceled', ...current })),
+      ABORT_SETTLE_TIMEOUT_MS
+    )
+    active.abortTimer.unref()
     application.get('AiStreamManager').abort(active.topicId, `doctor-agent: ${reason}`)
-    // The stream's terminal callback settles the state; the sentinel below covers a stream that never started.
-    this.finish(scope, active.runId, (current) => ({ status: 'canceled', ...current }))
   }
 
   /** Terminal transition: runs once per run, releases the timer and the session binding. */
@@ -348,6 +374,7 @@ export class DoctorAgentService extends BaseService {
     const active = this.active.get(scope)
     if (!active || active.runId !== runId) return
     clearTimeout(active.timer)
+    if (active.abortTimer) clearTimeout(active.abortTimer)
     this.active.delete(scope)
     this.sessions.delete(active.sessionId)
     const state = this.currentState(scope)

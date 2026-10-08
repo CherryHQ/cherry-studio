@@ -85,6 +85,13 @@ export function isDataApiPatchPath(path: string): boolean {
   return DATA_API_PATCH_PATHS.some((pattern) => pattern.test(path))
 }
 
+function containsSecretMaterial(value: unknown): boolean {
+  if (typeof value === 'string') return redactSecretText(value) !== value
+  if (Array.isArray(value)) return value.some(containsSecretMaterial)
+  if (typeof value !== 'object' || value === null) return false
+  return Object.entries(value).some(([key, item]) => isSensitiveKey(key) || containsSecretMaterial(item))
+}
+
 /** `auto` runs without a click: only catalog fixes that revert on their own and need no relaunch. */
 export function writeRisk(write: DoctorAgentWrite): 'auto' | 'confirm' {
   if (write.kind !== 'doctor_fix') return 'confirm'
@@ -130,6 +137,14 @@ export async function queryDataApi(input: DataApiQuery): Promise<DataApiResult> 
 /** Refuses a PATCH body that names a credential field at any depth, whatever the handler would do with it. */
 export function assertNoSecretFields(body: Record<string, unknown>): void {
   const walk = (value: unknown, trail: string[]): void => {
+    if (typeof value === 'string') {
+      if (redactSecretText(value) !== value) {
+        throw new Error(
+          `Refusing to write credential value at "${trail.join('.')}"; ask the user to enter it in Settings`
+        )
+      }
+      return
+    }
     if (Array.isArray(value)) {
       value.forEach((item, index) => walk(item, [...trail, String(index)]))
       return
@@ -149,6 +164,7 @@ export function assertNoSecretFields(body: Record<string, unknown>): void {
 
 export interface AppliedWrite {
   readonly before: unknown
+  readonly after: unknown
   readonly undoable: boolean
   readonly fix?: DoctorFixResult
 }
@@ -171,42 +187,46 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
     case 'data_api_patch': {
       assertNoSecretFields(write.body)
       const raw = await readEntity(write.path)
-      const redacted = redactForModel(raw) as Record<string, unknown>
       const before: Record<string, unknown> = {}
       for (const key of Object.keys(write.body)) {
         // A field whose stored value changes under redaction carries a credential; the snapshot
         // would leak it or, once redacted, destroy it on undo. Such fields are off limits.
-        if (!isDeepStrictEqual(raw[key] ?? null, redacted[key] ?? null)) {
+        if (containsSecretMaterial(raw[key] ?? null)) {
           throw new Error(`Refusing to write "${key}": its current value carries credentials`)
         }
         before[key] = raw[key] ?? null
       }
       const result = await fetchDataApi({ method: 'PATCH', path: write.path, body: { ...write.body } })
       if (result.error) throw new Error(failureMessage(result.error))
-      return { before, undoable: true }
+      const updated = await readEntity(write.path)
+      const after = Object.fromEntries(Object.keys(write.body).map((key) => [key, updated[key] ?? null]))
+      return { before, after, undoable: true }
     }
     case 'preference_set': {
       const { key, value } = parsePreferenceWrite(write.key, write.value)
       const preferences = application.get('PreferenceService')
       const before = preferences.get(key)
+      if (containsSecretMaterial(before)) {
+        throw new Error(`Refusing to write "${key}": its current value carries credentials`)
+      }
       await preferences.set(key, value as never)
-      return { before, undoable: true }
+      return { before, after: value, undoable: true }
     }
     case 'doctor_fix': {
       const fix = await application.get('DoctorService').fix(write.request)
       if (fix.status === 'failed') throw new Error(fix.message)
       if (fix.status === 'stale') throw new Error(`Fix is stale: ${fix.reason}`)
-      return { before: null, undoable: false, fix }
+      return { before: null, after: null, undoable: false, fix }
     }
   }
 }
 
 /** Restores `before` only while the stored value is still what the write put there. */
-export async function undoWrite(write: DoctorAgentWrite, before: unknown): Promise<void> {
+export async function undoWrite(write: DoctorAgentWrite, before: unknown, after: unknown): Promise<void> {
   switch (write.kind) {
     case 'data_api_patch': {
       const raw = await readEntity(write.path)
-      for (const [key, written] of Object.entries(write.body)) {
+      for (const [key, written] of Object.entries(after as Record<string, unknown>)) {
         if (!isDeepStrictEqual(raw[key] ?? null, written ?? null)) {
           throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
         }
@@ -222,7 +242,7 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown): Promi
     case 'preference_set': {
       const { key } = parsePreferenceWrite(write.key, write.value)
       const preferences = application.get('PreferenceService')
-      if (!isDeepStrictEqual(preferences.get(key), write.value)) {
+      if (!isDeepStrictEqual(preferences.get(key), after)) {
         throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
       }
       await preferences.set(key, before as never)

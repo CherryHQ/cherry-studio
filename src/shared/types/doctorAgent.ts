@@ -28,6 +28,8 @@ export interface DoctorAgentChange {
   readonly summary: string
   /** Snapshot `undoWrite` restores; `null` when the write cannot be undone (catalog fixes). */
   readonly before: unknown
+  /** Exact value observed after the write; undo only proceeds while it still matches. */
+  readonly after: unknown
   readonly undoable: boolean
   readonly undone: boolean
   readonly appliedAt: string
@@ -58,6 +60,7 @@ export type DoctorAgentState =
 
 export type DoctorAgentStartResult =
   | { readonly status: 'started'; readonly runId: string }
+  | { readonly status: 'failed'; readonly message: string }
   | { readonly status: 'busy'; readonly runId: string }
   /** The report is missing, expired or superseded; run the Doctor again first. */
   | { readonly status: 'stale' }

@@ -30,6 +30,7 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
         const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId })
         if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
+        else if (result.status === 'failed') toast.error(t('settings.doctor.agent.messages.start_failed'))
       } catch (error) {
         logger.error('Failed to start the doctor analysis', error as Error)
         toast.error(t('settings.doctor.agent.messages.start_failed'))

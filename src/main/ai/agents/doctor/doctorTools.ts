@@ -1,7 +1,7 @@
 /**
  * Runtime-neutral tools of the in-process `doctor` MCP server.
  *
- * Reads are open; writes are requests the DoctorAgentService either runs (low-risk catalog fixes)
+ * Reads are diagnostic-only; writes are requests the DoctorAgentService either runs (low-risk catalog fixes)
  * or records as proposals the user applies from the System Doctor panel. Every write carries a
  * `summary` the panel shows verbatim, so the model must say exactly what changes and why.
  */
@@ -68,6 +68,17 @@ const READ_FILE_BLOCKED_DIRS = [
   'Data/AgentTranscripts',
   'Data/Memory'
 ]
+const DATA_API_GET_PATHS: readonly RegExp[] = [
+  /^\/providers(?:\/[^/]+(?:\/api-keys)?)?$/,
+  /^\/models(?:\/[^/]+\/[^/]+)?$/,
+  /^\/assistants(?:\/[^/]+)?$/,
+  /^\/agents(?:\/[^/]+)?$/,
+  /^\/mcp-servers(?:\/[^/]+)?$/
+]
+
+export function isDataApiGetPath(path: string): boolean {
+  return DATA_API_GET_PATHS.some((pattern) => pattern.test(path))
+}
 
 function json(value: unknown): DoctorToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
@@ -111,7 +122,7 @@ const DATA_API_TOOL: DoctorTool = {
   name: 'data_api',
   description: `Query Cherry Studio's business data (SQLite) through its internal REST-style Data API. Secrets are redacted in every response.
 
-GET is open, e.g. /providers, /providers/{id}, /providers/{id}/api-keys (presence only), /models?providerId=, /assistants, /assistants/{id}, /agents, /agents/{id}, /mcp-servers, /mcp-servers/{id}, /topics/{id}, /messages?topicId=, /agent-sessions?agentId=.
+GET is limited to diagnostic configuration: /providers, /providers/{id}, /providers/{id}/api-keys (presence only), /models?providerId=, /assistants, /assistants/{id}, /agents, /agents/{id}, /mcp-servers, /mcp-servers/{id}.
 
 PATCH is recorded as a proposal the user applies; allowed only on /providers/{id}, /mcp-servers/{id}, /assistants/{id}, /agents/{id}. Bodies are validated by the same schema the UI uses; a validation error comes back verbatim so you can correct it. Credential fields are refused.`,
   inputSchema: {
@@ -134,6 +145,7 @@ PATCH is recorded as a proposal the user applies; allowed only on /providers/{id
     const path = requireString(args, 'path')
     if (!path.startsWith('/')) throw new ToolError("'path' must start with /", ToolErrorCode.InvalidParams)
     if (method === 'GET') {
+      if (!isDataApiGetPath(path)) throw new ToolError(`GET is not allowed on ${path}`, ToolErrorCode.InvalidParams)
       const result = await queryDataApi({ method: 'GET', path, query: optionalRecord(args, 'query') })
       return { ...json(result), ...(result.error ? { isError: true } : {}) }
     }

@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
   ensureBuiltinAgent: vi.fn(),
   updateAgent: vi.fn(),
+  getModel: vi.fn(),
+  getProvider: vi.fn(),
   createSession: vi.fn(),
   startRun: vi.fn(),
   applyWrite: vi.fn(),
@@ -28,6 +30,8 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { ensureBuiltinAgent: mocks.ensureBuiltinAgent, updateAgent: mocks.updateAgent }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { create: mocks.createSession } }))
+vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getModel } }))
+vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProviderId: mocks.getProvider } }))
 vi.mock('@main/ai/agents/ensureBuiltinAgent', () => ({ loadBuiltinAgentEnsureInput: () => ({}) }))
 vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: mocks.startRun }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US' }))
@@ -77,6 +81,14 @@ beforeEach(() => {
   listener = undefined
   application.get('CacheService').setShared(doctorStateCacheKey('global'), { status: 'completed', report })
   mocks.ensureBuiltinAgent.mockReturnValue({ id: 'doctor-agent', model: 'openai::gpt-4o' })
+  mocks.getModel.mockReturnValue({
+    id: 'openai::gpt-4o',
+    providerId: 'openai',
+    modelId: 'gpt-4o',
+    isEnabled: true,
+    capabilities: []
+  })
+  mocks.getProvider.mockReturnValue({ id: 'openai', isEnabled: true })
   mocks.createSession.mockReturnValue({ id: 'session-1' })
   mocks.startRun.mockImplementation(async (input: { listeners: StreamListener[] }) => {
     listener = input.listeners[0]
@@ -121,6 +133,13 @@ describe('DoctorAgentService.start', () => {
   })
 
   it('runs on the model the user picked and remembers it in the state', async () => {
+    mocks.getModel.mockReturnValue({
+      id: 'deepseek::v3',
+      providerId: 'deepseek',
+      modelId: 'v3',
+      isEnabled: true,
+      capabilities: []
+    })
     mocks.updateAgent.mockImplementation((_id: string, updates: { model: string }) => ({
       id: 'doctor-agent',
       model: updates.model
@@ -139,19 +158,64 @@ describe('DoctorAgentService.start', () => {
     expect(mocks.createSession).not.toHaveBeenCalled()
   })
 
-  it('cancel aborts the stream and settles the state', async () => {
+  it('refuses a requested model that the main process cannot route', async () => {
+    mocks.getModel.mockImplementation(() => {
+      throw new Error('not found')
+    })
+    const service = new DoctorAgentService()
+    expect(await service.start({ scope: 'global', reportRunId: 'report-1', modelId: 'missing::model' })).toEqual({
+      status: 'no_model'
+    })
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+    expect(mocks.createSession).not.toHaveBeenCalled()
+  })
+
+  it('returns a failure when the session run does not start', async () => {
+    mocks.startRun.mockResolvedValue({ mode: 'not-started', reason: 'busy' })
+    const service = new DoctorAgentService()
+    const result = await service.start({ scope: 'global', reportRunId: 'report-1' })
+    expect(result).toEqual({ status: 'failed', message: 'not started: busy' })
+    expect(agentState()).toMatchObject({ status: 'failed', error: 'not started: busy' })
+  })
+
+  it('cancel preserves final streamed output before the terminal callback settles the state', async () => {
     const { service, runId } = await startedService()
     expect(service.cancel('global', runId)).toEqual({ status: 'canceled' })
     expect(mocks.abort).toHaveBeenCalledWith('agent-session:session-1', expect.stringContaining('canceled'))
-    expect(agentState()).toMatchObject({ status: 'canceled', runId })
+    listener!.onChunk({ type: 'text-delta', id: 'm1', delta: 'Final buffered answer' })
+    listener!.onChunk({ type: 'tool-input-start', toolCallId: 't1', toolName: 'mcp__doctor__report' })
+    await listener!.onPaused({ status: 'paused' })
+    expect(agentState()).toMatchObject({
+      status: 'canceled',
+      runId,
+      text: 'Final buffered answer',
+      toolCalls: ['mcp__doctor__report']
+    })
     expect(service.cancel('global', runId)).toEqual({ status: 'not_running' })
+  })
+
+  it('settles cancellation when a stream never publishes a terminal callback', async () => {
+    vi.useFakeTimers()
+    try {
+      const { service, runId } = await startedService()
+      expect(service.cancel('global', runId)).toEqual({ status: 'canceled' })
+      expect(agentState()).toMatchObject({ status: 'running', runId })
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(agentState()).toMatchObject({ status: 'canceled', runId })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
 describe('DoctorAgentService writes', () => {
   it('queues confirm-tier writes as proposals, applies them on request and undoes them from the ledger', async () => {
     const { service, runId } = await startedService()
-    mocks.applyWrite.mockResolvedValue({ before: { apiHost: 'https://old' }, undoable: true })
+    mocks.applyWrite.mockResolvedValue({
+      before: { apiHost: 'https://old' },
+      after: { apiHost: 'https://new' },
+      undoable: true
+    })
     const write = { kind: 'data_api_patch', path: '/providers/openai', body: { apiHost: 'https://new' } } as const
 
     const outcome = await service.requestWrite('session-1', write, 'Fix the base URL')
@@ -168,13 +232,21 @@ describe('DoctorAgentService writes', () => {
     const changeId = (applied as { change: { id: string } }).change.id
     expect(agentState()).toMatchObject({
       proposals: [{ id: proposalId, status: 'applied' }],
-      changes: [{ id: changeId, before: { apiHost: 'https://old' }, undoable: true, undone: false }]
+      changes: [
+        {
+          id: changeId,
+          before: { apiHost: 'https://old' },
+          after: { apiHost: 'https://new' },
+          undoable: true,
+          undone: false
+        }
+      ]
     })
     expect(await service.apply({ scope: 'global', runId, proposalId })).toEqual({ status: 'stale' })
 
     const undone = await service.undo({ scope: 'global', runId, changeId })
     expect(undone.status).toBe('undone')
-    expect(mocks.undoWrite).toHaveBeenCalledWith(write, { apiHost: 'https://old' })
+    expect(mocks.undoWrite).toHaveBeenCalledWith(write, { apiHost: 'https://old' }, { apiHost: 'https://new' })
     expect(agentState()).toMatchObject({ changes: [{ id: changeId, undone: true }] })
     expect(await service.undo({ scope: 'global', runId, changeId })).toEqual({ status: 'stale' })
   })
@@ -196,11 +268,34 @@ describe('DoctorAgentService writes', () => {
     expect(agentState()).toMatchObject({ proposals: [{ id: proposalId, status: 'rejected' }] })
   })
 
+  it('rejects undo once the report behind the change is superseded', async () => {
+    const { service, runId } = await startedService()
+    mocks.applyWrite.mockResolvedValue({ before: 'system', after: 'none', undoable: true })
+    const outcome = await service.requestWrite(
+      'session-1',
+      { kind: 'preference_set', key: 'app.proxy.mode', value: 'none' },
+      'Disable the proxy'
+    )
+    const proposalId = (outcome as { proposal: { id: string } }).proposal.id
+    const applied = await service.apply({ scope: 'global', runId, proposalId })
+    const changeId = (applied as { change: { id: string } }).change.id
+    application
+      .get('CacheService')
+      .setShared(doctorStateCacheKey('global'), { status: 'completed', report: { ...report, runId: 'report-2' } })
+
+    expect(await service.undo({ scope: 'global', runId, changeId })).toEqual({ status: 'stale' })
+    expect(mocks.undoWrite).not.toHaveBeenCalled()
+  })
+
   it('applies a proposal once even when two clicks race', async () => {
     const { service, runId } = await startedService()
     let release!: () => void
     mocks.applyWrite.mockImplementation(
-      () => new Promise((resolve) => (release = () => resolve({ before: { apiHost: 'old' }, undoable: true })))
+      () =>
+        new Promise(
+          (resolve) =>
+            (release = () => resolve({ before: { apiHost: 'old' }, after: { apiHost: 'new' }, undoable: true }))
+        )
     )
     const outcome = await service.requestWrite(
       'session-1',
@@ -224,7 +319,12 @@ describe('DoctorAgentService writes', () => {
 
   it('runs a low-risk catalog fix immediately and records it as not undoable', async () => {
     const { service } = await startedService()
-    mocks.applyWrite.mockResolvedValue({ before: null, undoable: false, fix: { status: 'fixed', result: {} } })
+    mocks.applyWrite.mockResolvedValue({
+      before: null,
+      after: null,
+      undoable: false,
+      fix: { status: 'fixed', result: {} }
+    })
     const outcome = await service.requestWrite(
       'session-1',
       {

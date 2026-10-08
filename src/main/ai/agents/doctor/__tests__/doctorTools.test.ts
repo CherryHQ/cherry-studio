@@ -7,6 +7,8 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 const mocks = vi.hoisted(() => ({
   handleRequest: vi.fn(),
   requestWrite: vi.fn(),
@@ -76,6 +78,17 @@ describe('doctor data_api tool', () => {
     await client.close()
   })
 
+  it('refuses conversation data routes before they reach the Data API', async () => {
+    const client = await connect()
+    for (const route of ['/topics/t1', '/messages', '/agent-sessions']) {
+      const result = await client.callTool({ name: 'data_api', arguments: { method: 'GET', path: route } })
+      expect(result.isError).toBe(true)
+      expect(text(result)).toContain('GET is not allowed')
+    }
+    expect(mocks.handleRequest).not.toHaveBeenCalled()
+    await client.close()
+  })
+
   it('refuses PATCH outside the entity allowlist and never reaches the API', async () => {
     const client = await connect()
     const result = await client.callTool({
@@ -114,6 +127,23 @@ describe('doctor data_api tool', () => {
     })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('env.OPENAI_API_KEY')
+    expect(mocks.requestWrite).not.toHaveBeenCalled()
+    await client.close()
+  })
+
+  it('refuses credentials embedded in a nested value', async () => {
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'data_api',
+      arguments: {
+        method: 'PATCH',
+        path: '/mcp-servers/s1',
+        body: { config: { endpoint: 'https://user:secret@example.com' } },
+        summary: 'set endpoint'
+      }
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('credential value')
     expect(mocks.requestWrite).not.toHaveBeenCalled()
     await client.close()
   })
@@ -211,6 +241,39 @@ describe('doctor doctor_fix tool', () => {
   })
 })
 
+describe('doctor server binding', () => {
+  it('refuses read and probe tools outside an active doctor analysis', async () => {
+    mocks.reportBinding.mockImplementation(() => {
+      throw new Error('This session is not an active doctor analysis')
+    })
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'probe_endpoint',
+      arguments: { url: 'https://example.com' }
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('not an active doctor analysis')
+    expect(mocks.diagnoseEndpoint).not.toHaveBeenCalled()
+    await client.close()
+  })
+
+  it('forwards endpoint probes for an active analysis', async () => {
+    mocks.diagnoseEndpoint.mockResolvedValue({ status: 'reachable', httpStatus: 200 })
+    const client = await connect()
+    const result = await client.callTool({
+      name: 'probe_endpoint',
+      arguments: { url: 'https://example.com' }
+    })
+    expect(result.isError).toBeFalsy()
+    expect(text(result)).toContain('reachable')
+    expect(mocks.diagnoseEndpoint).toHaveBeenCalledWith(
+      { id: 'custom', url: 'https://example.com' },
+      expect.any(AbortSignal)
+    )
+    await client.close()
+  })
+})
+
 describe('doctor read_file tool', () => {
   it('tails a log with secrets redacted and lists directories', async () => {
     fs.mkdirSync(path.join(userData, 'logs'), { recursive: true })
@@ -269,12 +332,39 @@ describe('applyWrite / undoWrite guards', () => {
     mocks.handleRequest
       .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '0' } } })
       .mockResolvedValueOnce({ id: 'x', status: 200 })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1' } } })
     const applied = await applyWrite(patch)
     expect(applied.before).toEqual({ env: { DEBUG: '0' } })
+    expect(applied.after).toEqual({ env: { DEBUG: '1' } })
 
     mocks.handleRequest.mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: 'user-edit' } } })
-    await expect(undoWrite(patch, applied.before)).rejects.toThrow('changed since')
-    expect(mocks.handleRequest).toHaveBeenCalledTimes(3)
+    await expect(undoWrite(patch, applied.before, applied.after)).rejects.toThrow('changed since')
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(4)
+  })
+
+  it('undoes a partial object patch by comparing the actual merged result', async () => {
+    mocks.handleRequest
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '0', KEEP: 'yes' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200 })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1', KEEP: 'yes' } } })
+    const applied = await applyWrite(patch)
+    expect(applied.after).toEqual({ env: { DEBUG: '1', KEEP: 'yes' } })
+
+    mocks.handleRequest
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 's1', env: { DEBUG: '1', KEEP: 'yes' } } })
+      .mockResolvedValueOnce({ id: 'x', status: 200 })
+    await expect(undoWrite(patch, applied.before, applied.after)).resolves.toBeUndefined()
+    expect(mocks.handleRequest).toHaveBeenLastCalledWith(
+      expect.objectContaining({ method: 'PATCH', body: { env: { DEBUG: '0', KEEP: 'yes' } } })
+    )
+  })
+
+  it('refuses a preference write when its undo snapshot would contain credentials', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://user:secret@proxy:8080')
+    await expect(
+      applyWrite({ kind: 'preference_set', key: 'app.proxy.url', value: 'http://proxy:8080' })
+    ).rejects.toThrow('current value carries credentials')
+    expect(application.get('PreferenceService').get('app.proxy.url')).toBe('http://user:secret@proxy:8080')
   })
 })
 
