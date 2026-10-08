@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "Έλεγχος αναφορών αρχείων…",
   "settings.data.trash.file_refs.retry": "Επανάληψη ελέγχου αναφορών",
   "settings.data.trash.load_more": "Φόρτωση περισσότερων",
+  "settings.data.trash.owned_by": "από {{name}}",
   "settings.data.trash.page_next": "Επόμενη",
   "settings.data.trash.page_prev": "Προηγούμενη",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Οριστική διαγραφή {{count}} στοιχείων;",

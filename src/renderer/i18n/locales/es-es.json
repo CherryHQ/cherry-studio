@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "Comprobando referencias de archivos…",
   "settings.data.trash.file_refs.retry": "Reintentar comprobación de referencias",
   "settings.data.trash.load_more": "Cargar más",
+  "settings.data.trash.owned_by": "de {{name}}",
   "settings.data.trash.page_next": "Siguiente",
   "settings.data.trash.page_prev": "Anterior",
   "settings.data.trash.permanent_delete.batch_confirm_title": "¿Eliminar permanentemente {{count}} elementos?",

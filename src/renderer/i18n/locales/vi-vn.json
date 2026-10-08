@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "Đang kiểm tra tham chiếu tệp…",
   "settings.data.trash.file_refs.retry": "Thử lại kiểm tra tham chiếu",
   "settings.data.trash.load_more": "Tải thêm",
+  "settings.data.trash.owned_by": "từ {{name}}",
   "settings.data.trash.page_next": "Tiếp",
   "settings.data.trash.page_prev": "Trước",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Xóa vĩnh viễn {{count}} mục?",

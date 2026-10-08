@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "Проверка ссылок на файлы…",
   "settings.data.trash.file_refs.retry": "Повторить проверку ссылок",
   "settings.data.trash.load_more": "Загрузить ещё",
+  "settings.data.trash.owned_by": "от {{name}}",
   "settings.data.trash.page_next": "Далее",
   "settings.data.trash.page_prev": "Назад",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Окончательно удалить элементы ({{count}})?",

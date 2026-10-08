@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "ファイルの参照を確認しています…",
   "settings.data.trash.file_refs.retry": "参照の確認を再試行",
   "settings.data.trash.load_more": "さらに読み込む",
+  "settings.data.trash.owned_by": "{{name}} より",
   "settings.data.trash.page_next": "次へ",
   "settings.data.trash.page_prev": "前へ",
   "settings.data.trash.permanent_delete.batch_confirm_title": "{{count}} 件の項目を完全に削除しますか？",

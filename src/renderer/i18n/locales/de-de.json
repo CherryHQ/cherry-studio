@@ -4018,6 +4018,7 @@
   "settings.data.trash.file_refs.loading": "Dateiverweise werden geprüft…",
   "settings.data.trash.file_refs.retry": "Verweisprüfung wiederholen",
   "settings.data.trash.load_more": "Mehr laden",
+  "settings.data.trash.owned_by": "von {{name}}",
   "settings.data.trash.page_next": "Weiter",
   "settings.data.trash.page_prev": "Zurück",
   "settings.data.trash.permanent_delete.batch_confirm_title": "{{count}} Elemente endgültig löschen?",
