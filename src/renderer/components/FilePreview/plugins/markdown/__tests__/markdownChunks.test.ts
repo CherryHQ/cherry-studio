@@ -944,6 +944,90 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition a quote holds a list inside of across the quote it keeps up', () => {
+    // The line's `>` continues the quote the definition was written behind; the list item inside
+    // that quote is what the line skips, and it skips it lazily — a lazy line starts nothing, so
+    // the title runs on. Measuring the quote against the item the definition sits in (the last
+    // marker, wherever it sits) killed these the parser keeps.
+    const forms = [
+      ["> - [spec]: /url 'the long", "> tail of title'"],
+      ["> - > [spec]: /url 'the long", ">   > tail of title'"],
+      ["- > - [spec]: /url 'the long", "  > tail of title'"]
+    ]
+    for (const [label, tail] of forms) {
+      const content = [label, tail, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a definition whose continuation quote falls out of the item holding it', () => {
+    // A quote one column left of the item the definition's k-th quote sits in has fallen out of
+    // that item and opens a quote of its own, ending the open title before it closes.
+    const forms = [
+      ["- > [spec]: /url 'the long", "> tail of title'"],
+      ["- - > [spec]: /url 'the long", "  > tail of title'"],
+      ["> - > [spec]: /url 'the long", "> > tail of title'"]
+    ]
+    for (const [label, tail] of forms) {
+      const content = [label, tail, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('does not carry a definition whose marker sits five columns behind another marker', () => {
+    // The parser reads a marker plus up to four columns of separator as that marker; a fifth
+    // column — of whitespace between two markers, tabs expanding as the parser counts them —
+    // makes the second marker indented code the first container never sees. Carrying these
+    // hoisted a definition no document had.
+    const forms = ['-     - [spec]: /url', '>     - [spec]: /url', '> \t\t\t - [spec]: /url', '-\t  - [spec]: /url']
+    for (const form of forms) {
+      const content = [form, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes('[spec]: /url'))).toHaveLength(1)
+    }
+    // Four columns or less is the parser's own nesting, and the definition still rides along.
+    const nested = ['-    - [spec]: /url', '-\t- [spec]: /url', '>    - [spec]: /url']
+    for (const form of nested) {
+      const content = [form, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes('[spec]: /url'))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('carries a title line the tokenizer would not read as a tag', () => {
+    // An attribute name has to start the way the tokenizer reads one — a letter, `_` or `:`,
+    // never a digit or a dot, and `!` is not part of a name at all — and a closing tag takes
+    // neither attributes nor a self-closing slash. None of these open a block on the lazy line,
+    // so the title they sit in runs on to the line that closes it.
+    const forms = ['<a 1>', '<a .b>', '<a 1b=2>', '</a x>', '</a/>', '<a b!>']
+    for (const form of forms) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+    // Names the tokenizer does read, with values or not, still open a block there.
+    const tags = ['<a _x=y-z>', '<a b=c>']
+    for (const form of tags) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
   it('does not carry a quote-held definition an ordered marker of any number lazily opens a list at', () => {
     // `2.` cannot interrupt a paragraph written in the document, but a lazy line takes any number,
     // so the list opens and the title that never closes leaves a plain paragraph behind.
@@ -1165,6 +1249,19 @@ describe('splitMarkdownChunks', () => {
     const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('measures a tab in a marker’s separator from the marker’s own column', () => {
+    // A guard for the tab arithmetic: a tab spans to the next stop past the marker, so `-\t ` is
+    // four columns and `-\t  ` five — one stays the item’s own paragraph, the other is code.
+    const carried = ["-\t [spec]: /url 'the long", "tail of title'", '', 'see [spec]'].join('\n')
+    const chunks = chunksOf(carried, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+
+    const coded = ["-\t  [spec]: /url 'the long", "tail of title'", '', 'see [spec]'].join('\n')
+
+    expect(chunksOf(coded, 1).filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
   })
 
   it('does not open a raw region at a self-closing raw-name tag', () => {

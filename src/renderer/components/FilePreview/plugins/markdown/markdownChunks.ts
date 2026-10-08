@@ -103,25 +103,45 @@ function columnCount(prefix: string): number {
 }
 
 /**
- * The column a continuation's block quote has to reach to stay inside the list item that holds the
- * definition, or -1 when no list item does. A quote one column further left closes the list item
- * instead of continuing it — but only when the list item is the outermost container, since a quote
- * already outside it keeps the line inside the quote whatever column it sits in.
+ * The column each block quote in a definition's container sits at. A continuation line's k-th
+ * quote marker has to sit at least that deep: a shallower one falls out of the list items that
+ * hold the container's k-th quote and opens a block of its own, ending the definition. Markers
+ * past a quote don't raise the bar — once the line's quote continues the container's, whatever
+ * the line skips past that point it skips lazily, and lazy lines start nothing.
  */
-function listContentColumn(container: string): number {
-  // The item a quote has to stay inside is the one holding the definition — the item whose marker
-  // comes last, since nesting only deepens. `- - > ` holds the definition in the inner item, whose
-  // content starts past the second marker, so a quote at two or three columns falls out of it.
-  const markers = container.match(/(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+/g)
-  if (!markers) return -1
-  let columns = 0
-  let rest = container
-  for (const marker of markers) {
-    const at = rest.indexOf(marker)
-    columns += columnCount(rest.slice(0, at + marker.length))
-    rest = rest.slice(at + marker.length)
+function quoteMarkerColumns(container: string): number[] {
+  const columns: number[] = []
+  let column = 0
+  for (const character of container) {
+    if (character === '>') columns.push(column)
+    column = character === '\t' ? column + (4 - (column % 4)) : column + 1
   }
   return columns
+}
+
+/**
+ * Whether a whitespace run inside a container prefix leaves what follows it in indented code. The
+ * parser reads a marker plus up to four columns of separator as that marker and the content it
+ * holds; a fifth column — between two markers, or between the last marker and the label — makes
+ * whatever follows code the container never sees, so no definition opens behind the prefix.
+ */
+function containerWhitespaceOpensCode(container: string): boolean {
+  let column = 0
+  let seenMarker = false
+  let run = 0
+  for (const character of container) {
+    const width = character === '\t' ? 4 - (column % 4) : 1
+    column += width
+    if (character === ' ' || character === '\t') {
+      if (seenMarker) run += width
+    } else {
+      if (seenMarker && run >= 5) return true
+      run = 0
+      seenMarker = true
+    }
+  }
+  // A list marker's separator is mandatory, so the prefix ends on the run the label follows.
+  return seenMarker && run >= 5
 }
 
 /**
@@ -311,11 +331,13 @@ function interruptsParagraph(line: string): boolean {
 /**
  * A complete tag alone on its line — the one tag form a lazy line takes. The parser holds an
  * unfinished tag (`<a`, at the line's end) and a tag with content after it (`<a> x`) to the
- * paragraph it continues, and an attribute has to start the way the tokenizer reads one, so
- * `<a"x>` is prose too. Types 1–6 are startsBlock's business; this is the type-7 shape.
+ * paragraph it continues. An attribute name also has to start the way the tokenizer reads one —
+ * a letter, `_` or `:`, never a digit or a dot — and a closing tag takes neither attributes nor
+ * a self-closing slash, so `<a 1>`, `<a b!>` and `</a x>` are prose too. Types 1–6 are
+ * startsBlock's business; this is the type-7 shape.
  */
 const COMPLETE_TAG_LINE =
-  /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^\s"'>/=]+(?:[ \t]*=[ \t]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[ \t]*\/?>[ \t]*$/
+  /^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[ \t]*\/?>|<\/[A-Za-z][A-Za-z0-9-]*[ \t]*>)[ \t]*$/
 
 /**
  * Whether a line opens a block that ends a paragraph it continues lazily — one that fell short of
@@ -382,12 +404,11 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // A first marker indented four columns or more — a tab counts as up to four — opens indented
   // code, not a container, so no definition opens behind it.
   if (start && leadingColumns(lines[index]) >= 4) return null
-  // Five columns or more of whitespace after the last marker leave the label in indented code —
-  // the container's content starts one column past its marker, and a label four columns deeper
-  // than that is code the parser never reads a definition from.
-  if (start && columnCount(start[0]) - columnCount(start[0].replace(/[ \t]+$/, '')) >= 5) return null
+  // Five columns or more of whitespace after any marker — between two markers, or between the
+  // last marker and the label — leave what follows in indented code the container never sees.
+  if (start && containerWhitespaceOpensCode(start[0])) return null
   const quotes = start ? quoteDepth(start[0]) : 0
-  const contentColumn = start ? listContentColumn(start[0]) : -1
+  const quoteColumns = start ? quoteMarkerColumns(start[0]) : []
   // The column the definition itself starts at, behind the list markers alone — the base its
   // continuation lines are measured from once the item, not a quote, holds them. Counted in
   // columns: a tab inside a marker advances to the next stop, so `-\t` spans four of them.
@@ -398,7 +419,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   let tail = label[3]
   let span = 1
   if (!LINK_DESTINATION.test(tail)) {
-    const next = continuation(lines[index + 1], quotes, contentColumn, labelColumn)
+    const next = continuation(lines[index + 1], quotes, quoteColumns, labelColumn)
     if (next === undefined) return null
     tail = next
     body.push(next)
@@ -411,7 +432,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // any title that never closes, is a paragraph rather than a definition.
   let title: string | undefined = /^[ \t]*$/.test(tail) ? undefined : tail
   if (title === undefined) {
-    const below = continuation(lines[index + span], quotes, contentColumn, labelColumn)
+    const below = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
       title = below
       body.push(below)
@@ -421,7 +442,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     return null
   }
   while (title !== undefined && !LINK_TITLE.test(title)) {
-    const next = continuation(lines[index + span], quotes, contentColumn, labelColumn)
+    const next = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (next === undefined) return null
     body.push(next)
     span += 1
@@ -444,16 +465,22 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
 function continuation(
   line: string | undefined,
   quotes: number,
-  contentColumn: number,
+  quoteColumns: number[],
   labelColumn: number
 ): string | undefined {
   if (line === undefined) return undefined
   let content = line
   let seen = 0
+  let consumed = 0
   for (let quote = QUOTE_MARKER.exec(content); quote; quote = QUOTE_MARKER.exec(content)) {
-    // A quote that does not reach the column the list item indents its content to has already
-    // fallen out of that item, and opens a block of its own instead of continuing the definition.
-    if (seen === 0 && contentColumn > 0 && quote.index + quote[0].indexOf('>') < contentColumn) return undefined
+    // A quote that sits further left than the container's k-th quote has fallen out of the list
+    // items that hold it, and opens a block of its own instead of continuing the definition. The
+    // leading run QUOTE_MARKER allows is spaces only, so the marker's own text needs no tab
+    // arithmetic — only the characters consumed before it might carry tabs.
+    if (columnCount(line.slice(0, quote.index + quote[0].indexOf('>') + consumed)) < (quoteColumns[seen] ?? 0)) {
+      return undefined
+    }
+    consumed += quote[0].length
     content = content.slice(quote[0].length)
     seen += 1
   }
