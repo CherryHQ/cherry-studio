@@ -980,6 +980,105 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a definition nested in quotes alone across a shallower continuation marker', () => {
+    // Quotes nested in quotes alone continue wherever the marker chain allows — each marker within
+    // three columns of the one it follows, which the match itself enforces. Only a quote a list
+    // item holds sets a floor; measuring every quote by the container's own column killed these.
+    const forms = [
+      [">  > [spec]: /url 'the long", "> > tail of title'"],
+      [">   > [spec]: /url 'the long", "> > tail of title'"],
+      [">\t> [spec]: /url 'the long", "> > tail of title'"],
+      [" > > [spec]: /url 'the long", "> > tail of title'"]
+    ]
+    for (const [label, tail] of forms) {
+      const content = [label, tail, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a definition whose continuation opens a sibling block outside the item', () => {
+    // The line reproduces the quote but not the indent the item's content starts at, so it stands
+    // at the quote's own level: any list marker there — an ordered one whatever its number, which
+    // the paragraph interrupt rule would have spared — opens a block that closes the item.
+    const forms = [
+      ["> - [spec]: /url 'the long", "> 2. tail of title'"],
+      ["> - [spec]: /url 'the long", "> 3. tail of title'"],
+      ["> 1. [spec]: /url 'the long", "> 2) tail of title'"],
+      ["> - [spec]: /url 'the long", "> <a b=c>"]
+    ]
+    for (const [label, tail] of forms) {
+      const content = [label, tail, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('carries a definition across a lazy setext line outside the item holding it', () => {
+    // An underline cannot pair with a paragraph another container holds, and a line that starts
+    // nothing continues the item's paragraph lazily, so the underline is title text.
+    const forms = [
+      ["> - [spec]: /url 'the long", "> ==="],
+      ["> 1. [spec]: /url 'the long", "> ==="]
+    ]
+    for (const [label, mid] of forms) {
+      const content = [label, mid, "> tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('does not carry a definition whose continuation quote only a tab-indented line reaches', () => {
+    // The tab expands to the item's content column, so the marker it precedes continues the quote
+    // after all, and the underline behind it pairs with the title — a spaces-only reading of the
+    // indent took the line for lazy prose the title swallowed.
+    const content = ['- > [spec]: /url \'the long', '\t> ===', '  > tail of title\'', '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    // At the document level the same tab is four columns of indent, not a marker, and the line
+    // stays the lazy prose the title takes in.
+    const quoted = ['> [spec]: /url \'the long', '\t> ===', '> tail of title\'', '', 'see [spec]'].join('\n')
+    const quotedChunks = chunksOf(quoted, 1)
+    expect(quotedChunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(
+      quotedChunks.length
+    )
+  })
+
+  it('does not carry a definition whose label or destination the parser would refuse', () => {
+    // A label with an unescaped opening bracket cannot close, one of whitespace alone is empty,
+    // a destination starting with `<` belongs to the angle brackets it never closed, and a bare
+    // one carries its parentheses only in balance.
+    const forms = ['[a[b]: /url', '[ ]: /url', '[spec]: <foo', '[spec]: foo(bar', '[spec]: foo(bar)x)y']
+    for (const form of forms) {
+      const content = [form, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes(form))).toHaveLength(1)
+    }
+    // A destination line that is present yet carries no destination condemns the definition too.
+    const destless = ['[spec]:', "'title only'", '', 'see [spec]'].join('\n')
+    expect(chunksOf(destless, 1).filter((chunk) => chunk.text.includes('[spec]:'))).toHaveLength(1)
+    // What the parser accepts still rides along: an escaped bracket, balanced parens, a `<` mid
+    // run, and an angle-bracketed destination with room for a space.
+    const carried = ['[a\\]b]: /url', '[spec]: foo(bar)baz', '[spec]: foo<bar', '[spec]: <foo bar>']
+    for (const form of carried) {
+      const content = [form, '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes(form))).toHaveLength(chunks.length)
+    }
+  })
+
   it('does not carry a definition whose marker sits five columns behind another marker', () => {
     // The parser reads a marker plus up to four columns of separator as that marker; a fifth
     // column — of whitespace between two markers, tabs expanding as the parser counts them —
