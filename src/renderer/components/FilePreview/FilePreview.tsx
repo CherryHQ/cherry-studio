@@ -3,6 +3,11 @@ import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 're
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import {
+  FilePreviewLayout,
+  FilePreviewToolbarPortalHost,
+  FilePreviewToolbarPortalProvider
+} from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -12,9 +17,7 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
-import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
-import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 

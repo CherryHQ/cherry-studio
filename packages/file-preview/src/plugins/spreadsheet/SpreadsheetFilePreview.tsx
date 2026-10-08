@@ -54,7 +54,7 @@ const EXCERPT_MAX_SCAN_CELLS = 50_000
 /**
  * Plain-text snapshot of a selected range: tab-separated cells, newline-separated rows.
  * Both budgets are checked while scanning — building the full text first and truncating afterwards is what makes a
- * full-column selection hang. createSelectionReference does the exact normalization and truncation.
+ * full-column selection hang. createPreviewSelection does the exact normalization and truncation.
  *
  * Only text that survives normalization counts against the character budget, which is why each cell is charged its
  * normalized length rather than its raw one. A cell that leaves nothing behind — empty, or holding only whitespace,

@@ -95,6 +95,17 @@ const BAN_MCP_SDK_V1 = {
     'MCP SDK v1 is only a type peer of the Claude Agent SDK. Use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
 }
 
+// File preview is a portable package: host-app modules are off-limits to its source.
+const FILE_PREVIEW_HOST_IMPORTS = [
+  '@renderer/**',
+  '@shared/**',
+  '@logger',
+  'electron',
+  '**/src/renderer/**',
+  '**/src/shared/**',
+  '**/src/main/**'
+]
+
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
 // main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
@@ -1051,15 +1062,7 @@ export default defineConfig([
           patterns: [
             BAN_MCP_SDK_V1,
             {
-              group: [
-                '@renderer/**',
-                '@shared/**',
-                '@logger',
-                'electron',
-                '**/src/renderer/**',
-                '**/src/shared/**',
-                '**/src/main/**'
-              ],
+              group: FILE_PREVIEW_HOST_IMPORTS,
               message: 'File preview must use its portable source and host callbacks.'
             }
           ]
@@ -1088,13 +1091,7 @@ export default defineConfig([
             BAN_MCP_SDK_V1,
             {
               group: [
-                '@renderer/**',
-                '@shared/**',
-                '@logger',
-                'electron',
-                '**/src/renderer/**',
-                '**/src/shared/**',
-                '**/src/main/**',
+                ...FILE_PREVIEW_HOST_IMPORTS,
                 'react',
                 'react-dom',
                 'react-dom/**',

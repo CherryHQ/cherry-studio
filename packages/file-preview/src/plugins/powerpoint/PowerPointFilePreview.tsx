@@ -38,12 +38,6 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer
 }
 
-function assertSourceSize(size: number): void {
-  if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
-    throw new PreviewError('too_large', 'PPTX preview supports files up to 25 MB')
-  }
-}
-
 function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new DOMException('Preview aborted', 'AbortError')
@@ -193,10 +187,7 @@ export default function PowerPointFilePreview({
 
     void (async () => {
       try {
-        assertSourceSize(previewDocument.size)
-
         const pptxData = await readPreviewDocument(previewDocument, PPTX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
-        assertSourceSize(pptxData.byteLength)
         if (cancelled) return
 
         throwIfAborted(controller.signal)
@@ -294,7 +285,7 @@ export default function PowerPointFilePreview({
     }
   }, [sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
 
-  // The marker goes on only after createSelectionReference confirms the host receives something: a slide
+  // The marker goes on only after createPreviewSelection confirms the host receives something: a slide
   // with no text must not look picked while the host gets null.
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {

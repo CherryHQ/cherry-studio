@@ -157,7 +157,7 @@ whether to offer selection capture for a file at all.
 The preview component must use a default export, read the file, and compose the module's internal layout:
 
 ```tsx
-import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import type { FilePreviewPluginProps } from '../../types'
 import { ExampleFilePreviewToolbar } from './ExampleFilePreviewToolbar'
 

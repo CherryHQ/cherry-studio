@@ -35,12 +35,6 @@ const SAFE_HYPERLINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const formatDocxZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`
 
-function assertSourceSize(size: number): void {
-  if (size > DOCX_PREVIEW_MAX_SOURCE_BYTES) {
-    throw new PreviewError('too_large', 'DOCX preview supports files up to 25 MB')
-  }
-}
-
 function getRenderedPages(body: HTMLElement): HTMLElement[] {
   const sections = Array.from(body.querySelectorAll<HTMLElement>('section'))
   if (sections.length > 0) return sections
@@ -186,10 +180,7 @@ export default function WordFilePreview({
 
     void (async () => {
       try {
-        assertSourceSize(previewDocument.size)
-
         const docxData = await readPreviewDocument(previewDocument, DOCX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
-        assertSourceSize(docxData.byteLength)
         if (!isCurrent()) return
 
         assertZipLimits(docxData, 'DOCX')

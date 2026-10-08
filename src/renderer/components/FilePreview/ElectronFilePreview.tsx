@@ -36,11 +36,7 @@ export default function ElectronFilePreview({
   )
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
-      onSelectionReference?.(
-        selection
-          ? createSelectionReference({ filePath, metadata, anchor: selection.anchor, excerpt: selection.excerpt })
-          : null
-      )
+      onSelectionReference?.(selection ? createSelectionReference({ filePath, metadata, selection }) : null)
     },
     [filePath, metadata, onSelectionReference]
   )

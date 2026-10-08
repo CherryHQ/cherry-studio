@@ -214,7 +214,7 @@ describe('PowerPointFilePreview', () => {
       sourceId: filePath,
       // data-slide-index is zero-based; the anchor is one-based.
       anchor: { format: 'pptx', slide: 2 },
-      // One line per paragraph, collapsed to spaces by createSelectionReference; layout and master
+      // One line per paragraph, collapsed to spaces by createPreviewSelection; layout and master
       // shapes cannot appear, because the walk only reads the slide's own nodes.
       excerpt: 'Roadmap Q3 goals',
       revision: JSON.stringify({ size: 4, mtimeMs: 9 })
