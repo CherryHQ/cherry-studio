@@ -5,7 +5,8 @@ import { AgentSessionForkError } from '../fork'
 export const DshForkCheckpointSchema = z.strictObject({
   runtime: z.literal('dsh'),
   runtimeSessionId: z.string().min(1),
-  boundary: z.number().int().nonnegative()
+  boundary: z.number().int().nonnegative(),
+  formatVersion: z.union([z.literal(0), z.literal(4)]).default(0)
 })
 
 export type DshForkCheckpoint = z.infer<typeof DshForkCheckpointSchema>

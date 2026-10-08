@@ -15,7 +15,8 @@ export const agentSessionEditFailureReasons = [
   'invalid_target',
   'input_unsupported',
   'attachment_unavailable',
-  'close_failed'
+  'close_failed',
+  'checkpoint_unsupported'
 ] as const
 
 export type AgentSessionEditFailureReason = (typeof agentSessionEditFailureReasons)[number]

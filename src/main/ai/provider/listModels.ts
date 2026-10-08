@@ -23,7 +23,7 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
@@ -44,8 +44,16 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { customFetch } from '../utils/customFetch'
-import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
+import {
+  defaultHeaders,
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials
+} from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
+import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
 import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
@@ -94,7 +102,12 @@ const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...i
 
 type ModelFetcher = {
   match: (provider: Provider) => boolean
-  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
+  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<ListedModels>
+}
+
+/** A listing in which the provider held nothing back — what most fetchers return. */
+function listing(models: Partial<Model>[]): ListedModels {
+  return { models }
 }
 
 function getErrorType(error: unknown) {
@@ -178,7 +191,8 @@ function defaultGroup(modelId: string, providerId: string): string {
   return deriveModelGroupName(modelId) ?? providerId
 }
 
-/** Build a partial v2 Model from API response */
+/** Build a partial v2 Model from API response. `apiModelId` carries `#`/`?`
+ * verbatim (it is the provider's own handle), so `id` strips them. */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
   const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
@@ -274,16 +288,18 @@ const ollamaFetcher: ModelFetcher = {
     const contextWindows = await Promise.all(
       models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
     )
-    return models.map((m, index) => {
-      const capabilities: Model['capabilities'] = []
-      if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
-      if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
-      return toModel(m.name, provider, {
-        ownedBy: 'ollama',
-        capabilities,
-        ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+    return listing(
+      models.map((m, index) => {
+        const capabilities: Model['capabilities'] = []
+        if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
+        if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        return toModel(m.name, provider, {
+          ownedBy: 'ollama',
+          capabilities,
+          ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+        })
       })
-    })
+    )
   }
 }
 
@@ -320,12 +336,14 @@ const geminiFetcher: ModelFetcher = {
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name)
-      .filter(isSupportedGeminiModel)
-      .map((m) => {
-        const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
-        return toModel(id, provider, { name: m.displayName || id, description: m.description })
-      })
+    return listing(
+      dedup(response.models, (m) => m.name)
+        .filter(isSupportedGeminiModel)
+        .map((m) => {
+          const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+          return toModel(id, provider, { name: m.displayName || id, description: m.description })
+        })
+    )
   }
 }
 
@@ -338,7 +356,7 @@ const vertexFetcher: ModelFetcher = {
   match: (p) => isVertexProvider(p),
   fetch: async (provider, signal, options) => {
     const request = await createVertexModelListRequest(provider, { throwOnError: options?.throwOnError })
-    if (!request) return []
+    if (!request) return listing([])
 
     type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
     let firstPublisherError: unknown
@@ -420,7 +438,7 @@ const vertexFetcher: ModelFetcher = {
       })
     }
 
-    return filteredModels
+    return listing(filteredModels)
   }
 }
 
@@ -448,7 +466,7 @@ const copilotFetcher: ModelFetcher = {
       )
     })
 
-    return dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return listing(dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by })))
   }
 }
 
@@ -469,9 +487,44 @@ const ovmsFetcher: ModelFetcher = {
     // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
     // expect downloaded models to appear in the model manager even when OVMS
     // fails to load them server-side — the UI communicates readiness, not OVMS.
-    return dedup(Object.entries(response), ([name]) => name).map(([name]) =>
-      toModel(name, provider, { ownedBy: 'ovms' })
+    return listing(
+      dedup(Object.entries(response), ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
     )
+  }
+}
+
+/**
+ * ComfyUI has no `/models` endpoint: what a user can generate with is whatever
+ * workflow they saved, so the saved-workflow listing IS the model list. Each row is
+ * declared image-only on the ComfyUI image endpoint, which is what makes it selectable
+ * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
+ * the comfyui transport instead of an OpenAI adapter.
+ */
+const comfyuiFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
+  fetch: async (provider, signal) => {
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+    // The ComfyUI server takes no credentials, and the stored key belongs to
+    // some other provider's host: `defaultHeaders` would hand it to this one.
+    const workflows = await listWorkflows(baseUrl, signal, {
+      headers: headersWithoutCredentials(provider),
+      fetch: modelListFetch
+    })
+    const { listed, skipped } = partitionListableWorkflows(provider.id, workflows)
+    const models = dedup(listed, (workflow) => workflow).map((workflow) =>
+      toModel(workflow, provider, {
+        name: workflow.split('/').pop() ?? workflow,
+        ownedBy: 'comfyui',
+        supportsStreaming: false,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        inputModalities: [MODALITY.TEXT],
+        outputModalities: [MODALITY.IMAGE]
+      })
+    )
+    // A skip the user cannot see reads as a workflow that vanished: the names travel
+    // with the list so the model manager can say which files to rename.
+    return skipped.length > 0 ? { models, skippedModels: skipped } : listing(models)
   }
 }
 
@@ -485,12 +538,14 @@ const togetherFetcher: ModelFetcher = {
       responseSchema: TogetherModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.display_name || m.id,
-        description: m.description,
-        ownedBy: m.organization
-      })
+    return listing(
+      dedup(response, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          name: m.display_name || m.id,
+          description: m.description,
+          ownedBy: m.organization
+        })
+      )
     )
   }
 }
@@ -559,16 +614,18 @@ const newApiFetcher: ModelFetcher = {
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
-      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
-      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+    return listing(
+      dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+        const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
 
-      return toModel(m.id, provider, {
-        ownedBy: m.owned_by,
-        endpointTypes,
-        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        return toModel(m.id, provider, {
+          ownedBy: m.owned_by,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
       })
-    })
+    )
   }
 }
 
@@ -585,22 +642,24 @@ const tokenDanceFetcher: ModelFetcher = {
       abortSignal: signal
     })
 
-    return dedup(response.data, (m) => m.id)
-      .map((m) => {
-        const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
-        if (!endpointTypes) return undefined
+    return listing(
+      dedup(response.data, (m) => m.id)
+        .map((m) => {
+          const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+          if (!endpointTypes) return undefined
 
-        const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+          const impliedCapability = endpointImpliedCapability(endpointTypes[0])
 
-        return toModel(m.id, provider, {
-          name: m.name || m.id,
-          description: m.description,
-          contextWindow: m.context_length,
-          endpointTypes,
-          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+          return toModel(m.id, provider, {
+            name: m.name || m.id,
+            description: m.description,
+            contextWindow: m.context_length,
+            endpointTypes,
+            ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+          })
         })
-      })
-      .filter((model): model is Partial<Model> => Boolean(model))
+        .filter((model): model is Partial<Model> => Boolean(model))
+    )
   }
 }
 
@@ -642,19 +701,21 @@ const openRouterFetcher: ModelFetcher = {
     warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) => {
-      const imageModel = imageModelsById.get(m.id)
-      return toModel(m.id, provider, {
-        name: imageModel?.name ?? m.name,
-        ownedBy: m.owned_by,
-        ...(imageModel
-          ? {
-              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
-            }
-          : {})
+    return listing(
+      dedup(all, (m) => m.id).map((m) => {
+        const imageModel = imageModelsById.get(m.id)
+        return toModel(m.id, provider, {
+          name: imageModel?.name ?? m.name,
+          ownedBy: m.owned_by,
+          ...(imageModel
+            ? {
+                capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+                endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+              }
+            : {})
+        })
       })
-    })
+    )
   }
 }
 
@@ -714,7 +775,7 @@ const ppioFetcher: ModelFetcher = {
     for (const model of embed.data) mergeModel(model)
     for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
 
-    return Array.from(modelsById.values())
+    return listing(Array.from(modelsById.values()))
   }
 }
 
@@ -727,11 +788,13 @@ const aiHubMixFetcher: ModelFetcher = {
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.model_id).map((m) =>
-      toModel(m.model_id, provider, {
-        name: m.model_name || m.model_id,
-        description: m.desc
-      })
+    return listing(
+      dedup(response.data, (m) => m.model_id).map((m) =>
+        toModel(m.model_id, provider, {
+          name: m.model_name || m.model_id,
+          description: m.desc
+        })
+      )
     )
   }
 }
@@ -752,12 +815,14 @@ const gatewayFetcher: ModelFetcher = {
       responseSchema: VercelGatewayModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        description: m.description,
-        ownedBy: m.specification?.provider
-      })
+    return listing(
+      dedup(response.models, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          ownedBy: m.specification?.provider
+        })
+      )
     )
   }
 }
@@ -790,8 +855,10 @@ const anthropicFetcher: ModelFetcher = {
       responseSchema: AnthropicModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) =>
+        toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+      )
     )
   }
 }
@@ -807,10 +874,12 @@ const jinaFetcher: ModelFetcher = {
       abortSignal: signal
     })
     warnSkippedOpenAIModelEntries(provider.id, response)
-    return dedup(response.data, (m) => m.id).map((m) => {
-      const apiModelId = m.id.replace(/^jina-ai\//, '')
-      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
-    })
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) => {
+        const apiModelId = m.id.replace(/^jina-ai\//, '')
+        return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+      })
+    )
   }
 }
 
@@ -825,9 +894,11 @@ const openAIFetcher: ModelFetcher = {
       abortSignal: signal
     })
     warnSkippedOpenAIModelEntries(provider.id, response)
-    return dedup(response.data, (m) => m.id)
-      .filter((m) => isSupportedOpenAIModel(m.id))
-      .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return listing(
+      dedup(response.data, (m) => m.id)
+        .filter((m) => isSupportedOpenAIModel(m.id))
+        .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    )
   }
 }
 
@@ -835,7 +906,7 @@ async function listOpenAICompatibleModels(
   provider: Provider,
   baseUrl: string,
   signal?: AbortSignal
-): Promise<Partial<Model>[]> {
+): Promise<ListedModels> {
   const response = await getFromApi({
     url: `${baseUrl}/models`,
     headers: defaultHeaders(provider),
@@ -843,11 +914,13 @@ async function listOpenAICompatibleModels(
     abortSignal: signal
   })
   warnSkippedOpenAIModelEntries(provider.id, response)
-  return dedup(response.data, (m) => m.id).map((m) =>
-    toModel(m.id, provider, {
-      name: m.name || m.id,
-      ownedBy: m.owned_by
-    })
+  return listing(
+    dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
   )
 }
 
@@ -873,7 +946,7 @@ const omlxFetcher: ModelFetcher = {
       responseSchema: OmlxModelStatusResponseSchema,
       abortSignal: signal
     })
-    return (
+    return listing(
       dedup(
         // The markitdown virtual model rides the same chat completions endpoint,
         // so the server's own model_type list of chat-servable kinds.
@@ -965,25 +1038,27 @@ const lmStudioFetcher: ModelFetcher = {
       return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
     }
 
-    return dedup(response.models, (m) => m.key).map((m) => {
-      const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
-      const implied = endpointImpliedCapability(endpointTypes?.[0])
-      const capabilities: Model['capabilities'] = []
-      if (implied) {
-        capabilities.push(implied)
-      } else {
-        if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
-        if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
-      }
+    return listing(
+      dedup(response.models, (m) => m.key).map((m) => {
+        const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+        const implied = endpointImpliedCapability(endpointTypes?.[0])
+        const capabilities: Model['capabilities'] = []
+        if (implied) {
+          capabilities.push(implied)
+        } else {
+          if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+          if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+        }
 
-      return toModel(m.key, provider, {
-        name: m.display_name || m.key,
-        ownedBy: m.publisher,
-        ...(endpointTypes ? { endpointTypes } : {}),
-        capabilities,
-        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+        return toModel(m.key, provider, {
+          name: m.display_name || m.key,
+          ownedBy: m.publisher,
+          ...(endpointTypes ? { endpointTypes } : {}),
+          capabilities,
+          ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+        })
       })
-    })
+    )
   }
 }
 
@@ -1027,6 +1102,7 @@ const fetchers: ModelFetcher[] = [
   vertexFetcher,
   copilotFetcher,
   ovmsFetcher,
+  comfyuiFetcher,
   togetherFetcher,
   newApiFetcher,
   tokenDanceFetcher,
@@ -1045,7 +1121,7 @@ export async function listModels(
   provider: Provider,
   abortSignal?: AbortSignal,
   options?: { throwOnError?: boolean }
-): Promise<Partial<Model>[]> {
+): Promise<ListedModels> {
   try {
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
@@ -1054,6 +1130,6 @@ export async function listModels(
     if (options?.throwOnError) {
       throw error
     }
-    return []
+    return listing([])
   }
 }

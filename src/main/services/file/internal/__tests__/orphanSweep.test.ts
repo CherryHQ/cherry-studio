@@ -52,7 +52,7 @@ describe('pending-restore guard', () => {
 
   it('runFileSweep aborts with pending-restore before touching DB snapshot or filesystem', async () => {
     hasPendingRestoreMock.mockReturnValue(true)
-    const fileEntryService = { listAllIds: vi.fn() }
+    const fileEntryService = { listAllIds: vi.fn(), findById: vi.fn() }
 
     const report = await runFileSweep({ fileEntryService })
 
@@ -342,18 +342,15 @@ describe('runFileSweep (FS-level)', () => {
     await expect(stat(tmpPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('unlinks tmp residue even when the leading UUID matches a live entry', async () => {
-    // atomicWriteFile generates `<entryUUID>.<ext>.tmp-<randomUUID>`. If the
-    // entry is currently in the DB, the planning predicate must still
-    // recognise the .tmp- residue — otherwise crash-time tmp files of live
-    // entries persist forever across restarts.
+  it.each(['txt', null])('unlinks tmp residue next to a live entry with extension %s', async (ext) => {
+    // A retained entry must not hide its abandoned atomic-write residue.
     const liveEntryId = '019606a0-0000-7000-8000-00000000ee54' as FileEntryId
     const now = Date.now()
     await dbh.db.insert(fileEntryTable).values({
       id: liveEntryId,
       origin: 'internal',
       name: 'live',
-      ext: 'txt',
+      ext,
       size: 4,
       externalPath: null,
       deletedAt: null,
@@ -361,8 +358,8 @@ describe('runFileSweep (FS-level)', () => {
       updatedAt: now
     })
 
-    const livePath = path.join(filesDir, `${liveEntryId}.txt`)
-    const orphanedTmpPath = path.join(filesDir, `${liveEntryId}.txt.tmp-22222222-2222-4222-8222-bbbbbbbbbbbb`)
+    const livePath = path.join(filesDir, `${liveEntryId}${ext ? `.${ext}` : ''}`)
+    const orphanedTmpPath = `${livePath}.tmp-22222222-2222-4222-8222-bbbbbbbbbbbb`
     await writeFile(livePath, 'live')
     await writeFile(orphanedTmpPath, 'tmp')
     const ancient = (Date.now() - 10 * 60 * 1000) / 1000
@@ -374,6 +371,40 @@ describe('runFileSweep (FS-level)', () => {
     expect(report.actualDeleteCount).toBe(1)
     expect((await stat(livePath)).size).toBe(4)
     await expect(stat(orphanedTmpPath)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('rechecks a tmp-shaped blob retained after the initial DB snapshot', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ee55'
+    const ext = 'tmp-22222222-2222-4222-8222-aaaaaaaaaaaa'
+    const physicalPath = path.join(filesDir, `${id}.${ext}`)
+    await writeFile(physicalPath, 'published')
+    const now = Date.now()
+    const ancient = (now - 10 * 60 * 1000) / 1000
+    await utimes(physicalPath, ancient, ancient)
+
+    const report = await runFileSweep({
+      fileEntryService,
+      now: () => {
+        dbh.db
+          .insert(fileEntryTable)
+          .values({
+            id,
+            origin: 'internal',
+            name: 'published',
+            ext,
+            size: 9,
+            cleanupPolicy: 'manual',
+            createdAt: now,
+            updatedAt: now
+          })
+          .run()
+        return now
+      }
+    })
+
+    expect(report).toMatchObject({ outcome: 'completed', plannedDeleteCount: 1, actualDeleteCount: 0 })
+    expect((await stat(physicalPath)).size).toBe(9)
+    expect(fileEntryService.getById(id)).toMatchObject({ ext, cleanupPolicy: 'manual' })
   })
 
   it('aborts when the planned deletion exceeds the safety threshold (>20 files at >50%)', async () => {

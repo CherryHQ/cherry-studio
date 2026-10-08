@@ -10,6 +10,7 @@ import type {
 import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { DshRuntimeEvent } from '@cherrystudio/dsh-bridge'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
@@ -29,8 +30,10 @@ const assistantMessage = (model = 'm-1'): AssistantMessage => ({
 
 const toolResultMessage = (id: string, content: ContentBlock[], isError?: boolean): ToolResultMessage => ({
   id: `msg-${id}` as MessageId,
-  role: 'user',
-  content: [{ type: 'tool-result', toolCallId: callId(id), content, ...(isError !== undefined ? { isError } : {}) }],
+  role: 'tool',
+  toolCallId: callId(id),
+  content,
+  ...(isError !== undefined ? { isError } : {}),
   source: { kind: 'tool', callId: callId(id) }
 })
 
@@ -77,8 +80,10 @@ const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T])
 /** An event outside the compile-time union (merge-extended or lifecycle-only shape). */
 const rawEvent = (type: string, data: unknown): SessionEvent =>
   ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
-const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk) =>
-  envelope('assistant/chunk', { turn, step, chunk })
+const chunkEnvelope = (turn: number, step: number, chunk: StreamChunk): DshRuntimeEvent => ({
+  type: 'assistant/chunk',
+  data: { turn, step, chunk }
+})
 
 describe('DshStreamAdapter', () => {
   it('relays committed plan/mode folds to the sink', () => {
@@ -105,7 +110,7 @@ describe('DshStreamAdapter', () => {
     const [start, delta] = chunks
     expect(start).toMatchObject({ id: expect.stringMatching(/^dsh-\d+-0$/) })
     expect(delta).toMatchObject({ id: (start as { id: string }).id, delta: 'Hello' })
-    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, events.at(-1)!.seq)
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, (events.at(-1)! as SessionEvent).seq)
     // A host-prompted turn never reports autonomous lifecycle.
     expect(onAutonomousTurnState).not.toHaveBeenCalled()
   })
@@ -446,6 +451,7 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 1 }))
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage('m-1'),
@@ -454,6 +460,7 @@ describe('DshStreamAdapter', () => {
     )
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 2,
         message: assistantMessage('m-1'),
@@ -500,6 +507,7 @@ describe('DshStreamAdapter', () => {
       vi.advanceTimersByTime(100)
       adapter.handleEvent(
         envelope('assistant/message', {
+          stream: [],
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
@@ -534,6 +542,7 @@ describe('DshStreamAdapter', () => {
       adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } }))
       adapter.handleEvent(
         envelope('assistant/message', {
+          stream: [],
           turn: 1,
           step: 1,
           usage: { inputTokens: 10, outputTokens: 5 },
@@ -558,6 +567,15 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } }))
     adapter.handleEvent(
+      envelope('assistant/attempt', {
+        turn: 1,
+        step: 1,
+        stream: [
+          { type: 'chunk', time: Date.now(), chunk: { type: 'usage', usage: { inputTokens: 10, outputTokens: 1 } } }
+        ]
+      })
+    )
+    adapter.handleEvent(
       envelope('llm/retry', {
         retryId: 'r-1' as DshRetryId,
         turn: 1,
@@ -575,6 +593,7 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(chunkEnvelope(1, 1, { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } }))
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         usage: { inputTokens: 20, outputTokens: 5 },
@@ -598,6 +617,15 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 2 }))
     adapter.handleEvent(envelope('step/start', { turn: 2, step: 1 }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } }))
+    adapter.handleEvent(
+      envelope('assistant/attempt', {
+        turn: 2,
+        step: 1,
+        stream: [
+          { type: 'chunk', time: Date.now(), chunk: { type: 'usage', usage: { inputTokens: 30, outputTokens: 2 } } }
+        ]
+      })
+    )
     adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
     adapter.handleEvent(
       envelope('turn/end', {
@@ -614,6 +642,7 @@ describe('DshStreamAdapter', () => {
     const { adapter, onAssistantUsage } = makeAdapter()
     adapter.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         usage: { inputTokens: 1, outputTokens: 1 },

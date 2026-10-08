@@ -1,14 +1,23 @@
+import { win32 } from 'node:path'
+
 import type { MenuItemConstructorOptions } from 'electron'
-import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { v5 as uuidv5 } from 'uuid'
 
 import { application } from '@application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { getApplicationId } from '@main/utils/appEdition'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
+
+function getWindowsTrayGuid(): string {
+  const executablePath = win32.resolve(app.getPath('exe')).toLowerCase()
+  return uuidv5(`${getApplicationId()}:${executablePath}`, uuidv5.URL)
+}
 
 @Injectable('TrayService')
 @ServicePhase(Phase.WhenReady)
@@ -28,7 +37,8 @@ export class TrayService extends BaseService implements Activatable {
 
   onActivate(): void {
     const iconPath = isMac ? (nativeTheme.shouldUseDarkColors ? iconLight : iconDark) : icon
-    const tray = new Tray(iconPath)
+    // Portable builds run from a fresh executable path on each launch.
+    const tray = isWin && !isPortable ? new Tray(iconPath, getWindowsTrayGuid()) : new Tray(iconPath)
 
     if (isWin) {
       tray.setImage(iconPath)

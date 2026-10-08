@@ -209,7 +209,7 @@ export function UsageEntriesTable({
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {entry.cost !== null && entry.cost !== undefined
                           ? formatCost(entry.cost, entry.costCurrency)
-                          : EMPTY_VALUE}
+                          : t('settings.usage.table.unpriced')}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {formatMilliseconds(entry.timeFirstTokenMs)}

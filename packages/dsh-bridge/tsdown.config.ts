@@ -38,27 +38,21 @@ export default defineConfig([
     format: ['esm'],
     clean: false,
     dts: false,
-    external: [
-      '@deepseek-ai/dsh-sandbox-windows-acl',
-      '@deepseek-ai/node-addon-landlock-run',
-      'koffi',
-      'node-pty',
-      'sharp'
-    ],
+    external: ['@deepseek-ai/dsh-sandbox-windows-acl', '@deepseek-ai/node-addon-system', 'koffi', 'node-pty', 'sharp'],
     noExternal: () => true,
     plugins: [
       {
         name: 'isolate-dsh-windows-sandbox',
         transform(code, id) {
           if (!/[\\/]@deepseek-ai[\\/]dsh-sandbox-local[\\/]lib[\\/]index\.js$/.test(id)) return
-          // SDK 0.1.2-rc.1 statically imports Win32 bindings even on macOS/Linux.
+          // The sandbox statically imports Win32 bindings even on macOS/Linux.
           // Keep the ACL package external so its separate runner remains resolvable.
           const windowsImport =
-            'import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@deepseek-ai/dsh-sandbox-windows-acl";'
+            'import { AclWriteGrant, assertTempRootOutsideWorkspace, registerAclDiagnosisSkill, tempWriteSid, workspaceWriteSid } from "@deepseek-ai/dsh-sandbox-windows-acl";'
           if (!code.includes(windowsImport)) throw new Error('Could not isolate the DSH Windows sandbox import')
           return code.replace(
             windowsImport,
-            'const { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } = process.platform === "win32" ? await import("@deepseek-ai/dsh-sandbox-windows-acl") : {};'
+            'const { AclWriteGrant, assertTempRootOutsideWorkspace, registerAclDiagnosisSkill, tempWriteSid, workspaceWriteSid } = process.platform === "win32" ? await import("@deepseek-ai/dsh-sandbox-windows-acl") : {};'
           )
         }
       },
@@ -75,5 +69,31 @@ export default defineConfig([
     minify: true,
     hash: false,
     tsconfig: 'tsconfig.json'
+  },
+  {
+    entry: {
+      worker: path.join(
+        path.dirname(require_.resolve('@deepseek-ai/dsh-session-persistence-jsonl/package.json')),
+        'lib/worker.cjs'
+      )
+    },
+    outDir: 'dist/runtime',
+    format: ['cjs'],
+    clean: false,
+    dts: false,
+    plugins: [
+      {
+        name: 'inline-dsh-worker-llm-version',
+        transform(code, id) {
+          if (!/[\\/]dsh-session-persistence-jsonl[\\/]lib[\\/]worker\.cjs$/.test(id)) return
+          const packageVersion =
+            /\(0, node_module\.createRequire\)\(require\("url"\)\.pathToFileURL\(__filename\)\.href\)\("\.\.\/package\.json"\)/
+          if (!packageVersion.test(code)) throw new Error('Could not inline the DSH worker LLM package version')
+          return code.replace(packageVersion, `({ version: ${JSON.stringify(dshLlmVersion)} })`)
+        }
+      }
+    ],
+    minify: true,
+    hash: false
   }
 ])

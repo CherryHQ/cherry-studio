@@ -10,7 +10,7 @@ import { Arch } from 'electron-builder'
 import { describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../before-pack'
+import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../packaging/before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -93,13 +93,16 @@ describe('prepareNativeModulesForElectron', () => {
 
 describe('keepPackages', () => {
   it.each([
-    ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
-    ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
-  ] as const)('keeps only the Linux %s Landlock executable', (arch, matchingPackage, otherArchPackage) => {
-    const keptPackages = keepPackages('linux', arch)
+    ['linux', 'x64', ['@deepseek-ai/node-addon-system-linux-x64']],
+    ['linux', 'arm64', ['@deepseek-ai/node-addon-system-linux-arm64']],
+    ['darwin', 'x64', ['@deepseek-ai/node-addon-system-darwin-x64']],
+    ['darwin', 'arm64', ['@deepseek-ai/node-addon-system-darwin-arm64']],
+    ['win32', 'x64', []],
+    ['win32', 'arm64', []]
+  ] as const)('keeps only the %s %s DSH system binary', (platform, arch, expectedPackages) => {
+    const keptPackages = keepPackages(platform, arch).filter((name) => name.startsWith('@deepseek-ai/node-addon-'))
 
-    expect(keptPackages).toContain(matchingPackage)
-    expect(keptPackages).not.toContain(otherArchPackage)
+    expect(keptPackages).toEqual(expectedPackages)
   })
 
   // The name matcher keys off arch and platform tokens, and this package name carries

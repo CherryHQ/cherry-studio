@@ -9,8 +9,15 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { interruptedTurnClosers, Session, SessionId, SessionLogOffset, SessionStore } from '@deepseek-ai/dsh-session'
-import { JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl'
+import {
+  interruptedTurnClosers,
+  SESSION_FORMAT_VERSION,
+  Session,
+  SessionId,
+  SessionLogOffset,
+  SessionStore
+} from '@deepseek-ai/dsh-session'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as fileTools from '@deepseek-ai/dsh-tool-fs'
 import { ToolRuntime } from '@deepseek-ai/dsh-tools'
@@ -156,12 +163,15 @@ describe('cherry bridge plugin', () => {
     })
     const sourceRoot = path.join(directory, 'source')
     await context.plugin(SessionStore)
-    await context.plugin(JsonlSessionPersistence, { root: sourceRoot, writeBatchMaxDelayMs: 60_000 })
+    await context.plugin(JsonlSessionPersistence, { root: sourceRoot })
     const session = context.sessions.create(SessionId('session-1'), { meta: { cwd: directory } })
-    session.append('turn/start', { turn: 0 })
-    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
-    const later = session.append('turn/start', { turn: 1 })
+    session.append('turn/start', { turn: 1 })
+    const end = session.append('turn/end', { turn: 1, reason: { kind: 'blocked' } })
+    const later = session.append('turn/start', { turn: 2 })
     const sourceEvents = session.snapshotEvents()
+    const writer = await context.sessionPersistence.create(session.header)
+    await writer.append(sourceEvents)
+    context.on('session/flush', () => writer.flush())
     const host = await startHost()
     for (const [name, service] of Object.entries({
       approval: {},
@@ -186,7 +196,8 @@ describe('cherry bridge plugin', () => {
       targetSessionId: 'child',
       targetCwd: directory,
       boundary: end.seq,
-      checkpoints: [{ boundary: end.seq }]
+      formatVersion: 4 as const,
+      checkpoints: [{ boundary: end.seq, formatVersion: 4 as const }]
     }
     await expect(forkSession({ ...forkInput, boundary: later.seq })).rejects.toThrow('history_changed')
     await forkSession(forkInput)
@@ -194,10 +205,11 @@ describe('cherry bridge plugin', () => {
     try {
       await reader.plugin(SessionStore)
       await reader.plugin(JsonlSessionPersistence, { root: forkInput.targetRoot })
-      const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId('child'))
+      const handle = await reader.sessionPersistence.open(SessionId('child'), 'read')
+      const stored = await handle.read()
       expect(stored?.events.slice(0, end.seq + 1)).toEqual(sourceEvents.slice(0, end.seq + 1))
       expect(stored?.events.at(-1)?.type).toBe('session/end-seed')
-      expect(interruptedTurnClosers(stored!.events)).toEqual([])
+      expect(interruptedTurnClosers(stored.events)).toEqual([])
       expect(session.snapshotEvents()).toEqual(sourceEvents)
     } finally {
       await reader.fiber.dispose()
@@ -228,12 +240,13 @@ describe('cherry bridge plugin', () => {
     await source.plugin(SessionStore)
     await source.plugin(JsonlSessionPersistence, { root })
     const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
-    session.append('turn/start', { turn: 0 })
-    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
-    const checkpoint = createForkCheckpoint(session.snapshotEvents(), end.seq)
     session.append('turn/start', { turn: 1 })
-    await source.sessionPersistence.ensureMaterialized(session)
-    await source.sessions.flush(session)
+    const end = session.append('turn/end', { turn: 1, reason: { kind: 'blocked' } })
+    const checkpoint = { ...createForkCheckpoint(session.snapshotEvents(), end.seq), formatVersion: 4 as const }
+    session.append('turn/start', { turn: 2 })
+    const writer = await source.sessionPersistence.create(session.header)
+    await writer.append(session.snapshotEvents())
+    await writer.close()
     await source.fiber.dispose()
     let sourceRoot = root
     let sourceId = 'source'
@@ -266,16 +279,15 @@ describe('cherry bridge plugin', () => {
       try {
         await reader.plugin(SessionStore)
         await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
-        const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
-          SessionId(targetSessionId)
-        )
+        const handle = await reader.sessionPersistence.open(SessionId(targetSessionId), 'read')
+        const stored = await handle.read()
         expect(stored?.events).toHaveLength(end.seq + 2)
         expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
         expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
-        expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd })
-        expect(stored?.meta?.parentSession).toBeUndefined()
-        expect(stored?.inheritedEventCount).toBe(end.seq + 1)
-        expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
+        expect(handle.header).toMatchObject({ id: targetSessionId, cwd: targetCwd })
+        expect(handle.header.parentSession).toBeUndefined()
+        expect(handle.inheritedEventCount).toBe(end.seq + 1)
+        expect({ ...createForkCheckpoint(stored.events, end.seq), formatVersion: 4 }).toEqual(checkpoint)
       } finally {
         await reader.fiber.dispose()
       }
@@ -316,7 +328,7 @@ describe('cherry bridge plugin', () => {
           [],
           {
             id: SessionId('child'),
-            version: 0,
+            version: SESSION_FORMAT_VERSION,
             createdAt: Date.now(),
             cwd: childCwd,
             parentSession: SessionId('source'),

@@ -1,5 +1,8 @@
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
+import {
+  isInitializeRequest,
+  isLegacyRequest,
+  WebStandardStreamableHTTPServerTransport
+} from '@modelcontextprotocol/server'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
 
@@ -335,6 +338,8 @@ async function handleProxyPost(
     await application.get('McpCatalogService').warmToolsCache(server.id)
   }
 
+  if (!(await isLegacyRequest(request, body))) return sessions.handleModern(server, request, body)
+
   const session = lookupSession(sessions, request, server.id)
   if (session === null) return sessionNotFound()
   // Elysia has already consumed the body stream, so every path below hands the parsed
@@ -368,6 +373,7 @@ async function handleProxySessionOnly(
   request: Request
 ): Promise<Response> {
   const server = resolveServer(serverIdOrName)
+  if (!(await isLegacyRequest(request))) return sessions.handleModern(server, request)
   const session = lookupSession(sessions, request, server.id)
   if (session === null) return sessionNotFound()
   if (!session) return methodNotAllowed()

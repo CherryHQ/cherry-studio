@@ -96,6 +96,10 @@ vi.mock('electron', () => {
       removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
+    powerMonitor: {
+      on: vi.fn(),
+      removeListener: vi.fn()
+    },
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),

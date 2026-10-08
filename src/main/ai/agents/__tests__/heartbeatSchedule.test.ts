@@ -73,6 +73,7 @@ vi.mock('../agentTaskJobHandler', () => ({
 vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: vi.fn(), ChannelAdapterListener: class {} }))
 
 import { AgentJobsService } from '../AgentJobsService'
+import { AgentLifecycleService } from '../AgentLifecycleService'
 import { repairHeartbeatSchedules as repairSchedules } from '../heartbeatSchedule'
 
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
@@ -91,6 +92,7 @@ describe('heartbeatSchedule', () => {
   let jobManager: JobManager
   let agentsRoot: string
   let service: AgentJobsService
+  let lifecycle: AgentLifecycleService
   const syncHeartbeatSchedule = (id: string, rows?: JobScheduleSnapshot[]) => service.syncHeartbeat(id, rows)
   const drainHeartbeatWork = async (options = { timeoutMs: 15000 }) => (await service.drainInFlight(options)).settled
   const repairHeartbeatSchedules = () => repairSchedules(syncHeartbeatSchedule, new AbortController().signal)
@@ -126,6 +128,7 @@ describe('heartbeatSchedule', () => {
     scheduler = new SchedulerService()
     jobManager = new JobManager()
     service = new AgentJobsService()
+    lifecycle = new AgentLifecycleService()
 
     const dbSvc = MockMainDbServiceExport.dbService
     dbSvc.withWriteTx.mockImplementation(<T>(fn: (tx: unknown) => T): T => dbh.db.transaction((tx) => fn(tx)))
@@ -142,6 +145,8 @@ describe('heartbeatSchedule', () => {
           return jobManager
         case 'AgentJobsService':
           return service
+        case 'AiStreamManager':
+          return { isWriteQuiesced: false }
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -290,7 +295,7 @@ describe('heartbeatSchedule', () => {
     )
     dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
 
-    await repairHeartbeatSchedules()
+    await lifecycle.reconcile()
 
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspaceId)).all()).toHaveLength(
@@ -326,7 +331,7 @@ describe('heartbeatSchedule', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     })
 
-    await repairHeartbeatSchedules()
+    await lifecycle.reconcile()
 
     expect(
       jobScheduleService.listAll({ type: 'agent.task' }).filter((s) => s.name === 'task_daily_report')
@@ -336,19 +341,25 @@ describe('heartbeatSchedule', () => {
     ).toHaveLength(1)
   })
 
-  it('pauses an orphaned row the reaper cannot unregister', async () => {
+  it('keeps failed ownership cleanup atomic and retries through the lifecycle owner', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
     const [row] = heartbeatRows(AGENT_ID)
     dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
-    const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById').mockRejectedValue(new Error('SQLITE_BUSY'))
+    const spy = vi.spyOn(jobScheduleService, 'deleteTx').mockImplementationOnce(() => {
+      throw new Error('SQLITE_BUSY')
+    })
+    try {
+      await expect(lifecycle.reconcile()).rejects.toThrow('SQLITE_BUSY')
+    } finally {
+      spy.mockRestore()
+    }
+    expect(jobScheduleService.getById(row.id)).not.toBeNull()
 
-    await repairHeartbeatSchedules()
+    await lifecycle.reconcile()
 
-    // Left armed it would throw on every fire for a dead agent; the pause is
-    // best-effort so the reap failure still goes inert.
-    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
-    spy.mockRestore()
+    expect(jobScheduleService.getById(row.id)).toBeNull()
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
   it('never touches an existing heartbeat.md', async () => {
@@ -866,7 +877,7 @@ describe('heartbeatSchedule', () => {
     expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
   })
 
-  it('keeps archived heartbeat schedules during explicit sync and startup orphan repair', async () => {
+  it('keeps archived heartbeat schedules during explicit sync and ownership reconciliation', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
     const [row] = heartbeatRows(AGENT_ID)
@@ -874,6 +885,7 @@ describe('heartbeatSchedule', () => {
     await jobManager.pauseJobScheduleById(row.id)
 
     await syncHeartbeatSchedule(AGENT_ID)
+    await lifecycle.reconcile()
     await repairHeartbeatSchedules()
 
     expect(jobScheduleService.getById(row.id)).toMatchObject({ enabled: false })

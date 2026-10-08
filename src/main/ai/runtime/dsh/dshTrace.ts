@@ -167,14 +167,13 @@ export class DshTraceRecorder {
   }
 
   private endToolSpan(data: SessionEventMap['tool/result']): void {
-    const block = data.message.content.find((entry) => entry.type === 'tool-result')
-    if (!block) return
-    const pending = this.pendingTools.get(block.toolCallId)
+    const message = data.message
+    const pending = this.pendingTools.get(message.toolCallId)
     if (!pending) return
-    this.pendingTools.delete(block.toolCallId)
-    const failed = data.error !== undefined || block.isError === true
+    this.pendingTools.delete(message.toolCallId)
+    const failed = data.error !== undefined || message.isError === true
     this.emitToolSpan(
-      block.toolCallId,
+      message.toolCallId,
       pending,
       failed ? { code: SpanStatusCode.ERROR, message: `${pending.name} failed` } : { code: SpanStatusCode.OK }
     )
