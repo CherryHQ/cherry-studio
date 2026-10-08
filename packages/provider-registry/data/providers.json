@@ -364,9 +364,21 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi"
+        },
+        "google-generate-content": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.aiionly.com"
+          "adapterFamily": "newapi",
+          "baseUrl": "https://api.aiionly.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "aionly",
@@ -1704,7 +1716,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "doubao - AI model provider",
+      "description": "Doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -1769,7 +1781,7 @@
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao",
+      "name": "Doubao",
       "serverTools": [
         {
           "id": "web-search",
@@ -2676,5 +2688,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "a97aae2405a78d18"
 }

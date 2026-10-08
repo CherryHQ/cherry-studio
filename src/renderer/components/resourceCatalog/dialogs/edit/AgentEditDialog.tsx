@@ -651,7 +651,16 @@ function AgentBasicFields({
         form={form}
         name="modelId"
         includeAgentOnlyModels
-        label={t('library.config.agent.field.model.label')}
+        label={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.label.claude_code'
+            : 'library.config.agent.field.model.label'
+        )}
+        help={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.hint.claude_code'
+            : 'library.config.agent.field.model.hint'
+        )}
         filter={modelFilter}
         isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
@@ -669,6 +678,7 @@ function AgentBasicFields({
             name="planModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            help={t('library.config.agent.field.plan_model.hint')}
             emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
@@ -686,6 +696,7 @@ function AgentBasicFields({
             name="smallModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            help={t('library.config.agent.field.small_model.hint')}
             emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}

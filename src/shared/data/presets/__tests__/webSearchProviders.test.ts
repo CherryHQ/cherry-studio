@@ -61,6 +61,19 @@ describe('web search provider schemas', () => {
     })
   })
 
+  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+    const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
+
+    expect(crawl4ai?.capabilities).toEqual([
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+    ])
+    expect(
+      WebSearchProviderOverridesSchema.safeParse({
+        crawl4ai: { capabilities: { fetchUrls: { apiHost: 'http://localhost:11235' } }, apiKeys: [] }
+      }).success
+    ).toBe(true)
+  })
+
   it('models Parallel as an API-key-authenticated keyword search provider', () => {
     const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
 

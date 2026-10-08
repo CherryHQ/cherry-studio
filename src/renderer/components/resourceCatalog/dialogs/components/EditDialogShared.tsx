@@ -711,6 +711,7 @@ export function CompactModelField({
   label,
   labelClassName,
   description,
+  help,
   allowClear = false,
   emptyLabel,
   filter,
@@ -729,6 +730,8 @@ export function CompactModelField({
   label: string
   labelClassName?: string
   description?: string
+  /** Shown in a help tooltip beside the label. `description` stays inline below the field. */
+  help?: ReactNode
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
@@ -767,9 +770,24 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
-            {label}
-          </FormLabel>
+          {help ? (
+            <FieldLabelWithHelp
+              label={label}
+              help={help}
+              // In row layout FormItem is a grid, so `justify-self-end` has to sit on the wrapper
+              // div that FieldLabelWithHelp renders around the label.
+              className={layout === 'row' ? 'justify-self-end' : undefined}
+              labelClassName={cn(
+                layout === 'row' ? 'font-normal text-muted-foreground text-[13px]' : 'font-normal',
+                labelClassName
+              )}
+            />
+          ) : (
+            <FormLabel
+              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              {label}
+            </FormLabel>
+          )}
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
