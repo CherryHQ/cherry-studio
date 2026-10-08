@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Dispositivos emparejados",
   "deviceConnections.discovery.unavailable": "Detección no disponible. Puedes conectarte con una dirección configurada o un nuevo código QR.",
   "deviceConnections.download.android": "Descargar para Android",
+  "deviceConnections.download.googlePlay": "Descargar en Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

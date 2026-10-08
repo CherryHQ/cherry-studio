@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "ペアリング済みデバイス",
   "deviceConnections.discovery.unavailable": "自動検出を利用できません。設定したアドレスまたは新しいQRコードで接続できます。",
   "deviceConnections.download.android": "Android 版をダウンロード",
+  "deviceConnections.download.googlePlay": "Google Play でダウンロード",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

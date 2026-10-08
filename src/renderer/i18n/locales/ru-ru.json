@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Сопряжённые устройства",
   "deviceConnections.discovery.unavailable": "Обнаружение недоступно. Можно подключиться по заданному адресу или новому QR-коду.",
   "deviceConnections.download.android": "Скачать для Android",
+  "deviceConnections.download.googlePlay": "Скачать в Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

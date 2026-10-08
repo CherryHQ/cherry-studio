@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "已配对设备",
   "deviceConnections.discovery.unavailable": "自动发现不可用。仍可通过配置地址或新二维码连接。",
   "deviceConnections.download.android": "Android 下载",
+  "deviceConnections.download.googlePlay": "在 Google Play 下载",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

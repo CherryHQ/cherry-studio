@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Dispozitive asociate",
   "deviceConnections.discovery.unavailable": "Detectarea nu este disponibilă. Vă puteți conecta cu o adresă configurată sau un cod QR nou.",
   "deviceConnections.download.android": "Descarcă pentru Android",
+  "deviceConnections.download.googlePlay": "Descarcă de pe Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

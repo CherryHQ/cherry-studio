@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Thiết bị đã ghép nối",
   "deviceConnections.discovery.unavailable": "Không thể tìm tự động. Bạn vẫn có thể kết nối bằng địa chỉ đã cấu hình hoặc mã QR mới.",
   "deviceConnections.download.android": "Tải bản Android",
+  "deviceConnections.download.googlePlay": "Tải trên Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Gekoppelte Geräte",
   "deviceConnections.discovery.unavailable": "Erkennung nicht verfügbar. Eine konfigurierte Adresse oder ein neuer QR-Code kann weiterhin verwendet werden.",
   "deviceConnections.download.android": "Android herunterladen",
+  "deviceConnections.download.googlePlay": "Bei Google Play herunterladen",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

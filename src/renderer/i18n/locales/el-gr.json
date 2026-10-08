@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Συζευγμένες συσκευές",
   "deviceConnections.discovery.unavailable": "Ο εντοπισμός δεν είναι διαθέσιμος. Μπορείτε να συνδεθείτε με μια ρυθμισμένη διεύθυνση ή νέο κωδικό QR.",
   "deviceConnections.download.android": "Λήψη για Android",
+  "deviceConnections.download.googlePlay": "Λήψη από το Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

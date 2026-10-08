@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Dispositivos emparelhados",
   "deviceConnections.discovery.unavailable": "Deteção indisponível. Pode ligar através de um endereço configurado ou de um novo código QR.",
   "deviceConnections.download.android": "Transferir para Android",
+  "deviceConnections.download.googlePlay": "Transferir no Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

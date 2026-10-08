@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "已配對裝置",
   "deviceConnections.discovery.unavailable": "自動探索不可用。仍可透過設定位址或新 QR 碼連線。",
   "deviceConnections.download.android": "Android 下載",
+  "deviceConnections.download.googlePlay": "從 Google Play 下載",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

@@ -1254,6 +1254,7 @@
   "deviceConnections.devices.title": "Appareils appairés",
   "deviceConnections.discovery.unavailable": "Détection indisponible. Utilisez une adresse configurée ou un nouveau QR code pour vous connecter.",
   "deviceConnections.download.android": "Télécharger pour Android",
+  "deviceConnections.download.googlePlay": "Télécharger sur Google Play",
   "deviceConnections.download.ios": "iOS · App Store",
   "deviceConnections.download.platform.android": "Android",
   "deviceConnections.download.platform.ios": "iOS",

@@ -165,14 +165,29 @@ describe('DeviceConnectionsSettings', () => {
         screen.queryByRole('button', { name: enUS['deviceConnections.download.testFlight'] })
       ).not.toBeInTheDocument()
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.ios'] })).not.toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.android'] }))
-      expect(requestMock).toHaveBeenCalledWith('system.shell.open_external_website', androidDownloadUrl)
+      expect(screen.queryByRole('button', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      if (edition === 'global') {
+        const googlePlay = screen.getByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+        expect(googlePlay).toBeVisible()
+        await user.click(googlePlay)
+        expect(requestMock).toHaveBeenLastCalledWith(
+          'system.shell.open_external_website',
+          'https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app'
+        )
+      } else {
+        expect(
+          screen.queryByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+        ).not.toBeInTheDocument()
+      }
       expect(screen.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
         'data-value',
         androidDownloadUrl
       )
       await user.click(screen.getByRole('tab', { name: 'iOS' }))
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+      ).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
       expect(requestMock).not.toHaveBeenCalledWith('api_gateway.remote.create_invitation')
       await user.click(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] }))
@@ -220,6 +235,12 @@ describe('DeviceConnectionsSettings', () => {
     expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
       'data-value',
       'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
+    )
+    expect(dialog.queryByRole('button', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: enUS['deviceConnections.download.googlePlay'] }))
+    expect(requestMock).toHaveBeenLastCalledWith(
+      'system.shell.open_external_website',
+      'https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app'
     )
     await user.click(dialog.getByRole('button', { name: enUS['common.close'] }))
 
