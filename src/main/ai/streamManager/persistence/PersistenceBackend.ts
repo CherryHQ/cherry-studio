@@ -47,8 +47,7 @@ export function finalizeInterruptedParts(
     // A `text` part left `streaming` by a mid-response failure renders as a still-typing
     // cursor instead of the truncated sentence the user actually received.
     if (part.type === 'text') {
-      const textPart = part as CherryMessagePart & { state?: string }
-      return textPart.state === 'streaming' ? ({ ...textPart, state: 'done' } as CherryMessagePart) : part
+      return part.state === 'streaming' ? { ...part, state: 'done' } : part
     }
 
     if (part.type === 'reasoning') {

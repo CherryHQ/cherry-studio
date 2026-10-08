@@ -1,20 +1,6 @@
 /**
- * Shared chunk-pipe primitive. Drives a `ReadableStream<UIMessageChunk>`,
- * delivers each chunk via `onChunk`, and concurrently runs AI SDK's
- * `readUIMessageStream` to accumulate a `CherryUIMessage` snapshot.
- *
- * Contract:
- *  - Never throws. Setup / broadcast errors return as `threw`; in-stream
- *    `chunk.type === 'error'` is captured in `streamErrorText`.
- *  - `signal` cancels the broadcast reader only.
- *  - `finalMessage` survives a mid-response failure. The accumulator is fed by
- *    the broadcast loop and closed with a synthetic `finish: 'error'`, so the
- *    content already delivered to `onChunk` is what the terminal handler
- *    persists — a stream torn down mid-sentence keeps its partial text instead
- *    of collapsing to an empty message. Accumulator errors are swallowed; the
- *    broadcast path owns terminal status.
- *  - `broadcastCompletedAt` is captured before accumulator drain so
- *    callers tracking provider-side completion time aren't inflated.
+ * Broadcasts chunks and accumulates SDK message snapshots on independent branches.
+ * Upstream failures close the input boundary normally so queued content can drain.
  */
 
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
@@ -33,8 +19,10 @@ export interface PipeStreamLoopResult {
   finalMessage?: CherryUIMessage
   /** First in-stream error chunk's `errorText`. */
   streamErrorText?: string
-  /** Thrown error from broadcast loop or pre-stream setup. Wrapped so `undefined` remains distinguishable from no error. */
+  /** Upstream, setup or broadcast failure. Wrapped to distinguish a thrown `undefined` from no error. */
   threw?: { error: unknown }
+  /** SDK accumulation or snapshot callback failure; never stops the broadcast branch. */
+  accumulationError?: { error: unknown }
   /** Captured before accumulator drain. */
   broadcastCompletedAt: number
 }
@@ -44,104 +32,104 @@ export async function pipeStreamLoop(
   signal: AbortSignal,
   options: PipeStreamLoopOptions
 ): Promise<PipeStreamLoopResult> {
-  // A single reader feeds both consumers. `tee()` was structurally unable to
-  // preserve partial content: when either branch's reader threw, the other lost
-  // every chunk still queued in its internal.ReadableStream pair, so content the
-  // broadcast had already delivered never reached the accumulator snapshot the
-  // terminal handler persists. Pushing into the accumulator directly removes that
-  // coupling — the accumulator only ever sees chunks that were already broadcast.
   let finalMessage: CherryUIMessage | undefined
-  const accumulator = createSnapshotAccumulator(options.accumulatorSeed, (msg: CherryUIMessage) => {
-    finalMessage = msg
-    options.onAccumulatedSnapshot?.(msg)
-  })
+  let streamErrorText: string | undefined
+  let threw: { error: unknown } | undefined
+  let accumulationError: { error: unknown } | undefined
+  const onAccumulationError = (error: unknown) => {
+    accumulationError ??= { error }
+  }
+  const boundary = new TransformStream<UIMessageChunk, UIMessageChunk>()
+  const [forBroadcast, forAccum] = boundary.readable.tee()
+  const accumulator = runAccumulator(
+    forAccum,
+    options.accumulatorSeed,
+    (message) => {
+      finalMessage = message
+      options.onAccumulatedSnapshot?.(message)
+    },
+    onAccumulationError
+  )
 
-  const broadcastReader = stream.getReader()
+  const stop = new AbortController()
+  const forwardingSignal = AbortSignal.any([signal, stop.signal])
+  // Prevent an upstream error/abort from discarding chunks already queued for either consumer.
+  const forwarding = stream
+    .pipeTo(boundary.writable, {
+      preventAbort: true,
+      preventClose: true,
+      signal: forwardingSignal
+    })
+    .catch((error: unknown) => {
+      if (!forwardingSignal.aborted) threw ??= { error }
+    })
+    .finally(async () => {
+      // Both consumers may already have cancelled; that close failure must not replace the original error.
+      await boundary.writable.close().catch(() => {})
+    })
+
+  const broadcastReader = forBroadcast.getReader()
   const onAbort = () => {
     void broadcastReader.cancel(signal.reason).catch(() => {})
   }
   if (signal.aborted) onAbort()
   else signal.addEventListener('abort', onAbort, { once: true })
 
-  let streamErrorText: string | undefined
-  let threw: { error: unknown } | undefined
   let broadcastCompletedAt: number
-
   try {
     while (true) {
       const { done, value } = await broadcastReader.read()
       if (done) break
       if (value.type === 'error') streamErrorText ??= value.errorText
-      // Feed before broadcasting so a throwing `onChunk` cannot drop content the
-      // terminal handler needs; either way the error below owns terminal status.
-      await accumulator.write(value)
       options.onChunk(value)
     }
     broadcastCompletedAt = performance.now()
   } catch (error) {
-    threw = { error }
+    threw ??= { error }
     broadcastCompletedAt = performance.now()
+    stop.abort(error)
+    void broadcastReader.cancel(error).catch(() => {})
   } finally {
     signal.removeEventListener('abort', onAbort)
     broadcastReader.releaseLock()
   }
 
-  // Close unconditionally: a mid-stream failure leaves the turn's already-broadcast content
-  // inside the accumulator, and only a terminal close turns it into a `finalMessage` snapshot.
-  await accumulator.close()
-
-  return { finalMessage, streamErrorText, threw, broadcastCompletedAt }
+  await forwarding
+  await accumulator
+  return { finalMessage, streamErrorText, threw, accumulationError, broadcastCompletedAt }
 }
 
-/**
- * Push-driven wrapper around `readUIMessageStream` — the accumulator is fed one chunk at a
- * time by the broadcast loop instead of pulling its own tee branch, and closed explicitly.
- */
-function createSnapshotAccumulator(
+async function runAccumulator(
+  source: ReadableStream<UIMessageChunk>,
   seed: CherryUIMessage | undefined,
-  onSnapshot: (msg: CherryUIMessage) => void
-): {
-  write: (chunk: UIMessageChunk) => Promise<void>
-  close: () => Promise<void>
-} {
-  let controller!: ReadableStreamDefaultController<UIMessageChunk>
-  const source = new ReadableStream<UIMessageChunk>({
-    start: (streamController) => {
-      controller = streamController
-    }
-  })
-  const uiStream = readUIMessageStream<CherryUIMessage>({ stream: source, message: seed })
-  const reader = uiStream.getReader()
-  /** Resolves when the accumulator's reader settles; failures are non-fatal (broadcast owns status). */
-  const drained = (async () => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) return
-        onSnapshot(value)
+  onSnapshot: (message: CherryUIMessage) => void,
+  onError: (error: unknown) => void
+): Promise<void> {
+  // Provider error chunks are handled by broadcast; the SDK also calls onError for them.
+  const input = source.pipeThrough(
+    new TransformStream<UIMessageChunk, UIMessageChunk>({
+      transform(chunk, controller) {
+        if (chunk.type !== 'error') controller.enqueue(chunk)
       }
-    } catch {
-      // A malformed chunk sequence must not lose the snapshots already delivered.
-    }
-  })()
-
-  return {
-    write: async (chunk) => {
-      controller.enqueue(chunk)
-      // Yield so the accumulator's reader can consume; without this the snapshot lags the
-      // broadcast by however many chunks fit in the queue before the next await point.
-      await Promise.resolve()
-    },
-    close: async () => {
+    })
+  )
+  let reader: ReadableStreamDefaultReader<CherryUIMessage> | undefined
+  try {
+    reader = readUIMessageStream<CherryUIMessage>({ stream: input, message: seed, onError }).getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) return
       try {
-        // A mid-content failure leaves open text/reasoning parts; a synthetic terminal closes
-        // them so the snapshot is a readable message rather than a stuttering cursor.
-        controller.enqueue({ type: 'finish', finishReason: 'error' })
-        controller.close()
-      } catch {
-        // Already closed — the provider ended the turn with its own terminal chunk.
+        onSnapshot(value)
+      } catch (error) {
+        onError(error)
       }
-      await drained
     }
+  } catch (error) {
+    onError(error)
+    // Setup can fail before the SDK acquires input; do not await tee cancellation while broadcast is live.
+    void input.cancel(error).catch(() => {})
+  } finally {
+    reader?.releaseLock()
   }
 }
