@@ -9,7 +9,8 @@ export const doctorAgentHandlers: IpcHandlersFor<typeof doctorAgentRequestSchema
     exposeAiError('diagnostics.doctor.agent.check_model', () =>
       application.get('DoctorAgentService').checkModel(modelId)
     ),
-  'diagnostics.doctor.agent.start': async (input) => application.get('DoctorAgentService').start(input),
+  'diagnostics.doctor.agent.start': (input) =>
+    exposeAiError('diagnostics.doctor.agent.start', () => application.get('DoctorAgentService').start(input)),
   'diagnostics.doctor.agent.cancel': async ({ scope, runId }) =>
     application.get('DoctorAgentService').cancel(scope, runId),
   'diagnostics.doctor.agent.apply': async (input) => application.get('DoctorAgentService').apply(input),
