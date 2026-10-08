@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 /**
  * Exercises `ApiGatewayService`'s reconcile-after-settle convergence: a toggle that
@@ -17,6 +18,8 @@ const {
   mockRebind,
   mockSetShared,
   mockGetActiveUsageContext,
+  mockGetSession,
+  mockGetAgent,
   mockPreferenceSet,
   mockPreferenceSetMultiple,
   captured
@@ -26,6 +29,8 @@ const {
   mockRebind: vi.fn(),
   mockSetShared: vi.fn(),
   mockGetActiveUsageContext: vi.fn(),
+  mockGetSession: vi.fn(),
+  mockGetAgent: vi.fn(),
   mockPreferenceSet: vi.fn<(key: string, value: boolean | string) => Promise<void>>(),
   mockPreferenceSetMultiple: vi.fn<(updates: Record<string, unknown>) => Promise<void>>(),
   captured: {
@@ -59,6 +64,14 @@ vi.mock('../server', () => ({
 
 vi.mock('@data/services/ApiGatewayPairedDeviceService', () => ({
   apiGatewayPairedDeviceService: { create: vi.fn() }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mockGetAgent }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mockGetSession }
 }))
 
 vi.mock('systeminformation', () => ({ networkInterfaces: async () => [] }))
@@ -140,6 +153,8 @@ beforeEach(() => {
   mockRebind.mockReset().mockResolvedValue(undefined)
   mockSetShared.mockClear()
   mockGetActiveUsageContext.mockReset()
+  mockGetSession.mockReset().mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+  mockGetAgent.mockReset().mockReturnValue({ id: 'agent-1', configuration: { builtin_role: 'support' } })
   mockGetActiveUsageContext.mockReturnValue({
     agentSessionId: 'session-1',
     source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
@@ -181,6 +196,37 @@ describe('ApiGatewayService reconcile', () => {
     headers.delete('x-cherry-agent-session-id')
 
     expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
+  it('recognizes Support only from the authenticated session builtin role', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(service.isInternalSupportRequest(new Headers(usageHeaders))).toBe(true)
+    expect(mockGetSession).toHaveBeenCalledWith('session-1')
+    expect(mockGetAgent).toHaveBeenCalledWith('agent-1')
+
+    mockGetAgent.mockReturnValueOnce({ id: 'agent-1', configuration: { builtin_role: 'assistant' } })
+    expect(service.isInternalSupportRequest(new Headers(usageHeaders))).toBe(false)
+    expect(
+      service.isInternalSupportRequest(new Headers({ ...usageHeaders, 'x-cherry-internal-usage-token': 'wrong-proof' }))
+    ).toBe(false)
+  })
+
+  it('treats a missing session as non-Support but propagates storage failures', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+
+    mockGetSession.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Session', 'session-1')
+    })
+    expect(service.isInternalSupportRequest(headers)).toBe(false)
+
+    const databaseError = DataApiErrorFactory.database(new Error('disk unavailable'))
+    mockGetSession.mockImplementationOnce(() => {
+      throw databaseError
+    })
+    expect(() => service.isInternalSupportRequest(headers)).toThrow(databaseError)
   })
 
   it('accepts agent usage context only with its process-local proof', () => {
