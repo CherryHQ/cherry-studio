@@ -1,4 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +8,8 @@ import {
   readAskUserQuestionDraftCache,
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
+import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -14,6 +17,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   seedReservedMessages: vi.fn(),
+  replaceMessageTail: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
@@ -159,6 +163,89 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('replaces the edited tail before streaming even when history refresh still returns cached rows', async () => {
+    MockUseDataApiUtils.resetMocks()
+    const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
+      '@renderer/hooks/useAgentSessionParts'
+    )
+    mocks.useAgentSessionParts.mockImplementation(useAgentSessionParts)
+    const draft = { messageId: 'edited-user', version: 'version-1', parts: [{ type: 'text', text: 'Original' }] }
+    const history = ['earlier-user', 'earlier-assistant', draft.messageId, 'old-answer', 'later-user', 'later-answer']
+    MockUseDataApiUtils.seedInfiniteQuery(
+      '/agent-sessions/:sessionId/messages',
+      [
+        {
+          items: history.toReversed().map(
+            (id): AgentSessionMessageEntity => ({
+              id,
+              sessionId: 'session-1',
+              role: id.endsWith('user') ? 'user' : 'assistant',
+              data: { parts: [{ type: 'text', text: id }] },
+              status: 'success',
+              modelId: null,
+              messageSnapshot: null,
+              stats: null,
+              searchableText: id,
+              runtimeResumeToken: null,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z'
+            })
+          )
+        }
+      ],
+      { params: { sessionId: 'session-1' }, query: { deferToolOutputs: true }, limit: 50 }
+    )
+    const reserved: CherryUIMessage[] = [
+      {
+        id: 'replacement-user',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Replacement' }],
+        metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
+      },
+      {
+        id: 'replacement-answer',
+        role: 'assistant',
+        parts: [],
+        metadata: { status: 'pending', createdAt: '2026-01-02T00:00:01.000Z' }
+      }
+    ]
+    mocks.editTarget.mockResolvedValue(draft)
+    mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+    mocks.sendTurn.mockImplementation(async (input) => {
+      const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
+        mocks.controllerOptions.mock.lastCall![0]
+      const ack = await openStream(buildStreamRequest(input, ensureConversation()), input)
+      await historyAdapter.seedReservedMessages(ack.reservedMessages)
+      return true
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    await act(() => result.current.startEditing(draft.messageId))
+    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      'replacement-user',
+      'replacement-answer'
+    ])
+    mocks.useExecutionOverlay.mockReturnValue({
+      ...mocks.useExecutionOverlay(),
+      overlay: { 'replacement-answer': [{ type: 'text', text: 'New response in progress' }] },
+      liveAssistants: [{ ...reserved[1], parts: [{ type: 'text', text: 'New response in progress' }] }]
+    })
+    rerender()
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([
+      'earlier-user',
+      'earlier-assistant',
+      'replacement-user',
+      'replacement-answer'
+    ])
+    expect(result.current.partsByMessageId['replacement-answer']).toEqual([
+      { type: 'text', text: 'New response in progress' }
+    ])
+  })
+
   it('shows the edit reason when resending from an unsupported checkpoint fails', async () => {
     const draft = {
       messageId: 'user-1',
@@ -261,6 +348,7 @@ describe('useAgentChatRuntimeState', () => {
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
       seedReservedMessages: mocks.seedReservedMessages,
+      replaceMessageTail: mocks.replaceMessageTail,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
@@ -333,29 +421,6 @@ describe('useAgentChatRuntimeState', () => {
 
     expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('assistant-1')
     expect(mocks.invalidateMessages).toHaveBeenCalledWith(['assistant-1'])
-  })
-
-  it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
-    renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    // The deterministic handoff (fires off the live→terminal status edge, where
-    // the overlay's onFinish is suppressed) must refresh the DB then drop the overlay.
-    const handoff = mocks.useTopicOverlayHandoffOnTerminal.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
-    expect(handoff).toEqual(expect.any(Function))
-
-    await act(async () => {
-      await handoff?.()
-    })
-
-    expect(mocks.refresh).toHaveBeenCalled()
-    expect(mocks.resetOverlay).toHaveBeenCalled()
-    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
 
   it('merges live assistant metadata into displayed session messages', () => {

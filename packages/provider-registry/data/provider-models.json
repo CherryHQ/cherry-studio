@@ -3562,6 +3562,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-fable-5-1",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-haiku-4-5",
       "providerId": "claude-code"
     },
@@ -3622,6 +3626,11 @@
       "supportsFastMode": true
     },
     {
+      "modelId": "claude-opus-5-5",
+      "providerId": "claude-code",
+      "supportsFastMode": true
+    },
+    {
       "modelId": "claude-sonnet-4-5",
       "providerId": "claude-code"
     },
@@ -3638,6 +3647,10 @@
     },
     {
       "modelId": "claude-sonnet-5",
+      "providerId": "claude-code"
+    },
+    {
+      "modelId": "claude-sonnet-5-5",
       "providerId": "claude-code"
     },
     {
@@ -3804,6 +3817,29 @@
     {
       "apiModelId": "claude-sonnet-5",
       "modelId": "claude-sonnet-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -4479,6 +4515,14 @@
     {
       "apiModelId": "kimi/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "dashscope",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -12145,6 +12189,29 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "anthropic/claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "mistral/codestral",
       "modelId": "codestral",
       "pricing": {
@@ -18454,6 +18521,28 @@
       "providerId": "minimax"
     },
     {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18633,6 +18722,28 @@
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "minimax-m3",
       "providerId": "minimax-global"
+    },
+    {
+      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "modelId": "minimax-m3-1-flash-preview",
+      "providerId": "minimax-global",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "ZhipuAI/GLM-4.5",
@@ -18937,6 +19048,18 @@
       }
     },
     {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
       "apiModelId": "kimi-k2.5",
       "modelId": "kimi-k2-5",
       "parameterSupport": {
@@ -19131,6 +19254,18 @@
           }
         }
       }
+    },
+    {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
     },
     {
       "apiModelId": "nvidia/active-speaker-detection",
@@ -21368,6 +21503,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.1-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-1-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -21468,6 +21628,38 @@
               {
                 "kind": "effort",
                 "values": ["high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "deepseek-v4-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "high", "max"]
               }
             ]
           }
@@ -23728,6 +23920,44 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "anthropic/claude-sonnet-5.5",
+      "modelId": "claude-sonnet-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -29239,6 +29469,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.5",
       "modelId": "kimi-k2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29271,6 +29509,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.6",
       "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29303,6 +29549,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29329,6 +29583,14 @@
     {
       "apiModelId": "moonshotai/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29367,6 +29629,14 @@
     {
       "apiModelId": "~moonshotai/kimi-latest",
       "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -39896,6 +40166,29 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "claude-sonnet-5-5@default",
+      "modelId": "claude-sonnet-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "deepseek-ai/deepseek-v3.1-maas",
       "modelId": "deepseek-v3-1-maas",
       "pricing": {
@@ -40789,5 +41082,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "5948b27b1d472351"
+  "version": "bd1ff301f4521d11"
 }

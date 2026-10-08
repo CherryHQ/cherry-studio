@@ -6,6 +6,7 @@
 import * as z from 'zod'
 
 import {
+  EndpointTypeSchema,
   MetadataSchema,
   ModelIdSchema,
   NumericRangeSchema,
@@ -15,7 +16,6 @@ import {
 } from './common'
 import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 import { looseArray } from './forwardCompat'
-import { EndpointTypeSchema } from './provider'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -84,12 +84,12 @@ export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
  *  - `anthropic-messages`: Claude 4.6+ `thinking.type=adaptive` vs <=4.5
  *    `thinking.type=enabled` + `budget_tokens`
  *
- * It has effect only where the format profile declares a `budgetWire`
- * alternative, so open-weight models on openai-compatible endpoints are
+ * Opus 5.5 always uses adaptive thinking; Sonnet 5.5 also supports `between_tools`.
+ * It has effect only where the format profile declares the matching alternative, so open-weight models on openai-compatible endpoints are
  * unaffected (their dialect really does follow the provider — see the rule
  * on {@link ReasoningFamilyRuleSchema}).
  */
-export const ReasoningWireDialectSchema = z.enum(['effort', 'budget'])
+export const ReasoningWireDialectSchema = z.enum(['effort', 'budget', 'adaptive-always', 'adaptive-between-tools'])
 export type ReasoningWireDialect = z.infer<typeof ReasoningWireDialectSchema>
 
 /**
@@ -113,7 +113,7 @@ export type ReasoningWireDialect = z.infer<typeof ReasoningWireDialectSchema>
  * open-weight models are served by many providers and the serialization
  * dialect follows the serving endpoint, not a runtime model-id match. The one
  * narrow exception is `wireDialect`, which does NOT name a format: it picks
- * between the two generation-dialects a single first-party protocol defines
+ * between the generation-dialects a single first-party protocol defines
  * for itself (see {@link ReasoningWireDialectSchema}). That fact is the
  * vendor's own API contract and holds across every provider proxying it, so
  * it belongs to the model, not the endpoint.
