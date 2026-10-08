@@ -7,7 +7,7 @@ import * as z from 'zod'
 import { removeDir, stat } from '@main/utils/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
-import { logger, validatePath } from '../types'
+import { logger } from '../types'
 
 // Schema definition
 export const DeleteToolSchema = z.object({
@@ -40,8 +40,7 @@ export async function handleDeleteTool(
   return filesystemMutationService.runExclusive(
     targetPath,
     baseDir,
-    async () => {
-      const validPath = await validatePath(targetPath, baseDir)
+    async (validPath) => {
       // Check if path exists and get stats
       let stats
       try {

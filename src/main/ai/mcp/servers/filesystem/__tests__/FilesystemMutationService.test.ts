@@ -86,6 +86,51 @@ describe('filesystem mutations with mac case folding', () => {
     expect(await fs.readFile(path.join(workspaceRoot, 'allowed.txt'), 'utf-8')).toBe('allowed')
   })
 
+  it('serializes hard-link alias edits with an in-flight create that lacked inode identity', async () => {
+    const workspaceRoot = await createTempDir('mutation-hardlink-create-race-')
+    const primaryPath = path.join(workspaceRoot, 'primary.txt')
+    const aliasPath = path.join(workspaceRoot, 'alias.txt')
+
+    let releaseFirstWrite!: () => void
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve
+    })
+    let firstWriteLanded!: () => void
+    const firstWriteLandedGate = new Promise<void>((resolve) => {
+      firstWriteLanded = resolve
+    })
+
+    const originalWriteFile = fs.writeFile.bind(fs)
+    let firstPrimaryWrite = true
+    vi.spyOn(fs, 'writeFile').mockImplementation(async (...args: Parameters<typeof fs.writeFile>) => {
+      const [targetPath] = args
+      if (firstPrimaryWrite && typeof targetPath === 'string' && targetPath === primaryPath) {
+        firstPrimaryWrite = false
+        const result = await (
+          originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>
+        )(...args)
+        firstWriteLanded()
+        await fs.link(primaryPath, aliasPath)
+        await firstWriteGate
+        return result
+      }
+      return (originalWriteFile as (...writeArgs: Parameters<typeof fs.writeFile>) => ReturnType<typeof fs.writeFile>)(
+        ...args
+      )
+    })
+
+    const firstCreate = handleWriteTool({ file_path: 'primary.txt', content: 'first' }, workspaceRoot)
+    await firstWriteLandedGate
+    const secondEdit = handleEditTool(
+      { file_path: 'alias.txt', old_string: 'first', new_string: 'second' },
+      workspaceRoot
+    )
+    releaseFirstWrite()
+    await Promise.all([firstCreate, secondEdit])
+
+    expect(await fs.readFile(primaryPath, 'utf-8')).toBe('second')
+  })
+
   it('preserves call order for hard-link aliases when folding would miss the entry', async () => {
     const workspaceRoot = await createTempDir('mutation-lock-hardlink-case-root-')
     const filePath = path.join(workspaceRoot, 'original.txt')

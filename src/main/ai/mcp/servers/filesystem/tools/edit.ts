@@ -7,7 +7,7 @@ import { ensureDir, read, stat, writeInPlace } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
-import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
+import { logger, replaceWithFuzzyMatch } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
@@ -45,8 +45,7 @@ async function writeEdit(validPath: AbsoluteFilePath, content: string, filePath:
 export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll = false } = args
 
-  return filesystemMutationService.runExclusive(filePath, baseDir, async () => {
-    const validPath = await validatePath(filePath, baseDir)
+  return filesystemMutationService.runExclusive(filePath, baseDir, async (validPath) => {
     // Check if file exists
     try {
       const stats = await stat(validPath)
