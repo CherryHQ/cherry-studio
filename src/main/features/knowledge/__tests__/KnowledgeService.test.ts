@@ -1152,7 +1152,7 @@ describe('KnowledgeService', () => {
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'restored-kb',
-      '/mock/feature.knowledgebase.data/source-kb/raw/external.md',
+      knowledgeDataPath('source-kb', 'raw', 'external.md'),
       'external.md'
     )
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith('restored-kb', {
