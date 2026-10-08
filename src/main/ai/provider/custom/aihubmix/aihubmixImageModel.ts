@@ -4,7 +4,6 @@ import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/p
 import { type FetchFunction, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
 
-import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
 import { parseImageVendorParams } from '../../../utils/imageOptions'
 import { unsupportedTransportInputs } from '../imageGenerationModel'
 import { executeImageTransport } from '../imageTransportRuntime'
@@ -47,7 +46,7 @@ function googleImageModel(modelId: string, opts: CreateAihubmixImageModelOptions
     maxImagesPerCall: google.maxImagesPerCall,
     async doGenerate(options) {
       const bag = parseImageVendorParams(options.providerOptions.aihubmix ?? {})
-      const aspectRatio = options.aspectRatio ?? normalizeAspectRatio(options.size)
+      const aspectRatio = options.aspectRatio
       const personGeneration = bag.personGeneration?.toLowerCase()
       const imageSize = bag.imageResolution?.toUpperCase()
       const googleOptions: Record<string, JSONValue> = {

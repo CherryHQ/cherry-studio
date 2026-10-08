@@ -1,5 +1,4 @@
 {
-  "version": "0bfbd5ceba57a77e",
   "overrides": [
     {
       "apiModelId": "chatgpt-4o-latest",
@@ -9526,7 +9525,7 @@
         "supports": {
           "aspectRatio": {
             "default": "1:1",
-            "options": ["1:1", "16:9", "9:16", "4:3", "3:4", "1x1"],
+            "options": ["1:1", "16:9", "9:16", "4:3", "3:4"],
             "render": "chips",
             "type": "enum"
           },
@@ -38350,5 +38349,6 @@
       "modelId": "glm-image",
       "providerId": "zhipu"
     }
-  ]
+  ],
+  "version": "2f37e3ca6e0d3d68"
 }

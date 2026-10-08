@@ -14,6 +14,7 @@ import {
   ZodCurrencySchema
 } from './common'
 import { CANONICAL_PARAM_KEY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { IMAGE_PARAM_CATALOG } from './imageParamCatalog'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -276,6 +277,22 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
   TextSpecSchema
 ])
 
+const AspectRatioSpecSchema = EnumSpecSchema.extend({
+  options: z.array(IMAGE_PARAM_CATALOG.aspectRatio.schema.unwrap()).min(1),
+  default: IMAGE_PARAM_CATALOG.aspectRatio.schema
+}).refine((spec) => spec.default === undefined || spec.options.includes(spec.default), {
+  path: ['default'],
+  message: 'Aspect ratio default must be a declared option'
+})
+
+function validateAspectRatioSupport(spec: SupportSpec | null | undefined, ctx: z.RefinementCtx): void {
+  if (spec === undefined || spec === null) return
+  const result = AspectRatioSpecSchema.safeParse(spec)
+  if (!result.success) {
+    for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: ['aspectRatio', ...issue.path] })
+  }
+}
+
 const INTEGER_RANGE_PARAM_KEYS = [
   CANONICAL_PARAM_KEY.NUM_IMAGES,
   CANONICAL_PARAM_KEY.MAX_IMAGES,
@@ -286,6 +303,7 @@ const INTEGER_RANGE_PARAM_KEYS = [
 
 export const ImageSupportsSchema = z
   .partialRecord(CanonicalParamKeySchema, SupportSpecSchema)
+  .superRefine((supports, ctx) => validateAspectRatioSupport(supports.aspectRatio, ctx))
   .transform((supports, ctx) => {
     const normalized = { ...supports }
     for (const key of INTEGER_RANGE_PARAM_KEYS) {
@@ -342,7 +360,10 @@ export const ImageCapabilitySchema = z
   })
 
 export const ImageCapabilityDeltaSchema = z.strictObject({
-  supports: z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema.nullable()).optional(),
+  supports: z
+    .partialRecord(CanonicalParamKeySchema, SupportSpecSchema.nullable())
+    .superRefine((supports, ctx) => validateAspectRatioSupport(supports.aspectRatio, ctx))
+    .optional(),
   inputs: ImageInputsSchema.partial().extend({ images: ImageCountSchema.partial().optional() }).optional(),
   protocol: ImageProtocolSchema.nullable().optional()
 })

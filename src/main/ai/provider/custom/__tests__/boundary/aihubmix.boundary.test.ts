@@ -1,31 +1,12 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 import { createAihubmixImageModel } from '../../aihubmix/aihubmixImageModel'
 import { captureWithFetch } from './captureRequest'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
-/**
- * AiHubMix image-model boundary — the bespoke branches (NOT the gpt-image /
- * dall-e OpenAI-compat delegate or the Google delegate, which forward to AI SDK
- * adapters covered elsewhere).
- *
- * ORACLE: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-07-26).
- * Read that before changing an expectation here. These assertions are only worth
- * anything if their expected values come from the vendor's spec — an expectation
- * read off the implementation makes the test agree with whatever the code does,
- * including a bug. This file did exactly that: it pinned
- * `/ideogram/aihubmix_image_generate`, a v1 config key spliced into a URL, which
- * 404s. Per the doc the V1/V2 endpoints are `/ideogram/{generate,remix,upscale}`
- * and V3 is `/ideogram/v1/ideogram-v3/{generate,remix}`; the reference image is
- * `image` (V3, multipart) and `image_file` (V1/V2, alongside an `image_request`
- * JSON part).
- *
- * What this file CAN do: tell you the wire changed. What it CANNOT do: tell you
- * the wire is right — only the doc above does that.
- */
+// Ideogram request fields: https://docs.aihubmix.com/cn/api/IdeogramAI — retrieved 2026-10-08.
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
     prompt: 'a fox',
@@ -39,7 +20,7 @@ function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOption
     files: undefined,
     mask: undefined,
     ...partial
-  } as ImageModelV3CallOptions
+  }
 }
 
 const config = {
@@ -72,17 +53,6 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       )
     )
     expect(req.url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/generate')
-    // FormData → flat record of string fields
-    z.strictObject({
-      prompt: z.string(),
-      rendering_speed: z.string(),
-      num_images: z.string(),
-      aspect_ratio: z.string(),
-      style_type: z.string(),
-      seed: z.string(),
-      negative_prompt: z.string(),
-      magic_prompt: z.string()
-    }).parse(req.body)
     expect(req.body).toEqual({
       prompt: 'a fox',
       rendering_speed: 'TURBO',
@@ -95,7 +65,20 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
     })
   })
 
-  it('V_2 generate → { image_request } JSON to /ideogram/generate', async () => {
+  // V1 has no style_type: https://developer.ideogram.ai/v1/api-reference/legacy-endpoints/generate — retrieved 2026-10-08.
+  it('V_1 encodes a canonical ratio without requiring V2-only options', async () => {
+    const req = await captureWithFetch((fetch) =>
+      createAihubmixImageModel('V_1', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v1-v2', operation: 'generate' }
+      }).doGenerate(opts({ aspectRatio: '16:9' }))
+    )
+    expect(req.body).toMatchObject({ image_request: { model: 'V_1', aspect_ratio: 'ASPECT_16_9' } })
+    expect(req.body).not.toHaveProperty('image_request.style_type')
+  })
+
+  it('V_2 encodes the canonical ratio alongside its supported options', async () => {
     const req = await captureWithFetch((fetch) =>
       createAihubmixImageModel('V_2', {
         ...config,
@@ -104,7 +87,7 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       }).doGenerate(
         opts({
           n: 3,
-          aspectRatio: '1:1',
+          aspectRatio: '16:9',
           seed: 0,
           providerOptions: {
             aihubmix: {
@@ -116,27 +99,12 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
         })
       )
     )
-    // Per docs.aihubmix.com "V2-V1 接口说明": `POST https://aihubmix.com/ideogram/generate`.
-    // This asserted `/ideogram/aihubmix_image_generate` — the v1 CONFIG key spliced into
-    // the path — so the test agreed with a URL that 404s.
     expect(req.url).toBe('https://aihubmix.com/ideogram/generate')
-    z.strictObject({
-      image_request: z.strictObject({
-        prompt: z.string(),
-        model: z.string(),
-        aspect_ratio: z.string(),
-        num_images: z.number().int().positive(),
-        style_type: z.string(),
-        seed: z.number().int(),
-        negative_prompt: z.string(),
-        magic_prompt_option: z.string()
-      })
-    }).parse(req.body)
     expect(req.body).toEqual({
       image_request: {
         prompt: 'a fox',
         model: 'V_2',
-        aspect_ratio: 'ASPECT_1_1',
+        aspect_ratio: 'ASPECT_16_9',
         num_images: 3,
         style_type: 'REALISTIC',
         seed: 0,
@@ -182,4 +150,23 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       sequential_image_generation_options: { max_images: 4 }
     })
   })
+})
+
+// Google ImageConfig: https://ai.google.dev/api/generate-content#ImageConfig — retrieved 2026-10-08.
+it('does not infer an AiHubMix Google ratio from the size field', async () => {
+  const req = await captureWithFetch((fetch) =>
+    createAihubmixImageModel('gemini-3-pro-image-preview', {
+      ...config,
+      fetch,
+      binding: { kind: 'google-gemini' }
+    }).doGenerate(
+      opts({
+        // @ts-expect-error The app's size bag may contain a ratio-looking string; it must not become a ratio.
+        size: '16:9',
+        providerOptions: { aihubmix: { imageResolution: '2K' } }
+      })
+    )
+  )
+  expect(req.body).toMatchObject({ generationConfig: { imageConfig: { imageSize: '2K' } } })
+  expect(req.body).not.toHaveProperty('generationConfig.imageConfig.aspectRatio')
 })

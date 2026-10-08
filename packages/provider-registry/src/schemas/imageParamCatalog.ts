@@ -51,6 +51,17 @@ const optString = z.string().optional()
 const optBool = z.boolean().optional()
 const optNumber = z.preprocess(normalizeImageParamNumber, z.number().finite().optional())
 const optInt = z.preprocess(normalizeImageParamNumber, z.number().finite().int().optional())
+const aspectRatioSchema = z.union([
+  z
+    .templateLiteral([z.number(), ':', z.number()])
+    .refine(
+      (value) =>
+        /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(value) &&
+        value.split(':').every((side) => Number.isFinite(Number(side)) && Number(side) > 0),
+      'Expected a positive width:height ratio'
+    ),
+  z.literal('auto')
+])
 
 /**
  * Catalog. Plain object literal + `as const satisfies` so per-key schema types
@@ -58,7 +69,7 @@ const optInt = z.preprocess(normalizeImageParamNumber, z.number().finite().int()
  */
 export const IMAGE_PARAM_CATALOG = {
   addWatermark: { schema: optBool, wire: 'watermark' },
-  aspectRatio: { schema: optString },
+  aspectRatio: { schema: aspectRatioSchema.optional() },
   background: { schema: optString },
   bottomScale: { schema: optNumber },
   cfg: { schema: optNumber },

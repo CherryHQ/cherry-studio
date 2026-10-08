@@ -121,7 +121,12 @@ export function prepareImageRequest(
   }
 
   const schema =
-    resolution.kind === 'supported' ? buildImageRequestParamsSchema(resolution.capability) : imageParamsSchema.strict()
+    resolution.kind === 'supported'
+      ? buildImageRequestParamsSchema(resolution.capability)
+      : imageParamsSchema.strict().refine((params) => params.aspectRatio !== 'auto', {
+          path: ['aspectRatio'],
+          message: 'Automatic aspect ratio requires a declared model capability'
+        })
   const params = schema.safeParse(request.paramValues)
   if (!params.success) {
     logger.warn('Invalid image parameters', { issues: params.error.issues })

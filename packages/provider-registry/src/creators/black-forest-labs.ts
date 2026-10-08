@@ -60,16 +60,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: [
-              'ASPECT_1_1',
-              'ASPECT_4_3',
-              'ASPECT_3_4',
-              'ASPECT_16_9',
-              'ASPECT_9_16',
-              'ASPECT_21_9',
-              'ASPECT_9_21'
-            ],
+            default: '1:1',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', '9:21'],
             render: 'chips',
             type: 'enum'
           },
@@ -108,16 +100,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: [
-              'ASPECT_1_1',
-              'ASPECT_4_3',
-              'ASPECT_3_4',
-              'ASPECT_16_9',
-              'ASPECT_9_16',
-              'ASPECT_21_9',
-              'ASPECT_9_21'
-            ],
+            default: '1:1',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', '9:21'],
             render: 'chips',
             type: 'enum'
           },
@@ -156,16 +140,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: [
-              'ASPECT_1_1',
-              'ASPECT_4_3',
-              'ASPECT_3_4',
-              'ASPECT_16_9',
-              'ASPECT_9_16',
-              'ASPECT_21_9',
-              'ASPECT_9_21'
-            ],
+            default: '1:1',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', '9:21'],
             render: 'chips',
             type: 'enum'
           },
@@ -204,16 +180,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: [
-              'ASPECT_1_1',
-              'ASPECT_4_3',
-              'ASPECT_3_4',
-              'ASPECT_16_9',
-              'ASPECT_9_16',
-              'ASPECT_21_9',
-              'ASPECT_9_21'
-            ],
+            default: '1:1',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9', '9:21'],
             render: 'chips',
             type: 'enum'
           },

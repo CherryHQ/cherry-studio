@@ -1,14 +1,16 @@
 import { generateImage } from '@cherrystudio/ai-core'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import { ImageGenerationSupportSchema, type ParamValues } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import modelCatalog from '../../../../../packages/provider-registry/data/models.json'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import type { AiImageRequest } from '../../AiService'
 import type { AppProviderSettingsMap } from '../../types'
+import { prepareImageRequest } from '../../utils/prepareImageRequest'
 import { extensions } from '../extensions'
 import { resolveImageExecutionTarget } from '../imageExecutionTarget'
 import { buildSdkImageOptions, resolveSdkImageConfig } from '../imageSdk'
@@ -190,35 +192,49 @@ describe('canonical request to actual SDK image model', () => {
     expect(result.images[0].base64).toBe(PNG)
   })
 
-  // https://ai.google.dev/gemini-api/docs/image-generation — retrieved 2026-09-09.
-  it('delivers DMXAPI Google resolution through the Google SDK, independent of chat namespace', async () => {
-    vi.mocked(net.fetch).mockImplementation(async (input, init) => {
-      requests.push(new Request(input, init))
-      return Response.json({
-        candidates: [
-          {
-            content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] },
-            finishReason: 'STOP'
-          }
-        ]
+  // Google ImageConfig: https://ai.google.dev/api/generate-content#ImageConfig — retrieved 2026-10-08.
+  it.each(['google', 'aihubmix', 'dmxapi', 'cherryin'])(
+    'delivers declared ratios through Main and %s without turning auto or absence into a ratio',
+    async (adapterFamily) => {
+      const entry = modelCatalog.models.find((model) => model.id === 'gemini-3-1-flash-image')
+      if (!entry) throw new Error('Missing Gemini image catalog fixture')
+      const support = ImageGenerationSupportSchema.parse(entry.imageGeneration)
+      vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+        requests.push(new Request(input, init))
+        return Response.json({
+          candidates: [
+            {
+              content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] },
+              finishReason: 'STOP'
+            }
+          ]
+        })
       })
-    })
-    const { sdkConfig } = await configuration(
-      'dmxapi',
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      'gemini-3.1-flash-image-preview'
-    )
-    const result = await generateImage<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      buildSdkImageOptions(request({ imageResolution: '2K', aspectRatio: '16:9' }), sdkConfig, undefined)
-    )
-    expect(requests[0].url).toBe('https://image.example/v1beta/models/gemini-3.1-flash-image-preview:generateContent')
-    expect(await requests[0].json()).toMatchObject({
-      generationConfig: { imageConfig: { imageSize: '2K', aspectRatio: '16:9' } }
-    })
-    expect(result.images[0].base64).toBe(PNG)
-  })
+      const { sdkConfig } = await configuration(
+        adapterFamily,
+        adapterFamily === 'dmxapi' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        'gemini-3.1-flash-image'
+      )
+      for (const aspectRatio of ['16:9', 'auto', undefined] as const) {
+        const prepared = prepareImageRequest(
+          request({ imageResolution: '2K', ...(aspectRatio !== undefined && { aspectRatio }) }),
+          support
+        )
+        expect(prepared.paramValues.aspectRatio).toBe(aspectRatio)
+        const requestIndex = requests.length
+        const result = await generateImage<AppProviderSettingsMap>(
+          sdkConfig.providerId,
+          sdkConfig.providerSettings,
+          buildSdkImageOptions(prepared, sdkConfig, undefined)
+        )
+        const body = await requests[requestIndex].json()
+        expect(body.generationConfig.imageConfig).toEqual(
+          aspectRatio === '16:9' ? { imageSize: '2K', aspectRatio: '16:9' } : { imageSize: '2K' }
+        )
+        expect(result.images[0].base64).toBe(PNG)
+      }
+    }
+  )
 
   // Wire contract: https://developers.openai.com/api/reference/resources/images (retrieved 2026-09-09).
   it('uses the compatible image namespace when a provider instance name contains a dot', async () => {
@@ -245,35 +261,6 @@ describe('canonical request to actual SDK image model', () => {
       buildSdkImageOptions(request({ quality: 'high', background: 'transparent' }), sdkConfig, undefined)
     )
     expect(await requests[0].json()).toMatchObject({ quality: 'high', background: 'transparent' })
-    expect(result.images[0].base64).toBe(PNG)
-  })
-
-  // Wire contracts: https://ai.google.dev/gemini-api/docs/image-generation (retrieved 2026-09-09).
-  it('delivers CherryIn Google image parameters through the image wrapper, not its chat namespace', async () => {
-    vi.mocked(net.fetch).mockImplementation(async (input, init) => {
-      requests.push(new Request(input, init))
-      return Response.json({
-        candidates: [
-          {
-            content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] },
-            finishReason: 'STOP'
-          }
-        ]
-      })
-    })
-    const { sdkConfig } = await configuration(
-      'cherryin',
-      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-      'gemini-3-pro-image-preview'
-    )
-    const result = await generateImage<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      buildSdkImageOptions(request({ imageResolution: '2K', aspectRatio: '16:9' }), sdkConfig, undefined)
-    )
-    expect(await requests[0].json()).toMatchObject({
-      generationConfig: { imageConfig: { imageSize: '2K', aspectRatio: '16:9' } }
-    })
     expect(result.images[0].base64).toBe(PNG)
   })
 

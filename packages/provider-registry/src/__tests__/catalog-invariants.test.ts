@@ -21,7 +21,6 @@ import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
-import { resolveImageCapability } from '../utils/imageCapabilities'
 import { getServiceTierCatalogErrors } from '../utils/serviceTierCatalog'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
@@ -44,29 +43,6 @@ const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
 const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
 
-const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
-  {
-    modelId: 'gemini-3-1-flash-image',
-    options: [
-      'auto',
-      'ASPECT_1_1',
-      'ASPECT_1_4',
-      'ASPECT_1_8',
-      'ASPECT_2_3',
-      'ASPECT_3_2',
-      'ASPECT_3_4',
-      'ASPECT_4_1',
-      'ASPECT_4_3',
-      'ASPECT_4_5',
-      'ASPECT_5_4',
-      'ASPECT_8_1',
-      'ASPECT_9_16',
-      'ASPECT_16_9',
-      'ASPECT_21_9'
-    ]
-  }
-] as const
-
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
@@ -83,29 +59,6 @@ describe('catalog invariants (data/*.json)', () => {
       ownedBy
     })
   })
-
-  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
-    'keeps smart aspect ratio and explicit resolution controls for $modelId',
-    ({ modelId, options }) => {
-      const model = models.find((model) => model.id === modelId)
-      const resolution = resolveImageCapability(model?.imageGeneration, 'generate', false)
-      if (resolution.kind !== 'supported') throw new Error(`Missing generation capability for ${modelId}`)
-      const { supports } = resolution.capability
-
-      expect(supports?.aspectRatio).toEqual({
-        default: 'auto',
-        options,
-        render: 'chips',
-        type: 'enum'
-      })
-      expect(supports?.imageResolution).toEqual({
-        default: 'auto',
-        options: ['auto', '1K', '2K', '4K'],
-        render: 'chips',
-        type: 'enum'
-      })
-    }
-  )
 
   // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
   // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for

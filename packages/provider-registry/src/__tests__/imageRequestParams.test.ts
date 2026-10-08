@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import blackForestLabs from '../creators/black-forest-labs'
+import google from '../creators/google'
+import minimax from '../creators/minimax'
 import tokenhub from '../providers/tokenhub'
 import { buildImageRequestParamsSchema } from '../utils/buildImageRequestParamsSchema'
 import { resolveImageCapability, resolveImageGenerationSupport } from '../utils/imageCapabilities'
@@ -12,6 +15,27 @@ if (resolution.kind !== 'supported') throw new Error('Hunyuan fixture missing')
 const schema = buildImageRequestParamsSchema(resolution.capability)
 
 describe('submitted image parameters', () => {
+  it.each([google, blackForestLabs, minimax])(
+    'accepts every declared $id ratio without inventing a default or auto capability',
+    (creator) => {
+      if (!creator.models) throw new Error(`Missing models for ${creator.id}`)
+      const models = creator.models.filter((model) => model.imageGeneration?.supports.aspectRatio)
+      expect(models.length).toBeGreaterThan(0)
+      for (const model of models) {
+        const resolved = resolveImageCapability(model.imageGeneration, 'generate', false)
+        if (resolved.kind !== 'supported') throw new Error(`Missing image capability for ${model.id}`)
+        const spec = resolved.capability.supports.aspectRatio
+        if (spec?.type !== 'enum') throw new Error(`Missing ratio options for ${model.id}`)
+        const params = buildImageRequestParamsSchema(resolved.capability)
+        for (const aspectRatio of spec.options) {
+          expect(params.parse({ aspectRatio })).toEqual({ aspectRatio })
+        }
+        expect(params.parse({})).toEqual({})
+        expect(params.safeParse({ aspectRatio: 'auto' }).success).toBe(spec.options.includes('auto'))
+      }
+    }
+  )
+
   it('preserves explicit seed zero and false without injecting registry defaults', () => {
     expect(schema.parse({ seed: 0, promptEnhancement: false })).toEqual({ seed: 0, promptEnhancement: false })
     expect(schema.parse({})).toEqual({})

@@ -79,7 +79,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -114,7 +114,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -149,8 +149,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -190,8 +190,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -231,8 +231,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -272,7 +272,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -307,8 +307,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -348,8 +348,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -393,8 +393,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -434,8 +434,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -479,8 +479,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -519,8 +519,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -559,8 +559,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -600,8 +600,8 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            default: 'ASPECT_1_1',
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -651,20 +651,20 @@ export default defineCreator({
             default: 'auto',
             options: [
               'auto',
-              'ASPECT_1_1',
-              'ASPECT_1_4',
-              'ASPECT_1_8',
-              'ASPECT_2_3',
-              'ASPECT_3_2',
-              'ASPECT_3_4',
-              'ASPECT_4_1',
-              'ASPECT_4_3',
-              'ASPECT_4_5',
-              'ASPECT_5_4',
-              'ASPECT_8_1',
-              'ASPECT_9_16',
-              'ASPECT_16_9',
-              'ASPECT_21_9'
+              '1:1',
+              '1:4',
+              '1:8',
+              '2:3',
+              '3:2',
+              '3:4',
+              '4:1',
+              '4:3',
+              '4:5',
+              '5:4',
+              '8:1',
+              '9:16',
+              '16:9',
+              '21:9'
             ],
             render: 'chips',
             type: 'enum'
@@ -701,7 +701,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -735,7 +735,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -774,7 +774,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },
@@ -815,7 +815,7 @@ export default defineCreator({
       imageGeneration: {
         supports: {
           aspectRatio: {
-            options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
             render: 'chips',
             type: 'enum'
           },

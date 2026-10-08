@@ -73,11 +73,56 @@ Override rules, limited to `imageGeneration`:
   and `null` rules are documented in the [registry architecture](../../../packages/provider-registry/docs/architecture.md#override-rules).
 
 The catalog schema and runtime resolver now use v2 directly; there is no legacy
-whole-block reader or second hand-maintained capability table. C12 acceptance is
-still pending: the frozen v2 compatibility baseline, execution of the migrated
-tests, and validation of combined input/operation differences must be completed. The
-schema currently validates each difference against the base separately; rejecting
-every invalid combination before publication remains an acceptance requirement.
+whole-block reader or second hand-maintained capability table. The schema validates
+combined input/operation differences in runtime order. Generation and the frozen
+v2 compatibility validator additionally check creator/provider combinations
+through the same resolver; the v1 baseline remains unchanged. Focused C12 tests,
+source-sync and local v2 compatibility checks passed, including fault injection
+for the combination rules. Release acceptance remains blocked: the target branch
+already uses registry schema v3 with frozen v2/v3 validators, while this branch
+still uses v2. Reconcile the version and first-compatible-app gate before merging;
+do not replace existing frozen validators.
+
+## Aspect ratio boundary
+
+`aspectRatio` is a business value: two positive finite numbers separated by `:`,
+such as `16:9`, `10:16` or `1.5:1`. The explicit `auto` value requests server
+selection and is accepted only when the effective model capability declares it.
+An unconfigured model cannot implicitly opt into `auto`. Missing input remains
+missing; request preparation does not inject a ratio or a catalog default.
+
+Ratio support is a nonempty enum at every declaration layer: base, image-input
+difference, operation difference and provider override. A supplied default must
+belong to that enum. Preserve the model's option order and exact values, without
+reducing `10:16` to `5:8` or unioning different models' supported sets.
+
+`size` describes dimensions, not a second source for `aspectRatio`. Main, the
+form and tool schemas share the canonical value domain. SDK adapters read the
+native ratio once, not aliases in provider-options bags. Invalid values fail
+validation rather than disappearing as if the caller requested `auto`.
+
+Protocol spelling belongs only at the final request boundary:
+
+- Gemini receives the canonical ratio in `imageConfig.aspectRatio`; Imagen
+  receives it through the SDK's native ratio parameter. Explicit `auto` and
+  absence omit the ratio. Unrelated image settings remain intact.
+- Ideogram V1/V2 encode `16:9` as `ASPECT_16_9`; V3 encodes it as `16x9`.
+  Those wire values are not accepted in business requests or registry options.
+- The UI displays the canonical ratio verbatim, pixel dimensions as dimensions,
+  and `auto` using the existing localized label.
+
+Wire references, retrieved 2026-10-08: [Google ImageConfig](https://ai.google.dev/api/generate-content#ImageConfig),
+[Ideogram V1/V2](https://developer.ideogram.ai/v1/api-reference/legacy-endpoints/generate),
+[Ideogram V3](https://developer.ideogram.ai/v1/api-reference/generate-images/generate-v3),
+and [AiHubMix Ideogram](https://docs.aihubmix.com/cn/api/IdeogramAI).
+
+This is stricter than older catalogs that contained `ASPECT_*` or `1x1` aliases:
+the new schema rejects those entries. Successful old-client validation of a new
+catalog does not prove new-client compatibility with an old cached catalog.
+The schema-version, frozen-baseline and first-compatible-app release gate above
+still applies; this change does not add an alias fallback, cache migration or
+release authorization. Ratio regression cases are authored but have not been
+run under the current no-test instruction; prior C12 results do not cover them.
 
 ## Catalog and protocol acceptance matrix
 

@@ -48,6 +48,31 @@ const declaration = ImageGenerationSupportSchema.parse({
 })
 
 describe('prepareImageRequest', () => {
+  it.each(['ASPECT_16_9', '16x9', '16_9', '0:1', '-1:9', 'Infinity:1', 'invalid', null])(
+    'rejects invalid ratio %s even without a model capability',
+    (aspectRatio) => {
+      expect(() =>
+        prepareImageRequest(
+          {
+            prompt: 'a fox',
+            // @ts-expect-error Untyped in-process callers must not bypass canonical validation.
+            paramValues: { aspectRatio }
+          },
+          undefined
+        )
+      ).toThrowError(expect.objectContaining({ code: 'OPERATION_FAILED' }))
+    }
+  )
+
+  it('requires a declared auto capability but allows explicit ratios on unconfigured models', () => {
+    expect(() =>
+      prepareImageRequest({ prompt: 'a fox', paramValues: { aspectRatio: 'auto' } }, undefined)
+    ).toThrowError(expect.objectContaining({ code: 'OPERATION_FAILED' }))
+    expect(
+      prepareImageRequest({ prompt: 'a fox', paramValues: { aspectRatio: '16:9' } }, undefined).paramValues
+    ).toEqual({ aspectRatio: '16:9' })
+  })
+
   it('normalizes the request once while preserving URL and data URL inputs', () => {
     const input = {
       prompt: '  a fox  ',

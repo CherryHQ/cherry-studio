@@ -11,7 +11,7 @@ export function parseRatio(value: string): Dim | null {
   const dims = value.match(/^(\d+)[x×](\d+)$/)
   if (dims) return { w: Number(dims[1]), h: Number(dims[2]) }
 
-  const aspect = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
+  const aspect = value.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/)
   if (aspect) return { w: Number(aspect[1]), h: Number(aspect[2]) }
 
   return null
@@ -36,10 +36,7 @@ function splitParens(label: string): { head: string; inner: string } {
  * already conveys the shape, so chips never need both ratio AND pixel
  * dims at once. Selection logic:
  *
- *  - Pure aspect-ratio enum (`ASPECT_X_Y` from `supports.aspectRatio`,
- *    or bare `X:Y` / `X_Y`) → `X:Y`. Prevents the raw enum from
- *    leaking into the UI ("ASPECT_1_1") and keeps the chip width
- *    bounded so the grid follows the parent container.
+ *  - Canonical aspect-ratio value `X:Y` → the value verbatim.
  *  - Label with parenthesized pixel dims like `"1:1 (1024×1024)"` →
  *    use the head (`"1:1"`).
  *  - Pixel-size value `WxH` → `W×H` (formatted with U+00D7).
@@ -47,10 +44,7 @@ function splitParens(label: string): { head: string; inner: string } {
  *    verbatim.
  */
 export function deriveChipLabel(label: string, value: string): string {
-  const aspectMatch = value.match(/^(?:ASPECT_)?(\d+)[_:](\d+)$/i)
-  if (aspectMatch) {
-    return `${Number(aspectMatch[1])}:${Number(aspectMatch[2])}`
-  }
+  if (/^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(value)) return value
 
   const { head, inner } = splitParens(label)
   if (parseDims(inner)) {

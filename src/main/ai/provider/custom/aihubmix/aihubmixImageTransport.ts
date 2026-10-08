@@ -331,17 +331,11 @@ function parseIdeogramResults(data: z.infer<typeof ideogramResponseSchema>): str
 }
 
 function aspectRatioToIdeogramV3(value: string | undefined): string | undefined {
-  return value
-    ?.replace(/^ASPECT_/i, '')
-    .replace(/[_:]/g, 'x')
-    .toLowerCase()
+  return value?.replace(':', 'x')
 }
 
 function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  if (/^ASPECT_/i.test(value)) return value
-  if (/^\d+:\d+$/.test(value)) return `ASPECT_${value.replace(':', '_')}`
-  return value
+  return value === undefined ? undefined : `ASPECT_${value.replace(':', '_')}`
 }
 
 function requireImage(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageModelV3File {

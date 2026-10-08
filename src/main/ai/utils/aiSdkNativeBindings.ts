@@ -6,12 +6,9 @@
  * `imageParams` consume vs the leftover vendor bag the WireProfile engine
  * forwards, applying each binding's `map` once.
  *
- * `numImages → n` is the only rename; `aspectRatio` carries a `map`
- * (`ASPECT_X_Y → X:Y`, the AI SDK `ImageModelV3CallOptions` shape) so the
- * normalization happens once here instead of scattered across `AiService` + the
- * emitters. The rest are identity. The first four are genuine AI SDK options;
- * the others are diffusion / OpenAI-image knobs that migrate into per-provider
- * WireProfiles in PR4+.
+ * `numImages → n` is the only rename. Canonical ratios already match the SDK;
+ * explicit `auto` omits the ratio so the server chooses it. Other values pass
+ * through unchanged.
  */
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { CanonicalParamKey, ParamValue } from '@cherrystudio/provider-registry'
@@ -42,23 +39,15 @@ type NativeBindingTable = {
   }[NativeOptionName]
 }
 
-function isSdkAspectRatio(value: string): value is NonNullable<ImageModelV3CallOptions['aspectRatio']> {
-  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(value)
-}
-
-/** Normalize the painting form's `ASPECT_X_Y` enum or an already-normalized SDK ratio. */
-export function normalizeAspectRatio(value: string | undefined): NativeImageParams['aspectRatio'] {
-  if (!value) return undefined
-  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return isSdkAspectRatio(stripped) ? stripped : undefined
-}
-
-/** `numImages → n` is the only rename; `aspectRatio` normalizes once here. */
+/** Main validates ratios before this split; only explicit `auto` is omitted. */
 export const AI_SDK_NATIVE_BINDINGS = {
   numImages: { option: 'n' },
   size: { option: 'size' },
   seed: { option: 'seed' },
-  aspectRatio: { option: 'aspectRatio', map: normalizeAspectRatio }
+  aspectRatio: {
+    option: 'aspectRatio',
+    map: (value: NonNullable<ParamValue<'aspectRatio'>>) => (value === 'auto' ? undefined : value)
+  }
 } as const satisfies NativeBindingTable
 
 /** The catalog keys routed to {@link NativeImageParams} rather than the vendor bag. */
@@ -77,7 +66,7 @@ export function asSdkImageSize(size: ImageSizeToken): `${number}x${number}` {
   return size as `${number}x${number}`
 }
 
-/** `auto` is a size-only sentinel; absence lets the server choose its own default. */
+/** Omit the size sentinel so the server chooses its own dimensions. */
 export function resolveImageRequestSize(size: ImageSizeToken | undefined): ImageSizeToken | undefined {
   return size === 'auto' ? undefined : size
 }

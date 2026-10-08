@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ImageGenerationSupportSchema } from '../schemas/model'
+import { ImageGenerationOverrideSchema, ImageGenerationSupportSchema } from '../schemas/model'
 
 const inputs = {
   images: { min: 0, max: { kind: 'unknown' } },
@@ -10,6 +10,35 @@ const inputs = {
 }
 
 describe('image capability validation', () => {
+  it('rejects protocol aliases and invalid ratio specs in every declaration layer', () => {
+    const invalidSpecs = [
+      ...['ASPECT_16_9', '16x9', '16_9', '0:1', '-1:9', 'Infinity:1', '1:NaN', '1:'].map((option) => ({
+        type: 'enum',
+        options: [option]
+      })),
+      { type: 'enum', options: [] },
+      { type: 'enum', options: ['16:9'], default: 'ASPECT_16_9' },
+      { type: 'enum', options: ['16:9'], default: '1:1' },
+      { type: 'text' }
+    ]
+    for (const aspectRatio of invalidSpecs) {
+      const supports = { aspectRatio }
+      for (const delta of [{ supports }, { withImages: { supports } }, { operations: { remix: { supports } } }]) {
+        expect(ImageGenerationSupportSchema.safeParse({ inputs, supports: {}, ...delta }).success).toBe(false)
+        expect(ImageGenerationOverrideSchema.safeParse(delta).success).toBe(false)
+      }
+    }
+  })
+
+  it('accepts explicit auto and positive unreduced ratios, including nullable override removal', () => {
+    const supports = { aspectRatio: { type: 'enum', options: ['auto', '10:16', '1.5:1'], default: 'auto' } }
+    for (const delta of [{ supports }, { withImages: { supports } }, { operations: { remix: { supports } } }]) {
+      expect(ImageGenerationSupportSchema.safeParse({ inputs, supports: {}, ...delta }).success).toBe(true)
+      expect(ImageGenerationOverrideSchema.safeParse(delta).success).toBe(true)
+    }
+    expect(ImageGenerationOverrideSchema.parse({ supports: { aspectRatio: null } }).supports?.aspectRatio).toBeNull()
+  })
+
   it('requires complete input facts and rejects legacy fields', () => {
     expect(ImageGenerationSupportSchema.safeParse({ supports: {} }).success).toBe(false)
     expect(ImageGenerationSupportSchema.safeParse({ supports: {}, inputs, modes: {} }).success).toBe(false)

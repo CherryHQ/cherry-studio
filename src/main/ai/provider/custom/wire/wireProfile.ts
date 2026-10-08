@@ -12,11 +12,11 @@
  * {@link WireRegistration} (`dualOpenAI` / `passthrough`) + the adapter
  * (`buildVendorProviderOptions`).
  */
+import { IMAGE_PARAM_CATALOG } from '@cherrystudio/provider-registry'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
 import type { AppProviderId, KnownAppProviderId } from '../../../types'
-import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
 
 /**
  * An EXPLICIT-OVERRIDE rule for a param whose wire treatment isn't the plain
@@ -100,13 +100,11 @@ export const DOUBAO_WIRE_PROFILE: WireProfile = {
   }
 }
 
-/** `aspectRatio` (normalized) → google `imageConfig.aspectRatio`. Shared by the
- *  google family and the dmxapi gateway's google-routed block; an invalid value
- *  contributes nothing, so the deep-merge leaves no `imageConfig.aspectRatio`. */
+/** Google consumes canonical ratios; only explicit `auto` omits the field. */
 const aspectRatioImageConfigRule: WireRule = {
   contribute: (v): Record<string, JSONValue> => {
-    const normalized = normalizeAspectRatio(String(v))
-    return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
+    const aspectRatio = IMAGE_PARAM_CATALOG.aspectRatio.schema.unwrap().parse(v)
+    return aspectRatio === 'auto' ? {} : { imageConfig: { aspectRatio } }
   }
 }
 
@@ -123,7 +121,7 @@ const imageResolutionImageConfigRule: WireRule = {
  * Reproduces the `google` emitter: a flat lowercased `personGeneration` (the
  * registry stores it uppercase like `@google/genai`'s `ALLOW_ALL`, but
  * `@ai-sdk/google`'s option schema validates lowercase) + an `imageConfig` block
- * assembled from `aspectRatio` (normalized) and `size` via `contribute`.
+ * assembled from the canonical `aspectRatio` and `size` via `contribute`.
  * Gemini-image reads `providerOptions.google.imageConfig`; Imagen reads the
  * top-level `aspectRatio` (which still flows via the native binding into
  * imageParams), so emitting it here is required for the former, harmless for the

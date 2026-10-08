@@ -29,7 +29,7 @@ export function parseImageVendorParams(value: unknown): VendorBag {
 
 /** The structured fields + leftover vendor bag split out of a canonical `paramValues` bag. */
 export interface SplitImageParams {
-  /** The binding-mapped AI SDK call options (`numImages → n`, `aspectRatio` normalized). */
+  /** The binding-mapped AI SDK call options (`numImages → n`, automatic ratio omitted). */
   readonly structured: NativeImageParams
   /** Non-binding canonical keys (cfg, addWatermark, negativePrompt, …). */
   readonly vendorBag: VendorBag
@@ -44,7 +44,7 @@ export function splitParamValues(paramValues: ParamValues): SplitImageParams {
   const vendorBag: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(paramValues)) {
     if (value === undefined || value === '' || value === null) continue
-    // numImages → n; aspectRatio normalized once; the rest identity.
+    // numImages → n; explicit automatic ratio omitted; the rest identity.
     const binding = nativeBindingFor(key as CanonicalParamKey)
     if (binding) {
       const mapped = binding.map ? binding.map(value as never) : value
