@@ -57,7 +57,9 @@ function isClosingFence(line: string, fence: Fence): boolean {
  * a blank line, which is already a boundary.
  */
 function htmlBlockTerminator(line: string): RegExp | null {
-  const raw = /^\s{0,3}<(pre|script|style|textarea)\b/i.exec(line)
+  // The raw names take only a pure open tag — `<pre/>` is a type-7 tag the parser does not read
+  // as raw, so it must not open a region that swallows the lines below it.
+  const raw = /^\s{0,3}<(pre|script|style|textarea)(?=[ \t>]|$)/i.exec(line)
   if (raw) return new RegExp(`</${raw[1]}\\s*>`, 'i')
   if (/^\s{0,3}<!--/.test(line)) return /-->/
   if (/^\s{0,3}<\?/.test(line)) return /\?>/
@@ -86,12 +88,18 @@ const QUOTE_MARKER = /^ {0,3}>[ \t]?/
 /** A line opening a block quote: a marker at three columns or less, at any depth of nesting. */
 const QUOTE_START = /^ {0,3}>/
 
-/** A list item marker, which on a continuation line always opens a list rather than continuing. */
-const LIST_MARKER = /^[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+/
-
 /** The block quote markers in a container prefix — how deeply a definition is quoted. */
 function quoteDepth(container: string): number {
   return container.match(/[ \t]*>[ \t]?/g)?.length ?? 0
+}
+
+/** The column a prefix ends at — a tab advances to the next multiple of four, as the parser counts. */
+function columnCount(prefix: string): number {
+  let columns = 0
+  for (const character of prefix) {
+    columns = character === '\t' ? columns + (4 - (columns % 4)) : columns + 1
+  }
+  return columns
 }
 
 /**
@@ -101,8 +109,19 @@ function quoteDepth(container: string): number {
  * already outside it keeps the line inside the quote whatever column it sits in.
  */
 function listContentColumn(container: string): number {
-  const segment = LIST_MARKER.exec(container)
-  return segment ? segment[0].length : -1
+  // The item a quote has to stay inside is the one holding the definition — the item whose marker
+  // comes last, since nesting only deepens. `- - > ` holds the definition in the inner item, whose
+  // content starts past the second marker, so a quote at two or three columns falls out of it.
+  const markers = container.match(/(?:[ \t]*[-+*]|[ \t]*\d{1,9}[.)])[ \t]+/g)
+  if (!markers) return -1
+  let columns = 0
+  let rest = container
+  for (const marker of markers) {
+    const at = rest.indexOf(marker)
+    columns += columnCount(rest.slice(0, at + marker.length))
+    rest = rest.slice(at + marker.length)
+  }
+  return columns
 }
 
 /**
@@ -289,17 +308,24 @@ function interruptsParagraph(line: string): boolean {
   )
 }
 
-/** A tag the tokenizer reads as one, in any form — including type 7, which cannot interrupt. */
-const TAG_START = /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t/>]|$)/
+/**
+ * A complete tag alone on its line — the one tag form a lazy line takes. The parser holds an
+ * unfinished tag (`<a`, at the line's end) and a tag with content after it (`<a> x`) to the
+ * paragraph it continues, and an attribute has to start the way the tokenizer reads one, so
+ * `<a"x>` is prose too. Types 1–6 are startsBlock's business; this is the type-7 shape.
+ */
+const COMPLETE_TAG_LINE =
+  /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^\s"'>/=]+(?:[ \t]*=[ \t]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[ \t]*\/?>[ \t]*$/
 
 /**
  * Whether a line opens a block that ends a paragraph it continues lazily — one that fell short of
  * the container holding the paragraph, so the parser checks none of its interrupt rules: any list
- * marker, an empty item and any ordered number included, and any tag open a block there. A setext
- * underline is the one construct barred from a lazy line outright, so it stays paragraph text.
+ * marker, an empty item and any ordered number included, and a complete tag on a line of its own
+ * open a block there. A setext underline is the one construct barred from a lazy line outright, so
+ * it stays paragraph text.
  */
 function endsLazyParagraph(line: string): boolean {
-  return startsBlock(line) || TAG_START.test(line)
+  return startsBlock(line) || COMPLETE_TAG_LINE.test(line)
 }
 
 /** The columns a line is indented by — a tab advances to the next multiple of four. */
@@ -316,17 +342,21 @@ function leadingColumns(line: string): number {
 /**
  * The line with `columns` of leading whitespace removed — the offset a list item's continuation
  * measures its blocks from, so `    --` inside an item whose content starts at column two is a
- * setext underline. A tab that spans past the boundary leaves the columns it overshoots as spaces,
- * so what remains keeps the column it had.
+ * setext underline. The parser counts columns the way tabs expand, so the whitespace is expanded
+ * before anything is removed: a tab that spans past the boundary leaves the columns it overshoots
+ * as spaces, and one that starts at the boundary leaves the columns it spans.
  */
 function afterColumns(columns: number, line: string): string {
+  let expanded = ''
   let seen = 0
   let index = 0
-  while (index < line.length && (line[index] === ' ' || line[index] === '\t') && seen < columns) {
-    seen = line[index] === ' ' ? seen + 1 : seen + (4 - (seen % 4))
+  while (index < line.length && (line[index] === ' ' || line[index] === '\t')) {
+    const width = line[index] === ' ' ? 1 : 4 - (seen % 4)
+    expanded += ' '.repeat(width)
+    seen += width
     index += 1
   }
-  return ' '.repeat(Math.max(0, seen - columns)) + line.slice(index)
+  return expanded.slice(columns) + line.slice(index)
 }
 
 /**
@@ -349,11 +379,19 @@ function continuesDefinitionAfterBlank(line: string | undefined): boolean {
  */
 function linkDefinition(lines: string[], index: number): { text: string; lines: number } | null {
   const start = DEFINITION_CONTAINER.exec(lines[index])
+  // A first marker indented four columns or more — a tab counts as up to four — opens indented
+  // code, not a container, so no definition opens behind it.
+  if (start && leadingColumns(lines[index]) >= 4) return null
+  // Five columns or more of whitespace after the last marker leave the label in indented code —
+  // the container's content starts one column past its marker, and a label four columns deeper
+  // than that is code the parser never reads a definition from.
+  if (start && columnCount(start[0]) - columnCount(start[0].replace(/[ \t]+$/, '')) >= 5) return null
   const quotes = start ? quoteDepth(start[0]) : 0
   const contentColumn = start ? listContentColumn(start[0]) : -1
   // The column the definition itself starts at, behind the list markers alone — the base its
-  // continuation lines are measured from once the item, not a quote, holds them.
-  const labelColumn = start !== null && quotes === 0 ? start[0].length : -1
+  // continuation lines are measured from once the item, not a quote, holds them. Counted in
+  // columns: a tab inside a marker advances to the next stop, so `-\t` spans four of them.
+  const labelColumn = start !== null && quotes === 0 ? columnCount(start[0]) : -1
   const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
   if (!label) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
