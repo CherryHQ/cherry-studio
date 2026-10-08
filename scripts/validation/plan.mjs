@@ -6,6 +6,7 @@ export const testProjects = [
   'renderer',
   'aiCore',
   'ui',
+  'file-preview',
   'shared',
   'provider-registry',
   'scripts',
@@ -28,6 +29,7 @@ export const checkTasks = {
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
+  'types-file-preview': { group: 'types', args: ['--filter', '@cherrystudio/file-preview', 'typecheck'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
   'i18n-hardcoded': { group: 'i18n', args: ['i18n:hardcoded:strict'] }
@@ -40,6 +42,7 @@ const consumers = {
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'renderer'],
+  'file-preview': ['file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
   'dsh-bridge': ['dsh-bridge', 'main', 'preload'],
@@ -123,6 +126,7 @@ export function createPlan(files, fullReason) {
     if (affected.includes('aiCore')) add('types-aicore', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
+    if (affected.includes('file-preview')) add('types-file-preview', file)
     if (scope === 'main' || scope === 'shared') add('migrations', file)
     for (const task of ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']) add(task, file)
   }
