@@ -80,20 +80,19 @@ and TUI integration remain separate decisions; none introduces a scheduler or ne
 ## Unified reasoning adoption
 
 The aiSdk implementation resolves each model call after SDK step-option merging, using the request's
-registry contract and the current output limit. Equivalent paths use SDK `reasoning`; exact budgets,
-extended efforts and custom protocols retain native delivery. The implementation contract lives in
+registry contract and the current output limit. SDK `reasoning` is accepted as input; the wire always
+carries the registry's native encoding. The implementation contract lives in
 [registry reasoning control](../../../../packages/provider-registry/docs/reasoning-control.md#ai-sdk-v7-delivery).
 This remains SDK adaptation; Harness and model calls inside Code Mode are separate workstreams.
 
 Local coverage includes real installed provider serializers, a four-step Cherry Agent run, model retry,
 assistant-less calls, explicit native overrides, summaries, budget headroom and sampling. Tests use fake
 transport responses; representative provider-account verification is still outstanding. Gateway and
-Claude Agent SDK retain their shared native encoder, and reasoning output/replay middleware remains.
+Claude Agent SDK share the same native encoder, and reasoning output/replay middleware remains.
 
-Retained native cases are intentional: Cherry's budget ratios differ from the SDK's, Claude `max` is
-not `xhigh`, and the pinned xAI SDK maps Grok 4.7 portable `xhigh` to `high`. The last case needs an
-upstream mapping fix before portable delivery can replace its working native field. Google deployment
-aliases and adapters without demonstrated equivalent translation also keep their registry encoding.
+Portable output was rejected: Cherry's budget ratios differ from the SDK's, Claude `max` is not `xhigh`,
+and the pinned xAI SDK maps Grok 4.7 `xhigh` to `high`. Emitting SDK `reasoning` only where it is
+equivalent would leave the wire unchanged and add an adapter-version-dependent path.
 No catalog schema or persisted selection vocabulary changes are required.
 
 ### Acceptance

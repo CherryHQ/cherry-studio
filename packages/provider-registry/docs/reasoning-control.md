@@ -247,18 +247,18 @@ Automatic reasoning fields are deferred until the model call; they are not store
 ## AI SDK v7 delivery
 
 The aiSdk `reasoningControl` middleware runs after SDK `prepareStep` merges its call settings. It reuses
-`resolveReasoningInvocation` with the current selection and output cap, then projects the result to SDK
-`reasoning` or native options. Model-specific fallback middleware resolves against the fallback's own
-contract, so primary-model generated parameters never become fallback input.
+`resolveReasoningInvocation` with the current selection and output cap and always emits the registry's
+native encoding. Model-specific fallback middleware resolves against the fallback's own contract, so
+primary-model generated parameters never become fallback input.
 
 ```text
-request baseline + SDK call/step override
+request baseline + SDK call/step `reasoning` (input only)
                     │
                     ▼
 registry invocation resolver + current output cap
                     │
                     ▼
-SDK delivery projection + explicit native overrides
+native encoding + explicit native overrides
                     │
                     ▼
 effective sampling / Anthropic output headroom
@@ -267,44 +267,35 @@ effective sampling / Anthropic output headroom
 provider adapter → HTTP
 ```
 
-`AgentOptions.reasoning` and in-process `CallOverrides.reasoning` forward the SDK vocabulary.
-`prepareStep.reasoning` overrides it for one step; a later omitted step override restores the call's
-baseline. `provider-default` selects the registry's default mode, preserving mandatory default thinking
-and summary settings. Explicit native controls still win over a portable choice, including
-`provider-default`; that sentinel does not erase a caller's native policy.
+SDK `reasoning` is accepted as input vocabulary only. `AgentOptions.reasoning`, in-process
+`CallOverrides.reasoning` and `prepareStep.reasoning` select the level for a call; a later omitted step
+override restores the call's baseline. `provider-default` selects the registry's default mode. The
+middleware then clears `reasoning` so the adapter sees one policy: the native fields.
 
-| Effective contract | Delivery |
-| --- | --- |
-| Generic `reasoningEffort` on OpenAI Chat/Responses, Azure and compatible SDK adapters | Portable SDK `reasoning` when the adapter preserves the value |
-| Native Anthropic adaptive effort | Portable effort where the SDK's own capability resolver confirms adaptive support; retain adaptive mode and display settings |
-| Native Google level on a canonical catalog model ID | Portable `low`/`medium`/`high`; keep visibility independent; aliases retain native delivery |
-| Exact token budgets, dynamic budget sentinels, `max`/`ultra`, custom toggles and nested wires | Registry-native encoding |
-| Open Responses / xAI `minimal`, xAI `xhigh`, and other unproven adapter mappings | Native encoding to avoid SDK coercion |
-
-The projection consumes the resolved registry contract; it does not introduce a second model-family
-regex table or persist adapter-version rules in the catalog. Native delivery remains part of the
-supported design. The native encoder is also retained for API Gateway and Claude Agent SDK consumers.
+Native output is deliberate. The SDK enum cannot express exact budgets, dynamic sentinels, `max`/`ultra`
+or custom toggles, and some adapters coerce levels (Claude `max` is not `xhigh`; the pinned xAI SDK maps
+Grok 4.7 `xhigh` to `high`). Projecting only the equivalent cases would change nothing on the wire while
+adding a second, adapter-version-dependent path. The same encoder serves API Gateway and Claude Agent SDK.
 
 Explicit input precedence is `callOverrides > assistant customParameters > generated policy`.
 The middleware respects the actual SDK namespace, including Azure's native key and Anthropic's canonical
 and provider-specific keys. Vertex Anthropic V4 reads `googleVertex`; Vertex Gemini and MaaS continue
-to use their existing `vertex` route. The SDK sees one chosen portable or native effort/budget policy.
-Generated Anthropic budget/effort fields that conflict with an explicit thinking mode are removed.
+to use their existing `vertex` route. Generated Anthropic budget/effort fields that conflict with an
+explicit thinking mode are removed.
 
 Final native thinking determines Anthropic sampling and additive-budget headroom. Cherry's total
 output cap remains unchanged on the wire; only the non-thinking remainder is passed to the SDK when
 it will add an exact budget. Do not replace descriptor-derived budgets with SDK percentage defaults.
 
-Summary and visibility are independent: `reasoningSummary`, `includeThoughts`, and adaptive display
-survive effort projection. On OpenAI Responses endpoints without a summary operation, use the SDK's
-`reasoningSummary: null` to suppress its implicit `detailed` summary; no null field is sent on the wire.
-An explicit native summary still wins. Qwen compatibility toggles and prompt suffixes resolve per call
-as well, without retaining a previous step's generated switch.
+Summary and visibility are independent of effort. On OpenAI Responses endpoints without a summary
+operation, use the SDK's `reasoningSummary: null` to suppress its implicit `detailed` summary; no null
+field is sent on the wire. An explicit native summary still wins. Qwen compatibility toggles and prompt
+suffixes resolve per call as well, without retaining a previous step's generated switch.
 
 The request-boundary tests in `src/main/ai/runtime/aiSdk/params/__tests__` exercise real SDK serialization,
-stream warnings, explicit overrides, aliases, budgets, retry, per-step restoration and aggregate reasoning
-usage. They do not establish provider-account acceptance. Output reasoning extraction, signatures,
-encrypted replay and accounting remain owned by their existing consumers.
+stream warnings, explicit overrides, budgets, retry, per-step restoration and aggregate reasoning usage.
+They do not establish provider-account acceptance. Output reasoning extraction, signatures, encrypted
+replay and accounting remain owned by their existing consumers.
 
 ## Generic compatible-provider path
 

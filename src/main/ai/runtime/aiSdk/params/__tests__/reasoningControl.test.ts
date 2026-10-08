@@ -5,7 +5,6 @@ import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV4, LanguageModelV4CallOptions } from '@ai-sdk/provider'
-import { createXai } from '@ai-sdk/xai'
 import { wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -86,7 +85,7 @@ describe('registry reasoning through real SDK providers', () => {
     expect(body.max_tokens).toBe(10000)
   })
 
-  it('respects the Azure native namespace above a portable level and does not invent a summary', async () => {
+  it('respects the Azure native namespace above a per-call level and does not invent a summary', async () => {
     const body = await capture(
       (fetch) => createAzure({ apiKey: 'test', baseURL: 'https://test.invalid', fetch }).responses('gpt-5'),
       control({ providerId: 'azure-responses', endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }),
@@ -143,7 +142,7 @@ describe('registry reasoning through real SDK providers', () => {
   })
 
   it.each(['chat', 'responses', 'compatible', 'anthropic', 'google'] as const)(
-    'delivers a portable effort to %s without a competing native effort',
+    'delivers the registry effort natively to %s and strips SDK reasoning',
     async (adapter) => {
       const policy = control(
         adapter === 'anthropic'
@@ -172,12 +171,8 @@ describe('registry reasoning through real SDK providers', () => {
         const openai = createOpenAI({ apiKey: 'test', fetch })
         return adapter === 'responses' ? openai.responses('gpt-5') : openai.chat('gpt-5')
       }
-      const body = await capture(create, policy, {}, (params) => {
-        expect(params.reasoning).toBe('high')
-        const native = params.providerOptions?.[policy.providerOptionsKey]
-        expect(native).not.toHaveProperty('reasoningEffort')
-        expect(native).not.toHaveProperty('effort')
-        expect(native).not.toHaveProperty('thinkingConfig.thinkingLevel')
+      const body = await capture(create, policy, { reasoning: 'high' }, (params) => {
+        expect(params.reasoning).toBeUndefined()
       })
       if (adapter === 'anthropic') expect(body.output_config.effort).toBe('high')
       else if (adapter === 'google') expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe('high')
@@ -241,21 +236,6 @@ describe('registry reasoning through real SDK providers', () => {
     )
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 32512 })
     expect(body.max_tokens).toBe(64000)
-  })
-
-  it('keeps Claude max distinct from the SDK xhigh level', async () => {
-    const body = await capture(
-      (fetch) => createAnthropic({ apiKey: 'test', fetch })('claude-sonnet-5-5'),
-      control({
-        providerId: 'anthropic',
-        providerOptionsKey: 'anthropic',
-        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        profile: REASONING_FORMAT_PROFILES.anthropic.wire,
-        selection: 'max'
-      })
-    )
-    expect(body.output_config.effort).toBe('max')
-    expect(body.thinking.type).toBe('adaptive')
   })
 
   it('uses an explicit disabled mode for sampling and removes an obsolete generated budget', async () => {
@@ -322,22 +302,7 @@ describe('registry reasoning through real SDK providers', () => {
     expect(body.generationConfig.thinkingConfig).not.toHaveProperty('thinkingLevel')
   })
 
-  it('uses the declared adaptive dialect for an aliased Claude deployment', async () => {
-    const body = await capture(
-      (fetch) => createAnthropic({ apiKey: 'test', fetch })('production-deployment'),
-      control({
-        providerId: 'anthropic',
-        providerOptionsKey: 'anthropic',
-        profile: REASONING_FORMAT_PROFILES.anthropic.wire
-      }),
-      { maxOutputTokens: 10000 },
-      (params) => expect(params.reasoning).toBeUndefined()
-    )
-    expect(body.thinking.type).toBe('adaptive')
-    expect(body.output_config.effort).toBe('high')
-  })
-
-  it('keeps Google thought visibility alongside portable effort', async () => {
+  it('keeps Google thought visibility alongside the generated level', async () => {
     const body = await capture(
       (fetch) => createGoogleGenerativeAI({ apiKey: 'test', fetch })('gemini-3-pro-preview'),
       control({
@@ -349,13 +314,5 @@ describe('registry reasoning through real SDK providers', () => {
       { providerOptions: { google: { thinkingConfig: { includeThoughts: false } } } }
     )
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'high', includeThoughts: false })
-  })
-
-  it('does not reduce the declared Grok 4.7 xhigh level', async () => {
-    const body = await capture(
-      (fetch) => createXai({ apiKey: 'test', fetch }).responses('grok-4.7'),
-      control({ providerId: 'xai-responses', providerOptionsKey: 'xai', selection: 'xhigh' })
-    )
-    expect(body.reasoning.effort).toBe('xhigh')
   })
 })

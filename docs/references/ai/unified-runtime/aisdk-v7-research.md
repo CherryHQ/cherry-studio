@@ -68,9 +68,9 @@ and [core release history](https://github.com/vercel/ai/blob/ai%407.0.127/packag
 
 v7 adds top-level `reasoning` to model calls and agents:
 `provider-default | none | minimal | low | medium | high | xhigh`. Omission leaves the choice to the
-provider. Cherry's chat `AgentOptions` / `Agent.ts` now forwards it. Registry-driven per-call projection
-uses the portable option where equivalent and retains native serialization for budgets and custom wires;
-see the [delivery contract](../../../../packages/provider-registry/docs/reasoning-control.md#ai-sdk-v7-delivery).
+provider. Cherry's chat `AgentOptions` / `Agent.ts` now accepts it as input; the registry resolves it per
+call and always emits native serialization; see the
+[delivery contract](../../../../packages/provider-registry/docs/reasoning-control.md#ai-sdk-v7-delivery).
 
 The common option expresses intent, while adapters determine the actual request. OpenAI maps it to
 native effort fields; Anthropic selects adaptive thinking/effort or budgets; Google uses thinking levels

@@ -1,4 +1,3 @@
-import { getModelCapabilities as getAnthropicModelCapabilities } from '@ai-sdk/anthropic/internal'
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { get, merge } from 'es-toolkit/compat'
@@ -16,11 +15,8 @@ import { adjustMaxOutputTokensForReasoning, getTemperature, getTopP } from '../.
 import {
   encodeReasoningInvocation,
   normalizeRequestedSelection,
-  type ResolvedReasoningInvocation,
   resolveReasoningInvocation
 } from '../../../utils/reasoningSerializers'
-
-type SdkReasoning = NonNullable<LanguageModelV4CallOptions['reasoning']>
 
 const DISPLAY_TARGETS = new Set<ReasoningWireTarget>([
   'reasoningSummary',
@@ -32,17 +28,6 @@ const DISPLAY_TARGETS = new Set<ReasoningWireTarget>([
   'incremental_output'
 ])
 const CONTROL_TARGETS = REASONING_WIRE_TARGETS.filter((target) => !DISPLAY_TARGETS.has(target))
-const SDK_EFFORTS = new Set<string>(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
-const EFFORT_ADAPTERS = new Set<AppProviderId>([
-  'openai',
-  'openai-chat',
-  'azure',
-  'azure-responses',
-  'openai-compatible',
-  'open-responses',
-  'xai',
-  'xai-responses'
-])
 
 export interface ReasoningControl {
   model: Model
@@ -66,56 +51,6 @@ export function resolveCallReasoning(control: ReasoningControl, params: Language
   })
 }
 
-/** Replace only controls whose SDK translation preserves the registry's wire contract. */
-function projectSdkReasoning(
-  control: ReasoningControl,
-  invocation: ResolvedReasoningInvocation,
-  sdkModelId: string
-): { reasoning?: SdkReasoning; options: Record<string, unknown> } {
-  const options = encodeReasoningInvocation(invocation)
-  const controls = invocation.emissions.filter(({ target }) => !DISPLAY_TARGETS.has(target))
-  if (invocation.budgetTokens !== undefined) return { options }
-
-  const effort = options.reasoningEffort
-  if (controls.length === 1 && typeof effort === 'string' && SDK_EFFORTS.has(effort)) {
-    const coercesMinimal = ['open-responses', 'xai', 'xai-responses'].includes(control.providerId)
-    const coercesXhigh = ['xai', 'xai-responses'].includes(control.providerId)
-    if (
-      EFFORT_ADAPTERS.has(control.providerId) &&
-      !(effort === 'minimal' && coercesMinimal) &&
-      !(effort === 'xhigh' && coercesXhigh)
-    ) {
-      delete options.reasoningEffort
-      return { reasoning: effort as SdkReasoning, options }
-    }
-  }
-
-  if (
-    control.providerId === 'anthropic' &&
-    getAnthropicModelCapabilities(sdkModelId).supportsAdaptiveThinking &&
-    get(options, 'thinking.type') === 'adaptive' &&
-    (['low', 'medium', 'high'].includes(String(options.effort)) ||
-      (options.effort === 'xhigh' && getAnthropicModelCapabilities(sdkModelId).supportsXhighEffort)) &&
-    controls.every(({ target }) => target === 'thinking.type' || target === 'effort')
-  ) {
-    const reasoning = options.effort as SdkReasoning
-    delete options.effort
-    return { reasoning, options }
-  }
-  // Google's generation-dependent translation cannot infer the registry contract from a deployment alias.
-  if (control.model.presetModelId !== sdkModelId) return { options }
-  const level = get(options, 'thinkingConfig.thinkingLevel')
-  if (
-    control.providerId === 'google' &&
-    ['low', 'medium', 'high'].includes(String(level)) &&
-    controls.every(({ target }) => target === 'thinkingConfig.thinkingLevel')
-  ) {
-    delete (options.thinkingConfig as Record<string, unknown>).thinkingLevel
-    return { reasoning: level as SdkReasoning, options }
-  }
-  return { options }
-}
-
 /** Resolve after SDK step-option merging; automatic native controls never enter the loop's base options. */
 export function createReasoningMiddleware(control: ReasoningControl): LanguageModelMiddleware {
   return {
@@ -136,13 +71,7 @@ export function createReasoningMiddleware(control: ReasoningControl): LanguageMo
         explicit = namespaces.googleVertex
       }
       const hasNativeControl = CONTROL_TARGETS.some((target) => get(explicit, target) !== undefined)
-      const projected = hasNativeControl
-        ? {
-            options: encodeReasoningInvocation(invocation),
-            reasoning: undefined
-          }
-        : projectSdkReasoning(control, invocation, model.modelId)
-      const options = merge({}, projected.options, explicit)
+      const options = merge({}, encodeReasoningInvocation(invocation), explicit)
       if (control.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && control.providerOptionsKey === 'openai') {
         // OpenAI SDK otherwise invents a summary even on endpoints whose registry contract omits it.
         if (options.reasoningSummary === undefined) options.reasoningSummary = null
@@ -173,7 +102,8 @@ export function createReasoningMiddleware(control: ReasoningControl): LanguageMo
       }
       return {
         ...params,
-        reasoning: projected.reasoning,
+        // SDK `reasoning` is input vocabulary only; the registry encoding above is the single wire source.
+        reasoning: undefined,
         providerOptions: { ...params.providerOptions, [providerOptionsKey]: options },
         temperature: getTemperature(sampling, control.model, effective),
         topP: getTopP(sampling, control.model, effective),
