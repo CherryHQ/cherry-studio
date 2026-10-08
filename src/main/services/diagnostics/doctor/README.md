@@ -162,7 +162,9 @@ dialog; a completed analysis also shows as the `DoctorAgentAccordionItem` row ab
 
 Diagnosis is open-ended: the Agent mounts the `assistant` server (`diagnose`, `product_info`) and the `doctor`
 server (`read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).
-`read_file` is the only filesystem reach: userData + logs, tail-first, secrets redacted, user content dirs refused —
+`read_file` is the only filesystem reach: userData + logs, tail-first, secrets redacted, user content dirs refused.
+Files are opened without following symlinks and checked by inode before reading. Directory listing uses a stable
+file-descriptor alias on Linux and is refused on platforms that cannot provide one —
 the core Read/Glob/Grep tools stay disabled because the workspace-escape guard does not hold under bypassPermissions.
 Reads pass through `redactForModel`. Writes are bounded by `doctorWrites.ts`, not by the catalog:
 

@@ -44,6 +44,7 @@ vi.mock('@application', async () => {
 
 import { createDoctorServer } from '@main/ai/mcp/servers/doctor'
 
+import { openDoctorReadablePath, resolveDoctorReadablePath } from '../doctorTools'
 import { applyWrite, undoWrite, writeRisk } from '../doctorWrites'
 
 async function connect(): Promise<Client> {
@@ -287,7 +288,12 @@ describe('doctor read_file tool', () => {
     expect(body.text).not.toContain('tok-299')
 
     const listing = await client.callTool({ name: 'read_file', arguments: { path: 'logs' } })
-    expect(JSON.parse(text(listing)).entries).toEqual([{ name: 'main.log', kind: 'file', size: expect.any(Number) }])
+    if (process.platform === 'linux') {
+      expect(JSON.parse(text(listing)).entries).toEqual([{ name: 'main.log', kind: 'file', size: expect.any(Number) }])
+    } else {
+      expect(listing.isError).toBe(true)
+      expect(text(listing)).toContain('Directory listing is unavailable')
+    }
     await client.close()
   })
 
@@ -312,6 +318,23 @@ describe('doctor read_file tool', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).not.toContain('nope')
     await client.close()
+  })
+
+  it('refuses an ancestor replaced by an outside symlink after path validation', () => {
+    const directory = path.join(userData, 'race')
+    const movedDirectory = path.join(userData, 'race-original')
+    fs.mkdirSync(directory)
+    fs.writeFileSync(path.join(directory, 'secret.txt'), 'inside')
+    fs.writeFileSync(path.join(outside, 'secret.txt'), 'outside secret')
+    const resolved = resolveDoctorReadablePath('race/secret.txt')
+    fs.renameSync(directory, movedDirectory)
+    fs.symlinkSync(outside, directory)
+    try {
+      expect(() => openDoctorReadablePath(resolved)).toThrow('Access denied')
+    } finally {
+      fs.rmSync(directory, { force: true })
+      fs.renameSync(movedDirectory, directory)
+    }
   })
 })
 

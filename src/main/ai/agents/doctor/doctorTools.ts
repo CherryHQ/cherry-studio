@@ -295,10 +295,60 @@ export function resolveDoctorReadablePath(requested: string): string {
   return resolved
 }
 
+function sameFileIdentity(left: fs.Stats, right: fs.Stats): boolean {
+  return left.dev === right.dev && left.ino === right.ino
+}
+
+function assertOpenedPathIsStillReadable(resolved: string, opened: fs.Stats): void {
+  const current = resolveDoctorReadablePath(resolved)
+  const currentStat = fs.lstatSync(current)
+  if (!sameFileIdentity(opened, currentStat)) {
+    throw new ToolError('Access denied: path changed while being opened', ToolErrorCode.InvalidParams)
+  }
+}
+
+export function openDoctorReadablePath(resolved: string): { handle: number; stat: fs.Stats } {
+  const initial = fs.lstatSync(resolved)
+  if (initial.isSymbolicLink()) {
+    throw new ToolError('Access denied: symbolic links are not readable by the doctor', ToolErrorCode.InvalidParams)
+  }
+  const noFollow = typeof fs.constants.O_NOFOLLOW === 'number' ? fs.constants.O_NOFOLLOW : 0
+  const nonBlock = typeof fs.constants.O_NONBLOCK === 'number' ? fs.constants.O_NONBLOCK : 0
+  const handle = fs.openSync(resolved, fs.constants.O_RDONLY | noFollow | nonBlock)
+  try {
+    const opened = fs.fstatSync(handle)
+    if (!sameFileIdentity(initial, opened)) {
+      throw new ToolError('Access denied: path changed while being opened', ToolErrorCode.InvalidParams)
+    }
+    assertOpenedPathIsStillReadable(resolved, opened)
+    return { handle, stat: opened }
+  } catch (error) {
+    fs.closeSync(handle)
+    throw error
+  }
+}
+
+function listOpenedDirectory(resolved: string, handle: number): DoctorToolResult {
+  if (process.platform !== 'linux') {
+    throw new ToolError('Directory listing is unavailable on this platform', ToolErrorCode.InvalidParams)
+  }
+  const descriptorPath = `/proc/self/fd/${handle}`
+  const entries = fs.readdirSync(descriptorPath, { withFileTypes: true }).map((entry) => {
+    const entryStat = entry.isFile() ? fs.lstatSync(path.join(descriptorPath, entry.name)) : undefined
+    return {
+      name: entry.name,
+      kind: entry.isDirectory() ? 'dir' : 'file',
+      ...(entryStat?.isFile() ? { size: entryStat.size } : {})
+    }
+  })
+  assertOpenedPathIsStillReadable(resolved, fs.fstatSync(handle))
+  return json({ path: resolved, entries })
+}
+
 const READ_FILE_TOOL: DoctorTool = {
   name: 'read_file',
   description:
-    'Read an app-owned file or list a directory inside the app data directory (userData) or the log directory: log files, crash dumps, MCP/Claude runtime settings, cache.json, config.json, Toolchain. Relative paths resolve against userData. Files return their LAST `lines` lines (default 200) with secrets redacted; user content (Files, KnowledgeBase, Notes, transcripts, memory) is refused.',
+    'Read an app-owned file inside the app data directory (userData) or the log directory: log files, crash dumps, MCP/Claude runtime settings, cache.json, config.json, Toolchain. Linux can also list directories through a stable file descriptor; other platforms refuse directory listing. Relative paths resolve against userData. Files return their LAST `lines` lines (default 200) with secrets redacted; user content (Files, KnowledgeBase, Notes, transcripts, memory) is refused.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -310,29 +360,27 @@ const READ_FILE_TOOL: DoctorTool = {
   },
   async handler(args) {
     const resolved = resolveDoctorReadablePath(requireString(args, 'path'))
-    let stat: fs.Stats
+    let opened: { handle: number; stat: fs.Stats }
     try {
-      stat = fs.statSync(resolved)
-    } catch {
+      opened = openDoctorReadablePath(resolved)
+    } catch (error) {
+      if (error instanceof ToolError) throw error
       return { content: [{ type: 'text', text: `Not found: ${resolved}` }], isError: true }
     }
-    if (stat.isDirectory()) {
-      const entries = fs.readdirSync(resolved, { withFileTypes: true }).map((entry) => {
-        const size = entry.isFile() ? fs.statSync(path.join(resolved, entry.name)).size : undefined
-        return { name: entry.name, kind: entry.isDirectory() ? 'dir' : 'file', ...(size !== undefined ? { size } : {}) }
-      })
-      return json({ path: resolved, entries })
-    }
-    const lines = Math.min(Math.max(Number(args.lines) || READ_FILE_DEFAULT_LINES, 1), 2000)
-    const start = Math.max(0, stat.size - READ_FILE_MAX_BYTES)
-    const handle = fs.openSync(resolved, 'r')
     try {
-      const buffer = Buffer.alloc(stat.size - start)
-      fs.readSync(handle, buffer, 0, buffer.length, start)
+      if (opened.stat.isDirectory()) return listOpenedDirectory(resolved, opened.handle)
+      if (!opened.stat.isFile()) {
+        throw new ToolError('Access denied: path is not a regular file', ToolErrorCode.InvalidParams)
+      }
+      const lines = Math.min(Math.max(Number(args.lines) || READ_FILE_DEFAULT_LINES, 1), 2000)
+      const start = Math.max(0, opened.stat.size - READ_FILE_MAX_BYTES)
+      const buffer = Buffer.alloc(opened.stat.size - start)
+      fs.readSync(opened.handle, buffer, 0, buffer.length, start)
+      assertOpenedPathIsStillReadable(resolved, fs.fstatSync(opened.handle))
       const tail = buffer.toString('utf-8').split('\n').slice(-lines).join('\n')
-      return json({ path: resolved, size: stat.size, truncated: start > 0, text: redactSecretText(tail) })
+      return json({ path: resolved, size: opened.stat.size, truncated: start > 0, text: redactSecretText(tail) })
     } finally {
-      fs.closeSync(handle)
+      fs.closeSync(opened.handle)
     }
   }
 }
