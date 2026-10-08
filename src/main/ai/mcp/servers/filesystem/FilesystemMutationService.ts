@@ -1,11 +1,13 @@
 import { Mutex } from 'async-mutex'
 
 import { getFileIdentity, isSameOrInside, normalizePathForComparison } from '@main/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { validatePath } from './types'
 
 interface PendingMutation {
   path: string
+  probePath: AbsoluteFilePath
   identity: string | undefined
   subtreeRoot: boolean
   done: Promise<void>
@@ -18,7 +20,7 @@ class FilesystemMutationService {
   async runExclusive<T>(
     requestedPath: string,
     baseDir: string,
-    fn: () => Promise<T>,
+    fn: (canonicalPath: AbsoluteFilePath) => Promise<T>,
     opts?: { subtreeRoot?: boolean }
   ): Promise<T> {
     // Serialize registration only (not mutations). O(n) over pending ops is acceptable:
@@ -26,18 +28,24 @@ class FilesystemMutationService {
     const { result } = await this.registrationMutex.runExclusive(async () => {
       const canonicalPath = await validatePath(requestedPath, baseDir)
       const path = normalizePathForComparison(canonicalPath)
-      const identity = await getFileIdentity(canonicalPath)
       const subtreeRoot = opts?.subtreeRoot ?? false
+      for (const other of this.pending) {
+        if (other.identity === undefined) {
+          other.identity = await getFileIdentity(other.probePath)
+        }
+      }
+      const identity = await getFileIdentity(canonicalPath)
       const predecessors = [...this.pending].filter(
         (other) =>
           path === other.path ||
-          (identity !== undefined && identity === other.identity) ||
+          (identity !== undefined && other.identity !== undefined && identity === other.identity) ||
           (other.subtreeRoot && isSameOrInside(path, other.path)) ||
           (subtreeRoot && isSameOrInside(other.path, path))
       )
-      const result = Promise.all(predecessors.map((other) => other.done)).then(fn)
+      const result = Promise.all(predecessors.map((other) => other.done)).then(() => fn(canonicalPath))
       const mutation: PendingMutation = {
         path,
+        probePath: canonicalPath,
         identity,
         subtreeRoot,
         done: result.then(

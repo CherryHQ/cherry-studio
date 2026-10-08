@@ -7,7 +7,7 @@ import { ensureDir, stat, writeInPlace } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { filesystemMutationService } from '../FilesystemMutationService'
-import { logger, validatePath } from '../types'
+import { logger } from '../types'
 
 // Schema definition
 export const WriteToolSchema = z.object({
@@ -31,8 +31,7 @@ export const writeToolDefinition = {
 // Handler implementation
 export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
   const filePath = args.file_path
-  return filesystemMutationService.runExclusive(filePath, baseDir, async () => {
-    const validPath = await validatePath(filePath, baseDir)
+  return filesystemMutationService.runExclusive(filePath, baseDir, async (validPath) => {
     // Create parent directory if it doesn't exist
     const parentDir = path.dirname(validPath)
     try {
