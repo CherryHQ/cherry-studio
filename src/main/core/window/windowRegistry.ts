@@ -254,6 +254,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     //   - backgroundColor / darkTheme (theme snapshot at create time)
     //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
     //   - x / y (only when Tab_Detach payload carries a drop position)
+    //   - zoomFactor (PreferenceService snapshot at open; pre-warmed standbys are
+    //     re-applied at pop — see SubWindowService.createWindow)
     // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
     // every BrowserWindow (see WindowManager.ts:1186-1201). SubWindow inherits both
     // automatically; do NOT attach another setWindowOpenHandler here or in the
@@ -457,6 +459,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       thickFrame: false,
       platformOverrides: {
         mac: {
+          // Native selection-panel binding limits this panel to the invoking Space.
+          type: 'panel',
+          fullscreenable: false,
           titleBarStyle: 'hidden', // [macOS]
           trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
@@ -476,8 +481,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       //   - alwaysOnTop is toggled at runtime by the `selection.pin_action_window`
       //     IpcApi handler via wm.behavior.setAlwaysOnTop; passing no level lets
       //     Electron use its default ('floating' on macOS).
-      //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
-      //     full-screen show sequence; see SelectionService.showActionWindow.
       macShowInDock: false
     },
     // Only restoreFocusOnHide applies — action windows show via the fullscreen-aware
@@ -677,5 +680,5 @@ export function mergeWindowOptions(
   // Strip platformOverrides from the returned object so it never leaks to `new BrowserWindow(...)`.
   const rest: Record<string, unknown> = { ...merged }
   delete rest.platformOverrides
-  return rest as Omit<WindowOptions, 'platformOverrides'>
+  return rest
 }

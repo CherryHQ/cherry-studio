@@ -1,18 +1,24 @@
-import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
+
 import { IpcChatTransport } from '../IpcChatTransport'
+
+interface IpcMock {
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, callback: (payload: unknown) => void) => () => void
+}
 
 // Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
 // re-pointed at a fresh createMockAiApi()'s dispatchers in beforeEach (hoisted so the
 // vi.mock factory can capture it).
-const { ipcMock } = vi.hoisted(() => ({
+const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: (() => undefined) as (route: string, input: unknown) => unknown,
-    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+    request: () => undefined,
+    on: () => () => {}
   }
 }))
 vi.mock('@renderer/ipc', () => ({
@@ -25,13 +31,13 @@ vi.mock('@renderer/ipc', () => ({
 // ── Mock the AI stream IPC ──────────────────────────────────────────
 
 interface MockAiApi {
-  streamOpen: ReturnType<typeof vi.fn>
-  streamAttach: ReturnType<typeof vi.fn>
-  streamAbort: ReturnType<typeof vi.fn>
-  streamDetach: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
-  onStreamDone: ReturnType<typeof vi.fn>
-  onStreamError: ReturnType<typeof vi.fn>
+  streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAttach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAbort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamDetach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamChunk: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamDone: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamError: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 function createMockAiApi() {
@@ -166,11 +172,11 @@ describe('IpcChatTransport', () => {
     const reader = stream.getReader()
 
     // Chunk for different topic — ignored
-    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' } as UIMessageChunk)
+    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' })
 
     // Chunks for our topic
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
+    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' })
     mock.emitDone(topicId)
 
     const chunks: UIMessageChunk[] = []
@@ -187,7 +193,7 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
     mock.emitDone(topicId)
 
     const { done: firstDone } = await reader.read()
@@ -201,7 +207,7 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'provider-a::model-a')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' }, 'provider-a::model-a')
     mock.emitDone(topicId, undefined, true)
 
     const { done } = await reader.read()
@@ -238,7 +244,7 @@ describe('IpcChatTransport', () => {
     })
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
     abortController.abort()
 
     const chunks: UIMessageChunk[] = []

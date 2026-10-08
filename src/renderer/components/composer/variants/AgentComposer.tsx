@@ -1,3 +1,7 @@
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -7,7 +11,10 @@ import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
-import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
+import ComposerSurface, {
+  type ComposerSurfaceActions,
+  type ComposerSurfaceEditingState
+} from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
@@ -19,8 +26,13 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import {
+  ComposerPanelSymbol,
+  getQuickPanelSearchAliases,
+  prepareComposerQuickPanelSearch
+} from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -70,17 +82,15 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { FileUIPart } from '@shared/data/types/message'
+import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Settings2, Terminal, ToolCase } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
+import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens, withComposerDraftUserText } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -112,6 +122,7 @@ import {
   agentSkillToComposerToken,
   getAgentComposerTokenIds
 } from './agentComposerTokens'
+import { createEditableMessageDraft } from './chat/messageEditingDraft'
 import {
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
@@ -125,6 +136,7 @@ import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shar
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerFill } from './shared/useComposerFill'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -299,6 +311,8 @@ export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
 
 export interface AgentComposerLaunchOptions {
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
+  initialParts?: CherryMessagePart[]
+  editing?: ComposerSurfaceEditingState
   onSent?: () => void
 }
 
@@ -394,12 +408,16 @@ const AgentComposerRoot = ({
       // discard whatever the user has written into it. Files stay behind: they belong to the
       // workspace being left.
       const seed = launchIdentityRef.current.consumed ? actionsRef.current.getDraft() : launchInitialDraft
+      const edited =
+        launchOptions?.initialParts && launchOptions.editing
+          ? createEditableMessageDraft(launchOptions.initialParts, launchOptions.editing.messageId)
+          : undefined
       launchIdentityRef.current.consumed = true
       draft = {
-        text: seed.text,
-        tokens: [...seed.tokens],
-        files: [],
-        knowledgeBaseIds: [],
+        text: edited?.text ?? seed.text,
+        tokens: edited?.draftTokens ?? [...seed.tokens],
+        files: edited?.files ?? [],
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(launchOptions?.initialParts ?? []) ?? [],
         workspaceKey,
         agentId,
         shouldValidateSkills: false
@@ -847,15 +865,18 @@ const AgentComposerInner = ({
     initialDraft.knowledgeBaseIds.length === 0
   )
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const layerActive = useComposerLayerActive()
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const quickPanel = useOptionalQuickPanel()
-  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
-  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
+  const rootPanelVisible =
+    layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const skillsPanelVisible =
+    layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
   const knowledgeBasePanelVisible = Boolean(
-    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+    layerActive && quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
   const skillsDataEnabled =
     selectedSkills.length > 0 ||
@@ -1107,12 +1128,25 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
+    if (!layerActive) return
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
       if (topicId !== sessionTopicId) return
       actionsRef.current.focus('end')
     })
-  }, [actionsRef, sessionTopicId])
+  }, [actionsRef, layerActive, sessionTopicId])
+
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
+      const data =
+        typeof payload === 'object' && payload
+          ? (payload as { topicId?: string; token?: ComposerDraftToken; updateOnly?: boolean })
+          : null
+      if (!data?.token || data.topicId !== sessionTopicId) return
+      data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
+    })
+  }, [actionsRef, layerActive, sessionTopicId])
 
   useComposerFill(
     actionsRef,
@@ -1136,7 +1170,8 @@ const AgentComposerInner = ({
         setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
       }
     },
-    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft()
+    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft(),
+    layerActive
   )
 
   useEffect(() => {
@@ -1196,7 +1231,7 @@ const AgentComposerInner = ({
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
       rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
-      action: ({ parentPanel, queryAnchor, quickPanel }) => {
+      action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
         })
@@ -1205,9 +1240,7 @@ const AgentComposerInner = ({
           list: skillItems,
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
-          queryAnchor,
-          triggerInfo: { type: 'button' },
-          trackInputQuery: true
+          ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
         })
       }
     }
@@ -1239,6 +1272,7 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
@@ -1470,7 +1504,17 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
-        const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
+        const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
+        const retainedParts = attachments.map((attachment) => {
+          const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
+          return index >= 0 ? originals[index] : undefined
+        })
+        const addedParts = await buildAgentFilePartsForAttachments(
+          attachments.filter((_, index) => !retainedParts[index]),
+          accessiblePaths
+        )
+        let addedIndex = 0
+        const fileParts = retainedParts.map((part) => part ?? addedParts[addedIndex++])
         const sent = await chatSendMessage(
           { text: payload.text },
           {
@@ -1495,7 +1539,17 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId, t]
+    [
+      accessiblePaths,
+      agentId,
+      chatSendMessage,
+      initialDraft.files,
+      launchOptions,
+      saveHistory,
+      sessionId,
+      sessionTopicId,
+      t
+    ]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -1543,11 +1597,18 @@ const AgentComposerInner = ({
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
-    scopeKey: sessionTopicId,
-    isFulfilled: sessionFulfilled,
+    scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
+    isFulfilled: !launchOptions?.editing && sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
   })
+
+  useEffect(() => {
+    if (launchOptions?.editing) return
+    void ipcApi
+      .request('ai.agent.session.set_pending_input_count', { sessionId, count: queuedFollowups.length })
+      .catch((error) => logger.warn('Failed to publish pending input count', { error }))
+  }, [launchOptions?.editing, queuedFollowups.length, sessionId])
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
   // state and the managed file/knowledge/skill selections before dropping it from the queue.
@@ -1637,6 +1698,7 @@ const AgentComposerInner = ({
     getAdditionalItems: getEntityReferenceItems
   })
 
+  const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Session, agent })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
     const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
@@ -1671,11 +1733,12 @@ const AgentComposerInner = ({
         id: ComposerPanelSymbol.McpStatus,
         label: 'MCP',
         icon: <McpLogo width={18} height={18} aria-hidden />,
+        active: mcpToolbarActive,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, t])
+  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1737,7 +1800,7 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
-      {model ? (
+      {model && !launchOptions?.editing ? (
         <ModelSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
@@ -1791,6 +1854,9 @@ const AgentComposerInner = ({
           }
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
+          editingState={
+            launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
+          }
           onPause={abortAgentSession}
           queueContent={
             <>

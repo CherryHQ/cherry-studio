@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, fireEvent, render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, createContext, use } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../../types'
 import MessageAnchorLine from '../MessageAnchorLine'
@@ -88,7 +88,7 @@ function installRailGeometry(metrics: StripMetrics): () => void {
     unobserve = vi.fn()
   }
 
-  globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+  globalThis.ResizeObserver = ResizeObserverMock
 
   const isStrip = (element: HTMLElement) => element.classList.contains('overflow-y-auto')
   HTMLElement.prototype.getBoundingClientRect = function () {
@@ -102,7 +102,7 @@ function installRailGeometry(metrics: StripMetrics): () => void {
       width: 32,
       height: RAIL_HEIGHT_PX,
       toJSON: () => ({})
-    } as DOMRect
+    }
   }
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
     configurable: true,

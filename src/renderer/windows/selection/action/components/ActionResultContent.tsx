@@ -1,10 +1,11 @@
+import type { FC } from 'react'
+
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/components/chat/messages/hooks/useMessagePlatformActions'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { FC } from 'react'
 
 interface Props {
   message: MessageListItem

@@ -6,8 +6,9 @@
 
 import type * as NodeFs from 'node:fs'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const {
   mockFindBySessionId,
@@ -61,10 +62,6 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string) => key)
 }))
 
-vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
-  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
-}))
-
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mockFindBySessionId, listChannels: vi.fn().mockResolvedValue([]) }
 }))
@@ -84,10 +81,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mockBuildPrompt,
-    buildMemoriesSection: mockBuildMemoriesSection
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mockBuildPrompt,
+      buildMemoriesSection: mockBuildMemoriesSection
+    }
+  })
 }))
 
 vi.mock('@main/utils/prompt', () => ({
@@ -118,11 +117,12 @@ function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 function promptText(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
   if (typeof prompt === 'string') return prompt
   if (Array.isArray(prompt)) return prompt.join('\n')
-  return prompt?.append ?? ''
+  if (prompt?.type === 'preset') return prompt.append ?? ''
+  return Array.isArray(prompt?.prompt) ? prompt.prompt.join('\n') : (prompt?.prompt ?? '')
 }
 
 function expectClaudeCodePreset(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
-  expect(prompt).toMatchObject({ type: 'preset', preset: 'claude_code' })
+  expect(prompt).toMatchObject({ type: 'preset', preset: 'claude_code', snapshot: false })
   return promptText(prompt)
 }
 
@@ -186,10 +186,10 @@ describe('buildSystemPrompt — current workspace', () => {
     const first = await buildSystemPrompt(agent, '/workspace/project-a')
     const second = await buildSystemPrompt(agent, '/workspace/project-b')
 
-    expect(first).toContain('"/workspace/project-a"')
-    expect(first).not.toContain('"/workspace/project-b"')
-    expect(second).toContain('"/workspace/project-b"')
-    expect(second).not.toContain('"/workspace/project-a"')
+    expect(promptText(first)).toContain('"/workspace/project-a"')
+    expect(promptText(first)).not.toContain('"/workspace/project-b"')
+    expect(promptText(second)).toContain('"/workspace/project-b"')
+    expect(promptText(second)).not.toContain('"/workspace/project-a"')
   })
 
   it('replaces only the Claude Code base with system.md and retains Cherry context', async () => {
@@ -200,13 +200,13 @@ describe('buildSystemPrompt — current workspace', () => {
 
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Agent instructions.' }), '/tmp/cwd')
 
-    expect(typeof result).toBe('string')
-    expect(result).toMatch(/^CUSTOM SYSTEM PROMPT\n\n## Instruction Precedence/)
-    expect(result).toContain('SOUL_PROMPT')
-    expect(result).toContain('Agent instructions.')
-    expect(result).toContain(WORKSPACE_MARKER)
-    expect(result).toContain(ARTIFACTS_MARKER)
-    expect(result).not.toContain('## Available Runtimes')
+    expect(result).toMatchObject({ type: 'custom', snapshot: false })
+    expect(promptText(result)).toMatch(/^CUSTOM SYSTEM PROMPT\n\n## Instruction Precedence/)
+    expect(promptText(result)).toContain('SOUL_PROMPT')
+    expect(promptText(result)).toContain('Agent instructions.')
+    expect(promptText(result)).toContain(WORKSPACE_MARKER)
+    expect(promptText(result)).toContain(ARTIFACTS_MARKER)
+    expect(promptText(result)).not.toContain('## Available Runtimes')
   })
 
   it('treats an empty system.md as a custom base and still retains Cherry context', async () => {
@@ -214,11 +214,11 @@ describe('buildSystemPrompt — current workspace', () => {
 
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Agent instructions.' }), '/tmp/cwd')
 
-    expect(typeof result).toBe('string')
-    expect(result).toMatch(/^## Instruction Precedence/)
-    expect(result).toContain('SOUL_PROMPT')
-    expect(result).toContain('Agent instructions.')
-    expect(result).toContain(WORKSPACE_MARKER)
+    expect(result).toMatchObject({ type: 'custom', snapshot: false })
+    expect(promptText(result)).toMatch(/^## Instruction Precedence/)
+    expect(promptText(result)).toContain('SOUL_PROMPT')
+    expect(promptText(result)).toContain('Agent instructions.')
+    expect(promptText(result)).toContain(WORKSPACE_MARKER)
   })
 })
 

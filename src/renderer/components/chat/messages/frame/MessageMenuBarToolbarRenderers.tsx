@@ -1,9 +1,10 @@
-import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
-import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 
 import { MessageActionButton } from './MessageActionButton'
 import type {

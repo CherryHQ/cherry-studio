@@ -1,12 +1,13 @@
+import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
+import { Activity } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { AppRouter } from '@renderer/types/router'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { Activity } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // The annotation keeps this in step with the registered `AppRouter`: options that change the
 // router's type fail here instead of silently diverging from what pages are typed against.

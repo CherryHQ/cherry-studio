@@ -1,11 +1,12 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type * as UseCacheModule from '@data/hooks/useCache'
-import type * as MiniAppPresets from '@shared/data/presets/miniApps'
-import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as UseCacheModule from '@data/hooks/useCache'
+import type * as MiniAppPresets from '@shared/data/presets/miniApps'
+import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppsPage from '../MiniAppsPage'
 
@@ -33,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
-  toggleMiniApp: vi.fn(),
+  setMiniAppPinned: vi.fn(),
   openTab: vi.fn(),
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
@@ -66,8 +67,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: mocks.toggleMiniApp })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: mocks.setMiniAppPinned })
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({

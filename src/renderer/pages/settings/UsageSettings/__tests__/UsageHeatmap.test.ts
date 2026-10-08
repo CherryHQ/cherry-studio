@@ -1,5 +1,6 @@
-import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 
 import { buildHeatmapDays } from '../UsageHeatmap'
 

@@ -1,6 +1,7 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RefObject } from 'react'
 import { useEffect, useEffectEvent, useRef } from 'react'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import { hasComposerDraftUserText } from '../../composerDraft'
 import type { ComposerSerializedToken } from '../../tokens'
@@ -18,7 +19,8 @@ export function useComposerFill<T extends ComposerFillActions>(
   actionsRef: RefObject<T>,
   topicId: string,
   apply: (text: string) => void,
-  getFillDraft?: () => { text: string; tokens?: readonly ComposerSerializedToken[] }
+  getFillDraft?: () => { text: string; tokens?: readonly ComposerSerializedToken[] },
+  enabled = true
 ): void {
   const focusFrameRef = useRef<number | null>(null)
   const mountedRef = useRef(false)
@@ -39,6 +41,7 @@ export function useComposerFill<T extends ComposerFillActions>(
   })
 
   useEffect(() => {
+    if (!enabled) return
     mountedRef.current = true
     const off = EventEmitter.on(EVENT_NAMES.FILL_CHAT_COMPOSER, (payload) => {
       const input =
@@ -55,5 +58,5 @@ export function useComposerFill<T extends ComposerFillActions>(
       off()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `fill` is useEffectEvent; resubscribing would cancel a pending focus after apply().
-  }, [topicId])
+  }, [enabled, topicId])
 }

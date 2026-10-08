@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   EmptyState,
   RowFlex,
@@ -18,9 +22,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ObsidianSettings')
 

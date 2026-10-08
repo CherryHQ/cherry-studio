@@ -1,6 +1,7 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import type { ComposerSerializedToken } from '../../../tokens'
 import { useComposerFill } from '../useComposerFill'
@@ -37,7 +38,8 @@ describe('useComposerFill', () => {
   function renderFill(
     topicId: string,
     draft: { text: string; tokens?: ComposerSerializedToken[] } | string,
-    getFillDraft?: () => { text: string; tokens?: ComposerSerializedToken[] }
+    getFillDraft?: () => { text: string; tokens?: ComposerSerializedToken[] },
+    enabled = true
   ) {
     const apply = vi.fn()
     const focus = vi.fn()
@@ -50,7 +52,7 @@ describe('useComposerFill', () => {
       }
     }
 
-    const hook = renderHook(() => useComposerFill(actionsRef, topicId, apply, getFillDraft))
+    const hook = renderHook(() => useComposerFill(actionsRef, topicId, apply, getFillDraft, enabled))
     return { apply, focus, actionsRef, unmount: hook.unmount, rerender: hook.rerender }
   }
 
@@ -70,6 +72,18 @@ describe('useComposerFill', () => {
 
   it('does not replace a non-empty draft', async () => {
     const { apply, focus } = renderFill('topic-1', 'already typed')
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Use this prompt' })
+      flushAnimationFrames()
+    })
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(focus).not.toHaveBeenCalled()
+  })
+
+  it('ignores fill events while the composer layer is inactive', async () => {
+    const { apply, focus } = renderFill('topic-1', '', undefined, false)
 
     await act(async () => {
       await EventEmitter.emit(EVENT_NAMES.FILL_CHAT_COMPOSER, { topicId: 'topic-1', text: 'Use this prompt' })

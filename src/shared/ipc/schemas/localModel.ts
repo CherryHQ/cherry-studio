@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import {
   LOCAL_MODEL_BUNDLE_IDS,
   LOCAL_MODEL_CAPABILITIES,
@@ -5,7 +7,6 @@ import {
   LOCAL_MODEL_ERROR_CODES,
   LOCAL_MODEL_STATUSES
 } from '@shared/data/presets/localModel'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

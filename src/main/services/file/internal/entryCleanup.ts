@@ -183,5 +183,14 @@ function finish(report: EntryCleanupReport, rawError?: unknown): EntryCleanupRep
 
 /** Narrow the internal report to the wire summary — see `EntryCleanupSummary`. */
 export function summariseEntryCleanup(report: EntryCleanupReport): EntryCleanupSummary {
-  return { outcome: report.outcome, candidates: report.candidates, deleted: report.deleted }
+  return {
+    outcome: report.outcome,
+    candidates: report.candidates,
+    deleted: report.deleted,
+    hasPendingWork:
+      report.outcome !== 'completed' ||
+      report.failed > 0 ||
+      report.unlinkFailures > 0 ||
+      report.candidates === ENTRY_CLEANUP_BATCH_LIMIT
+  }
 }

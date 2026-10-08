@@ -1,3 +1,8 @@
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -30,10 +35,6 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
@@ -684,6 +685,7 @@ export function CompactModelField({
   label,
   labelClassName,
   description,
+  help,
   allowClear = false,
   emptyLabel,
   filter,
@@ -702,6 +704,8 @@ export function CompactModelField({
   label: string
   labelClassName?: string
   description?: string
+  /** Shown in a help tooltip beside the label. `description` stays inline below the field. */
+  help?: ReactNode
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
@@ -740,9 +744,24 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
-            {label}
-          </FormLabel>
+          {help ? (
+            <FieldLabelWithHelp
+              label={label}
+              help={help}
+              // In row layout FormItem is a grid, so `justify-self-end` has to sit on the wrapper
+              // div that FieldLabelWithHelp renders around the label.
+              className={layout === 'row' ? 'justify-self-end' : undefined}
+              labelClassName={cn(
+                layout === 'row' ? 'font-normal text-muted-foreground text-[13px]' : 'font-normal',
+                labelClassName
+              )}
+            />
+          ) : (
+            <FormLabel
+              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              {label}
+            </FormLabel>
+          )}
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
@@ -776,7 +795,7 @@ export function CompactModelField({
                     )}
                     chevronClassName={
                       allowClear && value
-                        ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
+                        ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0 no-hover:opacity-0'
                         : undefined
                     }
                   />
@@ -796,7 +815,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
                   <X size={12} />
                 </Button>
               ) : null}

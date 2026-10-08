@@ -1,5 +1,6 @@
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { describe, expect, it } from 'vitest'
+
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { readAndParseDraftFile, validateCliConfigDraftForWrite } from '../draftFiles'
 import { type CliConfigReadFiles, parseTomlOrThrow, parseYamlOrThrow } from '../file'

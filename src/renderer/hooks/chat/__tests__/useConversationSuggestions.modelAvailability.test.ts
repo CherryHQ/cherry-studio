@@ -1,11 +1,12 @@
-import type { ConversationSuggestions } from '@renderer/utils/conversationSuggestions'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ConversationSuggestions } from '@renderer/utils/conversationSuggestions'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { useConversationSuggestions } from '../useConversationSuggestions'
 

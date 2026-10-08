@@ -1,7 +1,8 @@
-import type { Topic } from '@renderer/types/topic'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
+
+import type { Topic } from '@renderer/types/topic'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageActivityState } from './hooks/useMessageActivityState'
 import { MessageListProvider } from './MessageListProvider'
@@ -31,7 +32,7 @@ function createFallbackTopic(messages: MessageListItem[]): Topic {
     createdAt: firstMessage?.createdAt || '',
     updatedAt: firstMessage?.updatedAt || '',
     messages: []
-  } as Topic
+  }
 }
 
 export function MessageContentProvider({

@@ -1,6 +1,7 @@
-import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { CodeCli } from '@shared/types/codeCli'
 
 import { useRemoveCliToolDialog } from '../useRemoveCliToolDialog'
 

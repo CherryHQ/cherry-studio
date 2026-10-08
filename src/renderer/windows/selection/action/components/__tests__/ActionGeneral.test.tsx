@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
@@ -279,10 +279,11 @@ describe('ActionGeneral', () => {
         id: 'streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+      await vi.dynamicImportSettled()
     })
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
 
@@ -305,10 +306,11 @@ describe('ActionGeneral', () => {
         id: 'first-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
     act(() => {
       vi.advanceTimersByTime(3000)
@@ -325,10 +327,11 @@ describe('ActionGeneral', () => {
         id: 'second-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
 
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()

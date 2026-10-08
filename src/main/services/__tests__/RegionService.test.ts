@@ -7,7 +7,7 @@ const CACHE_KEY = 'region.egressCountry'
 // single geolocation transport under test.
 const { netFetchMock, proxyState } = vi.hoisted(() => ({
   netFetchMock: vi.fn(),
-  proxyState: { appliedProxyKey: 'direct||' as string | null }
+  proxyState: { appliedProxyKey: 'direct||' }
 }))
 
 vi.mock('@logger', () => ({
@@ -80,6 +80,12 @@ describe('RegionService', () => {
     MockMainCacheServiceUtils.resetMocks()
     netFetchMock.mockResolvedValue(fetchResponse({ country_code: 'JP' }))
     await expect(regionService.isInChina()).resolves.toBe(false)
+  })
+
+  it('propagates failures when callers require a confirmed region', async () => {
+    netFetchMock.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(regionService.detectIsInChina()).rejects.toThrow('network down')
   })
 
   it.each([

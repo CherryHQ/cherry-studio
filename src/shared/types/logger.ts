@@ -30,3 +30,12 @@ export const LEVEL_MAP: Record<LogLevel, number> = {
   silly: 0,
   none: -1
 }
+
+/** Log retention windows offered in settings, in days. */
+export const LOG_RETENTION_DAYS = [7, 14, 30, 90] as const
+
+/**
+ * The longest retention a user can pick, and therefore the cap the rotating
+ * transports keep as a backstop — LogRetentionService enforces the chosen value.
+ */
+export const MAX_LOG_RETENTION_DAYS = Math.max(...LOG_RETENTION_DAYS)

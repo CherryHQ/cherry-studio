@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import type { PosixPath, WindowsPath } from '@shared/utils/file/pathSpec'
 import {
   type PosixRelativeFilePath,
@@ -8,7 +10,6 @@ import {
   type WindowsRelativeFilePath,
   WindowsRelativeFilePathSchema
 } from '@shared/utils/file/relativeFilePath'
-import { describe, expect, it } from 'vitest'
 
 const accepts = (schema: { safeParse: (v: string) => { success: boolean } }, value: string) =>
   schema.safeParse(value).success

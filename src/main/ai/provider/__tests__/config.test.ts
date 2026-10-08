@@ -1,3 +1,7 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -14,9 +18,6 @@ import {
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -226,7 +227,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       },
       settings: {
         extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
-      } as never
+      }
     })
     const model = makeModel({
       id: 'copilot::gpt-4o',
@@ -252,7 +253,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
 
-    it('uses the conversation id for providers derived from the OpenCode preset', async () => {
+    it('declares the conversation header for providers derived from the OpenCode preset', async () => {
       const provider = makeProvider({
         id: 'custom-opencode',
         presetProviderId: 'opencode',
@@ -265,10 +266,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
-      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+      const config = await providerToAiSdkConfig(provider, model)
 
-      expect(headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
+      expect(config.conversationHeader).toBe('x-opencode-session')
+      expect((config.providerSettings as { headers?: Record<string, string> }).headers ?? {}).not.toHaveProperty(
+        'x-opencode-session'
+      )
     })
 
     it('keeps an explicitly configured session header', async () => {
@@ -285,11 +288,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         settings: { extraHeaders: { 'X-OpenCode-Session': 'configured-session' } }
       })
 
-      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const config = await providerToAiSdkConfig(provider, model)
       const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
 
       expect(headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
-      expect(headers).not.toHaveProperty('x-opencode-session')
+      expect(config.conversationHeader).toBeUndefined()
     })
   })
 
@@ -1104,6 +1107,26 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('adds X-App-URL to TokenDance chat request headers', async () => {
+      const provider = makeProvider({
+        id: 'tokendance',
+        presetProviderId: 'tokendance',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://tokendance.space/gateway/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'tokendance', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.headers).toMatchObject({ 'X-App-URL': 'app://cherryai.com.cn' })
+    })
+
     it('adds X-Source only to Radeon Cloud chat request headers', async () => {
       const radeonProvider = makeProvider({
         id: 'radeon-cloud',
@@ -1249,6 +1272,81 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it('routes ComfyUI IMAGE models through ComfyUI config with no API version appended', async () => {
+      // ComfyUI's API is unversioned — `/prompt`, `/history` and `/view` sit at the host
+      // root — so the extension's transport has to receive the bare host. An appended
+      // `/v1` makes every call the transport makes a 404.
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'http://localhost:8188',
+            adapterFamily: 'comfyui'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('comfyui')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('http://localhost:8188')
+    })
+
+    it.each([
+      ['http://localhost:8188/', 'http://localhost:8188'],
+      [' http://localhost:8188/proxy/ ', 'http://localhost:8188/proxy'],
+      ['http://localhost:8188/proxy/comfy///#', 'http://localhost:8188/proxy/comfy'],
+      ['http://localhost:8188/v1/#fragment', 'http://localhost:8188/v1']
+    ])('preserves the copied ComfyUI server path %s', async (baseUrl, expected) => {
+      // A copied provider: the id carries no hint, the endpoint carries the family.
+      const provider = makeProvider({
+        id: '8f0a3d5e-9c1b-4a2f-8d3e-71c0b4a6e5d2',
+        presetProviderId: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl, adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: provider.id,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    it('routes ComfyUI without selecting or attributing a stored key', async () => {
+      const provider = makeProvider({
+        id: 'comfyui',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'http://localhost:8188', adapterFamily: 'comfyui' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'comfyui',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
+
+      // The server takes no credential, so resolving one would attribute a key
+      // the transport never sends.
+      expect(resolved.config.providerId).toBe('comfyui')
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+    })
+
     it.each([
       ['minimax', undefined, 'https://api.minimaxi.com/v1'],
       ['minimax-global', 'minimax', 'https://api.minimax.io/v1']
@@ -1296,6 +1394,33 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('openai-compatible')
     })
+
+    it.each([
+      ['moonshot', undefined, 'https://api.moonshot.cn', 'https://api.moonshot.cn/v1'],
+      ['moonshot-global', 'moonshot', 'https://api.moonshot.ai', 'https://api.moonshot.ai/v1']
+    ])(
+      'routes %s chat models through the Moonshot extension config',
+      async (id, presetProviderId, baseUrl, expectedBaseUrl) => {
+        const provider = makeProvider({
+          id,
+          presetProviderId,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl,
+              adapterFamily: 'openai-compatible'
+            }
+          }
+        })
+        const model = makeModel({ providerId: id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('moonshot')
+        expect(settings.baseURL).toBe(expectedBaseUrl)
+      }
+    )
 
     it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
       // Two things ride on this id. The generic OpenAICompatibleImageModel would POST

@@ -1,6 +1,7 @@
+import { useCallback, useMemo } from 'react'
+
 import type { MessageListActions, MessageListState, MessageUiState } from '@renderer/components/chat/messages/types'
 import { getCachedMessageUiState, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
-import { useCallback, useMemo } from 'react'
 
 type MessageUiStateCache = Pick<MessageListState, 'getMessageUiState'> &
   Pick<MessageListActions, 'updateMessageUiState'>

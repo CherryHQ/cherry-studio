@@ -4,44 +4,35 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  CallToolRequestSchema,
-  type CallToolResult,
-  ListToolsRequestSchema,
-  type Tool
-} from '@modelcontextprotocol/sdk/types.js'
+import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
+import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  findByIdOrName: vi.fn(),
-  refreshTools: vi.fn()
-}))
+import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
-}))
-vi.mock('@data/services/McpServerService', () => ({
-  mcpServerService: { findByIdOrName: mocks.findByIdOrName }
-}))
-vi.mock('@application', () => ({
-  application: { get: () => ({ refreshTools: mocks.refreshTools }) }
 }))
 
 const { buildDshCherryToolBridge, buildDshCherryToolName } = await import('../DshCherryToolBridge')
 
 function createServer(
   tools: Tool[],
-  call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => Promise<CallToolResult>
-): McpServer {
-  const server = new McpServer({ name: 'test', version: '1.0.0' }, { capabilities: { tools: {} } })
-  server.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }))
-  server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
-    call(request.params.name, request.params.arguments ?? {}, extra.signal)
-  )
-  return server
+  call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => Promise<CallToolResult>,
+  listTools: () => Promise<{ tools: Tool[] }> = async () => ({ tools })
+) {
+  const onClose = vi.fn()
+  const connect = serveMcpTestServer(() => {
+    const server = new Server({ name: 'test', version: '1.0.0' }, { capabilities: { tools: {} } })
+    server.setRequestHandler('tools/list', listTools)
+    server.setRequestHandler('tools/call', async (request, ctx) =>
+      call(request.params.name, request.params.arguments ?? {}, ctx.mcpReq.signal)
+    )
+    server.onclose = onClose
+    return server
+  })
+  return { connect, onClose }
 }
 
 const tool = (name: string): Tool => ({
@@ -84,34 +75,34 @@ describe('DshCherryToolBridge', () => {
   it('fails closed when two MCP identities map to the same public name', async () => {
     const first = createServer([tool('same')], async () => ({ content: [] }))
     const second = createServer([tool('same')], async () => ({ content: [] }))
-    const firstClosed = vi.fn()
-    first.server.onclose = firstClosed
-
     await expect(
       buildDshCherryToolBridge(
         {
-          first: { name: 'duplicate', instance: first },
-          second: { name: 'duplicate', instance: second }
+          first: { name: 'duplicate', connect: first.connect },
+          second: { name: 'duplicate', connect: second.connect }
         },
         bridgeOptions()
       )
     ).rejects.toThrow('Duplicate dsh Cherry tool name: mcp__duplicate__same')
-    expect(firstClosed).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(first.onClose).toHaveBeenCalledOnce())
   })
 
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
-    const unavailable = new McpServer({ name: 'bad', version: '1.0.0' }, { capabilities: { tools: {} } })
-    unavailable.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      throw new Error('offline')
-    })
+    const unavailable = createServer(
+      [],
+      async () => ({ content: [] }),
+      async () => {
+        throw new Error('offline')
+      }
+    )
     const available = createServer([tool('kb_search')], async () => ({
       content: [{ type: 'text', text: 'ok' }]
     }))
 
     const bridge = await buildDshCherryToolBridge(
       {
-        unavailable: { name: 'offline', instance: unavailable },
-        available: { name: 'cherry-tools', instance: available }
+        unavailable: { name: 'offline', connect: unavailable.connect },
+        available: { name: 'cherry-tools', connect: available.connect }
       },
       bridgeOptions()
     )
@@ -159,7 +150,10 @@ describe('DshCherryToolBridge', () => {
       structuredContent: { total: 7 }
     }))
     const server = createServer([tool('run')], call)
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
 
     const imageHash = createHash('sha256').update(image).digest('hex')
     const audioHash = createHash('sha256').update(audio).digest('hex')
@@ -178,7 +172,8 @@ describe('DshCherryToolBridge', () => {
         'body',
         `[resource: video/mp4, uri="file:///clip.mp4", saved to ${JSON.stringify(videoPath)}]`,
         `[resource: application/pdf, uri="file:///report.pdf", saved to ${JSON.stringify(documentPath)}]`,
-        '[resource link: name="remote", uri="https://example.com/report.pdf", mimeType="application/pdf"]'
+        '[resource link: name="remote", uri="https://example.com/report.pdf", mimeType="application/pdf"]',
+        '{"total":7}'
       ].join('\n'),
       data: { total: 7 }
     })
@@ -187,15 +182,26 @@ describe('DshCherryToolBridge', () => {
     await expect(readFile(audioPath)).resolves.toEqual(audio)
     await expect(readFile(videoPath)).resolves.toEqual(video)
     await expect(readFile(documentPath)).resolves.toEqual(document)
-    const { detectImage } = await import(
+    const { prepareImageFile } = await import(
       pathToFileURL(resolveDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href
     )
-    await expect(detectImage(await readFile(imagePath))).resolves.toEqual({
+    const prepared = await prepareImageFile(
+      { data: await readFile(imagePath), mediaType: 'image/png' },
+      {
+        maxImageBytes: 1048576,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1048576,
+        maxImagePixels: 1024,
+        maxImageDimension: 32
+      },
+      { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+    )
+    expect(prepared.ref).toMatchObject({
       mediaType: 'image/png',
       width: 1,
       height: 1
     })
-    expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
     await bridge.close()
   })
 
@@ -214,7 +220,10 @@ describe('DshCherryToolBridge', () => {
       })
       return { content: [{ type: 'text', text: 'cancelled' }], isError: true }
     })
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
     const controller = new AbortController()
 
     const pending = bridge.callTool('mcp__server__run', {}, controller.signal)
@@ -234,10 +243,44 @@ describe('DshCherryToolBridge', () => {
       ],
       isError: true
     }))
-    const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+    const bridge = await buildDshCherryToolBridge(
+      { server: { name: 'server', connect: server.connect } },
+      bridgeOptions()
+    )
 
     await expect(bridge.callTool('mcp__server__run', {})).rejects.toThrow('tool failed')
     await expect(access(toolResultRoot)).rejects.toMatchObject({ code: 'ENOENT' })
     await bridge.close()
+  })
+
+  // Real-chain behavior tests driven by fake timers: the SDK client's request timer actually
+  // runs, so a regression to the 60s default fires it and turns these red (#20266). Outcomes
+  // are asserted, never the RequestOptions shape (#20297 review).
+  describe('forwarding behavior', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('completes a signal-less call that outlasts the SDK 60s default timeout (#20266)', async () => {
+      const server = createServer([tool('run')], async () => {
+        await new Promise((resolve) => setTimeout(resolve, 65_000))
+        return { content: [{ type: 'text', text: 'slow but done' }] }
+      })
+      const bridge = await buildDshCherryToolBridge(
+        { server: { name: 'server', connect: server.connect } },
+        bridgeOptions()
+      )
+
+      const completion = expect(bridge.callTool('mcp__server__run', { value: 'x' })).resolves.toMatchObject({
+        text: 'slow but done'
+      })
+      await vi.advanceTimersByTimeAsync(65_000)
+      await completion
+      await bridge.close()
+    })
   })
 })

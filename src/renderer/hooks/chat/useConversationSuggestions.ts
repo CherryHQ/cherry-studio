@@ -1,3 +1,5 @@
+import useSWRImmutable from 'swr/immutable'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -9,7 +11,6 @@ import {
 } from '@renderer/utils/conversationSuggestions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import useSWRImmutable from 'swr/immutable'
 
 const logger = loggerService.withContext('useConversationSuggestions')
 

@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ipcApi } from '@renderer/ipc'
 import { generateConversationSuggestions } from '@renderer/utils/aiGeneration'
 import {
@@ -5,7 +7,6 @@ import {
   parseConversationSuggestions
 } from '@renderer/utils/conversationSuggestions'
 import type { Model } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/utils/model', () => ({

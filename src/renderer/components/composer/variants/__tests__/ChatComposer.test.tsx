@@ -1,3 +1,11 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { type ReactNode, useEffect } from 'react'
+import type * as ReactI18nextModule from 'react-i18next'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
@@ -7,13 +15,6 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { type ReactNode, useEffect } from 'react'
-import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
@@ -111,9 +112,9 @@ function createDeferred<T>() {
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -163,7 +164,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
-        getDraft: mocks.getDraft
+        // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
+        // Avoid reading shared `surfaceProps`, which would point at the new topic.
+        getDraft: () => mocks.getDraft(props)
       })
     }, [props])
 
@@ -350,10 +353,6 @@ vi.mock('../SelectedModelsTrigger', () => ({
       </button>
     </div>
   )
-}))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -655,7 +654,7 @@ describe('ChatComposer', () => {
     mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),
@@ -675,8 +674,8 @@ describe('ChatComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
@@ -1113,12 +1112,25 @@ describe('ChatComposer', () => {
   it('exposes MCP as a customizable chat toolbar shortcut', () => {
     mocks.pinnedToolIds = ['mcp-status']
 
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const mcpButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })
+    // Default assistant uses manual MCP mode with no bindings, so the shortcut stays idle.
+    expect(mcpButton).not.toHaveAttribute('data-active')
 
     fireEvent.click(mcpButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+
+    mocks.assistant = {
+      ...mocks.assistant,
+      settings: { ...mocks.assistant.settings, mcpMode: 'auto' }
+    }
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('keeps clear context hidden by default but available in the QuickPanel and toolbar customization', () => {
@@ -1361,7 +1373,7 @@ describe('ChatComposer', () => {
       ...knowledgeBaseToComposerToken({ id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase),
       index: 0,
       textOffset: 0
-    } as ComposerSerializedToken
+    }
     const tokens: ComposerSerializedToken[] = [knowledgeToken]
     mocks.getDraft.mockReturnValue({ text: knowledgeToken.promptText, tokens })
     render(<ChatComposer topic={topic} onSend={onSend} />)
@@ -2300,7 +2312,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2404,7 +2416,7 @@ describe('ChatComposer', () => {
               promptText: knowledgePrompt,
               index: 0,
               textOffset: 'summarize '.length
-            } as ComposerSerializedToken
+            }
           ]
         })
       })
@@ -2852,7 +2864,10 @@ describe('ChatComposer', () => {
   it('keeps a mentioned-model selection made while previewing history', async () => {
     seedInputHistory(['history entry'])
     mocks.mentionedModels = [model]
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
 
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2990,7 +3005,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
       drafts.set(key, value)
     })
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -3081,6 +3099,10 @@ describe('ChatComposer', () => {
     })
     mocks.knowledgeBasesLoading = true
     mocks.modelPending = true
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: surfaceProps?.draftTokens?.map(serializeComposerToken) ?? []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -3196,6 +3218,74 @@ describe('ChatComposer', () => {
         expect.any(Number)
       )
     })
+  })
+
+  it('persists text and tokens from the same live composer snapshot', async () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      // The editor snapshot can be newer than the React text prop during token synchronization.
+      mocks.surfaceProps?.onTextChange('summarize')
+    })
+
+    await waitFor(() => {
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'chat.composer_draft.topic-1',
+        expect.objectContaining({
+          text: liveDraft.text,
+          tokens: liveDraft.tokens
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('persists the live draft snapshot when the chat composer unmounts', () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    vi.mocked(cacheService.set).mockClear()
+
+    view.unmount()
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-1',
+      expect.objectContaining({
+        text: liveDraft.text,
+        tokens: liveDraft.tokens
+      }),
+      expect.any(Number)
+    )
   })
 
   it('persists token-only draft changes when the serialized text stays unchanged', async () => {
@@ -3638,7 +3728,7 @@ describe('ChatComposer', () => {
     mocks.modelPending = false
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
@@ -3965,7 +4055,7 @@ describe('ChatComposer', () => {
 
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingOnMount enabled={false} message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'old' }]} />
         <ChatComposer topic={nextTopic} onSend={onSend} />
       </MessageEditingProvider>
     )
@@ -4635,7 +4725,7 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
-  it('does not save an assistant reply whose editable parts are separated by a tool call', async () => {
+  it('saves an assistant reply split by a tool call without moving the tool', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
@@ -4660,12 +4750,29 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
-    await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
 
-    expect(editMessage).not.toHaveBeenCalled()
+    // The prefill anchors the tool between the two texts; the editor hands that anchor back on save.
+    const restoredDraft = mocks.replaceDraft.mock.lastCall?.[0]
+    expect(restoredDraft.tokens).toEqual([
+      expect.objectContaining({
+        kind: 'messagePart',
+        id: `message-part:${message.id}:1`,
+        textOffset: 'before tool\n'.length
+      })
+    ])
+
+    await mocks.surfaceProps?.onSendDraft({
+      text: 'edited before\n\nedited after',
+      tokens: [{ ...restoredDraft.tokens[0], textOffset: 'edited before\n'.length }]
+    })
+
+    expect(editMessage).toHaveBeenCalledWith(message.id, [
+      { type: 'text', text: 'edited before' },
+      originalParts[1],
+      { type: 'text', text: 'edited after' }
+    ])
     expect(forkAndResend).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
-    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
   it('saves an assistant reply whose text has provider metadata', async () => {
@@ -4782,7 +4889,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
