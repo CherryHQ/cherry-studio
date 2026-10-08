@@ -1,5 +1,5 @@
 ---
-description: Computer Use SDK setup, Agent tools, task ownership and tray stopping before npm distribution
+description: Computer Use SDK installation, native runtime setup, Agent tools, task ownership and tray stopping
 sources:
   - src/main/services/ComputerUseService.ts
   - src/main/services/TrayService.ts
@@ -16,9 +16,9 @@ This development slice connects the native SDK to permission settings, ordinary 
 
 ## SDK installation and local runtime setup
 
-The SDK has not been published. `pnpm install --frozen-lockfile` installs a checked-in SDK tarball, including its ESM/CJS exports and type declarations; clean checkout installation, type checks and unit tests need no `.context` setup. Its source commit, checksum and rebuild steps are recorded in [the artifact README](../../packages/computer-use-sdk/README.md). Replace the tarball with an exact npm version during distribution work.
+`pnpm install --frozen-lockfile` installs the published `@cherrystudio/computer-use@0.1.1` SDK from npm, including its ESM/CJS exports and type declarations. The version and integrity are pinned in the lockfile; clean checkout installation, type checks and unit tests need no `.context` setup or checked-in SDK tarball.
 
-Desktop control still requires a matching native runtime. Build it in a separate `CherryHQ/cherry-computer-use` checkout at the artifact's source commit, then link its output from this workspace. On macOS/Linux:
+Desktop control still requires a matching native runtime. Cherry supplies an explicit runtime path; publishing the SDK does not replace that helper setup. Build it in a separate `CherryHQ/cherry-computer-use` checkout matching the SDK release, then link its output from this workspace. On macOS/Linux:
 
 ```sh
 # Set this to your fork checkout; do not commit its value.
@@ -88,7 +88,7 @@ The ordinary chat tools are `computer_list_apps`, `computer_open_app`, `computer
 Each chat run or Agent turn lazily starts one private SDK/runtime and can own multiple applications. Host-created task handles never come from model parameters. Chat completion, failure and cancellation close the runtime. Agent terminal/idle and connection-close events also release tasks, even when the Agent connection stays warm. Permission onboarding retains separate short sessions.
 
 - An application stays exclusively owned across observation and action, until stop or task cleanup is confirmed. `TrayService` displays each application and its conversation/Agent owner, with single-app and stop-all actions. The tray remains available while control or stopped-owner entries exist, even when the ordinary tray preference is off.
-- Protocol v2 supplies `openAppSession`, `listAppSessions` and `stopAppSession`; observations/actions require an `appSessionId`. Request cancellation and task-level close are separate. Keep the SDK artifact and helper on matching protocol versions and restart Cherry after updating them; old v1 helpers fail the handshake.
+- Protocol v2 supplies `openAppSession`, `listAppSessions` and `stopAppSession`; observations/actions require an `appSessionId`. Request cancellation and task-level close are separate. Keep the SDK and helper on matching protocol versions and restart Cherry after updating them; old v1 helpers fail the handshake.
 - Native stopping bypasses the action queue, rejects new work, and waits for cleanup confirmation. Stopping automation does not quit the user's application. Tray shows stopping until confirmation; uncertain cleanup retains the application reservation and disables execution.
 - Cherry retains user-stop state in memory per conversation/Agent session across calls, turns and SDK recreation. Only **Allow control again** in the tray clears it. After stop-all, start a new turn; allowing control does not revive an ended task or old snapshots. Unconfirmed cleanup cannot be cleared through that menu. Resume is not an Agent tool.
 - On macOS the runtime reuses the upstream engine: Cherry exposes click (element or screenshot pixel), secondary actions, scroll, drag, typing, key presses and set value, and `get_app_state` returns the engine's outline whose line numbers are element IDs. Windows/Linux still support only semantic left clicks. Scroll tries native AX page actions, `AXScrollToVisible` and targeted wheel events in order, requiring observed movement before reporting success. Pass the list or scrollable container element: Chromium reveal scrolling needs suitable off-screen accessibility nodes and provides approximate distance. Missing nodes do not prove that the list is at its boundary; unverified movement returns failure with a possible effect, so observe again before retrying. Strict foreground, mouse and window-order acceptance for this scroll change remains pending; the user deferred desktop tests while using the computer. The fork's `docs/design-docs/computer-use-runtime.md` owns the native contract. X11 and Wayland capabilities require separate validation.

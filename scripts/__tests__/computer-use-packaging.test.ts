@@ -1,24 +1,24 @@
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { x } from 'tar'
 import { expect, it } from 'vitest'
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 
 it('ships an SDK that loads and resolves types without a local checkout or native runtime', async () => {
   const manifest = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
-  const dependency: string = manifest.dependencies['@cherrystudio/computer-use']
-  expect(dependency).toMatch(/^file:.*\.tgz$/)
+  const require = createRequire(import.meta.url)
+  const sdkRoot = path.dirname(path.dirname(require.resolve('@cherrystudio/computer-use')))
+  const sdkManifest = JSON.parse(await readFile(path.join(sdkRoot, 'package.json'), 'utf8'))
+  expect(sdkManifest.version).toBe(manifest.dependencies['@cherrystudio/computer-use'])
 
   const consumer = await mkdtemp(path.join(tmpdir(), 'cherry-computer-use-package-'))
   try {
     const installed = path.join(consumer, 'node_modules/@cherrystudio/computer-use')
-    await mkdir(installed, { recursive: true })
-    await x({ file: path.resolve(projectRoot, dependency.slice('file:'.length)), cwd: installed, strip: 1 })
+    await cp(sdkRoot, installed, { recursive: true, dereference: true })
 
     for (const extension of ['mjs', 'cjs']) {
       const header =
@@ -30,7 +30,7 @@ it('ships an SDK that loads and resolves types without a local checkout or nativ
         entry,
         `${header}
 const assert = ${extension === 'mjs' ? "(await import('node:assert/strict')).default" : "require('node:assert/strict')"}
-assert.rejects(ComputerUse.start(), error => {
+assert.rejects(ComputerUse.start({ runtimePath: './missing-runtime' }), error => {
   assert(error instanceof ComputerUseError)
   assert.equal(error.code, 'RUNTIME_NOT_FOUND')
   return true
@@ -49,7 +49,6 @@ void client
 `
       )
     }
-    const require = createRequire(import.meta.url)
     execFileSync(
       process.execPath,
       [
