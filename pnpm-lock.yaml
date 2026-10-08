@@ -472,9 +472,6 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
-      '@aiden0z/pptx-renderer':
-        specifier: 1.2.2
-        version: 1.2.2(pdfjs-dist@5.4.296)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -502,6 +499,9 @@ importers:
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
+      '@cherrystudio/file-preview':
+        specifier: workspace:*
+        version: link:packages/file-preview
       '@cherrystudio/openai':
         specifier: 6.15.0
         version: 6.15.0(ws@8.21.3)(zod@4.4.3)
@@ -1009,9 +1009,6 @@ importers:
       docx:
         specifier: ^9.0.2
         version: 9.5.1
-      docx-preview:
-        specifier: 0.3.7
-        version: 0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5)
       dompurify:
         specifier: ^3.2.6
         version: 3.3.1
@@ -1093,15 +1090,9 @@ importers:
       eslint-plugin-unused-imports:
         specifier: ^4.1.4
         version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
       fast-diff:
         specifier: ^1.3.0
         version: 1.3.0
-      fast-formula-parser:
-        specifier: ^1.0.19
-        version: 1.0.19
       fast-xml-parser:
         specifier: '>=5.10.1'
         version: 5.10.1
@@ -1234,9 +1225,6 @@ importers:
       npx-scope-finder:
         specifier: ^1.2.0
         version: 1.3.0
-      numfmt:
-        specifier: ^3.2.6
-        version: 3.2.6
       og-crd:
         specifier: ^0.0.2
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2042,6 +2030,115 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
+  packages/file-preview:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.3(react@19.2.3)
+      zod:
+        specifier: ^4.1.5
+        version: 4.4.3
+    devDependencies:
+      '@aiden0z/pptx-renderer':
+        specifier: 1.2.2
+        version: 1.2.2(pdfjs-dist@5.4.296)
+      '@cherrystudio/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@radix-ui/react-context-menu':
+        specifier: ^2.3.3
+        version: 2.3.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.3.0(@types/react@19.2.7)(react@19.2.3)
+      '@radix-ui/react-tabs':
+        specifier: ^1.1.13
+        version: 1.1.13(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@radix-ui/react-tooltip':
+        specifier: ^1.2.12
+        version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@tailwindcss/vite':
+        specifier: ^4.3.3
+        version: 4.3.3(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-virtual':
+        specifier: ^3.13.24
+        version: 3.13.24(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      docx-preview:
+        specifier: 0.3.7
+        version: 0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5)
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
+      es-toolkit:
+        specifier: ^1.49.0
+        version: 1.49.0
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
+      fast-formula-parser:
+        specifier: ^1.0.19
+        version: 1.0.19
+      fast-xml-parser:
+        specifier: '>=5.10.1'
+        version: 5.10.1
+      i18next:
+        specifier: ^23.11.5
+        version: 23.16.8
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
+      lucide-react:
+        specifier: ^0.525.0
+        version: 0.525.0(react@19.2.3)
+      numfmt:
+        specifier: ^3.2.6
+        version: 3.2.6
+      pdfjs-dist:
+        specifier: 5.4.296
+        version: 5.4.296
+      postcss:
+        specifier: 8.5.6
+        version: 8.5.6
+      react-error-boundary:
+        specifier: ^6.0.0
+        version: 6.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-i18next:
+        specifier: ^14.1.2
+        version: 14.1.3(i18next@23.16.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      rolldown-plugin-dts:
+        specifier: 0.27.14
+        version: 0.27.14(oxc-resolver@11.21.2)(rolldown@1.2.6)(typescript@5.9.3)
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.4.0
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      tw-animate-css:
+        specifier: ^1.3.8
+        version: 1.4.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/provider-registry:
     dependencies:

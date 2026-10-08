@@ -1,0 +1,32 @@
+import type { ComponentType } from 'react'
+
+import type { PreviewSelection } from './selection'
+import type { PreviewDocument, PreviewErrorCode } from './source'
+
+export interface PreviewDiagnostic {
+  level: 'error' | 'warn'
+  code?: PreviewErrorCode | 'navigation_error'
+  context: string
+  message: string
+  detail?: unknown
+}
+
+export interface PreviewResources {
+  baseUrl?: string
+  readPdfResource?: (kind: 'cmap' | 'standard_font', name: string) => Promise<Uint8Array>
+}
+
+export interface FilePreviewPluginProps {
+  sourceId: string
+  fileName: string
+  mediaType?: string
+  document: PreviewDocument
+  onSelection?: (selection: PreviewSelection | null) => void
+}
+
+export interface FilePreviewPlugin {
+  id: string
+  extensions: readonly string[]
+  load: () => Promise<{ default: ComponentType<FilePreviewPluginProps> }>
+  supportsSelectionReference?: boolean
+}

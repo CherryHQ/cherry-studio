@@ -1,0 +1,402 @@
+import type { PresentationData } from '@aiden0z/pptx-renderer'
+import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
+import { AlertCircle, LoaderCircle } from 'lucide-react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+
+import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { usePreviewHost, usePreviewLogger } from '../../previewContext'
+import { createPreviewSelection } from '../../selection'
+import { PreviewError, readPreviewDocument } from '../../source'
+import type { FilePreviewPluginProps } from '../../types'
+import { PowerPointFilePreviewToolbar } from './PowerPointFilePreviewToolbar'
+import { slideExcerpt, slideToPptxAnchor } from './pptxSelectionAnchor'
+
+const PPTX_PREVIEW_DEFAULT_ZOOM = 100
+const PPTX_PREVIEW_ZOOM_STEP = 10
+const PPTX_PREVIEW_MIN_ZOOM = 50
+const PPTX_PREVIEW_MAX_ZOOM = 200
+const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const EXTERNAL_TARGET_MODE = 'external'
+const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = bytes.buffer
+
+  if (buffer instanceof ArrayBuffer && bytes.byteOffset === 0 && bytes.byteLength === buffer.byteLength) {
+    return buffer
+  }
+
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
+function assertSourceSize(size: number): void {
+  if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
+    throw new PreviewError('too_large', 'PPTX preview supports files up to 25 MB')
+  }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new DOMException('Preview aborted', 'AbortError')
+  }
+}
+
+function getRelationshipTypeName(type: string): string {
+  return type.trim().toLowerCase().split('/').at(-1) ?? ''
+}
+
+function stripExternalMediaRelationshipMap(rels: Map<string, { type: string; targetMode?: string }>): void {
+  for (const [id, rel] of rels) {
+    if (
+      rel.targetMode?.trim().toLowerCase() === EXTERNAL_TARGET_MODE &&
+      EXTERNAL_MEDIA_RELATIONSHIP_TYPES.has(getRelationshipTypeName(rel.type))
+    ) {
+      rels.delete(id)
+    }
+  }
+}
+
+function stripExternalMediaRelationships(presentation: PresentationData): void {
+  for (const slide of presentation.slides) {
+    stripExternalMediaRelationshipMap(slide.rels)
+  }
+
+  for (const layout of presentation.layouts.values()) {
+    stripExternalMediaRelationshipMap(layout.rels)
+  }
+
+  for (const master of presentation.masters.values()) {
+    stripExternalMediaRelationshipMap(master.rels)
+  }
+}
+
+/**
+ * PowerPoint preview with slide-level selection picking. The pick lives in React state and the DOM
+ * marker is derived from it, because the renderer rebuilds every slide element on zoom (`setZoom` ->
+ * `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth would be wiped. The excerpt comes
+ * from the parsed deck rather than the clicked element (see `slideExcerpt`), so a slide the windowed
+ * renderer has not mounted yet cannot be mis-read. `preventDefault` makes a click inside an external
+ * hyperlink a pick; the renderer's in-deck jump links are `role="link"` spans that stop propagation,
+ * so they jump without picking (known limitation, see the FilePreview README).
+ */
+export default function PowerPointFilePreview({
+  sourceId,
+  fileName,
+  document: previewDocument,
+  onSelection
+}: FilePreviewPluginProps) {
+  const logger = usePreviewLogger('PowerPointFilePreview')
+  const { failDocument } = usePreviewHost()
+  const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const viewerRef = useRef<PptxViewer | null>(null)
+  // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
+  const presentationRef = useRef<PresentationData | null>(null)
+  const controlsBusyRef = useRef(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageCount, setPageCount] = useState(0)
+  const [zoom, setZoom] = useState(PPTX_PREVIEW_DEFAULT_ZOOM)
+  const [controlsBusy, setControlsBusy] = useState(false)
+  const [pickedSlide, setPickedSlide] = useState<number | null>(null)
+
+  const setPreviewControlsBusy = useCallback((busy: boolean) => {
+    controlsBusyRef.current = busy
+    setControlsBusy(busy)
+  }, [])
+
+  const focusContainer = useCallback(() => {
+    containerRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  const jumpToPage = useCallback(
+    (pageNumber: number) => {
+      const viewer = viewerRef.current
+      if (!viewer || pageCount <= 0 || controlsBusyRef.current) return
+
+      const nextPage = clamp(pageNumber, 1, pageCount)
+      setPreviewControlsBusy(true)
+      void viewer
+        .goToSlide(nextPage - 1, { block: 'center' })
+        .then(() => {
+          if (viewerRef.current !== viewer) return
+          setCurrentPage(viewer.currentSlideIndex + 1)
+        })
+        .catch((navigationError: unknown) => {
+          logger.warn('Failed to navigate PPTX preview slide', {
+            sourceId,
+            error: navigationError instanceof Error ? navigationError.message : String(navigationError)
+          })
+        })
+        .finally(() => {
+          if (viewerRef.current !== viewer) return
+          setPreviewControlsBusy(false)
+          focusContainer()
+        })
+    },
+    [sourceId, focusContainer, pageCount, setPreviewControlsBusy, logger]
+  )
+
+  const setViewerZoom = useCallback(
+    (nextZoom: number) => {
+      const viewer = viewerRef.current
+      if (!viewer || controlsBusyRef.current) return
+
+      const clampedZoom = clamp(nextZoom, PPTX_PREVIEW_MIN_ZOOM, PPTX_PREVIEW_MAX_ZOOM)
+      setPreviewControlsBusy(true)
+      void viewer
+        .setZoom(clampedZoom)
+        .then(() => {
+          if (viewerRef.current !== viewer) return
+          setZoom(viewer.zoomPercent)
+        })
+        .catch((zoomError: unknown) => {
+          logger.warn('Failed to update PPTX preview zoom', {
+            sourceId,
+            error: zoomError instanceof Error ? zoomError.message : String(zoomError)
+          })
+        })
+        .finally(() => {
+          if (viewerRef.current !== viewer) return
+          setPreviewControlsBusy(false)
+          focusContainer()
+        })
+    },
+    [sourceId, focusContainer, setPreviewControlsBusy, logger]
+  )
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const controller = new AbortController()
+    let cancelled = false
+    let viewer: PptxViewer | null = null
+
+    setError(null)
+    setLoading(true)
+    setCurrentPage(0)
+    setPageCount(0)
+    setZoom(PPTX_PREVIEW_DEFAULT_ZOOM)
+    setPreviewControlsBusy(false)
+    container.innerHTML = ''
+
+    void (async () => {
+      try {
+        assertSourceSize(previewDocument.size)
+
+        const pptxData = await readPreviewDocument(previewDocument, PPTX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
+        assertSourceSize(pptxData.byteLength)
+        if (cancelled) return
+
+        throwIfAborted(controller.signal)
+        const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
+        throwIfAborted(controller.signal)
+        const presentation = buildPresentation(pptxFiles, { lazySlides: true })
+        stripExternalMediaRelationships(presentation)
+        presentationRef.current = presentation
+        throwIfAborted(controller.signal)
+
+        viewer = new PptxViewer(container, {
+          fitMode: 'contain',
+          zoomPercent: PPTX_PREVIEW_DEFAULT_ZOOM,
+          scrollContainer: container,
+          zipLimits: RECOMMENDED_ZIP_LIMITS,
+          lazyMedia: true,
+          lazySlides: true,
+          pdfjs: false,
+          onSlideChange: (index) => {
+            if (!cancelled) setCurrentPage(index + 1)
+          },
+          onRenderStart: () => {
+            if (!cancelled) setPreviewControlsBusy(true)
+          },
+          onRenderComplete: () => {
+            if (cancelled) return
+            const activeViewer = viewerRef.current
+            if (activeViewer) setZoom(activeViewer.zoomPercent)
+            setPreviewControlsBusy(false)
+          },
+          onSlideError: (index, slideError) => {
+            logger.warn('Failed to render PPTX preview slide', {
+              sourceId,
+              slide: index + 1,
+              error: slideError instanceof Error ? slideError.message : String(slideError)
+            })
+          },
+          onNodeError: (nodeId, nodeError) => {
+            logger.warn('Failed to render PPTX preview node', {
+              sourceId,
+              nodeId,
+              error: nodeError instanceof Error ? nodeError.message : String(nodeError)
+            })
+          }
+        })
+        viewerRef.current = viewer
+
+        viewer.load(presentation)
+        await viewer.renderList({
+          windowed: true,
+          batchSize: 4,
+          initialSlides: 3,
+          overscanViewport: 2
+        })
+        throwIfAborted(controller.signal)
+        if (cancelled) return
+
+        const nextPageCount = viewer.slideCount
+        setPageCount(nextPageCount)
+        setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
+        focusContainer()
+      } catch (loadError) {
+        if (cancelled) return
+        if (viewerRef.current === viewer) {
+          viewerRef.current = null
+        }
+        viewer?.destroy()
+        container.innerHTML = ''
+        const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
+        logger.error(`Failed to load PPTX preview: ${sourceId}`, normalized)
+        failDocument?.(normalized)
+        setError(normalized)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      controlsBusyRef.current = false
+      presentationRef.current = null
+      if (viewerRef.current === viewer) {
+        viewerRef.current = null
+      }
+      viewer?.destroy()
+      container.innerHTML = ''
+    }
+  }, [sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
+
+  // The marker goes on only after createSelectionReference confirms the host receives something: a slide
+  // with no text must not look picked while the host gets null.
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelection || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+
+      const result = slideToPptxAnchor(event.target)
+      const presentation = presentationRef.current
+      if (!result || !presentation || result.anchor.slide === pickedSlide) {
+        setPickedSlide(null)
+        onSelection(null)
+        return
+      }
+      const reference = createPreviewSelection({
+        sourceId,
+        anchor: result.anchor,
+        excerpt: slideExcerpt(presentation, result.anchor.slide, logger.warn),
+        revision: previewDocument.revision
+      })
+      setPickedSlide(reference ? result.anchor.slide : null)
+      onSelection(reference)
+    },
+    [sourceId, previewDocument, onSelection, pickedSlide, logger.warn]
+  )
+
+  // Sole owner of the marker: the renderer replaces the container's children wholesale on zoom and fit
+  // changes, so a childList mutation repaints it. A rebuild is not a pick — report nothing.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const applyMarker = () => {
+      container.querySelectorAll('[data-pptx-picked]').forEach((marked) => marked.removeAttribute('data-pptx-picked'))
+      if (pickedSlide === null) return
+      container.querySelector(`[data-slide-index="${pickedSlide - 1}"]`)?.setAttribute('data-pptx-picked', 'true')
+    }
+
+    applyMarker()
+    const observer = new MutationObserver(applyMarker)
+    observer.observe(container, { childList: true })
+    return () => observer.disconnect()
+  }, [pickedSlide])
+
+  useEffect(() => {
+    if (onSelection) return
+    setPickedSlide(null)
+  }, [onSelection])
+
+  // A different document — or the same one reloaded — carries no pick; the host drops its reference
+  // on refresh too.
+  useEffect(() => {
+    setPickedSlide(null)
+  }, [sourceId])
+
+  const hasPages = !error && pageCount > 0
+
+  return (
+    <FilePreviewLayout.Frame>
+      <PowerPointFilePreviewToolbar
+        currentPage={hasPages ? currentPage : 0}
+        pageCount={hasPages ? pageCount : 0}
+        zoomLabel={formatPptxZoom(zoom)}
+        canPreviousPage={hasPages && !controlsBusy && currentPage > 1}
+        canNextPage={hasPages && !controlsBusy && currentPage < pageCount}
+        canZoomOut={hasPages && !controlsBusy && zoom > PPTX_PREVIEW_MIN_ZOOM}
+        canZoomIn={hasPages && !controlsBusy && zoom < PPTX_PREVIEW_MAX_ZOOM}
+        canResetZoom={hasPages && !controlsBusy && zoom !== PPTX_PREVIEW_DEFAULT_ZOOM}
+        onPreviousPage={() => jumpToPage(currentPage - 1)}
+        onNextPage={() => jumpToPage(currentPage + 1)}
+        onZoomOut={() => setViewerZoom(zoom - PPTX_PREVIEW_ZOOM_STEP)}
+        onZoomIn={() => setViewerZoom(zoom + PPTX_PREVIEW_ZOOM_STEP)}
+        onResetZoom={() => setViewerZoom(PPTX_PREVIEW_DEFAULT_ZOOM)}
+      />
+      <FilePreviewLayout.Content>
+        <div
+          data-testid="powerpoint-file-preview"
+          className="relative h-full min-h-0 w-full overflow-hidden bg-background">
+          {/* Must stay in-flow (not `absolute inset-0`): PptxViewer overwrites the
+              container's inline `position`, which would void inset sizing and let the
+              element grow to its content height — killing the scrollbar. */}
+          <div
+            ref={containerRef}
+            data-testid="pptx-viewer-container"
+            data-picker={onSelection ? 'true' : undefined}
+            role="region"
+            aria-label={fileName}
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary"
+            tabIndex={0}
+            onClick={handlePick}
+          />
+          {loading ? (
+            <div
+              role="status"
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              <span>{t('file_preview.loading')}</span>
+            </div>
+          ) : null}
+          {error ? (
+            <div role="alert" className="absolute inset-0 bg-background">
+              <EmptyState
+                icon={AlertCircle}
+                title={t('file_preview.load_error.title')}
+                description={t('file_preview.load_error.description')}
+                className="h-full"
+              />
+            </div>
+          ) : null}
+        </div>
+      </FilePreviewLayout.Content>
+    </FilePreviewLayout.Frame>
+  )
+}

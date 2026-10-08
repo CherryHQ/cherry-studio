@@ -1,6 +1,6 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy; the matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown and text remain local plugins.
 
 The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
@@ -100,7 +100,13 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 
 ## Plugin Structure
 
-Each format is an independent plugin under `plugins/<format>/`:
+The public package has a static registry for its five formats. `ElectronFilePreview` supplies
+`PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
+`SelectionReference` from its own path and metadata props. The desktop registry routes those formats through
+that adapter. Only HTML, Markdown and text keep application-owned plugins under `plugins/`.
+All formats reuse layout and toolbar components exported by the package.
+
+For a desktop-only plugin, use this structure:
 
 ```text
 plugins/example/
@@ -170,11 +176,11 @@ export default function ExampleFilePreview({ filePath, fileName, metadata, refre
 }
 ```
 
-After implementing the plugin, explicitly import it in `filePreviewRegistry.ts` and add it to `extensionPlugins`:
+After implementing a desktop-only plugin, explicitly add it to `extensionPlugins`:
 
 ```ts
 export const filePreviewRegistry = createFilePreviewRegistry({
-  extensionPlugins: [imageFilePreviewPlugin, exampleFilePreviewPlugin]
+  extensionPlugins: [exampleFilePreviewPlugin]
 })
 ```
 
@@ -265,16 +271,17 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Missing or inaccessible path | Unavailable | Explanation without an open action |
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
-- Use `window.api.fs.readText` for text. Use `window.api.fs.read` only for full binary reads that the plugin bounds
-  using the preflighted file size. Large or on-demand binary formats must use typed `ipcApi.request('file.read', ...)`
-  range reads instead of loading the entire file.
-- Transports that combine multiple range reads must cap the assembled range before allocating it and reject responses
-  whose `version` changes between reads or whose `version.size` differs from the preflighted `metadata.size`.
-- The PDF transport caps each assembled pdf.js range at 16 MiB. This is not a PDF file-size limit: larger files can
-  preview while every requested range stays within the cap. A PDF that requires a larger contiguous range must offer
-  an explicit external-open fallback; removing this cap requires a transport that streams without renderer assembly.
-- Use the preflighted `metadata` prop for size guards. Do not issue a second metadata request from a plugin.
-- Include `filePath` and `refreshKey` in loading effects. A new refresh key means the current file must be read again even when its path is unchanged.
+- Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
+  they never access Electron APIs. The adapter serves whole-document reads with one full
+  `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
+  metadata version.
+- Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, images 64 MiB.
+  PDF keeps a 16 MiB assembled-range cap, not a whole-file size cap, and delegates its external
+  fallback to the host.
+- The public preview closes sessions on replacement, refresh, failure and unmount, including late
+  opens. Abort signals cancel byte reads; synchronous parsing cannot be interrupted.
+- Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
+  opened document changes. Do not request metadata again inside a format plugin.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.

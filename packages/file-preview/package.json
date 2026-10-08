@@ -1,0 +1,73 @@
+{
+  "name": "@cherrystudio/file-preview",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "Portable read-only document preview for Cherry Studio",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./assets/*": "./dist/assets/*"
+  },
+  "scripts": {
+    "build": "vite build --mode development",
+    "test": "pnpm --workspace-root test:pkg:file-preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@aiden0z/pptx-renderer": "1.2.2",
+    "@cherrystudio/ui": "workspace:*",
+    "@radix-ui/react-context-menu": "^2.3.3",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.12",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-virtual": "^3.13.24",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "docx-preview": "0.3.7",
+    "echarts": "^6.1.0",
+    "es-toolkit": "^1.49.0",
+    "exceljs": "^4.4.0",
+    "fast-formula-parser": "^1.0.19",
+    "fast-xml-parser": "5.5.6",
+    "i18next": "^23.11.5",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.525.0",
+    "numfmt": "^3.2.6",
+    "pdfjs-dist": "5.4.296",
+    "postcss": "8.5.6",
+    "react-error-boundary": "^6.0.0",
+    "react-i18next": "^14.1.2",
+    "rolldown-plugin-dts": "0.27.14",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.3.8",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

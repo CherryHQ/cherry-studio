@@ -77,6 +77,17 @@ export default defineConfig({
           }
         }
       },
+      {
+        extends: true,
+        plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
+        resolve: { alias: rendererConfig.resolve.alias },
+        test: {
+          name: 'file-preview',
+          environment: 'jsdom',
+          setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
+          include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
+        }
+      },
       // 脚本单元测试配置
       {
         extends: true,

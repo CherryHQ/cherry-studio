@@ -1041,6 +1041,77 @@ export default defineConfig([
       ]
     }
   },
+  {
+    files: ['packages/file-preview/src/**/*.{ts,tsx}'],
+    ignores: ['packages/file-preview/src/**/__tests__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            {
+              group: [
+                '@renderer/**',
+                '@shared/**',
+                '@logger',
+                'electron',
+                '**/src/renderer/**',
+                '**/src/shared/**',
+                '**/src/main/**'
+              ],
+              message: 'File preview must use its portable source and host callbacks.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[object.name="window"][property.name="api"]',
+          message: 'File preview must not access the Electron preload bridge.'
+        },
+        {
+          selector: 'MemberExpression[object.name="window"][property.value="api"]',
+          message: 'File preview must not access the Electron preload bridge.'
+        }
+      ]
+    }
+  },
+  {
+    files: ['packages/file-preview/src/{core,source,selection,documentAnchor,officeZipPreflight}.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            {
+              group: [
+                '@renderer/**',
+                '@shared/**',
+                '@logger',
+                'electron',
+                '**/src/renderer/**',
+                '**/src/shared/**',
+                '**/src/main/**',
+                'react',
+                'react-dom',
+                'react-dom/**',
+                '@cherrystudio/ui',
+                '@cherrystudio/ui/**',
+                './plugins/**',
+                './Preview',
+                './react'
+              ],
+              message: 'The preview core has no DOM or React dependencies.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-globals': ['error', 'window', 'document', 'Worker']
+    }
+  },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
   // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
   {
