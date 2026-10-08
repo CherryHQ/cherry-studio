@@ -21,7 +21,10 @@ const mocks = vi.hoisted(() => ({
   showUpdatePopup: vi.fn()
 }))
 
-vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [mocks.sidebarWidth, vi.fn()] }))
+vi.mock('@data/hooks/useCache', () => ({
+  usePersistCache: () => [mocks.sidebarWidth, vi.fn()],
+  useCache: () => [{ available: false, downloaded: false, info: null }, vi.fn()]
+}))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
@@ -42,87 +45,101 @@ vi.mock('../../UserAccountPanel', () => ({
     </button>
   )
 }))
-vi.mock('../../layout/ShellTabBarActions', () => ({
-  AppUpdateButton: () => (
-    <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
-      update
-    </button>
-  ),
-  SidebarSettingsButton: ({ layout }: { layout: 'full' | 'icon' }) => (
-    <button type="button" aria-label="Settings" data-layout={layout} onClick={mocks.openSettingsTab}>
-      settings
-    </button>
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
+}))
+vi.mock('../../layout/ShellTabBarActions', async () => {
+  const actual = await vi.importActual<typeof import('../../layout/ShellTabBarActions')>(
+    '../../layout/ShellTabBarActions'
   )
-}))
-vi.mock('../../Sidebar', () => ({
-  getSidebarDisplayWidth: (width: number) => width,
-  getSidebarLayout: (width: number) => (width === 0 ? 'hidden' : 'full'),
-  normalizeSidebarWidth: (width: number) => width,
-  Sidebar: ({
-    entries,
-    isFloating = false,
-    onEntriesReorder,
-    onHoverChange,
-    actions,
-    renderUserTrigger,
-    user,
-    userAction
-  }: {
-    entries: Array<{
-      key: string
-      label: string
-      disabled?: boolean
-      onOpen: () => void
-      contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
-    }>
-    isFloating?: boolean
-    onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
-    onHoverChange?: (visible: boolean) => void
-    actions?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
-    renderUserTrigger?: (trigger: ReactElement) => ReactElement
-    user?: { name: string; onClick?: () => void }
-    userAction?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
-  }) => {
-    const accountButton = user ? (
-      <button type="button" aria-label={user.name} onClick={user.onClick}>
-        {user.name}
-      </button>
-    ) : null
-    const accountTrigger = accountButton ? (renderUserTrigger?.(accountButton) ?? accountButton) : null
-    const resolvedActions = typeof actions === 'function' ? actions('full', vi.fn()) : actions
-    const resolvedUserAction = typeof userAction === 'function' ? userAction('full', vi.fn()) : userAction
 
-    return (
-      <div data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'} onMouseEnter={() => onHoverChange?.(true)}>
-        <div data-testid="sidebar-footer-user">
-          {resolvedActions}
-          {accountTrigger}
-          {resolvedUserAction}
-        </div>
-        <ol aria-label="shortcuts">
-          {entries.map((entry) => (
-            <li key={entry.key} aria-label={entry.label}>
-              <button
-                type="button"
-                aria-disabled={entry.disabled || undefined}
-                onClick={() => !entry.disabled && entry.onOpen()}>
-                {entry.label}
-              </button>
-              {entry.contextMenuItems.map((item) => (
-                <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
-                  {item.label}
-                </button>
-              ))}
-            </li>
-          ))}
-        </ol>
-        <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
-          reorder
-        </button>
-      </div>
-    )
+  return {
+    AppUpdateButton: () => (
+      <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
+        update
+      </button>
+    ),
+    SidebarSettingsButton: actual.SidebarSettingsButton
   }
-}))
+})
+vi.mock('../../Sidebar', async () => {
+  const constants = await vi.importActual<typeof import('../../Sidebar/constants')>('../../Sidebar/constants')
+  const { SidebarFooter } =
+    await vi.importActual<typeof import('../../Sidebar/SidebarFooter')>('../../Sidebar/SidebarFooter')
+
+  return {
+    getSidebarDisplayWidth: constants.getSidebarDisplayWidth,
+    getSidebarLayout: constants.getSidebarLayout,
+    normalizeSidebarWidth: constants.normalizeSidebarWidth,
+    Sidebar: ({
+      width = 170,
+      entries,
+      isFloating = false,
+      onEntriesReorder,
+      onHoverChange,
+      actions,
+      renderUserTrigger,
+      user,
+      userAction
+    }: {
+      width?: number
+      entries: Array<{
+        key: string
+        label: string
+        disabled?: boolean
+        onOpen: () => void
+        contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
+      }>
+      isFloating?: boolean
+      onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
+      onHoverChange?: (visible: boolean) => void
+      actions?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+      renderUserTrigger?: (trigger: ReactElement) => ReactElement
+      user?: { name: string; avatar?: string; onClick?: () => void }
+      userAction?: ReactNode | ((layout: 'full' | 'icon', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+    }) => {
+      const shellLayout = constants.getSidebarLayout(width)
+      // The real dock passes its visible band through. A hidden dock's flyout is a full sheet.
+      const footerLayout = !isFloating && shellLayout === 'icon' ? 'icon' : 'full'
+
+      return (
+        <div
+          data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'}
+          onMouseEnter={() => onHoverChange?.(true)}>
+          <div data-testid="sidebar-footer-user">
+            <SidebarFooter
+              layout={footerLayout}
+              actions={actions}
+              user={user}
+              userAction={userAction}
+              renderUserTrigger={renderUserTrigger}
+            />
+          </div>
+          <ol aria-label="shortcuts">
+            {entries.map((entry) => (
+              <li key={entry.key} aria-label={entry.label}>
+                <button
+                  type="button"
+                  aria-disabled={entry.disabled || undefined}
+                  onClick={() => !entry.disabled && entry.onOpen()}>
+                  {entry.label}
+                </button>
+                {entry.contextMenuItems.map((item) => (
+                  <button key={item.id} type="button" disabled={item.enabled === false} onClick={item.onSelect}>
+                    {item.label}
+                  </button>
+                ))}
+              </li>
+            ))}
+          </ol>
+          <button type="button" onClick={() => onEntriesReorder({ oldIndex: 0, newIndex: 1 })}>
+            reorder
+          </button>
+        </div>
+      )
+    }
+  }
+})
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 import Sidebar from '../Sidebar'
@@ -182,7 +199,7 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     const footer = screen.getByTestId('sidebar-footer-user')
 
-    await user.click(within(footer).getByRole('button', { name: 'Settings' }))
+    await user.click(within(footer).getByRole('button', { name: 'settings.title' }))
     await user.click(within(footer).getByRole('button', { name: 'Install update' }))
 
     expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
@@ -195,7 +212,40 @@ describe('app Sidebar', () => {
     const footer = screen.getByTestId('sidebar-footer-user')
 
     expect(within(footer).getByRole('button', { name: 'help.title' })).toHaveTextContent('help.title')
-    expect(within(footer).getByRole('button', { name: 'Settings' })).toHaveAttribute('data-layout', 'full')
+    expect(within(footer).getByRole('button', { name: 'settings.title' })).toHaveTextContent('settings.title')
+  })
+
+  it('propagates full and icon footer layouts to Settings and Help outside the account row', () => {
+    mocks.sidebarWidth = 170
+    const view = render(<Sidebar />)
+    const footer = screen.getByTestId('sidebar-footer-user')
+    const settings = within(footer).getByRole('button', { name: 'settings.title' })
+    const help = within(footer).getByRole('button', { name: 'help.title' })
+    const account = within(footer).getByRole('button', { name: 'User' })
+    const update = within(footer).getByRole('button', { name: 'Install update' })
+    // The trigger mock wraps the identity button, so the account row is the ancestor that also holds the update control.
+    let accountRow: HTMLElement | null = account
+    while (accountRow && !accountRow.contains(update)) accountRow = accountRow.parentElement
+
+    expect(settings).toHaveTextContent('settings.title')
+    expect(help).toHaveTextContent('help.title')
+    expect(settings.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(help.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(accountRow).toContainElement(update)
+    expect(accountRow).not.toContainElement(settings)
+    expect(accountRow).not.toContainElement(help)
+
+    mocks.sidebarWidth = 50
+    view.rerender(<Sidebar />)
+
+    const iconFooter = screen.getByTestId('sidebar-footer-user')
+    const iconSettings = within(iconFooter).getByRole('button', { name: 'settings.title' })
+    const iconHelp = within(iconFooter).getByRole('button', { name: 'help.title' })
+
+    expect(iconSettings).not.toHaveTextContent('settings.title')
+    expect(iconHelp).not.toHaveTextContent('help.title')
+    expect(within(iconFooter).getByRole('button', { name: 'User' })).toBeVisible()
+    expect(within(iconFooter).queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument()
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
