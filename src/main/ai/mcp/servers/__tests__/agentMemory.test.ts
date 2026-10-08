@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:
 import os from 'node:os'
 import path from 'node:path'
 
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetAgent = vi.fn()
@@ -12,31 +14,41 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-const { default: AgentMemoryServer } = await import('../agentMemory')
-type AgentMemoryServerInstance = InstanceType<typeof AgentMemoryServer>
+const mockAssertAgentDataDirectory = vi.fn()
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  assertAgentDataDirectory: (...args: unknown[]) => mockAssertAgentDataDirectory(...args)
+}))
 
-async function callTool(server: AgentMemoryServerInstance, args: Record<string, unknown>) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const callToolHandler = handlers?.get('tools/call')
-  if (!callToolHandler) throw new Error('No tools/call handler registered')
-  return callToolHandler({ method: 'tools/call', params: { name: 'memory', arguments: args } }, {})
+const { createAgentMemoryServer } = await import('../agentMemory')
+
+type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
+const clients: Client[] = []
+
+async function createServer(): Promise<Client> {
+  const ctx = { agentId, agentDataPath }
+  const client = await connectMcpTestClient(() => createAgentMemoryServer(ctx))
+  clients.push(client)
+  return client
 }
 
-async function listTools(server: AgentMemoryServerInstance) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const listHandler = handlers?.get('tools/list')
-  if (!listHandler) throw new Error('No tools/list handler registered')
-  return listHandler({ method: 'tools/list', params: {} }, {})
+async function callTool(client: Client | Promise<Client>, args: Record<string, unknown>): Promise<Result> {
+  return (await client).callTool({ name: 'memory', arguments: args })
 }
 
-describe('AgentMemoryServer', () => {
-  const agentId = 'agent_1'
+async function listTools(client: Client | Promise<Client>) {
+  return (await client).listTools()
+}
+
+let agentId: string
+let agentDataPath: string
+
+describe('agent-memory MCP server', () => {
   let agentsDataRoot: string
-  let agentDataPath: string
   let memoryPath: string
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    agentId = 'agent_1'
     mockGetAgent.mockReturnValue({ id: agentId })
     agentsDataRoot = await mkdtemp(path.join(os.tmpdir(), 'agent-memory-'))
     agentDataPath = path.join(agentsDataRoot, agentId)
@@ -44,15 +56,13 @@ describe('AgentMemoryServer', () => {
     await mkdir(memoryPath, { recursive: true })
     await writeFile(path.join(agentDataPath, 'SOUL.md'), '')
     await writeFile(path.join(agentDataPath, 'USER.md'), '')
+    mockAssertAgentDataDirectory.mockImplementation(async () => agentDataPath)
   })
 
   afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
     await rm(agentsDataRoot, { recursive: true, force: true })
   })
-
-  function createServer() {
-    return new AgentMemoryServer(agentId, agentDataPath)
-  }
 
   it('exposes only the memory tool', async () => {
     const result = await listTools(createServer())
@@ -75,7 +85,7 @@ describe('AgentMemoryServer', () => {
     await callTool(server, { action: 'append', text: 'Deployed v2.0', tags: ['deploy'] })
 
     const result = await callTool(server, { action: 'search', tag: 'deploy' })
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = JSON.parse(result.content[0].text!)
     expect(parsed.map((entry: { text: string }) => entry.text)).toEqual(['Deployed v2.0', 'Deployed v1.0'])
   })
 
@@ -84,9 +94,29 @@ describe('AgentMemoryServer', () => {
     expect(result.content[0].text).toBe('No journal entries found.')
   })
 
-  it('rejects missing update content and missing append text', async () => {
-    await expect(callTool(createServer(), { action: 'update' })).resolves.toMatchObject({ isError: true })
-    await expect(callTool(createServer(), { action: 'append' })).resolves.toMatchObject({ isError: true })
+  it.each([
+    { action: 'update' },
+    { action: 'append' },
+    { action: 'update', content: 42 },
+    { action: 'append', text: 42 }
+  ])('rejects missing or non-string memory content without writing: %j', async (args) => {
+    const result = await callTool(createServer(), args)
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content[0].text).toContain('Input validation error')
+    expect(await readdir(memoryPath)).toEqual([])
+  })
+
+  it('rejects an unknown action', async () => {
+    const result = await callTool(createServer(), { action: 'nope' })
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content[0].text).toContain('Input validation error')
+  })
+
+  it('rejects an agent data path that no longer matches the agent', async () => {
+    mockAssertAgentDataDirectory.mockResolvedValueOnce(path.join(agentDataPath, 'other'))
+    const result = await callTool(createServer(), { action: 'update', content: 'x' })
+    expect(result).toMatchObject({ isError: true })
+    expect(result.content[0].text).toContain('Agent data path mismatch')
   })
 
   it('stops memory access after the owning agent is deleted', async () => {

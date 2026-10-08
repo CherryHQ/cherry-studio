@@ -74,6 +74,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
+    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {
