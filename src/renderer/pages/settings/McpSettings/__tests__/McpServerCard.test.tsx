@@ -35,6 +35,16 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('McpServerCard', () => {
+  it('reads an active server version without asking the runtime to connect', async () => {
+    mocks.request.mockReset().mockResolvedValue('1.2.3')
+    const server: McpServer = { id: 'oauth-server', name: 'OAuth', type: 'streamableHttp', isActive: true }
+
+    render(<McpServerCard server={server} onEdit={vi.fn()} />)
+
+    expect(await screen.findByText('1.2.3')).toBeInTheDocument()
+    expect(mocks.request).toHaveBeenCalledWith('mcp.server.get_version', { serverId: 'oauth-server', connect: false })
+  })
+
   it('does not expose a sidebar shortcut action', () => {
     const server: McpServer = {
       id: '11111111-1111-4111-8111-111111111111',

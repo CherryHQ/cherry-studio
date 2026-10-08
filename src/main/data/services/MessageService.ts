@@ -1588,7 +1588,7 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: input.data,
+          data: { ...input.data, modelSelection: row.data?.modelSelection },
           status: input.status,
           stats: stats ?? null
         })
@@ -1637,6 +1637,7 @@ export class MessageService {
       }
       const data: MessageData = {
         parts: [],
+        ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)

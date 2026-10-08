@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import artifactBuildCompleted, { normalizeArtifactFilePath } from '../artifact-build-completed'
+import artifactBuildCompleted, { normalizeArtifactFilePath } from '../packaging/artifact-build-completed'
 
 const PRODUCT_NAME = 'Cherry Studio'
 const VERSION = '2.0.9'

@@ -72,6 +72,7 @@ describe('createWebSearchProvider', () => {
   it('registers every supported provider id', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
+      'crawl4ai',
       'exa',
       'exa-mcp',
       'fetch',

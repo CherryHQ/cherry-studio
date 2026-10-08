@@ -1143,10 +1143,12 @@ describe('AppShellTabBar', () => {
     vi.useFakeTimers()
     Object.defineProperty(globalThis, 'requestAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
     })
     Object.defineProperty(globalThis, 'cancelAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (id: number) => window.clearTimeout(id)
     })
 

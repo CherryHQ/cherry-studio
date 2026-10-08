@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   buildSkillWhitelist: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getMcpInstructions: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -92,6 +93,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'McpRuntimeService') {
+        return { getConnectedServerInstructions: mocks.getMcpInstructions }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -1741,6 +1745,14 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+    mocks.getMcpInstructions.mockReturnValueOnce({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Use search before reading.',
+      truncated: false
+    })
+    const instructionsArrived = await deriveSignature()
+    expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {
