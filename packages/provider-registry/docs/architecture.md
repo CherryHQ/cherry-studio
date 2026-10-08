@@ -135,11 +135,19 @@ without additional changes. Missing support is `unconfigured`, not an empty
 capability claiming support. Main resolves execution separately; see the
 [current parameter pipeline](../../../docs/references/ai/image-generation-parameters.md).
 
-The schema constant is now v2, but migration acceptance is not complete: the
-frozen v2 validator, execution of migrated consumer tests and combined `withImages`
-plus operation validation still need completion. Preserve the immutable v1 baseline;
-the [compatibility procedure](../compat/README.md) creates a new baseline after
-the v2 schema is finalized.
+The schema validates each difference and the combined `withImages` →
+`operations.generate` path in runtime order. Catalog generation and the frozen v2
+validator also resolve creator/provider pairs, rejecting invalid merged input
+constraints before writing or publishing a catalog. Neither step changes the
+declared capabilities or folds resolved overrides into the emitted JSON.
+
+This branch's schema constant is v2, with a new v2 validator alongside the
+unchanged v1 baseline; see the [compatibility procedure](../compat/README.md).
+Focused consumer tests, source-sync and local v2 compatibility checks passed,
+including fault injection for the combination regressions. Release acceptance
+remains blocked by the target branch's existing schema v3 and frozen v2/v3
+validators. Version and first-compatible-app alignment must preserve those
+existing baselines; the branch-local v2 result is not a publication approval.
 
 ## The no-hand-edit guard
 

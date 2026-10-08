@@ -29,7 +29,9 @@ import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
-import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
+import { ModelListSchema, ReasoningFamilyRuleSchema } from '../src/schemas/model'
+import { ProviderModelListSchema } from '../src/schemas/provider-models'
+import { validateProviderImageCapabilities } from '../src/utils/imageCapabilities'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
@@ -703,6 +705,10 @@ void (async () => {
     })
   const providers = buildProviders()
   const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  validateProviderImageCapabilities(
+    ModelListSchema.shape.models.parse(list),
+    ProviderModelListSchema.shape.overrides.parse(pm.overrides)
+  )
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
   if (serviceTierErrors.length > 0) {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)

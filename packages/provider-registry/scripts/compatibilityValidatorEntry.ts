@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { REGISTRY_FILES, REGISTRY_SCHEMA_VERSION, type RegistryFileName } from '../src/registry-loader'
+import type { ZodType } from 'zod'
+
+import { REGISTRY_SCHEMA_VERSION, type RegistryFileName } from '../src/registry-loader'
 import { ModelListSchema } from '../src/schemas/model'
 import { ProviderListSchema } from '../src/schemas/provider'
 import { ProviderModelListSchema } from '../src/schemas/provider-models'
+import { validateProviderImageCapabilities } from '../src/utils/imageCapabilities'
 
 const SCHEMAS = {
   'models.json': ModelListSchema,
@@ -27,15 +30,19 @@ export function validateCatalogFile(file: RegistryFileName, data: unknown): void
 }
 
 export function validateCatalogDirectory(dataDirectory: string): void {
-  for (const file of REGISTRY_FILES) {
+  function readCatalogFile<T>(file: RegistryFileName, schema: ZodType<T>): T {
     try {
-      validateCatalogFile(file, JSON.parse(readFileSync(path.join(dataDirectory, file), 'utf8')))
+      return schema.parse(JSON.parse(readFileSync(path.join(dataDirectory, file), 'utf8')))
     } catch (error) {
       throw new Error(
         `${file} is not compatible with registry schema v${schemaVersion}: ${formatValidationError(error)}`
       )
     }
   }
+  const { models } = readCatalogFile('models.json', ModelListSchema)
+  readCatalogFile('providers.json', ProviderListSchema)
+  const { overrides } = readCatalogFile('provider-models.json', ProviderModelListSchema)
+  validateProviderImageCapabilities(models, overrides)
 }
 
 const isCommandLine = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)

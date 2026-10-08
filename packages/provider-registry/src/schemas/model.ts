@@ -387,13 +387,28 @@ export const ImageGenerationSupportSchema = z
       for (const issue of base.error.issues) ctx.addIssue({ ...issue })
       return
     }
-    for (const [key, delta] of [['withImages', value.withImages], ...Object.entries(value.operations ?? {})] as const) {
-      if (delta === null || delta === undefined) continue
+    let withImages: ImageCapability | undefined
+    if (value.withImages) {
       try {
-        applyImageCapabilityDelta(base.data, delta)
+        withImages = applyImageCapabilityDelta(base.data, value.withImages)
       } catch (error) {
         if (!(error instanceof z.ZodError)) throw error
-        for (const issue of error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
+        for (const issue of error.issues) ctx.addIssue({ ...issue, path: ['withImages', ...issue.path] })
+      }
+    }
+    for (const operation of ImageOperationSchema.options) {
+      const delta = value.operations?.[operation]
+      if (delta === null || delta === undefined) continue
+      const bases = operation === 'generate' && withImages ? [base.data, withImages] : [base.data]
+      for (const capability of bases) {
+        try {
+          applyImageCapabilityDelta(capability, delta)
+        } catch (error) {
+          if (!(error instanceof z.ZodError)) throw error
+          for (const issue of error.issues) {
+            ctx.addIssue({ ...issue, path: ['operations', operation, ...issue.path] })
+          }
+        }
       }
     }
   })

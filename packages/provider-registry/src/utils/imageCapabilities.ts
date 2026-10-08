@@ -72,3 +72,21 @@ export function resolveImageGenerationSupport(
     operations
   })
 }
+
+/** Validate cross-file overrides before a generated or remotely published catalog can be accepted. */
+export function validateProviderImageCapabilities(
+  models: Pick<ModelConfig, 'id' | 'imageGeneration'>[],
+  overrides: Pick<ProviderModelOverride, 'providerId' | 'modelId' | 'imageGeneration'>[]
+): void {
+  const modelsById = new Map(models.map((model) => [model.id, model]))
+  for (const override of overrides) {
+    try {
+      resolveImageGenerationSupport(modelsById.get(override.modelId) ?? null, override)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Invalid image capability for ${override.providerId}/${override.modelId}: ${detail}`, {
+        cause: error
+      })
+    }
+  }
+}
