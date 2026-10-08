@@ -114,6 +114,14 @@ const TranslateInputPane = ({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}>
+      <div className="flex shrink-0 items-center justify-end gap-1 px-3 pt-3">
+        <div className="min-w-0">
+          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
+        </div>
+        <IconButton size="sm" onClick={onCopy} disabled={!text} aria-label={t('common.copy')}>
+          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
+        </IconButton>
+      </div>
       <div className="relative min-h-0 flex-1">
         <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
           <textarea
@@ -127,17 +135,9 @@ const TranslateInputPane = ({
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
-            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
           />
         </Scrollbar>
-        <IconButton
-          size="sm"
-          onClick={onCopy}
-          disabled={!text}
-          aria-label={t('common.copy')}
-          className="absolute top-4 right-3">
-          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
-        </IconButton>
       </div>
       {!text && (
         <button
@@ -163,18 +163,6 @@ const TranslateInputPane = ({
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
-          <div className="ml-auto">
-            <DictationControls
-              targetId={TARGET_ID}
-              disabled={disabled}
-              focusInput={() => textareaRef.current?.focus()}
-            />
-          </div>
-        </div>
-      )}
-      {(!text || disabled) && (
-        <div className="flex shrink-0 justify-end px-3 py-3">
-          <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
         </div>
       )}
       {isDragging && (

@@ -2,7 +2,7 @@ import { Copy, CornerDownLeft, Mic, RotateCcw, Square, Trash2, X } from 'lucide-
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
@@ -56,15 +56,21 @@ export function DictationControls({
         </span>
       )}
       {snapshot.phase === 'idle' && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('chat.input.dictation.title')}
-          disabled={disabled}
-          onClick={start}>
-          <Mic className="size-4" />
-        </Button>
+        <NormalTooltip
+          content={t('chat.input.dictation.action.start')}
+          side="bottom"
+          sideOffset={4}
+          delayDuration={300}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('chat.input.dictation.title')}
+            disabled={disabled}
+            onClick={start}>
+            <Mic className="size-4" />
+          </Button>
+        </NormalTooltip>
       )}
       {snapshot.phase === 'recording' && (
         <Button
