@@ -528,6 +528,7 @@ describe('cherry-tools builtin tools', () => {
     expect(kbDeleteConcepts).not.toHaveBeenCalled()
     expect(kbRefreshConcepts).not.toHaveBeenCalled()
     access.b1 = 'read-write'
+    kbDeleteConcepts.mockResolvedValue({ applied: ['docs/a.md'], notFound: ['docs/gone.md'] })
     const granted = (await tools.callTool({
       name: 'kb_manage',
       arguments: { baseId: 'b1', action: 'delete', conceptIds: ['docs/a.md', 'docs/gone.md'] }
