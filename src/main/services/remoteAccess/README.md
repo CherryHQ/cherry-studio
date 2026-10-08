@@ -1,9 +1,24 @@
 # Remote access
 
-LAN-only remote access over the API Gateway's existing HTTP listener. The lifecycle
+Direct remote access over the API Gateway's existing HTTP listener, using reachable LAN,
+company or VPN addresses. The lifecycle
 service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
+
+The remote stream listener coalesces adjacent deltas for the same message and part for
+up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
+text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
+full content digest. Journal disposal cancels pending delivery.
+
+Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
+immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.
+Compatibility tests feed journal checkpoints and events to the published protocol 0.1.0
+package, pinned as the test-only `@cherrystudio/remote-protocol-v0` alias.
+
+Session deletion goes through `AgentLifecycleService`: ordinary deletion rejects unsettled
+execution; destructive cleanup drains execution before deleting rows, so the terminal
+listener flushes pending text while the session still exists.
 
 | File | Owns |
 |---|---|
@@ -30,6 +45,14 @@ Deviations from the design doc, kept deliberately small:
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
+The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
+
+`connection.endpoints` requires an authenticated, current capability and returns the
+Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
+The mobile owns candidate verification and address persistence. Any reachable network can
+carry a connection; VPN clients are configured outside Cherry Studio.
 
 Execution failures use the shared failure snapshot in both live terminal events and historical
 messages. The persistence listener supplies the actual saved message identity and revisions before

@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/pro
 import os from 'node:os'
 import path from 'node:path'
 
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/downloadAsBase64', () => ({ MAX_FILE_SIZE_BYTES: 8 }))

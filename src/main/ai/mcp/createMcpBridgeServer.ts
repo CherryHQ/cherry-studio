@@ -1,19 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  CallToolRequestSchema,
-  type CallToolResult,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
-  ListToolsRequestSchema,
-  type Progress,
-  type Prompt as SdkPrompt,
-  ReadResourceRequestSchema,
-  type ReadResourceResult,
-  type Resource as SdkResource,
-  type Tool as SdkTool
-} from '@modelcontextprotocol/sdk/types.js'
+import { type Progress, type ReadResourceResult, Server, type Tool } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -22,11 +7,15 @@ import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { redactToShape } from '@main/ai/utils/redactToShape'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
-import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
+import type { McpResource, McpTool } from '@shared/types/mcp'
+
+import type { McpInteractionContext, McpResourceObservation } from './connections/McpConnection'
+import { mcpLegacyResult } from './toolResult'
 
 const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
+  interactionContext?: McpInteractionContext
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
    *
@@ -38,28 +27,21 @@ export interface McpBridgeOptions {
   listChanged?: boolean
 }
 
-function toSdkTool(tool: McpTool): SdkTool {
-  const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
-  Reflect.deleteProperty(sdkTool, 'id')
-  Reflect.deleteProperty(sdkTool, 'serverId')
-  Reflect.deleteProperty(sdkTool, 'serverName')
-  Reflect.deleteProperty(sdkTool, 'type')
+const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
+
+/** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
+export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
+  const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
+  for (const field of CATALOG_FIELDS) delete result[field]
+  return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
+}
+
+function toSdkTool(tool: McpTool): Tool {
+  // V2 permits any JSON output and newer schema dialects. Main validates the original
+  // schema; advertising it to a v1 client would trigger its incompatible validator.
+  const sdkTool: Tool = stripCatalogFields(tool)
+  delete sdkTool.outputSchema
   return sdkTool
-}
-
-function toSdkResource(resource: McpResource): SdkResource {
-  const sdkResource = { ...resource } as SdkResource & Record<'serverId' | 'serverName', unknown>
-  Reflect.deleteProperty(sdkResource, 'serverId')
-  Reflect.deleteProperty(sdkResource, 'serverName')
-  return sdkResource
-}
-
-function toSdkPrompt(prompt: McpPrompt): SdkPrompt {
-  const sdkPrompt = { ...prompt } as SdkPrompt & Record<'id' | 'serverId' | 'serverName', unknown>
-  Reflect.deleteProperty(sdkPrompt, 'id')
-  Reflect.deleteProperty(sdkPrompt, 'serverId')
-  Reflect.deleteProperty(sdkPrompt, 'serverName')
-  return sdkPrompt
 }
 
 // McpResource carries both list metadata and read payload fields; a read content
@@ -74,13 +56,12 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 }
 
 /**
- * Creates an `McpServer` instance that acts as an in-process bridge,
- * proxying tool/resource/prompt list and call requests to an existing MCP
- * server managed by `McpRuntimeService`.
+ * Creates one protocol instance of an in-process bridge that proxies tool/resource/prompt
+ * list and call requests to an existing MCP server managed by `McpRuntimeService`. It uses
+ * the low-level `Server` because the proxied catalogs are only known at request time.
  *
- * Two consumers: the Claude Agent SDK's in-memory (`type: 'sdk'`) transport, keeping all
- * communication within the Electron main process; and the API gateway's `/v1/mcps/:id/mcp`
- * route, which fronts it with a stateless Streamable HTTP transport for external clients.
+ * Two consumers: agent runtimes (one instance per runtime transport), and the API gateway's
+ * `/v1/mcps/:id/mcp` legacy route, which fronts it with a Streamable HTTP transport.
  *
  * Tool-list consistency model: the SDK snapshots this bridge's tools ONCE per session
  * (standard MCP — `tools/list` at connect, then only on `tools/list_changed`), so the
@@ -98,28 +79,29 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 export function createMcpBridgeServer(
   mcpId: string,
   serverSnapshot?: McpServerEntity,
-  { listChanged = true }: McpBridgeOptions = {}
-): McpServer {
+  { listChanged = true, interactionContext }: McpBridgeOptions = {}
+): Server {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }
 
-  const sdkServer = new McpServer(
+  const server = new Server(
     { name: serverConfig.name, version: '0.1.0' },
     // `listChanged` is load-bearing twice over: the SDK client only attaches its re-list
     // handler for servers that declared it, and the local `sendToolListChanged` below
     // throws a capability error without it. Declaring it on a transport that cannot
     // deliver the notification is worse than not declaring it — the client would trust a
     // heal that never comes and serve a stale tool list indefinitely.
-    { capabilities: { tools: listChanged ? { listChanged: true } : {}, resources: {}, prompts: {} } }
+    {
+      capabilities: {
+        tools: listChanged ? { listChanged: true } : {},
+        resources: listChanged ? { listChanged: true, subscribe: true } : {},
+        prompts: listChanged ? { listChanged: true } : {}
+      },
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(serverConfig.id)?.text
+    }
   )
-
-  // Use the low-level Server to set raw request handlers because this bridge
-  // proxies requests to the downstream MCP server whose tool schemas are not
-  // known at construction time. The high-level McpServer.tool() API requires
-  // Zod schemas to be declared upfront, which is not feasible for a proxy.
-  const rawServer = sdkServer.server
 
   // Relay cache updates for this server as `tools/list_changed` (see consistency model
   // above). Subscribe on `oninitialized` rather than at construction: a bridge that is
@@ -128,15 +110,29 @@ export function createMcpBridgeServer(
   // `initialized` and reads the then-current cache. Unsubscribe when the SDK closes the
   // in-memory transport (driver close() → query.close() → transport.close()).
   let toolsCacheSubscription: { dispose: () => void } | undefined
-  const previousOnInitialized = rawServer.oninitialized
-  rawServer.oninitialized = () => {
-    previousOnInitialized?.()
+  let catalogSubscription: { dispose: () => void } | undefined
+  let resourceSubscription: { dispose: () => void } | undefined
+  const observations = new Map<
+    string,
+    { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation }
+  >()
+  server.oninitialized = () => {
     // Nothing to relay through on a transport that declared no `listChanged`; subscribing
     // anyway would only build notifications the client never asked for and cannot receive.
     if (!listChanged) return
+    resourceSubscription ??= application.get('McpRuntimeService').onResourceUpdated(({ serverId, uri }) => {
+      if (serverId === serverConfig.id && observations.has(uri)) {
+        void server.sendResourceUpdated({ uri }).catch(() => undefined)
+      }
+    })
+    catalogSubscription ??= application.get('McpRuntimeService').onCatalogChanged(({ serverId, kind }) => {
+      if (serverId !== serverConfig.id) return
+      const notification = kind === 'prompts' ? server.sendPromptListChanged() : server.sendResourceListChanged()
+      void notification.catch((error) => logger.debug('MCP bridge catalog notification failed', { mcpId, error }))
+    })
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
-      rawServer.sendToolListChanged().catch((error) => {
+      server.sendToolListChanged().catch((error) => {
         // "Not connected" is the expected race between an emitter dispatch and transport
         // teardown — the session is going away, nothing to heal. Anything else means a live
         // session missed an invalidation (it re-syncs only if the cache changes again), so
@@ -149,27 +145,96 @@ export function createMcpBridgeServer(
       })
     })
   }
-  const previousOnClose = rawServer.onclose
-  rawServer.onclose = () => {
-    previousOnClose?.()
+  server.onclose = () => {
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
+    catalogSubscription?.dispose()
+    catalogSubscription = undefined
+    resourceSubscription?.dispose()
+    resourceSubscription = undefined
+    for (const entry of observations.values()) {
+      entry.abort.abort()
+      void entry.lease?.close()
+    }
+    observations.clear()
   }
 
-  rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    try {
-      logger.debug('MCP bridge: listing tools', { mcpId })
-      const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
-      return {
-        tools: tools.map(toSdkTool)
+  if (listChanged) {
+    server.setRequestHandler('resources/subscribe', async ({ params }, ctx) => {
+      const existing = observations.get(params.uri)
+      if (existing) {
+        await existing.ready
+        return {}
       }
+      if (observations.size >= 128) throw new Error('MCP bridge subscription limit reached')
+      const entry: { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation } = {
+        abort: new AbortController(),
+        ready: Promise.resolve()
+      }
+      observations.set(params.uri, entry)
+      entry.ready = (async () => {
+        const signal = AbortSignal.any([ctx.mcpReq.signal, entry.abort.signal, AbortSignal.timeout(10_000)])
+        const { promise: ack, resolve: acknowledge, reject } = Promise.withResolvers<void>()
+        const cancel = () => reject(new Error('MCP bridge subscription cancelled'))
+        signal.addEventListener('abort', cancel, { once: true })
+        const opening = application
+          .get('McpRuntimeService')
+          .observeResource(serverConfig.id, params.uri, (state) => {
+            if (state === 'subscribed') acknowledge()
+            if (state === 'unsupported' || state === 'closed')
+              reject(new Error('MCP resource subscription unavailable'))
+            if (state === 'closed') {
+              entry.abort.abort()
+              if (observations.get(params.uri) === entry) observations.delete(params.uri)
+              void entry.lease?.close()
+            }
+          })
+          .then(async (lease) => {
+            entry.lease = lease
+            if (signal.aborted) await lease.close()
+          })
+        try {
+          if (signal.aborted) cancel()
+          await Promise.all([opening, ack])
+        } catch (error) {
+          entry.abort.abort()
+          if (observations.get(params.uri) === entry) observations.delete(params.uri)
+          await entry.lease?.close()
+          throw error
+        } finally {
+          signal.removeEventListener('abort', cancel)
+        }
+      })()
+      await entry.ready
+      return {}
+    })
+    server.setRequestHandler('resources/unsubscribe', async ({ params }) => {
+      const entry = observations.get(params.uri)
+      observations.delete(params.uri)
+      entry?.abort.abort()
+      await entry?.lease?.close()
+      return {}
+    })
+  }
+
+  const logged = async <T>(operation: string, fields: Record<string, unknown>, run: () => Promise<T>): Promise<T> => {
+    logger.debug(`MCP bridge: ${operation}`, { mcpId, ...fields })
+    try {
+      return await run()
     } catch (error) {
-      logger.error('MCP bridge: failed to list tools', { mcpId, error })
+      logger.error(`MCP bridge: failed ${operation}`, { mcpId, ...fields, error })
       throw error
     }
-  })
+  }
 
-  rawServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  server.setRequestHandler('tools/list', () =>
+    logged('listing tools', {}, async () => ({
+      tools: application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false }).map(toSdkTool)
+    }))
+  )
+
+  server.setRequestHandler('tools/call', async (request, ctx) => {
+    const { signal } = ctx.mcpReq
     // Relay upstream progress only when the client asked for it — the protocol keys
     // progress notifications to the token it supplied, so without one there is nothing
     // to address them to.
@@ -178,8 +243,8 @@ export function createMcpBridgeServer(
       progressToken === undefined
         ? undefined
         : (progress: Progress) => {
-            extra
-              .sendNotification({ method: 'notifications/progress', params: { ...progress, progressToken } })
+            ctx.mcpReq
+              .notify({ method: 'notifications/progress', params: { ...progress, progressToken } })
               .catch((error) => logger.debug('MCP bridge: progress notification dropped', { mcpId, error }))
           }
 
@@ -190,11 +255,12 @@ export function createMcpBridgeServer(
         name: request.params.name,
         args: request.params.arguments,
         onProgress,
-        signal: extra.signal
+        signal,
+        interactionContext
       })
-      return result as CallToolResult
+      return mcpLegacyResult(result)
     } catch (error) {
-      if (isMcpCancellation(error, extra.signal)) {
+      if (isMcpCancellation(error, signal)) {
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
         logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
@@ -211,65 +277,49 @@ export function createMcpBridgeServer(
     }
   })
 
-  rawServer.setRequestHandler(ListResourcesRequestSchema, async () => {
-    try {
-      logger.debug('MCP bridge: listing resources', { mcpId })
-      const resources = await application.get('McpCatalogService').listResources(serverConfig.id)
-      return {
-        resources: resources.map(toSdkResource)
-      }
-    } catch (error) {
-      logger.error('MCP bridge: failed to list resources', { mcpId, error })
-      throw error
-    }
-  })
+  server.setRequestHandler('resources/list', () =>
+    logged('listing resources', {}, async () => ({
+      resources: (await application.get('McpCatalogService').listResources(serverConfig.id)).map(stripCatalogFields)
+    }))
+  )
 
-  rawServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-    return { resourceTemplates: [] }
-  })
+  server.setRequestHandler('resources/templates/list', () =>
+    logged('listing resource templates', {}, async () => ({
+      resourceTemplates: (await application.get('McpCatalogService').listResourceTemplates(serverConfig.id)).map(
+        stripCatalogFields
+      )
+    }))
+  )
 
-  rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  server.setRequestHandler('resources/read', (request, ctx) => {
     const { uri } = request.params
-    try {
-      logger.debug('MCP bridge: reading resource', { mcpId, uri })
-      const { contents } = await application.get('McpRuntimeService').getResource({ serverId: serverConfig.id, uri })
-      return {
-        contents: contents.map(toSdkResourceContents)
-      }
-    } catch (error) {
-      logger.error('MCP bridge: failed to read resource', { mcpId, uri, error })
-      throw error
-    }
+    return logged('reading resource', { uri }, async () => {
+      const { contents } = await application
+        .get('McpRuntimeService')
+        .getResource({ serverId: serverConfig.id, uri, signal: ctx.mcpReq.signal, interactionContext })
+      return { contents: contents.map(toSdkResourceContents) }
+    })
   })
 
-  rawServer.setRequestHandler(ListPromptsRequestSchema, async () => {
-    try {
-      logger.debug('MCP bridge: listing prompts', { mcpId })
-      const prompts = await application.get('McpCatalogService').listPrompts(serverConfig.id)
-      return {
-        prompts: prompts.map(toSdkPrompt)
-      }
-    } catch (error) {
-      logger.error('MCP bridge: failed to list prompts', { mcpId, error })
-      throw error
-    }
-  })
+  server.setRequestHandler('prompts/list', () =>
+    logged('listing prompts', {}, async () => ({
+      prompts: (await application.get('McpCatalogService').listPrompts(serverConfig.id)).map(stripCatalogFields)
+    }))
+  )
 
-  rawServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  server.setRequestHandler('prompts/get', (request, ctx) => {
     const { name, arguments: args } = request.params
-    try {
-      logger.debug('MCP bridge: getting prompt', { mcpId, prompt: name })
-      return await application.get('McpRuntimeService').getPrompt({
+    return logged('getting prompt', { prompt: name }, () =>
+      application.get('McpRuntimeService').getPrompt({
         serverId: serverConfig.id,
         name,
-        args
+        args,
+        signal: ctx.mcpReq.signal,
+        interactionContext
       })
-    } catch (error) {
-      logger.error('MCP bridge: failed to get prompt', { mcpId, prompt: name, error })
-      throw error
-    }
+    )
   })
 
   logger.info(`Created SDK MCP bridge for "${serverConfig.name}"`)
-  return sdkServer
+  return server
 }
