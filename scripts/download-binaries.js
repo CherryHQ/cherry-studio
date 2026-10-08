@@ -38,7 +38,8 @@ const UNREFERENCED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const IMPACT = {
   uv: 'Python tooling and Dependencies presets',
   rg: 'in-app search',
-  mingit: 'the bundled git fallback (system git still works)'
+  mingit: 'the bundled git fallback (system git still works)',
+  ffmpeg: 'audio/video probing and extraction'
 }
 const STAGING_DIR = STAGING_PREFIX + crypto.createHash('sha256').update(REPO_ROOT).digest('hex').slice(0, 8)
 
@@ -123,7 +124,7 @@ function materialize(tools, platformKey, cacheRoot, bundleDir) {
     if (pkg.dir) linkTree(path.join(versionDir, pkg.dir), path.join(bundleDir, pkg.dir), stats)
     else for (const binary of pkg.binaries) linkFile(path.join(versionDir, binary), path.join(bundleDir, binary), stats)
 
-    for (const binary of pkg.binaries) chmodExec(path.join(bundleDir, binary))
+    for (const binary of pkg.executableFiles ?? pkg.binaries) chmodExec(path.join(bundleDir, binary))
     // Marker last: a reader seeing the new version finds every binary in place.
     fs.writeFileSync(path.join(bundleDir, tool.versionFile), tool.version, 'utf8')
   }
@@ -211,19 +212,21 @@ function hasReferencedFile(dir) {
 //   archive   — 'none' (bare binary) | 'zip' | 'zip-tree' | 'tar.gz'
 //   binaries  — list of binary filenames to verify/chmod, relative to outputDir
 //                (for 'zip-tree' these live under `dir`, e.g. 'git/cmd/git.exe')
+//   archiveFiles — optional subset of binaries present inside the archive
+//   localFiles — repository files copied into the package after extraction
 //   dir       — for 'zip-tree': subdir under outputDir to extract the full tree into
 //   strip     — for zip: glob prefix per binary; for tar.gz: --strip-components depth
 //   sha256    — checksum of the downloaded file (binary itself or archive)
 //
 // Tool fields:
-//   isWindowsOnly — tool has packages only for win32; non-Windows builds skip it
-//                 (MinGit — other platforms fall back to the user's system git)
+//   supportedPlatforms — optional platform keys; other targets intentionally skip the tool
 
 const MISE_VERSION = '2026.7.14'
 const BUN_VERSION = '1.4.2'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
 const MINGIT_VERSION = '2.54.0'
+const FFMPEG_VERSION = '8.1.2-27'
 
 function miseUrl(file) {
   return `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${file}`
@@ -239,6 +242,9 @@ function rgUrl(asset, ext) {
 }
 function mingitUrl(asset) {
   return `https://github.com/git-for-windows/git/releases/download/v${MINGIT_VERSION}.windows.1/${asset}`
+}
+function ffmpegUrl(asset) {
+  return `https://github.com/serversideup/ffmpeg-lgpl-builds/releases/download/v${FFMPEG_VERSION}/${asset}`
 }
 
 const TOOLS = [
@@ -435,7 +441,7 @@ const TOOLS = [
     name: 'mingit',
     version: MINGIT_VERSION,
     versionFile: '.mingit-version',
-    isWindowsOnly: true,
+    supportedPlatforms: ['win32-x64', 'win32-arm64'],
     packages: {
       'win32-x64': {
         url: mingitUrl(`MinGit-${MINGIT_VERSION}-64-bit.zip`),
@@ -450,6 +456,120 @@ const TOOLS = [
         dir: 'git',
         binaries: ['git/cmd/git.exe'],
         sha256: '68f6bdda5b58f4e40f431c0da48b05ba5596445314d5e491e7b4aebb1ec2e985'
+      }
+    }
+  },
+  {
+    // Pinned self-contained LGPL builds; Linux stays gated until immutable desktop artifacts exist.
+    // Windows arm64 uses x64 emulation because this release has no native arm64 artifact.
+    name: 'ffmpeg',
+    version: FFMPEG_VERSION,
+    versionFile: '.ffmpeg-version',
+    supportedPlatforms: ['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64'],
+    packages: {
+      'darwin-arm64': {
+        url: ffmpegUrl('ffmpeg-8.1.2-aarch64-apple-darwin.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt', 'OPENSSL-LICENSE', 'FFMPEG-LICENSE.md'],
+        executableFiles: ['ffmpeg', 'ffprobe'],
+        sha256: 'ac0babf65798bf681da1dc81c4fe4ae049d0d26e161410174b0e120e3e783332'
+      },
+      'darwin-x64': {
+        url: ffmpegUrl('ffmpeg-8.1.2-x86_64-apple-darwin.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt', 'OPENSSL-LICENSE', 'FFMPEG-LICENSE.md'],
+        executableFiles: ['ffmpeg', 'ffprobe'],
+        sha256: '51ac761dde58a600bb685a5d2510ae38d6ade1f62ef2ef556263c67cb69f2b00'
+      },
+      'win32-x64': {
+        url: ffmpegUrl('ffmpeg-8.1.2-x86_64-pc-windows-msvc.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: [
+          'ffmpeg.exe',
+          'ffprobe.exe',
+          'libvpl-2.dll',
+          'libwinpthread-1.dll',
+          'libgcc_s_seh-1.dll',
+          'libstdc++-6.dll',
+          'libopenh264-7.dll',
+          'COPYING.LGPLv2.1',
+          'SOURCE.txt',
+          'LIBVPL-LICENSE.txt',
+          'LIBWINPTHREAD-LICENSE.txt',
+          'LIBOPENH264-LICENSE.txt',
+          'GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+          'GCC-LICENSE.txt'
+        ],
+        archiveFiles: [
+          'ffmpeg.exe',
+          'ffprobe.exe',
+          'libvpl-2.dll',
+          'libwinpthread-1.dll',
+          'libgcc_s_seh-1.dll',
+          'libstdc++-6.dll',
+          'libopenh264-7.dll',
+          'COPYING.LGPLv2.1',
+          'SOURCE.txt',
+          'LIBVPL-LICENSE.txt',
+          'LIBWINPTHREAD-LICENSE.txt',
+          'LIBOPENH264-LICENSE.txt',
+          'GCC-LICENSE.txt'
+        ],
+        localFiles: [
+          {
+            source: 'scripts/packaging/licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+            name: 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+          }
+        ],
+        executableFiles: ['ffmpeg.exe', 'ffprobe.exe'],
+        sha256: 'fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0'
+      },
+      'win32-arm64': {
+        url: ffmpegUrl('ffmpeg-8.1.2-x86_64-pc-windows-msvc.tar.gz'),
+        archive: 'tar.gz',
+        stripComponents: 0,
+        binaries: [
+          'ffmpeg.exe',
+          'ffprobe.exe',
+          'libvpl-2.dll',
+          'libwinpthread-1.dll',
+          'libgcc_s_seh-1.dll',
+          'libstdc++-6.dll',
+          'libopenh264-7.dll',
+          'COPYING.LGPLv2.1',
+          'SOURCE.txt',
+          'LIBVPL-LICENSE.txt',
+          'LIBWINPTHREAD-LICENSE.txt',
+          'LIBOPENH264-LICENSE.txt',
+          'GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+          'GCC-LICENSE.txt'
+        ],
+        archiveFiles: [
+          'ffmpeg.exe',
+          'ffprobe.exe',
+          'libvpl-2.dll',
+          'libwinpthread-1.dll',
+          'libgcc_s_seh-1.dll',
+          'libstdc++-6.dll',
+          'libopenh264-7.dll',
+          'COPYING.LGPLv2.1',
+          'SOURCE.txt',
+          'LIBVPL-LICENSE.txt',
+          'LIBWINPTHREAD-LICENSE.txt',
+          'LIBOPENH264-LICENSE.txt',
+          'GCC-LICENSE.txt'
+        ],
+        localFiles: [
+          {
+            source: 'scripts/packaging/licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+            name: 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+          }
+        ],
+        executableFiles: ['ffmpeg.exe', 'ffprobe.exe'],
+        sha256: 'fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0'
       }
     }
   }
@@ -497,6 +617,7 @@ function download(url, dest) {
 }
 
 function extract(archivePath, archive, outputDir, pkg) {
+  const archiveFiles = pkg.archiveFiles ?? pkg.binaries
   if (archive === 'zip') {
     if (process.platform === 'win32') {
       const tmpExtract = path.join(outputDir, '__extract_tmp')
@@ -507,7 +628,7 @@ function extract(archivePath, archive, outputDir, pkg) {
           ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpExtract}' -Force`],
           { stdio: 'inherit' }
         )
-        for (const b of pkg.binaries) {
+        for (const b of archiveFiles) {
           const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
           fs.copyFileSync(src, path.join(outputDir, b))
         }
@@ -515,7 +636,7 @@ function extract(archivePath, archive, outputDir, pkg) {
         fs.rmSync(tmpExtract, { recursive: true, force: true })
       }
     } else {
-      const globs = pkg.binaries.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
+      const globs = archiveFiles.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
       execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
     }
   } else if (archive === 'zip-tree') {
@@ -541,8 +662,11 @@ function extract(archivePath, archive, outputDir, pkg) {
     const tmpExtract = path.join(outputDir, '__extract_tmp')
     fs.mkdirSync(tmpExtract, { recursive: true })
     try {
-      execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
-      for (const b of pkg.binaries) {
+      const stripComponents = pkg.stripComponents ?? 1
+      execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, `--strip-components=${stripComponents}`], {
+        stdio: 'inherit'
+      })
+      for (const b of archiveFiles) {
         fs.copyFileSync(path.join(tmpExtract, b), path.join(outputDir, b))
       }
     } finally {
@@ -576,7 +700,7 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
   const versionPath = versionFile ? path.join(outputDir, versionFile) : null
 
   if (isUpToDate(binaryPaths, versionPath, tool.version)) {
-    for (const binaryPath of binaryPaths) chmodExec(binaryPath)
+    for (const binary of pkg.executableFiles ?? pkg.binaries) chmodExec(path.join(outputDir, binary))
     // A partial download of a version already installed has nothing left to
     // resume, and a cache hit is the one path that would otherwise never clear
     // it — leaving verifyBundledBinaries to reject the bundle on every run.
@@ -605,8 +729,14 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
     fs.unlinkSync(archivePath)
   }
 
+  for (const file of pkg.localFiles ?? []) {
+    const destination = path.join(staging, file.name)
+    fs.mkdirSync(path.dirname(destination), { recursive: true })
+    fs.copyFileSync(path.join(REPO_ROOT, file.source), destination)
+  }
+
   commitStaged(staging, outputDir, pkg)
-  for (const binaryPath of binaryPaths) chmodExec(binaryPath)
+  for (const binary of pkg.executableFiles ?? pkg.binaries) chmodExec(path.join(outputDir, binary))
 
   if (versionPath) {
     // Rename, never write in place: an in-place write keeps the marker's inode
@@ -762,8 +892,9 @@ function verifyBundledBinaries(platform, arch, options = {}) {
   for (const tool of tools) {
     const pkg = tool.packages[platformKey]
     if (!pkg) {
-      // isWindowsOnly tools (MinGit) legitimately have no package on macOS/Linux.
-      if (!tool.isWindowsOnly) problems.push(`${tool.name} (no package for ${platformKey})`)
+      if (!tool.supportedPlatforms || tool.supportedPlatforms.includes(platformKey)) {
+        problems.push(`${tool.name} (no package for ${platformKey})`)
+      }
       continue
     }
     for (const binary of pkg.binaries) {

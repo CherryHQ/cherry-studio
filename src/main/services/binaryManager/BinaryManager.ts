@@ -198,7 +198,9 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
 const BUNDLED_TOOLS: Array<{
   name: string
   binaries: string[]
+  platforms?: NodeJS.Platform[]
   windowsBinaries?: string[]
+  windowsSupportFiles?: string[]
   versionFile: string
   internal?: boolean
 }> = [
@@ -211,7 +213,21 @@ const BUNDLED_TOOLS: Array<{
   },
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
-  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
+  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
+  {
+    name: 'ffmpeg',
+    binaries: ['ffmpeg', 'ffprobe'],
+    platforms: ['darwin', 'win32'],
+    windowsSupportFiles: [
+      'libvpl-2.dll',
+      'libwinpthread-1.dll',
+      'libgcc_s_seh-1.dll',
+      'libstdc++-6.dll',
+      'libopenh264-7.dll'
+    ],
+    versionFile: '.ffmpeg-version',
+    internal: true
+  }
 ]
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
@@ -789,10 +805,12 @@ export class BinaryManager extends BaseService {
     await fsp.mkdir(binDir, { recursive: true })
 
     for (const tool of BUNDLED_TOOLS) {
+      if (tool.platforms && !tool.platforms.includes(process.platform)) continue
       try {
-        const binaries = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
+        const executables = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
+        const binaries = [...executables, ...(isWin ? (tool.windowsSupportFiles ?? []) : [])]
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {
@@ -824,7 +842,7 @@ export class BinaryManager extends BaseService {
           const dest = path.join(binDir, bin)
           const tmp = `${dest}.tmp-${process.pid}`
           await fsp.copyFile(src, tmp)
-          if (!isWin) await fsp.chmod(tmp, 0o755)
+          if (!isWin && executables.includes(bin)) await fsp.chmod(tmp, 0o755)
           await fsp.rename(tmp, dest)
         }
         await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)

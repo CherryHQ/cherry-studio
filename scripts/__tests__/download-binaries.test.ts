@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 /**
  * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
  * (real extraction against a committed fixture, no fs mocking — the platform
@@ -8,12 +10,14 @@ import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
 import {
   cachedVersionDir,
+  downloadTool,
   extract,
   materialize,
   sweepUnreferencedVersions,
@@ -65,7 +69,104 @@ describe('extract – zip-tree mode', () => {
   })
 })
 
-describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
+describe('extract – flat tar.gz mode', () => {
+  it('preserves every declared FFmpeg runtime and license file with stripComponents=0', () => {
+    const fixtureDir = makeTmpDir('dl-tar-source-')
+    const outputDir = makeTmpDir('dl-tar-output-')
+    const archivePath = path.join(makeTmpDir('dl-tar-archive-'), 'ffmpeg.tar.gz')
+    const files = ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt']
+    for (const file of files) fs.writeFileSync(path.join(fixtureDir, file), file, 'utf8')
+    execFileSync('tar', ['czf', archivePath, '-C', fixtureDir, '.'])
+
+    extract(archivePath, 'tar.gz', outputDir, { binaries: files, stripComponents: 0 })
+
+    expect(
+      Object.fromEntries(files.map((file) => [file, fs.readFileSync(path.join(outputDir, file), 'utf8')]))
+    ).toEqual(Object.fromEntries(files.map((file) => [file, file])))
+  })
+
+  it('adds a repository-owned license companion that is not present in the archive', () => {
+    const fixtureDir = makeTmpDir('dl-tar-source-')
+    const outputDir = makeTmpDir('dl-tar-output-')
+    const archivePath = path.join(makeTmpDir('dl-tar-archive-'), 'ffmpeg.tar.gz')
+    const archiveFiles = ['ffmpeg', 'ffprobe']
+    for (const file of archiveFiles) fs.writeFileSync(path.join(fixtureDir, file), file, 'utf8')
+    execFileSync('tar', ['czf', archivePath, '-C', fixtureDir, '.'])
+    const sha256 = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex')
+    const platformKey = 'win32-x64'
+    const exception = 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+
+    downloadTool(
+      {
+        name: 'ffmpeg-fixture',
+        version: '1',
+        versionFile: '.ffmpeg-version',
+        packages: {
+          [platformKey]: {
+            url: pathToFileURL(archivePath).toString(),
+            archive: 'tar.gz',
+            stripComponents: 0,
+            binaries: [...archiveFiles, exception],
+            archiveFiles,
+            localFiles: [{ source: `scripts/packaging/licenses/${exception}`, name: exception }],
+            executableFiles: archiveFiles,
+            sha256
+          }
+        }
+      },
+      platformKey,
+      outputDir,
+      { versionFile: '.ffmpeg-version' }
+    )
+
+    expect(fs.readFileSync(path.join(outputDir, exception), 'utf8')).toContain('GCC RUNTIME LIBRARY EXCEPTION')
+    expect(fs.readFileSync(path.join(outputDir, '.ffmpeg-version'), 'utf8')).toBe('1')
+  })
+})
+
+describe('FFmpeg bundle manifest', () => {
+  const ffmpeg = TOOLS.find((tool) => tool.name === 'ffmpeg')!
+  const packages = ffmpeg.packages as Record<
+    string,
+    {
+      binaries: string[]
+      archiveFiles?: string[]
+      localFiles?: Array<{ source: string; name: string }>
+      executableFiles: string[]
+      url: string
+      sha256: string
+    }
+  >
+
+  it('pins a package with license and source notices for every supported target', () => {
+    expect(ffmpeg.supportedPlatforms).toEqual(['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64'])
+    expect(Object.keys(packages).sort()).toEqual(['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64'])
+    for (const pkg of Object.values(packages)) {
+      expect(pkg.binaries).toContain('COPYING.LGPLv2.1')
+      expect(pkg.binaries).toContain('SOURCE.txt')
+      expect(pkg.executableFiles).toHaveLength(2)
+    }
+  })
+
+  it('uses the stable x64 Windows artifact and ships its runtime DLLs for arm64 emulation', () => {
+    const x64 = packages['win32-x64']
+    const arm64 = packages['win32-arm64']
+    expect(arm64.url).toBe(x64.url)
+    expect(arm64.sha256).toBe(x64.sha256)
+    expect(arm64.binaries).toEqual(
+      expect.arrayContaining(['libopenh264-7.dll', 'libstdc++-6.dll', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'])
+    )
+    expect(arm64.archiveFiles).not.toContain('GCC-RUNTIME-LIBRARY-EXCEPTION.txt')
+    expect(arm64.localFiles).toEqual([
+      {
+        source: 'scripts/packaging/licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+        name: 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+      }
+    ])
+  })
+})
+
+describe('verifyBundledBinaries – supported platform rule', () => {
   const mise = TOOLS.find((tool) => tool.name === 'mise')!
 
   /** A resources dir with the given files pre-created under <platformKey>/. */
@@ -99,11 +200,11 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     name: 'mingit',
     version: '2.54.0',
     versionFile: '.mingit-version',
-    isWindowsOnly: true,
+    supportedPlatforms: ['win32-x64'],
     packages: { 'win32-x64': { binaries: ['git/cmd/git.exe'] } }
   }
 
-  it('does not flag an isWindowsOnly tool that has no package on a non-Windows platform', () => {
+  it('does not flag a tool outside its supported platforms', () => {
     const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
 
     expect(() =>
@@ -119,7 +220,7 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     )
   })
 
-  it('still verifies the isWindowsOnly tool binaries on Windows targets', () => {
+  it('still verifies a tool on its supported platform', () => {
     // Package declared for win32-x64 but git.exe missing on disk → must fail.
     const resourcesDir = makeCompleteBundle('win32-x64', regularTool)
 
