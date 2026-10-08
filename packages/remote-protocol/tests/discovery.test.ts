@@ -20,7 +20,7 @@ describe('direct desktop locations', () => {
     expect(directEndpointUrl(parseDirectEndpoint(input))).toBe(expected)
   })
   it.each([
-    'https://desktop.example',
+    'ftp://desktop.example',
     'ws://user:secret@desktop.example',
     'ws://desktop.example/agent',
     'ws://desktop.example/?token=x',
