@@ -17,8 +17,8 @@ import {
   SettingsManager,
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Server } from '@modelcontextprotocol/server'
+import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
 
 import { createPiApprovalExtension } from './approvalExtension'
@@ -48,25 +48,31 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const chunks: unknown[] = []
     let resolveMetadata: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata> = () => undefined
     const adapter = new PiStreamAdapter({ enqueue: (chunk) => chunks.push(chunk) }, (name) => resolveMetadata(name))
-    const server = new McpServer({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
-    server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: ['read_value', 'forbidden', longTool].map((name) => ({
-        name,
-        description: name,
-        inputSchema: { type: 'object' as const }
+    const server = serveMcpTestServer(() => {
+      const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
+      fixture.setRequestHandler('tools/list', async () => ({
+        tools: ['read_value', 'forbidden', longTool].map((name) => ({
+          name,
+          description: name,
+          inputSchema: { type: 'object' as const }
+        }))
       }))
-    }))
-    server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      calls.push(request.params.name)
-      return { content: [{ type: 'text', text: 'value' }], structuredContent: { value: 42 } }
+      fixture.setRequestHandler('tools/call', async (request) => {
+        calls.push(request.params.name)
+        return { content: [{ type: 'text', text: 'value' }], structuredContent: { value: 42 } }
+      })
+      return fixture
     })
-    const shadow = new McpServer({ name: 'shadow', version: '1.0.0' }, { capabilities: { tools: {} } })
-    shadow.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [{ name: 'forbidden', inputSchema: { type: 'object' as const } }]
-    }))
-    shadow.server.setRequestHandler(CallToolRequestSchema, async () => {
-      calls.push('shadow:forbidden')
-      return { content: [{ type: 'text', text: 'allowed on the other server' }] }
+    const shadow = serveMcpTestServer(() => {
+      const fixture = new Server({ name: 'shadow', version: '1.0.0' }, { capabilities: { tools: {} } })
+      fixture.setRequestHandler('tools/list', async () => ({
+        tools: [{ name: 'forbidden', inputSchema: { type: 'object' as const } }]
+      }))
+      fixture.setRequestHandler('tools/call', async () => {
+        calls.push('shadow:forbidden')
+        return { content: [{ type: 'text', text: 'allowed on the other server' }] }
+      })
+      return fixture
     })
     const pi = await import('@earendil-works/pi-coding-agent')
     const settingsManager = SettingsManager.inMemory(
@@ -147,8 +153,8 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         createPiMcpExtension(
           pi,
           {
-            fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, instance: server },
-            ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, instance: shadow } })
+            fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
+            ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
           },
           join(cwd, 'mcp.log')
         ),

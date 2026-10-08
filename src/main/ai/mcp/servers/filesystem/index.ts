@@ -1,3 +1,3 @@
 export { resolveFilesystemBaseDir } from './config'
-export { FileSystemServer } from './server'
+export { createFileSystemServer } from './server'
 export { runRipgrep, validatePath } from './types'

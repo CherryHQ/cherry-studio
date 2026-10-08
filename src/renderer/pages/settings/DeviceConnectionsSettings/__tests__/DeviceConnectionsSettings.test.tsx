@@ -1,21 +1,25 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen } from '@testing-library/react'
+import { act, render as renderReact, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, ReactElement } from 'react'
+import { SWRConfig } from 'swr'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-const { invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(() => ({
-  invitationMock: vi.fn(),
-  requestMock: vi.fn(),
-  navigateMock: vi.fn(),
-  useApiGatewayMock: vi.fn(),
-  useIpcOnMock: vi.fn()
-}))
+const { androidDownloadMock, invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(
+  () => ({
+    androidDownloadMock: vi.fn(),
+    invitationMock: vi.fn(),
+    requestMock: vi.fn(),
+    navigateMock: vi.fn(),
+    useApiGatewayMock: vi.fn(),
+    useIpcOnMock: vi.fn()
+  })
+)
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
@@ -46,6 +50,16 @@ vi.mock('react-i18next', () => {
 })
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
+
+const androidDownloadUrl =
+  'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.2/cherry-studio-0.1.2-android.apk'
+
+function render(ui: ReactElement) {
+  const provider = () => new Map()
+  return renderReact(ui, {
+    wrapper: ({ children }) => <SWRConfig value={{ provider }}>{children}</SWRConfig>
+  })
+}
 
 const createInvitation = (invitationId: string): OutputFor<'api_gateway.remote.create_invitation'> => ({
   hostname: 'desktop',
@@ -97,19 +111,24 @@ afterAll(() => {
 describe('DeviceConnectionsSettings', () => {
   afterEach(() => {
     vi.useRealTimers()
+    vi.stubGlobal('__APP_EDITION__', 'global')
   })
 
   beforeEach(() => {
+    vi.stubGlobal('__APP_EDITION__', 'global')
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
     invitationMock.mockReset().mockResolvedValue(createInvitation('default'))
+    androidDownloadMock.mockReset().mockResolvedValue(androidDownloadUrl)
     requestMock.mockReset().mockImplementation(async (name: string) => {
+      if (name === 'app.mobile.get_android_download_url') return androidDownloadMock()
       if (name === 'api_gateway.remote.list_claims') return []
       if (name === 'api_gateway.remote.create_invitation') return invitationMock()
       return undefined
     })
     navigateMock.mockReset()
     MockUseCacheUtils.resetMocks()
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'connect')
     MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
     useIpcOnMock.mockReset()
     useApiGatewayMock.mockReturnValue({
@@ -117,6 +136,241 @@ describe('DeviceConnectionsSettings', () => {
       apiGatewayRunning: true,
       apiGatewayLoading: false
     })
+  })
+
+  it.each(
+    ['cn', 'global'].flatMap((edition) =>
+      ['gitcode.com', 'github.com'].map((host) => ({
+        edition,
+        host,
+        androidDownloadUrl: `https://${host}/CherryHQ/cherry-studio-app/releases/download/v0.1.2/cherry-studio-0.1.2-android.apk`
+      }))
+    )
+  )(
+    'uses the resolved $host APK in $edition edition and preserves onboarding progress',
+    async ({ edition, androidDownloadUrl }) => {
+      androidDownloadMock.mockResolvedValue(androidDownloadUrl)
+      vi.stubGlobal('__APP_EDITION__', edition)
+      MockUseCacheUtils.resetMocks()
+      MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
+      const user = userEvent.setup()
+      const first = render(<DeviceConnectionsSettings />)
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] }))
+      expect(requestMock).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        'https://apps.apple.com/app/id6809783714'
+      )
+      expect(screen.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
+        'data-value',
+        'https://apps.apple.com/app/id6809783714'
+      )
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.testFlight'] }))
+      expect(requestMock).toHaveBeenLastCalledWith(
+        'system.shell.open_external_website',
+        'https://testflight.apple.com/join/2ryzjB66'
+      )
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      expect(requestMock).not.toHaveBeenCalledWith('app.mobile.get_android_download_url')
+      await user.click(screen.getByRole('tab', { name: 'Android' }))
+      expect(screen.getByRole('tab', { name: 'Android' })).toHaveAttribute('aria-selected', 'true')
+      expect(
+        screen.queryByRole('button', { name: enUS['deviceConnections.download.testFlight'] })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.ios'] })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      if (edition === 'global') {
+        const googlePlay = screen.getByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+        expect(googlePlay).toBeVisible()
+        await user.click(googlePlay)
+        expect(requestMock).toHaveBeenLastCalledWith(
+          'system.shell.open_external_website',
+          'https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app'
+        )
+      } else {
+        expect(
+          screen.queryByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+        ).not.toBeInTheDocument()
+      }
+      expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+        'data-value',
+        androidDownloadUrl
+      )
+      await user.click(screen.getByRole('tab', { name: 'iOS' }))
+      expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(requestMock).not.toHaveBeenCalledWith('api_gateway.remote.create_invitation')
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] }))
+      first.rerender(<DeviceConnectionsSettings />)
+      expect(await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })).toHaveAttribute(
+        'data-value',
+        expect.stringContaining('"invitationId":"default"')
+      )
+      first.unmount()
+
+      const second = render(<DeviceConnectionsSettings />)
+      expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
+      expect(screen.getByText(enUS['deviceConnections.pairing.title'])).toBeVisible()
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
+      second.unmount()
+
+      render(<DeviceConnectionsSettings />)
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+      expect(screen.queryByText(enUS['deviceConnections.pairing.title'])).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    }
+  )
+
+  it('shows loading until the latest Android QR code is available', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'download')
+    let resolveDownload!: (url: string) => void
+    androidDownloadMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveDownload = resolve
+      })
+    )
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('tab', { name: 'Android' }))
+    expect(screen.getByRole('status')).toHaveTextContent(enUS['common.loading'])
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+
+    await act(async () => resolveDownload(androidDownloadUrl))
+    expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      'data-value',
+      androidDownloadUrl
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('recovers a failed Android lookup through retry without displaying a bogus QR code', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'download')
+    androidDownloadMock
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce(androidDownloadUrl)
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('tab', { name: 'Android' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(enUS['deviceConnections.download.loadFailed'])
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: enUS['common.retry'] }))
+    expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      'data-value',
+      androidDownloadUrl
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps the active pairing invitation while downloading the mobile app in a dialog', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'complete')
+    invitationMock.mockResolvedValue(createInvitation('active-invitation'))
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    const pairingQr = await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })
+    const payload = pairingQr.getAttribute('data-value')
+
+    const download = screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] })
+    await user.click(download)
+    const dialog = within(screen.getByRole('dialog', { name: enUS['deviceConnections.downloadMobile'] }))
+    expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
+      'data-value',
+      'https://apps.apple.com/app/id6809783714'
+    )
+    await user.click(dialog.getByRole('button', { name: enUS['deviceConnections.download.testFlight'] }))
+    expect(requestMock).toHaveBeenLastCalledWith(
+      'system.shell.open_external_website',
+      'https://testflight.apple.com/join/2ryzjB66'
+    )
+    await user.click(dialog.getByRole('tab', { name: 'Android' }))
+    expect(await dialog.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      'data-value',
+      androidDownloadUrl
+    )
+    expect(dialog.queryByRole('button', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: enUS['deviceConnections.download.googlePlay'] }))
+    expect(requestMock).toHaveBeenLastCalledWith(
+      'system.shell.open_external_website',
+      'https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app'
+    )
+    await user.click(dialog.getByRole('button', { name: enUS['common.close'] }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] })).toHaveAttribute(
+      'data-value',
+      payload
+    )
+    expect(download).toHaveFocus()
+    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
+  })
+
+  it('skips onboarding for existing devices and stays completed after all devices are removed', async () => {
+    MockUseCacheUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryLoading('/api-gateway/paired-devices')
+    const user = userEvent.setup()
+    const view = render(<DeviceConnectionsSettings />)
+    expect(screen.getByRole('status')).toHaveTextContent(enUS['common.loading'])
+    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
+
+    MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [device])
+    view.rerender(<DeviceConnectionsSettings />)
+    expect(screen.getByText(device.name)).toBeVisible()
+    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
+    MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
+    view.unmount()
+
+    render(<DeviceConnectionsSettings />)
+    expect(screen.getByText(enUS['deviceConnections.devices.empty'])).toBeVisible()
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
+    expect(screen.getByRole('dialog', { name: enUS['deviceConnections.downloadMobile'] })).toBeVisible()
+  })
+
+  it.each(['reject', 'failed approval'])('keeps onboarding unfinished after %s', async (outcome) => {
+    requestMock.mockImplementation(async (name: string) => {
+      if (name === 'api_gateway.remote.list_claims') return [claim]
+      if (name === 'api_gateway.remote.create_invitation') return createInvitation('pending-claim')
+      if (name === 'api_gateway.remote.decide_pairing' && outcome === 'failed approval') throw new Error('Unavailable')
+      return undefined
+    })
+    const user = userEvent.setup()
+    const first = render(<DeviceConnectionsSettings />)
+    await screen.findByRole('group', { name: 'Pairing request' })
+    await user.click(screen.getByRole('button', { name: outcome === 'reject' ? 'Reject' : 'Approve' }))
+    first.unmount()
+
+    const second = render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    second.unmount()
+    render(<DeviceConnectionsSettings />)
+    expect(screen.getByRole('button', { name: enUS['deviceConnections.guide.continue'] })).toBeVisible()
+  })
+
+  it('automatically cycles the previews and pauses while the user is looking at them', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    const region = screen.getByRole('region', { name: enUS['deviceConnections.showcase.title'] })
+    const showcase = within(region)
+    expect(showcase.getByRole('img', { name: enUS['deviceConnections.showcase.chat'] })).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTime(5000))
+    expect(showcase.getByRole('img', { name: enUS['deviceConnections.showcase.agent'] })).toBeInTheDocument()
+    await user.hover(region)
+    await act(() => vi.advanceTimersByTime(10000))
+    expect(showcase.getByRole('img', { name: enUS['deviceConnections.showcase.agent'] })).toBeInTheDocument()
+    await user.unhover(region)
+    await act(() => vi.advanceTimersByTime(5000))
+    expect(showcase.getByRole('img', { name: enUS['deviceConnections.showcase.image'] })).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTime(5000))
+    expect(showcase.getByRole('img', { name: enUS['deviceConnections.showcase.chat'] })).toBeInTheDocument()
+    expect(showcase.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
   })
 
   it('uses all ordered addresses in automatic mode and only the selected address without replacing the invitation', async () => {
@@ -178,7 +432,10 @@ describe('DeviceConnectionsSettings', () => {
     }
     invitationMock.mockResolvedValueOnce(refreshed)
     await user.click(screen.getByRole('button', { name: enUS['deviceConnections.pairing.refreshAddresses'] }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(enUS['deviceConnections.pairing.addressUnavailable'])
+    expect(await screen.findByText(enUS['deviceConnections.pairing.addressUnavailable'])).toHaveAttribute(
+      'role',
+      'alert'
+    )
     expect(screen.queryByRole('img', { name: enUS['deviceConnections.pairing.title'] })).not.toBeInTheDocument()
     await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
     await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
@@ -212,7 +469,7 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['deviceConnections.toggle.risk'])).not.toBeInTheDocument()
     expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
     expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
@@ -293,7 +550,7 @@ describe('DeviceConnectionsSettings', () => {
     expect(JSON.parse(qr.getAttribute('data-value') ?? '').invitationId).toBe('new-invitation')
   })
 
-  it('replaces the QR with the claim and approves only the capabilities left checked', async () => {
+  it('approves selected capabilities and remembers onboarding completion after the first pairing', async () => {
     let pending = false
     requestMock.mockImplementation(async (name: string) => {
       if (name === 'api_gateway.remote.create_invitation') return createInvitation('live-invitation')
@@ -301,7 +558,7 @@ describe('DeviceConnectionsSettings', () => {
       return undefined
     })
     const user = userEvent.setup()
-    render(<DeviceConnectionsSettings />)
+    const view = render(<DeviceConnectionsSettings />)
     await screen.findByRole('img', { name: 'Pair a device' })
     pending = true
 
@@ -321,6 +578,12 @@ describe('DeviceConnectionsSettings', () => {
     expect(toast.success).toHaveBeenCalledWith('Device paired')
     expect(screen.queryByRole('group', { name: 'Pairing request' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+    view.unmount()
+
+    render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] }))
+    expect(screen.getByRole('dialog', { name: enUS['deviceConnections.downloadMobile'] })).toBeVisible()
+    expect(screen.queryByRole('button', { name: enUS['deviceConnections.guide.continue'] })).not.toBeInTheDocument()
   })
 
   it('loads a pending claim on mount and rejects it without granting anything', async () => {
@@ -399,13 +662,13 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to load paired devices.')
+    expect(screen.getByText(enUS['deviceConnections.devices.loadError'])).toBeVisible()
     expect(screen.queryByText('No devices have been paired yet.')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     rerender(<DeviceConnectionsSettings />)
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['deviceConnections.devices.loadError'])).not.toBeInTheDocument()
     expect(screen.getByText('My phone')).toBeInTheDocument()
   })
 
@@ -436,7 +699,7 @@ describe('DeviceConnectionsSettings', () => {
     vi.useFakeTimers()
     await act(async () => resolveInvitation(createInvitation('expiring-invitation')))
     expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
+    expect(screen.getByRole('alert')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
 
     await act(async () => vi.advanceTimersByTime(60_000))
 

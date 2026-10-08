@@ -1,4 +1,4 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'

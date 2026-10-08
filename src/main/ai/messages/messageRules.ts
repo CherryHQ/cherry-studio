@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -168,11 +169,38 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
 }
 
 /**
+ * Give the model the same attributed wording the runtimes send. Rewrites the copy handed to
+ * `convertToModelMessages`, covering both the answered (`approval-responded`) and the terminal
+ * (`output-denied`) shapes; the stored part keeps the raw reason for the card and the DB.
+ */
+export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const approval = (part as { approval?: { approved?: boolean; reason?: string } }).approval
+      if (approval?.approved !== false) return
+      const reason = withUserDenialFeedback(approval.reason)
+      if (reason === approval.reason) return
+      parts ??= [...message.parts]
+      parts[partIndex] = { ...part, approval: { ...approval, reason } } as T['parts'][number]
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * make legacy v1 tool names wire-legal → strip media the model can't accept → drop tool
+ * attribute a user's denial reason to the user → make legacy v1 tool names wire-legal →
+ * strip media the model can't accept → drop tool
  * calls parked on an unanswered approval → restore inferable legacy step boundaries →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
@@ -193,7 +221,7 @@ export async function toModelMessages(
         : part
     )
   }))
-  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(storedImages), tools)
+  const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(storedImages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )
