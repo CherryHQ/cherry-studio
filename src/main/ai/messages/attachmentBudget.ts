@@ -1,3 +1,4 @@
+import { experimental_getToolCaller } from '@ai-sdk/provider-utils'
 import type { ToolSet, UIMessage } from 'ai'
 
 /**
@@ -19,6 +20,7 @@ import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
+import { CODE_MODE_TOOL_NAME, createCodeModeExposition } from '@main/ai/tools/adapters/aiSdk/exposition/codeMode'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import type { Model } from '@shared/data/types/model'
@@ -135,11 +137,24 @@ function charCapFor(body: string, tokens: number, tokenCap: number, tokenizer: T
  */
 async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTokenizer): Promise<number> {
   if (!tools) return 0
+  const exposition = createCodeModeExposition(tools)
+  const visibleTools = Object.fromEntries(
+    Object.entries(exposition.tools ?? {}).filter(([, tool]) => !tool.deferLoading)
+  )
+  const caller = experimental_getToolCaller(visibleTools[CODE_MODE_TOOL_NAME])
+  const catalog =
+    exposition.experimental_toolCallers && caller?.type === 'local'
+      ? caller.prepareModelMessage?.(
+          Object.fromEntries(
+            Object.entries(visibleTools).filter(([name]) => exposition.experimental_toolCallers?.[name])
+          )
+        )
+      : undefined
   const perTool = await Promise.all(
-    Object.entries(tools).map(async ([name, tool]) => {
+    Object.entries(visibleTools).map(async ([name, tool]) => {
       const schema = await serializeToolSchema((tool as { inputSchema?: unknown }).inputSchema)
       return countToolTokens({ name, description: (tool as { description?: string }).description, schema }, tokenizer)
     })
   )
-  return perTool.reduce((sum, tokens) => sum + tokens, 0)
+  return perTool.reduce((sum, tokens) => sum + tokens, tokenizer.count(catalog ?? ''))
 }

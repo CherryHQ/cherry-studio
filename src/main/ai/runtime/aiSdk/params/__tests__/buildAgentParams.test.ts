@@ -2416,10 +2416,12 @@ describe('assistant browser tool selection', () => {
       false,
       []
     )
-    expect(Object.keys(enabled.tools ?? {}).filter((name) => name.startsWith('browser_'))).toEqual([])
+    expect(
+      Object.entries(enabled.tools ?? {}).filter(([name, tool]) => name.startsWith('browser_') && !tool.deferLoading)
+    ).toEqual([])
     expect(enabled.tools).toHaveProperty('tool_search')
-    expect(enabled.tools).toHaveProperty('tool_inspect')
-    expect(enabled.tools).toHaveProperty('tool_invoke')
+    expect(enabled.tools).not.toHaveProperty('tool_inspect')
+    expect(enabled.tools).not.toHaveProperty('tool_invoke')
     expect(
       enabled.deferredEntries
         .filter((entry) => entry.namespace === 'browser')

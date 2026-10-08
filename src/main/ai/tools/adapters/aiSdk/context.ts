@@ -78,6 +78,7 @@ export interface ToolCallContext {
   readonly request: RequestContext
   readonly toolCallId: string
   readonly messages: ModelMessage[]
+  readonly abortSignal?: AbortSignal
 }
 
 /**
@@ -97,7 +98,11 @@ export function getToolCallContext(options: ToolExecutionOptions<unknown>): Tool
   return {
     request,
     toolCallId: options.toolCallId,
-    messages: options.messages
+    messages: options.messages,
+    abortSignal:
+      options.abortSignal && request.abortSignal
+        ? AbortSignal.any([options.abortSignal, request.abortSignal])
+        : (options.abortSignal ?? request.abortSignal)
   }
 }
 

@@ -1,0 +1,239 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index eea1b873d9cd9fa0684a9d461c77e0ad3c83aa06..d86238e5b95d8a5dae0388d89a7f14e2482fd872 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -139,10 +139,30 @@ interface CodeModeExecutionPolicy {
+   /** @defaultValue `32` */
+   maxInFlightBridgeRequests?: number;
+ }
++/** A validated nested host call, attributed to its enclosing program. */
++interface CodeModeToolExecutionStartEvent {
++  parentToolCallId: string;
++  toolCall: { toolCallId: string; toolName: string; input: unknown };
++  toolContext: unknown;
++  messages: ModelMessage[];
++}
++
++interface CodeModeToolExecutionEndEvent extends CodeModeToolExecutionStartEvent {
++  toolExecutionMs: number;
++  toolOutput: { type: 'tool-result'; output: unknown } | { type: 'tool-error'; error: unknown };
++}
++
+ /**
+  * Options used by `createCodeModeTool` and `runCodeMode`.
+  */
+ interface CodeModeOptions {
++  /** Per-tool context, validated with each host tool's contextSchema. */
++  toolsContext?: Record<string, unknown>;
++  onToolExecutionStart?: (event: CodeModeToolExecutionStartEvent) => void | Promise<void>;
++  onToolExecutionEnd?: (event: CodeModeToolExecutionEndEvent) => void | Promise<void>;
++  /** Project a successful raw result before it crosses the sandbox's JSON boundary. */
++  transformToolOutput?: (event: CodeModeToolExecutionStartEvent & { output: unknown }) => unknown | Promise<unknown>;
++
+   executionPolicy?: CodeModeExecutionPolicy;
+   continuationSecurity?: CodeModeContinuationSecurityOptions;
+   approval?: {
+@@ -321,5 +341,5 @@ declare function setCodeModeContinuationSigningKey(key?: string | Uint8Array, op
+   maxAgeMs?: number;
+ }): void;
+ //#endregion
+-export { type ApprovalDecision, type CodeModeApprovalInterrupt, type CodeModeApprovalRequest, type CodeModeApprovalResponse, type CodeModeContinuation, type CodeModeContinuationSecurityOptions, type CodeModeExecutionPolicy, type CodeModeInterrupt, type CodeModeInterruptExecutionContext, type CodeModeInterruptPayload, type CodeModeInterruptResolution, type CodeModeOptions, type CodeModeTool, type CodeModeToolExecutionOptions, type CodeModeToolInput, type CodeModeToolOptions, type CodeModeToolSet, type CodeModeUnwrappedResult, type RunCodeModeInput, codeModeTool as experimental_codeModeTool, continueCodeModeApproval as experimental_continueCodeModeApproval, continueCodeModeInterrupt as experimental_continueCodeModeInterrupt, createCodeModeTool as experimental_createCodeModeTool, getCodeModeApprovalResponse as experimental_getCodeModeApprovalResponse, getCodeModeInterrupt as experimental_getCodeModeInterrupt, isCodeModeApprovalInterrupt as experimental_isCodeModeApprovalInterrupt, isCodeModeInterrupt as experimental_isCodeModeInterrupt, requestCodeModeInterrupt as experimental_requestCodeModeInterrupt, runCodeMode as experimental_runCodeMode, setCodeModeContinuationSigningKey as experimental_setCodeModeContinuationSigningKey, experimental_setMaxWorkers, toCodeModeApprovalMessages as experimental_toCodeModeApprovalMessages, unwrapCodeModeResult as experimental_unwrapCodeModeResult };
++export { type CodeModeToolExecutionStartEvent, type CodeModeToolExecutionEndEvent, type ApprovalDecision, type CodeModeApprovalInterrupt, type CodeModeApprovalRequest, type CodeModeApprovalResponse, type CodeModeContinuation, type CodeModeContinuationSecurityOptions, type CodeModeExecutionPolicy, type CodeModeInterrupt, type CodeModeInterruptExecutionContext, type CodeModeInterruptPayload, type CodeModeInterruptResolution, type CodeModeOptions, type CodeModeTool, type CodeModeToolExecutionOptions, type CodeModeToolInput, type CodeModeToolOptions, type CodeModeToolSet, type CodeModeUnwrappedResult, type RunCodeModeInput, codeModeTool as experimental_codeModeTool, continueCodeModeApproval as experimental_continueCodeModeApproval, continueCodeModeInterrupt as experimental_continueCodeModeInterrupt, createCodeModeTool as experimental_createCodeModeTool, getCodeModeApprovalResponse as experimental_getCodeModeApprovalResponse, getCodeModeInterrupt as experimental_getCodeModeInterrupt, isCodeModeApprovalInterrupt as experimental_isCodeModeApprovalInterrupt, isCodeModeInterrupt as experimental_isCodeModeInterrupt, requestCodeModeInterrupt as experimental_requestCodeModeInterrupt, runCodeMode as experimental_runCodeMode, setCodeModeContinuationSigningKey as experimental_setCodeModeContinuationSigningKey, experimental_setMaxWorkers, toCodeModeApprovalMessages as experimental_toCodeModeApprovalMessages, unwrapCodeModeResult as experimental_unwrapCodeModeResult };
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/dist/tool-invocation.js b/dist/tool-invocation.js
+index 8e1e2481f4eda4439793f52dc3dbd95014e1d8a8..c0d1106f36e84a4b0fe3c694d7e0dc66f57fc944 100644
+--- a/dist/tool-invocation.js
++++ b/dist/tool-invocation.js
+@@ -19,8 +19,16 @@ async function invokeHostTool({ toolName, inputJson, tools, baseExecutionOptions
+ 		input,
+ 		cause: validation.error.message
+ 	});
++	const rawContext = codeModeOptions.toolsContext && Object.hasOwn(codeModeOptions.toolsContext, toolName)
++		? codeModeOptions.toolsContext[toolName]
++		: baseExecutionOptions.context;
++	const contextValidation = hostTool.contextSchema == null
++		? { success: true, value: rawContext }
++		: await raceAgainstAbort(validateToolInput(hostTool.contextSchema, rawContext), baseExecutionOptions.abortSignal);
++	if (!contextValidation.success) throw new CodeModeToolError(`Invalid context for tool "${toolName}": ${contextValidation.error.message}`, { toolName });
+ 	const executionOptions = {
+ 		...baseExecutionOptions,
++		context: contextValidation.value,
+ 		toolCallId,
+ 		...codeModeInterrupt !== void 0 ? { codeModeInterrupt } : {}
+ 	};
+@@ -50,13 +58,38 @@ async function invokeHostTool({ toolName, inputJson, tools, baseExecutionOptions
+ 		});
+ 		if (!approved) throw new CodeModeToolApprovalDeniedError(toolName, validation.value, toolCallId, reason);
+ 	}
+-	const output = await raceAgainstAbort(executeHostTool(hostTool.execute.bind(hostTool), {
+-		input: validation.value,
+-		options: executionOptions
+-	}), executionOptions.abortSignal);
++	const event = {
++		parentToolCallId: baseExecutionOptions.toolCallId,
++		toolCall: { toolCallId, toolName, input: validation.value },
++		toolContext: executionOptions.context,
++		messages: executionOptions.messages
++	};
++	const startedAt = performance.now();
++	let output;
++	try {
++		await raceAgainstAbort(Promise.resolve(codeModeOptions.onToolExecutionStart?.(event)), executionOptions.abortSignal);
++		throwIfAborted(executionOptions.abortSignal);
++		output = await raceAgainstAbort(executeHostTool(hostTool.execute.bind(hostTool), {
++			input: validation.value,
++			options: executionOptions
++		}), executionOptions.abortSignal);
++	} catch (error) {
++		await codeModeOptions.onToolExecutionEnd?.({
++			...event, toolExecutionMs: performance.now() - startedAt,
++			toolOutput: { type: "tool-error", error }
++		});
++		throw error;
++	}
++	await codeModeOptions.onToolExecutionEnd?.({
++		...event, toolExecutionMs: performance.now() - startedAt,
++		toolOutput: { type: "tool-result", output }
++	});
++	const projectedOutput = codeModeOptions.transformToolOutput
++		? await raceAgainstAbort(Promise.resolve(codeModeOptions.transformToolOutput({ ...event, output })), executionOptions.abortSignal)
++		: output;
+ 	return {
+ 		type: "success",
+-		valueJson: toJsonPayload(output, maxToolOutputBytes, `Tool "${toolName}" output`)
++		valueJson: toJsonPayload(projectedOutput, maxToolOutputBytes, `Tool "${toolName}" output`)
+ 	};
+ }
+ async function requiresApproval(hostTool, input, options) {
+diff --git a/src/index.ts b/src/index.ts
+index e412532fb4968af405a28877d37f86b022d8476a..2ad6d252f51694411c99ee2dcade63bad7f26a47 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -45,6 +45,8 @@ export type {
+   CodeModeInterruptPayload,
+   CodeModeInterruptResolution,
+   CodeModeOptions,
++  CodeModeToolExecutionStartEvent,
++  CodeModeToolExecutionEndEvent,
+   CodeModeTool,
+   CodeModeToolExecutionOptions,
+   CodeModeToolInput,
+diff --git a/src/tool-invocation.ts b/src/tool-invocation.ts
+index 81c7a86f48c009f721f5fc88a5fa03830402bf00..2916b54ff6e4c17d3f5a4fcc34121a9d4796574e 100644
+--- a/src/tool-invocation.ts
++++ b/src/tool-invocation.ts
+@@ -11,6 +11,7 @@ import type {
+   CodeModeInterruptPayload,
+   CodeModeOptions,
+   CodeModeToolExecutionOptions,
++  CodeModeToolExecutionStartEvent,
+   CodeModeToolSet,
+ } from './types.js';
+ import {
+@@ -81,8 +82,19 @@ export async function invokeHostTool({
+     );
+   }
+ 
++  const rawContext = codeModeOptions.toolsContext && Object.hasOwn(codeModeOptions.toolsContext, toolName)
++    ? codeModeOptions.toolsContext[toolName]
++    : baseExecutionOptions.context;
++  const contextValidation = hostTool.contextSchema == null
++    ? { success: true as const, value: rawContext }
++    : await raceAgainstAbort(validateToolInput(hostTool.contextSchema, rawContext), baseExecutionOptions.abortSignal);
++  if (!contextValidation.success) {
++    throw new CodeModeToolError(`Invalid context for tool "${toolName}": ${contextValidation.error.message}`, { toolName });
++  }
++
+   const executionOptions: CodeModeToolExecutionOptions = {
+     ...baseExecutionOptions,
++    context: contextValidation.value,
+     toolCallId,
+     ...(codeModeInterrupt !== undefined ? { codeModeInterrupt } : {}),
+   };
+@@ -149,20 +161,38 @@ export async function invokeHostTool({
+     }
+   }
+ 
+-  const output = await raceAgainstAbort(
+-    executeHostTool(hostTool.execute.bind(hostTool), {
+-      input: validation.value,
+-      options: executionOptions,
+-    }),
+-    executionOptions.abortSignal,
+-  );
++  const event: CodeModeToolExecutionStartEvent = {
++    parentToolCallId: baseExecutionOptions.toolCallId,
++    toolCall: { toolCallId, toolName, input: validation.value },
++    toolContext: executionOptions.context,
++    messages: executionOptions.messages,
++  };
++  const startedAt = performance.now();
++  let output: unknown;
++  try {
++    await raceAgainstAbort(Promise.resolve(codeModeOptions.onToolExecutionStart?.(event)), executionOptions.abortSignal);
++    throwIfAborted(executionOptions.abortSignal);
++    output = await raceAgainstAbort(
++      executeHostTool(hostTool.execute.bind(hostTool), { input: validation.value, options: executionOptions }),
++      executionOptions.abortSignal,
++    );
++  } catch (error) {
++    await codeModeOptions.onToolExecutionEnd?.({
++      ...event, toolExecutionMs: performance.now() - startedAt,
++      toolOutput: { type: 'tool-error', error },
++    });
++    throw error;
++  }
++  await codeModeOptions.onToolExecutionEnd?.({
++    ...event, toolExecutionMs: performance.now() - startedAt,
++    toolOutput: { type: 'tool-result', output },
++  });
++  const projectedOutput = codeModeOptions.transformToolOutput
++    ? await raceAgainstAbort(Promise.resolve(codeModeOptions.transformToolOutput({ ...event, output })), executionOptions.abortSignal)
++    : output;
+   return {
+     type: 'success',
+-    valueJson: toJsonPayload(
+-      output,
+-      maxToolOutputBytes,
+-      `Tool "${toolName}" output`,
+-    ),
++    valueJson: toJsonPayload(projectedOutput, maxToolOutputBytes, `Tool "${toolName}" output`),
+   };
+ }
+ 
+diff --git a/src/types.ts b/src/types.ts
+index 6bd5604aa943759e5b889abb4fd14d56a4868281..c478cd9018a53b464e2b394965841c578e3bb5b3 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -182,10 +182,30 @@ export interface CodeModeExecutionPolicy {
+   maxInFlightBridgeRequests?: number;
+ }
+ 
++/** A validated nested host call, attributed to its enclosing program. */
++export interface CodeModeToolExecutionStartEvent {
++  parentToolCallId: string;
++  toolCall: { toolCallId: string; toolName: string; input: unknown };
++  toolContext: unknown;
++  messages: ModelMessage[];
++}
++
++export interface CodeModeToolExecutionEndEvent extends CodeModeToolExecutionStartEvent {
++  toolExecutionMs: number;
++  toolOutput: { type: 'tool-result'; output: unknown } | { type: 'tool-error'; error: unknown };
++}
++
+ /**
+  * Options used by `createCodeModeTool` and `runCodeMode`.
+  */
+ export interface CodeModeOptions {
++  /** Per-tool context, validated with each host tool's contextSchema. */
++  toolsContext?: Record<string, unknown>;
++  onToolExecutionStart?: (event: CodeModeToolExecutionStartEvent) => void | Promise<void>;
++  onToolExecutionEnd?: (event: CodeModeToolExecutionEndEvent) => void | Promise<void>;
++  /** Project a successful raw result before it crosses the sandbox's JSON boundary. */
++  transformToolOutput?: (event: CodeModeToolExecutionStartEvent & { output: unknown }) => unknown | Promise<unknown>;
++
+   executionPolicy?: CodeModeExecutionPolicy;
+   continuationSecurity?: CodeModeContinuationSecurityOptions;
+   approval?: {

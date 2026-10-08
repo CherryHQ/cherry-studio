@@ -17,14 +17,17 @@ identify tool dependencies; they do not require those capabilities to wait until
 > Refreshed 2026-10-04 against Cherry `e3052500309`, published `ai@7.0.127`, and upstream
 > main `15f1a4d0531ac641a4a4d9cc602c0536c1906834`. Published Code Mode `1.0.84` peers on `ai@7.0.127`;
 > the earlier approval correction remains reproducible at `1.0.80`.
-> **Planned; no migration or black-box test has run for this program.**
+> The aiSdk implementation now combines native search and Core Code Mode; see
+> [Tool Registry](../tool-registry.md#native-search-and-code-mode) for the current contract.
+> The replacement map below records the pre-migration baseline. Release gates still require
+> the applicable real-provider and packaged-platform validation; local tests alone do not close them.
 
 Both phases require the [SDK upgrade gate](./sdk-upgrade-plan.md#14-verification-and-exit-gate).
 They replace duplicated execution/discovery machinery while preserving Cherry's tool catalog,
 request eligibility, approval authority, domain implementations, and durable UI results. They do not
 assume that AI SDK Core tool callers are automatically available in every Harness adapter.
 
-## Current implementation and replacement boundaries
+## Pre-migration implementation and replacement boundaries
 
 Paths below are relative to `src/main/ai/` unless marked otherwise.
 

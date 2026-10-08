@@ -4,6 +4,8 @@
 
 import {
   InvalidResponseDataError,
+  isStepCount,
+  type Experimental_ToolCallers,
   type LanguageModelUsage,
   type ModelMessage,
   type Tool,
@@ -21,8 +23,10 @@ import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilit
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
+import { withCodeMode } from './codeMode'
 import { logger, safeCall, wrapForwardedHook, createToolExecutionHooks } from './loop/hookRunner'
-import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
+import { getTrustedLocalToolTerminalFailure, type TerminalToolFailure } from './loop/localToolTerminalOutcome'
+import { ToolLoopTerminalError, resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
@@ -98,10 +102,34 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private async buildAiSdkAgent(hooks: AgentLoopHooks) {
     const params = this.params
     const opts = params.options ?? {}
+    const pendingCodeModeMedia: ModelMessage[] = []
+    let codeModeTerminalFailure: TerminalToolFailure | undefined
+    const exposition = withCodeMode(
+      params.tools,
+      opts.context,
+      hooks,
+      (chunk) => this.write(chunk),
+      async (toolName, toolCallId, input, output) => {
+        codeModeTerminalFailure ??= getTrustedLocalToolTerminalFailure(output)
+        const projected = await toModelMessages(
+          [
+            {
+              id: toolCallId,
+              role: 'assistant',
+              parts: [{ type: 'dynamic-tool', toolName, toolCallId, state: 'output-available', input, output }]
+            }
+          ],
+          params.mediaCapabilities,
+          params.tools,
+          { image: false, audio: false, video: false }
+        )
+        pendingCodeModeMedia.push(...projected.filter((message) => message.role === 'user'))
+      }
+    )
     const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
     const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
       const routedMessages = routeToolResultMedia(
-        options.messages,
+        pendingCodeModeMedia.length ? [...options.messages, ...pendingCodeModeMedia.splice(0)] : options.messages,
         params.mediaCapabilities ?? ALL_MEDIA,
         params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
       )
@@ -125,7 +153,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
-        tools: params.tools,
+        tools: exposition.tools,
+        // Caller names come from the dynamic request catalog; SDK validates their bindings.
+        experimental_toolCallers: exposition.experimental_toolCallers as Experimental_ToolCallers<RequestTools>,
         ...createToolExecutionHooks(hooks),
         onStart: async () => {
           await safeCall('onStart', hooks.onStart)
@@ -149,7 +179,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         // Provider-specific
         providerOptions: opts.providerOptions,
         // Loop control
-        stopWhen: opts.stopWhen,
+        stopWhen: [
+          ...(Array.isArray(opts.stopWhen) ? opts.stopWhen : [opts.stopWhen ?? isStepCount(20)]),
+          () => {
+            if (codeModeTerminalFailure) {
+              throw new ToolLoopTerminalError(
+                codeModeTerminalFailure.userMessage ?? codeModeTerminalFailure.error,
+                codeModeTerminalFailure.i18nKey
+              )
+            }
+            return false
+          }
+        ],
         // Experimental
         telemetry: opts.telemetry ?? { isEnabled: false },
         runtimeContext: opts.context,

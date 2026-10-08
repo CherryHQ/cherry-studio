@@ -123,6 +123,7 @@ patchedDependencies:
   "@ai-sdk/openai@4.0.83": patches/@ai-sdk__openai@4.0.83.patch
   "@ai-sdk/openai-compatible@3.0.62": patches/@ai-sdk__openai-compatible@3.0.62.patch
   ollama-ai-provider-v2@4.0.1: patches/ollama-ai-provider-v2@4.0.1.patch
+  "@ai-sdk/code-mode@1.0.84": patches/@ai-sdk__code-mode@1.0.84.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true

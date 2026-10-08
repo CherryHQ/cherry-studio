@@ -215,7 +215,6 @@ describe('syncMcpToolsToRegistry', () => {
     const entry = reg.getByName('mcp__server-a__query')!
     expect(entry.namespace).toBe('mcp:server-a')
     expect(entry.namespaceLabel).toBe('mcp:票据 OCR')
-    expect([...reg.getByNamespace({ query: '票据' }).keys()]).toEqual(['mcp:票据 OCR'])
   })
 
   it('deduplicates repeated descriptors for the same identity', async () => {

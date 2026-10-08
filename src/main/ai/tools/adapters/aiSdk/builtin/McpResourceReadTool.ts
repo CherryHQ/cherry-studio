@@ -97,14 +97,14 @@ const mcpResourceReadTool = tool<
   },
   toModelOutput: ({ output }) => mcpResourceReadModelOutput(output),
   execute: async ({ serverId, uri, offset }, options) => {
-    const { request } = getToolCallContext(options)
+    const { request, abortSignal } = getToolCallContext(options)
     return readScopedMcpResource(resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds), {
       serverId,
       uri,
       embeddedResources: request.mcpToolResources,
       offset,
       charCap: request.toolOutputCharCap ?? MCP_RESOURCE_READ_CHAR_CAP,
-      signal: request.abortSignal
+      signal: abortSignal
     })
   }
 })
@@ -117,9 +117,7 @@ export function createMcpResourceReadToolEntry(): ToolEntry {
     // Read-style tool: persisting its output would route the model straight back through it to read
     // the persisted file, same reasoning as fs_read / kb_read. It caps its own pages instead.
     truncatable: false,
-    // Approval-gated entries must never defer: deferring removes the tool from the SDK tool-set, so
-    // the native `needsApproval` gate never fires and it becomes reachable via `tool_invoke` with no
-    // approval card (same rule as force-prompt MCP tools).
+    // Keep resource approval on the direct path with a persisted approval card.
     defer: 'never',
     tool: mcpResourceReadTool,
     applies: (scope) => (scope.mcpResourceServerIds?.size ?? 0) > 0 || scope.mcpToolIds.size > 0

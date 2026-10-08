@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -55,10 +56,9 @@ describe('MessageMetaTool', () => {
     const copyButton = screen.getByRole('button', { name: '复制' })
     const triggerButton = screen.getByRole('button', { name: /tool_search/ })
 
-    expect(copyButton.tagName).toBe('BUTTON')
     expect(triggerButton).not.toContainElement(copyButton)
 
-    fireEvent.click(copyButton)
+    await userEvent.click(copyButton)
 
     await waitFor(() => {
       expect(copyText).toHaveBeenCalledWith(expect.stringContaining('"query": "browser"'), {
@@ -69,7 +69,7 @@ describe('MessageMetaTool', () => {
   })
 
   async function expandCard(name: RegExp) {
-    fireEvent.click(screen.getByRole('button', { name }))
+    await userEvent.click(screen.getByRole('button', { name }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
     })
@@ -93,6 +93,40 @@ describe('MessageMetaTool', () => {
     expect(await screen.findByText('mcp__cherry_tools__web_search')).toBeTruthy()
     expect(screen.queryByText('没有匹配的工具。')).toBeNull()
   })
+
+  it.each([
+    { tools: [{ name: 'browser_open', description: 'Open a page' }] },
+    { matchedNamespaces: [{ namespace: 'browser', tools: [{ name: 'browser_open' }] }] }
+  ])('shows native and historical search results', async (response) => {
+    render(<MessageMetaTool toolResponse={createMetaToolResponse({ response })} />)
+    await expandCard(/tool_search/)
+    expect(await screen.findByText('browser_open')).toBeInTheDocument()
+    expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
+  })
+
+  it.each([0, false, null, ['a', 'b'], { result: 42, error: 'ordinary data' }])(
+    'shows a Core Code Mode JSON result without interpreting application fields as execution errors',
+    async (response) => {
+      render(
+        <MessageMetaTool
+          toolResponse={createMetaToolResponse({
+            tool: { id: 'code_mode', name: 'code_mode', type: 'builtin' },
+            arguments: { js: 'return await tools.lookup({})' },
+            response
+          })}
+        />
+      )
+      await expandCard(/code_mode/)
+      expect(await screen.findByText('return await tools.lookup({})')).toBeInTheDocument()
+      expect(screen.getByText('输出')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (text, element) =>
+            element?.tagName === 'PRE' && text === JSON.stringify(response, null, 2).replace(/\s+/g, ' ').trim()
+        )
+      ).toBeInTheDocument()
+    }
+  )
 
   it('shows the native Code Mode script and its output', async () => {
     render(

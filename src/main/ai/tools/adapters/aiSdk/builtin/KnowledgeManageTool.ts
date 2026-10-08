@@ -13,10 +13,8 @@
  * MCP bridge runs identical logic (gated there by Claude Code's own permission
  * prompt); this file is just the AI-SDK `tool()` wrapper.
  *
- * `defer: 'never'` (kept inline, never behind `tool_search`/`tool_invoke`): the same rule
- * `mcp/mcpTools.ts` applies to force-prompt MCP tools. Deferring an approval-gated tool would strip
- * it from the SDK's tool-set, so the SDK's native `needsApproval` gate never fires and `tool_invoke`
- * refuses it too (it never runs an approval-gated tool blind) — an unreachable tool either way.
+ * `defer: 'never'` keeps mutations inline on the direct path with a persisted approval card,
+ * matching force-prompt MCP tools in `mcp/mcpTools.ts`.
  */
 
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'

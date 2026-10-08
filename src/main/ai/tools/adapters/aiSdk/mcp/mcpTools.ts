@@ -5,11 +5,11 @@ import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 
-import { getRequestContext } from '../context'
+import { getRequestContext, requestContextSchema } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
@@ -44,12 +44,19 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     description: mcpTool.description || mcpTool.name,
     metadata: { cherry: { tool: metadata } },
     inputSchema: createMcpInputSchema(mcpTool.inputSchema as JSONSchema7),
-    needsApproval: async () => forcePrompt,
+    contextSchema: requestContextSchema,
+    needsApproval: forcePrompt,
     execute: async (args: Record<string, unknown>, options) => {
       const { toolCallId, abortSignal } = options
       const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
+      }
+      if (isMcpToolDisabledBySource(server, mcpTool)) {
+        throw new Error(`MCP tool ${mcpTool.name} is disabled`)
+      }
+      if (!forcePrompt && isMcpToolForcePromptBySource(server, mcpTool)) {
+        throw new Error(`MCP tool ${mcpTool.name} now requires approval; start a new request`)
       }
       const result: McpCallToolResponse = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
@@ -84,10 +91,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
 }
 
 function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
-  // A force-prompt (approval-gated) tool must never defer: deferring removes it from the SDK
-  // tool-set, so the SDK's native `needsApproval` gate never fires and it becomes reachable only
-  // via `tool_invoke` — which would run it with no approval card. Keep it inline. Reading
-  // `forcePrompt` once keeps `defer` and `needsApproval` in lock-step (they must always agree).
+  // Keep forced approvals on the direct path so the persisted approval flow remains authoritative.
   const forcePrompt = isMcpToolForcePromptBySource(server, mcpTool)
   return {
     name: mcpTool.id,

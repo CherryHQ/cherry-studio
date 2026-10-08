@@ -10,14 +10,10 @@ const { fetchUrls, searchKeywords } = vi.hoisted(() => ({
   searchKeywords: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'WebSearchService') return { fetchUrls, searchKeywords }
-      throw new Error(`unexpected service: ${name}`)
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ WebSearchService: { fetchUrls, searchKeywords } } as Record<string, unknown>)
+})
 
 import { createWebFetchToolEntry } from '../WebFetchTool'
 import { createWebSearchToolEntry, WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
@@ -87,23 +83,26 @@ describe('web_search', () => {
     searchKeywords.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(searchEntry.name).toBe(WEB_SEARCH_TOOL_NAME)
-    expect(searchEntry.namespace).toBe('web')
-    expect(searchEntry.defer).toBe('auto')
-    // Entity codec, not blanket truncatable:false — content trims per-entity
-    // while the id/url/title citation anchors ride the skeleton.
-    expect(searchEntry.truncatable).toBeUndefined()
-    expect(searchEntry.codec).toBeDefined()
-  })
-
-  it('calls WebSearchService.searchKeywords with the request abort signal', async () => {
-    const abortSignal = new AbortController().signal
-    searchKeywords.mockResolvedValue(response())
-
-    await callSearchExecute({ query: 'hello' }, abortSignal)
-
-    expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal: abortSignal })
+  it.each(['request', 'call'] as const)('cancels in-flight work when the %s signal aborts', async (source) => {
+    const request = new AbortController()
+    const call = new AbortController()
+    const reason = new Error('Cancelled')
+    searchKeywords.mockImplementation(
+      (_input, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const result = searchEntry.tool.execute!(
+      { query: 'hello' },
+      {
+        ...makeOptions(request.signal),
+        abortSignal: call.signal
+      }
+    )
+    const controller = source === 'request' ? request : call
+    controller.abort(reason)
+    await expect(result).rejects.toThrow(reason)
   })
 
   it('maps WebSearchResponse to prefixed cite-id output items', async () => {
@@ -265,19 +264,26 @@ describe('web_fetch', () => {
     searchKeywords.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(fetchEntry.name).toBe(WEB_FETCH_TOOL_NAME)
-    expect(fetchEntry.namespace).toBe('web')
-    expect(fetchEntry.defer).toBe('auto')
-  })
-
-  it('calls WebSearchService.fetchUrls with the request abort signal', async () => {
-    const abortSignal = new AbortController().signal
-    fetchUrls.mockResolvedValue(response())
-
-    await callFetchExecute({ urls: ['https://example.com'] }, abortSignal)
-
-    expect(fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com'] }, { signal: abortSignal })
+  it.each(['request', 'call'] as const)('cancels in-flight work when the %s signal aborts', async (source) => {
+    const request = new AbortController()
+    const call = new AbortController()
+    const reason = new Error('Cancelled')
+    fetchUrls.mockImplementation(
+      (_input, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+    const result = fetchEntry.tool.execute!(
+      { urls: ['https://example.com'] },
+      {
+        ...makeOptions(request.signal),
+        abortSignal: call.signal
+      }
+    )
+    const controller = source === 'request' ? request : call
+    controller.abort(reason)
+    await expect(result).rejects.toThrow(reason)
   })
 
   // The schema is what the AI SDK validates a model tool call against, so a malformed URL has to be

@@ -144,8 +144,8 @@ const readFileTool = tool({
   inputSchema: readFileInputSchema,
   outputSchema: readFileResultSchema,
   execute: async (input, options) => {
-    const { request } = getToolCallContext(options)
-    return readFile(input, { attachments: request.fileAttachments ?? [] }, request.abortSignal)
+    const { request, abortSignal } = getToolCallContext(options)
+    return readFile(input, { attachments: request.fileAttachments ?? [] }, abortSignal)
   },
   toModelOutput: ({ output }) => readFileModelOutput(output)
 })

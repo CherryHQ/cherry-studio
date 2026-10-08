@@ -31,7 +31,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   const isStreaming = status === 'streaming'
   const isDone = status === 'done'
   const isError = status === 'error'
-  const hasError = response?.isError === true
+  const hasError = tool.name !== 'code_mode' && response?.isError === true
 
   // Auto-expand while the call is in flight; collapse once finished.
   useEffect(() => {
@@ -115,6 +115,7 @@ function useTitleLabel(toolResponse: NormalToolResponse): string {
     }
     case 'tool_exec':
     case 'codemode':
+    case 'code_mode':
       return name
   }
 }
@@ -131,6 +132,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
       return <ToolInvokeBody toolResponse={toolResponse} />
     case 'tool_exec':
     case 'codemode':
+    case 'code_mode':
       return <ToolExecBody toolResponse={toolResponse} />
   }
 }
@@ -138,6 +140,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
 // ── tool_search ────────────────────────────────────────────────────
 
 interface SearchOutput {
+  tools?: Array<{ name: string; description?: string }>
   loaded?: string[]
   matchedNamespaces?: Array<{
     namespace: string
@@ -156,7 +159,11 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
   const matchedNamespaces =
     out?.matchedNamespaces ??
-    (out?.loaded?.length ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }] : [])
+    (out?.tools?.length
+      ? [{ namespace: '', tools: out.tools }]
+      : out?.loaded?.length
+        ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }]
+        : [])
 
   return (
     <BodyContainer>
@@ -166,9 +173,11 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
       )}
       {matchedNamespaces.map((group) => (
         <NamespaceGroup key={group.namespace}>
-          <NamespaceTitle>
-            <code>{group.namespace}</code> <small>({group.tools.length})</small>
-          </NamespaceTitle>
+          {group.namespace && (
+            <NamespaceTitle>
+              <code>{group.namespace}</code> <small>({group.tools.length})</small>
+            </NamespaceTitle>
+          )}
           <ToolNameList>
             {group.tools.map((tool) => (
               <ToolNameChip key={tool.name}>{tool.name}</ToolNameChip>
@@ -245,10 +254,14 @@ interface ExecOutput {
 const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
-  const code = typeof args?.code === 'string' ? args.code : ''
-  const out = (
-    typeof toolResponse.response === 'string' ? { result: toolResponse.response } : (toolResponse.response ?? undefined)
-  ) as ExecOutput | undefined
+  const isCoreCodeMode = toolResponse.tool.name === 'code_mode'
+  const script = isCoreCodeMode ? args?.js : args?.code
+  const code = typeof script === 'string' ? script : ''
+  const out: ExecOutput | undefined = isCoreCodeMode
+    ? { result: toolResponse.response }
+    : typeof toolResponse.response === 'string'
+      ? { result: toolResponse.response }
+      : ((toolResponse.response ?? undefined) as ExecOutput | undefined)
 
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')

@@ -20,6 +20,19 @@ function makeOptions(context: unknown): ToolExecutionOptions<unknown> {
 }
 
 describe('getToolCallContext', () => {
+  it.each(['request', 'call'] as const)('cancels host work when the %s signal aborts', (source) => {
+    const request = new AbortController()
+    const call = new AbortController()
+    const reason = new Error('Cancelled')
+    const context = getToolCallContext({
+      ...makeOptions(makeRequest({ abortSignal: request.signal })),
+      abortSignal: call.signal
+    })
+    ;({ request, call })[source].abort(reason)
+    expect(() => context.abortSignal?.throwIfAborted()).toThrow(reason)
+    expect({ request, call }[source === 'request' ? 'call' : 'request'].signal.aborted).toBe(false)
+  })
+
   it('unwraps RequestContext threaded through context', () => {
     const request = makeRequest({ requestId: 'req-42', topicId: 't-1' })
     const ctx = getToolCallContext(makeOptions(request))

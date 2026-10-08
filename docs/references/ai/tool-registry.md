@@ -1,5 +1,5 @@
 ---
-description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition
+description: Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, native Tool Search, Core Code Mode, and deferred exposition
 sources:
   - src/main/ai/tools/adapters/aiSdk
   - src/main/ai/tools/adapters/claudeCode/agentTools.ts
@@ -13,7 +13,7 @@ sources:
 interface ToolEntry {
   name: string         // wire-name, what the LLM emits in tool_calls
   namespace: string    // ownership key (web, kb, mcp:<serverId>, meta) — never shown to the model
-  namespaceLabel?: string // what `tool_search` groups by and shows; defaults to `namespace`
+  namespaceLabel?: string // searchable namespace label; defaults to `namespace`
   description: string  // one-line summary for `tool_search`
   defer: 'never' | 'always' | 'auto'
   tool: Tool           // AI SDK Tool (schema + execute + needsApproval + toModelOutput)
@@ -40,7 +40,7 @@ unambiguous):
 |---|---|---|
 | Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
 | MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2c3d4e5f60718293a` |
-| Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
+| Discovery / composition | SDK-native names | `tool_search`, `code_mode` |
 
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
 e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
@@ -80,8 +80,8 @@ not limited to assistant settings.
   `tool.execute` proxies through the MCP transport. The scan stops early once
   every selected id has been claimed. Ownership uses the stable
   `namespace: mcp:<serverId>`; display names never determine it, and
-  `namespaceLabel: mcp:<serverName>` is what `tool_search` groups by and shows
-  the model. Because reads are last-known-good cache snapshots, a transient
+  `namespaceLabel: mcp:<serverName>` remains searchable and appears in the
+  deferred namespace inventory. Because reads are last-known-good cache snapshots, a transient
   catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
@@ -113,60 +113,51 @@ is still cold when a session starts contributes no tools to that session and
 appears on the next one — the Claude Agent SDK snapshots the tool list per
 session, so this cannot be made live mid-session.
 
-## Meta-tools
+## Native search and Code Mode
 
-`src/main/ai/tools/adapters/aiSdk/meta/` defines four tools that turn the
-registry into a search-then-call interface for the model. Only the first
-three are injected:
+`applyDeferExposition` keeps the request-selected tools and marks deferred ones with
+`deferLoading: true`. The SDK binds `tool_search` for each generation. A nonempty query
+matches names, descriptions, and namespace labels by case-insensitive substring, including
+Chinese text. Results contain `{ tools: [{ name, description }] }`, with at most five matches;
+an exact name sorts first. Search only receives the SDK's eligible candidates.
 
-| Tool | Injected? | Use |
-|---|---|---|
-| `tool_search` | yes | Browse the deferred pool by namespace + query, returns brief descriptions |
-| `tool_inspect` | yes | Emit a JSDoc stub for one tool — enough to call it correctly |
-| `tool_invoke` | yes | Invoke any registry tool by name with a JSON arg blob |
-| `tool_exec` | **no** | Sandboxed JS exec with the full registry as a global API (`meta/exec/runtime.ts`, `meta/exec/worker.ts`) — defined but intentionally not injected |
+Discovered schemas become callable on the **next model step**. A program cannot search and
+invoke a previously unavailable tool in the same step. Native dispatch validates inputs and
+preserves defaults, transforms, and `toModelOutput`. The old inspect/invoke ledger and live
+executors are removed; historical `tool_inspect`, `tool_invoke`, and `tool_exec` cards remain readable.
 
-The injected three are added to the tool set by `applyDeferExposition` when
-(and only when) the request actually defers tools. See below.
+`shouldDefer` preserves the existing `never` / `always` / `auto` policy: automatic deferral
+requires at least five candidates, an estimated cost above 10% of the context window, and
+savings above the conservative 500-token discovery allowance. A caller-provided `tool_search`
+keeps its own dispatch and suppresses automatic deferral. Caller overrides of registered
+names retain their own definitions.
 
-## Defer exposition
+`runtime/aiSdk/codeMode.ts` exposes `code_mode` using `@ai-sdk/code-mode`, native
+`experimental_toolCallers`, and conversation catalogs. Eligible host tools remain directly
+callable as well. Client-only tools, provider tools, and tools declaring approval requirements
+stay outside Code Mode. Forced-approval MCP tools stay inline; the native approval card remains
+authoritative. At execution, MCP tools recheck server activity, per-tool disablement, and new
+approval requirements; stale discovery cannot grant access. See [Tool Approval](./tool-approval.md).
 
-`src/main/ai/tools/adapters/aiSdk/exposition/`:
+The package patch adds validated per-tool context, attributed child execution events, and a
+raw-output projection hook. Cherry records child calls/results in the existing message stream,
+retaining MCP metadata, images, and resources. Binary MCP content becomes a text placeholder
+inside the sandbox; raw content remains in the child result. Model-supported screenshot media
+is routed into subsequent model steps. Trusted local terminal failures stop the loop even when
+a program discards their return value. Cancellation stops further dispatch; a host operation
+that ignores its abort signal may still finish its already-started external work.
 
-- `shouldDefer(entries, contextWindow)` — returns the set of names to
-  defer. Two gates above the simple threshold:
-  - **MIN_AUTO_DEFER_COUNT** — the auto pool must be large enough that
-    search-then-invoke beats inlining.
-  - **META_TOOLS_OVERHEAD_TOKENS** — estimated savings must exceed the
-    meta-tools' static prompt cost. Without these gates, small tool sets
-    + small-context models trigger defer and pay net-negative tokens.
+The engine is QuickJS from the pinned `run` production dependency. Each program has a 30-second
+timeout, 64 MiB heap, 2 MiB stack, 256 KiB source limit, 1 MiB result/input limits, 64 KiB console
+limit, 4 MiB per-tool bridge output limit, 256 host calls, and 32 concurrent calls. Code uses
+`await tools.<name>(input)` and an explicit `return`; Node globals and arbitrary host filesystem
+or network access are unavailable. No durable continuation or nested approval workflow is enabled.
+The model is instructed to use direct calls for long operations such as image generation/editing.
+Built-in host tools combine the program and request cancellation signals; completed child effects
+are retained after a program fails and must not be blindly repeated.
 
-- `applyDeferExposition(tools, registry, contextWindow)` — strips the
-  deferred names out of `tools`, injects `tool_search` / `tool_inspect` /
-  `tool_invoke`, and returns the entries the system-prompt's
-  `<DEFERRED_TOOLS>` section needs to enumerate (so the model knows what
-  namespaces exist).
-
-**Approval-gated tools are never deferred.** A force-prompt MCP tool is registered
-with `defer: 'never'` — `mcp/mcpTools.ts` reads `isMcpToolForcePromptBySource` once
-to drive both `defer` and `needsApproval` — so it stays inline and the SDK's native
-approval gate fires on it. Deferring it would drop it from the SDK tool-set, so the
-gate would never fire and it would be reachable only through `tool_invoke` with no
-approval card. As a runtime backstop the `tool_invoke` / `tool_exec` meta-tools also
-call `isApprovalGated` at execution time and refuse a gated tool (covering the
-`registry.getByName(any-name)` vector), steering the model to call it inline. See
-[Tool Approval](./tool-approval.md).
-
-`tool_exec` is **not injected** by `applyDeferExposition` — there is no
-`metaTools.exec` flag. The injection site (`applyDeferExposition.ts:50-53`)
-deliberately leaves it out: its `worker_threads` + `new Function` sandbox
-runs model-authored code with full Node privileges, a privilege-escalation
-surface vs the renderer's prior restrictions. It is meant to be re-enabled
-behind an explicit Preference key once there is a concrete need.
-
-This statement is specific to the AI SDK registry. The Pi agent runtime has a
-native Pi 1.0 `codemode`, `tool_search`, and MCP extensions over its session tools;
-see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
+Pi retains its native `codemode`, `tool_search`, and MCP extensions; see
+[Pi code mode](./agent-session-runtime.md#pi-code-mode).
 
 ## `applies` and tool-call repair
 
@@ -187,7 +178,7 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
   `tools/adapters/aiSdk/builtin/__tests__/`,
   `tools/adapters/aiSdk/exposition/__tests__/`,
   `tools/adapters/aiSdk/mcp/__tests__/`,
-  `tools/adapters/aiSdk/meta/__tests__/`
+  `runtime/aiSdk/__tests__/codeMode.test.ts`
 - Defer rationale, gate thresholds:
   `tools/adapters/aiSdk/exposition/shouldDefer.ts` (header doc + tests)
 - Approval flow: [Tool Approval](./tool-approval.md)
