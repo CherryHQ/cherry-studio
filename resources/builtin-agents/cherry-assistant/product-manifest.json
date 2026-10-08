@@ -496,7 +496,7 @@
     }
   ],
   "providers": {
-    "version": "dbca1ba38bf86df7",
+    "version": "a97aae2405a78d18",
     "count": 65,
     "entries": [
       {
@@ -834,6 +834,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],

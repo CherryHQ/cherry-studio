@@ -1,4 +1,6 @@
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
+  type Api,
   type AssistantMessage,
   type Context,
   createAssistantMessageEventStream,
@@ -8,12 +10,11 @@ import {
   type AgentSessionEvent,
   createAgentSession,
   DefaultResourceLoader,
+  ModelRuntime,
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
-
-import { createPiModelRuntime } from './piSdk'
 
 const model: Model<'openai-completions'> = {
   id: 'length-recovery-test',
@@ -84,9 +85,29 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     ]
   })
   await resourceLoader.reload()
-  const modelRuntime = await createPiModelRuntime()
-  modelRuntime.registerProvider(model.provider, { baseUrl: model.baseUrl, api: model.api, models: [model] })
-  await modelRuntime.setRuntimeApiKey(model.provider, 'synthetic-test-key')
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    refreshOnCreate: false
+  })
+  const contexts: Context[] = []
+  const streamSimple = (_model: Model<Api>, context: Context) => {
+    contexts.push(structuredClone(context))
+    const message = responses[contexts.length - 1]
+    if (!message) throw new Error('Unexpected extra provider request')
+    const stream = createAssistantMessageEventStream()
+    stream.push({ type: 'start', partial: message })
+    stream.push({ type: 'done', reason: message.stopReason, message })
+    stream.end()
+    return stream
+  }
+  modelRuntime.registerProvider(model.provider, {
+    streamSimple,
+    api: model.api,
+    baseUrl: model.baseUrl,
+    apiKey: 'synthetic-test-key',
+    models: [model]
+  })
   const { session } = await createAgentSession({
     cwd,
     model,
@@ -97,19 +118,8 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
     tools: []
   })
   await session.bindExtensions({})
-  const contexts: Context[] = []
   const events: AgentSessionEvent[] = []
   session.subscribe((event) => events.push(event))
-  session.agent.streamFunction = (_model, context) => {
-    contexts.push(structuredClone(context))
-    const message = responses[contexts.length - 1]
-    if (!message) throw new Error('Unexpected extra provider request')
-    const stream = createAssistantMessageEventStream()
-    stream.push({ type: 'start', partial: message })
-    stream.push({ type: 'done', reason: message.stopReason, message })
-    stream.end()
-    return stream
-  }
   return { session, contexts, events }
 }
 

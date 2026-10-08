@@ -219,7 +219,6 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     await respond({
       match: request.match,
       approved: false,
-      reason: 'User dismissed AskUserQuestion',
       ...(form && { updatedInput: { elicitationAction: 'cancel' } })
     })
   }, [form, isSubmitting, request.match, respond])

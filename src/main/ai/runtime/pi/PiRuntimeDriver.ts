@@ -6,7 +6,6 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isUniqueModelId } from '@shared/data/types/model'
 
@@ -19,6 +18,7 @@ import type {
 } from '../types'
 import { assertPiProviderUsable } from './modelInjection'
 import { forkPiSession } from './piFork'
+import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
@@ -52,13 +52,15 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       approval: tool.approval
     }))
     // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
-    // (piMcpToolAdapter warms it). Third-party, so they prompt in the default mode.
+    // (piMcpExtension warms it). Third-party, so they prompt in the default mode.
     const catalog = application.get('McpCatalogService')
     const mcpTools: Tool[] = mcpIds.flatMap((idOrName) => {
       const server = mcpServerService.findByIdOrName(idOrName)
       if (!server) return []
-      return catalog.listTools(server.id, { includeDisabled: false }).map((tool) => ({
-        id: buildFunctionCallToolName(server.name, tool.name),
+      const tools = catalog.listTools(server.id, { includeDisabled: false })
+      const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
+      return tools.map((tool, index) => ({
+        id: buildPiMcpToolName(server.id, tool.name, names.indexOf(names[index]) !== names.lastIndexOf(names[index])),
         name: tool.name,
         origin: 'mcp' as const,
         approval: 'prompt' as const,

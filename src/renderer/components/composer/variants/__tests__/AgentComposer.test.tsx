@@ -301,9 +301,9 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath, menuTrigger }: { targetPath: string; menuTrigger?: ReactNode }) => (
+  OpenTargetButton: ({ targetPath, primaryContent }: { targetPath: string; primaryContent?: ReactNode }) => (
     <div data-testid="workspace-open-button" data-workdir={targetPath}>
-      {menuTrigger}
+      <button type="button">{primaryContent}</button>
     </div>
   )
 }))
@@ -387,6 +387,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   return {
     default: MockComposerSurface
   }
+})
+
+// #20766: Vitest 4 still loads AgentComposer when useAgent is missing from the mock.
+// Evaluating mcpStatusTool must fail the suite until that static import is gone.
+vi.mock('@renderer/components/composer/tools/definitions/mcpStatusTool', () => {
+  throw new Error('AgentComposer evaluated mcpStatusTool')
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
@@ -1893,10 +1899,31 @@ describe('AgentComposer', () => {
     expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
   })
 
+  // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.
+  it('highlights MCP from the agent bindings on first render before the panel opens', () => {
+    mocks.pinnedToolIds = ['mcp-status']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
+  })
+
   it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
     mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
 
-    render(
+    const { rerender } = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -1911,6 +1938,7 @@ describe('AgentComposer', () => {
       name: 'chat.input.slash_commands.title'
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
+    expect(mcpButton).not.toHaveAttribute('data-active')
 
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
@@ -1919,6 +1947,22 @@ describe('AgentComposer', () => {
 
     fireEvent.click(mcpButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('hides the empty session action without a handler', () => {

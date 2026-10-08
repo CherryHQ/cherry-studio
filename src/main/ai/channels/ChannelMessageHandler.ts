@@ -233,6 +233,8 @@ export class ChannelMessageHandler {
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
       if (existing) {
+        const previous = existing.messages.at(-1)!
+        adapter.discardResponse(previous.chatId, responseOptionsFor(previous))
         // Append to existing batch and reset the debounce timer
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
@@ -374,6 +376,7 @@ export class ChannelMessageHandler {
     onAdmitted?: () => void
   ): Promise<void> {
     const { agentId } = adapter
+    let streamStarted = false
 
     try {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
@@ -405,29 +408,15 @@ export class ChannelMessageHandler {
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
-        try {
-          await prepareAgentSessionWorkspaceDirectory(session)
-        } catch (error) {
-          if (isAgentSessionWorkspaceError(error)) {
-            await adapter.sendMessage(message.chatId, error.message, responseOptionsFor(message)).catch(() => {})
-          }
-          throw error
-        }
+        await prepareAgentSessionWorkspaceDirectory(session)
       }
 
       const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
-      try {
-        if (message.images?.length && workDir) {
-          userParts.push(...(await this.persistImages(workDir, message.images)))
-        }
-        if (message.files?.length && workDir) {
-          userParts.push(...(await this.persistFiles(workDir, message.files)))
-        }
-      } catch (error) {
-        await adapter
-          .sendMessage(message.chatId, t('common.channel_message_processing_error'), responseOptionsFor(message))
-          .catch(() => {})
-        throw error
+      if (message.images?.length && workDir) {
+        userParts.push(...(await this.persistImages(workDir, message.images)))
+      }
+      if (message.files?.length && workDir) {
+        userParts.push(...(await this.persistFiles(workDir, message.files)))
       }
 
       const abortController = new AbortController()
@@ -453,25 +442,23 @@ export class ChannelMessageHandler {
           adapter,
           message.chatId,
           responseOptions,
-          onAdmitted
+          onAdmitted,
+          () => {
+            streamStarted = true
+          }
         )
-      } catch (streamError) {
-        const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
-        if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
-          // Thrown before streaming starts (validateSession), so no controller exists yet and
-          // onStreamError is a no-op on most adapters — send a plain message so the inbound
-          // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter.sendMessage(message.chatId, streamErrorMessage, responseOptionsFor(message)).catch(() => {})
-        } else {
-          // Mid-stream error: let the adapter update its streaming UI.
-          adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
-        }
-        throw streamError
       } finally {
         this.activeAbortControllers.delete(session.id)
         clearInterval(typingInterval)
       }
     } catch (error) {
+      if (!streamStarted) {
+        const messageText =
+          isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError
+            ? error.message
+            : t('common.channel_message_processing_error')
+        await adapter.sendMessage(message.chatId, messageText, responseOptionsFor(message)).catch(() => {})
+      }
       const context = {
         agentId,
         chatId: message.chatId,
@@ -875,7 +862,8 @@ export class ChannelMessageHandler {
     adapter: ChannelAdapter,
     chatId: string,
     responseOptions?: SendMessageOptions,
-    onAdmitted?: () => void
+    onAdmitted?: () => void,
+    onStarted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -917,6 +905,7 @@ export class ChannelMessageHandler {
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.
       if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
+      onStarted?.()
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.

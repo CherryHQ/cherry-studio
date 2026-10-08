@@ -614,9 +614,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /**
-   * Project a top-level `message_start`'s input usage into a live reading: the request the CLI just
-   * sent carries exactly the tokens now occupying the window. `categories` stays empty (only the
-   * CLI's probe produces the breakdown); the host's post-turn pull remains the authoritative reading.
+   * Project a top-level `message_start`/`message_delta`'s input usage into a live reading: the
+   * request the CLI just sent carries exactly the tokens now occupying the window. `categories` stays
+   * empty (only the CLI's probe produces the breakdown); the host's post-turn pull remains authoritative.
    */
   private emitLiveContextUsage(usage: InvocationUsageInput | undefined): void {
     const totalTokens =
@@ -716,6 +716,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           message.parent_tool_use_id == null
         ) {
           this.emitLiveContextUsage(message.event.message?.usage)
+        }
+
+        // Bridge gateways report full input usage on trailing deltas; zero uncached tokens is valid.
+        // Skip sparse direct-Anthropic deltas whose input_tokens is absent or null.
+        if (
+          message.type === 'stream_event' &&
+          message.event.type === 'message_delta' &&
+          message.parent_tool_use_id == null &&
+          message.event.usage?.input_tokens != null
+        ) {
+          this.emitLiveContextUsage(message.event.usage)
         }
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'

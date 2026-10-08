@@ -198,6 +198,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   private buildUsage(): NonNullable<ChatCompletion['usage']> {
@@ -207,6 +210,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       total_tokens: this.state.inputTokens + this.state.outputTokens,
       ...(this.state.cacheReadTokens !== undefined
         ? { prompt_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
+      ...(this.state.reasoningTokens !== undefined
+        ? { completion_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
         : {})
     }
   }

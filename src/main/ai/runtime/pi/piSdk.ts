@@ -9,12 +9,22 @@
  * Phase 0 bundling spike). Every runtime use of pi values MUST go through here;
  * `import type` elsewhere is compile-only and safe.
  */
-import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
+import { pathToFileURL } from 'node:url'
 
+import type { ExtensionFactory, ProviderConfig } from '@earendil-works/pi-coding-agent'
+
+import { application } from '@application'
 import type { PiApi } from '@shared/ai/piModelCompatibility'
 
 export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')
+}
+
+export async function loadPiVccExtension(configPath: string): Promise<ExtensionFactory> {
+  // pi-vcc reads this process-wide override on every compaction; all sessions share Cherry's config.
+  process.env.PI_VCC_CONFIG_PATH = configPath
+  const url = pathToFileURL(application.getPath('feature.agents.pi.vcc_file')).href
+  return (await import(/* @vite-ignore */ url)).default
 }
 
 /**
@@ -58,9 +68,4 @@ export async function loadPiApiStreamSimple(api: PiApi): Promise<PiStreamSimple>
     case 'google-generative-ai':
       return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as unknown as PiStreamSimple
   }
-}
-
-export async function createPiModelRuntime() {
-  const [pi, ai] = await Promise.all([loadPiSdk(), loadPiAi()])
-  return pi.ModelRuntime.create({ credentials: new ai.InMemoryCredentialStore(), modelsPath: null })
 }

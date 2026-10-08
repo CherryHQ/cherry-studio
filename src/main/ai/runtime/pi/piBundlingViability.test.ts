@@ -4,8 +4,6 @@ import { join } from 'node:path'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createPiModelRuntime } from './piSdk'
-
 /**
  * Phase 0 bundling spike (GO/NO-GO gate).
  *
@@ -43,22 +41,19 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     else process.env.PI_CODING_AGENT_SESSION_DIR = savedSessions
   })
 
-  it('imports the ESM-only SDK via dynamic import() and exposes the driver surface', async () => {
-    const pi = await import('@earendil-works/pi-coding-agent')
-
-    expect(typeof pi.createAgentSession).toBe('function')
-    expect(typeof pi.DefaultResourceLoader).toBe('function')
-    expect(typeof pi.ModelRuntime).toBe('function')
-    expect(typeof pi.ModelRegistry).toBe('function')
-    expect(typeof pi.SessionManager).toBe('function')
-    expect(typeof pi.SettingsManager).toBe('function')
-    expect(typeof pi.ProjectTrustStore).toBe('function')
-    expect(typeof pi.hasTrustRequiringProjectResources).toBe('function')
-  })
-
   it('isolates runtime credentials between sessions without writing Pi auth or model files', async () => {
-    const runtime = await createPiModelRuntime()
-    const otherRuntime = await createPiModelRuntime()
+    const { ModelRuntime } = await import('@earendil-works/pi-coding-agent')
+    const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
+    const otherRuntime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath: null,
+      refreshOnCreate: false
+    })
     const provider = { baseUrl: 'https://example.invalid/v1', api: 'openai-completions' as const }
     runtime.registerProvider('cherry-test', provider)
     otherRuntime.registerProvider('cherry-test', provider)

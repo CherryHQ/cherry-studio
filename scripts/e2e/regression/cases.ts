@@ -23,6 +23,13 @@ export const REGRESSION_CASES = [
     title: 'Create a custom assistant and chat',
     task: 'custom-assistant'
   },
+  {
+    id: 'C-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Preserve a partial chat response after disconnect and restart',
+    task: 'chat-stream-failure'
+  },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
     id: 'T-02',

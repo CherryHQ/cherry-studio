@@ -45,6 +45,8 @@ import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
+
+type PiChatModelConfig = Extract<ProviderModelConfig, { reasoning: boolean }>
 import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
 
 /**
@@ -86,7 +88,7 @@ interface PiProviderInjectionBase {
   /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
   api: PiApi
   /** Config for `pi.registerProvider(providerName, config)`. `apiKey` is the placeholder. */
-  providerConfig: ProviderConfig
+  providerConfig: ProviderConfig & { models?: PiChatModelConfig[] }
   /** The real Cherry API key — inject via `ModelRuntime.setRuntimeApiKey`, never into the config. */
   apiKey: string
   /** The pi model id to select for the session (Cherry's `apiModelId`). */
@@ -176,7 +178,7 @@ export function buildPiProviderInjection(
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
 
-  const providerConfig: ProviderConfig = {
+  const providerConfig: PiProviderInjection['providerConfig'] = {
     name: provider.name,
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
@@ -405,11 +407,11 @@ const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 
  * like Kimi K3, whose vocabulary is low/high/max (#20029). A model declaring no concrete tier gets
  * no map: its toggle is expressed by the wire, and an all-`null` ladder would disable thinking.
  */
-function buildThinkingLevelMap(model: Model): ProviderModelConfig['thinkingLevelMap'] | undefined {
+function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMap'] | undefined {
   const declared = model.reasoning?.selectableEfforts ?? []
   if (!declared.some((effort) => effort !== 'none' && effort !== 'auto')) return undefined
 
-  const map: NonNullable<ProviderModelConfig['thinkingLevelMap']> = {}
+  const map: NonNullable<PiChatModelConfig['thinkingLevelMap']> = {}
   for (const level of PI_THINKING_LEVELS) {
     const effort = level === 'off' ? 'none' : level
     map[level] = declared.includes(effort) ? effort : null
@@ -423,7 +425,7 @@ function buildPiModelConfig(
   id: string,
   api: PiApi,
   endpointType: EndpointType | undefined
-): ProviderModelConfig {
+): PiChatModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
