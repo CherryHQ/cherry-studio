@@ -226,7 +226,7 @@ patchedDependencies:
   '@ai-sdk/google@3.0.113': 8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874
   '@ai-sdk/open-responses@1.0.34': 7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
-  '@ai-sdk/openai@3.0.109': 2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d
+  '@ai-sdk/openai@3.0.109': 73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': 22e1bba3e6b5d2567a6c64821bc2310147b41f8f6d993774d1c65b249f7d6d78
   '@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2': 8a2acc0e4ca1a7015dd7dedf825038230b7770b4f260fc93ae205247b3b3e9ec
@@ -447,7 +447,7 @@ importers:
         version: 1.0.34(patch_hash=7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d)(zod@4.4.3)
+        version: 3.0.109(patch_hash=73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -570,10 +570,10 @@ importers:
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@44.2.0(supports-color@8.1.1))
+        version: 3.0.2(electron@44.4.0(supports-color@8.1.1))
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@44.2.0(supports-color@8.1.1))
+        version: 3.0.0(electron@44.4.0(supports-color@8.1.1))
       '@electron/asar':
         specifier: 3.4.1
         version: 3.4.1
@@ -1031,8 +1031,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 44.2.0
-        version: 44.2.0(supports-color@8.1.1)
+        specifier: 44.4.0
+        version: 44.4.0(supports-color@8.1.1)
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)(supports-color@8.1.1)
@@ -1669,7 +1669,7 @@ importers:
         version: 3.0.113(patch_hash=8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d)(zod@4.4.3)
+        version: 3.0.109(patch_hash=73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -1706,7 +1706,7 @@ importers:
         version: 3.0.113(patch_hash=8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d)(zod@4.4.3)
+        version: 3.0.109(patch_hash=73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -11504,8 +11504,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.2.0:
-    resolution: {integrity: sha512-oK1icjhapp3xsUZycO9WZaLmd3hJnA7ieobC4mpdtO1pEN+PPGWpA3m1Mgzzuc1wzSD2Wai4zcH4yfpGJqxFMA==}
+  electron@44.4.0:
+    resolution: {integrity: sha512-Za6Y3ZXfHWo0wcutNKjQXF/+Xjj1lGdA31ptYC3pqSXOKqwEBk+ip/nTxKMH+zH9Fl16Ia0ILN9FwSvnpC+NKA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -17110,7 +17110,7 @@ snapshots:
   '@ai-sdk/azure@3.0.116(zod@4.4.3)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.4.3)
-      '@ai-sdk/openai': 3.0.109(patch_hash=2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d)(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.109(patch_hash=73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.56(zod@4.4.3)
       zod: 4.4.3
@@ -17202,7 +17202,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.56(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.109(patch_hash=73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.56(zod@4.4.3)
@@ -19793,13 +19793,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@44.2.0(supports-color@8.1.1))':
+  '@electron-toolkit/preload@3.0.2(electron@44.4.0(supports-color@8.1.1))':
     dependencies:
-      electron: 44.2.0(supports-color@8.1.1)
+      electron: 44.4.0(supports-color@8.1.1)
 
-  '@electron-toolkit/utils@3.0.0(electron@44.2.0(supports-color@8.1.1))':
+  '@electron-toolkit/utils@3.0.0(electron@44.4.0(supports-color@8.1.1))':
     dependencies:
-      electron: 44.2.0(supports-color@8.1.1)
+      electron: 44.4.0(supports-color@8.1.1)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -27197,7 +27197,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.2.0(supports-color@8.1.1):
+  electron@44.4.0(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0(supports-color@8.1.1)
