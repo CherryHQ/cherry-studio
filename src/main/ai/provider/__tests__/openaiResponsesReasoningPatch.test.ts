@@ -1,8 +1,8 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [
+const prompt: LanguageModelV4CallOptions['prompt'] = [
   { role: 'user', content: [{ type: 'text', text: 'Think before answering.' }] }
 ]
 
@@ -125,7 +125,7 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
 
     const result = await model.doStream({ prompt })
     const reader = result.stream.getReader()
-    const chunks: LanguageModelV3StreamPart[] = []
+    const chunks: LanguageModelV4StreamPart[] = []
     while (true) {
       const { done, value } = await reader.read()
       if (done) break

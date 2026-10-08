@@ -1,4 +1,4 @@
-import type { ProviderV3 } from '@ai-sdk/provider'
+import type { AiSdkProvider } from './index'
 
 /**
  * 跨 provider 的工具能力标识
@@ -29,11 +29,11 @@ export interface ToolFactoryPatch {
  * 这样 `as const satisfies` 不会擦除声明时的具体 config 类型。
  * `ExtractToolConfig` 可从声明中提取具体 config 类型。
  */
-export type ToolFactory<TProvider extends ProviderV3 = ProviderV3> = (
+export type ToolFactory<TProvider extends AiSdkProvider = AiSdkProvider> = (
   provider: TProvider
 ) => (...args: any[]) => ToolFactoryPatch
 
 /** Map of ToolCapability keys to their factory functions. */
-export type ToolFactoryMap<TProvider extends ProviderV3 = ProviderV3> = {
+export type ToolFactoryMap<TProvider extends AiSdkProvider = AiSdkProvider> = {
   [K in ToolCapability]?: ToolFactory<TProvider>
 }

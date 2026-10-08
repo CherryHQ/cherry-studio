@@ -77,8 +77,8 @@ describe('LM Studio multi-image request compatibility', () => {
           role: 'user',
           content: [
             { type: 'text', text: 'Compare these images' },
-            { type: 'file', mediaType: 'image/png', data: 'AQID' },
-            { type: 'file', mediaType: 'image/jpeg', data: 'BAUG' }
+            { type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'AQID' } },
+            { type: 'file', mediaType: 'image/jpeg', data: { type: 'data', data: 'BAUG' } }
           ]
         }
       ]
@@ -104,7 +104,9 @@ describe('LM Studio multi-image request compatibility', () => {
     const languageModel = await executor.languageModel('vision-model')
 
     await languageModel.doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'file', mediaType: 'image/png', data: 'AQID' }] }]
+      prompt: [
+        { role: 'user', content: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'AQID' } }] }
+      ]
     })
 
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
@@ -136,8 +138,8 @@ describe('LM Studio multi-image request compatibility', () => {
         {
           role: 'user',
           content: [
-            { type: 'file', mediaType: 'image/png', data: 'AQID' },
-            { type: 'file', mediaType: 'image/jpeg', data: 'BAUG' }
+            { type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'AQID' } },
+            { type: 'file', mediaType: 'image/jpeg', data: { type: 'data', data: 'BAUG' } }
           ]
         }
       ]

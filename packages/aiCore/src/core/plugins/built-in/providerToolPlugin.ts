@@ -29,7 +29,10 @@ export const providerToolPlugin = (capability: ToolCapability, config: Record<st
       const patch = resolved.factory(resolved.provider)(userConfig)
 
       if (patch.tools) {
-        params.tools = { ...params.tools, ...patch.tools }
+        const tools = Object.fromEntries(
+          Object.entries(patch.tools).map(([name, tool]) => [name, { ...tool, isProviderExecuted: true }])
+        )
+        params.tools = { ...params.tools, ...tools }
       }
       if (patch.providerOptions) {
         params.providerOptions = mergeProviderOptions(params.providerOptions, patch.providerOptions)

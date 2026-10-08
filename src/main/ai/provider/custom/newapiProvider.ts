@@ -13,14 +13,14 @@
  * The endpointType is set per-request via provider settings, based on the model's endpoint_type field.
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
-import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { GoogleLanguageModel } from '@ai-sdk/google/internal'
 import {
   OpenAICompatibleChatLanguageModel,
   OpenAICompatibleEmbeddingModel,
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
 import { OpenAIResponsesLanguageModel } from '@ai-sdk/openai/internal'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4, RerankingModelV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -45,12 +45,12 @@ export interface NewApiProviderSettings {
   endpointType?: NewApiEndpointType
 }
 
-export interface NewApiProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
-  rerankingModel(modelId: string): RerankingModelV3
+export interface NewApiProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
+  rerankingModel(modelId: string): RerankingModelV4
 }
 
 export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvider {
@@ -90,7 +90,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
 
   const createGeminiModel = (modelId: string) => {
     const headers = authHeaders()
-    return new GoogleGenerativeAILanguageModel(modelId, {
+    return new GoogleLanguageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.google`,
       baseURL,
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
@@ -117,7 +117,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       transformRequestBody: applyReasoningModelMaxTokensConversion
     })
 
-  const createChatModel = (modelId: string): LanguageModelV3 => {
+  const createChatModel = (modelId: string): LanguageModelV4 => {
     switch (endpointType) {
       case 'anthropic':
         return createAnthropicModel(modelId)
@@ -138,7 +138,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   }
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
 
   provider.languageModel = createChatModel
 

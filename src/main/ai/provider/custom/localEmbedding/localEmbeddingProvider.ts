@@ -1,4 +1,4 @@
-import type { EmbeddingModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
@@ -6,11 +6,11 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import { embedTexts } from './localEmbeddingRuntime'
 
 /**
- * `EmbeddingModelV3` backed by the in-process transformers.js runtime. Pooling
+ * `EmbeddingModelV4` backed by the in-process transformers.js runtime. Pooling
  * and normalization live in `localEmbeddingRuntime`; this is a thin AI SDK adapter.
  */
-class LocalEmbeddingModel implements EmbeddingModelV3 {
-  readonly specificationVersion = 'v3'
+class LocalEmbeddingModel implements EmbeddingModelV4 {
+  readonly specificationVersion = 'v4'
   readonly provider = LOCAL_EMBEDDING_PROVIDER_ID
   readonly modelId: string
   /** No hard cap — we iterate internally; this only sizes SDK-side batching. */
@@ -23,8 +23,8 @@ class LocalEmbeddingModel implements EmbeddingModelV3 {
   }
 
   async doEmbed(
-    options: Parameters<EmbeddingModelV3['doEmbed']>[0]
-  ): Promise<Awaited<ReturnType<EmbeddingModelV3['doEmbed']>>> {
+    options: Parameters<EmbeddingModelV4['doEmbed']>[0]
+  ): Promise<Awaited<ReturnType<EmbeddingModelV4['doEmbed']>>> {
     const embeddings = await embedTexts(options.values, options.abortSignal)
     return { embeddings, warnings: [] }
   }
@@ -42,22 +42,21 @@ export interface LocalEmbeddingProviderSettings {
 }
 
 /**
- * Embedding-only `ProviderV3`. Language / image models throw, since this
+ * Embedding-only `ProviderV4`. Language / image models throw, since this
  * provider exists solely to serve the knowledge base's local text embeddings.
  */
 // `_settings` is unused (in-process provider, no config) but its type is how the
 // extension registry infers this provider's settings type — keep the parameter.
 // oxlint-disable-next-line no-unused-vars
-export function createLocalEmbeddingProvider(_settings: LocalEmbeddingProviderSettings = {}): ProviderV3 {
-  const embeddingModel = (modelId: string): EmbeddingModelV3 => new LocalEmbeddingModel(modelId)
+export function createLocalEmbeddingProvider(_settings: LocalEmbeddingProviderSettings = {}): ProviderV4 {
+  const embeddingModel = (modelId: string): EmbeddingModelV4 => new LocalEmbeddingModel(modelId)
   const unsupported = (capability: string) => (): never => {
     throw new Error(`local-embedding provider only supports text embeddings, not ${capability}`)
   }
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     embeddingModel,
-    textEmbeddingModel: embeddingModel,
     languageModel: unsupported('language models'),
     imageModel: unsupported('image models')
   }

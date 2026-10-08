@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import type { LanguageModelMiddleware } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -219,8 +219,8 @@ describe('AiUsageRecordService', () => {
         totalTokens: 1_500_000,
         cachedInputTokens: 0
       }
-    } as unknown as LanguageModelV3StreamPart
-    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+    } as unknown as LanguageModelV4StreamPart
+    const stream = new ReadableStream<LanguageModelV4StreamPart>({
       start(controller) {
         controller.enqueue(flatFinish)
         controller.close()
@@ -254,8 +254,8 @@ describe('AiUsageRecordService', () => {
         totalTokens: 1_500_000,
         cachedInputTokens: 0
       }
-    } as unknown as LanguageModelV3StreamPart
-    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+    } as unknown as LanguageModelV4StreamPart
+    const stream = new ReadableStream<LanguageModelV4StreamPart>({
       start(controller) {
         controller.enqueue(flatFinish)
         controller.close()
@@ -265,7 +265,7 @@ describe('AiUsageRecordService', () => {
       doStream: () => gateway.wrapStream!({ doStream: async () => ({ stream }) } as never)
     } as never)
 
-    const parts: LanguageModelV3StreamPart[] = []
+    const parts: LanguageModelV4StreamPart[] = []
     for await (const part of wrapped.stream) parts.push(part)
 
     expect(parts).toHaveLength(1)

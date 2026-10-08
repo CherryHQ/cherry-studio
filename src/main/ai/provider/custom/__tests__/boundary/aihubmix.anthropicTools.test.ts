@@ -1,4 +1,4 @@
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
@@ -19,7 +19,7 @@ import { captureWithFetch } from './captureRequest'
  * (`minItems`/`maxItems`/`minLength`/`maxLength`/...) and folds the dropped
  * constraints into the node `description`, keeping `type`/`items`/`required`.
  */
-function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOptions {
+function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV4CallOptions {
   return {
     prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
     tools: [
@@ -30,7 +30,7 @@ function callOptionsWithToolSchema(inputSchema: unknown): LanguageModelV3CallOpt
         inputSchema
       }
     ]
-  } as unknown as LanguageModelV3CallOptions
+  } as unknown as LanguageModelV4CallOptions
 }
 
 function urlsSchemaFrom(body: unknown): Record<string, unknown> {

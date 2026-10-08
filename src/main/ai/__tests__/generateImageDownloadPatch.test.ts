@@ -2,7 +2,7 @@ import type { ImageModelV3 } from '@ai-sdk/provider'
 import { generateImage, NoImageGeneratedError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-// Guards the download half of patches/ai@6.0.185.patch: a failed url download must drop the
+// Guards the download half of patches/ai@7.0.127.patch: a failed url download must drop the
 // image, not store the url where the base64 bytes belong (AiService then writes a corrupt file).
 describe('patched ai generateImage url download', () => {
   function imageModel(images: string[]): ImageModelV3 {
@@ -13,6 +13,8 @@ describe('patched ai generateImage url download', () => {
       maxImagesPerCall: 10,
       doGenerate: async () => ({
         images,
+        providerMetadata: { test: { images: images.map((_, index) => ({ index })) } },
+        usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
         warnings: [],
         response: { timestamp: new Date(0), modelId: 'test-image', headers: {} }
       })
@@ -32,6 +34,10 @@ describe('patched ai generateImage url download', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0].uint8Array).toEqual(bytes)
+    expect(result.images[0].providerMetadata).toEqual({ test: { index: 1 } })
+    expect(result.calls[0].images).toEqual(result.images)
+    expect(result.calls[0].warnings).toEqual(result.warnings)
+    expect(result.usage).toEqual({ inputTokens: 2, outputTokens: 3, totalTokens: 5 })
     expect(result.warnings).toContainEqual({
       type: 'other',
       message: '1 of 2 generated images could not be downloaded and were dropped'
@@ -72,6 +78,34 @@ describe('patched ai generateImage url download', () => {
         experimental_download: async (downloads) => downloads.map(() => null)
       })
     ).rejects.toBeInstanceOf(NoImageGeneratedError)
+  })
+
+  it('decodes data URLs without downloading and keeps their media type', async () => {
+    const result = await generateImage({
+      model: imageModel(['data:image/jpeg;base64,QUJD']),
+      prompt: 'a fox',
+      experimental_download: async () => {
+        throw new Error('unexpected download')
+      }
+    })
+    expect(result.image.base64).toBe('QUJD')
+    expect(result.image.mediaType).toBe('image/jpeg')
+  })
+
+  it('propagates cancellation during a result download', async () => {
+    const controller = new AbortController()
+    await expect(
+      generateImage({
+        model: imageModel(['https://img/slow.png']),
+        prompt: 'a fox',
+        abortSignal: controller.signal,
+        experimental_download: async () => {
+          controller.abort()
+          controller.signal.throwIfAborted()
+          return []
+        }
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('passes a b64_json result through without downloading', async () => {

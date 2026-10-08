@@ -142,19 +142,21 @@ describe('toModelMessages', () => {
     ]
 
     const model = await toModelMessages(messages)
+    const attributed =
+      "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
 
     expect(model[2]).toMatchObject({
       role: 'tool',
-      content: [
-        {
+      content: expect.arrayContaining([
+        expect.objectContaining({
           type: 'tool-approval-response',
           approvalId: 'ap-1',
           approved: false,
-          reason:
-            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
-        }
-      ]
+          reason: attributed
+        })
+      ])
     })
+    expect(JSON.stringify(model[2]).replaceAll(JSON.stringify(attributed).slice(1, -1), '')).not.toContain('use a copy')
     expect((messages[1].parts[0] as { approval?: { reason?: string } }).approval?.reason).toBe('use a copy')
   })
 

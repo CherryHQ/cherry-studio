@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -78,23 +78,23 @@ function callExecute(
   args: Record<string, unknown>,
   request: Record<string, unknown> = {}
 ): Promise<unknown> {
-  const execute = entry.tool.execute as (args: unknown, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: unknown, options: ToolExecutionOptions<unknown>) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', ...request }
+    context: { requestId: 'req-1', ...request }
   })
 }
 
 function callNeedsApproval(args: Record<string, unknown>, request: Record<string, unknown>): Promise<boolean> {
   const needsApproval = readEntry.tool.needsApproval as (
     args: unknown,
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<boolean>
   return needsApproval(args, {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', ...request }
+    context: { requestId: 'req-1', ...request }
   })
 }
 

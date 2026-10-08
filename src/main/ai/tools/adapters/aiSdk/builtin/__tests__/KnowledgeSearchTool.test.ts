@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
@@ -41,12 +41,12 @@ function callExecute(
 ): Promise<unknown> {
   const execute = entry.tool.execute as (
     args: { query: string; baseIds: string[] },
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: {
+    context: {
       requestId: 'req-1',
       knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: ctx.abortSignal ?? new AbortController().signal

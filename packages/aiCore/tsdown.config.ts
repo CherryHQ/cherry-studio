@@ -7,7 +7,7 @@ export default defineConfig({
     'provider/index': 'src/core/providers/index.ts'
   },
   outDir: 'dist',
-  format: ['esm', 'cjs'],
+  format: ['esm'],
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json'

@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -25,10 +25,10 @@ async function getMiddleware(): Promise<LanguageModelMiddleware> {
 }
 
 function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
-  const parts: LanguageModelV3StreamPart[] = [
+  const parts: LanguageModelV4StreamPart[] = [
     { type: 'stream-start', warnings: [] },
     { type: 'text-start', id: 'text-1' },
-    ...deltas.map<LanguageModelV3StreamPart>((delta) => ({
+    ...deltas.map<LanguageModelV4StreamPart>((delta) => ({
       type: 'text-delta',
       id: 'text-1',
       delta
@@ -42,7 +42,7 @@ function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool
     }
   ]
 
-  return new ReadableStream<LanguageModelV3StreamPart>({
+  return new ReadableStream<LanguageModelV4StreamPart>({
     start(controller) {
       for (const part of parts) controller.enqueue(part)
       controller.close()
@@ -65,7 +65,7 @@ async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-c
     model: {} as any
   })
 
-  const events: LanguageModelV3StreamPart[] = []
+  const events: LanguageModelV4StreamPart[] = []
   const reader = wrapped.stream.getReader()
   while (true) {
     const { done, value } = await reader.read()
@@ -250,14 +250,14 @@ describe('deepseekDsmlParserPlugin', () => {
     ])
 
     // tool-input-start id matches the corresponding tool-call's toolCallId
-    const start0 = lifecycle[0] as Extract<LanguageModelV3StreamPart, { type: 'tool-input-start' }>
-    const call0 = lifecycle[3] as Extract<LanguageModelV3StreamPart, { type: 'tool-call' }>
+    const start0 = lifecycle[0] as Extract<LanguageModelV4StreamPart, { type: 'tool-input-start' }>
+    const call0 = lifecycle[3] as Extract<LanguageModelV4StreamPart, { type: 'tool-call' }>
     expect(start0.id).toBe(call0.toolCallId)
   })
 
   it('rewrites finishReason from stop to tool-calls when DSML produced tool calls', async () => {
     const events = await runStream(SSE_DELTAS, 'stop')
-    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV3StreamPart, { type: 'finish' }>
+    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV4StreamPart, { type: 'finish' }>
     expect(finish.finishReason.unified).toBe('tool-calls')
   })
 
@@ -294,7 +294,7 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(textDeltas).toBe('Hello, world!')
     expect(events.filter((e) => e.type === 'tool-call')).toHaveLength(0)
 
-    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV3StreamPart, { type: 'finish' }>
+    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV4StreamPart, { type: 'finish' }>
     expect(finish.finishReason.unified).toBe('stop')
   })
 
@@ -340,7 +340,7 @@ describe('deepseekDsmlParserPlugin', () => {
       .join('')
     expect(text).toBe('before <｜｜DSML｜｜tool_calls>oops not a valid invoke</｜｜DSML｜｜tool_calls> after')
 
-    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV3StreamPart, { type: 'finish' }>
+    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV4StreamPart, { type: 'finish' }>
     expect(finish.finishReason.unified).toBe('stop')
   })
 

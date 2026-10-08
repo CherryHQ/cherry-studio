@@ -1,6 +1,6 @@
-import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
+import { AnthropicLanguageModel } from '@ai-sdk/anthropic/internal'
+import { createGoogle } from '@ai-sdk/google'
+import { GoogleLanguageModel } from '@ai-sdk/google/internal'
 import type { OpenAIProviderSettings } from '@ai-sdk/openai'
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
@@ -12,14 +12,14 @@ import {
   OpenAITranscriptionModel
 } from '@ai-sdk/openai/internal'
 import {
-  type EmbeddingModelV3,
-  type ImageModelV3,
+  type EmbeddingModelV4,
+  type ImageModelV4,
   type JSONValue,
-  type LanguageModelV3,
-  type ProviderV3,
-  type RerankingModelV3,
-  type SpeechModelV3,
-  type TranscriptionModelV3
+  type LanguageModelV4,
+  type ProviderV4,
+  type RerankingModelV4,
+  type SpeechModelV4,
+  type TranscriptionModelV4
 } from '@ai-sdk/provider'
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -86,21 +86,21 @@ export interface CherryInProviderSettings {
     | 'embedding'
 }
 
-export interface CherryInProvider extends ProviderV3 {
-  (modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
-  languageModel(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
-  chat(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
-  responses(modelId: string): LanguageModelV3
-  completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
-  embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
-  embeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
-  image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
-  imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
-  transcription(modelId: string): TranscriptionModelV3
-  transcriptionModel(modelId: string): TranscriptionModelV3
-  speech(modelId: string): SpeechModelV3
-  speechModel(modelId: string): SpeechModelV3
-  rerankingModel(modelId: string): RerankingModelV3
+export interface CherryInProvider extends ProviderV4 {
+  (modelId: string, settings?: OpenAIProviderSettings): LanguageModelV4
+  languageModel(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV4
+  chat(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV4
+  responses(modelId: string): LanguageModelV4
+  completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV4
+  embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV4
+  embeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV4
+  image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV4
+  imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV4
+  transcription(modelId: string): TranscriptionModelV4
+  transcriptionModel(modelId: string): TranscriptionModelV4
+  speech(modelId: string): SpeechModelV4
+  speechModel(modelId: string): SpeechModelV4
+  rerankingModel(modelId: string): RerankingModelV4
 }
 
 const resolveApiKey = (options: CherryInProviderSettings): string =>
@@ -186,7 +186,7 @@ const normalizeImageSize = (value: unknown) => {
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
 }
 
-const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGeminiImage: boolean): ImageModelV3 => ({
+const withGoogleImageOptions = (model: ImageModelV4, providerKey: string, isGeminiImage: boolean): ImageModelV4 => ({
   specificationVersion: model.specificationVersion,
   provider: model.provider,
   modelId: model.modelId,
@@ -263,7 +263,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
   const createAnthropicModel = (modelId: string) =>
-    new AnthropicMessagesLanguageModel(modelId, {
+    new AnthropicLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
       headers: () => {
@@ -281,7 +281,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     })
 
   const createGeminiModel = (modelId: string) =>
-    new GoogleGenerativeAILanguageModel(modelId, {
+    new GoogleLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.google`,
       baseURL: geminiBaseURL,
       headers: () => {
@@ -387,7 +387,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   const createImageModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
     if (isGoogleImageModel(modelId)) {
-      const googleProvider = createGoogleGenerativeAI({
+      const googleProvider = createGoogle({
         apiKey: resolveApiKey(options),
         baseURL: geminiBaseURL,
         headers: {
@@ -445,7 +445,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     })
 
   const provider = (modelId: string, settings?: OpenAIProviderSettings) => createChatModel(modelId, settings)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
   provider.chat = createOpenAIChatModel
 

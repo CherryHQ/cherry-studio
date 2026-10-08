@@ -1,4 +1,4 @@
-import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
+import type { ProviderV3, ProviderV4 } from '@ai-sdk/provider'
 import type {
   EmbeddingModel,
   EmbeddingModelUsage,
@@ -44,7 +44,7 @@ export class ProviderError extends Error {
 }
 
 export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel
-export type AiSdkProvider = ProviderV2 | ProviderV3
+export type AiSdkProvider = ProviderV3 | ProviderV4
 export type AiSdkUsage = LanguageModelUsage | ImageModelUsage | EmbeddingModelUsage
 
 export type AiSdkModelType = 'text' | 'image' | 'embedding' | 'transcription' | 'speech'
@@ -84,8 +84,8 @@ export type AiSdkModelReturn<T extends AiSdkModelType> = AiSdkModelReturnMap[T]
  */
 export interface ProviderVariant<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
-  TOutput extends ProviderV3 = TProvider
+  TProvider extends AiSdkProvider = AiSdkProvider,
+  TOutput extends AiSdkProvider = TProvider
 > {
   suffix: string
   name: string

@@ -1,10 +1,10 @@
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { createDmxapiProvider } from '../../dmxapi/dmxapiProvider'
 import { captureWithFetch } from './captureRequest'
 
-const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+const PROMPT: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('DMXAPI chat boundary', () => {
   it('serializes compat reasoning from providerOptions.dmxapi', async () => {

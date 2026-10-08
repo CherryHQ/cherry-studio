@@ -1,4 +1,4 @@
-import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
+import { APICallError, type ImageModelV4, type ImageModelV4CallOptions, type SharedV4Warning } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
 
 import { mergeHeaders } from '@main/utils/http'
@@ -31,8 +31,8 @@ type ImageResponseBody = {
   data?: ImageItem[]
 }
 
-export class SiliconImageModel implements ImageModelV3 {
-  readonly specificationVersion = 'v3'
+export class SiliconImageModel implements ImageModelV4 {
+  readonly specificationVersion = 'v4'
   // Kolors caps batch at 4; Qwen-family is single-image. We leave the
   // AI SDK to fan out (callCount = ceil(n / 1)) past 1 — the body's
   // `batch_size` only honors the value it understands.
@@ -47,9 +47,9 @@ export class SiliconImageModel implements ImageModelV3 {
     private readonly config: SiliconImageModelConfig
   ) {}
 
-  async doGenerate(options: ImageModelV3CallOptions): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> {
+  async doGenerate(options: ImageModelV4CallOptions): Promise<Awaited<ReturnType<ImageModelV4['doGenerate']>>> {
     const { prompt, n, size, seed, aspectRatio, providerOptions, headers, abortSignal, files, mask } = options
-    const warnings: SharedV3Warning[] = []
+    const warnings: SharedV4Warning[] = []
 
     if (aspectRatio != null) {
       warnings.push({

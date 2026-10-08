@@ -8,7 +8,7 @@
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic#cache-control
  */
 
-import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions, LanguageModelV4FunctionTool, LanguageModelV4Message } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
@@ -32,7 +32,7 @@ function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
 }
 
-function estimateContentTokens(content: LanguageModelV3Message['content']): number {
+function estimateContentTokens(content: LanguageModelV4Message['content']): number {
   if (typeof content === 'string') return estimateTokenCount(content)
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
@@ -48,7 +48,7 @@ function estimateContentTokens(content: LanguageModelV3Message['content']): numb
   return 0
 }
 
-function estimateToolTokens(tool: LanguageModelV3FunctionTool): number {
+function estimateToolTokens(tool: LanguageModelV4FunctionTool): number {
   return estimateTokenCount(
     JSON.stringify({
       name: tool.name,
@@ -65,8 +65,8 @@ function compareCacheKeys(a: string, b: string): number {
 }
 
 function isFunctionTool(
-  tool: NonNullable<LanguageModelV3CallOptions['tools']>[number]
-): tool is LanguageModelV3FunctionTool {
+  tool: NonNullable<LanguageModelV4CallOptions['tools']>[number]
+): tool is LanguageModelV4FunctionTool {
   return tool.type === 'function'
 }
 
@@ -102,11 +102,11 @@ function createCacheBreakpointBudget(): CacheBreakpointBudget {
   }
 }
 
-function hasCacheableContent(msg: LanguageModelV3Message): boolean {
+function hasCacheableContent(msg: LanguageModelV4Message): boolean {
   return msg.content.length > 0
 }
 
-function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): LanguageModelV3CallOptions['tools'] {
+function sortToolsForCache(tools: LanguageModelV4CallOptions['tools']): LanguageModelV4CallOptions['tools'] {
   if (!tools?.length) return tools
   return [...tools].sort((a, b) => {
     const aName = isFunctionTool(a) ? a.name : a.id
@@ -115,7 +115,7 @@ function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): Language
   })
 }
 
-function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']): {
+function estimateToolsPrefix(sortedTools: LanguageModelV4CallOptions['tools']): {
   totalTokens: number
   markerIndex: number
 } {
@@ -132,29 +132,29 @@ function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']): 
 }
 
 function applyToolCacheMarker(
-  sortedTools: LanguageModelV3CallOptions['tools'],
+  sortedTools: LanguageModelV4CallOptions['tools'],
   markerIndex: number,
   toolPrefixTokens: number,
   tokenThreshold: number,
   budget: CacheBreakpointBudget,
   cacheControl: ReturnType<typeof getCacheControl>
-): LanguageModelV3CallOptions['tools'] {
+): LanguageModelV4CallOptions['tools'] {
   if (!sortedTools?.length || markerIndex === -1 || toolPrefixTokens < tokenThreshold || !budget.use())
     return sortedTools
 
   const markedTools = [...sortedTools]
   markedTools[markerIndex] = withCacheProviderOptions(
-    markedTools[markerIndex] as LanguageModelV3FunctionTool,
+    markedTools[markerIndex] as LanguageModelV4FunctionTool,
     cacheControl
   )
   return markedTools
 }
 
 export async function transformAnthropicCacheParams(
-  params: LanguageModelV3CallOptions,
+  params: LanguageModelV4CallOptions,
   provider: Provider,
   assistant: Assistant | undefined
-): Promise<LanguageModelV3CallOptions> {
+): Promise<LanguageModelV4CallOptions> {
   const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
   if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
@@ -209,7 +209,7 @@ export async function transformAnthropicCacheParams(
         const newContent = [...msg.content]
         const lastIndex = newContent.length - 1
         newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex], cacheControl)
-        messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
+        messages[i] = { ...msg, content: newContent } as LanguageModelV4Message
       }
       cachedCount++
     }
@@ -220,7 +220,7 @@ export async function transformAnthropicCacheParams(
 
 function anthropicCacheMiddleware(provider: Provider, assistant: Assistant | undefined): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, assistant)
   }
 }

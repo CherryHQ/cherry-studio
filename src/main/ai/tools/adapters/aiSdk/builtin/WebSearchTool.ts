@@ -20,7 +20,7 @@ import {
 
 import { makeEntitiesCodec } from '../../../outputCodec'
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
@@ -28,6 +28,7 @@ export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
 const webSearchResultSchema = z.union([webSearchOutputSchema, webLookupErrorSchema])
 
 const webSearchTool = tool({
+  contextSchema: requestContextSchema,
   description: WEB_SEARCH_DESCRIPTION,
   inputSchema: webSearchInputSchema,
   outputSchema: webSearchResultSchema,

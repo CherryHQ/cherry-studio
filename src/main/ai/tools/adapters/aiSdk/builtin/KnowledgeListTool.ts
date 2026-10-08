@@ -26,7 +26,7 @@ import {
   knowledgeLookupErrorSchema,
   listOrOutlineKnowledge
 } from '../../../knowledgeLookup'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { KB_LIST_TOOL_NAME }
@@ -36,6 +36,7 @@ export { KB_LIST_TOOL_NAME }
 const knowledgeListResultSchema = z.union([kbListOutputSchema, kbTreeOutputSchema, knowledgeLookupErrorSchema])
 
 const kbListTool = tool({
+  contextSchema: requestContextSchema,
   description: KNOWLEDGE_LIST_DESCRIPTION,
   inputSchema: kbListInputSchema,
   outputSchema: knowledgeListResultSchema,

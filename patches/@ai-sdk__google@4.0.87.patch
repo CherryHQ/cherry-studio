@@ -1,0 +1,422 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 47f46aa5bd7b05af1606228dffebb45735575b94..6a35b7f2d0bc7ab0e926086af2418fa88dd5d143 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -256,6 +256,8 @@ type GoogleSearchToolArgs = z.infer<typeof googleSearchToolArgsBaseSchema>;
+ //#endregion
+ //#region src/google-image-model-options.d.ts
+ type GoogleImageModelOptions = Omit<GoogleLanguageModelOptions, 'responseModalities'> & {
++  personGeneration?: 'dont_allow' | 'allow_adult' | 'allow_all' | null;
++  aspectRatio?: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' | null;
+   googleSearch?: GoogleSearchToolArgs;
+ };
+ //#endregion
+@@ -582,10 +584,10 @@ declare const googleTools: {
+ };
+ //#endregion
+ //#region src/google-image-settings.d.ts
+-type GoogleImageModelId = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview' | (string & {});
++type GoogleImageModelId = 'imagen-3.0-generate-002' | 'imagen-4.0-generate-001' | 'imagen-4.0-ultra-generate-001' | 'imagen-4.0-fast-generate-001' | 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview' | (string & {});
+ interface GoogleImageSettings {
+   /**
+-   * Override the maximum number of images per call (default 1)
++   * Override the maximum number of images per call (default 1 for Gemini, 4 for Imagen)
+    */
+   maxImagesPerCall?: number;
+ }
+diff --git a/dist/index.js b/dist/index.js
+index 24744a82ebecf8dd5075a8d7aaa4b7f2c2da65df..92c860566d9a74b00557c408cca7491a9fc2c304 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -191,7 +191,7 @@ function validateMultimodalContentLength({ multimodalContent, values }) {
+ //#endregion
+ //#region src/get-model-path.ts
+ function getModelPath(modelId) {
+-	return modelId.includes("/") ? modelId : `models/${modelId}`;
++	return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ //#endregion
+ //#region src/convert-google-usage.ts
+@@ -2422,7 +2422,9 @@ const googleSearch = createProviderExecutedToolFactory({
+ });
+ //#endregion
+ //#region src/google-image-model-options.ts
+-const googleImageModelOptionsSchema = lazySchema(() => zodSchema(z.object({ 
++const googleImageModelOptionsSchema = lazySchema(() => zodSchema(z.object({
++ personGeneration: z.enum(["dont_allow", "allow_adult", "allow_all"]).nullish(),
++ aspectRatio: z.enum(["1:1", "3:4", "4:3", "9:16", "16:9"]).nullish(), 
+ /**
+ * Enable Google Search grounding for Gemini image models. The value is
+ * forwarded as the args of the `google.tools.googleSearch` provider
+@@ -3104,7 +3106,93 @@ const googleImageModelsWithFileInputSupport = /* @__PURE__ */ new Set([
+ 	"gemini-3-pro-image-preview",
+ 	"gemini-3.1-flash-image-preview"
+ ]);
++function isGeminiImageModel(modelId) {
++    return modelId.replace(/^(google\/|models\/)/i, '').startsWith('gemini-');
++}
++const googleImageResponseSchema = lazySchema(() => zodSchema(z.object({
++    predictions: z
++        .array(z.object({ bytesBase64Encoded: z.string() }))
++        .default([]),
++})));
++
+ var GoogleImageModel = class GoogleImageModel {
++    async doGenerateImagen(options) {
++        const { prompt, n = 1, size, aspectRatio = '1:1', seed, providerOptions, headers, abortSignal, files, mask, } = options;
++        const warnings = [];
++        if (files != null && files.length > 0) {
++            throw new Error('Google Generative AI does not support image editing with Imagen models. ' +
++                'Use Google Vertex AI (@ai-sdk/google-vertex) for image editing capabilities.');
++        }
++        if (mask != null) {
++            throw new Error('Google Generative AI does not support image editing with masks. ' +
++                'Use Google Vertex AI (@ai-sdk/google-vertex) for image editing capabilities.');
++        }
++        if (size != null) {
++            warnings.push({
++                type: 'unsupported',
++                feature: 'size',
++                details: 'This model does not support the `size` option. Use `aspectRatio` instead.',
++            });
++        }
++        if (seed != null) {
++            warnings.push({
++                type: 'unsupported',
++                feature: 'seed',
++                details: 'This model does not support the `seed` option through this provider.',
++            });
++        }
++        const googleOptions = await parseProviderOptions({
++            provider: 'google',
++            providerOptions,
++            schema: googleImageModelOptionsSchema,
++        });
++        const currentDate = this.config._internal?.currentDate?.() ?? new Date();
++        const parameters = {
++            sampleCount: n,
++        };
++        if (aspectRatio != null) {
++            parameters.aspectRatio = aspectRatio;
++        }
++        if (googleOptions) {
++            const { googleSearch: imagenGoogleSearch, ...imagenOptions } = googleOptions;
++            if (imagenGoogleSearch != null) {
++                warnings.push({
++                    type: 'unsupported',
++                    feature: 'googleSearch',
++                    details: 'Google Search grounding is only supported on Gemini image models.',
++                });
++            }
++            Object.assign(parameters, imagenOptions);
++        }
++        const body = {
++            instances: [{ prompt }],
++            parameters,
++        };
++        const { responseHeaders, value: response } = await postJsonToApi({
++            url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
++            headers: combineHeaders(await resolve(this.config.headers), headers),
++            body,
++            failedResponseHandler: googleFailedResponseHandler,
++            successfulResponseHandler: createJsonResponseHandler(googleImageResponseSchema),
++            abortSignal,
++            fetch: this.config.fetch,
++        });
++        return {
++            images: response.predictions.map((p) => p.bytesBase64Encoded),
++            warnings,
++            providerMetadata: {
++                google: {
++                    images: response.predictions.map(() => ({})),
++                },
++            },
++            response: {
++                timestamp: currentDate,
++                modelId: this.modelId,
++                headers: responseHeaders,
++            },
++        };
++    }
++
+ 	static [WORKFLOW_SERIALIZE](model) {
+ 		return serializeModelOptions({
+ 			modelId: model.modelId,
+@@ -3116,10 +3204,10 @@ var GoogleImageModel = class GoogleImageModel {
+ 	}
+ 	get maxImagesPerCall() {
+ 		if (this.settings.maxImagesPerCall != null) return this.settings.maxImagesPerCall;
+-		return 1;
++		return isGeminiImageModel(this.modelId) ? 1 : 4;
+ 	}
+ 	get supportsFileInputs() {
+-		return googleImageModelsWithFileInputSupport.has(this.modelId) ? true : void 0;
++		return googleImageModelsWithFileInputSupport.has(this.modelId.replace(/^(google\/|models\/)/i, "")) ? true : void 0;
+ 	}
+ 	get supportsMaskInputs() {
+ 		return this.supportsFileInputs === true ? false : void 0;
+@@ -3134,7 +3222,7 @@ var GoogleImageModel = class GoogleImageModel {
+ 		this.specificationVersion = "v4";
+ 	}
+ 	async doGenerate(options) {
+-		if (!this.modelId.startsWith("gemini-")) throw new Error("Google image models other than Gemini are no longer supported. Use a model ID that starts with `gemini-`.");
++		if (!isGeminiImageModel(this.modelId)) return this.doGenerateImagen(options);
+ 		const { prompt, size, aspectRatio, seed, providerOptions, headers, abortSignal, files, mask } = options;
+ 		const warnings = [];
+ 		if (mask != null) throw new Error("Gemini image models do not support mask-based image editing.");
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index bad51ece7cf2238f031c32945cc0529f5893b5e2..c19237484689e910f34ad5e2c1e8478b501a34a6 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -483,7 +483,7 @@ async function downloadToolResultOutput(output, { abortSignal, maxBytes, support
+ //#endregion
+ //#region src/get-model-path.ts
+ function getModelPath(modelId) {
+-	return modelId.includes("/") ? modelId : `models/${modelId}`;
++	return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ //#endregion
+ //#region src/google-error.ts
+diff --git a/src/get-model-path.ts b/src/get-model-path.ts
+index e8978a07c2c1a28e8d5619261eecf1ecf7dc0d06..e54c917e8e6baa6c92017947e44204bdbaf04bfa 100644
+--- a/src/get-model-path.ts
++++ b/src/get-model-path.ts
+@@ -1,3 +1,3 @@
+ export function getModelPath(modelId: string): string {
+-  return modelId.includes('/') ? modelId : `models/${modelId}`;
++  return modelId.includes('models/') ? modelId : `models/${modelId}`;
+ }
+diff --git a/src/google-image-model-options.ts b/src/google-image-model-options.ts
+index 88591ad90f7c07af14cc80b72e32de14afec41e1..6eb018eae391b50daf4c0e7b81b81df1da307fbd 100644
+--- a/src/google-image-model-options.ts
++++ b/src/google-image-model-options.ts
+@@ -9,6 +9,8 @@ import {
+ export const googleImageModelOptionsSchema = lazySchema(() =>
+   zodSchema(
+     z.object({
++      personGeneration: z.enum(['dont_allow', 'allow_adult', 'allow_all']).nullish(),
++      aspectRatio: z.enum(['1:1', '3:4', '4:3', '9:16', '16:9']).nullish(),
+       /**
+        * Enable Google Search grounding for Gemini image models. The value is
+        * forwarded as the args of the `google.tools.googleSearch` provider
+@@ -27,5 +29,7 @@ export type GoogleImageModelOptions = Omit<
+   GoogleLanguageModelOptions,
+   'responseModalities'
+ > & {
++  personGeneration?: 'dont_allow' | 'allow_adult' | 'allow_all' | null;
++  aspectRatio?: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' | null;
+   googleSearch?: GoogleSearchToolArgs;
+ };
+diff --git a/src/google-image-model.ts b/src/google-image-model.ts
+index 99520ec6f1cd6357f81b28aadbd855e8378b1a5a..368edd51557a94532f835c115d06f841b7f5c68d 100644
+--- a/src/google-image-model.ts
++++ b/src/google-image-model.ts
+@@ -4,6 +4,12 @@ import type {
+   SharedV4Warning,
+ } from '@ai-sdk/provider';
+ import {
++  combineHeaders,
++  createJsonResponseHandler,
++  lazySchema,
++  postJsonToApi,
++  resolve,
++  zodSchema,
+   convertToBase64,
+   generateId as defaultGenerateId,
+   parseProviderOptions,
+@@ -13,6 +19,9 @@ import {
+   type FetchFunction,
+   type Resolvable,
+ } from '@ai-sdk/provider-utils';
++import { z } from 'zod/v4';
++import { getModelPath } from './get-model-path';
++import { googleFailedResponseHandler } from './google-error';
+ import { googleImageModelOptionsSchema } from './google-image-model-options';
+ import type {
+   GoogleImageModelId,
+@@ -59,11 +68,11 @@ export class GoogleImageModel implements ImageModelV4 {
+     if (this.settings.maxImagesPerCall != null) {
+       return this.settings.maxImagesPerCall;
+     }
+-    return 1;
++    return isGeminiImageModel(this.modelId) ? 1 : 4;
+   }
+ 
+   get supportsFileInputs(): boolean | undefined {
+-    return googleImageModelsWithFileInputSupport.has(this.modelId)
++    return googleImageModelsWithFileInputSupport.has(this.modelId.replace(/^(google\/|models\/)/i, ''))
+       ? true
+       : undefined;
+   }
+@@ -82,15 +91,127 @@ export class GoogleImageModel implements ImageModelV4 {
+     private readonly config: GoogleImageModelConfig,
+   ) {}
+ 
+-  async doGenerate(
++  private async doGenerateImagen(
+     options: Parameters<ImageModelV4['doGenerate']>[0],
+   ): Promise<Awaited<ReturnType<ImageModelV4['doGenerate']>>> {
+-    if (!this.modelId.startsWith('gemini-')) {
++    const {
++      prompt,
++      n = 1,
++      size,
++      aspectRatio = '1:1',
++      seed,
++      providerOptions,
++      headers,
++      abortSignal,
++      files,
++      mask,
++    } = options;
++    const warnings: Array<SharedV4Warning> = [];
++
++    // Imagen API endpoints do not support image editing
++    if (files != null && files.length > 0) {
++      throw new Error(
++        'Google Generative AI does not support image editing with Imagen models. ' +
++          'Use Google Vertex AI (@ai-sdk/google-vertex) for image editing capabilities.',
++      );
++    }
++
++    if (mask != null) {
+       throw new Error(
+-        'Google image models other than Gemini are no longer supported. Use a model ID that starts with `gemini-`.',
++        'Google Generative AI does not support image editing with masks. ' +
++          'Use Google Vertex AI (@ai-sdk/google-vertex) for image editing capabilities.',
+       );
+     }
+ 
++    if (size != null) {
++      warnings.push({
++        type: 'unsupported',
++        feature: 'size',
++        details:
++          'This model does not support the `size` option. Use `aspectRatio` instead.',
++      });
++    }
++
++    if (seed != null) {
++      warnings.push({
++        type: 'unsupported',
++        feature: 'seed',
++        details:
++          'This model does not support the `seed` option through this provider.',
++      });
++    }
++
++    const googleOptions = await parseProviderOptions({
++      provider: 'google',
++      providerOptions,
++      schema: googleImageModelOptionsSchema,
++    });
++
++    const currentDate = this.config._internal?.currentDate?.() ?? new Date();
++
++    const parameters: Record<string, unknown> = {
++      sampleCount: n,
++    };
++
++    if (aspectRatio != null) {
++      parameters.aspectRatio = aspectRatio;
++    }
++
++    if (googleOptions) {
++      const { googleSearch: imagenGoogleSearch, ...imagenOptions } =
++        googleOptions;
++      if (imagenGoogleSearch != null) {
++        warnings.push({
++          type: 'unsupported',
++          feature: 'googleSearch',
++          details:
++            'Google Search grounding is only supported on Gemini image models.',
++        });
++      }
++      Object.assign(parameters, imagenOptions);
++    }
++
++    const body = {
++      instances: [{ prompt }],
++      parameters,
++    };
++
++    const { responseHeaders, value: response } = await postJsonToApi<{
++      predictions: Array<{ bytesBase64Encoded: string }>;
++    }>({
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
++      headers: combineHeaders(await resolve(this.config.headers), headers),
++      body,
++      failedResponseHandler: googleFailedResponseHandler,
++      successfulResponseHandler: createJsonResponseHandler(
++        googleImageResponseSchema,
++      ),
++      abortSignal,
++      fetch: this.config.fetch,
++    });
++    return {
++      images: response.predictions.map(
++        (p: { bytesBase64Encoded: string }) => p.bytesBase64Encoded,
++      ),
++      warnings,
++      providerMetadata: {
++        google: {
++          images: response.predictions.map(() => ({})),
++        },
++      },
++      response: {
++        timestamp: currentDate,
++        modelId: this.modelId,
++        headers: responseHeaders,
++      },
++    };
++  }
++
++  async doGenerate(
++    options: Parameters<ImageModelV4['doGenerate']>[0],
++  ): Promise<Awaited<ReturnType<ImageModelV4['doGenerate']>>> {
++    if (!isGeminiImageModel(this.modelId)) return this.doGenerateImagen(options);
++
+     const {
+       prompt,
+       size,
+@@ -279,3 +400,18 @@ export class GoogleImageModel implements ImageModelV4 {
+     };
+   }
+ }
++
++function isGeminiImageModel(modelId: string): boolean {
++  return modelId.replace(/^(google\/|models\/)/i, '').startsWith('gemini-');
++}
++
++const googleImageResponseSchema = lazySchema(() =>
++  zodSchema(
++    z.object({
++      predictions: z
++        .array(z.object({ bytesBase64Encoded: z.string() }))
++        .default([]),
++    }),
++  ),
++);
++
+diff --git a/src/google-image-settings.ts b/src/google-image-settings.ts
+index 32caf21fc6cff3ac721cad1a23c379bc4ed4f6f2..5e299620da99616edb847bf94acb7fe8c09f1d9f 100644
+--- a/src/google-image-settings.ts
++++ b/src/google-image-settings.ts
+@@ -1,4 +1,8 @@
+ export type GoogleImageModelId =
++  | 'imagen-3.0-generate-002'
++  | 'imagen-4.0-generate-001'
++  | 'imagen-4.0-ultra-generate-001'
++  | 'imagen-4.0-fast-generate-001'
+   // Gemini image models (technically multimodal output language models, use :generateContent API)
+   | 'gemini-2.5-flash-image'
+   | 'gemini-3-pro-image-preview'
+@@ -7,7 +11,7 @@ export type GoogleImageModelId =
+ 
+ export interface GoogleImageSettings {
+   /**
+-   * Override the maximum number of images per call (default 1)
++   * Override the maximum number of images per call (default 1 for Gemini, 4 for Imagen)
+    */
+   maxImagesPerCall?: number;
+ }

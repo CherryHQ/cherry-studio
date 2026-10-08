@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions, LanguageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions, LanguageModelV4 } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { splitParamValues } from '../../../utils/imageOptions'
@@ -20,7 +20,7 @@ vi.mock('@ai-sdk/gateway', () => ({
 import { createGatewayGeminiImageModel, isGatewayGeminiImageModel } from '../gateway/gatewayImageModel'
 import { createGatewayWithImageModel } from '../gateway/gatewayProvider'
 
-const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+const callOptions = (overrides: Partial<ImageModelV4CallOptions> = {}): ImageModelV4CallOptions => ({
   prompt: 'a fox',
   n: 1,
   size: undefined,
@@ -32,9 +32,9 @@ const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageMod
   ...overrides
 })
 
-/** Minimal LanguageModelV3 whose doGenerate returns a single image file part. */
-const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV3 =>
-  ({ doGenerate }) as unknown as LanguageModelV3
+/** Minimal LanguageModelV4 whose doGenerate returns a single image file part. */
+const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) => any>>): LanguageModelV4 =>
+  ({ doGenerate }) as unknown as LanguageModelV4
 
 const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
   const { vendorBag } = splitParamValues(paramValues)
@@ -57,7 +57,7 @@ describe('isGatewayGeminiImageModel', () => {
 describe('createGatewayGeminiImageModel', () => {
   it('drives the language API with responseModalities IMAGE and returns the image', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'BASE64DATA' }],
+      content: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'BASE64DATA' } }],
       finishReason: 'stop',
       usage: {},
       response: { headers: {} }
@@ -74,7 +74,7 @@ describe('createGatewayGeminiImageModel', () => {
 
   it('maps aspectRatio onto google.imageConfig', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
+      content: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'IMG' } }],
       finishReason: 'stop',
       usage: {},
       response: { headers: {} }
@@ -88,7 +88,7 @@ describe('createGatewayGeminiImageModel', () => {
 
   it('moves the inherited Gateway resolution into google.imageConfig without dropping routing options', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
+      content: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'IMG' } }],
       finishReason: 'stop',
       usage: {},
       response: { headers: {} }
@@ -106,7 +106,7 @@ describe('createGatewayGeminiImageModel', () => {
 
   it('preserves other provider options and deep-merges existing imageConfig', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
+      content: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'IMG' } }],
       finishReason: 'stop',
       usage: {},
       response: { headers: {} }
@@ -142,7 +142,7 @@ describe('createGatewayGeminiImageModel', () => {
     const doGenerate = vi.fn().mockResolvedValue({
       content: [
         { type: 'text', text: 'here you go' },
-        { type: 'file', mediaType: 'image/jpeg', data: 'EDITED' }
+        { type: 'file', mediaType: 'image/jpeg', data: { type: 'data', data: 'EDITED' } }
       ],
       finishReason: 'stop',
       usage: {},
@@ -156,7 +156,7 @@ describe('createGatewayGeminiImageModel', () => {
 
     expect(result.images).toEqual(['EDITED'])
     const content = doGenerate.mock.calls[0][0].prompt[0].content
-    expect(content).toContainEqual({ type: 'file', mediaType: 'image/png', data: 'INPUT' })
+    expect(content).toContainEqual({ type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'INPUT' } })
   })
 })
 

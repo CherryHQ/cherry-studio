@@ -1,5 +1,6 @@
+import { LegacyOpenTelemetry } from '@ai-sdk/otel'
 import { trace } from '@opentelemetry/api'
-import type { TelemetrySettings } from 'ai'
+import type { TelemetryOptions } from 'ai'
 
 import { application } from '@application'
 
@@ -11,7 +12,7 @@ import type { RequestScope } from './scope'
  * tracing. Active iff developer mode is on AND we have a topicId to
  * attribute spans to.
  */
-export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefined {
+export function buildTelemetry(scope: RequestScope): TelemetryOptions | undefined {
   const topicId = scope.requestContext.topicId
   if (!topicId) return undefined
   const developerModeEnabled = application.get('PreferenceService').get('app.developer_mode.enabled')
@@ -22,15 +23,9 @@ export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefin
     isEnabled: true,
     recordInputs: true,
     recordOutputs: true,
-    tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName),
-    functionId: `ai-request-${scope.requestContext.requestId}`,
-    metadata: {
-      providerId: String(scope.sdkConfig.providerId),
-      modelId: scope.sdkConfig.modelId,
-      topicId,
-      modelName,
-      'trace.topicId': topicId,
-      'trace.modelName': modelName
-    }
+    integrations: [
+      new LegacyOpenTelemetry({ tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName) })
+    ],
+    functionId: `ai-request-${scope.requestContext.requestId}`
   }
 }

@@ -22,7 +22,7 @@ import {
   searchKnowledge
 } from '../../../knowledgeLookup'
 import { makeEntitiesCodec } from '../../../outputCodec'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { KB_SEARCH_TOOL_NAME }
@@ -31,6 +31,7 @@ export { KB_SEARCH_TOOL_NAME }
 const knowledgeSearchResultSchema = z.union([kbSearchOutputSchema, knowledgeLookupErrorSchema])
 
 const kbSearchTool = tool({
+  contextSchema: requestContextSchema,
   description: KNOWLEDGE_SEARCH_DESCRIPTION,
   inputSchema: kbSearchInputSchema,
   outputSchema: knowledgeSearchResultSchema,

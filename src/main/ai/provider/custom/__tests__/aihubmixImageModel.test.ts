@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const innerDoGenerate = vi.fn()
@@ -38,7 +38,7 @@ describe('AihubmixImageModel', () => {
 
   const make = (modelId: string) => createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
 
-  const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+  const callOptions = (overrides: Partial<ImageModelV4CallOptions> = {}): ImageModelV4CallOptions => ({
     prompt: 'a fox',
     n: 1,
     size: undefined,
@@ -52,9 +52,9 @@ describe('AihubmixImageModel', () => {
 
   const okJson = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
-  it('exposes a v3 ImageModel spec', () => {
+  it('exposes a v4 ImageModel spec', () => {
     const model = make('gpt-image-1')
-    expect(model.specificationVersion).toBe('v3')
+    expect(model.specificationVersion).toBe('v4')
     expect(model.provider).toBe('aihubmix.image')
     expect(model.modelId).toBe('gpt-image-1')
     expect(model.maxImagesPerCall).toBe(10)

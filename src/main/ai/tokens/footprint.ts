@@ -103,11 +103,15 @@ function partTokens(part: ContentPart, options: FootprintOptions): number {
       return tokenizer.count(part.text)
     case 'image':
       return imageTokensFor(dialect, measure?.get(part)?.dims)
+    case 'reasoning-file':
     case 'file': {
+      if (typeof part.data === 'object' && part.data !== null && 'type' in part.data && part.data.type === 'text') {
+        return FILE_OVERHEAD + tokenizer.count(part.data.text)
+      }
       if (isImageMediaType(part.mediaType)) return imageTokensFor(dialect, measure?.get(part)?.dims)
       const kind = mediaKindOf(part.mediaType)
       if (kind) return mediaTokensFor(dialect, kind, measure?.get(part)?.durationSec)
-      return FILE_OVERHEAD + tokenizer.count(part.filename ?? '')
+      return FILE_OVERHEAD + tokenizer.count('filename' in part ? (part.filename ?? '') : '')
     }
     case 'tool-call':
       return TOOL_OVERHEAD + tokenizer.count(part.toolName) + tokenizer.count(stringify(part.input))
@@ -146,8 +150,9 @@ function contentItemTokens(item: MultimodalItem, { dialect, tokenizer, measure }
     case 'image-data':
       // Raw base64 (no data: prefix).
       return imageTokensFor(dialect, measure?.get(item)?.dims)
-    case 'media':
+    case 'file':
     case 'file-data': {
+      if (item.type === 'file' && item.data.type === 'text') return FILE_OVERHEAD + tokenizer.count(item.data.text)
       if (isImageMediaType(item.mediaType)) return imageTokensFor(dialect, measure?.get(item)?.dims)
       const kind = mediaKindOf(item.mediaType)
       if (kind) return mediaTokensFor(dialect, kind, measure?.get(item)?.durationSec)
@@ -160,6 +165,16 @@ function contentItemTokens(item: MultimodalItem, { dialect, tokenizer, measure }
       // file-url / file-id / image-file-id — the payload isn't inline, count only framing.
       return FILE_OVERHEAD
   }
+}
+
+function inlineMediaData(value: unknown): DataContent | URL | undefined {
+  if (typeof value === 'string' || value instanceof URL || value instanceof Uint8Array || value instanceof ArrayBuffer)
+    return value
+  if (value && typeof value === 'object' && 'type' in value) {
+    if (value.type === 'data' && 'data' in value) return inlineMediaData(value.data)
+    if (value.type === 'url' && 'url' in value) return inlineMediaData(value.url)
+  }
+  return undefined
 }
 
 /** One media payload found in the prompt, paired with the part object that owns it. */
@@ -181,17 +196,20 @@ function* mediaNodes(messages: ModelMessage[]): Generator<MediaNode> {
     if (typeof message.content === 'string') continue
     for (const part of message.content as ContentPart[]) {
       if (part.type === 'image') {
-        yield { owner: part, kind: 'image', data: part.image }
-      } else if (part.type === 'file') {
+        const data = inlineMediaData(part.image)
+        if (data !== undefined) yield { owner: part, kind: 'image', data }
+      } else if (part.type === 'file' || part.type === 'reasoning-file') {
         const kind = isImageMediaType(part.mediaType) ? 'image' : mediaKindOf(part.mediaType)
-        if (kind) yield { owner: part, kind, data: part.data }
+        const data = inlineMediaData(part.data)
+        if (kind && data !== undefined) yield { owner: part, kind, data }
       } else if (part.type === 'tool-result' && part.output.type === 'content') {
         for (const item of part.output.value) {
           if (item.type === 'image-data') {
             yield { owner: item, kind: 'image', data: item.data }
-          } else if (item.type === 'media' || item.type === 'file-data') {
+          } else if (item.type === 'file-data' || item.type === 'file') {
             const kind = isImageMediaType(item.mediaType) ? 'image' : mediaKindOf(item.mediaType)
-            if (kind) yield { owner: item, kind, data: item.data }
+            const data = inlineMediaData(item.data)
+            if (kind && data !== undefined) yield { owner: item, kind, data }
           }
         }
       }
@@ -305,14 +323,14 @@ async function dimensionsFromBytes(bytes: Buffer): Promise<ImageDims | undefined
 }
 
 function isImageMediaType(mediaType: string | undefined): boolean {
-  return typeof mediaType === 'string' && mediaType.startsWith('image/')
+  return typeof mediaType === 'string' && mediaType.split('/')[0] === 'image'
 }
 
 /** `audio`/`video` for a duration-priced media type, `undefined` for anything else. */
 function mediaKindOf(mediaType: string | undefined): MediaKind | undefined {
   if (typeof mediaType !== 'string') return undefined
-  if (mediaType.startsWith('audio/')) return 'audio'
-  if (mediaType.startsWith('video/')) return 'video'
+  if (mediaType.split('/')[0] === 'audio') return 'audio'
+  if (mediaType.split('/')[0] === 'video') return 'video'
   return undefined
 }
 

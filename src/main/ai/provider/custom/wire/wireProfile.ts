@@ -1,4 +1,4 @@
-import type { JSONValue } from 'ai'
+import type { JSONValue } from '@ai-sdk/provider'
 
 /**
  * Per-provider declaration of the NON-native vendor body params (the

@@ -8,7 +8,7 @@
  */
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { MockLanguageModelV3 } from 'ai/test'
+import { MockLanguageModelV4 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1126,7 +1126,7 @@ function inLoopScope(contextWindow: number): RequestScope {
     model: makeModel(DEFAULT_MODEL_ID, contextWindow),
     provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: { languageModel: new MockLanguageModelV3({ modelId: 'compression-model' }), contextWindow },
+    compressionModel: { languageModel: new MockLanguageModelV4({ modelId: 'compression-model' }), contextWindow },
     signal: undefined,
     registry: new ToolRegistry(),
     mcpToolIds: new Set(),

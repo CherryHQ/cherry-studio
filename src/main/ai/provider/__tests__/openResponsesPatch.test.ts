@@ -1,5 +1,5 @@
 import { createOpenResponses } from '@ai-sdk/open-responses'
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -19,9 +19,9 @@ function sseModel(events: unknown[]) {
   })('subset-thinking-model')
 }
 
-async function collect(stream: ReadableStream<LanguageModelV3StreamPart>) {
+async function collect(stream: ReadableStream<LanguageModelV4StreamPart>) {
   const reader = stream.getReader()
-  const chunks: LanguageModelV3StreamPart[] = []
+  const chunks: LanguageModelV4StreamPart[] = []
   while (true) {
     const { done, value } = await reader.read()
     if (done) break

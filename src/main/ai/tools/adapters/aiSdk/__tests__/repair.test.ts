@@ -41,6 +41,7 @@ async function callRepair(
   error: InvalidToolInputError | NoSuchToolError = inputErr
 ) {
   return repair({
+    instructions: undefined,
     system: undefined,
     messages: [],
     toolCall,
@@ -91,6 +92,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { tags: ['duplicate', 'duplicate'] } })
 
     const repaired = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall('mcp_search', 'not json at all'),
@@ -114,6 +116,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { values: [1, 2] } })
 
     const repaired = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall('mcp_search', 'not json at all'),
@@ -135,6 +138,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { query: 'hello world', unexpected: true } })
 
     const repaired = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall('mcp_search', 'not json at all'),
@@ -156,6 +160,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
 
     const repaired = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall('mcp_search', { q: 'hello world' }),
@@ -173,6 +178,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { arguments: { query: 'hello world' } } })
 
     const repaired = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall('arguments_tool', { query: 'hello world' }),
@@ -196,6 +202,7 @@ describe('createAiRepair', () => {
     generateText.mockResolvedValue({ output: { query: 'hello world' } })
 
     const repaired = await repairWithUsage({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hello world' }),
@@ -226,6 +233,7 @@ describe('createAiRepair', () => {
 
   it('returns null when the input schema cannot be resolved', async () => {
     const result = await repair({
+      instructions: undefined,
       system: undefined,
       messages: [],
       toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { q: 'hi' }),

@@ -10,7 +10,7 @@
  * custom tokenizers were dropped — LLM summarization is owned by the durable
  * (`summarizeModelMessages`) and in-loop (`compactModelMessages`) paths.
  */
-import type { LanguageModelV3Message, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4Message, LanguageModelV4Prompt, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { generateText, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, pruneMessages } from 'ai'
 
 import { fromAISDK, toAISDK } from './adapter'
@@ -190,7 +190,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     : null
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       let { prompt } = params
@@ -247,7 +247,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 
       const { stream, ...rest } = await doStream()
 
-      const transform = new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+      const transform = new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
             if (chunk.usage?.inputTokens?.total != null) {
@@ -270,18 +270,18 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 }
 
 /**
- * Prunes a LanguageModelV3Prompt via AI SDK's pruneMessages.
+ * Prunes a LanguageModelV4Prompt via AI SDK's pruneMessages.
  *
- * LanguageModelV3Message (from @ai-sdk/provider) and ModelMessage
+ * LanguageModelV4Message (from @ai-sdk/provider) and ModelMessage
  * (from @ai-sdk/provider-utils) share identical runtime structure but
  * differ at the TypeScript level (e.g. ImagePart, FilePart.data).
  * Since pruneMessages only filters — never transforms — every content
  * part in the output is an original V3 part, making the casts safe.
  */
 function compactPrompt(
-  prompt: LanguageModelV3Prompt,
+  prompt: LanguageModelV4Prompt,
   config: Omit<Parameters<typeof pruneMessages>[0], 'messages'>
-): LanguageModelV3Prompt {
+): LanguageModelV4Prompt {
   const messages = prompt.map(
     (msg) =>
       ({
@@ -297,7 +297,7 @@ function compactPrompt(
         role: msg.role,
         content: msg.content,
         providerOptions: msg.providerOptions
-      }) as LanguageModelV3Message
+      }) as LanguageModelV4Message
   )
 }
 
@@ -311,7 +311,7 @@ function toCompressRole(role: string): CompressRole {
 }
 
 /**
- * Adapts an AI SDK LanguageModelV3 into the compression callback that the
+ * Adapts an AI SDK LanguageModelV4 into the compression callback that the
  * summarizer pipeline expects: (messages: ContextMessage[]) => Promise<string>
  *
  * Tool messages are converted to user messages describing the tool interaction,

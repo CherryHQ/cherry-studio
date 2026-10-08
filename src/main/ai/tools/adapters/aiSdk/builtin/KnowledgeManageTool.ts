@@ -30,7 +30,7 @@ import {
   knowledgeManageModelOutput,
   manageKnowledge
 } from '../../../knowledgeLookup'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { KB_MANAGE_TOOL_NAME }
@@ -39,6 +39,7 @@ export { KB_MANAGE_TOOL_NAME }
 const knowledgeManageResultSchema = z.union([kbManageOutputSchema, knowledgeLookupErrorSchema])
 
 const kbManageTool = tool({
+  contextSchema: requestContextSchema,
   description: KNOWLEDGE_MANAGE_DESCRIPTION,
   inputSchema: kbManageInputSchema,
   outputSchema: knowledgeManageResultSchema,

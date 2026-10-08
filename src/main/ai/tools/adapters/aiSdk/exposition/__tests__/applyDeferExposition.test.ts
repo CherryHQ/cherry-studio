@@ -105,7 +105,7 @@ describe('applyDeferExposition', () => {
     const opts = {
       toolCallId: 'tc-1',
       messages: [],
-      experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+      context: { requestId: 'req-1', abortSignal: new AbortController().signal }
     } as Parameters<NonNullable<Tool['execute']>>[1]
     return { execute, inspect: tools![TOOL_INSPECT_TOOL_NAME], invoke: tools![TOOL_INVOKE_TOOL_NAME], opts }
   }
@@ -135,7 +135,7 @@ describe('applyDeferExposition', () => {
     const opts = {
       toolCallId: 'browser-1',
       messages: [],
-      experimental_context: { requestId: 'request-1', topicId: 'topic-1', assistant: { id: 'assistant-1' } }
+      context: { requestId: 'request-1', topicId: 'topic-1', assistant: { id: 'assistant-1' } }
     } as Parameters<NonNullable<Tool['execute']>>[1]
 
     expect(metaTools.browser_open).toBeUndefined()

@@ -1,4 +1,4 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV4Prompt } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
 import { fromAISDK, toAISDK } from '../adapter'
@@ -6,13 +6,13 @@ import type { ContextMessage } from '../types'
 
 describe('fromAISDK', () => {
   it('converts system messages', () => {
-    const prompt: LanguageModelV3Prompt = [{ role: 'system', content: 'You are helpful.' }]
+    const prompt: LanguageModelV4Prompt = [{ role: 'system', content: 'You are helpful.' }]
     const result = fromAISDK(prompt)
     expect(result).toEqual([{ role: 'system', content: 'You are helpful.' }])
   })
 
   it('converts user messages with text parts', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
@@ -29,11 +29,11 @@ describe('fromAISDK', () => {
   it('stores original content including file parts', () => {
     const filePart = {
       type: 'file' as const,
-      data: 'base64data',
+      data: { type: 'data' as const, data: 'base64data' },
       mediaType: 'image/png'
     }
     const content = [{ type: 'text' as const, text: 'Look at this' }, filePart]
-    const prompt: LanguageModelV3Prompt = [{ role: 'user', content }]
+    const prompt: LanguageModelV4Prompt = [{ role: 'user', content }]
     const result = fromAISDK(prompt)
     expect(result[0].content).toBe('Look at this')
     expect(result[0]._userContent).toEqual(content)
@@ -41,13 +41,13 @@ describe('fromAISDK', () => {
   })
 
   it('maps multiple file parts to attachments', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Check these' },
-          { type: 'file', data: 'img1', mediaType: 'image/png' },
-          { type: 'file', data: 'doc1', mediaType: 'application/pdf', filename: 'report.pdf' }
+          { type: 'file', data: { type: 'data', data: 'img1' }, mediaType: 'image/png' },
+          { type: 'file', data: { type: 'data', data: 'doc1' }, mediaType: 'application/pdf', filename: 'report.pdf' }
         ]
       }
     ]
@@ -59,19 +59,19 @@ describe('fromAISDK', () => {
   })
 
   it('does not set attachments when no file parts exist', () => {
-    const prompt: LanguageModelV3Prompt = [{ role: 'user', content: [{ type: 'text', text: 'Just text' }] }]
+    const prompt: LanguageModelV4Prompt = [{ role: 'user', content: [{ type: 'text', text: 'Just text' }] }]
     const result = fromAISDK(prompt)
     expect(result[0].attachments).toBeUndefined()
   })
 
   it('preserves Uint8Array file data verbatim through _userContent (no encoding into Attachment.data)', () => {
     const bytes = new Uint8Array([72, 101, 108, 108, 111]) // "Hello"
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Binary please' },
-          { type: 'file', data: bytes, mediaType: 'image/png' }
+          { type: 'file', data: { type: 'data', data: bytes }, mediaType: 'image/png' }
         ]
       }
     ]
@@ -80,34 +80,50 @@ describe('fromAISDK', () => {
     // The real binary lives on _userContent for the AI SDK round-trip.
     expect(result[0].attachments).toEqual([{ mediaType: 'image/png', data: '' }])
     const filePart = result[0]._userContent?.find((p) => p.type === 'file')
-    expect(filePart && filePart.type === 'file' ? filePart.data : undefined).toBe(bytes) // same reference, not a copy
+    expect(
+      filePart && filePart.type === 'file'
+        ? filePart.data.type === 'data'
+          ? filePart.data.data
+          : filePart.data.type === 'url'
+            ? filePart.data.url
+            : undefined
+        : undefined
+    ).toBe(bytes) // same reference, not a copy
   })
 
   it('preserves URL file data verbatim through _userContent (no toString into Attachment.data)', () => {
     const url = new URL('https://example.com/img.png')
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Remote image' },
-          { type: 'file', data: url, mediaType: 'image/png' }
+          { type: 'file', data: { type: 'url', url }, mediaType: 'image/png' }
         ]
       }
     ]
     const result = fromAISDK(prompt)
     expect(result[0].attachments).toEqual([{ mediaType: 'image/png', data: '' }])
     const filePart = result[0]._userContent?.find((p) => p.type === 'file')
-    expect(filePart && filePart.type === 'file' ? filePart.data : undefined).toBe(url) // same URL instance, not toString'd
+    expect(
+      filePart && filePart.type === 'file'
+        ? filePart.data.type === 'data'
+          ? filePart.data.data
+          : filePart.data.type === 'url'
+            ? filePart.data.url
+            : undefined
+        : undefined
+    ).toBe(url) // same URL instance, not toString'd
   })
 
   it('toAISDK round-trips Uint8Array binary back to the AI SDK provider verbatim', () => {
     const bytes = new Uint8Array([1, 2, 3, 4, 5])
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'binary' },
-          { type: 'file', data: bytes, mediaType: 'image/png' }
+          { type: 'file', data: { type: 'data', data: bytes }, mediaType: 'image/png' }
         ]
       }
     ]
@@ -117,11 +133,11 @@ describe('fromAISDK', () => {
     const content = userMsg?.content as Array<{ type: string; data?: unknown }>
     expect(Array.isArray(content)).toBe(true)
     const filePart = content.find((p) => p.type === 'file')
-    expect(filePart?.data).toBe(bytes) // same reference
+    expect(filePart?.data).toEqual({ type: 'data', data: bytes }) // same reference
   })
 
   it('converts assistant messages with text + tool calls', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'weather?' }] },
       {
         role: 'assistant',
@@ -160,7 +176,7 @@ describe('fromAISDK', () => {
   })
 
   it('converts assistant reasoning to thinking', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'reason about this' }] },
       {
         role: 'assistant',
@@ -176,13 +192,13 @@ describe('fromAISDK', () => {
   })
 
   it('maps assistant file parts to attachments', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'generate an image' }] },
       {
         role: 'assistant',
         content: [
           { type: 'text', text: 'Here is the image.' },
-          { type: 'file', data: 'generated_img', mediaType: 'image/png' }
+          { type: 'file', data: { type: 'data', data: 'generated_img' }, mediaType: 'image/png' }
         ]
       }
     ]
@@ -192,7 +208,7 @@ describe('fromAISDK', () => {
   })
 
   it('converts tool messages to individual IR messages', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'q' }] },
       {
         role: 'assistant',
@@ -246,7 +262,7 @@ describe('fromAISDK', () => {
   })
 
   it('handles json tool result output', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'query' }] },
       {
         role: 'assistant',
@@ -278,7 +294,7 @@ describe('fromAISDK', () => {
 
   // ─── Boundary sanitization ───
   it('injects placeholder for missing tool result at boundary', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'do it' }] },
       {
         role: 'assistant',
@@ -305,7 +321,7 @@ describe('fromAISDK', () => {
 
   // ─── FIX #3: tool-call with input:undefined yields a string '{}' ───
   it('serializes a tool-call with undefined input to "{}" (a string)', () => {
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'go' }] },
       {
         role: 'assistant',
@@ -340,7 +356,7 @@ describe('fromAISDK', () => {
   it('round-trips sanitized placeholder with original toolName (not "unknown")', () => {
     // Regression guard for the boundary-sanitize bug where injected placeholders
     // round-tripped as `toolName: 'unknown'` because toAISDK only read _toolName.
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'do it' }] },
       {
         role: 'assistant',
@@ -462,7 +478,7 @@ describe('toAISDK', () => {
 
 describe('round-trip', () => {
   it('preserves a full conversation through fromAISDK → toAISDK', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: [{ type: 'text', text: 'What is 2+2?' }] },
       { role: 'assistant', content: [{ type: 'text', text: '4' }] },
@@ -475,7 +491,7 @@ describe('round-trip', () => {
   })
 
   it('preserves tool call + result through round-trip', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'find something' }] },
       {
         role: 'assistant',
@@ -508,12 +524,12 @@ describe('round-trip', () => {
   })
 
   it('preserves file parts through round-trip', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Analyze this' },
-          { type: 'file', data: 'base64data', mediaType: 'image/png' }
+          { type: 'file', data: { type: 'data', data: 'base64data' }, mediaType: 'image/png' }
         ]
       }
     ]
@@ -524,7 +540,7 @@ describe('round-trip', () => {
   })
 
   it('uses modified content when Janitor changes it (e.g. compact)', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       {
         role: 'tool',
         content: [
@@ -553,7 +569,7 @@ describe('round-trip', () => {
   })
 
   it('preserves providerOptions through round-trip', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       {
         role: 'user',
         content: [{ type: 'text', text: 'Hello' }],
@@ -568,7 +584,7 @@ describe('round-trip', () => {
 
   // ─── FIX #1: inline (provider-executed) tool-result must not trigger a placeholder ───
   it('does not inject a placeholder for an inline (provider-executed) tool-result', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'search the web' }] },
       {
         role: 'assistant',
@@ -602,7 +618,7 @@ describe('round-trip', () => {
   })
 
   it('pairs a normal tool-call and skips an inline one in the same assistant message', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'do two things' }] },
       {
         role: 'assistant',
@@ -649,7 +665,7 @@ describe('round-trip', () => {
 
   // ─── FIX #2: tool-message-level providerOptions survives round-trip ───
   it('preserves tool-message-level providerOptions through round-trip', () => {
-    const original: LanguageModelV3Prompt = [
+    const original: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'run it' }] },
       {
         role: 'assistant',

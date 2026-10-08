@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -13,7 +13,7 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
  * `output.b64_json[].bytesBase64` form (→ data: URLs); Doubao Seedream parses
  * `data[].url` / `data[].b64_json` / `data[].base64_json` (→ data: URLs).
  */
-function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
+function opts(partial: Partial<ImageModelV4CallOptions>): ImageModelV4CallOptions {
   return {
     prompt: 'a fox',
     n: 1,

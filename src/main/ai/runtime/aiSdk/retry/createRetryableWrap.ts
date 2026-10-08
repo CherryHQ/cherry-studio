@@ -15,7 +15,7 @@
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
@@ -34,7 +34,7 @@ import type { RetryPolicy } from './retryPolicy'
 
 const logger = loggerService.withContext('ModelRetry')
 
-export type WrapLanguageModel = (model: LanguageModelV3) => LanguageModelV3
+export type WrapLanguageModel = (model: LanguageModelV4) => LanguageModelV4
 
 /**
  * Per-fallback call-option overrides ai-retry merges into the request when it
@@ -44,7 +44,7 @@ export type FallbackCallOptions = LanguageModelRetryCallOptions
 
 /** A resolved fallback: a fully-resolved (middleware-applied) model + its own params. */
 export interface RetryFallback {
-  model: LanguageModelV3
+  model: LanguageModelV4
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
 }
@@ -127,12 +127,13 @@ function apiKeyFallbackRetryable(
     return Promise.resolve(resolve(context)).then((fallback) => {
       if (!fallback) return undefined
       nextFallbackIndex += 1
-      return { ...fallback, maxAttempts: resolveFallbacks.length + 1 }
+      // The finite key pool bounds rotation; ai-retry also counts nested transient attempts per model.
+      return { ...fallback, maxAttempts: Infinity }
     })
   }
 }
 
-function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryPartData, { state: 'retrying' }> {
+function describeAttempt(context: RetryContext<LanguageModelV4>): Extract<RetryPartData, { state: 'retrying' }> {
   const { current, attempts } = context
   let reason = 'unknown'
   if (isErrorAttempt(current)) {
@@ -193,7 +194,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       ? wrapLanguageModel({
           model: base,
           middleware: {
-            specificationVersion: 'v3',
+            specificationVersion: 'v4',
             transformParams: async ({ params }) => {
               options.onPrimaryActivated?.()
               return params
@@ -223,8 +224,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     let activeApiKeyModel = primary
     let activeApiKeyFallback: RetryFallback | undefined
     let exhaustedApiKeyError: APICallError | undefined
-    const requestApiKeyModel: LanguageModelV3 = {
-      specificationVersion: 'v3',
+    const requestApiKeyModel: LanguageModelV4 = {
+      specificationVersion: 'v4',
       get provider() {
         return activeApiKeyModel.provider
       },

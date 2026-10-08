@@ -1,4 +1,4 @@
-import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV4, ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { t } from '@main/i18n'
@@ -19,12 +19,12 @@ export interface ComfyuiProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface ComfyuiProvider extends ProviderV3 {
-  imageModel(modelId: string): ImageModelV3
+export interface ComfyuiProvider extends ProviderV4 {
+  imageModel(modelId: string): ImageModelV4
 }
 
 /**
- * ComfyUI serves image generation only. `ProviderV3` still requires the chat
+ * ComfyUI serves image generation only. `ProviderV4` still requires the chat
  * and embedding factories, so they throw rather than resolve to a host that
  * would answer them with an HTML page.
  */
@@ -43,7 +43,7 @@ export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): C
   // `never`-returning body satisfies both model types, so the contract stays
   // checked instead of erased by an `unknown` hop.
   const provider: ComfyuiProvider = {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     languageModel: () => unsupported('chat completions'),
     embeddingModel: () => unsupported('embeddings'),
     imageModel: (modelId: string) => createImageGenerationModel(modelId, { provider: COMFYUI_PROVIDER_NAME, transport })

@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 
 import { type ExecResult, runExecCode } from '@main/ai/tools/codeMode/runtime'
 
@@ -9,7 +9,7 @@ export type { ExecResult }
 
 export interface ExecRuntimeContext {
   registry: ToolRegistry
-  parentOptions: ToolExecutionOptions
+  parentOptions: ToolExecutionOptions<unknown>
 }
 
 export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResult> {
@@ -28,7 +28,7 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
           input: params,
           toolCallId: ctx.parentOptions.toolCallId,
           messages: ctx.parentOptions.messages,
-          experimental_context: ctx.parentOptions.experimental_context
+          context: ctx.parentOptions.context
         })
       ) {
         throw new Error(`Tool ${name} requires user approval; call it directly instead of via tool_exec.`)

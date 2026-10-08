@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV4Prompt } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -98,14 +98,14 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
  * sanitization (`ensureValidHistory`) completely untouched; the round-trip
  * deep-equality pins all of this.
  */
-function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
+function makePrompt(toolName: string, chars: number): LanguageModelV4Prompt {
   return [
     { role: 'system', content: 'You are helpful.' },
     {
       role: 'user',
       content: [
         { type: 'text', text: 'fetch and summarize' },
-        { type: 'file', mediaType: 'image/png', data: 'aGVsbG8=', filename: 'screen.png' }
+        { type: 'file', mediaType: 'image/png', data: { type: 'data', data: 'aGVsbG8=' }, filename: 'screen.png' }
       ]
     },
     {
@@ -138,7 +138,7 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
   ]
 }
 
-async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
+async function runTransform(prompt: LanguageModelV4Prompt, scope: RequestScope): Promise<LanguageModelV4Prompt> {
   const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
     params: { prompt },
@@ -148,8 +148,8 @@ async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope):
   return result.prompt
 }
 
-function toolOutput(prompt: LanguageModelV3Prompt): { value: string; providerOptions?: unknown } {
-  const toolMsg = prompt.find((m) => m.role === 'tool') as Extract<LanguageModelV3Prompt[number], { role: 'tool' }>
+function toolOutput(prompt: LanguageModelV4Prompt): { value: string; providerOptions?: unknown } {
+  const toolMsg = prompt.find((m) => m.role === 'tool') as Extract<LanguageModelV4Prompt[number], { role: 'tool' }>
   const part = toolMsg.content[0] as { output: { value: string }; providerOptions?: unknown }
   return { value: part.output.value, providerOptions: part.providerOptions }
 }
@@ -166,7 +166,7 @@ describe('buildContextOptions → createMiddleware', () => {
     expect(fs.readFileSync(path.join(tmpDir, files[0]), 'utf8')).toBe('x'.repeat(BIG))
     // The sibling json result in the same tool message is under threshold —
     // it must survive untouched, still typed `json`.
-    const toolMsg = out.find((m) => m.role === 'tool') as Extract<LanguageModelV3Prompt[number], { role: 'tool' }>
+    const toolMsg = out.find((m) => m.role === 'tool') as Extract<LanguageModelV4Prompt[number], { role: 'tool' }>
     expect(toolMsg.content[1]).toEqual({
       type: 'tool-result',
       toolCallId: 'c2',

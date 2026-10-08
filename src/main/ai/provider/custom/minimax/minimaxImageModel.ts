@@ -1,4 +1,4 @@
-import { APICallError, type ImageModelV3, type ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { APICallError, type ImageModelV4, type ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
 
 import { mergeHeaders } from '@main/utils/http'
@@ -39,8 +39,8 @@ function parseSize(size: `${number}x${number}` | undefined): { width?: number; h
   return match ? { width: Number(match[1]), height: Number(match[2]) } : {}
 }
 
-export class MinimaxImageModel implements ImageModelV3 {
-  readonly specificationVersion = 'v3'
+export class MinimaxImageModel implements ImageModelV4 {
+  readonly specificationVersion = 'v4'
   readonly maxImagesPerCall = 9
 
   get provider(): string {
@@ -52,7 +52,7 @@ export class MinimaxImageModel implements ImageModelV3 {
     private readonly config: MinimaxImageModelConfig
   ) {}
 
-  async doGenerate(options: ImageModelV3CallOptions): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> {
+  async doGenerate(options: ImageModelV4CallOptions): Promise<Awaited<ReturnType<ImageModelV4['doGenerate']>>> {
     const { prompt, n, size, seed, aspectRatio, files, providerOptions, headers, abortSignal } = options
     const bag = (providerOptions?.minimax ?? {}) as Record<string, unknown>
     const body: Record<string, unknown> = {

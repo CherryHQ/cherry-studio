@@ -1,560 +1,100 @@
-import type { ImageModelV3 } from '@ai-sdk/provider'
-import { createMockImageModel, createMockProviderV3 } from '@test-utils'
-import { generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createOpenAI } from '@ai-sdk/openai'
+import { describe, expect, it } from 'vitest'
 
-import { type AiPlugin } from '../../plugins'
-import { ImageGenerationError, ImageModelResolutionError } from '../errors'
 import { RuntimeExecutor } from '../executor'
+import type { RuntimeProviderCallEvent } from '../types'
 
-// Mock dependencies
-vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
-  return {
-    ...actual,
-    experimental_generateImage: vi.fn(),
-    generateImage: vi.fn(),
-    jsonSchema: vi.fn((schema) => schema),
-    NoImageGeneratedError: class NoImageGeneratedError extends Error {
-      static isInstance = vi.fn()
-      constructor() {
-        super('No image generated')
-        this.name = 'NoImageGeneratedError'
-      }
-    }
-  }
-})
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aIo8AAAAASUVORK5CYII='
+const bytes = new Uint8Array(Buffer.from(png, 'base64'))
 
-describe('RuntimeExecutor.generateImage', () => {
-  let executor: RuntimeExecutor
-  let mockImageModel: ImageModelV3
-  let mockProvider: any
-  let mockGenerateImageResult: any
-
-  beforeEach(() => {
-    // Reset all mocks
-    vi.clearAllMocks()
-
-    // Mock image model
-    mockImageModel = createMockImageModel({
-      modelId: 'dall-e-3',
-      provider: 'openai'
-    })
-
-    // Create mock provider with imageModel as a spy
-    mockProvider = createMockProviderV3({
-      provider: 'openai',
-      imageModel: vi.fn(() => mockImageModel)
-    })
-
-    // Create executor instance
-    executor = RuntimeExecutor.create('openai', mockProvider, {
-      apiKey: 'test-key'
-    })
-
-    // Mock generateImage result
-    mockGenerateImageResult = {
-      image: {
-        base64: 'base64-encoded-image-data',
-        uint8Array: new Uint8Array([1, 2, 3]),
-        mediaType: 'image/png'
-      },
-      images: [
-        {
-          base64: 'base64-encoded-image-data',
-          uint8Array: new Uint8Array([1, 2, 3]),
-          mediaType: 'image/png'
-        }
-      ],
-      warnings: [],
-      providerMetadata: {
-        openai: {
-          images: [{ revisedPrompt: 'A detailed prompt' }]
-        }
-      },
-      responses: []
-    }
-
-    vi.mocked(aiGenerateImage).mockResolvedValue(mockGenerateImageResult)
-  })
-
-  describe('Basic functionality', () => {
-    it('should generate a single image with minimal parameters', async () => {
-      const result = await executor.generateImage({ model: 'dall-e-3', prompt: 'A futuristic cityscape at sunset' })
-
-      expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A futuristic cityscape at sunset'
-      })
-
-      expect(result).toEqual(mockGenerateImageResult)
-    })
-
-    it('should generate image with pre-created model', async () => {
-      const result = await executor.generateImage({
-        model: mockImageModel,
-        prompt: 'A beautiful landscape'
-      })
-
-      // Pre-created model is used directly, provider.imageModel is not called
-      expect(mockProvider.imageModel).not.toHaveBeenCalled()
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A beautiful landscape'
-      })
-
-      expect(result).toEqual(mockGenerateImageResult)
-    })
-
-    it('should support multiple images generation', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A futuristic cityscape', n: 3 })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A futuristic cityscape',
-        n: 3
-      })
-    })
-
-    it('should support size specification', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A beautiful sunset', size: '1024x1024' })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A beautiful sunset',
-        size: '1024x1024'
-      })
-    })
-
-    it('should support aspect ratio specification', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A mountain landscape', aspectRatio: '16:9' })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A mountain landscape',
-        aspectRatio: '16:9'
-      })
-    })
-
-    it('should support seed for consistent output', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cat in space', seed: 1234567890 })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A cat in space',
-        seed: 1234567890
-      })
-    })
-
-    it('should support abort signal', async () => {
-      const abortController = new AbortController()
-
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cityscape', abortSignal: abortController.signal })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A cityscape',
-        abortSignal: abortController.signal
-      })
-    })
-
-    it('should support provider-specific options', async () => {
-      await executor.generateImage({
-        model: 'dall-e-3',
-        prompt: 'A space station',
-        providerOptions: {
-          openai: {
-            quality: 'hd',
-            style: 'vivid'
-          }
-        }
-      })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A space station',
-        providerOptions: {
-          openai: {
-            quality: 'hd',
-            style: 'vivid'
-          }
-        }
-      })
-    })
-
-    it('should support custom headers', async () => {
-      await executor.generateImage({
-        model: 'dall-e-3',
-        prompt: 'A robot',
-        headers: {
-          'X-Custom-Header': 'test-value'
-        }
-      })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A robot',
-        headers: {
-          'X-Custom-Header': 'test-value'
-        }
-      })
-    })
-  })
-
-  describe('Plugin integration', () => {
-    it('should execute plugins in correct order', async () => {
-      const pluginCallOrder: string[] = []
-
-      const testPlugin: AiPlugin = {
-        name: 'test-plugin',
-        onRequestStart: vi.fn(async () => {
-          pluginCallOrder.push('onRequestStart')
-        }),
-        transformParams: vi.fn(async (params) => {
-          pluginCallOrder.push('transformParams')
-          return { ...params, size: '512x512' }
-        }),
-        transformResult: vi.fn(async (result) => {
-          pluginCallOrder.push('transformResult')
-          return { ...result, processed: true }
-        }),
-        onRequestEnd: vi.fn(async () => {
-          pluginCallOrder.push('onRequestEnd')
+describe('RuntimeExecutor.generateImage provider boundary', () => {
+  it('batches generation and records each provider call with aggregate image usage', async () => {
+    const requests: Array<Record<string, any>> = []
+    const events: RuntimeProviderCallEvent[] = []
+    const provider = createOpenAI({
+      apiKey: 'test',
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body))
+        requests.push(body)
+        return Response.json({
+          created: 0,
+          data: Array.from({ length: body.n }, () => ({ b64_json: png })),
+          usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
         })
       }
-
-      const executorWithPlugin = RuntimeExecutor.create(
-        'openai',
-        mockProvider,
-        {
-          apiKey: 'test-key'
-        },
-        [testPlugin]
-      )
-
-      const result = await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
-
-      expect(pluginCallOrder).toEqual(['onRequestStart', 'transformParams', 'transformResult', 'onRequestEnd'])
-
-      // transformParams receives params without model (model is handled separately)
-      // and context with core fields + dynamic fields (requestId, startTime, etc.)
-      expect(testPlugin.transformParams).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt: 'A test image' }),
-        expect.objectContaining({
-          providerId: 'openai',
-          model: 'dall-e-3'
-        })
-      )
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A test image',
-        size: '512x512' // Should be transformed by plugin
-      })
-
-      expect(result).toEqual({
-        ...mockGenerateImageResult,
-        processed: true // Should be transformed by plugin
-      })
     })
-
-    it('should handle model resolution through plugins', async () => {
-      const customImageModel = {
-        modelId: 'custom-model',
-        provider: 'openai'
-      } as ImageModelV3
-
-      const modelResolutionPlugin: AiPlugin = {
-        name: 'model-resolver',
-        resolveModel: vi.fn(async () => customImageModel)
+    const executor = RuntimeExecutor.create('openai', provider, {})
+    const result = await executor.generateImage({
+      model: 'gpt-image-1',
+      prompt: 'A cherry',
+      n: 3,
+      maxImagesPerCall: 2,
+      size: '1024x1024',
+      providerOptions: { openai: { quality: 'low' } },
+      onProviderCall: (event) => {
+        events.push(event)
       }
-
-      const executorWithPlugin = RuntimeExecutor.create(
-        'openai',
-        mockProvider,
-        {
-          apiKey: 'test-key'
-        },
-        [modelResolutionPlugin]
-      )
-
-      await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
-
-      // resolveModel receives model id and context with core fields
-      expect(modelResolutionPlugin.resolveModel).toHaveBeenCalledWith(
-        'dall-e-3',
-        expect.objectContaining({
-          providerId: 'openai',
-          model: 'dall-e-3'
-        })
-      )
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: customImageModel,
-        prompt: 'A test image'
-      })
     })
-
-    it('should support recursive calls from plugins', async () => {
-      const recursivePlugin: AiPlugin = {
-        name: 'recursive-plugin',
-        transformParams: vi.fn(async (params, context) => {
-          if (!context.isRecursiveCall && params.prompt === 'original') {
-            // Make a recursive call with modified prompt
-            await context.recursiveCall({
-              model: 'dall-e-3',
-              prompt: 'modified'
-            })
-          }
-          return params
-        })
-      }
-
-      const executorWithPlugin = RuntimeExecutor.create(
-        'openai',
-        mockProvider,
-        {
-          apiKey: 'test-key'
-        },
-        [recursivePlugin]
-      )
-
-      await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'original' })
-
-      expect(recursivePlugin.transformParams).toHaveBeenCalledTimes(2)
-      expect(aiGenerateImage).toHaveBeenCalledTimes(2)
-    })
+    expect(requests.map(({ n }) => n)).toEqual([2, 1])
+    expect(requests[0]).toMatchObject({ model: 'gpt-image-1', prompt: 'A cherry', quality: 'low', size: '1024x1024' })
+    expect(result.images.map((image) => image.uint8Array)).toEqual([bytes, bytes, bytes])
+    expect(result.usage).toMatchObject({ inputTokens: 20, outputTokens: 40, totalTokens: 60 })
+    expect(events.map((event) => event.modality === 'image' && event.imageCount)).toEqual([2, 1])
+    expect(new Set(events.map((event) => event.requestId)).size).toBe(2)
   })
 
-  describe('Error handling', () => {
-    it('should handle model creation errors', async () => {
-      const modelError = new Error('Failed to get image model')
-      // Since mockProvider.imageModel is already a vi.fn() spy, we can mock it directly
-      mockProvider.imageModel.mockImplementation(() => {
-        throw modelError
-      })
-
-      await expect(executor.generateImage({ model: 'invalid-model', prompt: 'A test image' })).rejects.toThrow(
-        ImageGenerationError
-      )
-    })
-
-    it('should handle ImageModelResolutionError correctly', async () => {
-      const resolutionError = new ImageModelResolutionError('invalid-model', 'openai', new Error('Model not found'))
-      mockProvider.imageModel.mockImplementation(() => {
-        throw resolutionError
-      })
-
-      const thrownError = await executor
-        .generateImage({ model: 'invalid-model', prompt: 'A test image' })
-        .catch((error) => error)
-
-      // Error is thrown from pluginEngine directly as ImageModelResolutionError
-      expect(thrownError).toBeInstanceOf(ImageModelResolutionError)
-      expect(thrownError.message).toContain('Failed to resolve image model: invalid-model')
-      expect(thrownError.providerId).toBe('openai')
-      expect(thrownError.modelId).toBe('invalid-model')
-    })
-
-    it('should handle ImageModelResolutionError without provider', async () => {
-      const resolutionError = new ImageModelResolutionError('unknown-model')
-      mockProvider.imageModel.mockImplementation(() => {
-        throw resolutionError
-      })
-
-      await expect(executor.generateImage({ model: 'unknown-model', prompt: 'A test image' })).rejects.toThrow(
-        ImageGenerationError
-      )
-    })
-
-    it('should handle image generation API errors', async () => {
-      const apiError = new Error('API request failed')
-      vi.mocked(aiGenerateImage).mockRejectedValue(apiError)
-
-      // Error propagates directly from pluginEngine without wrapping
-      await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'API request failed'
-      )
-    })
-
-    it('should handle NoImageGeneratedError', async () => {
-      const noImageError = new NoImageGeneratedError({
-        cause: new Error('No image generated'),
-        responses: []
-      })
-
-      vi.mocked(aiGenerateImage).mockRejectedValue(noImageError)
-      vi.mocked(NoImageGeneratedError.isInstance).mockReturnValue(true)
-
-      // Error propagates directly from pluginEngine
-      await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'No image generated'
-      )
-    })
-
-    it('should execute onError plugin hook on failure', async () => {
-      const error = new Error('Generation failed')
-      vi.mocked(aiGenerateImage).mockRejectedValue(error)
-
-      const errorPlugin: AiPlugin = {
-        name: 'error-handler',
-        onError: vi.fn()
+  it('sends reference image and mask bytes to the edit endpoint', async () => {
+    let endpoint: string | undefined
+    let form: FormData | undefined
+    const provider = createOpenAI({
+      apiKey: 'test',
+      fetch: async (url, init) => {
+        endpoint = String(url)
+        form = init?.body as FormData
+        return Response.json({ created: 0, data: [{ b64_json: png }] })
       }
-
-      const executorWithPlugin = RuntimeExecutor.create(
-        'openai',
-        mockProvider,
-        {
-          apiKey: 'test-key'
-        },
-        [errorPlugin]
-      )
-
-      // Error propagates directly from pluginEngine
-      await expect(executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'Generation failed'
-      )
-
-      // onError receives the original error and context with core fields
-      expect(errorPlugin.onError).toHaveBeenCalledWith(
-        error,
-        expect.objectContaining({
-          providerId: 'openai',
-          model: 'dall-e-3'
-        })
-      )
     })
-
-    it('should handle abort signal timeout', async () => {
-      const abortError = new Error('Operation was aborted')
-      abortError.name = 'AbortError'
-      vi.mocked(aiGenerateImage).mockRejectedValue(abortError)
-
-      const abortController = new AbortController()
-      setTimeout(() => abortController.abort(), 10)
-
-      // Error propagates directly from pluginEngine
-      await expect(
-        executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', abortSignal: abortController.signal })
-      ).rejects.toThrow('Operation was aborted')
+    const executor = RuntimeExecutor.create('openai', provider, {})
+    const result = await executor.generateImage({
+      model: 'gpt-image-1',
+      prompt: { text: 'Make it blue', images: [bytes], mask: bytes }
     })
+    expect(endpoint).toBe('https://api.openai.com/v1/images/edits')
+    expect(form?.get('prompt')).toBe('Make it blue')
+    expect(form?.get('model')).toBe('gpt-image-1')
+    const image = form?.get('image') as File
+    const mask = form?.get('mask') as File
+    expect(image.type).toBe('image/png')
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(bytes)
+    expect(new Uint8Array(await mask.arrayBuffer())).toEqual(bytes)
+    expect(result.image.uint8Array).toEqual(bytes)
   })
 
-  describe('Multiple providers support', () => {
-    it('should work with different providers', async () => {
-      const googleImageModel = createMockImageModel({
-        provider: 'google',
-        modelId: 'imagen-3.0-generate-002'
-      })
-
-      const googleProvider = createMockProviderV3({
-        provider: 'google',
-        imageModel: vi.fn(() => googleImageModel)
-      })
-
-      const googleExecutor = RuntimeExecutor.create('google', googleProvider, {
-        apiKey: 'google-key'
-      })
-
-      await googleExecutor.generateImage({ model: 'imagen-3.0-generate-002', prompt: 'A landscape' })
-
-      expect(googleProvider.imageModel).toHaveBeenCalledWith('imagen-3.0-generate-002')
-    })
-
-    it('should support xAI Grok image models', async () => {
-      const xaiImageModel = createMockImageModel({
-        provider: 'xai',
-        modelId: 'grok-2-image'
-      })
-
-      const xaiProvider = createMockProviderV3({
-        provider: 'xai',
-        imageModel: vi.fn(() => xaiImageModel)
-      })
-
-      const xaiExecutor = RuntimeExecutor.create('xai', xaiProvider, {
-        apiKey: 'xai-key'
-      })
-
-      await xaiExecutor.generateImage({ model: 'grok-2-image', prompt: 'A futuristic robot' })
-
-      expect(xaiProvider.imageModel).toHaveBeenCalledWith('grok-2-image')
-    })
-  })
-
-  describe('Advanced features', () => {
-    it('should support batch image generation with maxImagesPerCall', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', n: 10, maxImagesPerCall: 5 })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A test image',
-        n: 10,
-        maxImagesPerCall: 5
-      })
-    })
-
-    it('should support retries with maxRetries', async () => {
-      await executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', maxRetries: 3 })
-
-      expect(aiGenerateImage).toHaveBeenCalledWith({
-        model: mockImageModel,
-        prompt: 'A test image',
-        maxRetries: 3
-      })
-    })
-
-    it('should handle warnings from the model', async () => {
-      const resultWithWarnings = {
-        ...mockGenerateImageResult,
-        warnings: [
-          {
-            type: 'unsupported-setting',
-            message: 'Size parameter not supported for this model'
-          }
-        ]
+  it('does not retry or record a completed image call after cancellation', async () => {
+    let calls = 0
+    const events: RuntimeProviderCallEvent[] = []
+    const controller = new AbortController()
+    const provider = createOpenAI({
+      apiKey: 'test',
+      fetch: async (_url, init) => {
+        calls++
+        controller.abort()
+        init?.signal?.throwIfAborted()
+        throw new Error('unreachable')
       }
-
-      vi.mocked(aiGenerateImage).mockResolvedValue(resultWithWarnings)
-
-      const result = await executor.generateImage({
-        model: 'dall-e-3',
-        prompt: 'A test image',
-        size: '2048x2048' // Unsupported size
+    })
+    const executor = RuntimeExecutor.create('openai', provider, {})
+    await expect(
+      executor.generateImage({
+        model: 'gpt-image-1',
+        prompt: 'A cherry',
+        abortSignal: controller.signal,
+        onProviderCall: (event) => {
+          events.push(event)
+        }
       })
-
-      expect(result.warnings).toHaveLength(1)
-      expect(result.warnings[0].type).toBe('unsupported-setting')
-    })
-
-    it('should provide access to provider metadata', async () => {
-      const result = await executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
-
-      expect(result.providerMetadata).toBeDefined()
-      expect(result.providerMetadata.openai).toBeDefined()
-    })
-
-    it('should provide response metadata', async () => {
-      const resultWithMetadata = {
-        ...mockGenerateImageResult,
-        responses: [
-          {
-            timestamp: new Date(),
-            modelId: 'dall-e-3',
-            headers: { 'x-request-id': 'test-123' }
-          }
-        ]
-      }
-
-      vi.mocked(aiGenerateImage).mockResolvedValue(resultWithMetadata)
-
-      const result = await executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
-
-      expect(result.responses).toHaveLength(1)
-      expect(result.responses[0].modelId).toBe('dall-e-3')
-      expect(result.responses[0].headers).toEqual({ 'x-request-id': 'test-123' })
-    })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(calls).toBe(1)
+    expect(events).toEqual([])
   })
 })

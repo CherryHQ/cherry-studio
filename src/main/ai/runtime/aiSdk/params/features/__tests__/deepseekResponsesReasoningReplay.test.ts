@@ -1,4 +1,4 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV4Prompt } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -19,7 +19,7 @@ async function getMiddleware(): Promise<LanguageModelMiddleware> {
   return ctx.middlewares[0]
 }
 
-async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3Prompt> {
+async function transform(prompt: LanguageModelV4Prompt): Promise<LanguageModelV4Prompt> {
   const middleware = await getMiddleware()
   const result = await middleware.transformParams!({
     type: 'stream',
@@ -61,7 +61,7 @@ describe('deepseekResponsesReasoningReplay', () => {
 
   describe('transformParams', () => {
     it('tags metadata-less assistant reasoning parts for raw passback', async () => {
-      const prompt: LanguageModelV3Prompt = [
+      const prompt: LanguageModelV4Prompt = [
         {
           role: 'assistant',
           content: [
@@ -82,7 +82,7 @@ describe('deepseekResponsesReasoningReplay', () => {
     })
 
     it('tags item-backed reasoning for raw passback but preserves encrypted reasoning', async () => {
-      const prompt: LanguageModelV3Prompt = [
+      const prompt: LanguageModelV4Prompt = [
         {
           role: 'assistant',
           content: [
@@ -105,7 +105,7 @@ describe('deepseekResponsesReasoningReplay', () => {
     })
 
     it('preserves other providerOptions namespaces when tagging', async () => {
-      const prompt: LanguageModelV3Prompt = [
+      const prompt: LanguageModelV4Prompt = [
         {
           role: 'assistant',
           content: [{ type: 'reasoning', text: 'hmm', providerOptions: { anthropic: { signature: 's' } } }]
@@ -118,7 +118,7 @@ describe('deepseekResponsesReasoningReplay', () => {
     })
 
     it('does not touch user messages', async () => {
-      const prompt: LanguageModelV3Prompt = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
+      const prompt: LanguageModelV4Prompt = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
       expect(await transform(prompt)).toEqual(prompt)
     })
   })

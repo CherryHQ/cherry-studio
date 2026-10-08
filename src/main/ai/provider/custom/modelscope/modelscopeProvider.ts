@@ -1,5 +1,5 @@
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -20,11 +20,11 @@ export interface ModelscopeProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface ModelscopeProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
+export interface ModelscopeProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
 }
 
 /**
@@ -72,7 +72,7 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
   const transport = buildModelscopeTransport(settings)
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
   provider.embeddingModel = (modelId: string) =>
     new OpenAICompatibleEmbeddingModel(modelId, {

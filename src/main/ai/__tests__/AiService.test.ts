@@ -259,7 +259,7 @@ describe('AiService', () => {
       fallbackModelIds: ['fallback::model']
     })
     mockAgentGenerate.mockResolvedValue({
-      text: 'ok',
+      finalStep: { text: 'ok' },
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
       steps: []
     })
@@ -1504,7 +1504,7 @@ describe('AiService tool approval', () => {
     const service = createService()
     const keyFallback = vi.fn()
     mockAgentGenerate.mockResolvedValue({
-      text: 'ok',
+      finalStep: { text: 'ok' },
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
       steps: []
     })

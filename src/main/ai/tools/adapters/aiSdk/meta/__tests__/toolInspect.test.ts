@@ -27,7 +27,7 @@ async function callInspect(tool: Tool, args: { name: string }) {
   return tool.execute(args, {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+    context: { requestId: 'req-1', abortSignal: new AbortController().signal }
   })
 }
 

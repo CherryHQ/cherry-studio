@@ -11,7 +11,7 @@ export function createGrokReasoningReplayMiddleware(providerId: string, modelId:
   const isGrokCli = providerId === GROK_CLI_PROVIDER_ID
   const origin = { providerId, modelId }
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     transformParams: async ({ params }) => ({
       ...params,
       prompt: params.prompt.map((message) => {

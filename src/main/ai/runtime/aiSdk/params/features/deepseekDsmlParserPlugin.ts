@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -70,7 +70,7 @@ function generateToolCallId(): string {
 
 function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     wrapStream: async ({ doStream }) => {
       const { stream, ...rest } = await doStream()
@@ -83,12 +83,12 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
 
       // eslint-disable-next-line prefer-const
       let drainDsmlBuffer: (
-        controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
+        controller: TransformStreamDefaultController<LanguageModelV4StreamPart>,
         textId: string
       ) => void
 
       const enqueueRemainderText = (
-        controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
+        controller: TransformStreamDefaultController<LanguageModelV4StreamPart>,
         textId: string
       ) => {
         const startIdx = textBuffer.indexOf(TOOL_CALLS_OPEN)
@@ -113,7 +113,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
         drainDsmlBuffer(controller, textId)
       }
 
-      drainDsmlBuffer = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, textId: string) => {
+      drainDsmlBuffer = (controller: TransformStreamDefaultController<LanguageModelV4StreamPart>, textId: string) => {
         const closeIdx = dsmlBuffer.indexOf(TOOL_CALLS_CLOSE)
         if (closeIdx === -1) {
           if (dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
@@ -168,10 +168,10 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
 
       return {
         stream: stream.pipeThrough(
-          new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+          new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
             transform(
-              chunk: LanguageModelV3StreamPart,
-              controller: TransformStreamDefaultController<LanguageModelV3StreamPart>
+              chunk: LanguageModelV4StreamPart,
+              controller: TransformStreamDefaultController<LanguageModelV4StreamPart>
             ) {
               if (chunk.type === 'text-start') {
                 activeTextId = chunk.id
@@ -228,7 +228,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               textBuffer += chunk.delta
               enqueueRemainderText(controller, textId)
             },
-            flush(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) {
+            flush(controller: TransformStreamDefaultController<LanguageModelV4StreamPart>) {
               const textId = activeTextId ?? 'dsml-fallback'
               if (inDsml) {
                 logger.warn('Stream flushed with unclosed DSML block')

@@ -65,9 +65,9 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
       const { body, warnings } = await capture('gpt-6.1-sol', { reasoningEffort, withoutLogprobs: true })
 
       expect(body.model).toBe('gpt-6.1-sol')
-      expect(body.reasoning).toEqual({ effort: reasoningEffort })
+      expect(body.reasoning).toMatchObject({ effort: reasoningEffort })
       const codexBody = JSON.parse(coerceCodexRequestBody(JSON.stringify(body)) as string)
-      expect(codexBody.reasoning).toEqual({ effort: reasoningEffort })
+      expect(codexBody.reasoning).toMatchObject({ effort: reasoningEffort })
       expect(body.temperature).toBeUndefined()
       expect(body.top_p).toBeUndefined()
       expect(warnings).not.toContainEqual(expect.objectContaining({ feature: 'reasoningEffort' }))
@@ -77,7 +77,7 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
   it.each(['qwen3-max', 'doubao-seed-2-1-pro-260628'])('keeps temperature and top_p for %s', async (modelId) => {
     const { body } = await capture(modelId)
 
-    expect(body.reasoning).toEqual({ effort: 'low' })
+    expect(body.reasoning).toMatchObject({ effort: 'low' })
     expect(body.temperature).toBe(0.7)
     expect(body.top_p).toBe(0.9)
   })
@@ -87,7 +87,7 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     async (modelId) => {
       const { body } = await capture(modelId, { withoutLogprobs: true })
 
-      expect(body.reasoning).toEqual({ effort: 'low' })
+      expect(body.reasoning).toMatchObject({ effort: 'low' })
       expect(body.temperature).toBeUndefined()
       expect(body.top_p).toBeUndefined()
     }

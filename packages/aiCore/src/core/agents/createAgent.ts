@@ -2,7 +2,7 @@
  * Agent factory
  * Reuses createExecutor's provider resolution + plugin pipeline to build a ToolLoopAgent
  */
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV4 } from '@ai-sdk/provider'
 import type { ToolLoopAgentSettings, ToolSet } from 'ai'
 import { ToolLoopAgent } from 'ai'
 
@@ -20,15 +20,15 @@ export type CreateAgentOptions<
   modelId: string
   plugins?: AiPlugin[]
   /** Wraps the resolved model (middlewares already applied) before it is handed to the agent */
-  wrapModel?: (model: LanguageModelV3) => LanguageModelV3 | Promise<LanguageModelV3>
-  agentSettings: Omit<ToolLoopAgentSettings<never, TOOLS, never>, 'model'>
+  wrapModel?: (model: LanguageModelV4) => LanguageModelV4 | Promise<LanguageModelV4>
+  agentSettings: Omit<ToolLoopAgentSettings<never, TOOLS>, 'model'>
 }
 
 export async function createAgent<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
   T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>,
   TOOLS extends ToolSet = {}
->(options: CreateAgentOptions<TSettingsMap, T, TOOLS>): Promise<ToolLoopAgent<never, TOOLS, never>> {
+>(options: CreateAgentOptions<TSettingsMap, T, TOOLS>): Promise<ToolLoopAgent<never, TOOLS>> {
   const { providerId, providerSettings, modelId, plugins, wrapModel, agentSettings } = options
 
   // 1. Create executor (extensionRegistry resolves provider + modelResolver)
@@ -48,8 +48,8 @@ export async function createAgent<
   const finalModel = wrapModel ? await wrapModel(resolvedModel) : resolvedModel
 
   // 5. Build ToolLoopAgent
-  return new ToolLoopAgent({
+  return new ToolLoopAgent<never, TOOLS>({
     ...transformedSettings,
     model: finalModel
-  })
+  } as ToolLoopAgentSettings<never, TOOLS>)
 }

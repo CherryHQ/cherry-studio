@@ -106,7 +106,7 @@ describe('tool-loop termination', () => {
       {
         toolCallId: 'outer-1',
         messages: [],
-        experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+        context: { requestId: 'req-1', abortSignal: new AbortController().signal }
       }
     )
     const wrapped = makeSteps([wrappedOutput], 1, {

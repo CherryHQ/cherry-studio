@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -11,7 +11,7 @@ import { captureWithFetch } from './captureRequest'
  * snake_case extras from the `silicon` bag, and up to three input images as
  * `image`/`image2`/`image3` data URLs.
  */
-function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
+function opts(partial: Partial<ImageModelV4CallOptions>): ImageModelV4CallOptions {
   return {
     prompt: 'a fox',
     n: 1,
@@ -66,7 +66,7 @@ describe('SiliconFlow image-model boundary', () => {
           files: [
             { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) },
             { mediaType: 'image/jpeg', data: new Uint8Array([4, 5, 6]) }
-          ] as ImageModelV3CallOptions['files']
+          ] as ImageModelV4CallOptions['files']
         })
       )
     )

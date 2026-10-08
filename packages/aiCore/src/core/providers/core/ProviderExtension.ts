@@ -1,10 +1,11 @@
-import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { RerankingModelV4 } from '@ai-sdk/provider'
 import QuickLRU from 'quick-lru'
 
 import { deepMergeObjects } from '../../utils'
+import type { AiSdkProvider } from '../types'
 import type { ProviderVariant, ToolFactoryMap } from '../types'
 
-export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
+export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => AiSdkProvider | Promise<AiSdkProvider>
 
 /**
  * Provider 模块类型
@@ -24,7 +25,7 @@ export type ProviderModule<TSettings = any> = Record<string, any> & {
  */
 interface ProviderExtensionConfigBase<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
+  TProvider extends AiSdkProvider = AiSdkProvider,
   TName extends string = string
 > {
   /** Provider 唯一标识 */
@@ -53,7 +54,7 @@ interface ProviderExtensionConfigBase<
   toolFactories?: ToolFactoryMap<TProvider>
 
   /** Creates provider.rerankingModel when the SDK provider does not expose it natively. */
-  createRerankingModel?: (modelId: string, settings: TSettings) => RerankingModelV3
+  createRerankingModel?: (modelId: string, settings: TSettings) => RerankingModelV4
 }
 
 /**
@@ -61,7 +62,7 @@ interface ProviderExtensionConfigBase<
  */
 interface ProviderExtensionConfigWithCreate<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
+  TProvider extends AiSdkProvider = AiSdkProvider,
   TName extends string = string
 > extends ProviderExtensionConfigBase<TSettings, TProvider, TName> {
   create: ProviderCreatorFunction<TSettings>
@@ -76,7 +77,7 @@ interface ProviderExtensionConfigWithCreate<
  */
 interface ProviderExtensionConfigWithImport<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
+  TProvider extends AiSdkProvider = AiSdkProvider,
   TName extends string = string
 > extends ProviderExtensionConfigBase<TSettings, TProvider, TName> {
   create?: never
@@ -96,7 +97,7 @@ interface ProviderExtensionConfigWithImport<
  */
 export type ProviderExtensionConfig<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
+  TProvider extends AiSdkProvider = AiSdkProvider,
   TName extends string = string
 > =
   | ProviderExtensionConfigWithCreate<TSettings, TProvider, TName>
@@ -111,7 +112,7 @@ export type ProviderExtensionConfig<
  */
 export class ProviderExtension<
   TSettings = any,
-  TProvider extends ProviderV3 = ProviderV3,
+  TProvider extends AiSdkProvider = AiSdkProvider,
   TConfig extends ProviderExtensionConfig<TSettings, TProvider, string> = ProviderExtensionConfig<
     TSettings,
     TProvider,
@@ -145,7 +146,7 @@ export class ProviderExtension<
   static create<
     const TConfig extends ProviderExtensionConfig<any, any, string>,
     TSettings = TConfig extends ProviderExtensionConfig<infer S, any, any> ? S : any,
-    TProvider extends ProviderV3 = TConfig extends ProviderExtensionConfig<any, infer P, any> ? P : ProviderV3
+    TProvider extends AiSdkProvider = TConfig extends ProviderExtensionConfig<any, infer P, any> ? P : AiSdkProvider
   >(config: TConfig | (() => TConfig)): ProviderExtension<TSettings, TProvider, TConfig>
   static create(config: any): ProviderExtension<any, any, any> {
     const resolvedConfig = typeof config === 'function' ? config() : config
@@ -247,7 +248,7 @@ export class ProviderExtension<
     variantSuffix: string | undefined,
     hash: string
   ): Promise<TProvider> {
-    let baseProvider: ProviderV3
+    let baseProvider: AiSdkProvider
 
     if (this.config.create) {
       baseProvider = await Promise.resolve(this.config.create(mergedSettings))

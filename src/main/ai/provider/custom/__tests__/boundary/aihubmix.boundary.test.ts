@@ -1,4 +1,4 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ImageModelV4CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -16,7 +16,7 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
  * `response_format`. numImages comes from `options.n`, aspectRatio from
  * `options.aspectRatio`.
  */
-function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
+function opts(partial: Partial<ImageModelV4CallOptions>): ImageModelV4CallOptions {
   return {
     prompt: 'a fox',
     n: 1,

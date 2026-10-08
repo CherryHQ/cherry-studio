@@ -25,11 +25,11 @@ import { createWebSearchToolEntry, WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } f
 const searchEntry = createWebSearchToolEntry()
 const fetchEntry = createWebFetchToolEntry()
 
-function makeOptions(abortSignal = new AbortController().signal): ToolExecutionOptions {
+function makeOptions(abortSignal = new AbortController().signal): ToolExecutionOptions<unknown> {
   return {
     toolCallId: 'tc-1',
     messages: [],
-    experimental_context: { requestId: 'req-1', abortSignal }
+    context: { requestId: 'req-1', abortSignal }
   }
 }
 
@@ -48,7 +48,7 @@ function response() {
 function callSearchExecute(args: { query: string }, abortSignal?: AbortSignal): Promise<unknown> {
   const execute = searchEntry.tool.execute as (
     args: { query: string },
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<unknown>
   return execute(args, makeOptions(abortSignal))
 }
@@ -56,7 +56,7 @@ function callSearchExecute(args: { query: string }, abortSignal?: AbortSignal): 
 function callFetchExecute(args: { urls: string[] }, abortSignal?: AbortSignal): Promise<unknown> {
   const execute = fetchEntry.tool.execute as (
     args: { urls: string[] },
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<unknown>
   return execute(args, makeOptions(abortSignal))
 }

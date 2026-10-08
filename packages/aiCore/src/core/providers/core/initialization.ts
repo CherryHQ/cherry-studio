@@ -1,22 +1,22 @@
+import type { AnthropicProvider, AnthropicProviderSettings } from '@ai-sdk/anthropic'
 /**
  * Provider 初始化器
  * 负责根据配置创建 providers 并注册到全局管理器
  * 使用新的 Extension 系统
  */
-
-import type { AnthropicProvider, AnthropicProviderSettings } from '@ai-sdk/anthropic'
 import type { AzureOpenAIProvider, AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import type { DeepSeekProviderSettings } from '@ai-sdk/deepseek'
-import type { GoogleGenerativeAIProvider, GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
+import type { GoogleProvider, GoogleProviderSettings } from '@ai-sdk/google'
 import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
-import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { RerankingModelV4 } from '@ai-sdk/provider'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import type { OpenRouterProvider, OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { customProvider, type LanguageModel } from 'ai'
 
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 
+import type { AiSdkProvider } from '../types'
 import type {
   ExtensionConfigToIdResolutionMap,
   ExtractExtensionIds,
@@ -32,14 +32,14 @@ import { ProviderExtension } from './ProviderExtension'
 function createLazyOpenAICompatibleRerankingModel(
   modelId: string,
   settings: OpenAICompatibleProviderSettings
-): RerankingModelV3 {
+): RerankingModelV4 {
   if (!settings.baseURL?.replace(/\/+$/, '')) {
     throw new Error('OpenAI-compatible reranking model requires baseURL')
   }
 
-  let modelPromise: Promise<RerankingModelV3> | undefined
+  let modelPromise: Promise<RerankingModelV4> | undefined
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: `${settings.name}.rerank`,
     modelId,
     doRerank: async (options) => {
@@ -75,7 +75,7 @@ const AzureExtension = ProviderExtension.create({
   name: 'azure',
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
-  create: async (settings): Promise<ProviderV3> => {
+  create: async (settings): Promise<AiSdkProvider> => {
     const provider = (await import('@ai-sdk/azure')).createAzure(settings)
     // Default to chat mode (AI SDK defaults to responses API)
     return customProvider({
@@ -145,7 +145,7 @@ const CherryInExtension = ProviderExtension.create({
     {
       suffix: 'chat',
       name: 'CherryIN Chat',
-      transform: (provider): ProviderV3 =>
+      transform: (provider): AiSdkProvider =>
         customProvider({
           fallbackProvider: {
             ...provider,
@@ -160,17 +160,16 @@ const DeepSeekExtension = ProviderExtension.create({
   name: 'deepseek',
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/deepseek')).createDeepSeek(settings)
-} as const satisfies ProviderExtensionConfig<DeepSeekProviderSettings, ProviderV3, 'deepseek'>)
+} as const satisfies ProviderExtensionConfig<DeepSeekProviderSettings, AiSdkProvider, 'deepseek'>)
 
 const GoogleExtension = ProviderExtension.create({
   name: 'google',
   aliases: ['google-ai', 'gemini', 'google-gemini'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => (await import('@ai-sdk/google')).createGoogleGenerativeAI(settings),
+  create: async (settings) => (await import('@ai-sdk/google')).createGoogle(settings),
   toolFactories: {
     webSearch:
-      (provider: GoogleGenerativeAIProvider) =>
-      (config: NonNullable<Parameters<GoogleGenerativeAIProvider['tools']['googleSearch']>[0]>) => ({
+      (provider: GoogleProvider) => (config: NonNullable<Parameters<GoogleProvider['tools']['googleSearch']>[0]>) => ({
         tools: { webSearch: provider.tools.googleSearch(config) }
       }),
     urlContext: (provider) => (config) => ({
@@ -179,7 +178,7 @@ const GoogleExtension = ProviderExtension.create({
       }
     })
   }
-} as const satisfies ProviderExtensionConfig<GoogleGenerativeAIProviderSettings, GoogleGenerativeAIProvider, 'google'>)
+} as const satisfies ProviderExtensionConfig<GoogleProviderSettings, GoogleProvider, 'google'>)
 
 const OpenAICompatibleExtension = ProviderExtension.create({
   name: 'openai-compatible',
@@ -205,7 +204,7 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     }
     return createLazyOpenAICompatibleRerankingModel(modelId, settings)
   }
-} as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, ProviderV3, 'openai-compatible'>)
+} as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, AiSdkProvider, 'openai-compatible'>)
 
 const OpenAIExtension = ProviderExtension.create({
   name: 'openai',
@@ -255,7 +254,12 @@ const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => (await import('@ai-sdk/xai')).createXai(settings),
+  create: async (settings) => {
+    const provider = (await import('@ai-sdk/xai')).createXai(settings)
+    // The base extension represents Cherry's explicit Chat Completions endpoint.
+    provider.languageModel = provider.chat
+    return provider
+  },
   variants: [
     {
       suffix: 'responses',

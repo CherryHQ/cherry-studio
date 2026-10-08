@@ -1,5 +1,5 @@
 /**
- * Composed AiHubMix `ImageModelV3`.
+ * Composed AiHubMix `ImageModelV4`.
  *
  * Upgrades the in-place `createAihubmix().imageModel` from a plain
  * `OpenAICompatibleImageModel` to a model that branches by model id / mode.
@@ -17,9 +17,9 @@
  * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so a single bag feeds both
  * the special branches and the default delegate.
  */
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createGoogle } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
-import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
+import type { ImageModelV4, ImageModelV4CallOptions, JSONValue } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
@@ -144,8 +144,8 @@ const CANONICAL_KEYS = new Set<string>(IMAGE_PARAM_CATALOG_KEYS)
  * were proven equal in wireName.test.ts). Non-canonical keys pass through.
  */
 function wireNameAihubmixBag(
-  providerOptions: ImageModelV3CallOptions['providerOptions']
-): ImageModelV3CallOptions['providerOptions'] {
+  providerOptions: ImageModelV4CallOptions['providerOptions']
+): ImageModelV4CallOptions['providerOptions'] {
   if (!providerOptions?.aihubmix) return providerOptions
   const aihubmix = providerOptions.aihubmix as Record<string, JSONValue>
   const renamed: Record<string, JSONValue> = {}
@@ -162,7 +162,7 @@ function normalizeImageSize(value: unknown): string | undefined {
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
 }
 
-function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: boolean): ImageModelV3 {
+function withAihubmixGoogleImageOptions(model: ImageModelV4, isGeminiImage: boolean): ImageModelV4 {
   return {
     specificationVersion: model.specificationVersion,
     provider: model.provider,
@@ -250,7 +250,7 @@ function isDoubaoSeedreamModel(modelId: string): boolean {
 
 /** Build the Doubao `/images/generations` body from native options + the
  *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
-function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): Record<string, unknown> {
+function buildDoubaoBody(modelId: string, options: ImageModelV4CallOptions): Record<string, unknown> {
   const bag = (options.providerOptions?.aihubmix ?? {}) as Record<string, unknown>
   const parsed = DoubaoParamsSchema.parse({
     size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
@@ -298,7 +298,7 @@ function parseOpenAIImageResults(data: any): string[] {
   return urls
 }
 
-export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
+export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV4 {
   const { baseURL, resolveApiKey, headers, fetch: customFetch } = opts
 
   // Provider `baseURL` already includes the OpenAI-compat `/v1` suffix
@@ -311,7 +311,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
   const fetchImpl: FetchFunction = customFetch ?? globalThis.fetch
 
   if (isGoogleImageModel(modelId)) {
-    const googleProvider = createGoogleGenerativeAI({
+    const googleProvider = createGoogle({
       apiKey: resolveApiKey(),
       baseURL: `${apiRoot}/gemini/v1beta`,
       headers: headers(),
@@ -325,8 +325,8 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
   }
 
   const doGenerate = async (
-    options: ImageModelV3CallOptions
-  ): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> => {
+    options: ImageModelV4CallOptions
+  ): Promise<Awaited<ReturnType<ImageModelV4['doGenerate']>>> => {
     const bag = (options.providerOptions?.aihubmix ?? {}) as unknown as AihubmixImageOptions
     const mode: AihubmixMode = bag.mode ?? 'generate'
     const prompt = options.prompt ?? ''
@@ -609,7 +609,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
   }
 
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
     provider: AIHUBMIX_IMAGE_PROVIDER,
     modelId,
     maxImagesPerCall: 10,

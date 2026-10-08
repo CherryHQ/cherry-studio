@@ -1,12 +1,12 @@
 /**
  * Runtime 层类型定义
  */
-import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, ImageModelV4, EmbeddingModelV3, EmbeddingModelV4 } from '@ai-sdk/provider'
 import type { JSONObject } from '@ai-sdk/provider'
 import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
 
 import { type AiPlugin } from '../plugins'
-import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
+import type { AiSdkProvider, CoreProviderSettingsMap, StringKeys } from '../providers/types'
 
 export type RuntimeProviderCallEvent =
   | {
@@ -50,7 +50,7 @@ export interface RuntimeConfig<
   T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
 > {
   providerId: T
-  provider: ProviderV3
+  provider: AiSdkProvider
   providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
   /**
@@ -62,7 +62,7 @@ export interface RuntimeConfig<
 }
 
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
-  model: string | ImageModelV3
+  model: string | ImageModelV3 | ImageModelV4
   experimental_download?: Experimental_DownloadFunction
   onProviderCall?: RuntimeProviderCallHandler
 }
@@ -70,9 +70,9 @@ export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]
 export type streamTextParams = Parameters<typeof streamText>[0]
 
-// Embedding types (AI SDK v6 only has embedMany, no embed)
+// Batch embedding with per-call usage observation.
 export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
-  model: string | EmbeddingModelV3
+  model: string | EmbeddingModelV3 | EmbeddingModelV4
   onProviderCall?: RuntimeProviderCallHandler
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
@@ -82,7 +82,7 @@ export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
   Parameters<typeof rerank<VALUE>>[0],
   'model'
 > & {
-  model: string | RerankingModelV3
+  model: Parameters<typeof rerank>[0]['model']
   onProviderCall?: RuntimeProviderCallHandler
 }
 export type RerankResult<VALUE extends JSONObject | string = string> = Awaited<ReturnType<typeof rerank<VALUE>>>

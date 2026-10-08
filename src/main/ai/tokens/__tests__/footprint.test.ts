@@ -138,7 +138,10 @@ describe('estimateModelMessagesFootprint', () => {
             type: 'tool-result',
             toolCallId: 't1',
             toolName: 'rec',
-            output: { type: 'content', value: [{ type: 'media', data: 'A'.repeat(200_000), mediaType: 'audio/wav' }] }
+            output: {
+              type: 'content',
+              value: [{ type: 'file-data', data: 'A'.repeat(200_000), mediaType: 'audio/wav' }]
+            }
           }
         ]
       }
@@ -207,5 +210,41 @@ describe('countToolDefs', () => {
     expect(countToolDefs(undefined, fake)).toBe(0)
     expect(countToolDefs('nope', fake)).toBe(0)
     expect(countToolDefs([null, 42], fake)).toBe(0)
+  })
+})
+
+describe('V4 tagged media', () => {
+  it('measures canonical tool and reasoning images without tokenizing base64', async () => {
+    const messages: ModelMessage[] = [
+      {
+        role: 'assistant',
+        content: [{ type: 'reasoning-file', mediaType: 'image/png', data: { type: 'data', data: PNG_1x1 } }]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'image-1',
+            toolName: 'draw',
+            output: {
+              type: 'content',
+              value: [{ type: 'file', mediaType: 'image/png', data: { type: 'data', data: PNG_1x1 } }]
+            }
+          }
+        ]
+      }
+    ]
+    expect(await estimateModelMessagesFootprint(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(18)
+  })
+
+  it('includes inline document text in the compaction budget', () => {
+    const messages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: [{ type: 'file', mediaType: 'text/plain', data: { type: 'text', text: 'a'.repeat(1000) } }]
+      }
+    ]
+    expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(1008)
   })
 })

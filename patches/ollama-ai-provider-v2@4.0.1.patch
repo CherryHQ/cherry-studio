@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43d04edc9b 100644
+index 78a8fa3d31d67cc20113170e887b39006cdb8df4..6f55b6945c2ef0125e735878aece5703111ab622 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
 @@ -4,7 +4,7 @@ import { z } from 'zod/v4';
@@ -11,20 +11,16 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
      options: z.ZodOptional<z.ZodObject<{
          num_ctx: z.ZodOptional<z.ZodNumber>;
          repeat_last_n: z.ZodOptional<z.ZodNumber>;
-@@ -27,9 +27,11 @@ interface OllamaCompletionSettings {
-      * the model's thinking from the model's output. When disabled, the model will not think
-      * and directly output the content.
+@@ -29,7 +29,7 @@ interface OllamaCompletionSettings {
       *
-+     * For gpt-oss models, you can also use 'low', 'medium', or 'high' to control the depth of thinking.
-+     *
       * Only supported by certain models like DeepSeek R1 and Qwen 3.
       */
 -    think?: boolean;
-+    think?: boolean | 'low' | 'medium' | 'high';
++    think?: boolean | "low" | "medium" | "high";
      /**
       * Echo back the prompt in addition to the completion.
       */
-@@ -154,11 +156,11 @@ declare const ollamaEmbeddingProviderOptions: z.ZodObject<{
+@@ -154,11 +154,11 @@ declare const ollamaEmbeddingProviderOptions: z.ZodObject<{
  type OllamaEmbeddingProviderOptions = z.infer<typeof ollamaEmbeddingProviderOptions>;
  
  declare const ollamaCompletionProviderOptions: z.ZodObject<{
@@ -39,7 +35,7 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
 -export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderSettings, createOllama, ollama };
 +export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderOptions, type OllamaProviderSettings, createOllama, ollama };
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43d04edc9b 100644
+index 78a8fa3d31d67cc20113170e887b39006cdb8df4..6f55b6945c2ef0125e735878aece5703111ab622 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -4,7 +4,7 @@ import { z } from 'zod/v4';
@@ -51,20 +47,16 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
      options: z.ZodOptional<z.ZodObject<{
          num_ctx: z.ZodOptional<z.ZodNumber>;
          repeat_last_n: z.ZodOptional<z.ZodNumber>;
-@@ -27,9 +27,11 @@ interface OllamaCompletionSettings {
-      * the model's thinking from the model's output. When disabled, the model will not think
-      * and directly output the content.
+@@ -29,7 +29,7 @@ interface OllamaCompletionSettings {
       *
-+     * For gpt-oss models, you can also use 'low', 'medium', or 'high' to control the depth of thinking.
-+     *
       * Only supported by certain models like DeepSeek R1 and Qwen 3.
       */
 -    think?: boolean;
-+    think?: boolean | 'low' | 'medium' | 'high';
++    think?: boolean | "low" | "medium" | "high";
      /**
       * Echo back the prompt in addition to the completion.
       */
-@@ -154,11 +156,11 @@ declare const ollamaEmbeddingProviderOptions: z.ZodObject<{
+@@ -154,11 +154,11 @@ declare const ollamaEmbeddingProviderOptions: z.ZodObject<{
  type OllamaEmbeddingProviderOptions = z.infer<typeof ollamaEmbeddingProviderOptions>;
  
  declare const ollamaCompletionProviderOptions: z.ZodObject<{
@@ -79,69 +71,64 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
 -export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderSettings, createOllama, ollama };
 +export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderOptions, type OllamaProviderSettings, createOllama, ollama };
 diff --git a/dist/index.js b/dist/index.js
-index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae01101574 100644
+index aafa72c4167302af45db22e41a227cbaf02f792f..13435af456f12662740592483e9cdc830ccbee29 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -21,7 +21,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
- var index_exports = {};
- __export(index_exports, {
-   createOllama: () => createOllama,
--  ollama: () => ollama
-+  ollama: () => ollama,
-+  ollamaProviderOptions: () => ollamaProviderOptions,
-+  ollamaCompletionProviderOptions: () => ollamaCompletionProviderOptions
- });
- module.exports = __toCommonJS(index_exports);
- 
-@@ -228,7 +230,7 @@ var ollamaFailedResponseHandler = (0, import_provider_utils2.createJsonErrorResp
+@@ -154,7 +154,7 @@ function resolveOllamaThinkFlag({
+     }
+     return reasoning !== "none";
+   }
+-  return false;
++  return void 0;
+ }
+ function fileDataToBase64String(data) {
+   var _a;
+@@ -345,7 +345,7 @@ var ollamaFailedResponseHandler = (0, import_provider_utils3.createJsonErrorResp
  
  // src/completion/ollama-completion-language-model.ts
  var ollamaCompletionProviderOptions = import_v42.z.object({
 -  think: import_v42.z.boolean().optional(),
-+  think: import_v42.z.union([import_v42.z.boolean(), import_v42.z.literal('low'), import_v42.z.literal('medium'), import_v42.z.literal('high')]).optional(),
++  think: import_v42.z.union([import_v42.z.boolean(), import_v42.z.literal("low"), import_v42.z.literal("medium"), import_v42.z.literal("high")]).optional(),
    user: import_v42.z.string().optional(),
    suffix: import_v42.z.string().optional(),
    echo: import_v42.z.boolean().optional()
-@@ -729,7 +731,7 @@ function convertToOllamaChatMessages({
-         const images = content.filter((part) => part.type === "file" && part.mediaType.startsWith("image/")).map((part) => part.data);
+@@ -843,7 +843,7 @@ function convertToOllamaChatMessages({
+         }).map((part) => extractOllamaFileData(part.data));
          messages.push({
            role: "user",
 -          content: userText.length > 0 ? userText : [],
-+          content: userText.length > 0 ? userText : '',
++          content: userText,
            images: images.length > 0 ? images : void 0
          });
          break;
-@@ -814,7 +816,7 @@ var ollamaProviderOptions = import_v45.z.object({
+@@ -942,7 +942,7 @@ var ollamaProviderOptions = import_v45.z.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.
     */
 -  think: import_v45.z.boolean().optional(),
-+  think: import_v45.z.union([import_v45.z.boolean(), import_v45.z.literal('low'), import_v45.z.literal('medium'), import_v45.z.literal('high')]).optional(),
++  think: import_v45.z.union([import_v45.z.boolean(), import_v45.z.literal("low"), import_v45.z.literal("medium"), import_v45.z.literal("high")]).optional(),
    options: import_v45.z.object({
      num_ctx: import_v45.z.number().optional(),
      repeat_last_n: import_v45.z.number().optional(),
-@@ -1137,14 +1139,16 @@ var OllamaRequestBuilder = class {
-         prompt,
-         systemMessageMode: "system"
+@@ -1305,8 +1305,6 @@ var OllamaRequestBuilder = class {
+         systemMessageMode: "system",
+         warnings
        }),
 -      temperature,
 -      top_p: topP,
        max_output_tokens: maxOutputTokens,
        ...(responseFormat == null ? void 0 : responseFormat.type) === "json" && {
          format: responseFormat.schema != null ? responseFormat.schema : "json"
-       },
--      think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
-+      ...((_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? { think: _a } : {}),
--      options: (_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : void 0
-+      options: {
-+        ...temperature !== void 0 && { temperature },
-+        ...topP !== void 0 && { top_p: topP },
-+        ...((_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : {})
-+      }
+@@ -1316,7 +1314,7 @@ var OllamaRequestBuilder = class {
+         ollamaThink: ollamaOptions == null ? void 0 : ollamaOptions.think,
+         warnings
+       }),
+-      options: (_a = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _a : void 0
++      options: { temperature, top_p: topP, ...ollamaOptions?.options }
      };
    }
  };
-@@ -1260,9 +1264,9 @@ var OllamaStreamProcessor = class {
+@@ -1439,12 +1437,12 @@ var OllamaStreamProcessor = class {
      }
    }
    processDelta(delta, controller) {
@@ -152,60 +139,69 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
    }
    processTextContent(delta, controller) {
 -    if ((delta == null ? void 0 : delta.content) != null) {
-+    if ((delta == null ? void 0 : delta.content)) {
++    if (delta == null ? void 0 : delta.content) {
+       if (!this.state.hasTextStarted) {
+         controller.enqueue({ type: "text-start", id: this.state.textId });
+         this.state.hasTextStarted = true;
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0aee143964 100644
+index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..51c08a26e5c7f87364ce3524a69a2631bfd9e110 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -213,7 +213,7 @@ var ollamaFailedResponseHandler = createJsonErrorResponseHandler({
+@@ -143,7 +143,7 @@ function resolveOllamaThinkFlag({
+     }
+     return reasoning !== "none";
+   }
+-  return false;
++  return void 0;
+ }
+ function fileDataToBase64String(data) {
+   var _a;
+@@ -338,7 +338,7 @@ var ollamaFailedResponseHandler = createJsonErrorResponseHandler({
  
  // src/completion/ollama-completion-language-model.ts
  var ollamaCompletionProviderOptions = z2.object({
 -  think: z2.boolean().optional(),
-+  think: z2.union([z2.boolean(), z2.literal('low'), z2.literal('medium'), z2.literal('high')]).optional(),
++  think: z2.union([z2.boolean(), z2.literal("low"), z2.literal("medium"), z2.literal("high")]).optional(),
    user: z2.string().optional(),
    suffix: z2.string().optional(),
    echo: z2.boolean().optional()
-@@ -725,7 +725,7 @@ function convertToOllamaChatMessages({
-         const images = content.filter((part) => part.type === "file" && part.mediaType.startsWith("image/")).map((part) => part.data);
+@@ -847,7 +847,7 @@ function convertToOllamaChatMessages({
+         }).map((part) => extractOllamaFileData(part.data));
          messages.push({
            role: "user",
 -          content: userText.length > 0 ? userText : [],
-+          content: userText.length > 0 ? userText : '',
++          content: userText,
            images: images.length > 0 ? images : void 0
          });
          break;
-@@ -810,7 +810,7 @@ var ollamaProviderOptions = z5.object({
+@@ -946,7 +946,7 @@ var ollamaProviderOptions = z5.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.
     */
 -  think: z5.boolean().optional(),
-+  think: z5.union([z5.boolean(), z5.literal('low'), z5.literal('medium'), z5.literal('high')]).optional(),
++  think: z5.union([z5.boolean(), z5.literal("low"), z5.literal("medium"), z5.literal("high")]).optional(),
    options: z5.object({
      num_ctx: z5.number().optional(),
      repeat_last_n: z5.number().optional(),
-@@ -1137,14 +1137,16 @@ var OllamaRequestBuilder = class {
-         prompt,
-         systemMessageMode: "system"
+@@ -1313,8 +1313,6 @@ var OllamaRequestBuilder = class {
+         systemMessageMode: "system",
+         warnings
        }),
 -      temperature,
 -      top_p: topP,
        max_output_tokens: maxOutputTokens,
        ...(responseFormat == null ? void 0 : responseFormat.type) === "json" && {
          format: responseFormat.schema != null ? responseFormat.schema : "json"
-       },
--      think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
-+      ...((_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? { think: _a } : {}),
--      options: (_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : void 0
-+      options: {
-+        ...temperature !== void 0 && { temperature },
-+        ...topP !== void 0 && { top_p: topP },
-+        ...((_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : {})
-+      }
+@@ -1324,7 +1322,7 @@ var OllamaRequestBuilder = class {
+         ollamaThink: ollamaOptions == null ? void 0 : ollamaOptions.think,
+         warnings
+       }),
+-      options: (_a = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _a : void 0
++      options: { temperature, top_p: topP, ...ollamaOptions?.options }
      };
    }
  };
-@@ -1262,9 +1264,9 @@ var OllamaStreamProcessor = class {
+@@ -1449,12 +1447,12 @@ var OllamaStreamProcessor = class {
      }
    }
    processDelta(delta, controller) {
@@ -216,4 +212,7 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0a
    }
    processTextContent(delta, controller) {
 -    if ((delta == null ? void 0 : delta.content) != null) {
-+    if ((delta == null ? void 0 : delta.content)) {
++    if (delta == null ? void 0 : delta.content) {
+       if (!this.state.hasTextStarted) {
+         controller.enqueue({ type: "text-start", id: this.state.textId });
+         this.state.hasTextStarted = true;

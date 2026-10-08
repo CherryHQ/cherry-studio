@@ -16,7 +16,7 @@ import type { RequestFeature } from '../feature'
  */
 function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddleware {
   return {
-    specificationVersion: 'v3',
+    specificationVersion: 'v4',
 
     transformParams: async ({ params }) => {
       if (!Array.isArray(params.prompt)) return params

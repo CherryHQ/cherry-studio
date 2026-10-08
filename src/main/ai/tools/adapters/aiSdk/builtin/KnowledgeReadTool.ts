@@ -27,7 +27,7 @@ import {
   knowledgeReadModelOutput,
   readOrGrepConcept
 } from '../../../knowledgeLookup'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { KB_READ_TOOL_NAME }
@@ -37,6 +37,7 @@ export { KB_READ_TOOL_NAME }
 const knowledgeReadResultSchema = z.union([kbReadOutputSchema, kbGrepOutputSchema, knowledgeLookupErrorSchema])
 
 const kbReadTool = tool({
+  contextSchema: requestContextSchema,
   description: KNOWLEDGE_READ_DESCRIPTION,
   inputSchema: kbReadInputSchema,
   outputSchema: knowledgeReadResultSchema,

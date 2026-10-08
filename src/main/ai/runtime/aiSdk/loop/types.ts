@@ -5,7 +5,7 @@ import type {
   PrepareStepFunction,
   StepResult,
   StopCondition,
-  TelemetrySettings,
+  TelemetryOptions,
   ToolCallRepairFunction,
   ToolChoice,
   ToolSet
@@ -15,6 +15,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { AppProviderSettingsMap } from '../../../types'
 import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
@@ -26,13 +27,8 @@ export interface ErrorContext {
   error: Error
 }
 
-/**
- * Tool execution events — shaped to match AI SDK v7's
- * `experimental_onToolExecutionStart/End` so the v6 wrapper can be
- * swapped for a direct forward when we upgrade.
- */
+/** Cherry observer events retain tool-call identity across SDK versions. */
 export interface ToolExecutionStartEvent {
-  /** Matches v7 naming. */
   callId: string
   toolName: string
   input: unknown
@@ -49,7 +45,7 @@ export interface AgentLoopHooks {
   onStart?: () => Promise<void> | void
 
   /** Forwarded to AI SDK `prepareStep`. */
-  prepareStep?: PrepareStepFunction
+  prepareStep?: PrepareStepFunction<ToolSet>
 
   onStepFinish?: (step: StepResult<ToolSet>) => Promise<void> | void
 
@@ -89,7 +85,7 @@ export interface AgentOptions {
   activeTools?: string[]
   providerOptions?: ProviderOptions
   /** Custom context passed to tool execute functions. */
-  context?: unknown
+  context?: RequestContext
   /** Repair tool calls that fail to parse. */
   repairToolCall?: ToolCallRepairFunction<ToolSet>
   /** Download fallback when the model doesn't support a media type directly. */
@@ -98,7 +94,7 @@ export interface AgentOptions {
   // Loop control
   /** Default: AI SDK default (`stepCountIs(20)`). */
   stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
-  telemetry?: TelemetrySettings
+  telemetry?: TelemetryOptions
 }
 
 // ── Params ──────────────────────────────────────────────────────────

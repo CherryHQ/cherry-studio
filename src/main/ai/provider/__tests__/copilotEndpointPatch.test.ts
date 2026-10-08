@@ -1,14 +1,15 @@
 import { createRequire } from 'node:module'
 
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import { createGitHubCopilotOpenAICompatible } from '@opeoginni/github-copilot-openai-compatible'
+import { wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 const copilotCjs = createRequire(import.meta.url)('@opeoginni/github-copilot-openai-compatible') as {
   createGitHubCopilotOpenAICompatible: typeof createGitHubCopilotOpenAICompatible
 }
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
+const prompt: LanguageModelV4CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
 
 describe.each([
   ['ESM', createGitHubCopilotOpenAICompatible],
@@ -36,7 +37,7 @@ describe.each([
       }
     }).languageModel(modelId)
 
-    const result = await model.doStream({ prompt })
+    const result = await wrapLanguageModel({ model, middleware: [] }).doStream({ prompt })
     await result.stream.cancel()
 
     expect(requestUrl).toBe(`https://api.githubcopilot.com${endpoint}`)

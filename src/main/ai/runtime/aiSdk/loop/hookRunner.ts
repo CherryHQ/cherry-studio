@@ -1,8 +1,12 @@
-import type { ToolSet } from 'ai'
+import type {
+  ToolExecutionStartEvent as SdkToolExecutionStartEvent,
+  ToolExecutionEndEvent as SdkToolExecutionEndEvent
+} from 'ai'
 
 import { loggerService } from '@logger'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { redactToShape } from '@main/ai/utils/redactToShape'
+import { isAbortError } from '@main/utils/error'
 
 import type { AgentLoopHooks, ToolExecutionStartEvent } from './types'
 
@@ -32,66 +36,34 @@ export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
   return ((...args: Parameters<F>) => safeCall(name, fn, ...args)) as F
 }
 
-/**
- * Brackets each tool's `execute` with start/end hooks. `durationMs`
- * excludes hook latency, matching v7's `executeToolCall`. Errors
- * propagate after the end hook runs.
- */
-export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
-  if (!tools) return tools
-
-  const wrapped: ToolSet = {}
-  for (const [name, tool] of Object.entries(tools)) {
-    const originalExecute = tool.execute
-    if (typeof originalExecute !== 'function') {
-      wrapped[name] = tool
-      continue
-    }
-    wrapped[name] = {
-      ...tool,
-      execute: async (input: unknown, options) => {
-        const startEvent: ToolExecutionStartEvent = {
-          callId: options.toolCallId,
-          toolName: name,
-          input,
-          messages: options.messages
-        }
-        await safeCall('onToolExecutionStart', hooks.onToolExecutionStart, startEvent)
-
-        const startTime = performance.now()
-        try {
-          // NB: AI SDK v6 allows `execute` to return AsyncIterable for preliminary results.
-          // No current tool uses that; the end hook would fire prematurely if one did.
-          const output = await originalExecute(input, options)
-          const durationMs = performance.now() - startTime
-          await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
-            ...startEvent,
-            durationMs,
-            toolOutput: { type: 'tool-result', output }
-          })
-          return output
-        } catch (error) {
-          const durationMs = performance.now() - startTime
-          // Without this, a failed tool call survives only as the `tool-error` part's text in
-          // the chat record — a bundle source that is opt-in and off by default.
-          if (!options.abortSignal?.aborted) {
-            logger.warn('Tool execution failed', {
-              toolName: name,
-              toolCallId: options.toolCallId,
-              durationMs: Math.round(durationMs),
-              inputShape: redactToShape(input),
-              err: chatErrorContext(error)
-            })
-          }
-          await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
-            ...startEvent,
-            durationMs,
-            toolOutput: { type: 'tool-error', error }
-          })
-          throw error
-        }
+/** Adapt native SDK events to Cherry's stable observer contract. */
+export function createToolExecutionHooks(hooks: AgentLoopHooks) {
+  const startEvent = (event: SdkToolExecutionStartEvent): ToolExecutionStartEvent => ({
+    callId: event.toolCall.toolCallId,
+    toolName: event.toolCall.toolName,
+    input: event.toolCall.input,
+    messages: event.messages
+  })
+  return {
+    onToolExecutionStart: async (event: SdkToolExecutionStartEvent) => {
+      await safeCall('onToolExecutionStart', hooks.onToolExecutionStart, startEvent(event))
+    },
+    onToolExecutionEnd: async (event: SdkToolExecutionEndEvent) => {
+      const { toolOutput } = event
+      if (toolOutput.type === 'tool-error' && !isAbortError(toolOutput.error)) {
+        logger.warn('Tool execution failed', {
+          toolName: event.toolCall.toolName,
+          toolCallId: event.toolCall.toolCallId,
+          durationMs: Math.round(event.toolExecutionMs),
+          inputShape: redactToShape(event.toolCall.input),
+          err: chatErrorContext(toolOutput.error)
+        })
       }
-    } as ToolSet[string]
+      await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
+        ...startEvent(event),
+        durationMs: event.toolExecutionMs,
+        toolOutput
+      })
+    }
   }
-  return wrapped
 }

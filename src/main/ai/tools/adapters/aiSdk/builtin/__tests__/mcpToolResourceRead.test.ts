@@ -35,14 +35,14 @@ afterAll(async () => {
 async function read(uri: string, resources: Map<string, McpResource>, serverId = source.serverId, offset?: number) {
   const execute = entry.tool.execute as (
     input: unknown,
-    options: ToolExecutionOptions
+    options: ToolExecutionOptions<unknown>
   ) => Promise<McpResourceReadResult>
   return execute(
     { serverId, uri, offset },
     {
       toolCallId: 'read-1',
       messages: [],
-      experimental_context: { requestId: 'request-1', mcpToolResources: resources, toolOutputCharCap: 5 }
+      context: { requestId: 'request-1', mcpToolResources: resources, toolOutputCharCap: 5 }
     }
   )
 }

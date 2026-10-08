@@ -1,5 +1,6 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ToolExecutionOptions } from 'ai'
 import type { ModelMessage } from 'ai'
+import * as z from 'zod'
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -7,10 +8,10 @@ import type { McpResource } from '@shared/types/mcp'
 
 /**
  * Per-request context constructed once in `buildAgentParams` and
- * threaded through AI SDK's `experimental_context`. Kept minimal — add
+ * threaded through AI SDK's `context`. Kept minimal — add
  * fields only when a tool actually needs them.
  */
-export interface RequestContext {
+export type RequestContext = {
   /** Stable id for the whole request — telemetry trace key. */
   readonly requestId: string
 
@@ -80,15 +81,17 @@ export interface ToolCallContext {
 }
 
 /**
- * Throws when `experimental_context` is missing — usually means
+ * Throws when `context` is missing — usually means
  * `buildAgentParams` didn't thread `RequestContext` through, or a test
  * forgot to mock it.
  */
-export function getToolCallContext(options: ToolExecutionOptions): ToolCallContext {
-  const request = options.experimental_context
+export const requestContextSchema = z.custom<RequestContext>(isRequestContext)
+
+export function getToolCallContext(options: ToolExecutionOptions<unknown>): ToolCallContext {
+  const request = options.context
   if (!isRequestContext(request)) {
     throw new Error(
-      'Tool execute called without RequestContext. AiService.buildAgentParams must thread RequestContext through agentSettings.experimental_context.'
+      'Tool execute called without RequestContext. AiService.buildAgentParams must thread RequestContext through agentSettings.toolsContext.'
     )
   }
   return {
@@ -103,8 +106,8 @@ export function getToolCallContext(options: ToolExecutionOptions): ToolCallConte
  * (e.g. abort-scope tagging): returns undefined instead of throwing when the
  * context is absent, so the tool call itself never fails over a missing extra.
  */
-export function getRequestContext(options: ToolExecutionOptions): RequestContext | undefined {
-  const request = options.experimental_context
+export function getRequestContext(options: ToolExecutionOptions<unknown>): RequestContext | undefined {
+  const request = options.context
   return isRequestContext(request) ? request : undefined
 }
 

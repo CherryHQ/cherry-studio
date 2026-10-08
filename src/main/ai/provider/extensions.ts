@@ -11,7 +11,7 @@ import type { GroqProviderSettings } from '@ai-sdk/groq'
 import type { HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import type { MistralProviderSettings } from '@ai-sdk/mistral'
 import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
-import type { ProviderV3 } from '@ai-sdk/provider'
+import type { ProviderV4 } from '@ai-sdk/provider'
 import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import type { GitHubCopilotProviderSettings } from '@opeoginni/github-copilot-openai-compatible'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
@@ -104,14 +104,14 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   name: 'github-copilot-openai-compatible',
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
-  // Cast because the upstream package doesn't fully implement `ProviderV3`.
+  // Cast because the upstream package doesn't fully implement `ProviderV4`.
   create: async (options?: GitHubCopilotProviderSettings) =>
     (await import('@opeoginni/github-copilot-openai-compatible')).createGitHubCopilotOpenAICompatible(
       options
-    ) as unknown as ProviderV3
+    ) as unknown as ProviderV4
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
-  ProviderV3,
+  ProviderV4,
   'github-copilot-openai-compatible'
 >)
 
@@ -140,13 +140,13 @@ export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/perplexity')).createPerplexity(settings)
-} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
+} as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV4, 'perplexity'>)
 
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/mistral')).createMistral(settings)
-} as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
+} as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV4, 'mistral'>)
 
 /** Local mirror of the package's unexported settings type (TS4023 otherwise). */
 export interface OpenResponsesProviderSettings {
@@ -168,42 +168,42 @@ export const OpenResponsesExtension = ProviderExtension.create({
   name: 'open-responses',
   supportsImageGeneration: false,
   // `url`/`name` are required and always supplied by the config builder.
-  create: async (options?: OpenResponsesProviderSettings): Promise<ProviderV3> =>
+  create: async (options?: OpenResponsesProviderSettings): Promise<ProviderV4> =>
     (await import('@ai-sdk/open-responses')).createOpenResponses(options!)
-} as const satisfies ProviderExtensionConfig<OpenResponsesProviderSettings, ProviderV3, 'open-responses'>)
+} as const satisfies ProviderExtensionConfig<OpenResponsesProviderSettings, ProviderV4, 'open-responses'>)
 
 export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
   aliases: ['hf', 'hugging-face'] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('@ai-sdk/huggingface')).createHuggingFace(settings)
-} as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ProviderV3, 'huggingface'>)
+} as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ProviderV4, 'huggingface'>)
 
 export const GatewayExtension = ProviderExtension.create({
   name: 'gateway',
   aliases: ['ai-gateway'] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/gateway/gatewayProvider')).createGatewayWithImageModel(settings)
-} as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV3, 'gateway'>)
+} as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV4, 'gateway'>)
 
 export const CerebrasExtension = ProviderExtension.create({
   name: 'cerebras',
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/cerebras')).createCerebras(settings)
-} as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ProviderV3, 'cerebras'>)
+} as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ProviderV4, 'cerebras'>)
 
 export const GroqExtension = ProviderExtension.create({
   name: 'groq',
   supportsImageGeneration: false,
   create: async (settings) => (await import('@ai-sdk/groq')).createGroq(settings)
-} as const satisfies ProviderExtensionConfig<GroqProviderSettings, ProviderV3, 'groq'>)
+} as const satisfies ProviderExtensionConfig<GroqProviderSettings, ProviderV4, 'groq'>)
 
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: true,
   create: async (options?: OllamaProviderSettings) =>
     (await import('./custom/ollama/ollamaProvider')).createOllamaWithImageModel(options)
-} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
+} as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV4, 'ollama'>)
 
 /**
  * ComfyUI — a local node-graph image server. Its "models" are the user's saved
@@ -224,7 +224,7 @@ export const MinimaxExtension = ProviderExtension.create({
   aliases: ['minimax-global'] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/minimax/minimaxProvider')).createMinimaxProvider(settings)
-} as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
+} as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV4, 'minimax'>)
 
 /**
  * Moonshot (Kimi) — OpenAI-compatible chat. Built-in search rides Kimi's official *formula* channel:
@@ -266,7 +266,7 @@ export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/aihubmix/aihubmixProvider')).createAihubmix(settings)
-} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'>)
+} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV4, 'aihubmix'>)
 
 /** NewAPI — multi-backend gateway routed by endpoint_type. */
 export const NewApiExtension = ProviderExtension.create({
@@ -274,14 +274,14 @@ export const NewApiExtension = ProviderExtension.create({
   aliases: ['new-api', 'o3'] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/newapiProvider')).createNewApi(settings)
-} as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
+} as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV4, 'newapi'>)
 
 export const TogetherAIExtension = ProviderExtension.create({
   name: 'togetherai',
   aliases: [SystemProviderIds.together] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('@ai-sdk/togetherai')).createTogetherAI(settings)
-} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
+} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV4, 'togetherai'>)
 
 /**
  * PPIO Extension - unified chat + embedding + image (async submit/poll for painting)
@@ -290,7 +290,7 @@ export const PpioExtension = ProviderExtension.create({
   name: 'ppio',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/ppio/ppioProvider')).createPpioProvider(settings)
-} as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV3, 'ppio'>)
+} as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV4, 'ppio'>)
 
 /**
  * DMXAPI Extension - unified chat + embedding + image (single-shot for painting)
@@ -299,7 +299,7 @@ export const DmxapiExtension = ProviderExtension.create({
   name: 'dmxapi',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/dmxapi/dmxapiProvider')).createDmxapiProvider(settings)
-} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'>)
+} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV4, 'dmxapi'>)
 
 /**
  * SiliconFlow Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.
@@ -308,7 +308,7 @@ export const SiliconExtension = ProviderExtension.create({
   name: 'silicon',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/silicon/siliconProvider')).createSiliconProvider(settings)
-} as const satisfies ProviderExtensionConfig<SiliconProviderSettings, ProviderV3, 'silicon'>)
+} as const satisfies ProviderExtensionConfig<SiliconProviderSettings, ProviderV4, 'silicon'>)
 
 /**
  * Zhipu Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.
@@ -317,7 +317,7 @@ export const ZhipuExtension = ProviderExtension.create({
   name: 'zhipu',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/zhipuProvider')).createZhipuProvider(settings)
-} as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
+} as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV4, 'zhipu'>)
 
 /**
  * Doubao (Volcengine Ark) Extension — the official `@ai-sdk/bytedance` provider, for
@@ -338,7 +338,7 @@ export const DoubaoExtension = ProviderExtension.create({
   name: 'doubao',
   supportsImageGeneration: true,
   create: async (settings) => (await import('@ai-sdk/bytedance')).createByteDance(settings)
-} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
+} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV4, 'doubao'>)
 
 /**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
@@ -347,7 +347,7 @@ export const OvmsExtension = ProviderExtension.create({
   name: 'ovms',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/ovms/ovmsProvider')).createOvmsProvider(settings)
-} as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV3, 'ovms'>)
+} as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV4, 'ovms'>)
 
 /**
  * ModelScope Extension - OpenAI-compatible chat + embedding, async submit/poll image
@@ -358,7 +358,7 @@ export const ModelscopeExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: async (settings) =>
     (await import('./custom/modelscope/modelscopeProvider')).createModelscopeProvider(settings)
-} as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV3, 'modelscope'>)
+} as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV4, 'modelscope'>)
 
 /**
  * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
@@ -372,7 +372,7 @@ export const DashScopeExtension = ProviderExtension.create({
   aliases: ['bailian'] as const,
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
-} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV4, 'dashscope'>)
 
 /**
  * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
@@ -382,7 +382,7 @@ export const TokenhubExtension = ProviderExtension.create({
   name: 'tokenhub',
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/tokenhub/tokenhubProvider')).createTokenhubProvider(settings)
-} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
+} as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV4, 'tokenhub'>)
 
 /**
  * Voyage AI Extension - embeddings and reranking
@@ -392,7 +392,7 @@ export const VoyageExtension = ProviderExtension.create({
   aliases: [SystemProviderIds.voyageai] as const,
   supportsImageGeneration: false,
   create: async (settings) => (await import('voyage-ai-provider')).createVoyage(settings)
-} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
+} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV4, 'voyage'>)
 
 /**
  * Local Embedding Extension - optional in-process text embeddings via
@@ -405,7 +405,7 @@ export const LocalEmbeddingExtension = ProviderExtension.create({
     (await import('./custom/localEmbedding/localEmbeddingProvider')).createLocalEmbeddingProvider(settings)
 } as const satisfies ProviderExtensionConfig<
   LocalEmbeddingProviderSettings,
-  ProviderV3,
+  ProviderV4,
   typeof LOCAL_EMBEDDING_PROVIDER_ID
 >)
 

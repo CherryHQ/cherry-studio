@@ -25,7 +25,7 @@
     "dist"
   ],
   "sideEffects": false,
-  "main": "dist/index.cjs",
+  "main": "dist/index.mjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.mts",
   "react-native": "dist/index.mjs",
@@ -34,21 +34,18 @@
       "types": "./dist/index.d.mts",
       "react-native": "./dist/index.mjs",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     },
     "./built-in/plugins": {
       "types": "./dist/built-in/plugins/index.d.mts",
       "react-native": "./dist/built-in/plugins/index.mjs",
       "import": "./dist/built-in/plugins/index.mjs",
-      "require": "./dist/built-in/plugins/index.cjs",
       "default": "./dist/built-in/plugins/index.mjs"
     },
     "./provider": {
       "types": "./dist/provider/index.d.mts",
       "react-native": "./dist/provider/index.mjs",
       "import": "./dist/provider/index.mjs",
-      "require": "./dist/provider/index.cjs",
       "default": "./dist/provider/index.mjs"
     }
   },
@@ -66,15 +63,15 @@
     "typecheck": "pnpm --workspace-root exec tsc --noEmit -p packages/aiCore/tsconfig.json --composite false"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.103",
-    "@ai-sdk/azure": "^3.0.116",
-    "@ai-sdk/deepseek": "^2.0.57",
-    "@ai-sdk/openai-compatible": "^2.0.72",
-    "@ai-sdk/provider": "^3.0.15",
-    "@ai-sdk/provider-utils": "^4.0.48",
-    "@ai-sdk/xai": "^3.0.126",
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/azure": "^4.0.90",
+    "@ai-sdk/deepseek": "^3.0.58",
+    "@ai-sdk/openai-compatible": "^3.0.62",
+    "@ai-sdk/provider": "^4.0.21",
+    "@ai-sdk/provider-utils": "^5.0.53",
+    "@ai-sdk/xai": "^4.0.59",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "@openrouter/ai-sdk-provider": "^2.10.0",
+    "@openrouter/ai-sdk-provider": "^3.1.0",
     "quick-lru": "^5.1.1",
     "zod": "^4.1.5"
   },
@@ -87,11 +84,11 @@
     "vitest": "^5.0.1"
   },
   "peerDependencies": {
-    "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.109",
-    "ai": "^6.0.116"
+    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/openai": "^4.0.83",
+    "ai": "^7.0.127"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

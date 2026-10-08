@@ -1,5 +1,5 @@
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV4, ImageModelV4, LanguageModelV4, ProviderV4, RerankingModelV4 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -29,12 +29,12 @@ export interface DashScopeProviderSettings {
   includeUsage?: boolean
 }
 
-export interface DashScopeProvider extends ProviderV3 {
-  (modelId: string): LanguageModelV3
-  languageModel(modelId: string): LanguageModelV3
-  embeddingModel(modelId: string): EmbeddingModelV3
-  imageModel(modelId: string): ImageModelV3
-  rerankingModel(modelId: string): RerankingModelV3
+export interface DashScopeProvider extends ProviderV4 {
+  (modelId: string): LanguageModelV4
+  languageModel(modelId: string): LanguageModelV4
+  embeddingModel(modelId: string): EmbeddingModelV4
+  imageModel(modelId: string): ImageModelV4
+  rerankingModel(modelId: string): RerankingModelV4
 }
 
 const getDashScopeRerankBaseURL = (baseURL: string) => {
@@ -59,7 +59,7 @@ export function buildDashScopeTransport(settings: DashScopeProviderSettings): Im
 
 /**
  * Unified DashScope (Bailian) provider — chat, embedding, and image off one
- * `ProviderV3`. Chat / embedding go through the OpenAI-compatible SDK aimed at
+ * `ProviderV4`. Chat / embedding go through the OpenAI-compatible SDK aimed at
  * `baseURL` (DashScope exposes `/compatible-mode/v1/`); image goes through the
  * native DashScope `/api/v1/services/aigc/*` endpoints via
  * `createImageGenerationModel + createDashScopeTransport` aimed at
@@ -100,7 +100,7 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
   const transport = buildDashScopeTransport(settings)
 
   const provider = (modelId: string) => createChatModel(modelId)
-  provider.specificationVersion = 'v3' as const
+  provider.specificationVersion = 'v4' as const
   provider.languageModel = createChatModel
   provider.embeddingModel = (modelId: string) =>
     new OpenAICompatibleEmbeddingModel(modelId, {

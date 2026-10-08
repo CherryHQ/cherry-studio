@@ -20,7 +20,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('FsReadTool')
@@ -268,6 +268,7 @@ export async function executeFsRead(
 }
 
 const fsReadTool = tool({
+  contextSchema: requestContextSchema,
   description: `Read a text file by absolute path.
 
 Primary use: retrieving the full content behind a <persisted-output> marker — call with the path shown after "Full output saved to:". Markers from earlier turns work too (persisted outputs live as long as their message does). Only paths from this conversation's markers are readable; reads elsewhere return access-denied.

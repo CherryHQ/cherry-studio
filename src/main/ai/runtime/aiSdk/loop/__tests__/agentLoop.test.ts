@@ -128,7 +128,7 @@ describe('Agent', () => {
       const stopWhen = createToolCallLimitStopCondition(2)
       await stopWhen({ steps: steps as never })
       mockCreateAgent.mockResolvedValue({
-        generate: vi.fn().mockResolvedValue({ text: '', usage: TEST_USAGE, steps })
+        generate: vi.fn().mockResolvedValue({ finalStep: { text: '' }, usage: TEST_USAGE, steps })
       })
 
       const calls: string[] = []
@@ -153,7 +153,9 @@ describe('Agent', () => {
       const steps = [{ toolResults: [] }]
       await expect(stopWhen({ steps: steps as never })).resolves.toBe(false)
       mockCreateAgent.mockResolvedValue({
-        generate: vi.fn().mockResolvedValue({ text: 'done', usage: TEST_USAGE, steps })
+        generate: vi
+          .fn()
+          .mockResolvedValue({ text: 'intermediate done', finalStep: { text: 'done' }, usage: TEST_USAGE, steps })
       })
 
       const calls: string[] = []
@@ -176,7 +178,7 @@ describe('Agent', () => {
       mockCreateAgent.mockResolvedValue({
         generate: vi.fn().mockImplementation(async () => {
           controller.abort(abortError)
-          return { text: 'ignored', usage: TEST_USAGE, steps: [] }
+          return { finalStep: { text: 'ignored' }, usage: TEST_USAGE, steps: [] }
         })
       })
 
@@ -415,11 +417,11 @@ describe('Agent', () => {
     }
 
     mockCreateAgent.mockImplementation(
-      async ({ agentSettings }: { agentSettings: { onStepFinish?: (s: unknown) => void } }) => ({
+      async ({ agentSettings }: { agentSettings: { onStepEnd?: (s: unknown) => void } }) => ({
         stream: vi.fn().mockImplementation(() => {
-          // AI SDK calls onStepFinish from inside its internal step loop —
+          // AI SDK calls onStepEnd from inside its internal step loop —
           // simulate one fire here, before resolving the stream's metadata.
-          agentSettings.onStepFinish?.(fakeStep)
+          agentSettings.onStepEnd?.(fakeStep)
           return Promise.resolve({
             toUIMessageStream: () =>
               new ReadableStream({
@@ -487,11 +489,11 @@ describe('Agent', () => {
     }
 
     mockCreateAgent.mockImplementation(
-      async ({ agentSettings }: { agentSettings: { onStepFinish?: (s: unknown) => void | Promise<void> } }) => ({
+      async ({ agentSettings }: { agentSettings: { onStepEnd?: (s: unknown) => void | Promise<void> } }) => ({
         stream: vi.fn().mockImplementation(async () => {
-          // AI SDK fires onStepFinish for each step from inside the stream.
-          await agentSettings.onStepFinish?.(fakeStep1)
-          await agentSettings.onStepFinish?.(fakeStep2)
+          // AI SDK fires onStepEnd for each step from inside the stream.
+          await agentSettings.onStepEnd?.(fakeStep1)
+          await agentSettings.onStepEnd?.(fakeStep2)
           return {
             toUIMessageStream: () =>
               new ReadableStream({
@@ -553,10 +555,10 @@ describe('Agent', () => {
     }
 
     mockCreateAgent.mockImplementation(
-      async ({ agentSettings }: { agentSettings: { onStepFinish?: (s: unknown) => void | Promise<void> } }) => ({
+      async ({ agentSettings }: { agentSettings: { onStepEnd?: (s: unknown) => void | Promise<void> } }) => ({
         stream: vi.fn().mockImplementation(async () => {
-          await agentSettings.onStepFinish?.(fakeStep1)
-          await agentSettings.onStepFinish?.(fakeStep2)
+          await agentSettings.onStepEnd?.(fakeStep1)
+          await agentSettings.onStepEnd?.(fakeStep2)
           return {
             toUIMessageStream: () =>
               new ReadableStream({

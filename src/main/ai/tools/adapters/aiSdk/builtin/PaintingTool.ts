@@ -20,7 +20,7 @@ import {
   paintingModelOutput,
   type PaintingResult
 } from '../../../painting'
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema } from '../context'
 import type { ToolEntry } from '../types'
 
 export { GENERATE_IMAGE_TOOL_NAME }
@@ -28,6 +28,7 @@ export { GENERATE_IMAGE_TOOL_NAME }
 function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
   const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)
   return dynamicTool({
+    contextSchema: requestContextSchema,
     description: GENERATE_IMAGE_DESCRIPTION,
     inputSchema,
     execute: async (input, options) => {

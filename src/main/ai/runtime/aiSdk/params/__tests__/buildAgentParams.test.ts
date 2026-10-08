@@ -3,8 +3,9 @@ import path from 'node:path'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { wrapLanguageModel } from 'ai'
 import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
@@ -18,7 +19,6 @@ import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fi
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
-import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
@@ -130,6 +130,7 @@ describe('buildAgentParams provider resolution', () => {
         model: makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
       })
       const repaired = await options.repairToolCall!({
+        instructions: undefined,
         system: undefined,
         messages: [],
         toolCall: { type: 'tool-call', toolCallId: 'tc-1', toolName: 'search', input: '{"q":"fixed"}' },
@@ -787,11 +788,14 @@ describe('buildAgentParams standard model parameters', () => {
             }
           })
         })
-        const sdkModel = createOpenAICompatible({
-          name: 'openai-compatible',
-          baseURL: 'https://provider.test/v1',
-          fetch: result.sdkConfig.providerSettings.fetch
-        }).chatModel('kimi')
+        const sdkModel = wrapLanguageModel({
+          model: createOpenAICompatible({
+            name: 'openai-compatible',
+            baseURL: 'https://provider.test/v1',
+            fetch: result.sdkConfig.providerSettings.fetch
+          }).chatModel('kimi'),
+          middleware: []
+        })
         await expect(
           sdkModel.doGenerate({
             prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
@@ -1022,13 +1026,16 @@ describe.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-6', 'claud
         signal: undefined
       })
       let body: Record<string, unknown> | undefined
-      const sdkModel = createAnthropic({
-        apiKey: 'test',
-        fetch: async (_url, init) => {
-          body = JSON.parse(String(init?.body))
-          return new Response('{}')
-        }
-      })(modelId)
+      const sdkModel = wrapLanguageModel({
+        model: createAnthropic({
+          apiKey: 'test',
+          fetch: async (_url, init) => {
+            body = JSON.parse(String(init?.body))
+            return new Response('{}')
+          }
+        })(modelId),
+        middleware: []
+      })
       await sdkModel.doStream({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
         providerOptions: options.providerOptions
@@ -1390,18 +1397,21 @@ describe('buildAgentParams assistant-less reasoning', () => {
       provider,
       model
     })
-    const prompt: LanguageModelV3CallOptions['prompt'] = [
+    const prompt: LanguageModelV4CallOptions['prompt'] = [
       { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
     ]
     let requestBody: Record<string, unknown> | undefined
-    const sdkModel = createOpenAI({
-      apiKey: 'sk-test',
-      baseURL: 'https://example.com/v1',
-      fetch: async (_input, init) => {
-        requestBody = JSON.parse(String(init?.body))
-        throw new Error('request captured')
-      }
-    }).responses('qwen3.7-max')
+    const sdkModel = wrapLanguageModel({
+      model: createOpenAI({
+        apiKey: 'sk-test',
+        baseURL: 'https://example.com/v1',
+        fetch: async (_input, init) => {
+          requestBody = JSON.parse(String(init?.body))
+          throw new Error('request captured')
+        }
+      }).responses('qwen3.7-max'),
+      middleware: []
+    })
 
     await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
       'request captured'
@@ -1437,14 +1447,17 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
     let requestBody: Record<string, unknown> | undefined
-    const sdkModel = createOpenAI({
-      apiKey: 'sk-test',
-      baseURL: 'https://example.com/v1',
-      fetch: async (_input, init) => {
-        requestBody = JSON.parse(String(init?.body))
-        throw new Error('request captured')
-      }
-    }).responses('gpt-5.6-sol')
+    const sdkModel = wrapLanguageModel({
+      model: createOpenAI({
+        apiKey: 'sk-test',
+        baseURL: 'https://example.com/v1',
+        fetch: async (_input, init) => {
+          requestBody = JSON.parse(String(init?.body))
+          throw new Error('request captured')
+        }
+      }).responses('gpt-5.6-sol'),
+      middleware: []
+    })
 
     await expect(
       sdkModel.doGenerate({
@@ -1494,14 +1507,17 @@ describe('buildAgentParams assistant-less reasoning', () => {
       assistant
     })
     let requestBody: Record<string, unknown> | undefined
-    const sdkModel = createOpenAI({
-      apiKey: 'sk-test',
-      baseURL: 'https://example.com/v1',
-      fetch: async (_input, init) => {
-        requestBody = JSON.parse(String(init?.body))
-        throw new Error('request captured')
-      }
-    }).responses('gpt-5.6-sol')
+    const sdkModel = wrapLanguageModel({
+      model: createOpenAI({
+        apiKey: 'sk-test',
+        baseURL: 'https://example.com/v1',
+        fetch: async (_input, init) => {
+          requestBody = JSON.parse(String(init?.body))
+          throw new Error('request captured')
+        }
+      }).responses('gpt-5.6-sol'),
+      middleware: []
+    })
 
     await expect(
       sdkModel.doGenerate({
@@ -1884,9 +1900,7 @@ describe('buildAgentParams retained context', () => {
 
     // Served messages carry fe-1, but the raw-path retained context wins.
     expect(result.fileAttachments).toBe(retainedContext.fileAttachments)
-    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths).toEqual(
-      new Set(['/blobs/fe-blob.txt'])
-    )
+    expect(result.options.context?.persistedOutputPaths).toEqual(new Set(['/blobs/fe-blob.txt']))
   })
 
   it('clones the allow-list Set so mid-turn appends never reach the shared retained context', async () => {
@@ -1903,7 +1917,7 @@ describe('buildAgentParams retained context', () => {
       model
     })
 
-    const served = (result.options.context as RequestContext | undefined)?.persistedOutputPaths
+    const served = result.options.context?.persistedOutputPaths
     expect(served).not.toBe(retainedContext.persistedOutputPaths)
     served?.add('/blobs/new-mid-turn.txt')
     expect(retainedContext.persistedOutputPaths.has('/blobs/new-mid-turn.txt')).toBe(false)
@@ -1920,7 +1934,7 @@ describe('buildAgentParams retained context', () => {
     })
 
     expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
-    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
+    expect(result.options.context?.persistedOutputPaths?.size).toBe(0)
   })
 })
 

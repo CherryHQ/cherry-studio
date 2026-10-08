@@ -1,3 +1,4 @@
+import { asSchema, jsonSchema, type JSONValue, type Tool, tool } from 'ai'
 /**
  * `tool_invoke` meta-tool — dispatches a tool by name through the registry.
  * The LLM uses this together with `tool_search` / `tool_inspect`: search to
@@ -13,14 +14,13 @@
  *      schema when it provides a validator; a mismatch is rejected with the signature.
  *
  * Forwards the AI SDK execution options (messages, abortSignal,
- * experimental_context) onto the inner tool's `execute` so the per-request
+ * context) onto the inner tool's `execute` so the per-request
  * RequestContext flows through. The inner `toolCallId` is suffixed with the
  * target name so telemetry can rebuild the call tree.
  */
-
-import { asSchema, jsonSchema, type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import { requestContextSchema, type RequestContext } from '../context'
 import { isApprovalGated } from '../isApprovalGated'
 import type { ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
@@ -81,7 +81,8 @@ export function createToolInvokeTool(
   // (defaults / coercions applied) — native dispatch keeps execute's and toModelOutput's input
   // identical, and the inner formatter (e.g. kb_list) keys its output off those params.
   const parsedParamsByCallId = new Map<string, Record<string, unknown>>()
-  return tool({
+  return tool<{ name: string; params?: Record<string, unknown> }, JSONValue, RequestContext>({
+    contextSchema: requestContextSchema,
     description:
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
       "If the tool hasn't been inspected, or the arguments don't match its schema, the call returns the " +
@@ -104,7 +105,7 @@ export function createToolInvokeTool(
           input: params ?? {},
           toolCallId: options.toolCallId,
           messages: options.messages,
-          experimental_context: options.experimental_context
+          context: options.context
         })
       ) {
         throw new Error(`Tool "${name}" requires user approval; call it directly instead of via tool_invoke.`)

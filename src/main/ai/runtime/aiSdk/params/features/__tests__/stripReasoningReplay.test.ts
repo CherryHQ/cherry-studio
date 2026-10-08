@@ -1,4 +1,4 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV4Prompt } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -28,7 +28,7 @@ describe('stripReasoningReplayFeature.applies', () => {
 describe('strip middleware', () => {
   it('removes reasoning parts from assistant messages only', async () => {
     const middleware: LanguageModelMiddleware = createStripReasoningReplayMiddleware()
-    const prompt: LanguageModelV3Prompt = [
+    const prompt: LanguageModelV4Prompt = [
       { role: 'user', content: [{ type: 'text', text: 'hi' }] },
       {
         role: 'assistant',

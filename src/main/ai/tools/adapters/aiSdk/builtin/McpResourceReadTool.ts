@@ -16,7 +16,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { getToolCallContext } from '../context'
+import { getToolCallContext, requestContextSchema, type RequestContext } from '../context'
 import { isMcpResourceReadForcePrompt, resolveMcpResourceServers } from '../mcp/resolveAssistantMcpTools'
 import { readScopedMcpResource } from '../mcp/scopedResources'
 import type { ToolEntry } from '../types'
@@ -68,7 +68,12 @@ export async function mcpResourceReadModelOutput(output: McpResourceReadResult):
   }
 }
 
-const mcpResourceReadTool = tool({
+const mcpResourceReadTool = tool<
+  { serverId: string; uri: string; offset?: number },
+  McpResourceReadResult,
+  RequestContext
+>({
+  contextSchema: requestContextSchema,
   description: MCP_RESOURCE_READ_DESCRIPTION,
   inputSchema: mcpResourceReadInputSchema,
   outputSchema: mcpResourceReadResultSchema,

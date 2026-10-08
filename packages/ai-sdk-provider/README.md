@@ -3,6 +3,12 @@
 CherryIN provider bundle for the [Vercel AI SDK](https://ai-sdk.dev/).  
 It exposes the CherryIN OpenAI-compatible entrypoints and dynamically routes Anthropic and Gemini model ids to their CherryIN upstream equivalents.
 
+## Compatibility
+
+Requires Node.js >=22 and native V4 provider packages: Anthropic 4, Google 4, OpenAI 4,
+and OpenAI-compatible 3. This package publishes ESM only; use `import` or dynamic `import()`.
+Language, image, embedding, reranking, speech, and transcription models expose V4 contracts.
+
 ## Installation
 
 ```bash
