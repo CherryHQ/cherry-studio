@@ -1,6 +1,6 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import { tool } from 'ai'
 
-import type { NeutralToolResult } from '@main/ai/agents/tools/types'
 import { callComputerUseTool, computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 
 import { getToolCallContext } from '../context'
@@ -14,7 +14,7 @@ export function createComputerUseToolEntries(): ToolEntry[] {
     defer: 'never',
     truncatable: false,
     applies: (scope) => scope.computerUseEnabled === true,
-    tool: tool<Record<string, unknown>, NeutralToolResult>({
+    tool: tool<Record<string, unknown>, CallToolResult>({
       description,
       inputSchema,
       execute: (args, options) => {
@@ -22,11 +22,15 @@ export function createComputerUseToolEntries(): ToolEntry[] {
         if (!request.computerUseTask) throw new Error('Computer Use requires a host-owned control task')
         return callComputerUseTool(request.computerUseTask, name, args, options.abortSignal)
       },
-      toModelOutput: ({ output }: { output: NeutralToolResult }) => ({
+      toModelOutput: ({ output }: { output: CallToolResult }) => ({
         type: 'content',
-        value: output.content.map((part) =>
-          part.type === 'image' ? { type: 'image-data' as const, data: part.data, mediaType: part.mimeType } : part
-        )
+        value: output.content.flatMap<
+          { type: 'text'; text: string } | { type: 'image-data'; data: string; mediaType: string }
+        >((part) => {
+          if (part.type === 'text') return [{ type: 'text' as const, text: part.text }]
+          if (part.type === 'image') return [{ type: 'image-data' as const, data: part.data, mediaType: part.mimeType }]
+          return []
+        })
       })
     })
   }))

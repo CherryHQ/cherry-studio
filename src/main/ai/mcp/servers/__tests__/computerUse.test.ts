@@ -1,6 +1,6 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
+import type { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
@@ -23,10 +23,11 @@ vi.mock('@cherrystudio/computer-use', async (original) => ({
   ComputerUse: { start: vi.fn() }
 }))
 
-describe('Agent Computer Use adapter', () => {
+describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', (era) => {
   const dbh = setupTestDatabase()
   let server: McpServer
   let client: Client
+  let handle: StdioServerHandle
   let service: ComputerUseService
   let messageId: string | undefined
   let terminal: Emitter<{ sessionId: string; assistantMessageId: string }>
@@ -85,14 +86,19 @@ describe('Agent Computer Use adapter', () => {
       }
     })
     server = createComputerUseMcpServer('session', 'agent')
-    client = new Client({ name: 'test', version: '1.0.0' })
+    client = new Client(
+      { name: 'test', version: '1.0.0' },
+      { versionNegotiation: { mode: era === 'legacy' ? 'legacy' : { pin: '2026-07-28' } } }
+    )
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
+    handle = serveStdio(() => server, { transport: serverTransport })
+    await client.connect(clientTransport)
   })
 
   afterEach(async () => {
     await server?.close()
     await client?.close()
+    await handle?.close()
     terminal.dispose()
     idle.dispose()
     vi.restoreAllMocks()
@@ -156,6 +162,13 @@ describe('Agent Computer Use adapter', () => {
     await openApp()
     messageId = undefined
     idle.fire({ sessionId: 'session' })
+    await vi.waitFor(() => expect(events).toEqual(['open:1', 'close:1']))
+    expect(service.getControls()).toEqual([])
+  })
+
+  it('releases the active task when the Agent transport disconnects', async () => {
+    await openApp()
+    await client.close()
     await vi.waitFor(() => expect(events).toEqual(['open:1', 'close:1']))
     expect(service.getControls()).toEqual([])
   })

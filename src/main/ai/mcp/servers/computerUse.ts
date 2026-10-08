@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -31,7 +31,7 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
   })
 
   for (const { name, description, inputSchema } of computerUseToolDefinitions) {
-    server.registerTool(name, { description, inputSchema: inputSchema.shape }, async (args, extra) => {
+    server.registerTool(name, { description, inputSchema }, async (args, context) => {
       const agent = agentService.getAgent(agentId)
       const session = agentSessionService.getById(sessionId)
       const messageId = runtime.getLiveAssistantMessageId(sessionId)
@@ -50,7 +50,7 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
         task = service.createTask(`agent:${sessionId}:${agentId}`, `${agent.name} · ${sessionId.slice(0, 8)}`)
         tasks.set(messageId, task)
       }
-      return { ...(await callComputerUseTool(task, name, args, extra.signal)) }
+      return callComputerUseTool(task, name, args, context.mcpReq.signal)
     })
   }
 

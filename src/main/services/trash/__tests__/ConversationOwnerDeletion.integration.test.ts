@@ -187,4 +187,23 @@ describe('conversation owner permanent deletion', () => {
     expect(dbh.db.select().from(topicTable).all()).toHaveLength(3)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(3)
   })
+
+  it('restores only the sessions archived by the same operation as their agent', async () => {
+    const service = new AgentLifecycleService()
+    await service.archiveAgent('agent', { archiveSessions: true })
+
+    const agentDeletedAt = dbh.db.select().from(agentTable).get()?.deletedAt
+    expect(agentDeletedAt).not.toBeNull()
+    const sessionDeletedAt = (id: string) =>
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.deletedAt
+    expect(sessionDeletedAt('active-session')).toBe(agentDeletedAt)
+    expect(sessionDeletedAt('archived-session')).toBe(123)
+
+    await service.restoreAgent('agent')
+
+    expect(dbh.db.select().from(agentTable).get()?.deletedAt).toBeNull()
+    expect(sessionDeletedAt('active-session')).toBeNull()
+    // Archived on its own before the agent — not swept in by the restore.
+    expect(sessionDeletedAt('archived-session')).toBe(123)
+  })
 })

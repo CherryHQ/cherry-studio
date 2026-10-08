@@ -88,6 +88,12 @@ const BAN_DRIZZLE_MIGRATOR = {
   message:
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
+// MCP SDK v1 stays installed only as the Claude Agent SDK's type peer; app code uses v2.
+const BAN_MCP_SDK_V1 = {
+  group: ['@modelcontextprotocol/sdk', '@modelcontextprotocol/sdk/**'],
+  message:
+    'MCP SDK v1 is only a type peer of the Claude Agent SDK. Use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
+}
 
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
@@ -955,6 +961,7 @@ export default defineConfig([
         'error',
         {
           patterns: [
+            BAN_MCP_SDK_V1,
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
@@ -962,6 +969,29 @@ export default defineConfig([
                 'Renderer may only `import type` from @shared/ipc/schemas — a value import pulls the entire zod schema set into the renderer bundle.'
             }
           ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/shared/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [BAN_MCP_SDK_V1]
+        }
+      ]
+    }
+  },
+  {
+    // Renderer tests are excluded from the bundle-value guard above, but still must not use MCP v1.
+    files: ['src/renderer/**/*.test.*', 'src/renderer/**/__tests__/**', 'src/renderer/**/__mocks__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [BAN_MCP_SDK_V1]
         }
       ]
     }
@@ -978,7 +1008,9 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        {
+          patterns: [BAN_MCP_SDK_V1, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
+        }
       ]
     }
   },
@@ -995,6 +1027,18 @@ export default defineConfig([
         { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
+    }
+  },
+  {
+    // Workspace packages and repository scripts follow the same MCP v1 ban as src/.
+    files: ['packages/**/*.{ts,tsx}', 'scripts/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'v2-refactor-temp/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [BAN_MCP_SDK_V1]
+        }
+      ]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

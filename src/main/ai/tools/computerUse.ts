@@ -1,8 +1,8 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { type Action, ComputerUseError, type Snapshot } from '@cherrystudio/computer-use'
-import type { NeutralToolResult } from '@main/ai/agents/tools/types'
 import { ComputerUseControlError, type ComputerUseTask } from '@main/services/ComputerUseService'
 
 const id = z.string().min(1)
@@ -96,10 +96,10 @@ export const computerUseToolDefinitions = [
 
 export type ComputerUseToolName = (typeof computerUseToolDefinitions)[number]['name']
 
-function observed(snapshot: Snapshot, action = false): NeutralToolResult {
+function observed(snapshot: Snapshot, action = false): CallToolResult {
   const { screenshot, tree, ...state } = snapshot
   const outline = tree.status === 'available' ? tree.text : undefined
-  const result: NeutralToolResult = {
+  const result: CallToolResult = {
     content: [
       {
         type: 'text',
@@ -159,7 +159,7 @@ export async function callComputerUseTool(
   name: ComputerUseToolName,
   args: unknown,
   signal?: AbortSignal
-): Promise<NeutralToolResult> {
+): Promise<CallToolResult> {
   const service = application.get('ComputerUseService')
   try {
     let output: unknown
