@@ -268,8 +268,8 @@ importers:
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/computer-use':
-        specifier: link:./.context/computer-use-sdk
-        version: link:.context/computer-use-sdk
+        specifier: file:packages/computer-use-sdk/cherrystudio-computer-use-0.1.0-alpha.0-033bb9d.tgz
+        version: file:packages/computer-use-sdk/cherrystudio-computer-use-0.1.0-alpha.0-033bb9d.tgz
       '@cherrystudio/dsh-bridge':
         specifier: workspace:*
         version: link:packages/dsh-bridge
@@ -3110,6 +3110,11 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  '@cherrystudio/computer-use@file:packages/computer-use-sdk/cherrystudio-computer-use-0.1.0-alpha.0-033bb9d.tgz':
+    resolution: {integrity: sha512-/A43HywHCdPNxhkzqWk/g/85zjSSCc4HaE62ecq9FDg8u+Nqf+MddEvZvSkviv1LjqTLvLYP/tfKyJy5GxjtWw==, tarball: file:packages/computer-use-sdk/cherrystudio-computer-use-0.1.0-alpha.0-033bb9d.tgz}
+    version: 0.1.0-alpha.0
+    engines: {node: '>=24'}
 
   '@cherrystudio/openai@6.15.0':
     resolution: {integrity: sha512-w7JNWd73u9dr1DiA7+lmpGj+Cms4IEiwMp9ibCxMpGnGuiFaVvqrPky+MeOur2CWNMZLmnGAjZhX2mDBOMvPCg==}
@@ -18355,6 +18360,8 @@ snapshots:
   '@cherrystudio/analytics-client@1.4.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
+
+  '@cherrystudio/computer-use@file:packages/computer-use-sdk/cherrystudio-computer-use-0.1.0-alpha.0-033bb9d.tgz': {}
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
     optionalDependencies:
