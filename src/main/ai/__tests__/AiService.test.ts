@@ -1,8 +1,10 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { modelMessageSchema } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -261,6 +263,8 @@ describe('AiService', () => {
     mockAgentGenerate.mockResolvedValue({
       text: 'ok',
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      finishReason: 'stop',
+      rawFinishReason: 'end_turn',
       steps: []
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
@@ -344,6 +348,127 @@ describe('AiService', () => {
   it('requires one stream topic while allowing a distinct conversation identity', () => {
     expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
     expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
+  it('converts MCP sampling text and media into valid AI SDK messages without enabling tools', async () => {
+    const service = createService()
+    const signal = new AbortController().signal
+    const generate = vi.spyOn(service, 'generateText').mockImplementation(async (request) => {
+      expect(request.messages?.map((message) => modelMessageSchema.parse(message))).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'Describe these attachments.' }] },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Previous attachments:' },
+            { type: 'file', data: 'aW1hZ2U=', mediaType: 'image/png' },
+            { type: 'file', data: 'YXVkaW8=', mediaType: 'audio/wav' }
+          ]
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'image', image: 'aW1hZ2U=', mediaType: 'image/png' },
+            { type: 'file', data: 'YXVkaW8=', mediaType: 'audio/wav' }
+          ]
+        }
+      ])
+      expect(request).toMatchObject({
+        uniqueModelId: 'test-provider::test-model',
+        system: 'Be concise.',
+        disableTools: true,
+        callOverrides: { maxOutputTokens: 100, temperature: 0.2, stopSequences: ['END'] },
+        requestOptions: { signal }
+      })
+      return { text: 'An image and audio.', finishReason: 'stop', rawFinishReason: 'end_turn' }
+    })
+    try {
+      await expect(
+        service.generateMcpSampling(
+          'test-provider::test-model',
+          {
+            systemPrompt: 'Be concise.',
+            maxTokens: 100,
+            temperature: 0.2,
+            stopSequences: ['END'],
+            messages: [
+              { role: 'user', content: { type: 'text', text: 'Describe these attachments.' } },
+              {
+                role: 'assistant',
+                content: [
+                  { type: 'text', text: 'Previous attachments:' },
+                  { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+                  { type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' }
+                ]
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+                  { type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' }
+                ]
+              }
+            ]
+          },
+          signal
+        )
+      ).resolves.toEqual({
+        model: 'test-provider::test-model',
+        role: 'assistant',
+        content: { type: 'text', text: 'An image and audio.' },
+        stopReason: 'endTurn'
+      })
+    } finally {
+      generate.mockRestore()
+    }
+  })
+
+  it.each([
+    { finishReason: 'length' as const, rawFinishReason: 'max_tokens', stopReason: 'maxTokens' },
+    { finishReason: 'stop' as const, rawFinishReason: 'stop_sequence', stopReason: 'stopSequence' },
+    { finishReason: 'stop' as const, rawFinishReason: 'end_turn', stopReason: 'endTurn' }
+  ])(
+    'maps $rawFinishReason sampling completion to $stopReason',
+    async ({ finishReason, rawFinishReason, stopReason }) => {
+      const service = createService()
+      const generate = vi
+        .spyOn(service, 'generateText')
+        .mockResolvedValue({ text: 'answer', finishReason, rawFinishReason })
+      try {
+        await expect(
+          service.generateMcpSampling(
+            'test-provider::test-model',
+            { maxTokens: 100, messages: [{ role: 'user', content: { type: 'text', text: 'Question' } }] },
+            new AbortController().signal
+          )
+        ).resolves.toMatchObject({ stopReason })
+      } finally {
+        generate.mockRestore()
+      }
+    }
+  )
+
+  it.each(['tool_use', 'tool_result'] as const)('rejects unsupported sampling %s before generation', async (type) => {
+    const service = createService()
+    const generate = vi.spyOn(service, 'generateText')
+    try {
+      const content =
+        type === 'tool_use'
+          ? { type, id: 'tool-1', name: 'read_file', input: {} }
+          : { type, toolUseId: 'tool-1', content: [{ type: 'text', text: 'secret' }] }
+      await expect(
+        service.generateMcpSampling(
+          'test-provider::test-model',
+          {
+            maxTokens: 100,
+            messages: [{ role: 'assistant', content }]
+          } as CreateMessageRequestParamsBase,
+          new AbortController().signal
+        )
+      ).rejects.toThrow(`Unsupported MCP sampling content type: ${type}`)
+      expect(generate).not.toHaveBeenCalled()
+    } finally {
+      generate.mockRestore()
+    }
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -1815,7 +1940,9 @@ describe('AiService tool approval', () => {
     )
 
     try {
-      const [listedModel] = await listModelsFromProviderActual(provider)
+      const {
+        models: [listedModel]
+      } = await listModelsFromProviderActual(provider)
       expect(listedModel).toMatchObject({
         apiModelId: 'deepseek-v4-flash',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
@@ -1825,7 +1952,7 @@ describe('AiService tool approval', () => {
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1842,7 +1969,7 @@ describe('AiService tool approval', () => {
 
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1870,7 +1997,7 @@ describe('AiService tool approval', () => {
 
   it('disables reasoning on the text-generation probe', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1917,7 +2044,7 @@ describe('AiService tool approval', () => {
   it('checks image-only models through the image endpoint, not chat', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-image',
       providerId: 'test-provider',
@@ -1939,7 +2066,7 @@ describe('AiService tool approval', () => {
   it('checks chat models that can also generate images through text generation', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-multimodal',
       providerId: 'test-provider',
@@ -2051,6 +2178,40 @@ describe('AiService tool approval', () => {
         files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
       })
     )
+  })
+
+  it('cancels the job an image probe queued', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit',
+      name: 'Qwen Image Edit',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: false }
+        }
+      }
+    })
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const submit = vi.fn().mockResolvedValue({ taskId: 'queued-1' })
+    mockResolveImageTransport.mockReturnValueOnce({ submit, cancel })
+
+    await service.checkModel({
+      uniqueModelId: 'ppio::qwen-image-edit',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(cancel).toHaveBeenCalledWith('queued-1')
   })
 
   it('keeps generate-capable image probes mode-less', async () => {
@@ -2625,7 +2786,7 @@ describe('AiService.listModels', () => {
 
     const result = await service.listModels({ providerId: 'claude-code' })
 
-    expect(result).toEqual(registryModels)
+    expect(result).toEqual({ models: registryModels })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'claude-code',
       presetProviderId: null
@@ -2645,7 +2806,7 @@ describe('AiService.listModels', () => {
       apiModelId
     }))
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
     mockListProviderRegistryModels.mockReturnValue(
       ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'].map((apiModelId) => ({
         id: `${provider.id}::${apiModelId}`,
@@ -2653,10 +2814,10 @@ describe('AiService.listModels', () => {
       }))
     )
 
-    expect(await service.listModels({ providerId: provider.id })).toEqual(apiModels)
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: apiModels })
 
-    mockListModelsFromProvider.mockResolvedValue([])
-    expect(await service.listModels({ providerId: provider.id })).toEqual([])
+    mockListModelsFromProvider.mockResolvedValue({ models: [] })
+    expect(await service.listModels({ providerId: provider.id })).toEqual({ models: [] })
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: provider.id, throwOnError: true })).rejects.toThrow('Unauthorized')
@@ -2669,11 +2830,13 @@ describe('AiService.listModels', () => {
     const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+      () => new Promise((resolve) => setTimeout(() => resolve({ models: apiModels }), 31_000))
     )
     mockListProviderRegistryModels.mockReturnValue([])
 
-    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual({
+      models: apiModels
+    })
 
     await vi.advanceTimersByTimeAsync(31_000)
     await result
@@ -2685,7 +2848,7 @@ describe('AiService.listModels', () => {
     // Live /models returns the chat model with a flat id.
     const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
     mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListModelsFromProvider.mockResolvedValue({ models: apiModels })
     mockListProviderRegistryModels.mockReturnValue([
       // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
       { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
@@ -2693,10 +2856,10 @@ describe('AiService.listModels', () => {
       { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
     ])
 
-    const result = await service.listModels({ providerId: 'ppio' })
+    const { models } = await service.listModels({ providerId: 'ppio' })
 
-    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
-    expect(result[0]).toEqual(apiModels[0])
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+    expect(models[0]).toEqual(apiModels[0])
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: 'ppio', throwOnError: true })).rejects.toThrow('Unauthorized')

@@ -260,6 +260,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'fetch',
   'jina',
   'firecrawl',
+  'crawl4ai',
   'parallel',
   'serply'
 ] as const

@@ -1710,10 +1710,10 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const shouldPreferClipboardImage = hasSupportedClipboardImage(
-        Array.from(event.clipboardData?.files ?? []),
-        supportedExts
-      )
+      const hasTextualClipboardRepresentation = Boolean(pastedText && pastedHtml)
+      const shouldPreferClipboardImage =
+        !hasTextualClipboardRepresentation &&
+        hasSupportedClipboardImage(Array.from(event.clipboardData?.files ?? []), supportedExts)
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)

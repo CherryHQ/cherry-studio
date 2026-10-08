@@ -161,8 +161,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
     await respond({
       match: request.match,
-      approved: false,
-      reason: 'User dismissed AskUserQuestion'
+      approved: false
     })
   }, [isSubmitting, request.match, respond])
 

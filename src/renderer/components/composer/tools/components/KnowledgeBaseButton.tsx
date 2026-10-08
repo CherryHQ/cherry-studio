@@ -3,8 +3,11 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import {
+  ComposerPanelSymbol,
+  getQuickPanelSearchAliases,
+  prepareComposerQuickPanelSearch
+} from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
@@ -32,22 +35,6 @@ const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 
 function getKnowledgeBaseIdsKey(ids: readonly string[] | undefined) {
   return (ids ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
-}
-
-function clearKnowledgeBaseInputQuery(
-  inputAdapter: QuickPanelInputAdapter | undefined,
-  queryAnchor: number | undefined,
-  triggerInfo: { type: 'input' | 'button' } | undefined
-) {
-  if (!inputAdapter || triggerInfo?.type !== 'input' || queryAnchor === undefined) return false
-
-  const text = inputAdapter.getText()
-  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-  if (cursorOffset <= queryAnchor) return false
-
-  inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  inputAdapter.focus()
-  return true
 }
 
 const useKnowledgeBaseToolController = ({
@@ -132,6 +119,7 @@ const useKnowledgeBaseToolController = ({
       description: tRef.current('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       filterText: [base.name, base.id].join(' '),
       icon: <FileSearch />,
+      suffix: tRef.current('chat.input.knowledge_base'),
       isSelected: selectedBaseIds.has(base.id),
       action: ({ context, inputAdapter, item }) => {
         const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
@@ -143,12 +131,23 @@ const useKnowledgeBaseToolController = ({
         const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
         selectedBasesRef.current = nextSelectedBases
         onSelectRef.current(nextSelectedBases)
-        closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
+        if (context.symbol === ComposerPanelSymbol.KnowledgeBase) {
+          closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
+        }
       }
     }))
   }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
+  const knowledgeBaseRootSearchItems = useMemo(
+    () =>
+      knowledgeBaseItems.map((item) => ({
+        ...item,
+        action: (options: QuickPanelCallBackOptions) =>
+          item.action?.({ ...options, item: { ...options.item, isSelected: true } })
+      })),
+    [knowledgeBaseItems]
+  )
   const manageKnowledgeBaseAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.knowledge_base_manage')
     return {
@@ -181,20 +180,17 @@ const useKnowledgeBaseToolController = ({
       parentPanel?: QuickPanelOpenOptions
       queryAnchor?: number
       quickPanel: { open: (options: QuickPanelOpenOptions) => void }
-      triggerInfo?: { type: 'input' | 'button' }
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
     }) => {
       if (isDisabled) return
       setDataRequested(true)
       disposeCloseOnInputAfterSelection()
-      const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
       actionQuickPanel.open({
         title: t('chat.input.knowledge_base'),
         list: knowledgeBaseItems,
         symbol: ComposerPanelSymbol.KnowledgeBase,
         parentPanel,
-        queryAnchor: inputQueryCleared ? undefined : queryAnchor,
-        triggerInfo: { type: 'button' },
-        trackInputQuery: true,
+        ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo }),
         multiple: true,
         onClose: disposeCloseOnInputAfterSelection
       })
@@ -221,6 +217,7 @@ const useKnowledgeBaseToolController = ({
           active: isEnabled,
           showInActiveControls: false,
           disabled: isDisabled,
+          rootSearchItems: knowledgeBaseRootSearchItems,
           // action opens the '#' knowledge-base panel, whose symbol differs from the launcher id.
           panelSymbol: ComposerPanelSymbol.KnowledgeBase,
           action: openKnowledgeBasePanel
@@ -232,7 +229,16 @@ const useKnowledgeBaseToolController = ({
     return () => {
       disposeLauncher()
     }
-  }, [isDisabled, isEnabled, launcher, manageKnowledgeBaseAction, openKnowledgeBasePanel, resolvedDisabledReason, t])
+  }, [
+    isDisabled,
+    isEnabled,
+    knowledgeBaseRootSearchItems,
+    launcher,
+    manageKnowledgeBaseAction,
+    openKnowledgeBasePanel,
+    resolvedDisabledReason,
+    t
+  ])
 }
 
 export const KnowledgeBaseToolRuntime: FC<Props> = (props) => {

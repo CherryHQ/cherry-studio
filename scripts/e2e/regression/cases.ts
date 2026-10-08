@@ -10,6 +10,13 @@ export const REGRESSION_CASES = [
     task: 'custom-provider-chat'
   },
   {
+    id: 'M-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Scroll provider models from outside the list without sticky groups',
+    task: 'provider-model-scroll'
+  },
+  {
     id: 'C-01',
     capabilities: [],
     phase: '03-models-and-assistants',

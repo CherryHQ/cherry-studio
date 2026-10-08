@@ -28,6 +28,12 @@ async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T
  * log queries delegate to ChannelManager. The channel.* events are emitted by the adapters / ChannelManager.
  */
 export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
+  'channel.registration.begin': async ({ channelId, requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.begin(senderId, channelId, requestId),
+  'channel.registration.poll': async ({ requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.poll(senderId, requestId),
+  'channel.registration.cancel': async ({ requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.cancel(senderId, requestId),
   'channel.create': async (input) => exposeChannelError(() => createAgentChannel(input)),
   'channel.update': async ({ channelId, updates }) => exposeChannelError(() => updateAgentChannel(channelId, updates)),
   'channel.delete': async ({ channelId }) => {
