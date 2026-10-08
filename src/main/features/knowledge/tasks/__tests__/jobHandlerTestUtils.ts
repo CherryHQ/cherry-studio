@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getJobMock: vi.fn(),
   getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
+  deleteKnowledgeItemFilesMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn(),
@@ -57,6 +58,7 @@ export const {
   getJobMock,
   getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesMock,
   deleteKnowledgeItemFilesBestEffortMock,
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock,
@@ -174,6 +176,7 @@ vi.mock('../../pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../../pathStorage')
   return {
     ...actual,
+    deleteKnowledgeItemFiles: deleteKnowledgeItemFilesMock,
     // Stub the best-effort cleanup the handlers call. Its swallow-on-failure
     // contract is unit-tested directly in pathStorage's own test; here we only
     // need handlers to route cleanup through it and still delete rows.
@@ -303,7 +306,10 @@ export function createFileItem(
   }
 }
 
-export function createExternalItem(id = 'external-1'): KnowledgeItemOf<'external'> {
+export function createExternalItem(
+  id = 'external-1',
+  status: Exclude<KnowledgeItemOf<'external'>['status'], 'failed'> = 'processing'
+): KnowledgeItemOf<'external'> {
   return {
     id,
     baseId: 'kb-1',
@@ -314,7 +320,7 @@ export function createExternalItem(id = 'external-1'): KnowledgeItemOf<'external
       title: 'External doc',
       relativePath: 'external.md' as PosixRelativeFilePath
     },
-    status: 'processing',
+    status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -459,6 +465,7 @@ beforeEach(() => {
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
   knowledgeItemUpdateIndexedRelativePathMock.mockReturnValue(createFileItem())
   deleteItemsByIdsMock.mockReturnValue(undefined)
+  deleteKnowledgeItemFilesMock.mockResolvedValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
   removeDirMock.mockResolvedValue(undefined)
   probeKnowledgeFileMock.mockResolvedValue('readable')
