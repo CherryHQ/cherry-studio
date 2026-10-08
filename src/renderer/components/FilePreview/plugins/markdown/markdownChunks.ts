@@ -103,20 +103,26 @@ function columnCount(prefix: string): number {
 }
 
 /**
- * The column each block quote in a definition's container sits at. A continuation line's k-th
- * quote marker has to sit at least that deep: a shallower one falls out of the list items that
- * hold the container's k-th quote and opens a block of its own, ending the definition. Markers
- * past a quote don't raise the bar — once the line's quote continues the container's, whatever
- * the line skips past that point it skips lazily, and lazy lines start nothing.
+ * The floor each block quote in a definition's container sets for a continuation line's matching
+ * marker: its own column when a list item holds it — a shallower marker falls out of the item and
+ * opens a block of its own, ending the definition — and none for a quote nested in quotes alone,
+ * which continues at any legal depth. Legality there is the marker chain itself: each marker sits
+ * within three columns of the one it follows, which the marker-by-marker match already enforces.
  */
 function quoteMarkerColumns(container: string): number[] {
-  const columns: number[] = []
+  const floors: number[] = []
+  let heldByItem = false
   let column = 0
   for (const character of container) {
-    if (character === '>') columns.push(column)
+    if (character === '>') {
+      floors.push(heldByItem ? column : -1)
+      heldByItem = false
+    } else if (character !== ' ' && character !== '\t') {
+      heldByItem = true
+    }
     column = character === '\t' ? column + (4 - (column % 4)) : column + 1
   }
-  return columns
+  return floors
 }
 
 /**
@@ -146,12 +152,18 @@ function containerWhitespaceOpensCode(container: string): boolean {
 
 /**
  * A link reference definition label, which may leave its destination to a line of its own. A label
- * may hold an escaped closing bracket (`[a\]b]`), so brackets only end the label when unescaped.
+ * may hold an escaped bracket (`[a\]b]`), so brackets only end the label when unescaped — and never
+ * an unescaped opening one, which the parser reads as nesting the label cannot close. The label
+ * itself is matched on one line; one that wraps is left to the chunk it was written in.
  */
-const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\])+)\][ \t]*:([ \t]*)([\s\S]*)$/
+const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\][ \t]*:([ \t]*)([\s\S]*)$/
 
-/** A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. */
-const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|[^\s]+)/
+/**
+ * A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. A
+ * bare destination may not start with `<` — that form belongs to the angle brackets — and its
+ * parentheses have to balance, which `balancedParens` checks where the destination is accepted.
+ */
+const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|(?!<)\S+)/
 
 /** A link title, which may sit on the line below the destination; its delimiter may be escaped. */
 const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[^)\\\n])*\))[ \t]*$/
@@ -161,6 +173,35 @@ const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[
  * below the one it opens on, and only the closing delimiter ends it.
  */
 const LINK_TITLE_OPEN = /^[ \t]*(?:"(?:\\.|[^"\\\n])*|'(?:\\.|[^'\\\n])*|\((?:\\.|[^)\\\n])*)$/
+
+/** Whether a bare destination's unescaped parentheses balance, as the parser requires of one. */
+function balancedParens(text: string): boolean {
+  let depth = 0
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+    if (character === '\\') {
+      index += 1
+    } else if (character === '(') {
+      depth += 1
+    } else if (character === ')' && (depth -= 1) < 0) {
+      return false
+    }
+  }
+  return depth === 0
+}
+
+/**
+ * The line past a destination that opens at its start, or null when none does: the run the
+ * destination regex accepts has to be one the parser accepts too, or the line is not a
+ * definition's destination at all.
+ */
+function pastDestination(line: string): string | null {
+  const match = LINK_DESTINATION.exec(line)
+  if (!match) return null
+  const destination = match[0].trimStart()
+  if (!destination.startsWith('<') && !balancedParens(destination)) return null
+  return line.slice(match[0].length)
+}
 
 const INDENTED_LINE = /^\s+\S/
 
@@ -409,23 +450,33 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   if (start && containerWhitespaceOpensCode(start[0])) return null
   const quotes = start ? quoteDepth(start[0]) : 0
   const quoteColumns = start ? quoteMarkerColumns(start[0]) : []
-  // The column the definition itself starts at, behind the list markers alone — the base its
-  // continuation lines are measured from once the item, not a quote, holds them. Counted in
+  // The column the definition itself starts at when the container ends with a list item's marker —
+  // quotes alone hold their content wherever the marker chain leaves it, but an item's continuation
+  // lines are measured from the column its content begins at, so that column gates them. Counted in
   // columns: a tab inside a marker advances to the next stop, so `-\t` spans four of them.
-  const labelColumn = start !== null && quotes === 0 ? columnCount(start[0]) : -1
+  const labelColumn =
+    start !== null && /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(start[0]) ? columnCount(start[0]) : -1
   const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
-  if (!label) return null
+  // A label the parser would refuse — one of whitespace alone — leaves the line a paragraph.
+  if (!label || !/[^\s]/.test(label[1])) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
   let tail = label[3]
   let span = 1
-  if (!LINK_DESTINATION.test(tail)) {
+  // The destination may sit a line below the label, but only when the label's own line ends with
+  // the colon: a run that is present yet not a destination condemns the line to paragraphhood.
+  const past = pastDestination(tail)
+  if (past === null) {
+    if (!/^[ \t]*$/.test(tail)) return null
     const next = continuation(lines[index + 1], quotes, quoteColumns, labelColumn)
     if (next === undefined) return null
-    tail = next
+    const nextPast = pastDestination(next)
+    if (nextPast === null) return null
+    tail = nextPast
     body.push(next)
     span = 2
+  } else {
+    tail = past
   }
-  tail = tail.replace(LINK_DESTINATION, '')
   // Whatever is left on the destination's line has to be a title, but the title may wrap: the parser
   // closes it on whichever line carries the closing delimiter, so one that is still open here is
   // taken from the lines below rather than rejected. Anything that is neither closed nor open, and
@@ -472,12 +523,32 @@ function continuation(
   let content = line
   let seen = 0
   let consumed = 0
+  // The first marker may sit behind a tab that carries a list item's indent, so it is measured in
+  // columns rather than by the spaces-only run the nesting markers allow: within the floor an
+  // item-held quote sets (plus three, the indent a marker may take), or within three columns of
+  // the line start otherwise. Below the floor the marker opens a sibling quote and ends the
+  // definition; past the floor's reach it is code the marker never surfaces from, and the line
+  // falls through to the lazy reading below.
+  const first = /^[ \t]*>/.exec(content)
+  if (first) {
+    const floor = quoteColumns[0] ?? -1
+    const column = leadingColumns(content)
+    if (floor >= 0 && column < floor) return undefined
+    if ((floor >= 0 && column <= floor + 3) || (floor < 0 && column <= 3)) {
+      let eaten = first[0].length
+      if (content.length > eaten && /[ \t]/.test(content[eaten])) eaten += 1
+      consumed += eaten
+      content = content.slice(eaten)
+      seen = 1
+    }
+  }
   for (let quote = QUOTE_MARKER.exec(content); quote; quote = QUOTE_MARKER.exec(content)) {
     // A quote that sits further left than the container's k-th quote has fallen out of the list
     // items that hold it, and opens a block of its own instead of continuing the definition. The
     // leading run QUOTE_MARKER allows is spaces only, so the marker's own text needs no tab
     // arithmetic — only the characters consumed before it might carry tabs.
-    if (columnCount(line.slice(0, quote.index + quote[0].indexOf('>') + consumed)) < (quoteColumns[seen] ?? 0)) {
+    const floor = quoteColumns[seen] ?? -1
+    if (floor >= 0 && columnCount(line.slice(0, quote.index + quote[0].indexOf('>') + consumed)) < floor) {
       return undefined
     }
     consumed += quote[0].length
