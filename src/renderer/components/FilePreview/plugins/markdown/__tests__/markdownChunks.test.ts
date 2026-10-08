@@ -1072,6 +1072,112 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
   })
+
+  it('carries a definition whose lazy line holds an unfinished tag', () => {
+    // A lazy line takes a tag only in its complete form, alone on the line: the tokenizer holds
+    // `<a` at the line's end — a tag with content after it, and an attribute that starts the way
+    // `<a b"c">` never does — to the title's paragraph, so killing the definition there dropped it
+    // from every chunk that referenced it.
+    for (const form of ['<a', '<a ', '<a> x', '<a b"c">']) {
+      const content = ["> [spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('ends a lazily continued definition at a complete tag on a line of its own', () => {
+    // A guard for the forms above: the interrupt-free lazy rule still opens a block at `<a>`.
+    const content = ["> [spec]: /url 'the long", '<a>', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it("measures a tab-expanded marker's content column in columns", () => {
+    // `-\t` spans four columns, so a two- or three-column underline falls short of the item's
+    // content — a lazy line the setext guard holds to the title. Counting characters read the
+    // two-character marker as content column two and killed the definition at `  --`.
+    for (const form of ['  --', '   --']) {
+      const content = ["-\t[spec]: /url 'the long", form, "tail of title'", '', 'see [spec]'].join('\n')
+
+      const chunks = chunksOf(content, 1)
+
+      expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+    }
+  })
+
+  it('pairs a setext underline through a tab that starts at the content column', () => {
+    // In `- [spec]` + `  \t--` the tab expands from the very column the item measures its blocks
+    // from, and its two columns of width are a relative indent of two: the underline pairs, the
+    // title turns, and the definition dies. Leaving the tab unread as indent kept it alive in
+    // every chunk.
+    const content = ["- [spec]: /url 'the long", '  \t--', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it("holds a nested container's quote to the inner item's content column", () => {
+    // `- - > ` holds the definition in the inner item, whose content starts at column four — a
+    // quote marker at two or three columns falls out of that item and ends the definition, while
+    // one at four continues it. The first marker's column let the shallow quotes through.
+    const dead = ["- - > [spec]: /url 'the long", "  > tail of title'", '', 'see [spec]'].join('\n')
+
+    expect(chunksOf(dead, 1).filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+
+    const held = ["- - > [spec]: /url 'the long", "    > tail of title'", '', 'see [spec]'].join('\n')
+    const heldChunks = chunksOf(held, 1)
+
+    expect(heldChunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(heldChunks.length)
+  })
+
+  it('does not carry a definition behind a marker indented by a tab', () => {
+    // A tab before the marker is four columns of indent — indented code, where no definition
+    // opens. Reading it as a container carried one whose hoisted prefix rendered as a heading at
+    // the top of every chunk.
+    const content = ["\t- [spec]: /url 'the long", '--', "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+  })
+
+  it('does not carry a definition whose label sits five columns past its marker', () => {
+    // Five columns of whitespace leave the label in indented code — `-\t\t` spans seven and
+    // `-     ` five behind a bullet, `>     ` five behind a quote — so the parser opens no
+    // definition there at all.
+    for (const marker of ['-\t\t', '-     ', '>     ']) {
+      const content = [`${marker}[spec]: /url 'the long`, "tail of title'", '', 'see [spec]'].join('\n')
+
+      expect(chunksOf(content, 1).filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(1)
+    }
+  })
+
+  it('carries a definition four columns behind its marker', () => {
+    // A guard for the five-column rule: four columns are still the item's own paragraph.
+    const content = ["-    [spec]: /url 'the long", "tail of title'", '', 'see [spec]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes("[spec]: /url 'the long"))).toHaveLength(chunks.length)
+  })
+
+  it('does not open a raw region at a self-closing raw-name tag', () => {
+    // `<pre/>` is a type-7 tag, not raw HTML, so it opens no region — the footnote below it stays
+    // a footnote with an html child, and the document still splits. Reading it as raw held every
+    // line after it in one unsplittable chunk.
+    const content = ['[^1]: note', ' <pre/>', 'tail', '', 'see [^1]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.filter((chunk) => chunk.text.includes('[^1]: note'))).toHaveLength(chunks.length)
+  })
 })
 
 describe('the window a split reports', () => {
