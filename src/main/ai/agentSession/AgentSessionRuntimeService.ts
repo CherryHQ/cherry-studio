@@ -2125,10 +2125,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
         const key = `${kind}:${chunk.id}`
         if (!accumulator.openParts.has(key)) {
-          // Same split as `buildCompactReplay`: the seed keeps the persisted
-          // prefix and the continuation streams as a new part. No text is lost.
-          // Deltas never carry the start's parent linkage, so reattach it here —
-          // otherwise the continued part cannot be associated with its subagent.
+          // Like `buildCompactReplay`: synthesize the start and reattach parentToolCallId.
           accumulator.openParts.add(key)
           const startType = kind === 'text' ? 'text-start' : 'reasoning-start'
           queue.push({
@@ -2160,10 +2157,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'tool-input-delta': {
         if (!accumulator.openTools.has(chunk.toolCallId)) {
-          // The start raced persistence, so the SDK holds no raw-text prefix
-          // for this call and the seed holds only the parsed prefix. A suffix
-          // would reset the seed input, so drop it and let the later
-          // `tool-input-available` (full input) restore the part.
+          // Start raced persistence: drop suffix deltas until `tool-input-available`.
           break
         }
         queue.push(chunk)
@@ -2220,9 +2214,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private completeSeedStreamingPart(accumulator: BackgroundFlowAccumulator, kind: 'text' | 'reasoning'): boolean {
     const parts = accumulator.latest?.parts
     if (!parts) return false
-    // Several detached flows can share one row while seed parts carry no stream id,
-    // so the last match may belong to another flow. Close in place only when the
-    // kind is unambiguous; the terminal flush closes whatever remains.
+    // Id-less seed parts are ambiguous; close in place only for a single streaming match.
     const matches = parts.filter(
       (part): part is Extract<CherryMessagePart, { type: 'text' | 'reasoning' }> =>
         part.type === kind && part.state === 'streaming'
@@ -2397,9 +2389,7 @@ export class AgentSessionRuntimeService extends BaseService {
           const parts = accumulator.latest?.parts
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
-          // The flush is terminal: no more ends can arrive, so a part still marked
-          // streaming would persist as streaming forever. Close text/reasoning
-          // as done and error incomplete tools instead.
+          // Terminal flush converges streaming parts via `closeStreamingFlowParts`.
           const finalized = this.closeStreamingFlowParts(parts)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, finalized)
           completedFlows.push({ messageId: accumulator.messageId, parts: finalized })

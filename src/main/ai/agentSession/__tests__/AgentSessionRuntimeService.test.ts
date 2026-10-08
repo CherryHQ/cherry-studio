@@ -2353,9 +2353,7 @@ describe('AgentSessionRuntimeService', () => {
           ]
         }
       })
-      // The tool-input-start went to the pre-persist stream, so the SDK holds no
-      // raw-text prefix for this call: the suffix is dropped to preserve the
-      // seed prefix, and the later available (full input) restores the part.
+      // Pre-persist start: suffix delta is dropped until `tool-input-available`.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'background-flow-chunk',
         rootToolCallId: 'task-root',
@@ -2561,9 +2559,7 @@ describe('AgentSessionRuntimeService', () => {
         assistantMessageId: 'assistant-2',
         userMessage: userMessage('user-2')
       })
-      // The text-start raced persistence, so only the bare delta arrives. The
-      // synthesized start must reattach the parent linkage or the continued
-      // part can no longer be associated with its subagent.
+      // Bare delta: synthesized start must carry parentToolCallId.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'background-flow-chunk',
         rootToolCallId: 'task-root',
@@ -2615,9 +2611,7 @@ describe('AgentSessionRuntimeService', () => {
         assistantMessageId: 'assistant-2',
         userMessage: userMessage('user-2')
       })
-      // Two detached flows share this row, so the seed holds two streaming text
-      // parts with no stream id. An orphan end for one flow must not close the
-      // other flow's part in place; the terminal flush converges both instead.
+      // Ambiguous twin streaming seeds: orphan end must not close a sibling in place.
       mocks.getSessionMessage.mockReturnValue({
         id: 'assistant-1',
         role: 'assistant',
