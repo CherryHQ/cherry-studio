@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { checkTranslationValues } from './i18n-check-values'
+import { collectMainTranslationKeys } from './i18n-main-keys'
 import { sortedObjectByKeys } from './sort'
 
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -110,31 +111,16 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
  * silently: main code must use literal keys so this guard can cover them.
  */
 function checkMainKeyCoverage(mainBaseJson: I18N): void {
-  const importsMainT = /import\s*(?:type\s*)?\{[^}]*\bt\b[^}]*\}\s*from\s*['"]@main\/i18n['"]/
-  const anyTCall = /(?<![\w.])t\(/g
-  const literalTCall = /^t\(\s*(['"])([\w.]+)\1/
-
   const missing = new Set<string>()
   const dynamic = new Set<string>()
   for (const file of collectSourceFiles(mainSrcDir)) {
     const content = fs.readFileSync(file, 'utf-8')
-    if (!importsMainT.test(content)) continue
+    if (!content.includes('@main/i18n')) continue
     const rel = path.relative(mainSrcDir, file)
-    for (const call of content.matchAll(anyTCall)) {
-      if (call.index === undefined) continue
-      const literal = literalTCall.exec(content.slice(call.index))
-      if (!literal) {
-        const snippet = content
-          .slice(call.index, call.index + 40)
-          .split('\n')[0]
-          .trim()
-        dynamic.add(`${snippet}…  (${rel})`)
-        continue
-      }
-      const key = literal[2]
-      if (typeof mainBaseJson[key] !== 'string') {
-        missing.add(`${key}  (${rel})`)
-      }
+    const calls = collectMainTranslationKeys(content, file)
+    for (const snippet of calls.dynamic) dynamic.add(`${snippet}…  (${rel})`)
+    for (const key of calls.keys) {
+      if (typeof mainBaseJson[key] !== 'string') missing.add(`${key}  (${rel})`)
     }
   }
 

@@ -71,7 +71,7 @@ const Scrollbar = ({
       {...htmlProps}
       ref={ref}
       className={cn(
-        'overflow-y-auto [scrollbar-gutter:stable]',
+        '[scrollbar-gutter:stable] overflow-y-auto',
         useHoverVisibility &&
           '[scrollbar-color:transparent_transparent] hover:[scrollbar-color:var(--scrollbar-thumb-hover)_transparent] data-[scrolling=true]:[scrollbar-color:var(--scrollbar-thumb)_transparent]',
         !useHoverVisibility &&
