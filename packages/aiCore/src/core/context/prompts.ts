@@ -158,8 +158,8 @@ Be concise but complete — err on the side of including information that would 
    * Cleans the raw output of a compression model by stripping XML scaffolding.
    *
    * - Removes model scratchpad blocks (`analysis`, `assessment`, `thinking` wrappers)
-   * - Extracts content from <summary>...</summary> when present
-   * - Falls back to the stripped text if no <summary> tag is found
+   * - Unwraps a single outer `<summary>...</summary>` when it wraps the entire stripped output
+   * - Otherwise keeps the stripped text as-is (including inline or partial summary markup)
    * - Collapses excessive blank lines and trims whitespace
    *
    * @example

@@ -2172,8 +2172,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     it('suppresses scratchpad wrappers whose opening tag has a slash inside a quoted attribute', () => {
       const { adapter, parts } = createAdapter()
-      const leakedThinking =
-        '<thinking data="notes/path">internal reasoning about the session</thinking>'
+      const leakedThinking = '<thinking data="notes/path">internal reasoning about the session</thinking>'
 
       adapter.handleMessage(
         streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })

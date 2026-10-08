@@ -24,7 +24,7 @@ describe('scratchpadText', () => {
     expect(textStartsWithNonScratchpadOpeningTag('<thinking>hidden</thinking>')).toBe(false)
   })
 
-  it('strips arbitrary paired scratchpad blocks and unwraps summary payloads', () => {
+  it('strips known scratchpad blocks and unwraps a whole-output summary wrapper', () => {
     expect(
       stripModelScratchpadBlocks('<thinking>hidden</thinking><analysis>also hidden</analysis><summary>kept</summary>')
     ).toBe('kept')
@@ -52,7 +52,7 @@ describe('scratchpadText', () => {
     )
   })
 
-  it('does not unwrap when an earlier non-nested summary tag precedes the compaction summary', () => {
+  it('does not unwrap when visible prose or markup precedes the compaction summary', () => {
     const input = `<analysis>
 User asked how the HTML details element works; I explained collapsible blocks.
 </analysis>
@@ -74,6 +74,13 @@ The content that actually matters: 1. Task Overview  2. Current State  3. Next S
     expect(result).toContain('Task Overview: explain details/summary')
     expect(result).toContain('Click to expand the full example')
     expect(result).not.toBe('Click to expand the full example')
+  })
+
+  it('keeps a summary wrapper when introductory prose precedes it', () => {
+    const input = 'Brief intro before the structured summary.\n\n<summary>1. Task: foo</summary>'
+    const result = stripModelScratchpadBlocks(input)
+    expect(result).toContain('Brief intro')
+    expect(result).toContain('<summary>1. Task: foo</summary>')
   })
 
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
