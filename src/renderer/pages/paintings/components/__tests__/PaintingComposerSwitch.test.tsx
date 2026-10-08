@@ -1,9 +1,10 @@
-import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import type { FileEntry } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
+import type { FileEntry } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -43,16 +44,15 @@ const { default: PaintingComposer } = await import('../PaintingComposer')
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 100, origin: 'internal' }) as unknown as FileEntry
 
-const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData =>
-  ({
-    id,
-    providerId: 'openai',
-    model,
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    inputFiles
-  }) as PaintingData
+const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData => ({
+  id,
+  providerId: 'openai',
+  model,
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  inputFiles
+})
 
 const handlers = {
   generating: false,

@@ -1,8 +1,10 @@
+import { EventEmitter } from 'events'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { ChannelManager } from '../ChannelManager'
@@ -137,6 +139,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.discardResponse = vi.fn()
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   return adapter
@@ -190,7 +193,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     simulateStream([{ type: 'text-delta', delta: 'OK' }])
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
-    // Still buffered — the 8 s debounce has not been advanced.
+    // Still buffered — the 1 s debounce has not been advanced.
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
 
     const hold = handler.pause('restore')
@@ -278,7 +281,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     })
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
-    await vi.advanceTimersByTimeAsync(8500)
+    await vi.advanceTimersByTimeAsync(1000)
     expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
 
     const command = handler.handleCommand(adapter, {
@@ -311,7 +314,7 @@ describe('ChannelMessageHandler write quiesce', () => {
     mockStartAgentSessionRun.mockResolvedValue(undefined)
 
     const turn = handler.handleIncoming(adapter, msg('Hi'))
-    await vi.advanceTimersByTimeAsync(8500)
+    await vi.advanceTimersByTimeAsync(1000)
     const help = handler.handleCommand(adapter, {
       chatId: 'chat-1',
       userId: 'user-1',

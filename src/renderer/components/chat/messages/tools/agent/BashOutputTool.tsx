@@ -1,6 +1,7 @@
-import { Badge } from '@cherrystudio/ui'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge } from '@cherrystudio/ui'
 
 import type { BashOutputToolInput, BashOutputToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
@@ -121,7 +122,7 @@ export function BashOutputTool({
       {/* Standard Output */}
       {truncatedStdout.data && (
         <div>
-          <div className="mb-2 font-medium text-default-600 text-xs">{t('message.tools.sections.stdout')}:</div>
+          <div className="text-default-600 mb-2 text-xs font-medium">{t('message.tools.sections.stdout')}:</div>
           <TerminalOutput content={truncatedStdout.data} />
           {truncatedStdout.isTruncated && <TruncatedIndicator originalLength={truncatedStdout.originalLength} />}
         </div>
@@ -130,7 +131,7 @@ export function BashOutputTool({
       {/* Standard Error */}
       {truncatedStderr.data && (
         <div className="border border-border-subtle">
-          <div className="mb-2 font-medium text-muted-foreground text-xs">{t('message.tools.sections.stderr')}:</div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">{t('message.tools.sections.stderr')}:</div>
           <TerminalOutput content={truncatedStderr.data} />
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
@@ -141,7 +142,7 @@ export function BashOutputTool({
         <div className="border border-border-subtle">
           <div className="mb-2 flex items-center gap-2">
             <XCircle className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-muted-foreground text-xs">{t('message.tools.status.error')}:</span>
+            <span className="text-xs font-medium text-muted-foreground">{t('message.tools.status.error')}:</span>
           </div>
           <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}

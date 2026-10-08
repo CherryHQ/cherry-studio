@@ -9,7 +9,6 @@
  * that already pull from `agentParams/`.
  */
 
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -17,28 +16,18 @@ import type { EffectiveContextSettings } from '@shared/data/types/contextSetting
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import type { AppProviderKey, SdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap, ProviderOptionsKey } from '../../../types'
+import type { AiChatRequest, AppProviderId } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
-export type { ToolApplyScope }
-
-export type AppProviderKey = StringKeys<AppProviderSettingsMap>
-
-export type SdkConfig<T extends AppProviderKey = AppProviderKey> = T extends AppProviderKey
-  ? {
-      readonly providerId: T
-      readonly providerOptionsKey: ProviderOptionsKey
-      readonly providerSettings: AppProviderSettingsMap[T]
-      readonly modelId: string
-    }
-  : never
+export type { AppProviderKey, SdkConfig, ToolApplyScope }
 
 export interface RequestScope extends ToolApplyScope {
-  readonly request: AiBaseRequest & { chatId?: string }
+  readonly request: AiChatRequest
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model

@@ -8,11 +8,13 @@ export type {
   ProviderOptionsKey
 } from './providerConfig'
 export type {
-  AiBaseRequest,
+  AiChatRequest,
+  AiRequest,
   AiStreamRequest,
   AiTransportOptions,
   CallOverrides,
   ContextOwner,
+  ConversationRef,
   InProcessUsageContext,
   ListModelsRequest
 } from './requests'

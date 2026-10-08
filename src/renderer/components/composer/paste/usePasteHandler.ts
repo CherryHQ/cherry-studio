@@ -1,6 +1,7 @@
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
+
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import pasteHandling from './pasteHandling'
 
@@ -18,14 +19,12 @@ export interface UsePasteHandlerOptions {
  *
  * 处理文件、长文本、图片等粘贴场景，集成 pasteHandling
  *
- * @param text - 当前文本内容
- * @param setText - 设置文本的函数
  * @param options - 粘贴处理配置
  * @returns 粘贴事件处理函数
  *
  * @example
  * ```tsx
- * const { handlePaste } = usePasteHandler(text, setText, {
+ * const { handlePaste } = usePasteHandler({
  *   supportedExts: ['.png', '.jpg', '.pdf'],
  *   setFiles: (updater) => setFiles(updater),
  *   onResize: () => resize(),
@@ -35,26 +34,20 @@ export interface UsePasteHandlerOptions {
  * <textarea onPaste={handlePaste} />
  * ```
  */
-export function usePasteHandler(
-  text: string,
-  setText: (text: string | ((prev: string) => string)) => void,
-  options: UsePasteHandlerOptions
-) {
+export function usePasteHandler(options: UsePasteHandlerOptions) {
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
       return await pasteHandling.handlePaste(
         event,
         options.supportedExts,
         options.setFiles,
-        setText,
         options.pasteLongTextAsFile,
         options.pasteLongTextThreshold,
-        text,
         options.onResize ?? (() => {}),
         options.t
       )
     },
-    [text, setText, options]
+    [options]
   )
 
   return { handlePaste }

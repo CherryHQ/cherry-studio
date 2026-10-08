@@ -104,5 +104,5 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
     })
   }
 
-  return provider as PpioProvider
+  return provider
 }

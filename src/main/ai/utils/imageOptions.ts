@@ -53,5 +53,5 @@ export function splitParamValues(paramValues: ParamValues): SplitImageParams {
       vendorBag[key] = value
     }
   }
-  return { structured: structured as NativeImageParams, vendorBag: vendorBag as VendorBag }
+  return { structured, vendorBag }
 }

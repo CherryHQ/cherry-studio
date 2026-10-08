@@ -10,13 +10,14 @@
  */
 // The dsh-compaction-basic / dsh-llm-retry / dsh-user-approval imports load their SessionEventMap merges.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
+import { type Attributes, type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
 import { loggerService } from '@logger'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
-import { type Attributes, type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import type { AgentRuntimeTraceContext } from '../types'
 
@@ -36,9 +37,9 @@ interface PendingToolCall {
 export class DshTraceRecorder {
   /** `${turn}:${step}` → provider span. */
   private readonly stepSpans = new Map<string, Span>()
-  private readonly pendingTools = new Map<CallId, PendingToolCall>()
+  private readonly pendingTools = new Map<ToolCallId, PendingToolCall>()
   /** approvalId → callId; `approval/decided` carries only the approval identity. */
-  private readonly approvalCalls = new Map<ApprovalRequestId, CallId>()
+  private readonly approvalCalls = new Map<ApprovalRequestId, ToolCallId>()
   private readonly compactionSpans = new Map<string, Span>()
 
   constructor(
@@ -166,21 +167,20 @@ export class DshTraceRecorder {
   }
 
   private endToolSpan(data: SessionEventMap['tool/result']): void {
-    const block = data.message.content.find((entry) => entry.type === 'tool-result')
-    if (!block) return
-    const pending = this.pendingTools.get(block.toolCallId)
+    const message = data.message
+    const pending = this.pendingTools.get(message.toolCallId)
     if (!pending) return
-    this.pendingTools.delete(block.toolCallId)
-    const failed = data.error !== undefined || block.isError === true
+    this.pendingTools.delete(message.toolCallId)
+    const failed = data.error !== undefined || message.isError === true
     this.emitToolSpan(
-      block.toolCallId,
+      message.toolCallId,
       pending,
       failed ? { code: SpanStatusCode.ERROR, message: `${pending.name} failed` } : { code: SpanStatusCode.OK }
     )
   }
 
   private emitToolSpan(
-    toolCallId: CallId,
+    toolCallId: ToolCallId,
     pending: PendingToolCall,
     status: { code: SpanStatusCode; message?: string }
   ): void {

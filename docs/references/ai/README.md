@@ -20,6 +20,12 @@ renderer-side transport that connects to them.
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `ai.stream.open` IpcApi route → context provider → AiStreamManager → runtime → broadcast / persist |
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
+| [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
+| [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
+| [Remote Agent API Design](./remote-agent-access.md) | Target network and package APIs: device-level authorization, complete incremental events, receipts, and weak-network recovery |
+| [Remote Agent Sequences and Modules](./remote-agent-sequences.md) | Target module map, connection states, and thirteen normal/failure sequence diagrams |
+| [Remote Protocol and Desktop Implementation Design](./remote-agent-implementation.md) | Proposed package/Desktop files, function contracts, atomic admission, recovery, and lifecycle ownership |
+| [Remote Agent Testing Specification](./remote-agent-testing.md) | Local WebSocket client acceptance, scenario matrix, crash injection, weak-network measurements, and test rules |
 | [Adding an Agent Runtime](./adding-a-runtime.md) | Operational checklist for a new runtime: capability descriptor, driver package, registration points, design rules |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 | [Provider State Ownership](./provider-state-ownership.md) | Where provider facts, endpoint dialects, connection overrides, and per-request controls belong |
@@ -38,6 +44,8 @@ renderer-side transport that connects to them.
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
 | [Local Models](./local-models.md) | The local embedding / OCR bundle catalog, on-disk registry, and verified acquisition of models and shared native runtimes |
 | [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
+| [Browser Use Design](./browser-use-design.md) | Browser automation ownership, capability gaps, and delivery roadmap |
+| [Browser Use Implementation](./browser-use-implementation.md) | Session engine, MCP contracts, and implementation plan |
 
 ### Renderer-side glue
 
@@ -52,9 +60,10 @@ renderer-side transport that connects to them.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `channels/`, `skills/`, and
-> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
-> deep-dive docs.
+> tools → persistence → renderer transport). Channel designs cover the WeCom
+> integration and the proposed DingTalk integration with their acceptance checks;
+> the `channels/`, `skills/`, and `mcp/` subsystems are
+> mapped in the tree below but do not yet have complete subsystem references.
 
 ```
 src/main/ai/
@@ -66,8 +75,8 @@ src/main/ai/
 │   └── dsh/                      ← DeepSeek Harness runtime connection
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
-├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, prompt, heartbeat, builtin/
-├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
+├── agents/                       ← AgentLifecycleService, AgentJobsService, runAgentTask, prompt, heartbeat, builtin/
+├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat/wecom) + security/
 ├── streamManager/                ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts        ← active-stream registry and dispatch owner
 │   ├── context/                  ← ChatContextProvider implementations + dispatch
@@ -85,7 +94,7 @@ src/main/ai/
 │   └── servers/                  ← in-memory MCP server implementations (browser, filesystem)
 ├── skills/                       ← SkillService, SkillInstaller
 ├── contextBuild/                 ← context-window policy, compression, persisted tool output
-├── localModel/                   ← local model catalog, acquisition, installation, capability workers
+├── localModel/                   ← local model catalog, acquisition, installation, utility-process inference
 ├── tokens/                       ← token estimation and modality profiles
 ├── tools/                        ← unified tool registry
 │   └── adapters/
@@ -153,6 +162,30 @@ src/main/ai/
   protocol deviations on endpoint configs, user connection deltas on provider
   rows, and per-request choices on assistants. See
   [Provider State Ownership](./provider-state-ownership.md).
+
+## MCP runtime compatibility
+
+The MCP runtime uses SDK v2 and keeps the upstream schemas in its catalog.
+Input validation honors an explicit `$schema` dialect and otherwise uses JSON
+Schema 2020-12. Model adapters include any JSON `structuredContent` in text
+without duplicating an equivalent server-provided JSON block; the stored result
+retains its original content and media. The v1 bridges used by existing Agent
+SDKs omit output schemas and expose non-object structured results through JSON
+text. Main validates the original upstream output schemas.
+
+Tools, prompts and resources share request-scoped interaction hosts and
+cancellation. Modern stdio responses restore their caller's context by JSON-RPC
+ID before the SDK continues an MRTR exchange. Interactive Agent sessions resolve
+a live desktop window at request time; headless turns have no consent host.
+Main validates form responses and closes pending dialogs on cancellation,
+timeout or window closure. URL elicitation requires separate open and confirm
+actions. OAuth can resume a request rejected by an authentication challenge;
+unknown network outcomes are not replayed. Catalog/background reads cannot
+start browser authorization.
+
+The built-in sequential-thinking tool creates a `chainId` for thought 1.
+Subsequent thoughts must provide that ID; completed chains and closed server
+instances release their histories. History and branches are isolated per chain.
 
 ## Related references
 

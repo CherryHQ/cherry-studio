@@ -1,5 +1,12 @@
 import { basename } from 'node:path'
 
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
+import type * as ReactI18nextModule from 'react-i18next'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
@@ -14,12 +21,6 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
-import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
-import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import * as ComposerDraftModule from '../../composerDraft'
@@ -167,9 +168,9 @@ const requireFirstResourceMentionSource = (
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -384,6 +385,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   return {
     default: MockComposerSurface
   }
+})
+
+// #20766: Vitest 4 still loads AgentComposer when useAgent is missing from the mock.
+// Evaluating mcpStatusTool must fail the suite until that static import is gone.
+vi.mock('@renderer/components/composer/tools/definitions/mcpStatusTool', () => {
+  throw new Error('AgentComposer evaluated mcpStatusTool')
 })
 
 vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
@@ -764,7 +771,7 @@ describe('AgentComposer', () => {
     mocks.registeredFooterActions.clear()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),
@@ -784,8 +791,8 @@ describe('AgentComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
@@ -1859,10 +1866,31 @@ describe('AgentComposer', () => {
     expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
   })
 
+  // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.
+  it('highlights MCP from the agent bindings on first render before the panel opens', () => {
+    mocks.pinnedToolIds = ['mcp-status']
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
+  })
+
   it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
     mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
 
-    render(
+    const { rerender } = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -1877,6 +1905,7 @@ describe('AgentComposer', () => {
       name: 'chat.input.slash_commands.title'
     })
     const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
+    expect(mcpButton).not.toHaveAttribute('data-active')
 
     expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
 
@@ -1885,6 +1914,22 @@ describe('AgentComposer', () => {
 
     fireEvent.click(mcpButton)
     expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
+      />
+    )
+
+    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
+      'data-active',
+      'true'
+    )
   })
 
   it('hides the empty session action without a handler', () => {
@@ -2007,7 +2052,7 @@ describe('AgentComposer', () => {
             ...pdfSkillToken,
             index: 1,
             textOffset: `summarize ${knowledgePrompt} `.length
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2858,7 +2903,7 @@ describe('AgentComposer', () => {
     const { editor, chain, transaction } = buildComposerEditorMock()
 
     await act(async () => {
-      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' })
     })
 
     // The chip is bound to this draft synchronously, still empty of context...
@@ -2921,7 +2966,7 @@ describe('AgentComposer', () => {
     const { editor, transaction } = buildComposerEditorMock()
 
     await act(async () => {
-      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' })
     })
 
     expect(transaction.delete).toHaveBeenCalledWith(0, 1)
@@ -4240,7 +4285,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
 
@@ -4314,17 +4359,14 @@ describe('AgentComposer', () => {
       path: '/workspace/docs/beta.md'
     } as FileMetadata
     mocks.files = [workspaceFileA, localFile, workspaceFileB]
-    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map(
-      (attachedFile, index) =>
-        ({
-          id: `file:${attachedFile.fileTokenSourceId}`,
-          kind: 'file',
-          label: attachedFile.name,
-          payload: attachedFile,
-          index,
-          textOffset: mocks.draftText.length
-        }) as ComposerSerializedToken
-    )
+    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map((attachedFile, index) => ({
+      id: `file:${attachedFile.fileTokenSourceId}`,
+      kind: 'file',
+      label: attachedFile.name,
+      payload: attachedFile,
+      index,
+      textOffset: mocks.draftText.length
+    }))
 
     render(
       <AgentComposer
@@ -4385,7 +4427,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
 
@@ -4453,7 +4495,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.ipcApiRequest.mockResolvedValue({})
 
@@ -4561,7 +4603,7 @@ describe('AgentComposer', () => {
         payload: file,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
 
     render(
@@ -4990,6 +5032,36 @@ describe('AgentComposer', () => {
     )
     expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
+  })
+
+  it('keeps the composer selection after inserting an annotation token', async () => {
+    const token = {
+      id: 'webview-annotation:annotation-1',
+      kind: 'webviewAnnotation' as const,
+      label: 'Fix the button',
+      promptText: 'Review the selected element.'
+    }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.insertToken.mockClear()
+    mocks.surfaceFocus.mockClear()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
+        topicId: 'agent-session:session-1',
+        token
+      })
+    })
+
+    expect(mocks.insertToken).toHaveBeenCalledWith(token)
+    expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

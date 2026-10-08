@@ -14,6 +14,8 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
          * Used for identifying image generation endpoints and other special cases
          * @example 'chat/completions', 'images/generations', 'predict'
          */
+        /** Conversation-scoped header declared by the provider builder. */
+        conversationHeader?: string
         endpoint?: string
       }
     : never

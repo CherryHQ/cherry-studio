@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
 import { isHttpUrl } from '@shared/utils/url'
-import * as z from 'zod'
 
 /**
  * Wire contracts for builtin agent tools.
@@ -515,16 +516,12 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 // ── generate_image ───────────────────────────────────────────────
 
 export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
-export {
-  GENERATE_IMAGE_TOOL_NAME,
-  generateImageOutputItemSchema,
-  generateImageOutputSchema
-} from './generateImageTool'
+export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageOutputSchema } from './generateImageTool'
 
 // ── agent autonomy tools (cron / notify / config) ────────────────
-// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
-// are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
-// only the names are shared (the approval policy references them).
+// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their zod input
+// schemas live in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`; only the names are shared
+// (the approval policy references them).
 
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
@@ -617,7 +614,8 @@ export const mcpResourceEntrySchema = z.object({
 })
 
 export const mcpResourceListOutputSchema = z.object({
-  resources: z.array(mcpResourceEntrySchema)
+  resources: z.array(mcpResourceEntrySchema),
+  resourceTemplates: z.array(mcpResourceEntrySchema.omit({ uri: true }).extend({ uriTemplate: z.string() }))
 })
 
 export const mcpResourceReadInputSchema = z.object({
@@ -631,7 +629,7 @@ export const mcpResourceReadInputSchema = z.object({
   uri: z
     .string()
     .min(1)
-    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+    .describe('Resource URI returned by mcp_resource_list, or expanded from a uriTemplate published by that server.'),
   offset: z
     .number()
     .int()

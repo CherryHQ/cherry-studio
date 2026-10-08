@@ -1,8 +1,9 @@
+import { t } from 'i18next'
+import { v4 as uuid } from 'uuid'
+
 import { ipcApi } from '@renderer/ipc'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { t } from 'i18next'
-import { v4 as uuid } from 'uuid'
 
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
 const TRANSLATE_STREAM_PREFIX = 'translate:'

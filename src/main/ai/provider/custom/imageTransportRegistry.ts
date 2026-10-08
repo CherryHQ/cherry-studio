@@ -7,6 +7,7 @@ import { resolvePpioImageProtocol } from './ppio/ppioImageBinding'
 import { resolveTokenhubImageProtocol } from './tokenhub/tokenhubImageBinding'
 
 export type NativeImageTarget =
+  | { providerId: 'comfyui'; modelDescriptor: ImageTransportDescriptor | undefined }
   | { providerId: 'ppio'; modelDescriptor: ImageTransportDescriptor }
   | { providerId: 'dashscope'; modelDescriptor: ImageTransportDescriptor }
   | { providerId: 'tokenhub'; modelDescriptor: ImageTransportDescriptor }
@@ -41,6 +42,7 @@ export function resolveNativeImageTarget(
         return { kind: 'unavailable', message: `Unsupported TokenHub image endpoint: ${modelDescriptor.endpoint}` }
       }
       return { kind: 'custom', target: { providerId, modelDescriptor } }
+    case 'comfyui':
     case 'modelscope':
       return { kind: 'custom', target: { providerId, modelDescriptor } }
     case 'dmxapi': {
@@ -60,6 +62,9 @@ export type BoundNativeImageTarget = {
 
 export function bindNativeImageTarget(target: NativeImageTarget, config: ProviderConfig): BoundNativeImageTarget {
   switch (target.providerId) {
+    case 'comfyui':
+      if (config.providerId === 'comfyui') return { ...target, settings: config.providerSettings }
+      break
     case 'ppio':
       if (config.providerId === 'ppio') return { ...target, settings: config.providerSettings }
       break
@@ -83,6 +88,10 @@ export async function createNativeImageTransport(
   target: BoundNativeImageTarget
 ): Promise<ImageGenerationTransport<VendorBag>> {
   switch (target.providerId) {
+    case 'comfyui': {
+      const { buildComfyuiTransport } = await import('./comfyui/comfyuiProvider')
+      return buildComfyuiTransport(target.settings)
+    }
     case 'ppio': {
       const { buildPpioTransport } = await import('./ppio/ppioProvider')
       return buildPpioTransport(target.settings, target.modelDescriptor)

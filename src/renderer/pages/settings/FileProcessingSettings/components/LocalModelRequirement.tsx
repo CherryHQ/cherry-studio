@@ -1,12 +1,13 @@
+import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownloadProgress'
 import { SettingHelpText, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { toast } from '@renderer/services/toast'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelCapability } from '@shared/data/presets/localModel'
-import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SUBTITLE_KEY = {
   embedding: 'settings.dependencies.localModels.embedding.subtitle',

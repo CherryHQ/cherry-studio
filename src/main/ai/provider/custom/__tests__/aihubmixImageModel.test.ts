@@ -1,6 +1,7 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
-import type { ImageOperation } from '@shared/data/types/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { ImageOperation } from '@shared/data/types/model'
 
 import { resolveAihubmixImageBinding } from '../aihubmix/aihubmixImageBinding'
 import { createAihubmix } from '../aihubmix/aihubmixProvider'

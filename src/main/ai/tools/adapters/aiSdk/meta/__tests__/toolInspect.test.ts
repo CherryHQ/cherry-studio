@@ -16,7 +16,7 @@ function makeRegistry(): ToolRegistry {
       type: 'function',
       description: 'inner',
       inputSchema: jsonSchema({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] })
-    } as Tool
+    }
   }
   reg.register(entry)
   return reg
@@ -28,7 +28,7 @@ async function callInspect(tool: Tool, args: { name: string }) {
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-  } as Parameters<NonNullable<Tool['execute']>>[1])
+  })
 }
 
 describe('tool_inspect meta-tool', () => {

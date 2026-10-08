@@ -1,9 +1,10 @@
 import { resolve } from 'node:path'
 
-import { resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
-import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
+
+import { resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
+import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 
 import { buildGenerateImageToolSchema, generateImageInputSchema } from '../generateImageTool'
 

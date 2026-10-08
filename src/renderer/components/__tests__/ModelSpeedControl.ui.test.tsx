@@ -1,9 +1,10 @@
-import type { ThinkingOption } from '@renderer/types/reasoning'
-import { type Model, MODEL_CAPABILITY, type ServiceTierSelection } from '@shared/data/types/model'
 import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ThinkingOption } from '@renderer/types/reasoning'
+import { type Model, MODEL_CAPABILITY, type ServiceTierSelection } from '@shared/data/types/model'
 
 import { ModelSpeedControl, resolveSupportedReasoningEffort, resolveSupportedServiceTier } from '../ModelSpeedControl'
 
@@ -177,6 +178,37 @@ describe('ModelSpeedControl UI', () => {
       'assistants.settings.reasoning_effort.max'
     )
     expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.max')
+  })
+
+  it('offers Ultra as the highest reasoning level for GPT-6 Astra', async () => {
+    render(
+      <ControlledSpeedControl
+        model={{
+          ...codexModel,
+          id: 'openai-codex::gpt-6-astra',
+          apiModelId: 'gpt-6-astra',
+          name: 'GPT-6 Astra',
+          reasoning: {
+            controls: [
+              {
+                default: 'low',
+                kind: 'effort',
+                values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+              }
+            ],
+            defaultEffort: 'low',
+            selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+          }
+        }}
+        initialEffort="max"
+      />
+    )
+
+    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '5')
+    await userEvent.click(screen.getByTestId('select-slider-max'))
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.ultra'
+    )
   })
 
   it("displays a stored Default at the model's declared default without changing its submitted value", () => {

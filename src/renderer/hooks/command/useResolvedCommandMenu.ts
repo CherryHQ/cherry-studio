@@ -1,3 +1,6 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { resolveCommandDisplayState } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type { MenuLocation, ResolvedMenuModel, SupportedPlatform } from '@shared/types/command'
@@ -8,8 +11,6 @@ import {
   resolveCommandKeybinding,
   resolveMenu
 } from '@shared/utils/command'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useCommandContextReader } from './useCommandContext'
 import { useCommandRuntime, useCommandShortcutPreferences } from './useCommandRuntime'

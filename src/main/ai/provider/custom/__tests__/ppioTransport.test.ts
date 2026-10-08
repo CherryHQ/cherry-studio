@@ -1,6 +1,7 @@
 import { APICallError } from '@ai-sdk/provider'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import { registryImageDescriptor } from '../../__tests__/imageCatalogFixtures'
 import { createPpioTransport } from '../ppio/ppioTransport'

@@ -1,5 +1,6 @@
-import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
+
+import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 
 import {
   DirectoryItemDataSchema,

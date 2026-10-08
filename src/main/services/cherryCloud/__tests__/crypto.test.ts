@@ -38,6 +38,7 @@ describe('Cherry Cloud device request signing', () => {
     expect(
       createDeviceSignature({
         privateKey,
+        machineCode: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
         method: 'POST',
         requestTarget: '/v1/messages',
         body,
@@ -49,8 +50,9 @@ describe('Cherry Cloud device request signing', () => {
       'Cherry-Request-ID': '018f47a2-7d3b-7c91-b8f5-8b3f4c6d2a10',
       'Cherry-Timestamp': '1710000000',
       'Cherry-Body-SHA256': '862ece927adfbee83d138acac6f093c1d67272618334e96886fb8c11a62097ff',
-      'Cherry-Signature-Version': '1',
-      'Cherry-Signature': '68XKbmorIHWYnCZAKXGbDVzRzM3qSKTRBx2Kj6xuGnZtOUyWtoLbN7JNAAJGc93-QDagy_OrmxfqKyrpdEwfCQ'
+      'Cherry-Signature-Version': '2',
+      'Cherry-Machine-Code': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
+      'Cherry-Signature': 'KLBGmwxKvF2sGoRzNxN_xOMX3gYL864mZp32sZKUITjEEpKm9i661GVtkdPJ6rrvSO4RlCtylFJXKCtjISduCw'
     })
   })
 })

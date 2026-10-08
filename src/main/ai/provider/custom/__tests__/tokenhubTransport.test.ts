@@ -200,7 +200,7 @@ describe('TokenhubTransport', () => {
     })
 
     expect(globalFetch).not.toHaveBeenCalled()
-    const headers = new Headers(lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers)
+    const headers = new Headers(lastRequest(providerFetch).init.headers)
     expect(headers.get('x-app')).toBe('cherry')
     expect(headers.get('x-request')).toBe('once')
     expect(headers.get('authorization')).toBe('Bearer token')

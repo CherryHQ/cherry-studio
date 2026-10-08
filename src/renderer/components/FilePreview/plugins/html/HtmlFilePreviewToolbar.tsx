@@ -1,5 +1,6 @@
-import { SegmentedControl } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { SegmentedControl } from '@cherrystudio/ui'
 
 import { FilePreviewToolbar } from '../../FilePreviewToolbar'
 

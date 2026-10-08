@@ -15,6 +15,9 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import { omit } from 'es-toolkit'
+import * as z from 'zod'
+
 import { application } from '@application'
 import {
   buildImageRequestParamsSchema,
@@ -29,8 +32,6 @@ import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { type ImageGenerationSupport, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { omit } from 'es-toolkit'
-import * as z from 'zod'
 
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from './generateImageTool'
 

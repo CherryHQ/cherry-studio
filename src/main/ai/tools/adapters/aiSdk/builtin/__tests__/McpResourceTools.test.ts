@@ -3,14 +3,16 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
+
 import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
+const listResourceTemplates = vi.fn()
 const getResource = vi.fn()
 const getConnectedServerCapabilities = vi.fn<(serverId: string) => Record<string, unknown> | undefined>()
 const getPath = vi.hoisted(() => vi.fn<(key: string, filename?: string) => string>())
@@ -19,7 +21,7 @@ vi.mock('@application', () => ({
   application: {
     getPath,
     get: (name: string) => {
-      if (name === 'McpCatalogService') return { listResources }
+      if (name === 'McpCatalogService') return { listResources, listResourceTemplates }
       if (name === 'McpRuntimeService') return { getResource, getConnectedServerCapabilities }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -55,6 +57,7 @@ afterAll(async () => {
 })
 
 beforeEach(() => {
+  listResourceTemplates.mockReset().mockResolvedValue([])
   getPath.mockImplementation((_key, filename) =>
     filename ? path.join(resourceOutputDir, filename) : resourceOutputDir
   )
@@ -65,7 +68,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function makeServer(id: string, overrides: Partial<McpServer> = {}): McpServer {
-  return { id, name: `${id}-name`, isActive: true, ...overrides } as McpServer
+  return { id, name: `${id}-name`, isActive: true, ...overrides }
 }
 
 function makeResource(serverId: string, uri: string): McpResource {
@@ -82,7 +85,7 @@ function callExecute(
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 function callNeedsApproval(args: Record<string, unknown>, request: Record<string, unknown>): Promise<boolean> {
@@ -94,7 +97,7 @@ function callNeedsApproval(args: Record<string, unknown>, request: Record<string
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', ...request }
-  } as ToolExecutionOptions)
+  })
 }
 
 describe('mcp_resource_* entries', () => {
@@ -212,6 +215,23 @@ describe('mcp_resource_read', () => {
     getConnectedServerCapabilities.mockReturnValue({ resources: {} })
   })
 
+  it('allows a published template only on its originating server', async () => {
+    listResources.mockResolvedValue([])
+    listResourceTemplates.mockImplementation(async (serverId: string) =>
+      serverId === 's1' ? [{ serverId, serverName: 's1-name', name: 'doc', uriTemplate: 'docs://files/{id}' }] : []
+    )
+    getResource.mockResolvedValue({ contents: [{ uri: 'docs://files/42', text: 'template document' }] })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ text: 'template document', serverId: 's1' })
+    expect(
+      await callExecute(readEntry, { serverId: 's2', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://private/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
+  })
+
   it('reads through the identified server, not whichever one happens to publish the uri', async () => {
     // Both servers publish the same uri: the serverId argument is what disambiguates them.
     listResources.mockImplementation(async (serverId) => [makeResource(serverId, 'file:///shared.md')])
@@ -226,7 +246,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result).toMatchObject({ uri: 'file:///shared.md', serverId: 's2', text: 'hello', totalChars: 5 })
   })
@@ -247,7 +268,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result.text).toBe('from s2')
   })
@@ -301,14 +323,29 @@ describe('mcp_resource_read', () => {
     expect(last.nextOffset).toBeUndefined()
   })
 
-  it('propagates the request abort signal to the server read', async () => {
+  it('propagates the abort signal and originating interaction context to the server read', async () => {
     const abortSignal = new AbortController().signal
     listResources.mockImplementation(async (serverId) => (serverId === 's1' ? [makeResource('s1', 'x://a')] : []))
     getResource.mockResolvedValue({ contents: [{ uri: 'x://a', text: 'hi' }] })
 
-    await callExecute(readEntry, { serverId: 's1', uri: 'x://a' }, { assistant: makeAssistant(), abortSignal })
+    const interactionContext = {
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      model: 'provider::model',
+      roots: [{ uri: 'file:///workspace', name: 'Workspace' }]
+    }
+    await callExecute(
+      readEntry,
+      { serverId: 's1', uri: 'x://a' },
+      { assistant: makeAssistant(), abortSignal, ...interactionContext }
+    )
 
-    expect(getResource).toHaveBeenCalledExactlyOnceWith({ serverId: 's1', uri: 'x://a', signal: abortSignal })
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({
+      serverId: 's1',
+      uri: 'x://a',
+      signal: abortSignal,
+      interactionContext: { ...interactionContext, requestId: 'tc-1' }
+    })
   })
 
   it('decodes binary contents to disk without returning their base64 payload', async () => {

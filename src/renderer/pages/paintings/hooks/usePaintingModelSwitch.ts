@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { resolveImageCapability } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { useCallback } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'

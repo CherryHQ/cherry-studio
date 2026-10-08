@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit'
+import * as z from 'zod'
+
 import {
   type CanonicalParamKey,
   IMAGE_PARAM_CATALOG,
@@ -5,8 +8,6 @@ import {
   resolveImageCapability,
   type SupportSpec
 } from '@cherrystudio/provider-registry'
-import { isEqual } from 'es-toolkit'
-import * as z from 'zod'
 
 const GENERATE_IMAGE_PROMPT_FIELD = z
   .string()

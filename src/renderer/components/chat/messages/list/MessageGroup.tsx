@@ -1,3 +1,6 @@
+import type { ComponentProps, ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCurrentTabId } from '@renderer/hooks/tab'
@@ -7,8 +10,6 @@ import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import {
@@ -21,10 +22,21 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
-import { useScrollRuntimeNavigation } from './ScrollOwnershipContext'
+import {
+  findVerticalWheelConsumer,
+  useScrollRuntimeBoundary,
+  useScrollRuntimeNavigation
+} from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const WHEEL_LINE_HEIGHT_PX = 16
+
+function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
 
 interface Props {
   messages: MessageListItem[]
@@ -73,6 +85,7 @@ const MessageGroup = ({
   const { setTimeoutTimer } = useTimer()
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
+  const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -94,6 +107,7 @@ const MessageGroup = ({
   )
   const previousMessageIdsRef = useRef(messages.map((message) => message.id))
   const activeBranchSelectionQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const horizontalGroupRef = useRef<HTMLDivElement>(null)
   const messageElementsRef = useRef<Map<string, HTMLElement>>(new Map())
 
   const registerRenderedMessageElement = useCallback(
@@ -245,32 +259,64 @@ const MessageGroup = ({
     return ''
   }, [messages])
 
-  const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement | null
-    if (target?.closest('.message-content-container')) {
-      return
-    }
+  const handleHorizontalGroupWheel = useCallback(
+    (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null
+      const groupContainer = event.currentTarget as HTMLDivElement
+      const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
+      const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
+      const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
+      const horizontalDelta = event.shiftKey
+        ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
+        : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
+          ? horizontalWheelDelta
+          : 0
+      const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
-    const groupContainer = event.currentTarget
-    const contentContainers = Array.from(groupContainer.querySelectorAll<HTMLElement>('.message-content-container'))
-    const hasInnerVerticalScroll = contentContainers.some(
-      (contentContainer) => contentContainer.scrollHeight > contentContainer.clientHeight + 1
-    )
-    const hasHorizontalScroll = groupContainer.scrollWidth > groupContainer.clientWidth + 1
-    const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+      // Column owns vertical while it can scroll. At its boundary the group's
+      // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
+      // to the list runtime — but keep dominant-horizontal pans on the row.
+      if (inMessageColumn) {
+        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+          return
+        }
+        if (horizontalDelta === 0) {
+          if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          return
+        }
+      } else if (horizontalDelta === 0) {
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+        return
+      }
 
-    if (horizontalDelta !== 0 && hasHorizontalScroll) {
+      const maxScrollLeft = groupContainer.scrollWidth - groupContainer.clientWidth
+      const canScrollHorizontally =
+        horizontalDelta < 0 ? groupContainer.scrollLeft > 0 : groupContainer.scrollLeft < maxScrollLeft
+
+      if (!canScrollHorizontally && !event.shiftKey) return
+
       event.preventDefault()
       event.stopPropagation()
-      groupContainer.scrollLeft += horizontalDelta
-      return
-    }
+      if (canScrollHorizontally) {
+        groupContainer.scrollLeft += horizontalDelta
+      }
+    },
+    [getScrollContainer, scrollByWheel]
+  )
 
-    if (hasInnerVerticalScroll) {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-  }, [])
+  useEffect(() => {
+    const groupContainer = horizontalGroupRef.current
+    if (!groupContainer || multiModelMessageStyle !== 'horizontal') return
+
+    groupContainer.addEventListener('wheel', handleHorizontalGroupWheel, { capture: true, passive: false })
+    return () => groupContainer.removeEventListener('wheel', handleHorizontalGroupWheel, true)
+  }, [handleHorizontalGroupWheel, multiModelMessageStyle])
 
   const renderMessage = useCallback(
     (message: MessageListItem, index: number) => {
@@ -358,9 +404,9 @@ const MessageGroup = ({
       id={messages[0].parentId ? `message-group-${messages[0].parentId}` : undefined}
       className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <GridContainer
+        ref={horizontalGroupRef}
         $count={messageLength}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         {messages.map(renderMessage)}
       </GridContainer>
       {isGrouped && (
@@ -414,6 +460,7 @@ const GridContainer = ({
 
   return (
     <Scrollbar
+      showOnHover={isHorizontal}
       className={classNames(
         '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
         className

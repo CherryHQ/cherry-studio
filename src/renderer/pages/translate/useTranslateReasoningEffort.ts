@@ -15,13 +15,14 @@
  * when reading a log line that names an effort the popover never showed.
  */
 
+import { useCallback, useEffect } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import { isUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect } from 'react'
 
 const logger = loggerService.withContext('useTranslateReasoningEffort')
 

@@ -1,6 +1,7 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { mockPrefetch as prefetchMock, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { computeModelFieldReset } from '../computeModelFieldReset'
 

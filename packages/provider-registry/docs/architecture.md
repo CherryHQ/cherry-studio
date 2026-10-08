@@ -83,6 +83,9 @@ A provider declares how to connect + what it serves. Fields:
 
 ## Image generation (v2)
 
+Here v2 names the image-capability design revision, not the registry publication
+version. This contract is published in registry v4, requiring application 2.1.5.
+
 The [schema](../src/schemas/model.ts) separates business operation, inputs,
 parameter support and protocol. `generate` accepts zero or more images according
 to its input constraints; image-only models declare a positive minimum.
@@ -136,18 +139,19 @@ capability claiming support. Main resolves execution separately; see the
 [current parameter pipeline](../../../docs/references/ai/image-generation-parameters.md).
 
 The schema validates each difference and the combined `withImages` →
-`operations.generate` path in runtime order. Catalog generation and the frozen v2
+`operations.generate` path in runtime order. Catalog generation and the frozen v4
 validator also resolve creator/provider pairs, rejecting invalid merged input
 constraints before writing or publishing a catalog. Neither step changes the
 declared capabilities or folds resolved overrides into the emitted JSON.
 
-This branch's schema constant is v2, with a new v2 validator alongside the
-unchanged v1 baseline; see the [compatibility procedure](../compat/README.md).
-Focused consumer tests, source-sync and local v2 compatibility checks passed,
-including fault injection for the combination regressions. Release acceptance
-remains blocked by the target branch's existing schema v3 and frozen v2/v3
-validators. Version and first-compatible-app alignment must preserve those
-existing baselines; the branch-local v2 result is not a publication approval.
+The registry schema version is 4 and its first compatible application version is
+2.1.5. The published v1/v2/v3 baselines remain byte-for-byte unchanged; the new v4
+baseline freezes this contract, including canonical aspect ratios and capability
+composition. See the [compatibility procedure](../compat/README.md). The current
+application remains 2.1.4; remote v4 adoption requires the manifest's compatible
+release range starting at 2.1.5. The publisher leaves v1/v2/v3 directories untouched
+because their tolerant validators cannot prove the new image contract compatible.
+The v4 cache path is separate from earlier streams, with no legacy-shape fallback.
 
 ## The no-hand-edit guard
 

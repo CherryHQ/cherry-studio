@@ -1,7 +1,8 @@
+import type { JSONValue } from 'ai'
+
 import { IMAGE_PARAM_CATALOG_KEYS, type ParamValues, wireName } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import type { CanonicalParamKey } from '@shared/data/types/model'
-import type { JSONValue } from 'ai'
 
 import type { ProviderOptionsKey } from '../../../types'
 import type { VendorBag } from '../../../utils/imageOptions'

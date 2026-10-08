@@ -16,6 +16,9 @@
  *   Source assistant id   → prompt_binding target (after AssistantMigrator remapping)
  */
 
+import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -28,8 +31,6 @@ import {
   PromptSchema,
   PromptTitleSchema
 } from '@shared/data/types/prompt'
-import { sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
@@ -302,7 +303,10 @@ export class PromptMigrator extends BaseMigrator {
     const db = ctx.db
 
     try {
-      const promptResult = db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
+      const promptResult = db
+        .select({ count: sql<number>`count(*)` })
+        .from(promptTable)
+        .get()
       const targetCount = promptResult?.count ?? 0
 
       logger.info('Validation counts', {
@@ -331,7 +335,10 @@ export class PromptMigrator extends BaseMigrator {
         })
       }
 
-      const bindingResult = db.select({ count: sql<number>`count(*)` }).from(promptBindingTable).get()
+      const bindingResult = db
+        .select({ count: sql<number>`count(*)` })
+        .from(promptBindingTable)
+        .get()
       const targetBindingCount = bindingResult?.count ?? 0
       if (targetBindingCount !== this.preparedBindings.length) {
         errors.push({

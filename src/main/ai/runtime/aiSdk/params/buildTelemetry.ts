@@ -1,6 +1,7 @@
-import { application } from '@application'
 import { trace } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
+
+import { application } from '@application'
 
 import { AdapterTracer, TRACER_NAME } from '../../../observability'
 import type { RequestScope } from './scope'

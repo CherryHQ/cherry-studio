@@ -24,6 +24,21 @@ describe('getFileIconName', () => {
     expect(getFileIconName('packages/core/src/index.ts')).toBe('typescript')
   })
 
+  it('strips the directory part of Windows paths too', () => {
+    // Artifact cards render tool-provided absolute paths, which are backslash
+    // separated on Windows. Splitting on `/` only left the whole path in place,
+    // so even a name-only match like `Dockerfile` degraded to the generic icon.
+    expect(getFileIconName('C:\\proj\\Dockerfile')).toBe('docker')
+    expect(getFileIconName('C:\\proj\\.gitignore')).toBe('git')
+    expect(getFileIconName('C:\\proj\\package.json')).toBe('nodejs')
+    expect(getFileIconName('C:\\proj\\README.md')).toBe('readme')
+  })
+
+  it('still resolves extensions inside Windows paths', () => {
+    expect(getFileIconName('C:\\proj\\app.ts')).toBe('typescript')
+    expect(getFileIconName('C:\\proj\\globals.d.ts')).toBe('typescript-def')
+  })
+
   it('falls back to the document icon for unknown or empty names', () => {
     expect(getFileIconName('notes.unknownext')).toBe('document')
     expect(getFileIconName('')).toBe('document')

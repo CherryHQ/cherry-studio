@@ -2,6 +2,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
 import { type FetchFunction, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
 import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
 
 import { parseImageVendorParams } from '../../../utils/imageOptions'

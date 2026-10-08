@@ -14,7 +14,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { AiImageRequest, AsInProcess } from '../AiService'
 import { resolveImageExecutionTarget } from '../provider/imageExecutionTarget'
-import type { AiBaseRequest } from '../types'
+import type { AiRequest } from '../types'
 
 const logger = loggerService.withContext('prepareImageRequest')
 
@@ -44,7 +44,7 @@ function bindImageRequest(
 }
 
 /** Health checks are callers too: materialize catalog defaults and required inputs before normal preparation. */
-export function prepareImageProbe(request: AsInProcess<AiBaseRequest>, provider: Provider, model: Model) {
+export function prepareImageProbe(request: AsInProcess<AiRequest>, provider: Provider, model: Model) {
   const support = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
   const operation =
     support == null

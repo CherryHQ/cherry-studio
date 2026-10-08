@@ -89,5 +89,5 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       transport: buildModelscopeTransport({ ...settings, apiKey: resolveApiKey() })
     })
 
-  return provider as ModelscopeProvider
+  return provider
 }

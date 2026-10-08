@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem, type OptionItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'
@@ -11,12 +12,6 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
   return item.options
 }
 
-/**
- * Locks the derivation contract under the unified schema: `modes[mode].supports`
- * is a `Record<string, SupportSpec>` where each spec's `type` arm dictates the
- * widget. Cases mirror the 5 archetypes populated in `models.json` so a
- * regression in the dispatcher fails here before reaching the painting page.
- */
 describe('imageGenerationToFields', () => {
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
@@ -39,7 +34,7 @@ describe('imageGenerationToFields', () => {
         operations: {
           generate: null
         }
-      } as ImageGenerationSupport)
+      })
     ).toEqual([])
   })
 

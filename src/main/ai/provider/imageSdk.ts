@@ -1,12 +1,13 @@
 import { normalizeHeaders } from '@ai-sdk/provider-utils'
+
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { AiImageRequest } from '../AiService'
+import { applyHttpTrace } from '../observability'
 import type { AppProviderId } from '../types'
 import { asSdkImageSize, resolveImageRequestSize } from '../utils/aiSdkNativeBindings'
 import { splitParamValues } from '../utils/imageOptions'
-import { applyHttpTrace } from './applyHttpTrace'
 import { resolveProviderAiSdkConfig } from './config'
 import { buildVendorProviderOptions } from './custom/wire/buildImageRequest'
 import { resolveWireRegistration } from './custom/wire/wireProfile'
@@ -35,7 +36,7 @@ export async function resolveSdkImageConfig(
       config = { ...config, providerSettings: { ...config.providerSettings, imageBinding: target.binding } }
     }
   }
-  applyHttpTrace(config, undefined, model)
+  applyHttpTrace(config.providerSettings, { modelName: model.name })
   const imageFetch = config.providerSettings.fetch
   if (!imageFetch) throw new Error('Resolved image configuration requires an injected fetch')
   config.providerSettings.fetch = (input, init) => {

@@ -1,13 +1,14 @@
 import fs from 'node:fs'
 
+import Database from 'better-sqlite3'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { assertSafeKnowledgeRelativePath, CHERRY_META_DIR } from '@main/features/knowledge'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
-import Database from 'better-sqlite3'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
@@ -154,8 +155,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const get = vi.fn().mockReturnValueOnce({ total: 10, with_vector: 10 }).mockReturnValueOnce({ bytes: 4096 })
     const close = vi.fn()
     const prepare = vi.fn(() => ({ get }))
-    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
-    databaseMock.mockReturnValue({ prepare, close })
+    const databaseMock = Database as unknown as { mockImplementation: (value: () => unknown) => void }
+    databaseMock.mockImplementation(function DatabaseMock() {
+      return { prepare, close }
+    })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -200,8 +203,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const get = vi.fn().mockReturnValueOnce({ total: 0, with_vector: null })
     const close = vi.fn()
     const prepare = vi.fn(() => ({ get }))
-    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
-    databaseMock.mockReturnValue({ prepare, close })
+    const databaseMock = Database as unknown as { mockImplementation: (value: () => unknown) => void }
+    databaseMock.mockImplementation(function DatabaseMock() {
+      return { prepare, close }
+    })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -226,8 +231,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const get = vi.fn().mockReturnValueOnce({ total: 1, with_vector: 1 }).mockReturnValueOnce({ bytes: 3 })
     const close = vi.fn()
     const prepare = vi.fn(() => ({ get }))
-    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
-    databaseMock.mockReturnValue({ prepare, close })
+    const databaseMock = Database as unknown as { mockImplementation: (value: () => unknown) => void }
+    databaseMock.mockImplementation(function DatabaseMock() {
+      return { prepare, close }
+    })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -294,8 +301,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       throw new Error('close failed')
     })
     const prepare = vi.fn(() => ({ get }))
-    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
-    databaseMock.mockReturnValue({ prepare, close })
+    const databaseMock = Database as unknown as { mockImplementation: (value: () => unknown) => void }
+    databaseMock.mockImplementation(function DatabaseMock() {
+      return { prepare, close }
+    })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -327,7 +336,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
 
     const databaseMock = Database as unknown as { mockImplementation: (value: () => never) => void }
-    databaseMock.mockImplementation(() => {
+    databaseMock.mockImplementation(function DatabaseMock() {
       throw new Error('open failed')
     })
 

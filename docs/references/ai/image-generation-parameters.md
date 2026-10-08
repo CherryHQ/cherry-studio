@@ -11,15 +11,17 @@ sources:
 
 ## Scope and migration status
 
-This page describes the current v2 capability and request pipeline. The
+This page describes the current image-capability design revision v2 and request pipeline. The
 [capability and execution contract](image-generation-contract.md) records the
 accepted target, including delivery work that is not implemented yet.
 
 The catalog and resolver now use base capabilities plus differences, not
-`modes` or whole-block provider overrides. C12 acceptance still requires the
-v2 compatibility baseline, validation of combined input/operation differences
-and execution of the migrated tests. Consumers and fixtures now use v2;
-typechecking alone does not complete behavioral acceptance.
+`modes` or whole-block provider overrides. The image contract is published in
+registry schema v4 with minimum application version 2.1.5; its frozen validator
+checks combined creator/provider input and operation differences. Published
+registry v1/v2/v3 baselines remain unchanged. Consumers and fixtures use the new
+contract, but C12 behavioral acceptance still requires execution of the migrated
+tests; typechecking alone does not complete it.
 
 ## Current request flow
 

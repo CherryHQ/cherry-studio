@@ -1,7 +1,8 @@
-import type { BinaryToolSnapshot } from '@shared/types/binary'
-import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { useCliVersionStatuses } from '../useCliVersionStatuses'
 

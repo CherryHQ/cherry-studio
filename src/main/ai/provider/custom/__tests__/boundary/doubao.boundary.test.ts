@@ -30,7 +30,7 @@ function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOption
     files: undefined,
     mask: undefined,
     ...partial
-  } as ImageModelV3CallOptions
+  }
 }
 
 const baseURL = 'https://ark.cn-beijing.volces.com/api/v3'

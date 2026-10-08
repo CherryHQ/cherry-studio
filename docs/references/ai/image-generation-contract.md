@@ -54,7 +54,7 @@ declared. Neither is automatically advertised on every model. Legacy `edit` mean
 image input; legacy `merge` is a multiple-image alias only where its declared
 parameter and protocol contracts agree with the image-input path.
 
-The v2 source declaration now uses base `supports` and `inputs`, optional
+The image-capability v2 design, published as registry v4, uses base `supports` and `inputs`, optional
 `withImages` differences, optional `operations` differences, and a separate
 `protocol` binding. A difference contains only changed facts. Input presence may
 select a protocol endpoint, but an endpoint difference does not create a UI mode.
@@ -72,16 +72,27 @@ Override rules, limited to `imageGeneration`:
   `upscale` use their own differences without `withImages`. The exact inheritance
   and `null` rules are documented in the [registry architecture](../../../packages/provider-registry/docs/architecture.md#override-rules).
 
-The catalog schema and runtime resolver now use v2 directly; there is no legacy
-whole-block reader or second hand-maintained capability table. The schema validates
-combined input/operation differences in runtime order. Generation and the frozen
-v2 compatibility validator additionally check creator/provider combinations
-through the same resolver; the v1 baseline remains unchanged. Focused C12 tests,
-source-sync and local v2 compatibility checks passed, including fault injection
-for the combination rules. Release acceptance remains blocked: the target branch
-already uses registry schema v3 with frozen v2/v3 validators, while this branch
-still uses v2. Reconcile the version and first-compatible-app gate before merging;
-do not replace existing frozen validators.
+The catalog schema and runtime resolver use this contract directly; there is no
+legacy whole-block reader or second hand-maintained capability table. The schema
+validates combined input/operation differences in runtime order. Generation and
+the frozen v4 compatibility validator additionally check creator/provider
+combinations through the same resolver.
+
+### Registry publication and application compatibility
+
+Registry v2/v3 are already occupied by upstream releases. This contract therefore
+uses an independent **v4** stream with **minimum application version 2.1.5**.
+The frozen v1/v2/v3 validators are preserved unchanged, and older streams retain
+their published compatibility floors. Do not overwrite them with the new schema.
+The publisher does not backfill v4 catalogs into v1/v2/v3, whose tolerant
+validators can silently discard the new image shape instead of rejecting it.
+
+The current application version remains 2.1.4; this PR does not bump it. A v4
+manifest may be published beforehand, but its minimum application version gates
+adoption until 2.1.5 and the manifest's compatible release range. The updater
+selects a version-specific cache and publication path,
+so legacy v2/v3 caches are not migrated or read as v4. Historical C12 verification
+does not constitute acceptance of the merged implementation or the new baseline.
 
 ## Aspect ratio boundary
 
@@ -119,10 +130,15 @@ and [AiHubMix Ideogram](https://docs.aihubmix.com/cn/api/IdeogramAI).
 This is stricter than older catalogs that contained `ASPECT_*` or `1x1` aliases:
 the new schema rejects those entries. Successful old-client validation of a new
 catalog does not prove new-client compatibility with an old cached catalog.
-The schema-version, frozen-baseline and first-compatible-app release gate above
-still applies; this change does not add an alias fallback, cache migration or
-release authorization. Ratio regression cases are authored but have not been
+The v4 frozen-baseline and 2.1.5 release gate above applies; this change does not
+add an alias fallback or cache migration. Ratio regression cases are authored but have not been
 run under the current no-test instruction; prior C12 results do not cover them.
+
+User-facing change for 2.1.5 (#20140): use the model's offered ratio choices, or
+pass a supported canonical value such as `aspectRatio: '16:9'` in custom image
+requests. Omit it to leave the ratio unspecified; use `auto` only when offered.
+Existing custom requests using `ASPECT_*`, `16x9`, or ratios in `size` must be
+updated. A selected ratio must reach generation without being changed or dropped.
 
 ## Catalog and protocol acceptance matrix
 

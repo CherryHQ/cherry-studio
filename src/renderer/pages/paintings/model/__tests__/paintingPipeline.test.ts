@@ -1,7 +1,8 @@
-import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
-import type { FileEntry } from '@shared/data/types/file'
 import { mockPrefetch, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
+import type { FileEntry } from '@shared/data/types/file'
 
 import catalog from '../../../../../../packages/provider-registry/data/provider-models.json'
 import { paintingGenerate } from '../paintingPipeline'

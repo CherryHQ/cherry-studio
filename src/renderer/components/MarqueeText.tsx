@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import { type FC, memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 interface MarqueeTextProps {
   children: ReactNode

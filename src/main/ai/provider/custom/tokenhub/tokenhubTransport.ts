@@ -1,6 +1,7 @@
 import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
-import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
+
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../imageTransport'
 import {

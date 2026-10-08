@@ -1,7 +1,8 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { MessageWebSearchToolTitle } from '../MessageWebSearch'
 
@@ -33,16 +34,14 @@ describe('MessageWebSearchToolTitle', () => {
   it('shows the query and an empty-result label without a disclosure', () => {
     render(
       <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
-            status: 'done',
-            arguments: { query: 'Cherry Studio' },
-            response: []
-          } as NormalToolResponse
-        }
+        toolResponse={{
+          id: 'tool-call-1',
+          toolCallId: 'tool-call-1',
+          tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
+          status: 'done',
+          arguments: { query: 'Cherry Studio' },
+          response: []
+        }}
       />
     )
 
@@ -54,18 +53,14 @@ describe('MessageWebSearchToolTitle', () => {
   it('shows the query in the header and renders each result as a link with favicon and domain', async () => {
     render(
       <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
-            status: 'done',
-            arguments: { query: 'Cherry Studio' },
-            response: [
-              { id: 1, title: 'Cherry Studio', url: 'https://www.cherry-ai.com/blog', content: 'Cherry Studio' }
-            ]
-          } as NormalToolResponse
-        }
+        toolResponse={{
+          id: 'tool-call-1',
+          toolCallId: 'tool-call-1',
+          tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
+          status: 'done',
+          arguments: { query: 'Cherry Studio' },
+          response: [{ id: 1, title: 'Cherry Studio', url: 'https://www.cherry-ai.com/blog', content: 'Cherry Studio' }]
+        }}
       />
     )
 
@@ -103,7 +98,7 @@ describe('MessageWebSearchToolTitle — foreign result shapes', () => {
   })
 
   it('marks a failed call instead of spinning forever', () => {
-    render(<MessageWebSearchToolTitle toolResponse={{ ...opaque, status: 'error' } as NormalToolResponse} />)
+    render(<MessageWebSearchToolTitle toolResponse={{ ...opaque, status: 'error' }} />)
 
     expect(screen.getByText('Failed')).toBeTruthy()
   })
@@ -113,16 +108,14 @@ describe('MessageWebSearchToolTitle — provider-executed Responses actions', ()
   it('shows the provider search query when the tool input is empty', () => {
     render(
       <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'provider-search',
-            toolCallId: 'provider-search',
-            tool: { id: 'provider-search', name: 'webSearch', type: 'provider' },
-            status: 'done',
-            arguments: {},
-            response: { action: { type: 'search', query: 'DeepSeek V4 latest news' } }
-          } as NormalToolResponse
-        }
+        toolResponse={{
+          id: 'provider-search',
+          toolCallId: 'provider-search',
+          tool: { id: 'provider-search', name: 'webSearch', type: 'provider' },
+          status: 'done',
+          arguments: {},
+          response: { action: { type: 'search', query: 'DeepSeek V4 latest news' } }
+        }}
       />
     )
 
@@ -133,16 +126,14 @@ describe('MessageWebSearchToolTitle — provider-executed Responses actions', ()
   it('shows the opened page URL returned by DeepSeek', () => {
     render(
       <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'provider-open-page',
-            toolCallId: 'provider-open-page',
-            tool: { id: 'provider-open-page', name: 'webSearch', type: 'provider' },
-            status: 'done',
-            arguments: {},
-            response: { action: { type: 'openPage', url: 'https://example.com/news' } }
-          } as NormalToolResponse
-        }
+        toolResponse={{
+          id: 'provider-open-page',
+          toolCallId: 'provider-open-page',
+          tool: { id: 'provider-open-page', name: 'webSearch', type: 'provider' },
+          status: 'done',
+          arguments: {},
+          response: { action: { type: 'openPage', url: 'https://example.com/news' } }
+        }}
       />
     )
 

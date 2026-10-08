@@ -1,9 +1,10 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 
 import AgentChat from '../AgentChat'
 
@@ -200,6 +201,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
+    persistedPartsByMessageId: partsByMessageIdMock.value,
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
       id,
       role: 'assistant',
@@ -286,7 +288,21 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     )
   },
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />,
-  MissingAgentHomeComposer: () => <div data-testid="missing-agent-home-composer" />
+  MissingAgentHomeComposer: ({
+    onAgentChange,
+    agentChanging
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+    agentChanging?: boolean
+  }) => (
+    <button
+      type="button"
+      data-testid="missing-agent-home-composer"
+      disabled={agentChanging}
+      onClick={() => void Promise.resolve(onAgentChange?.('agent-2')).catch(() => undefined)}>
+      select replacement agent
+    </button>
+  )
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -513,6 +529,53 @@ describe('AgentChat settings panel', () => {
     expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 
+  it('reassigns an unlinked existing session without replacing it', async () => {
+    const user = userEvent.setup()
+    let finishUpdate: (() => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishUpdate = resolve
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+
+    expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+      { id: 'session-unlinked', agentId: 'agent-2' },
+      { showSuccessToast: false }
+    )
+    expect(selectAgent).toBeDisabled()
+
+    finishUpdate?.()
+    await waitFor(() => expect(selectAgent).toBeEnabled())
+  })
+
+  it('re-enables agent selection when reassigning an unlinked session fails', async () => {
+    const user = userEvent.setup()
+    let failUpdate: ((error: Error) => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((_resolve, reject) => {
+        failUpdate = reject
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+    expect(selectAgent).toBeDisabled()
+
+    failUpdate?.(new Error('update failed'))
+    await waitFor(() => expect(selectAgent).toBeEnabled())
+  })
+
   it('keeps the composer mounted during later model changes', () => {
     const { container, rerender } = renderAgentChat()
 
@@ -532,7 +595,7 @@ describe('AgentChat settings panel', () => {
   })
 
   it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
 
     renderAgentChat()
 

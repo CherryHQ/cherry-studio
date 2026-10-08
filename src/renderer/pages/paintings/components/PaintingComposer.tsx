@@ -1,3 +1,7 @@
+import { Settings2 } from 'lucide-react'
+import { type FC, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ImageOperationSchema, resolveImageCapability } from '@cherrystudio/provider-registry'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -24,9 +28,6 @@ import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
-import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
