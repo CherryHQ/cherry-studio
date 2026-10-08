@@ -105,6 +105,44 @@ describe('JsonFileStorage round-trip', () => {
     await expect(reader.getTokens()).resolves.toEqual({ access_token: 'tok', token_type: 'Bearer' })
   })
 
+  describe('credentials saved before issuer stamping', () => {
+    const issuer = 'https://auth.example'
+    const legacyTokens = { access_token: 'old-access', refresh_token: 'old-refresh', token_type: 'Bearer' }
+
+    beforeEach(async () => {
+      await fs.writeFile(
+        path.join(configDir, `${serverUrlHash}_oauth.json`),
+        JSON.stringify({ clientInfo: { client_id: 'old-client' }, tokens: legacyTokens, lastUpdated: 1 })
+      )
+    })
+
+    it('serves them to the issuer-scoped refresh path so the SDK can renew silently', async () => {
+      const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+
+      await expect(storage.getTokens({ issuer })).resolves.toMatchObject({ refresh_token: 'old-refresh' })
+      await expect(storage.getClientInformation({ issuer })).resolves.toMatchObject({ client_id: 'old-client' })
+    })
+
+    it('binds them to the first issuer that stamps them', async () => {
+      const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await storage.saveTokens({ ...legacyTokens, issuer }, { issuer })
+      await storage.saveClientInformation({ client_id: 'old-client', issuer }, { issuer })
+
+      const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await expect(reader.getTokens({ issuer })).resolves.toMatchObject({ refresh_token: 'old-refresh' })
+      await expect(reader.getTokens({ issuer: 'https://other.example' })).resolves.toBeUndefined()
+      await expect(reader.getClientInformation({ issuer: 'https://other.example' })).resolves.toBeUndefined()
+    })
+
+    it('stops serving them once the SDK invalidates that issuer', async () => {
+      const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await storage.clear('tokens', { issuer })
+
+      await expect(storage.getTokens({ issuer })).resolves.toBeUndefined()
+      await expect(storage.getClientInformation({ issuer })).resolves.toMatchObject({ client_id: 'old-client' })
+    })
+  })
+
   it('forgets process-only credentials when the server storage is deleted', async () => {
     const noSecureStorage: OAuthSecretCipher = { ...cipher, isAvailable: () => false }
     await new JsonFileStorage(serverUrlHash, configDir, noSecureStorage).saveTokens({

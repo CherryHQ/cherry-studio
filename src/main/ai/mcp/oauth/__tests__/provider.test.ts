@@ -1,8 +1,10 @@
 import fs from 'fs/promises'
+import http from 'http'
 import os from 'os'
 import path from 'path'
 
 import {
+  Client,
   IssuerMismatchError,
   StreamableHTTPClientTransport,
   UnauthorizedError,
@@ -10,6 +12,7 @@ import {
   type StoredOAuthClientInformation,
   type StoredOAuthTokens
 } from '@modelcontextprotocol/client'
+import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The provider constructor reads application.getPath('feature.mcp.oauth'); the
@@ -331,4 +334,92 @@ describe('McpOAuthClientProvider.saveDiscoveryState', () => {
       await transport.close()
     }
   )
+})
+
+describe('upgrade from credentials saved before issuer stamping', () => {
+  let configDir: string
+  let server: http.Server
+  let base: string
+  const tokenRequests: URLSearchParams[] = []
+
+  beforeEach(async () => {
+    configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-oauth-upgrade-'))
+    tokenRequests.length = 0
+    const mcp = createMcpHandler(() => new McpServer({ name: 'fixture', version: '1' }), { legacy: 'stateless' })
+    server = http.createServer(async (req, res) => {
+      const url = new URL(req.url!, base)
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(chunk as Buffer)
+      const body = Buffer.concat(chunks).toString()
+      const json = (status: number, value: unknown, headers: Record<string, string> = {}): void => {
+        res.writeHead(status, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(value))
+      }
+      if (url.pathname.startsWith('/.well-known/oauth-protected-resource'))
+        return json(200, { resource: `${base}/mcp`, authorization_servers: [base] })
+      if (url.pathname === '/.well-known/oauth-authorization-server')
+        return json(200, {
+          issuer: base,
+          authorization_endpoint: `${base}/authorize`,
+          token_endpoint: `${base}/token`,
+          response_types_supported: ['code'],
+          grant_types_supported: ['authorization_code', 'refresh_token'],
+          token_endpoint_auth_methods_supported: ['none'],
+          code_challenge_methods_supported: ['S256']
+        })
+      if (url.pathname === '/token') {
+        const params = new URLSearchParams(body)
+        tokenRequests.push(params)
+        if (params.get('grant_type') !== 'refresh_token' || params.get('refresh_token') !== 'old-refresh')
+          return json(400, { error: 'invalid_grant' })
+        return json(200, {
+          access_token: 'new-access',
+          token_type: 'Bearer',
+          refresh_token: 'new-refresh',
+          expires_in: 3600
+        })
+      }
+      if (req.headers.authorization !== 'Bearer new-access')
+        return json(
+          401,
+          { error: 'invalid_token' },
+          {
+            'www-authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"`
+          }
+        )
+      const response = await mcp.fetch(
+        new Request(url, { method: req.method, headers: req.headers as HeadersInit, body: body || undefined })
+      )
+      res
+        .writeHead(response.status, Object.fromEntries(response.headers))
+        .end(Buffer.from(await response.arrayBuffer()))
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  })
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await fs.rm(configDir, { recursive: true, force: true })
+  })
+
+  it('renews an expired pre-upgrade token silently instead of asking the user to sign in again', async () => {
+    await fs.writeFile(
+      path.join(configDir, 'upgrade_oauth.json'),
+      JSON.stringify({
+        clientInfo: { client_id: 'old-client' },
+        tokens: { access_token: 'old-access', refresh_token: 'old-refresh', token_type: 'Bearer' },
+        lastUpdated: 1
+      })
+    )
+    const provider = new McpOAuthClientProvider({ serverUrlHash: 'upgrade', configDir })
+    const redirect = vi.spyOn(provider, 'redirectToAuthorization')
+    const client = new Client({ name: 'test', version: '1' }, { versionNegotiation: { mode: 'legacy' } })
+
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { authProvider: provider }))
+    await client.close()
+
+    expect(redirect).not.toHaveBeenCalled()
+    expect(tokenRequests.map((params) => params.get('client_id'))).toEqual(['old-client'])
+    await expect(provider.tokens({ issuer: base })).resolves.toMatchObject({ access_token: 'new-access', issuer: base })
+  })
 })

@@ -71,6 +71,20 @@ export class JsonFileStorage implements IOAuthStorage {
     return ctx?.issuer ?? valueIssuer ?? this.secretCache?.lastIssuer ?? LEGACY_ISSUER
   }
 
+  /**
+   * Pre-upgrade credentials carry no issuer stamp; the SDK adopts them and saves them back
+   * stamped, so an issuer-specific miss falls back to them until that happens.
+   */
+  private readForIssuer<T>(byIssuer: Record<string, T>, ctx?: OAuthClientInformationContext): T | undefined {
+    return byIssuer[this.issuerKey(ctx)] ?? byIssuer[LEGACY_ISSUER]
+  }
+
+  /** Removes an issuer's entry and the unstamped one it may have been served from. */
+  private forgetForIssuer(byIssuer: Record<string, unknown>, issuer: string): void {
+    delete byIssuer[issuer]
+    delete byIssuer[LEGACY_ISSUER]
+  }
+
   private async readStorage(): Promise<OAuthStorageData> {
     if (this.cache) {
       return this.cache
@@ -169,7 +183,7 @@ export class JsonFileStorage implements IOAuthStorage {
 
   async getClientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
     const secrets = await this.readSecrets()
-    return secrets.clientInfoByIssuer[this.issuerKey(ctx)]
+    return this.readForIssuer(secrets.clientInfoByIssuer, ctx)
   }
 
   async saveClientInformation(
@@ -178,28 +192,26 @@ export class JsonFileStorage implements IOAuthStorage {
   ): Promise<void> {
     const secrets = await this.readSecrets()
     const issuer = this.issuerKey(ctx, info?.issuer)
+    this.forgetForIssuer(secrets.clientInfoByIssuer, issuer)
     if (info) {
       secrets.clientInfoByIssuer[issuer] = { ...info }
       secrets.lastIssuer = issuer
-    } else {
-      delete secrets.clientInfoByIssuer[issuer]
     }
     await this.writeSecrets(secrets)
   }
 
   async getTokens(ctx?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined> {
     const secrets = await this.readSecrets()
-    return secrets.tokensByIssuer[this.issuerKey(ctx)]
+    return this.readForIssuer(secrets.tokensByIssuer, ctx)
   }
 
   async saveTokens(tokens: StoredOAuthTokens | undefined, ctx?: OAuthClientInformationContext): Promise<void> {
     const secrets = await this.readSecrets()
     const issuer = this.issuerKey(ctx, tokens?.issuer)
+    this.forgetForIssuer(secrets.tokensByIssuer, issuer)
     if (tokens) {
       secrets.tokensByIssuer[issuer] = { ...tokens }
       secrets.lastIssuer = issuer
-    } else {
-      delete secrets.tokensByIssuer[issuer]
     }
     await this.writeSecrets(secrets)
   }
@@ -258,9 +270,9 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     if (scope === 'client') {
-      delete secrets.clientInfoByIssuer[this.issuerKey(ctx)]
+      this.forgetForIssuer(secrets.clientInfoByIssuer, this.issuerKey(ctx))
     } else if (scope === 'tokens') {
-      delete secrets.tokensByIssuer[this.issuerKey(ctx)]
+      this.forgetForIssuer(secrets.tokensByIssuer, this.issuerKey(ctx))
     } else if (scope === 'verifier') {
       secrets.codeVerifier = undefined
     }
