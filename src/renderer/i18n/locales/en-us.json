@@ -4024,6 +4024,7 @@
   "settings.data.trash.file_refs.loading": "Checking file references…",
   "settings.data.trash.file_refs.retry": "Retry reference check",
   "settings.data.trash.load_more": "Load more",
+  "settings.data.trash.owned_by": "from {{name}}",
   "settings.data.trash.page_next": "Next",
   "settings.data.trash.page_prev": "Previous",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Permanently delete {{count}} items?",

@@ -4024,6 +4024,7 @@
   "settings.data.trash.file_refs.loading": "正在检查文件引用…",
   "settings.data.trash.file_refs.retry": "重试引用检查",
   "settings.data.trash.load_more": "加载更多",
+  "settings.data.trash.owned_by": "来自 {{name}}",
   "settings.data.trash.page_next": "下一页",
   "settings.data.trash.page_prev": "上一页",
   "settings.data.trash.permanent_delete.batch_confirm_title": "永久删除 {{count}} 个项目？",

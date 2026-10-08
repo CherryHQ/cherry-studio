@@ -4024,6 +4024,7 @@
   "settings.data.trash.file_refs.loading": "Dosya referansları denetleniyor…",
   "settings.data.trash.file_refs.retry": "Referans denetimini yeniden dene",
   "settings.data.trash.load_more": "Daha fazla yükle",
+  "settings.data.trash.owned_by": "{{name}} tarafından",
   "settings.data.trash.page_next": "Sonraki",
   "settings.data.trash.page_prev": "Önceki",
   "settings.data.trash.permanent_delete.batch_confirm_title": "{{count}} öğe kalıcı olarak silinsin mi?",

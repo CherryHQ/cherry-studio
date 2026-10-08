@@ -4024,6 +4024,7 @@
   "settings.data.trash.file_refs.loading": "Se verifică referințele fișierelor…",
   "settings.data.trash.file_refs.retry": "Reîncearcă verificarea referințelor",
   "settings.data.trash.load_more": "Încarcă mai multe",
+  "settings.data.trash.owned_by": "de la {{name}}",
   "settings.data.trash.page_next": "Următoarea",
   "settings.data.trash.page_prev": "Anterioara",
   "settings.data.trash.permanent_delete.batch_confirm_title": "Ștergeți definitiv {{count}} elemente?",
