@@ -1,5 +1,5 @@
-import { Undo2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { Settings2, Undo2 } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
@@ -21,7 +21,12 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useDoctorAgent } from '@renderer/hooks/doctor'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { checkDoctorAgentModel, healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
+import { serializeHealthCheckError } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model } from '@shared/data/types/model'
+import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type {
   DoctorAgentChange,
@@ -39,6 +44,12 @@ const PROPOSAL_STATUS_KEYS = {
   rejected: 'settings.doctor.agent.proposal_status.rejected'
 } as const satisfies Record<DoctorAgentProposalStatus, string>
 
+type ModelCheckState =
+  | { status: 'idle' }
+  | { status: 'checking'; key: string }
+  | { status: 'failed'; key: string; message: string; settingsPath: SettingsPath }
+
+const GENERIC_MODEL_CHECK_ERRORS = new Set(['Error', 'IpcError', 'AI_APICallError'])
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
   readonly open: boolean
@@ -64,6 +75,13 @@ export function DoctorAgentConsultation({ subject, open, onOpenChange, onReportP
     state.status === 'idle'
       ? ''
       : (models.find((model) => model.id === state.modelId)?.name ?? state.modelId.split('::').pop() ?? state.modelId)
+  const handleSettingsNavigate = useCallback(
+    (navigate: () => void) => {
+      onOpenChange(false)
+      navigate()
+    },
+    [onOpenChange]
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,6 +102,7 @@ export function DoctorAgentConsultation({ subject, open, onOpenChange, onReportP
             disabled={!reportRunId || agent.busy?.kind === 'start'}
             loading={agent.busy?.kind === 'start'}
             onCancel={() => (pickerForced ? setPickerForced(false) : onOpenChange(false))}
+            onSettingsNavigate={handleSettingsNavigate}
             onStart={async (modelId) => {
               await agent.start(modelId)
               setPickerForced(false)
@@ -106,18 +125,22 @@ function ModelPicker({
   disabled,
   loading,
   onCancel,
+  onSettingsNavigate,
   onStart
 }: {
   readonly disabled: boolean
   readonly loading: boolean
   readonly onCancel: () => void
+  readonly onSettingsNavigate: (navigate: () => void) => void
   readonly onStart: (modelId: string) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const { providers } = useProviders({ enabled: true })
-  const { models } = useModels({ enabled: true })
+  const { providers, isLoading: providersLoading } = useProviders({ enabled: true })
+  const { models, isLoading: modelsLoading } = useModels({ enabled: true })
   const [selected, setSelected] = useState<Model | undefined>(undefined)
+  const [checkState, setCheckState] = useState<ModelCheckState>({ status: 'idle' })
+  const checkRequest = useRef(0)
   const filter = useCallback<ModelSelectorFilter>(
     (candidate, provider) => provider?.isEnabled !== false && isGatewayRoutableModel(candidate),
     []
@@ -132,6 +155,51 @@ function ModelPicker({
           providers.find((provider) => provider.id === candidate.providerId)
         )
     )
+  const provider = providers.find((candidate) => candidate.id === model?.providerId)
+  const providerId = provider?.id
+  const modelCheckKey = model ? JSON.stringify({ model, provider }) : ''
+  const currentCheckState =
+    checkState.status !== 'idle' && checkState.key === modelCheckKey ? checkState : ({ status: 'idle' } as const)
+  const dataLoading = providersLoading || modelsLoading
+
+  const start = async () => {
+    if (disabled || dataLoading || !model || currentCheckState.status === 'checking') return
+
+    const request = ++checkRequest.current
+    const key = modelCheckKey
+    setCheckState({ status: 'checking', key })
+
+    try {
+      await checkDoctorAgentModel(model.id)
+      if (request !== checkRequest.current) return
+
+      setCheckState({ status: 'idle' })
+      await onStart(model.id)
+    } catch (error) {
+      if (request !== checkRequest.current) return
+
+      const serializedError = serializeHealthCheckError(error)
+      const classification = classifyError(serializedError, providerId)
+      const detail = healthCheckErrorToDisplayString(serializedError)
+      const message =
+        classification.category !== 'unknown'
+          ? t(classification.i18nKey)
+          : !detail || GENERIC_MODEL_CHECK_ERRORS.has(detail)
+            ? t('settings.doctor.agent.model_picker.check_failed')
+            : detail
+      const settingsPath = normalizeSettingsPath(
+        classification.navTarget ??
+          (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
+      )
+      setCheckState({ status: 'failed', key, message, settingsPath })
+    }
+  }
+
+  const selectModel = useCallback((nextModel: Model | undefined) => {
+    checkRequest.current += 1
+    setCheckState({ status: 'idle' })
+    setSelected(nextModel)
+  }, [])
 
   return (
     <>
@@ -141,19 +209,36 @@ function ModelPicker({
           model={model}
           providers={providers}
           filter={filter}
-          onSelect={setSelected}
+          onSelect={selectModel}
           placeholder={t('settings.doctor.agent.model_picker.empty')}
         />
       </div>
+      {currentCheckState.status === 'failed' ? (
+        <Alert
+          type="error"
+          showIcon
+          className="mt-3 [&_[data-slot=alert-description]]:mt-0"
+          description={currentCheckState.message}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSettingsNavigate(() => openSettingsTab(currentCheckState.settingsPath))}>
+              <Settings2 className="size-4" aria-hidden />
+              {t('common.go_to_settings')}
+            </Button>
+          }
+        />
+      ) : null}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
         <Button
           variant="emphasis"
-          disabled={disabled || !model}
-          loading={loading}
-          onClick={() => model && void onStart(model.id)}>
+          disabled={disabled || dataLoading || !model || currentCheckState.status === 'checking'}
+          loading={loading || currentCheckState.status === 'checking'}
+          onClick={() => void start()}>
           {t('settings.doctor.agent.actions.start')}
         </Button>
       </DialogFooter>

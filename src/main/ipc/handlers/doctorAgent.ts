@@ -2,7 +2,13 @@ import { application } from '@application'
 import type { doctorAgentRequestSchemas } from '@shared/ipc/schemas/doctorAgent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
+import { exposeAiError } from './exposeAiError'
+
 export const doctorAgentHandlers: IpcHandlersFor<typeof doctorAgentRequestSchemas> = {
+  'diagnostics.doctor.agent.check_model': ({ modelId }) =>
+    exposeAiError('diagnostics.doctor.agent.check_model', () =>
+      application.get('DoctorAgentService').checkModel(modelId)
+    ),
   'diagnostics.doctor.agent.start': async (input) => application.get('DoctorAgentService').start(input),
   'diagnostics.doctor.agent.cancel': async ({ scope, runId }) =>
     application.get('DoctorAgentService').cancel(scope, runId),

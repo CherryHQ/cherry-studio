@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "No se pudo iniciar el análisis.",
   "settings.doctor.agent.messages.undo_failed": "No se pudo deshacer: {{message}}",
   "settings.doctor.agent.messages.undone": "Cambio deshecho.",
+  "settings.doctor.agent.model_picker.check_failed": "No se pudo acceder a este modelo. Comprueba la configuración del proveedor o elige otro modelo.",
   "settings.doctor.agent.model_picker.description": "Solo se muestran los modelos configurados y disponibles actualmente en Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Aún no hay ningún modelo utilizable configurado",
   "settings.doctor.agent.model_picker.title": "Elige un modelo para la consulta",

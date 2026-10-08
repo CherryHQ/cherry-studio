@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "无法启动分析。",
   "settings.doctor.agent.messages.undo_failed": "无法撤销：{{message}}",
   "settings.doctor.agent.messages.undone": "改动已撤销。",
+  "settings.doctor.agent.model_picker.check_failed": "无法连接此模型。请检查模型服务设置，或选择其他模型。",
   "settings.doctor.agent.model_picker.description": "仅显示 Cherry Studio 已配置且当前可用的模型。",
   "settings.doctor.agent.model_picker.empty": "尚未配置可用模型",
   "settings.doctor.agent.model_picker.title": "选择问诊模型",

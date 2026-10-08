@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Analiz başlatılamadı.",
   "settings.doctor.agent.messages.undo_failed": "Geri alınamadı: {{message}}",
   "settings.doctor.agent.messages.undone": "Değişiklik geri alındı.",
+  "settings.doctor.agent.model_picker.check_failed": "Bu modele ulaşılamadı. Sağlayıcı ayarlarını kontrol edin veya başka bir model seçin.",
   "settings.doctor.agent.model_picker.description": "Yalnızca Cherry Studio'da yapılandırılmış ve şu anda kullanılabilir modeller listelenir.",
   "settings.doctor.agent.model_picker.empty": "Henüz kullanılabilir bir model yapılandırılmadı",
   "settings.doctor.agent.model_picker.title": "Danışma için bir model seçin",

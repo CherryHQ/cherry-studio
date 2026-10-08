@@ -62,6 +62,10 @@ export class DoctorAgentService extends BaseService {
     for (const scope of Array.from(this.active.keys())) this.abort(scope, 'service stopping')
   }
 
+  async checkModel(modelId: UniqueModelId): Promise<{ latency: number }> {
+    return application.get('AiService').checkModel({ uniqueModelId: modelId, timeout: 15000 }, { chatOnly: true })
+  }
+
   async start(input: {
     scope: DoctorScopeKey
     reportRunId: string

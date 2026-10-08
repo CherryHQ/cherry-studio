@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Analiza nu a putut fi pornită.",
   "settings.doctor.agent.messages.undo_failed": "Nu s-a putut anula: {{message}}",
   "settings.doctor.agent.messages.undone": "Modificare anulată.",
+  "settings.doctor.agent.model_picker.check_failed": "Acest model nu a putut fi accesat. Verifică setările furnizorului sau alege alt model.",
   "settings.doctor.agent.model_picker.description": "Sunt afișate doar modelele configurate și disponibile acum în Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Niciun model utilizabil nu este configurat încă",
   "settings.doctor.agent.model_picker.title": "Alege un model pentru consultație",

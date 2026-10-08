@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "The analysis could not be started.",
   "settings.doctor.agent.messages.undo_failed": "Could not undo: {{message}}",
   "settings.doctor.agent.messages.undone": "Change undone.",
+  "settings.doctor.agent.model_picker.check_failed": "This model could not be reached. Check its provider settings or choose another model.",
   "settings.doctor.agent.model_picker.description": "Only models configured and currently available in Cherry Studio are listed.",
   "settings.doctor.agent.model_picker.empty": "No usable model is configured yet",
   "settings.doctor.agent.model_picker.title": "Choose a model for the consultation",

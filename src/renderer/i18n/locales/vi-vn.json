@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Không thể bắt đầu phân tích.",
   "settings.doctor.agent.messages.undo_failed": "Không thể hoàn tác: {{message}}",
   "settings.doctor.agent.messages.undone": "Đã hoàn tác thay đổi.",
+  "settings.doctor.agent.model_picker.check_failed": "Không thể kết nối với mô hình này. Hãy kiểm tra cài đặt nhà cung cấp hoặc chọn mô hình khác.",
   "settings.doctor.agent.model_picker.description": "Chỉ liệt kê các mô hình đã cấu hình và hiện khả dụng trong Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Chưa cấu hình mô hình khả dụng nào",
   "settings.doctor.agent.model_picker.title": "Chọn mô hình để tư vấn",

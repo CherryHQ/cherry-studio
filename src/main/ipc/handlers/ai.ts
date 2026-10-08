@@ -12,7 +12,6 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
-import { serializeError } from '@main/ai/utils/serializeError'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -23,35 +22,9 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
-const logger = loggerService.withContext('ipc/ai')
+import { exposeAiError } from './exposeAiError'
 
-/**
- * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
- * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
- * resolution, the abort registry and the stream registry all stay in those
- * services — these handlers only translate the IPC call.
- *
- * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
- * is re-thrown as an `AI_REQUEST_FAILED` IpcError carrying the full SerializedError
- * in `data`. Without this the renderer would only ever see `message` (Electron's
- * invoke reject drops `code`/`data`) — the detail this migration exists to surface.
- */
-async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T> {
-  try {
-    return await op()
-  } catch (e) {
-    // Log the FULL serialized error at the source (statusCode / responseBody / AI SDK
-    // subtype). The `data` rides the IpcError for the renderer, but Electron's invoke
-    // reject keeps only `message`, and a downstream normalize (e.g. the paintings
-    // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
-    // the real cause is this log. User-initiated aborts are control flow, not failures.
-    const serializedError = serializeError(e)
-    if (!(e instanceof Error && e.name === 'AbortError')) {
-      logger.error(`${route} failed`, serializedError)
-    }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
-  }
-}
+const logger = loggerService.withContext('ipc/ai')
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {

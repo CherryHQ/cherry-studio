@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { DoctorScopeKey } from '@shared/types/doctor'
 import type {
   DoctorAgentApplyResult,
@@ -15,6 +16,10 @@ const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)
 
 /** Progress, proposals and the change ledger are read through `doctorAgentStateCacheKey(scope)`. */
 export const doctorAgentRequestSchemas = {
+  'diagnostics.doctor.agent.check_model': defineRoute({
+    input: z.object({ modelId: UniqueModelIdSchema }).strict(),
+    output: z.object({ latency: z.number() })
+  }),
   'diagnostics.doctor.agent.start': defineRoute({
     input: z
       .object({ scope: scopeKeySchema, reportRunId: z.string().min(1), modelId: z.string().min(1).optional() })

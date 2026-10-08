@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Не удалось запустить анализ.",
   "settings.doctor.agent.messages.undo_failed": "Не удалось отменить: {{message}}",
   "settings.doctor.agent.messages.undone": "Изменение отменено.",
+  "settings.doctor.agent.model_picker.check_failed": "Не удалось подключиться к этой модели. Проверьте настройки провайдера или выберите другую модель.",
   "settings.doctor.agent.model_picker.description": "Показаны только модели, настроенные и доступные сейчас в Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Пригодная модель ещё не настроена",
   "settings.doctor.agent.model_picker.title": "Выберите модель для консультации",

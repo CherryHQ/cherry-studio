@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Die Analyse konnte nicht gestartet werden.",
   "settings.doctor.agent.messages.undo_failed": "Rückgängig nicht möglich: {{message}}",
   "settings.doctor.agent.messages.undone": "Änderung rückgängig gemacht.",
+  "settings.doctor.agent.model_picker.check_failed": "Dieses Modell konnte nicht erreicht werden. Prüfe die Anbietereinstellungen oder wähle ein anderes Modell.",
   "settings.doctor.agent.model_picker.description": "Es werden nur Modelle angezeigt, die in Cherry Studio konfiguriert und derzeit verfügbar sind.",
   "settings.doctor.agent.model_picker.empty": "Noch kein nutzbares Modell konfiguriert",
   "settings.doctor.agent.model_picker.title": "Modell für die Beratung wählen",

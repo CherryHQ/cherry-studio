@@ -1,15 +1,21 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model } from '@shared/data/types/model'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
 
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
+  checkDoctorAgentModel: vi.fn(),
+  openSettings: vi.fn(),
   defaultModelId: 'openai::gpt-5',
   agentState: { status: 'idle' } as DoctorAgentState,
   doctorState: { status: 'completed', report: { runId: 'report-1' } } as unknown,
+  modelsLoading: false,
+  providersLoading: false,
   providers: [
     { id: 'openai', name: 'OpenAI', isEnabled: true },
     { id: 'deepseek', name: 'DeepSeek', isEnabled: true },
@@ -38,8 +44,18 @@ vi.mock('@renderer/hooks/doctor', () => ({
   })
 }))
 vi.mock('@renderer/data/hooks/usePreference', () => ({ usePreference: () => [mocks.defaultModelId, vi.fn()] }))
-vi.mock('@renderer/hooks/useProvider', () => ({ useProviders: () => ({ providers: mocks.providers }) }))
-vi.mock('@renderer/hooks/useModel', () => ({ useModels: () => ({ models: mocks.models }) }))
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: mocks.providers, isLoading: mocks.providersLoading })
+}))
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: mocks.models, isLoading: mocks.modelsLoading })
+}))
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettings }))
+vi.mock('@renderer/services/modelHealthCheck', () => ({
+  checkDoctorAgentModel: mocks.checkDoctorAgentModel,
+  healthCheckErrorToDisplayString: (error: { message?: string | null; name?: string | null } | string) =>
+    typeof error === 'string' ? error : (error.message ?? error.name ?? '')
+}))
 // The real selector is a popover with its own tests; here it is a select so the filter and the choice can be checked.
 vi.mock('@renderer/components/DefaultModelSelector', () => ({
   DefaultModelSelector: ({
@@ -82,12 +98,16 @@ import { DoctorAgentConsultation } from '../DoctorAgentConsultation'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.checkDoctorAgentModel.mockReset()
   mocks.agentState = { status: 'idle' }
   mocks.defaultModelId = 'openai::gpt-5'
+  mocks.modelsLoading = false
+  mocks.providersLoading = false
+  mocks.checkDoctorAgentModel.mockResolvedValue({ latency: 42 })
 })
 
 describe('DoctorAgentConsultation', () => {
-  it('offers only chat models of enabled providers, preselects the default, and starts on the chosen one', async () => {
+  it('checks and starts only after the user clicks start', async () => {
     const user = userEvent.setup()
     render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
 
@@ -98,16 +118,143 @@ describe('DoctorAgentConsultation', () => {
       'openai::gpt-5'
     ])
     expect(select).toHaveValue('openai::gpt-5')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    expect(mocks.start).not.toHaveBeenCalled()
 
-    await user.selectOptions(select, 'deepseek::v3')
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
-    expect(mocks.start).toHaveBeenCalledWith('deepseek::v3')
+    const start = screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })
+    expect(start).toBeEnabled()
+    await user.click(start)
+
+    expect(mocks.checkDoctorAgentModel).toHaveBeenCalledOnce()
+    expect(mocks.checkDoctorAgentModel).toHaveBeenCalledWith('openai::gpt-5')
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('openai::gpt-5'))
   })
 
-  it('does not preselect a default model the availability filter rejects', () => {
+  it('keeps start disabled while the requested model check is pending', async () => {
+    const user = userEvent.setup()
+    let resolveCheck!: (value: { latency: number }) => void
+    mocks.checkDoctorAgentModel.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve
+      })
+    )
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    const start = screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })
+    expect(start).toBeEnabled()
+    await user.click(start)
+    expect(mocks.checkDoctorAgentModel).toHaveBeenCalledWith('openai::gpt-5')
+    expect(start).toBeDisabled()
+    expect(mocks.start).not.toHaveBeenCalled()
+
+    await act(async () => resolveCheck({ latency: 17 }))
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('openai::gpt-5'))
+  })
+
+  it('shows an actionable inline error for an empty IpcError and allows retry', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const error = new Error('')
+    error.name = 'IpcError'
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(error)
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={onOpenChange} />)
+
+    const start = screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    await user.click(start)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('settings.doctor.agent.model_picker.check_failed')
+    expect(alert).not.toHaveTextContent('IpcError')
+    const configure = screen.getByRole('button', { name: 'common.go_to_settings' })
+    expect(start).toBeEnabled()
+    expect(mocks.start).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await user.click(configure)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(mocks.openSettings).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('shows an authentication message for a 401 provider failure', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', {
+        name: 'AI_APICallError',
+        message: null,
+        stack: null,
+        providerErrorCategory: 'auth',
+        statusCode: 401
+      })
+    )
+
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('error.diagnosis.auth')
+    expect(alert).not.toHaveTextContent('IpcError')
+    expect(alert).not.toHaveTextContent('AI_APICallError')
+    const configure = screen.getByRole('button', { name: 'common.go_to_settings' })
+    await user.click(configure)
+    expect(mocks.openSettings).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('retries a failed check and starts immediately after it passes', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel
+      .mockRejectedValueOnce(new Error('Model unavailable'))
+      .mockResolvedValueOnce({ latency: 42 })
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    const start = screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })
+    await user.click(start)
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.diagnosis.model')
+    expect(start).toBeEnabled()
+    expect(mocks.start).not.toHaveBeenCalled()
+
+    await user.click(start)
+    expect(mocks.checkDoctorAgentModel).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('openai::gpt-5'))
+  })
+
+  it('clears a failed check when the selected model changes without checking the new model', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('Invalid API key'))
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.diagnosis.auth')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'model' }), 'deepseek::v3')
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.checkDoctorAgentModel).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeEnabled()
+  })
+
+  it('does not check while model or provider data is loading', () => {
+    mocks.modelsLoading = true
+    const { rerender } = render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeDisabled()
+
+    mocks.modelsLoading = false
+    mocks.providersLoading = true
+    rerender(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeDisabled()
+  })
+
+  it('does not check or show check UI without a usable model', () => {
     mocks.defaultModelId = 'disabled-provider::x'
     render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
     expect(screen.getByRole('combobox', { name: 'model' })).toHaveValue('')
+    expect(mocks.checkDoctorAgentModel).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeDisabled()
   })
 

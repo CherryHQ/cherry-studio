@@ -4246,6 +4246,7 @@
   "settings.doctor.agent.messages.start_failed": "Não foi possível iniciar a análise.",
   "settings.doctor.agent.messages.undo_failed": "Não foi possível anular: {{message}}",
   "settings.doctor.agent.messages.undone": "Alteração anulada.",
+  "settings.doctor.agent.model_picker.check_failed": "Não foi possível aceder a este modelo. Verifique as definições do fornecedor ou escolha outro modelo.",
   "settings.doctor.agent.model_picker.description": "Só são listados modelos configurados e atualmente disponíveis no Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Ainda não há nenhum modelo utilizável configurado",
   "settings.doctor.agent.model_picker.title": "Escolha um modelo para a consulta",
