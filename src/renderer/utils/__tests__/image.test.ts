@@ -1,4 +1,5 @@
 import { type Canvas, createCanvas } from '@napi-rs/canvas'
+import type { Element as HastElement } from 'hast'
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,9 +18,11 @@ import {
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
   imageInputToPreviewUrl,
+  isKatexGeneratedSvg,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
+  svgToCanvas,
   transformImageToPng,
   waitForCaptureAssets
 } from '../image'
@@ -1347,6 +1350,117 @@ describe('utils/image', () => {
 
     it('throws on a data URL with no media type', async () => {
       await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
+    })
+  })
+
+  describe('isKatexGeneratedSvg', () => {
+    const katexNode = {
+      type: 'element',
+      tagName: 'svg',
+      properties: {
+        xmlns: 'http://www.w3.org/2000/svg',
+        width: '400em',
+        height: '1.08em',
+        viewBox: '0 0 400000 1080',
+        preserveAspectRatio: 'xMinYMin slice'
+      },
+      children: [{ type: 'element', tagName: 'path', properties: { d: 'M95,702' }, children: [] }]
+    } as HastElement
+
+    it('matches bare KaTeX shape SVGs', () => {
+      expect(isKatexGeneratedSvg(katexNode)).toBe(true)
+    })
+
+    it('rejects SVGs carrying an id, class, or text content', () => {
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, id: 'diagram' } })).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, className: ['chart'] } })).toBe(
+        false
+      )
+      expect(
+        isKatexGeneratedSvg({
+          ...katexNode,
+          children: [{ type: 'element', tagName: 'text', properties: {}, children: [] }]
+        })
+      ).toBe(false)
+    })
+
+    it('rejects viewBox-less SVGs and non-SVG input', () => {
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { width: '10' } })).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, tagName: 'g' })).toBe(false)
+      expect(isKatexGeneratedSvg(undefined)).toBe(false)
+    })
+
+    it('rejects ordinary user SVGs without the KaTeX stretch signature', () => {
+      const userSvg = {
+        type: 'element',
+        tagName: 'svg',
+        properties: { viewBox: '0 0 100 100' },
+        children: [{ type: 'element', tagName: 'circle', properties: { cx: '50', cy: '50', r: '40' }, children: [] }]
+      } as HastElement
+      expect(isKatexGeneratedSvg(userSvg)).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, width: '100%' } })).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, preserveAspectRatio: 'none' } })
+      ).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, viewBox: '0 0 100 100' } })
+      ).toBe(false)
+    })
+  })
+
+  describe('svgToCanvas', () => {
+    class FakeImage {
+      static latest: FakeImage | undefined
+      crossOrigin = ''
+      src = ''
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        FakeImage.latest = this
+      }
+    }
+
+    const makeSvg = () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 20 10')
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      text.textContent = '中文 🌸 # & %'
+      svg.append(text)
+      return svg
+    }
+
+    beforeEach(() => {
+      FakeImage.latest = undefined
+      vi.stubGlobal('Image', FakeImage)
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        scale: vi.fn(),
+        drawImage: vi.fn()
+      } as unknown as CanvasRenderingContext2D)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('preserves Unicode labels and SVG dimensions when rasterizing', async () => {
+      const pending = svgToCanvas(makeSvg(), 2)
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      const response = dataUrlToBlob(FakeImage.latest!.src)
+      const xml = new TextDecoder().decode(await readBlobBytes(response))
+      const svg = new DOMParser().parseFromString(xml, 'image/svg+xml')
+      expect(svg.querySelector('text')?.textContent).toBe('中文 🌸 # & %')
+
+      FakeImage.latest?.onload?.()
+      const canvas = await pending
+      expect([canvas.width, canvas.height]).toEqual([40, 20])
+    })
+
+    it('rejects when the SVG image fails to load', async () => {
+      const pending = svgToCanvas(makeSvg())
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      FakeImage.latest?.onerror?.()
+      await expect(pending).rejects.toThrow('Failed to load SVG image')
     })
   })
 })

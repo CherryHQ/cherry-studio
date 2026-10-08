@@ -27,7 +27,12 @@ vi.mock('@application', async () => {
       hasUnsettledTopicWork: () => mocks.busy,
       pauseRuntimeTurn: vi.fn()
     },
-    AgentSessionRuntimeService: { isSessionBusy: () => mocks.runtimeBusy, closeSession: vi.fn() },
+    AgentSessionRuntimeService: {
+      isSessionBusy: () => mocks.runtimeBusy,
+      closeSession: vi.fn(),
+      cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+      recoverSessionForks: vi.fn().mockResolvedValue(undefined)
+    },
     AgentSessionDeliveryService: { kick: vi.fn() },
     ChannelManager: { reconcileAgent: vi.fn() }
   } as Parameters<typeof mockApplicationFactory>[0])

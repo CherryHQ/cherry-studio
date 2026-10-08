@@ -549,6 +549,20 @@
       "description": "Command shortcut: app.window.show (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.window.close",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.window.close (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.zoom.in",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -751,6 +765,19 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.close",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "W"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.close (unified command system)"
+    },
+    {
       "targetKey": "shortcut.tab.next",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -804,6 +831,13 @@
       "defaultValue": "VALUE: null",
       "status": "classified",
       "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "chat.save.knowledge.last_base_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Knowledge base id last used by the save-conversation-to-knowledge dialog; preselected on the next open when it still exists and is usable."
     },
     {
       "targetKey": "feature.screenshot.enabled",

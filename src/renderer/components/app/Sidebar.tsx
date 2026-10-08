@@ -11,7 +11,6 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
-import { canRemoveSidebarShortcut } from '@renderer/utils/sidebar'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
@@ -155,7 +154,6 @@ export default function Sidebar({
               type: 'item' as const,
               id: `sidebar.remove.${shortcut.id}`,
               label: t('launchpad.unpin_from_sidebar'),
-              enabled: canRemoveSidebarShortcut(shortcuts, shortcut.target),
               onSelect: () => remove(shortcut.target)
             }
           ]

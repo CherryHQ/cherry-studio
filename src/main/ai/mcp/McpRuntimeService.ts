@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -579,74 +580,96 @@ export class McpRuntimeService extends BaseService {
     // transport exactly once.
     const candidates = getTransportCandidates(server)
     const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
-    let lastError: unknown
 
-    for (let i = 0; i < transportTypes.length; i++) {
-      const candidateType = transportTypes[i]
-      const transport = await createServerTransport(candidateType)
+    let callbackServer: CallBackServer | undefined
+    authProvider.prepareAuthorization = async () => {
+      callbackServer ??= new CallBackServer({
+        port: authProvider.config.callbackPort,
+        path: authProvider.config.callbackPath,
+        events: new EventEmitter()
+      })
       try {
-        await client.connect(transport, connectOptions)
-        return
-      } catch (error: any) {
-        if (
-          error instanceof Error &&
-          isMcpOAuthEnabled(server) &&
-          (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-        ) {
-          logger.debug(`Authentication required for server: ${server.name}`)
-          await this.finishOAuth({
-            client,
-            server,
-            transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
-            authProvider,
-            createServerTransport,
-            typeOverride: candidateType
-          })
-          return
-        }
-        lastError = error
-        // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
-        // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-        if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
-          break
-        }
-        getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
-          error: redactDeep(error)
-        })
-        // Close the whole client (not just the transport) so the SDK resets its internal
-        // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
-        // re-auth path, which relies on client.close() clearing _transport first.
-        await client.close().catch(() => undefined)
+        await callbackServer.getServer
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code
+        throw new Error(
+          t('settings.mcp.oauth.callback.listen_error', {
+            port: authProvider.config.callbackPort,
+            reason: code ?? (error instanceof Error ? error.message : String(error))
+          }),
+          { cause: error }
+        )
       }
     }
 
-    // Release the last (failed) transport/connection so it isn't leaked until GC.
-    await client.close().catch(() => undefined)
-    throw lastError ?? new Error('Failed to connect to MCP server')
+    try {
+      let lastError: unknown
+
+      for (let i = 0; i < transportTypes.length; i++) {
+        const candidateType = transportTypes[i]
+        const transport = await createServerTransport(candidateType)
+        try {
+          await client.connect(transport, connectOptions)
+          return
+        } catch (error: any) {
+          if (
+            error instanceof Error &&
+            isMcpOAuthEnabled(server) &&
+            callbackServer &&
+            (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+          ) {
+            logger.debug(`Authentication required for server: ${server.name}`)
+            await this.finishOAuth({
+              client,
+              server,
+              transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
+              createServerTransport,
+              typeOverride: candidateType,
+              callbackServer
+            })
+            return
+          }
+          lastError = error
+          // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
+          // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
+          if (i === transportTypes.length - 1 || !candidates || !isTransportFallbackError(error, sdk)) {
+            break
+          }
+          getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${candidates[i + 1]}'`, {
+            error: redactDeep(error)
+          })
+          // Close the whole client (not just the transport) so the SDK resets its internal
+          // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
+          // re-auth path, which relies on client.close() clearing _transport first.
+          await client.close().catch(() => undefined)
+        }
+      }
+
+      // Release the last (failed) transport/connection so it isn't leaked until GC.
+      await client.close().catch(() => undefined)
+      throw lastError ?? new Error('Failed to connect to MCP server')
+    } finally {
+      authProvider.prepareAuthorization = undefined
+      await callbackServer?.close()
+    }
   }
 
   private async finishOAuth({
     client,
     server,
     transport,
-    authProvider,
     createServerTransport,
-    typeOverride
+    typeOverride,
+    callbackServer
   }: {
     client: Client
     server: McpServer
     transport: SSEClientTransport | StreamableHTTPClientTransport
-    authProvider: McpOAuthClientProvider
     createServerTransport: (typeOverride?: McpServerType) => Promise<McpTransport>
     typeOverride?: McpServerType
+    callbackServer: CallBackServer
   }): Promise<void> {
     getServerLogger(server).debug(`Starting OAuth flow`)
-    const events = new EventEmitter()
-    const callbackServer = new CallBackServer({
-      port: authProvider.config.callbackPort,
-      path: authProvider.config.callbackPath || '/oauth/callback',
-      events
-    })
 
     const timeoutId = setTimeout(() => {
       getServerLogger(server).warn(`OAuth flow timed out`)
@@ -672,7 +695,6 @@ export class McpRuntimeService extends BaseService {
       )
     } finally {
       clearTimeout(timeoutId)
-      void callbackServer.close()
     }
   }
 
@@ -978,43 +1000,6 @@ export class McpRuntimeService extends BaseService {
     } catch (error) {
       this.setServerStatus(server.id, 'error', error)
       throw error
-    }
-  }
-
-  /**
-   * Check connectivity for an MCP server
-   */
-  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
-    const server = this.getServerById(serverId)
-    getServerLogger(server).debug(`Checking connectivity`)
-    try {
-      const client = await this.getOrCreateClient(server)
-      // Attempt to list tools as a way to check connectivity
-      await client.listTools()
-      getServerLogger(server).debug(`Connectivity check successful`)
-      this.setServerStatus(server.id, 'connected')
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'info',
-        message: 'Connectivity check successful',
-        source: 'connectivity'
-      })
-      return true
-    } catch (error) {
-      getServerLogger(server).error(`Connectivity check failed`, error as Error)
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'error',
-        message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactDeep(error),
-        source: 'connectivity'
-      })
-      // Close the client if connectivity check fails to ensure a clean state for the next attempt
-      const serverKey = this.getServerKey(server)
-      await this.closeClient(serverKey)
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'error', error)
-      return false
     }
   }
 

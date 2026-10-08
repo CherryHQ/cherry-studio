@@ -6,7 +6,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
-import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import {
+  type AgentSessionRow as SessionRow,
+  type AgentSessionType,
+  agentSessionTable as sessionsTable
+} from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -18,6 +22,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -48,6 +53,7 @@ const logger = loggerService.withContext('AgentSessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+const conversationFilter = eq(sessionsTable.type, 'conversation')
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 export type SessionMetadataSearchMatch = {
   field: 'name' | 'description'
@@ -128,18 +134,35 @@ export function agentSessionReadModelEffects(
 ): DataApiDataChangeEffect[] {
   if (sessionIds.length === 0) return []
   const entityIds = [...new Set(sessionIds)]
+  const backgroundIds = new Set(
+    application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(and(inArray(sessionsTable.id, entityIds), eq(sessionsTable.type, 'background')))
+      .all()
+      .map((row) => row.id)
+  )
+  const conversationIds = entityIds.filter((id) => !backgroundIds.has(id))
+  if (conversationIds.length === 0) return [{ endpoint: '/agent-sessions/:sessionId', entityIds }]
   return [
-    { endpoint: '/agent-sessions', kind, entityIds },
-    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    { endpoint: '/agent-sessions', kind, entityIds: conversationIds },
+    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: conversationIds },
     { endpoint: '/agent-sessions/:sessionId', entityIds },
     { endpoint: '/agent-sessions/latest' }
   ]
 }
 
 export class AgentSessionService {
+  private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
+  readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
-    if (effects.length > 0) notifyDataApiDataChange(effects)
+    if (effects.length === 0) return
+    if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    notifyDataApiDataChange(effects)
   }
 
   notifyPurged(sessionIds: readonly string[]): void {
@@ -157,7 +180,7 @@ export class AgentSessionService {
     limit?: number
   }): CursorPaginationResponse<AddressableAgentSession> {
     const limit = Math.min(Math.max(query.limit ?? DEFAULT_LIMIT, 1), 100)
-    const filters = [isNull(agentsTable.deletedAt), isNull(sessionsTable.deletedAt)]
+    const filters = [conversationFilter, isNull(agentsTable.deletedAt), isNull(sessionsTable.deletedAt)]
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
     if (query.cursor) filters.push(gt(sessionsTable.id, query.cursor))
     const rows = application
@@ -193,7 +216,7 @@ export class AgentSessionService {
   }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = [isNull(sessionsTable.deletedAt)]
+    const filters: SQL[] = [conversationFilter, isNull(sessionsTable.deletedAt)]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
@@ -245,9 +268,9 @@ export class AgentSessionService {
     })
   }
 
-  create(dto: CreateAgentSessionDto): AgentSessionEntity {
+  create(dto: CreateAgentSessionDto, type: AgentSessionType = 'conversation'): AgentSessionEntity {
     const id = uuidv4()
-    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto)), {
+    withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto, type)), {
       ...defaultHandlersFor('Session', id),
       foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
@@ -259,9 +282,14 @@ export class AgentSessionService {
    * DB-only create primitive for caller-owned transaction composition.
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
-  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  createTx(
+    tx: DbOrTx,
+    id: string,
+    dto: CreateAgentSessionDto,
+    type: AgentSessionType = 'conversation',
+    createdAt = Date.now()
+  ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
-    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -291,6 +319,7 @@ export class AgentSessionService {
 
     this.insertTx(tx, {
       id,
+      type,
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
@@ -329,13 +358,21 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
+  getConversationById(id: string): AgentSessionEntity {
+    return this.readById(id, conversationFilter)
+  }
+
   getById(id: string): AgentSessionEntity {
+    return this.readById(id)
+  }
+
+  private readById(id: string, scope?: SQL): AgentSessionEntity {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
+      .where(and(eq(sessionsTable.id, id), scope, isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -506,7 +543,7 @@ export class AgentSessionService {
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(and(isNull(sessionsTable.deletedAt), ownerFilter))
+      .where(and(conversationFilter, isNull(sessionsTable.deletedAt), ownerFilter))
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
@@ -545,6 +582,7 @@ export class AgentSessionService {
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
             .where(
               and(
+                conversationFilter,
                 eq(sessionsTable.agentId, dto.agentId),
                 isNull(sessionsTable.deletedAt),
                 workspaceFilter,
@@ -663,6 +701,7 @@ export class AgentSessionService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
+    const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
@@ -682,7 +721,17 @@ export class AgentSessionService {
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, idFilter, activeAgentFilter, isNull(sessionsTable.deletedAt), pinAfter))
+        .where(
+          and(
+            conversationFilter,
+            agentFilter,
+            workspaceFilter,
+            idFilter,
+            activeAgentFilter,
+            isNull(sessionsTable.deletedAt),
+            pinAfter
+          )
+        )
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
         .all()
@@ -732,7 +781,9 @@ export class AgentSessionService {
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
+          conversationFilter,
           agentFilter,
+          workspaceFilter,
           idFilter,
           activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
@@ -779,6 +830,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -821,7 +873,11 @@ export class AgentSessionService {
       () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
       defaultHandlersFor('Session', id)
     )
-    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([
+      ...agentSessionReadModelEffects([id], 'projection'),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -880,6 +936,7 @@ export class AgentSessionService {
   private insertTx(
     tx: DbOrTx,
     values: {
+      type: AgentSessionType
       id: string
       agentId: string
       name: string
@@ -1351,6 +1408,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -1371,6 +1429,7 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    for (const id of new Set(moves.map((move) => move.id))) this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {

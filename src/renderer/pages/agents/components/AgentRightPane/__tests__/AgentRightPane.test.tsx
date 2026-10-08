@@ -12,6 +12,7 @@ import type {
 import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import {
   HoverCard as RealHoverCard,
   HoverCardContent as RealHoverCardContent,
@@ -26,7 +27,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
-import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
+import { TreeDir, TreeDirRoot } from '@shared/utils/file'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
@@ -97,7 +98,8 @@ vi.mock('../agentRightPaneProjection', async (importActual) => {
   }
 })
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUi>()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
     <button type="button" {...props}>
@@ -166,7 +168,8 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  TooltipSurface: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -216,11 +219,16 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
     children,
     value
   }: PropsWithChildren<{
-    value: { state: { renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string } } }
+    value: {
+      state: {
+        renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string; subagentListTitle?: string }
+      }
+    }
   }>) => (
     <div
       data-testid="message-list-provider"
       data-collapse-completed-tool-history={String(value.state.renderConfig.collapseCompletedToolHistory)}
+      data-subagent-list-title={value.state.renderConfig.subagentListTitle}
       data-message-style={value.state.renderConfig.messageStyle}>
       {children}
     </div>
@@ -345,7 +353,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => {
 })
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
-  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
   useArtifactFileTreeModel: (options: unknown) => {
@@ -520,16 +528,18 @@ function TestAgentRightPane({
 function OpenFlowButton({
   label = 'open flow',
   title = 'Inspect flow',
-  toolCallId = 'flow-1'
+  toolCallId = 'flow-1',
+  nested = false
 }: {
   label?: string
   title?: string
   toolCallId?: string
+  nested?: boolean
 }) {
   const { openAgentToolFlow } = useAgentRightPaneActions()
 
   return (
-    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title })}>
+    <button type="button" onClick={() => openAgentToolFlow({ toolCallId, toolName: 'task', title }, nested)}>
       {label}
     </button>
   )
@@ -549,10 +559,10 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
-function OpenWebsiteButton({ url }: { url: string }) {
-  const { openExternalUrl } = useAgentRightPaneActions()
+function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?: boolean }) {
+  const { openExternalUrl, openBrowserUrl } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openExternalUrl(url)}>
+    <button type="button" onClick={() => (inBrowser ? openBrowserUrl?.(url) : openExternalUrl(url))}>
       Open website
     </button>
   )
@@ -672,6 +682,29 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      const url = 'https://example.com/path?q=hello#section'
+      const user = userEvent.setup()
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+          <OpenWebsiteButton url={url} inBrowser />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Open website' }))
+      const browser = await screen.findByTestId('webview-browser')
+      expect(browser).toHaveAttribute('data-url', url)
+      expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+      expect(openWindow).not.toHaveBeenCalled()
+    } finally {
+      openWindow.mockRestore()
+    }
   })
 
   it('hides the browser entry when conversation or global browser control is disabled', () => {
@@ -1932,7 +1965,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
   })
 
-  it('shows the files shortcut only after a system workspace contains a file', () => {
+  it('shows the files shortcut once a system workspace contains an entry', () => {
     const { rerender } = render(
       <TestAgentRightPane
         sessionId="session-a"
@@ -1946,28 +1979,11 @@ describe('AgentRightPane', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { watchMissingRoot: true })
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { maxDepth: 1, watchMissingRoot: true })
 
     const systemWorkspaceRoot = systemFileTreeState.root
     if (!systemWorkspaceRoot) throw new Error('Expected the system workspace tree root')
-    const outputDirectory = new TreeDir({ path: '/system-workspace/output' })
-    systemWorkspaceRoot.attachChild(outputDirectory)
-    systemFileTreeState.version += 1
-    rerender(
-      <TestAgentRightPane
-        sessionId="session-a"
-        workspacePath="/system-workspace"
-        workspaceType="system"
-        messages={[]}
-        partsByMessageId={{}}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-
-    outputDirectory.attachChild(new TreeFile({ path: '/system-workspace/output/artifact.md' }))
+    systemWorkspaceRoot.attachChild(new TreeDir({ path: '/system-workspace/output' }))
     systemFileTreeState.version += 1
     rerender(
       <TestAgentRightPane
@@ -2000,7 +2016,7 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { watchMissingRoot: true })
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { maxDepth: 1, watchMissingRoot: true })
   })
 
   it('hides conversation shortcuts when the conversation is unavailable', () => {
@@ -2119,6 +2135,77 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
+  })
+
+  it('identifies the parent task when opening a nested subtask', () => {
+    const parent = {
+      type: 'dynamic-tool',
+      toolCallId: 'parent',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { description: 'Review architecture' },
+      output: 'Started'
+    } as unknown as CherryMessagePart
+    const child = {
+      type: 'dynamic-tool',
+      toolCallId: 'child',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { description: 'Inspect imports' },
+      output: 'Done',
+      callProviderMetadata: { 'claude-code': { parentToolCallId: 'parent' } }
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [parent, child], metadata: {} }] as CherryUIMessage[]
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [parent, child] }}>
+        <OpenFlowButton toolCallId="child" title="Inspect imports" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    expect(screen.getByRole('navigation', { name: 'agent.right_pane.flow.main_task' })).toHaveTextContent(
+      'agent.right_pane.flow.main_task › Review architecture › Inspect imports'
+    )
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute(
+      'data-subagent-list-title',
+      'agent.right_pane.flow.child_subtasks'
+    )
+  })
+
+  it('opens tool-flow website links in the current session browser pane', async () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    const { openBrowserUrl } = useAgentMessageListProviderValueMock.mock.calls.at(-1)![0]
+    expect(openBrowserUrl).toBeTypeOf('function')
+    const url = 'https://example.com/tool-flow?q=hello#result'
+    await act(() => openBrowserUrl(url))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', url)
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-target-id', 'agent-browser:session-a')
   })
 
   it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {
@@ -2414,6 +2501,31 @@ describe('AgentRightPane', () => {
 
     const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
     expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
+  })
+
+  it('returns through nested tasks in order and resets the path for a new root task', () => {
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenFlowButton title="Parent task" />
+        <OpenFlowButton label="open child" title="Child task" toolCallId="child" nested />
+        <OpenFlowButton label="open grandchild" title="Grandchild task" toolCallId="grandchild" nested />
+        <OpenFlowButton label="open other root" title="Other root" toolCallId="other" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open child' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open grandchild' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Child task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Parent task')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open child' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open other root' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
   })
 
   it('returns from a subagent flow to the status panel', async () => {
