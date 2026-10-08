@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 
+import { describe, expect, it, vi } from 'vitest'
+
 import { CANONICAL_PARAM_KEY, resolveImageGenerationSupport, wireName } from '@cherrystudio/provider-registry'
 import {
   readModelRegistry,
@@ -8,7 +10,6 @@ import {
 } from '@cherrystudio/provider-registry/node'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
-import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -51,9 +52,11 @@ import { imageCapabilityCases } from './imageCatalogFixtures'
 const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(() => ({ value: 'sk-test', apiKeySelection: { attribution: 'unknown' as const } })),
   // Vertex refuses to build without iam-gcp credentials; supply a stub so its rows run.
-  getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(
-    () => ({ type: 'iam-gcp', project: 'p', location: 'us-central1' }) as AuthConfig
-  ),
+  getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(() => ({
+    type: 'iam-gcp',
+    project: 'p',
+    location: 'us-central1'
+  })),
   getByProviderIdMock: vi.fn()
 }))
 

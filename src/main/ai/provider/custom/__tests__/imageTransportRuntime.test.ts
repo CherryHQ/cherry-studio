@@ -1,7 +1,8 @@
 import { APICallError } from '@ai-sdk/provider'
-import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import type {
   ImageGenerationSubmitInput,
@@ -472,7 +473,7 @@ describe('image transport runtime', () => {
     ).rejects.toThrow('invalid submission')
 
     const unknownStateTransport = asyncTransport({
-      query: vi.fn().mockResolvedValue({ kind: 'unknown' } as never)
+      query: vi.fn().mockResolvedValue({ kind: 'unknown' })
     })
     await expect(
       executeImageTransport({
