@@ -3,6 +3,7 @@ import { type JSONSchema7, type Tool } from 'ai'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -12,7 +13,7 @@ import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
-import { mcpResultToTextSummary } from './utils'
+import { mcpResultToModelOutput, mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
@@ -65,16 +66,19 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
+      const resources = getRequestContext(options)?.mcpToolResources
+      if (resources) registerMcpToolResources(resources, result, metadata)
+
       // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
-      // parts intact); `toModelOutput` below produces the string view.
+      // parts intact); `toModelOutput` below produces the model's view.
       return {
         ...result,
         metadata
       }
     },
     toModelOutput({ output }) {
-      const result = output as McpCallToolResponse
-      return { type: 'text' as const, value: mcpResultToTextSummary(result) }
+      // Model and wire capabilities are applied by the request's media routing.
+      return mcpResultToModelOutput(output as McpCallToolResponse, mcpTool.serverId)
     }
   }
 }

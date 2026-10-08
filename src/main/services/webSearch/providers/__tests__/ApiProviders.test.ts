@@ -44,6 +44,7 @@ vi.mock('@main/services/RegionService', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
@@ -1935,6 +1936,61 @@ describe('main web search API providers', () => {
     expect(tavilyResult.results[0]?.title).toBe('')
     expect(zhipuResult.results[0]?.title).toBe('')
     expect(exaMcpResult.results[0]?.title).toBe('')
+  })
+
+  describe('Crawl4AIProvider', () => {
+    function crawl4ai(apiKeys: string[] = []) {
+      return createProviderDriver(
+        Crawl4AIProvider,
+        createProvider({
+          id: 'crawl4ai',
+          apiKeys,
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'http://localhost:11235/proxy/' }]
+        })
+      )
+    }
+
+    it('fetches fit Markdown through a self-hosted endpoint without requiring a token', async () => {
+      const url = 'https://example.org/page'
+      fetchMock.mockResolvedValueOnce(createJsonResponse({ url, markdown: '  # Rendered page  ', success: true }))
+      const signal = new AbortController().signal
+
+      const result = await crawl4ai().fetchUrls(` ${url} `, runtimeConfig, { signal })
+
+      expect(result.results).toEqual([{ title: url, content: '# Rendered page', url, sourceInput: url }])
+      expect(result).toMatchObject({ capability: 'fetchUrls', providerId: 'crawl4ai', inputs: [url] })
+      const [requestUrl, request] = fetchMock.mock.calls[0]
+      expect(requestUrl).toBe('http://localhost:11235/proxy/md')
+      expect(JSON.parse(request.body)).toEqual({ url, f: 'fit' })
+      expect(request.signal).toBe(signal)
+      expect(new Headers(request.headers).has('Authorization')).toBe(false)
+    })
+
+    it('uses the configured bearer token for authenticated deployments', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createJsonResponse({
+          url: 'https://example.org',
+          markdown: 'Page',
+          success: true
+        })
+      )
+      await crawl4ai(['private-token']).fetchUrls('https://example.org', runtimeConfig)
+      expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer private-token')
+    })
+
+    it.each([
+      { url: 'https://example.org', markdown: '', success: true },
+      { url: 'https://example.org', markdown: 'Failed', success: false },
+      { url: 'https://example.org', markdown: { raw_markdown: 'Wrong endpoint shape' }, success: true }
+    ])('rejects unsuccessful, empty, or invalid Markdown responses: %j', async (payload) => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow()
+    })
+
+    it('reports server HTTP failures rather than producing a page result', async () => {
+      fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow('HTTP 401 Unauthorized')
+    })
   })
 
   describe('FirecrawlProvider', () => {

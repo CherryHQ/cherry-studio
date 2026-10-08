@@ -633,35 +633,60 @@ export async function isBinaryFile(filePath: string): Promise<boolean> {
 export interface RipgrepResult {
   ok: boolean
   stdout: string
+  stderr: string
+  /** `null` when ripgrep was killed by a signal, including the `timeoutMs` kill. */
   exitCode: number | null
+}
+
+export interface RipgrepOptions {
+  /** Written to ripgrep's stdin; pass `-` as the search path to search it. */
+  input?: string
+  /** SIGKILL ripgrep after this many milliseconds. */
+  timeoutMs?: number
 }
 
 export async function getRipgrepBinaryPath(): Promise<string> {
   return getBinaryPath('rg')
 }
 
-export async function runRipgrep(args: string[]): Promise<RipgrepResult> {
+export async function runRipgrep(args: string[], options: RipgrepOptions = {}): Promise<RipgrepResult> {
   const ripgrepBinaryPath = await getRipgrepBinaryPath()
 
   return new Promise((resolve) => {
     const child = spawn(ripgrepBinaryPath, args, {
       cwd: process.cwd(),
       env: { ...process.env, ...getBinaryExecutionEnv() },
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
     })
+    const timer =
+      options.timeoutMs === undefined ? undefined : setTimeout(() => child.kill('SIGKILL'), options.timeoutMs)
 
     let stdout = ''
+    let stderr = ''
 
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString('utf-8')
+    child.stdout?.setEncoding('utf-8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr?.setEncoding('utf-8')
+    child.stderr?.on('data', (chunk: string) => {
+      stderr += chunk
     })
 
+    if (options.input !== undefined) {
+      // ripgrep exits without draining stdin on a bad pattern; the resulting EPIPE would otherwise be unhandled.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(options.input)
+    }
+
     child.on('error', () => {
-      resolve({ ok: false, stdout: '', exitCode: null })
+      clearTimeout(timer)
+      resolve({ ok: false, stdout: '', stderr: '', exitCode: null })
     })
 
     child.on('close', (code) => {
-      resolve({ ok: true, stdout, exitCode: code })
+      clearTimeout(timer)
+      resolve({ ok: true, stdout, stderr, exitCode: code })
     })
   })
 }
