@@ -5667,6 +5667,7 @@
   "settings.use_system_title_bar.confirm.title": "Reinicio requerido",
   "settings.use_system_title_bar.title": "Usar la barra de título del sistema (Linux)",
   "settings.zoom.title": "Escala",
+  "sidebar.account_menu": "Menú de la cuenta",
   "sidebar.resource_missing": "Recurso no encontrado",
   "sidebar.resource_unavailable": "Recurso temporalmente no disponible",
   "subWindow.back_to_main": "Volver a la ventana principal",

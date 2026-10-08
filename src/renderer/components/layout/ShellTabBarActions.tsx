@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
 import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
-import { getSidebarLayout } from '@renderer/components/Sidebar'
+import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
@@ -15,8 +15,22 @@ import { WindowControls } from '../WindowControls'
 
 const logger = loggerService.withContext('ShellTabBarActions')
 
-export function SidebarSettingsButton() {
+export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout }) {
   const { t } = useTranslation()
+
+  if (layout === 'full') {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={t('settings.title')}
+        onClick={() => openSettingsTab()}
+        className="flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+        <Settings size={16} strokeWidth={1.6} />
+        <span className="min-w-0 truncate">{t('settings.title')}</span>
+      </Button>
+    )
+  }
 
   return (
     <Tooltip content={t('settings.title')} placement="right" delay={800}>

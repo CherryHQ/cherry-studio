@@ -5667,6 +5667,7 @@
   "settings.use_system_title_bar.confirm.title": "再起動が必要です",
   "settings.use_system_title_bar.title": "システムタイトルバーを使用（Linux）",
   "settings.zoom.title": "ページズーム",
+  "sidebar.account_menu": "アカウントメニュー",
   "sidebar.resource_missing": "リソースが見つかりません",
   "sidebar.resource_unavailable": "リソースを一時的に利用できません",
   "subWindow.back_to_main": "メインウィンドウに戻る",

@@ -5667,6 +5667,7 @@
   "settings.use_system_title_bar.confirm.title": "需要重新啟動",
   "settings.use_system_title_bar.title": "使用系統標題列（Linux）",
   "settings.zoom.title": "縮放",
+  "sidebar.account_menu": "帳戶選單",
   "sidebar.resource_missing": "資源不存在",
   "sidebar.resource_unavailable": "資源暫時無法使用",
   "subWindow.back_to_main": "返回主視窗",

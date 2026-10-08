@@ -5667,6 +5667,7 @@
   "settings.use_system_title_bar.confirm.title": "Απαιτείται επανεκκίνηση",
   "settings.use_system_title_bar.title": "Χρήση γραμμής τίτλου συστήματος (Linux)",
   "settings.zoom.title": "Κλίμακα",
+  "sidebar.account_menu": "Μενού λογαριασμού",
   "sidebar.resource_missing": "Ο πόρος δεν βρέθηκε",
   "sidebar.resource_unavailable": "Ο πόρος δεν είναι προσωρινά διαθέσιμος",
   "subWindow.back_to_main": "Επιστροφή στο Κύριο Παράθυρο",
