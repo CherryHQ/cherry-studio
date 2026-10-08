@@ -1,4 +1,4 @@
-import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
+﻿import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -26,10 +26,20 @@ type ListToolsOptions = { includeDisabled?: boolean }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  protocol extensions while normalizing missing fields for renderer reads. */
-const MCP_TOOL_INPUT_SCHEMA = z
+
+// A JSON Schema can be either a boolean (true = accept anything,
+// false = accept nothing) or a schema object. We accept both forms
+// so servers that declare "any" properties (e.g. Go's `any`, TS's
+// `unknown`, or bare `true`) don't fail the entire tools/list call.
+const JsonSchemaValue = z.union([
+  z.boolean(),
+  z.object({}).loose()
+])
+
+export const MCP_TOOL_INPUT_SCHEMA = z
   .object({
     type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
+    properties: z.record(z.string(), JsonSchemaValue).optional(),
     required: z.array(z.string()).optional()
   })
   .loose()
@@ -39,10 +49,10 @@ const MCP_TOOL_INPUT_SCHEMA = z
     return schema
   })
 
-const MCP_TOOL_OUTPUT_SCHEMA = z
+export const MCP_TOOL_OUTPUT_SCHEMA = z
   .object({
     type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
+    properties: z.record(z.string(), JsonSchemaValue).optional(),
     required: z.array(z.string()).optional()
   })
   .loose()
