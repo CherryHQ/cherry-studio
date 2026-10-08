@@ -13,7 +13,7 @@ import {
 import { ErrorBoundary } from 'react-error-boundary'
 import { I18nextProvider, useTranslation } from 'react-i18next'
 
-import { EmptyState, PortalContainerProvider } from '@cherrystudio/ui'
+import { DialogPortalContainerProvider, EmptyState, PortalContainerProvider } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
@@ -217,23 +217,25 @@ function PreviewSession({
       )}
       style={style}>
       <PortalContainerProvider container={root}>
-        <PreviewHostContext value={host}>
-          {header === undefined ? (
-            content
-          ) : (
-            <FilePreviewToolbarPortalProvider>
-              <FilePreviewLayout.Frame>
-                <div
-                  data-testid="file-preview-header"
-                  className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
-                  <FilePreviewToolbarPortalHost />
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
-              </FilePreviewLayout.Frame>
-            </FilePreviewToolbarPortalProvider>
-          )}
-        </PreviewHostContext>
+        <DialogPortalContainerProvider container={root}>
+          <PreviewHostContext value={host}>
+            {header === undefined ? (
+              content
+            ) : (
+              <FilePreviewToolbarPortalProvider>
+                <FilePreviewLayout.Frame>
+                  <div
+                    data-testid="file-preview-header"
+                    className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
+                    <FilePreviewToolbarPortalHost />
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
+                </FilePreviewLayout.Frame>
+              </FilePreviewToolbarPortalProvider>
+            )}
+          </PreviewHostContext>
+        </DialogPortalContainerProvider>
       </PortalContainerProvider>
     </div>
   )

@@ -8,6 +8,9 @@ export { default as Scrollbar } from '@cherrystudio/ui/components/composites/scr
 export { Button } from '@cherrystudio/ui/components/primitives/button'
 export { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui/components/primitives/dialog'
 export { Input } from '@cherrystudio/ui/components/primitives/input'
-export { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
+export {
+  DialogPortalContainerProvider,
+  PortalContainerProvider
+} from '@cherrystudio/ui/components/primitives/portal-container'
 export { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui/components/primitives/tabs'
 export { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'

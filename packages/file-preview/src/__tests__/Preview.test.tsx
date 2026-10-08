@@ -2,6 +2,8 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+
 import { Preview } from '../Preview'
 import type { PreviewDocument, PreviewSource } from '../source'
 
@@ -11,11 +13,7 @@ vi.mock('../filePreviewRegistry', () => ({
     load: async () => ({ default: ({ sourceId }: { sourceId: string }) => <div>{sourceId}</div> })
   })
 }))
-vi.mock('@cherrystudio/ui', () => ({
-  EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PortalContainerProvider: ({ children }: { children: ReactNode }) => children
-}))
+vi.unmock('@cherrystudio/ui')
 vi.mock('react-i18next', () => ({
   I18nextProvider: ({ children }: { children: ReactNode }) => children,
   useTranslation: () => ({ t: (key: string) => key })
@@ -37,6 +35,29 @@ function source(id: string, open: PreviewSource['open']): PreviewSource {
 }
 
 describe('preview root', () => {
+  it('keeps dialogs and their backdrops inside the scoped preview stylesheet', async () => {
+    const view = render(
+      <Preview
+        source={source('dialog', async () => document())}
+        header={
+          <Dialog defaultOpen>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>Document outline</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        }
+      />
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Document outline' })
+    const root = view.container.querySelector('[data-file-preview-root]')
+
+    // Packaged styles only apply within this root; a body portal leaves the modal invisible.
+    await waitFor(() => {
+      expect(root).toContainElement(dialog)
+      expect(root).toContainElement(view.baseElement.querySelector('[data-slot="dialog-overlay"]'))
+    })
+  })
+
   it('carries host classes and token overrides, which is how mobile themes the preview', async () => {
     const view = render(
       <Preview
