@@ -73,7 +73,8 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
       })
     )
   },
-  'mcp.server.get_version': async ({ serverId }) => application.get('McpRuntimeService').getServerVersion(serverId),
+  'mcp.server.get_version': async ({ serverId, connect }) =>
+    application.get('McpRuntimeService').getServerVersion(serverId, connect),
   'mcp.server.get_logs': async ({ serverId }) => application.get('McpRuntimeService').getServerLogs(serverId),
   'mcp.protocol_install.list_pending': async (_input, { senderId }) =>
     senderId ? application.get('ProtocolService').listPendingMcpInstallRequests(senderId) : [],

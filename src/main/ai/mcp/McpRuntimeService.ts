@@ -898,9 +898,11 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  public async getServerVersion(serverId: string): Promise<string | null> {
+  public async getServerVersion(serverId: string, connect = true): Promise<string | null> {
     try {
-      return (await this.getOrCreateConnection(this.getServerById(serverId))).serverVersion
+      const server = this.getServerById(serverId)
+      if (!connect) return this.connections.get(this.getServerKey(server))?.serverVersion ?? null
+      return (await this.getOrCreateConnection(server)).serverVersion
     } catch (error) {
       logger.warn('Failed to read MCP server version', { serverId, error })
       return null

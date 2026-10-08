@@ -81,7 +81,11 @@ export const mcpRequestSchemas = {
       isBinary: z.boolean()
     })
   }),
-  'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),
+  'mcp.server.get_version': defineRoute({
+    // `connect: false` reads an existing connection only, so passive views never start sign-in.
+    input: serverIdNonEmpty.extend({ connect: z.boolean().optional() }),
+    output: z.string().nullable()
+  }),
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
   'mcp.protocol_install.list_pending': defineRoute({
     input: z.void(),

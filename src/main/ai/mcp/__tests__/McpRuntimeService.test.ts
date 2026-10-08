@@ -448,6 +448,23 @@ describe('McpRuntimeService connect retry gate', () => {
     expect(connectionFactoryMocks.createExternal).toHaveBeenCalledTimes(2)
   })
 
+  it('reads a version passively without connecting or starting sign-in', async () => {
+    const service = new McpRuntimeService()
+    const create = vi.spyOn(service as any, 'createConnection').mockResolvedValue({
+      era: 'modern',
+      serverVersion: '2.0.0',
+      listTools: async () => [],
+      close: async () => {}
+    })
+
+    await expect(service.getServerVersion(server.id, false)).resolves.toBeNull()
+    expect(create).not.toHaveBeenCalled()
+
+    await service.listTools(server.id)
+    await expect(service.getServerVersion(server.id, false)).resolves.toBe('2.0.0')
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
   it('retries a transient failure only after its backoff and stops after the attempt budget', async () => {
     const service = new McpRuntimeService()
     const create = vi.spyOn(service as any, 'createConnection').mockRejectedValue(new Error('ECONNRESET'))
