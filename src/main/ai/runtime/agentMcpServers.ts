@@ -1,5 +1,8 @@
 import { pathToFileURL } from 'node:url'
 
+import type { McpServer, Server, Transport } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -22,9 +25,19 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
-import { type AgentMcpServer, serveAgentMcpServer } from './agentMcpServer'
-
 const logger = loggerService.withContext('AgentMcpServers')
+
+export interface AgentMcpServer {
+  id?: string
+  name: string
+  /** Serves this server over `transport`; closing the transport ends it. */
+  connect(transport: Transport): Promise<unknown>
+}
+
+/** One protocol instance per connection, so each runtime transport gets its own server. */
+function serveAgentMcpServer(createServer: () => McpServer | Server): AgentMcpServer['connect'] {
+  return async (transport) => serveStdio(createServer, { transport })
+}
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
 export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>

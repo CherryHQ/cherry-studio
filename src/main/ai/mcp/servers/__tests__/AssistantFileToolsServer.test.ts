@@ -1,8 +1,8 @@
 import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import type * as ReadFileToolModule from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
@@ -102,14 +102,8 @@ type Result = { isError?: boolean; content: Array<{ type: string; text: string }
 const clients: Client[] = []
 
 async function createServer(): Promise<Client> {
-  const client = await connectAgentMcpClient(
-    {
-      name: 'assistant-files',
-      connect: serveAgentMcpServer(() =>
-        createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
-      )
-    },
-    'test'
+  const client = await connectMcpTestClient(() =>
+    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
   )
   clients.push(client)
   return client

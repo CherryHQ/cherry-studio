@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { type CallToolResult, Server, type Tool } from '@modelcontextprotocol/server'
+import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +16,6 @@ vi.mock('@logger', () => ({
 }))
 
 const { buildDshCherryToolBridge, buildDshCherryToolName } = await import('../DshCherryToolBridge')
-const { serveAgentMcpServer } = await import('../../agentMcpServer')
 
 function createServer(
   tools: Tool[],
@@ -23,7 +23,7 @@ function createServer(
   listTools: () => Promise<{ tools: Tool[] }> = async () => ({ tools })
 ) {
   const onClose = vi.fn()
-  const connect = serveAgentMcpServer(() => {
+  const connect = serveMcpTestServer(() => {
     const server = new Server({ name: 'test', version: '1.0.0' }, { capabilities: { tools: {} } })
     server.setRequestHandler('tools/list', listTools)
     server.setRequestHandler('tools/call', async (request, ctx) =>

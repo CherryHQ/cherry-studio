@@ -4,10 +4,10 @@ import path from 'node:path'
 
 import type { Client } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChannelsModule from '@main/ai/channels'
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 // Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
@@ -154,24 +154,18 @@ async function createServer(
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
   )
-  const client = await connectAgentMcpClient(
-    {
-      name: 'cherry-tools',
-      connect: serveAgentMcpServer(() => {
-        const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-        registerAutonomyTools(server, {
-          agentId,
-          sessionId: 'session_test',
-          workspaceSource: WORKSPACE_SOURCE,
-          workspacePath,
-          trustedNotifyChannels,
-          allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
-        })
-        return server
-      })
-    },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerAutonomyTools(server, {
+      agentId,
+      sessionId: 'session_test',
+      workspaceSource: WORKSPACE_SOURCE,
+      workspacePath,
+      trustedNotifyChannels,
+      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
+    })
+    return server
+  })
   clients.push(client)
   return client
 }

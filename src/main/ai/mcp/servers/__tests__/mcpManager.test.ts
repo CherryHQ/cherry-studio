@@ -1,7 +1,6 @@
 import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 const { createMock, deleteMock, updateAgentMock, getAgentMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -23,10 +22,7 @@ type Result = { isError?: boolean; content: Array<{ type: string; text: string }
 const clients: Client[] = []
 
 async function createServer(agentId = 'agent-1'): Promise<Client> {
-  const client = await connectAgentMcpClient(
-    { name: 'mcp-manager', connect: serveAgentMcpServer(() => createMcpManagerServer(agentId)) },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => createMcpManagerServer(agentId))
   clients.push(client)
   return client
 }

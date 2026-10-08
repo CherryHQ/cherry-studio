@@ -3,9 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 const mockGetAgent = vi.fn()
 
@@ -27,10 +26,7 @@ const clients: Client[] = []
 
 async function createServer(): Promise<Client> {
   const ctx = { agentId, agentDataPath }
-  const client = await connectAgentMcpClient(
-    { name: 'agent-memory', connect: serveAgentMcpServer(() => createAgentMemoryServer(ctx)) },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => createAgentMemoryServer(ctx))
   clients.push(client)
   return client
 }

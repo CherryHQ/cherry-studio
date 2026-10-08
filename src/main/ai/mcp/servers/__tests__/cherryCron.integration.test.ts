@@ -2,6 +2,7 @@ import '@data/services/AgentSessionMessageService'
 import type { Client } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
 import { setupTestDatabase } from '@test-helpers/db'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -13,7 +14,6 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import { JobManager } from '@main/core/job/JobManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -31,24 +31,18 @@ type Result = { isError?: boolean; content: Array<{ type: string; text?: string 
 const clients: Client[] = []
 
 async function createTools(agentId = AGENT_ID, channelIds: string[] = []) {
-  const client = await connectAgentMcpClient(
-    {
-      name: 'cherry-tools',
-      connect: serveAgentMcpServer(() => {
-        const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-        registerAutonomyTools(server, {
-          agentId,
-          sessionId: 'cron-session',
-          workspaceSource: { type: 'system' },
-          workspacePath: '/tmp/cherry-cron-test',
-          trustedNotifyChannels: channelIds.map((id) => ({ id, type: 'telegram' })),
-          allowAnyOwnedNotifyChannel: false
-        })
-        return server
-      })
-    },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerAutonomyTools(server, {
+      agentId,
+      sessionId: 'cron-session',
+      workspaceSource: { type: 'system' },
+      workspacePath: '/tmp/cherry-cron-test',
+      trustedNotifyChannels: channelIds.map((id) => ({ id, type: 'telegram' })),
+      allowAnyOwnedNotifyChannel: false
+    })
+    return server
+  })
   clients.push(client)
   return {
     call: (name: string, args: Record<string, unknown>) =>

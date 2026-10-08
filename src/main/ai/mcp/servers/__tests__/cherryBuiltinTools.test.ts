@@ -1,7 +1,7 @@
 import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
@@ -87,13 +87,7 @@ const clients: Client[] = []
 async function connectCherryTools(
   getKnowledgeAccess: () => KnowledgeAccess = () => ({ allKnowledgeBases: false, baseIds: KB_SCOPE })
 ): Promise<Client> {
-  const client = await connectAgentMcpClient(
-    {
-      name: 'cherry-tools',
-      connect: serveAgentMcpServer(() => createCherryToolsServer({ ...agentContext, getKnowledgeAccess }))
-    },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => createCherryToolsServer({ ...agentContext, getKnowledgeAccess }))
   clients.push(client)
   return client
 }

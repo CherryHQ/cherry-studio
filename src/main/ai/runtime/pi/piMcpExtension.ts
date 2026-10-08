@@ -4,7 +4,7 @@ import type { ExtensionFactory, McpTransportFactory } from '@earendil-works/pi-c
 import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
-import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServer'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 
 import type { loadPiSdk } from './piSdk'
 

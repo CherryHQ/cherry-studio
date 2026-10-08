@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 
-import type { Client, Tool } from '@modelcontextprotocol/client'
+import { Client, InMemoryTransport, type Tool } from '@modelcontextprotocol/client'
 
 import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/dsh-bridge'
 import { loggerService } from '@logger'
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import { mcpModelContent } from '@main/ai/mcp/toolResult'
-import { type AgentMcpServer, connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
@@ -73,7 +73,7 @@ export async function buildDshCherryToolBridge(
   for (const [serverId, server] of Object.entries(servers)) {
     let client: Client | undefined
     try {
-      client = await connectAgentMcpClient(server, `cherry-dsh-${serverId}`)
+      client = await connectClient(server, `cherry-dsh-${serverId}`)
       const result = await client.listTools()
       const serverNames = new Set<string>()
       const serverTools = result.tools.map((tool) => ({
@@ -123,6 +123,14 @@ export async function buildDshCherryToolBridge(
       await Promise.allSettled(clients.map((client) => client.close()))
     }
   }
+}
+
+async function connectClient(server: AgentMcpServer, clientName: string): Promise<Client> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const client = new Client({ name: clientName, version: '1.0.0' })
+  await server.connect(serverTransport)
+  await client.connect(clientTransport)
+  return client
 }
 
 function toBridgeDescriptor(serverName: string, tool: Tool): BridgeToolDescriptor {

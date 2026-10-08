@@ -1,8 +1,7 @@
 import type { Client } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 
 const binaryManager = {
   getToolInventory: vi.fn(),
@@ -29,17 +28,11 @@ type Result = { isError?: boolean; content: Array<{ type: string; text?: string 
 const clients: Client[] = []
 
 async function connectCli(): Promise<Client> {
-  const client = await connectAgentMcpClient(
-    {
-      name: 'cherry-tools',
-      connect: serveAgentMcpServer(() => {
-        const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-        registerCliTools(server)
-        return server
-      })
-    },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerCliTools(server)
+    return server
+  })
   clients.push(client)
   return client
 }

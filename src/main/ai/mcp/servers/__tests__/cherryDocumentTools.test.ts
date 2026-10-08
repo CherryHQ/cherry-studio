@@ -4,9 +4,9 @@ import path from 'node:path'
 
 import type { Client } from '@modelcontextprotocol/client'
 import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 const {
@@ -56,17 +56,11 @@ async function makeTools() {
   const workspacePath = path.join(root, 'workspace')
   const agentDataPath = path.join(root, 'agent-data')
   await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
-  const client = await connectAgentMcpClient(
-    {
-      name: 'cherry-tools',
-      connect: serveAgentMcpServer(() => {
-        const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
-        registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
-        return server
-      })
-    },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
+    return server
+  })
   clients.push(client)
   const tools = {
     call: (args: { path: string }) => client.callTool({ name: 'to_markdown', arguments: args }) as Promise<Result>

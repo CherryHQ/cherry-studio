@@ -54,8 +54,9 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { connectAgentMcpClient, serveAgentMcpServer } from '@main/ai/runtime/agentMcpServer'
 import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -84,10 +85,7 @@ async function connectAssistantClient(
   enabledToolNames?: readonly AssistantToolName[],
   defaultModel?: UniqueModelId
 ): Promise<Client> {
-  const client = await connectAgentMcpClient(
-    { name: 'assistant', connect: serveAgentMcpServer(() => createAssistantServer(defaultModel, enabledToolNames)) },
-    'test'
-  )
+  const client = await connectMcpTestClient(() => createAssistantServer(defaultModel, enabledToolNames))
   clients.push(client)
   return client
 }

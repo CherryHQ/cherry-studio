@@ -9,10 +9,9 @@ import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServer'
-import { connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -265,7 +264,7 @@ describe('buildMcpServers', () => {
     const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
-    const client = await connectAgentMcpClient(instance as unknown as AgentMcpServer, 'test')
+    const client = await connectMcpTestClient(instance)
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
     await client.close()
   })
@@ -291,8 +290,7 @@ describe('buildMcpServers', () => {
   async function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
     if (!result) throw new Error('buildMcpServers returned no servers')
     const { instance } = result['cherry-tools'] as McpSdkServerConfigWithInstance
-    const connect = (instance as unknown as AgentMcpServer).connect
-    const client = await connectAgentMcpClient({ name: 'cherry-tools', connect }, 'test')
+    const client = await connectMcpTestClient(instance)
     clients.push(client)
     return client
   }

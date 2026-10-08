@@ -18,9 +18,9 @@ import {
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
 import { Server } from '@modelcontextprotocol/server'
+import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
 
-import { serveAgentMcpServer } from '../agentMcpServer'
 import { createPiApprovalExtension } from './approvalExtension'
 import { createPiMcpExtension } from './piMcpExtension'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
@@ -48,7 +48,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const chunks: unknown[] = []
     let resolveMetadata: (name: string) => ReturnType<typeof resolvePiMcpToolMetadata> = () => undefined
     const adapter = new PiStreamAdapter({ enqueue: (chunk) => chunks.push(chunk) }, (name) => resolveMetadata(name))
-    const server = serveAgentMcpServer(() => {
+    const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
         tools: ['read_value', 'forbidden', longTool].map((name) => ({
@@ -63,7 +63,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       })
       return fixture
     })
-    const shadow = serveAgentMcpServer(() => {
+    const shadow = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'shadow', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
         tools: [{ name: 'forbidden', inputSchema: { type: 'object' as const } }]

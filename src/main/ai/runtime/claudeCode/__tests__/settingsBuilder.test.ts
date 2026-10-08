@@ -5,10 +5,10 @@ import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { Server } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { type AgentMcpServer, connectAgentMcpClient } from '@main/ai/runtime/agentMcpServer'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -277,7 +277,7 @@ const sessionStateService = new ClaudeCodeSessionStateService()
 
 async function listCherryTools(settings: { mcpServers?: Record<string, unknown> }) {
   const { instance } = settings.mcpServers!['cherry-tools'] as McpSdkServerConfigWithInstance
-  const client = await connectAgentMcpClient(instance as unknown as AgentMcpServer, 'test')
+  const client = await connectMcpTestClient(instance)
   try {
     return await client.listTools()
   } finally {
@@ -287,7 +287,7 @@ async function listCherryTools(settings: { mcpServers?: Record<string, unknown> 
 
 async function listAssistantToolNames(settings: { mcpServers?: Record<string, unknown> }) {
   const assistant = settings.mcpServers?.assistant as McpSdkServerConfigWithInstance
-  const client = await connectAgentMcpClient(assistant.instance as unknown as AgentMcpServer, 'test')
+  const client = await connectMcpTestClient(assistant.instance)
   try {
     return (await client.listTools()).tools.map((tool) => tool.name)
   } finally {
@@ -874,7 +874,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     // Bridges are built per connection, so connect once to materialize it.
     const { instance } = settings.mcpServers!['mcp-1'] as McpSdkServerConfigWithInstance
-    await (await connectAgentMcpClient(instance as unknown as AgentMcpServer, 'test')).close()
+    await (await connectMcpTestClient(instance)).close()
 
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
       interactionContext: expect.objectContaining({
