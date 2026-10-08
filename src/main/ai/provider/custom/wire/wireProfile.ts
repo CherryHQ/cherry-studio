@@ -89,10 +89,8 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
  * Doubao (Volcengine Ark) via `@ai-sdk/bytedance`. That package's option schema is
  * camelCase and does the vendor naming itself (`outputFormat` → `output_format`,
  * `maxImages` → `sequential_image_generation_options.max_images`), so this profile only
- * renames the two canonical keys whose Ark option name differs. Everything else rides
- * verbatim via `passthrough` — which is also what keeps `sequentialImageGeneration:
- * 'auto'` alive: {@link buildImageRequest}'s `skipValue` treats `'auto'` as "unset",
- * but for Ark it is the value that ENABLES group images.
+ * renames the two canonical keys whose Ark option name differs. Other SDK options,
+ * including `sequentialImageGeneration: 'auto'`, ride verbatim via `passthrough`.
  */
 export const DOUBAO_WIRE_PROFILE: WireProfile = {
   fields: {
@@ -112,9 +110,11 @@ const aspectRatioImageConfigRule: WireRule = {
 /** `imageResolution` (1K/2K/4K — a vendor-bag field, NOT the native `size`) →
  *  google `imageConfig.imageSize`. Gemini image models expose `imageResolution`;
  *  `@ai-sdk/google` reads it as `providerOptions.<key>.imageConfig.imageSize`.
- *  Shared by the google / google-vertex family and the dmxapi google-routed block. */
+ *  Shared by the google / google-vertex family and the dmxapi google-routed block.
+ *  Google has no `auto` wire value; that selection leaves sizing to the model. */
 const imageResolutionImageConfigRule: WireRule = {
-  contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+  contribute: (v): Record<string, JSONValue> =>
+    typeof v === 'string' && v !== 'auto' ? { imageConfig: { imageSize: v } } : {}
 }
 
 /**
@@ -135,7 +135,7 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
     // Gemini image models expose `imageResolution` (1K/2K/4K); Imagen/legacy expose
     // `size`. Both land in `imageConfig.imageSize`. (A model exposes one or the other.)
     imageResolution: imageResolutionImageConfigRule,
-    size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
+    size: imageResolutionImageConfigRule
   }
 }
 

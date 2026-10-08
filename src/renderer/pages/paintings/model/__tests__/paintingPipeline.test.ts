@@ -1,9 +1,14 @@
 import { mockPrefetch, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
+import {
+  ImageGenerationOverrideSchema,
+  ImageGenerationSupportSchema,
+  resolveImageGenerationSupport
+} from '@cherrystudio/provider-registry'
 import type { FileEntry } from '@shared/data/types/file'
 
+import models from '../../../../../../packages/provider-registry/data/models.json'
 import catalog from '../../../../../../packages/provider-registry/data/provider-models.json'
 import { paintingGenerate } from '../paintingPipeline'
 import type { GenerateInput } from '../types/generateInput'
@@ -52,7 +57,14 @@ describe('painting capability to IPC', () => {
 
   it('delivers TokenHub reference generation without an edit mode or a lost input', async () => {
     const row = catalog.overrides.find((row) => row.providerId === 'tokenhub' && row.apiModelId === 'hy-image-v3')
-    seedSupport(row?.imageGeneration)
+    if (!row) throw new Error('Missing TokenHub hy-image-v3 fixture')
+    const base = models.models.find((model) => model.id === row.modelId)
+    seedSupport(
+      resolveImageGenerationSupport(
+        { imageGeneration: ImageGenerationSupportSchema.optional().parse(base?.imageGeneration) },
+        { imageGeneration: ImageGenerationOverrideSchema.optional().parse(row.imageGeneration) }
+      )
+    )
     const result = await paintingGenerate(input())
     expect(result).toMatchObject([{ id: 'result', path: '/output/result.png' }])
     expect(request).toHaveBeenCalledWith(

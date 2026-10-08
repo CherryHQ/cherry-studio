@@ -28,22 +28,18 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
-      if (name === 'FileManager') return { read: fileRead }
-      throw new Error(`unexpected service: ${name}`)
-    }
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), silly: vi.fn() })
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mock = mockApplicationFactory({
+    PreferenceService: { get: getPreference },
+    FileManager: { read: fileRead }
+  })
+  const getInfrastructure = mock.application.get.getMockImplementation()!
+  mock.application.get.mockImplementation((name) =>
+    name === 'AiService' ? { generateImage } : getInfrastructure(name)
+  )
+  return mock
+})
 
 import {
   generateImageFromPrompt,
@@ -189,26 +185,37 @@ describe('generate_image', () => {
     )
   })
 
-  it('maps dynamic model params into the canonical parameter bag', async () => {
-    generateImage.mockResolvedValue({ files: [] })
+  it.each([
+    { size: 'custom', customSize: '1536x1024' },
+    { customSize: '1536x1024' },
+    { size: '1536x1024' },
+    { size: '1536x1024', customSize: '1536x1024' }
+  ])('normalizes a real Zhipu custom size before authoritative validation: %j', async (params) => {
+    generateImage.mockResolvedValue({ files: [{ id: 'landscape', name: 'landscape.png' }] })
 
-    await callExecute({ prompt: 'a cat', size: '1792x1024', numImages: 2 }, undefined, buildTool(generateSupport))
-
-    expect(generateImage).toHaveBeenCalledWith(
-      expect.objectContaining({ paramValues: { size: '1792x1024', numImages: 2 } })
-    )
-  })
-
-  it('normalizes a real Zhipu customSize input to the native size parameter', async () => {
-    generateImage.mockResolvedValue({ files: [] })
-
-    await callExecute(
-      { prompt: 'a wide landscape', size: '1024x1024', customSize: '1536x1024' },
+    const result = await callExecute(
+      { prompt: 'a wide landscape', ...params },
       undefined,
       buildTool(getRegistrySupport('zhipu', 'cogview-4'))
     )
 
+    expect(result).toEqual([{ id: 'landscape', name: 'landscape.png' }])
     expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { size: '1536x1024' } }))
+  })
+
+  it.each([
+    { size: 'custom' },
+    { size: 'custom', customSize: '511x1024' },
+    { size: '1024x1024', customSize: '1536x1024' }
+  ])('rejects incomplete, out-of-bounds and conflicting custom dimensions before generation: %j', async (params) => {
+    const support = getRegistrySupport('zhipu', 'cogview-4')
+    const result = await generateImageFromPrompt({ prompt: 'a fox', image_ids: ['reference'], ...params }, undefined, {
+      uniqueModelId: 'zhipu::cogview-4',
+      support
+    })
+    expect(result).toEqual({ error: PAINTING_INVALID_REQUEST_NOTE })
+    expect(generateImage).not.toHaveBeenCalled()
+    expect(fileRead).not.toHaveBeenCalled()
   })
 
   it('resolves edit image ids to base64 data URLs and keeps ordinary generation', async () => {

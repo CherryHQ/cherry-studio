@@ -1,38 +1,14 @@
 /**
- * Compose a per-(model, mode) param validation schema from the central
- * {@link IMAGE_PARAM_CATALOG} (value types) and the model's registry
- * `supports` block (per-model constraints: options / range).
- *
- * The catalog owns each param's coercion + value type; the per-model
- * `SupportSpec` is layered on top as additive `.refine` constraints — we never
- * rebuild a fresh zod from the spec (that would lose the catalog's coercion).
- * Each field is `.catch(undefined)` and the object is `.loose()` so one bad /
- * legacy / uncatalogued value never fails the whole submit — the caller treats
- * a parse failure as non-fatal during migration.
+ * Parse form drafts using catalog input normalization and shared model constraints.
+ * Drafts retain the custom-size sentinel and uncatalogued widget state; invalid
+ * values are cleared. This is not authoritative submitted-request validation.
  */
 import * as z from 'zod'
 
-import type { CanonicalParamKey } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
-import type { ImageGenerationSupport, ImageOperation, SupportSpec } from '../schemas/model'
+import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
+import type { ImageGenerationSupport, ImageOperation } from '../schemas/model'
+import { buildImageParamSchema } from './buildImageRequestParamsSchema'
 import { resolveImageCapability } from './imageCapabilities'
-
-/** Layer the per-model constraint onto the catalog's base value schema. */
-function applyConstraints(base: z.ZodTypeAny, spec: SupportSpec): z.ZodTypeAny {
-  switch (spec.type) {
-    case 'enum':
-      // Allow the `'custom'` sentinel the size-pairing widget emits.
-      return base.refine((v) => v == null || v === 'custom' || spec.options.includes(String(v)), {
-        message: 'value not in supported options'
-      })
-    case 'range':
-      return base.refine((v) => v == null || (Number(v) >= spec.min && Number(v) <= spec.max), {
-        message: 'value out of range'
-      })
-    default:
-      return base
-  }
-}
 
 export function buildParamsSchema(
   support: ImageGenerationSupport | undefined,
@@ -42,34 +18,33 @@ export function buildParamsSchema(
   const resolution = resolveImageCapability(support, operation, hasImages)
   if (resolution.kind === 'unsupported') return z.never()
 
-  // Base: EVERY catalog key coerced with `.catch(undefined)`. A canonical value left
-  // over from a previously-selected model — INCLUDING one this model doesn't declare
-  // in `supports`, e.g. after a registered → no-support → registered switch where
-  // `computeModelFieldReset` had no old keys to clear — must be coerced/dropped here
-  // rather than ride RAW through `.loose()` into the strict IPC-boundary schema
-  // (`imageParamsSchema`, no `.catch`), which would reject the whole submit. The
-  // supported branch below overlays per-model constraints on this base.
+  // Normalize stale catalog values as well, so `.loose()` cannot pass them raw to IPC.
   const shape: Record<string, z.ZodTypeAny> = {}
-  for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
-    shape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    const input: z.ZodType = imageParamsSchema.shape[key]
+    shape[key] = input.catch(undefined)
   }
 
   if (resolution.kind === 'unconfigured') return z.object(shape).loose()
   const { supports } = resolution.capability
 
-  // Overlay this model's per-param constraints (options / range) on the base.
-  for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {
-    const entry = IMAGE_PARAM_CATALOG[key]
-    if (!entry) continue
-    shape[key] = applyConstraints(entry.schema as z.ZodTypeAny, spec).catch(undefined)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    const spec = supports[key]
+    if (spec === undefined) continue
+    let field = buildImageParamSchema(key, supports)
+    if (
+      spec.type === 'enum' &&
+      Object.values(supports).some((entry) => entry.type === 'size' && entry.pairedEnumKey === key)
+    ) {
+      field = field.or(z.literal('custom'))
+    }
+    const input: z.ZodType = imageParamsSchema.shape[key]
+    shape[key] = input.pipe(field.optional()).catch(undefined)
 
     // The `customSize` widget stores typed width/height under synthetic
     // `<key>_width` / `<key>_height` keys (not canonical), bounded by the spec.
     if (spec.type === 'size') {
-      const side = z.preprocess(
-        normalizeImageParamNumber,
-        z.number().finite().min(spec.minSide).max(spec.maxSide).optional()
-      )
+      const side = z.preprocess(normalizeImageParamNumber, z.number().min(spec.minSide).max(spec.maxSide).optional())
       shape[`${key}_width`] = side.catch(undefined)
       shape[`${key}_height`] = side.catch(undefined)
     }

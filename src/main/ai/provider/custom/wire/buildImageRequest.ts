@@ -11,7 +11,7 @@ import type { WireProfile, WireRegistration } from './wireProfile'
 const logger = loggerService.withContext('imageWireEngine')
 
 function skipValue(value: unknown): boolean {
-  return value === undefined || value === '' || value === null || value === 'auto'
+  return value === undefined || value === '' || value === null
 }
 
 function isPlainObject(v: unknown): v is Record<string, JSONValue> {
@@ -21,9 +21,8 @@ function isPlainObject(v: unknown): v is Record<string, JSONValue> {
 /**
  * Merge a `contribute()` result into the body: deep-merge nested plain objects
  * (google's `imageConfig` assembled from `aspectRatio` + `size`) and drop empty
- * leaves (`undefined` / `''` / `'auto'`) plus any object that prunes to empty —
- * mirroring the legacy `compact()` so an unset `aspectRatio` leaves no
- * `imageConfig.aspectRatio` and an all-empty block leaves no `imageConfig` key.
+ * leaves (`undefined` / `''`) plus objects that prune to empty. Protocol-specific
+ * sentinels such as `auto` must be interpreted by the contributing rule.
  */
 function mergeContribution(body: Record<string, JSONValue>, contribution: Record<string, JSONValue>): void {
   for (const [k, v] of Object.entries(contribution)) {
@@ -31,7 +30,7 @@ function mergeContribution(body: Record<string, JSONValue>, contribution: Record
       const target = isPlainObject(body[k]) ? body[k] : {}
       mergeContribution(target, v)
       if (Object.keys(target).length > 0) body[k] = target
-    } else if (v !== undefined && v !== '' && v !== 'auto') {
+    } else if (v !== undefined && v !== '') {
       body[k] = v
     }
   }
@@ -42,8 +41,8 @@ function mergeContribution(body: Record<string, JSONValue>, contribution: Record
  * as `wireName(key) → value` (the catalog supplies the snake_case name — one
  * source, no per-profile rename). `fields` carry explicit overrides: a `to`/`map`
  * rule sets one field, a `contribute` rule merges a partial body (one-to-many /
- * nested). Drops `undefined` / `''` / `null` / `'auto'` — mirroring the old
- * `compact()` so the body is byte-identical. Native params (`n`/`size`/`seed`/
+ * nested). Drops only absent values (`undefined` / `''` / `null`); `auto` is a
+ * business value whose encoding belongs to its rule. Native params (`n`/`size`/`seed`/
  * `aspectRatio`) are routed elsewhere except where a profile re-declares one in
  * the body (silicon duplicates `seed`; google nests `aspectRatio`/`size`).
  */

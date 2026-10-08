@@ -20,8 +20,8 @@ The catalog and resolver now use base capabilities plus differences, not
 registry schema v4 with minimum application version 2.1.5; its frozen validator
 checks combined creator/provider input and operation differences. Published
 registry v1/v2/v3 baselines remain unchanged. Consumers and fixtures use the new
-contract, but C12 behavioral acceptance still requires execution of the migrated
-tests; typechecking alone does not complete it.
+contract. Focused capability and parameter acceptance has run; output staging
+and Main-owned painting delivery remain separate unfinished work.
 
 ## Current request flow
 
@@ -51,7 +51,7 @@ not a duplicate interface in this document.
 | Fact | Owner |
 | --- | --- |
 | Canonical parameter value type and default wire spelling | `IMAGE_PARAM_CATALOG` |
-| Available parameters and their constraints | Effective capability `supports` |
+| Available parameters and their constraints | Effective capability `supports`, interpreted by `buildImageParamSchema` |
 | Image count, prompt, mask and media-type facts | Capability `inputs`; unknown facts remain explicit |
 | Input-specific or genuine operation differences | `withImages` / `operations` |
 | Provider-specific endpoint and sync/task declaration | `protocol` |
@@ -92,9 +92,18 @@ is not the vendor request representation.
 
 [`IMAGE_PARAM_CATALOG`](../../../packages/provider-registry/src/schemas/imageParamCatalog.ts)
 owns canonical value types and `wireName`; `SupportSpec` contributes the
-model-specific options and constraints. The loose
+model-specific options and constraints. `buildImageParamSchema` combines these
+facts for draft parsing, Tool JSON schema and authoritative request validation.
+Range `step` is a control interaction increment, not a `multipleOf` restriction;
+minimum/maximum and the catalog's integer/number type constrain valid values.
+
+`imageParamsSchema` normalizes numeric strings from form/IPC inputs. Tool JSON
+numbers must already be numbers: strings, booleans and arrays are not coerced.
+Neither boundary fills model defaults; missing values remain missing and
+explicit `0`/`false` survive. The loose
 [`buildParamsSchema`](../../../packages/provider-registry/src/utils/buildParamsSchema.ts)
-is a draft parser, not the authoritative submit validator.
+clears invalid draft values and retains the custom-size widget sentinel; it is
+not the authoritative submit validator.
 
 ## Write half — canonical request to execution
 
@@ -111,6 +120,13 @@ It sends `operation`, `paramValues` and independent `inputImages` through
 `ai.image.generate`. The [IPC schema](../../../src/shared/ipc/schemas/ai.ts)
 validates the canonical input shape; it does not replace Main's model-specific
 validation.
+
+The [image Tool schema](../../../src/main/ai/tools/generateImageTool.ts) uses the
+same field constraints, restricted to the Tool's ordinary-generation subset.
+Its [entry adapter](../../../src/main/ai/tools/painting.ts) composes paired
+`customSize` into `size` before authoritative validation and file reads. A
+`custom` selection requires dimensions; conflicting concrete and custom sizes
+fail as invalid input. The auxiliary key and sentinel never reach execution.
 
 ### 2. Main preparation
 
@@ -150,9 +166,12 @@ canonical parameters independently; they do not both encode one request:
   `providerParams`. The custom transport builds its vendor-specific envelope;
   it must not read SDK wire spellings from this bag.
 
-WireProfile currently skips `'auto'` for mapped fields, while passthrough takes
-a separate path. Unified omission/default/sentinel handling and further
-terminal-encoding consolidation remain follow-up work, not current guarantees.
+The generic wire encoder does not interpret `'auto'`. A terminal rule owns
+whether a value is sent or omitted: OpenAI `quality`, `background` and
+`moderation` retain literal `auto`; Google automatic aspect ratio and image
+resolution omit their individual `imageConfig` fields. Other explicitly set
+fields remain intact. The encoder still omits absent/empty contributions, not
+`0` or `false`. Broader terminal-encoding consolidation remains follow-up work.
 
 ### 4. Task and output ownership
 

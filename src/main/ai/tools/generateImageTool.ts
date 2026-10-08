@@ -2,8 +2,8 @@ import { isEqual } from 'es-toolkit'
 import * as z from 'zod'
 
 import {
+  buildImageParamSchema,
   type CanonicalParamKey,
-  IMAGE_PARAM_CATALOG,
   type ImageGenerationSupport,
   resolveImageCapability,
   type SupportSpec
@@ -26,7 +26,7 @@ function describeParam(key: CanonicalParamKey, spec: SupportSpec): string {
     case 'enum':
       return `${prefix} Allowed values: ${spec.options.join(', ')}.${spec.default === undefined ? '' : ` Default: ${spec.default}.`}`
     case 'range':
-      return `${prefix} Range: ${spec.min}-${spec.max}.${spec.step === undefined ? '' : ` Step: ${spec.step}.`}${spec.default === undefined ? '' : ` Default: ${spec.default}.`}`
+      return `${prefix} Range: ${spec.min}-${spec.max}.${spec.default === undefined ? '' : ` Default: ${spec.default}.`}`
     case 'size':
       return `${prefix} Use WIDTHxHEIGHT with each side between ${spec.minSide} and ${spec.maxSide}.`
     case 'switch':
@@ -37,64 +37,6 @@ function describeParam(key: CanonicalParamKey, spec: SupportSpec): string {
       const exhaustive: never = spec
       return exhaustive
     }
-  }
-}
-
-type CatalogJsonType = 'boolean' | 'integer' | 'number' | 'string'
-
-function catalogJsonType(key: CanonicalParamKey): CatalogJsonType | undefined {
-  // provider-registry and the app can temporarily resolve different Zod patch versions. Read the
-  // catalog schema's plain JSON type instead of embedding its Zod instance into the app schema.
-  const catalogSchema = IMAGE_PARAM_CATALOG[key].schema as unknown as {
-    nonoptional(): { toJSONSchema(): { type?: string } }
-  }
-  const type = catalogSchema.nonoptional().toJSONSchema().type
-  return type === 'boolean' || type === 'integer' || type === 'number' || type === 'string' ? type : undefined
-}
-
-function catalogValueSchema(key: CanonicalParamKey): z.ZodType {
-  switch (catalogJsonType(key)) {
-    case 'boolean':
-      return z.boolean()
-    case 'integer':
-      return z.coerce.number().int()
-    case 'number':
-      return z.coerce.number()
-    case 'string':
-      return z.string()
-    default:
-      return z.unknown()
-  }
-}
-
-function constrainedParamSchema(key: CanonicalParamKey, spec: SupportSpec): z.ZodType {
-  const base = catalogValueSchema(key)
-  switch (spec.type) {
-    case 'enum': {
-      const [first, ...rest] = spec.options
-      return first === undefined ? base : z.enum([first, ...rest])
-    }
-    case 'range': {
-      let range =
-        catalogJsonType(key) === 'integer'
-          ? z.coerce.number().int().min(spec.min).max(spec.max)
-          : z.coerce.number().min(spec.min).max(spec.max)
-      if (spec.step !== undefined) range = range.multipleOf(spec.step)
-      return range
-    }
-    case 'size':
-      return z
-        .string()
-        .regex(/^\d+x\d+$/i, 'expected WIDTHxHEIGHT')
-        .refine(
-          (value) => {
-            const [width, height] = value.toLowerCase().split('x').map(Number)
-            return width >= spec.minSide && width <= spec.maxSide && height >= spec.minSide && height <= spec.maxSide
-          },
-          { message: 'size side out of range' }
-        )
-    default:
-      return base
   }
 }
 
@@ -120,7 +62,14 @@ export function buildGenerateImageToolSchema(
     for (const [key, spec] of Object.entries(supports) as Array<[CanonicalParamKey, SupportSpec]>) {
       // The tool exposes shared parameters only; input-specific controls stay on the painting page.
       if (withImages.kind === 'supported' && !isEqual(withImages.capability.supports[key], spec)) continue
-      inputShape[key] = constrainedParamSchema(key, spec).describe(describeParam(key, spec)).optional()
+      let field = buildImageParamSchema(key, supports)
+      if (
+        spec.type === 'enum' &&
+        Object.values(supports).some((entry) => entry.type === 'size' && entry.pairedEnumKey === key)
+      ) {
+        field = field.or(z.literal('custom'))
+      }
+      inputShape[key] = field.describe(describeParam(key, spec)).optional()
     }
     const imageIds = z
       .array(z.string().trim().min(1))

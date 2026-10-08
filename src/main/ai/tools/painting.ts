@@ -21,6 +21,8 @@ import * as z from 'zod'
 import { application } from '@application'
 import {
   buildImageRequestParamsSchema,
+  type EffectiveImageCapability,
+  IMAGE_PARAM_CATALOG_KEYS,
   imageParamsSchema,
   type ParamValues,
   resolveImageCapability
@@ -120,22 +122,27 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   }
 }
 
-function extractParamValues(input: GenerateImageToolInput, support: ImageGenerationSupport | null): ParamValues {
+function extractParamValues(
+  input: GenerateImageToolInput,
+  capability: EffectiveImageCapability | undefined
+): ParamValues {
   const params = omit(input, ['prompt', 'image_ids'])
-  const resolution = resolveImageCapability(support ?? undefined, 'generate', Boolean(input.image_ids?.length))
-  if (resolution.kind === 'unsupported') throw new Error(PAINTING_GENERATE_NOT_SUPPORTED_NOTE)
-  const schema =
-    resolution.kind === 'supported' ? buildImageRequestParamsSchema(resolution.capability) : imageParamsSchema.strict()
-  const parsed = schema.parse(params)
-  if (resolution.kind !== 'supported') return parsed
-  for (const [key, spec] of Object.entries(resolution.capability.supports)) {
-    if (spec.type !== 'size' || !spec.pairedEnumKey) continue
-    const value = parsed[key as keyof ParamValues]
+  if (capability === undefined) return imageParamsSchema.strict().parse(params)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    const spec = capability.supports[key]
+    if (spec?.type !== 'size' || !spec.pairedEnumKey) continue
+    const value = params[key]
     if (value === undefined) continue
-    delete parsed[key as keyof ParamValues]
-    return schema.parse({ ...parsed, [spec.pairedEnumKey]: value })
+    const pairedKey = IMAGE_PARAM_CATALOG_KEYS.find((candidate) => candidate === spec.pairedEnumKey)
+    if (pairedKey === undefined) throw new Error(`Unknown size-pair parameter: ${spec.pairedEnumKey}`)
+    const selected = params[pairedKey]
+    if (selected !== undefined && selected !== 'custom' && selected !== value) {
+      throw new Error(`Conflicting values for ${pairedKey} and ${key}`)
+    }
+    params[pairedKey] = value
+    delete params[key]
   }
-  return parsed
+  return buildImageRequestParamsSchema(capability).parse(params)
 }
 
 async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
@@ -164,6 +171,14 @@ export async function generateImageFromPrompt(
   const validated = buildGenerateImageToolSchema(support).safeParse(input)
   if (!validated.success) return { error: PAINTING_INVALID_REQUEST_NOTE }
 
+  let paramValues: ParamValues
+  try {
+    paramValues = extractParamValues(input, resolution.kind === 'supported' ? resolution.capability : undefined)
+  } catch (error) {
+    logger.warn('Invalid generate_image parameters', { error })
+    return { error: PAINTING_INVALID_REQUEST_NOTE }
+  }
+
   let inputImages: string[] | undefined
   if (input.image_ids?.length) {
     try {
@@ -181,7 +196,7 @@ export async function generateImageFromPrompt(
       prompt: input.prompt,
       operation: 'generate',
       ...(inputImages && { inputImages }),
-      paramValues: extractParamValues(input, support),
+      paramValues,
       // `manual` (confirmed no ref backing): this builtin tool's output only lives
       // in the tool-call part's text result — it is never emitted as a `file` part,
       // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref

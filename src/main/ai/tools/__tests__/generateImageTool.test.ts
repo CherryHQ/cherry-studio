@@ -3,12 +3,61 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
+import {
+  buildImageRequestParamsSchema,
+  buildParamsSchema,
+  resolveImageCapability,
+  resolveImageGenerationSupport
+} from '@cherrystudio/provider-registry'
 import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 
 import { buildGenerateImageToolSchema, generateImageInputSchema } from '../generateImageTool'
 
+function registrySupport(providerId: string, apiModelId: string) {
+  const registry = readProviderModelRegistry(
+    resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
+  )
+  const row = registry.overrides.find((entry) => entry.providerId === providerId && entry.apiModelId === apiModelId)
+  if (!row) throw new Error('Missing producer fixture')
+  const models = readModelRegistry(resolve(process.cwd(), 'packages/provider-registry/data/models.json'))
+  const support = resolveImageGenerationSupport(models.models.find((model) => model.id === row.modelId) ?? null, row)
+  if (!support) throw new Error('Missing capability')
+  return support
+}
+
 describe('generate_image input contract', () => {
+  it.each([true, false, [], [42], '42'])('does not coerce a non-number Tool seed into a valid request: %j', (seed) => {
+    const schema = buildGenerateImageToolSchema(registrySupport('tokenhub', 'hy-image-v3'))
+    expect(schema.safeParse({ prompt: 'a fox', seed }).success).toBe(false)
+  })
+
+  // https://help.aliyun.com/zh/model-studio/text-to-image-api-reference; retrieved 2026-10-08.
+  it('uses the declared numeric range, not the control step, at both request boundaries', () => {
+    const support = registrySupport('dashscope', 'wanx-v1')
+    const resolved = resolveImageCapability(support, 'generate', false)
+    if (resolved.kind !== 'supported') throw new Error('Missing capability')
+    const tool = buildGenerateImageToolSchema(support)
+    const main = buildImageRequestParamsSchema(resolved.capability)
+    const draft = buildParamsSchema(support)
+    for (const params of [{ refStrength: 0.53 }, { seed: 0 }]) {
+      expect(tool.parse({ prompt: 'a fox', ...params })).toMatchObject(params)
+      expect(main.parse(params)).toStrictEqual(params)
+      expect(draft.parse(params)).toMatchObject(params)
+    }
+    for (const refStrength of [-0.01, 1.01, true, []]) {
+      expect(tool.safeParse({ prompt: 'a fox', refStrength }).success).toBe(false)
+      expect(main.safeParse({ refStrength }).success).toBe(false)
+      expect(draft.parse({ refStrength }).refStrength).toBeUndefined()
+    }
+    const json = z.toJSONSchema(tool, { io: 'input' })
+    expect(json.properties?.refStrength).toMatchObject({ type: 'number', minimum: 0, maximum: 1 })
+    expect(json.properties?.refStrength).not.toHaveProperty('multipleOf')
+    expect(json.properties?.seed).toMatchObject({ type: 'integer' })
+    expect(tool.safeParse({ prompt: 'a fox', seed: 0.5 }).success).toBe(false)
+    expect(main.safeParse({ seed: 0.5 }).success).toBe(false)
+    expect(tool.parse({ prompt: 'a fox' })).not.toHaveProperty('refStrength')
+    expect(main.parse({})).not.toHaveProperty('refStrength')
+  })
   it('keeps the unconfigured tool prompt-required and rejects undeclared parameters', () => {
     expect(generateImageInputSchema.safeParse({ prompt: 'a cat' }).success).toBe(true)
     expect(generateImageInputSchema.safeParse({ prompt: '', n: 2 }).success).toBe(false)

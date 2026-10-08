@@ -1,9 +1,11 @@
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -25,7 +27,10 @@ vi.mock('@main/data/services/ProviderService', () => ({
 }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getModel } }))
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getImageGenerationSupport: getSupport }
+  providerRegistryService: {
+    getImageGenerationSupport: getSupport,
+    isRegistryProvider: vi.fn<typeof providerRegistryService.isRegistryProvider>().mockReturnValue(false)
+  }
 }))
 vi.mock('@main/data/services/AiUsageRecordService', () => ({ aiUsageRecordService: { recordInvocation } }))
 extensionRegistry.registerAll(extensions)
