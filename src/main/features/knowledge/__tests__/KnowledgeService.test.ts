@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
@@ -114,7 +117,8 @@ const {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
+  const { default: nodePath } = await import('node:path')
+  const mocked = mockApplicationFactory({
     FileProcessingService: {
       startJob: fileProcessingStartJobMock
     },
@@ -135,6 +139,10 @@ vi.mock('@application', async () => {
       embedMany: aiEmbedManyMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
+  // The shared `/mock/<key>` stub has no drive, so `path.join` on Windows yields `\mock\…`, which
+  // AbsoluteFilePathSchema rejects; resolve it to a host-absolute root instead.
+  mocked.application.getPath = vi.fn((key: string, filename?: string) => nodePath.resolve('/mock', key, filename ?? ''))
+  return mocked
 })
 
 vi.mock('@logger', () => ({
@@ -228,8 +236,18 @@ vi.mock('../external/ExternalKnowledgeRuntime', async (importOriginal) => {
   }
 })
 
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryPath: async () =>
+    `${process.cwd()}/resources/binaries/${process.platform}-${process.arch}/rg${process.platform === 'win32' ? '.exe' : ''}`
+}))
+
 const { KnowledgeService } = await import('../KnowledgeService')
+const ripgrepModule = await import('@main/ai/mcp/servers/filesystem/types')
+// Unit-test CI does not download the bundled binaries; the real-ripgrep cases run wherever `pnpm dev` fetched them.
+const hasBundledRipgrep = existsSync(await ripgrepModule.getRipgrepBinaryPath())
 const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
+
+const knowledgeDataPath = (...segments: string[]) => path.resolve('/mock/feature.knowledgebase.data', ...segments)
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -1186,8 +1204,8 @@ describe('KnowledgeService', () => {
 
     // Both the source file and its already-processed artifact are copied into the restored base.
     expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.pdf', 'report.pdf'],
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.md', 'report.md']
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.pdf'), 'report.pdf'],
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.md'), 'report.md']
     ])
     // The created item carries the artifact path.
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
@@ -1238,7 +1256,7 @@ describe('KnowledgeService', () => {
     // The snapshot markdown is copied into the restored base under the same name.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'restored-kb',
-      '/mock/feature.knowledgebase.data/source-kb/raw/example-page.md',
+      knowledgeDataPath('source-kb', 'raw', 'example-page.md'),
       'example-page.md'
     )
     // The created url item is pinned to the copied snapshot so first index reads it offline.
@@ -1459,8 +1477,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -1794,7 +1812,7 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemClearIndexedRelativePathMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') }
       }),
       expect.anything()
     )
@@ -1818,8 +1836,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -2260,7 +2278,7 @@ describe('KnowledgeService', () => {
       }
     })
 
-    expect(service.getFilePath('file-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/stored-report.pdf')
+    expect(service.getFilePath('file-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'stored-report.pdf'))
   })
 
   it('resolves a URL preview to the captured knowledge snapshot', () => {
@@ -2281,7 +2299,7 @@ describe('KnowledgeService', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(service.getFilePath('url-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/Product Docs.md')
+    expect(service.getFilePath('url-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'Product Docs.md'))
   })
 
   it('rejects URL preview path resolution before a snapshot is captured', () => {
@@ -2614,93 +2632,174 @@ describe('KnowledgeService', () => {
       readMaterialContentMock.mockResolvedValue(text)
     }
 
-    it('returns each match with a 1-based line number, offsets, and a snippet', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('line one\nline two match\nline three match')
+    describe.skipIf(!hasBundledRipgrep)('with the bundled ripgrep', () => {
+      it('returns each match with a 1-based line number, offsets, and a snippet', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('line one\nline two match\nline three match')
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'match' })
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'match' })
 
-      expect(result.totalMatches).toBe(2)
-      expect(result.matches.map((m) => m.line)).toEqual([2, 3])
-      expect(result.matches[0].snippet).toContain('match')
-      expect(
-        'line one\nline two match\nline three match'.slice(result.matches[0].charStart, result.matches[0].charEnd)
-      ).toBe('match')
+        expect(result.totalMatches).toBe(2)
+        expect(result.matches.map((m) => m.line)).toEqual([2, 3])
+        expect(result.matches[0].snippet).toContain('match')
+        expect(
+          'line one\nline two match\nline three match'.slice(result.matches[0].charStart, result.matches[0].charEnd)
+        ).toBe('match')
+      })
+
+      it('reports UTF-16 offsets after multi-byte and astral characters', async () => {
+        const service = new KnowledgeService()
+        const text = '前言 😀\n中文 cherry studio 😀 studio'
+        arrangeReadable(text)
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
+
+        expect(result.matches.map((m) => text.slice(m.charStart, m.charEnd))).toEqual(['studio', 'studio'])
+      })
+
+      it('keeps first-line offsets aligned when the text starts with a byte-order mark', async () => {
+        const service = new KnowledgeService()
+        const text = '﻿studio'
+        arrangeReadable(text)
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
+
+        expect(text.slice(result.matches[0].charStart, result.matches[0].charEnd)).toBe('studio')
+      })
+
+      it('is case-insensitive by default and case-sensitive when asked', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('Foo foo FOO')
+
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })).totalMatches).toBe(3)
+        expect(
+          (await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches
+        ).toBe(1)
+      })
+
+      it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('intro\nFoo foo FOO')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+
+        expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
+        const starts = result.matches.map((m) => m.charStart)
+        expect(starts).toEqual([...starts].sort((a, b) => a - b))
+        expect(new Set(starts).size).toBe(starts.length)
+      })
+
+      it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a a a\na\na')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'a', maxMatches: 2 })
+
+        expect(result.totalMatches).toBe(5)
+        expect(result.matches).toHaveLength(2)
+      })
+
+      it('binds anchors to each line', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('alpha\nbeta\ngamma')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
+
+        expect(result.totalMatches).toBe(1)
+        expect(result.matches[0].line).toBe(2)
+      })
+
+      it('drops matches past the per-line length cap', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('x'.repeat(2100) + 'NEEDLE')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
+
+        expect(result.totalMatches).toBe(0)
+      })
+
+      it('finishes a catastrophic-backtracking pattern quickly instead of blocking', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a'.repeat(29) + '!')
+
+        const startedAt = Date.now()
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^(\\w+\\s?)*$' })
+
+        expect(result.totalMatches).toBe(0)
+        expect(Date.now() - startedAt).toBeLessThan(2000)
+      })
+
+      it('still supports look-around and backreferences', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('cherry studio, studious, abab')
+
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'stud(?=io\\b)' })).totalMatches).toBe(1)
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(ab)\\1' })).totalMatches).toBe(1)
+      })
+
+      it('rejects a backtracking pattern that exhausts the PCRE2 match limit with a validation error', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a'.repeat(40) + '!')
+
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(?=a)^(\\w+\\s?)*$' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
+
+      it('throws a validation error for an invalid regular expression', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
     })
 
-    it('is case-insensitive by default and case-sensitive when asked', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('Foo foo FOO')
+    describe('ripgrep process failures', () => {
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
 
-      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })).totalMatches).toBe(3)
-      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches).toBe(
-        1
-      )
-    })
+      it('rejects a timed-out pattern with a validation error instead of reporting no matches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+        vi.spyOn(ripgrepModule, 'runRipgrep').mockResolvedValue({ ok: true, stdout: '', stderr: '', exitCode: null })
 
-    it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
-      const service = new KnowledgeService()
-      // Matches sit on row 2 (not the first line) so the assertion pins both: the line number is the shared
-      // row, and the offsets are distinct and ascending per match on that row.
-      arrangeReadable('intro\nFoo foo FOO')
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+      it('fails when ripgrep cannot start instead of reporting no matches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+        vi.spyOn(ripgrepModule, 'runRipgrep').mockResolvedValue({ ok: false, stdout: '', stderr: '', exitCode: null })
 
-      expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
-      const starts = result.matches.map((m) => m.charStart)
-      expect(starts).toEqual([...starts].sort((a, b) => a - b))
-      expect(new Set(starts).size).toBe(starts.length)
-    })
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x' })).rejects.toThrow(/ripgrep/)
+      })
 
-    it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('a a a a a')
+      it('converts ripgrep byte offsets to UTF-16 offsets', async () => {
+        const service = new KnowledgeService()
+        const text = '前言\n中文 😀 studio'
+        arrangeReadable(text)
+        // Recorded from `rg --json -e studio -` over the same input.
+        const matchRecord = JSON.stringify({
+          type: 'match',
+          data: {
+            line_number: 2,
+            lines: { text: '中文 😀 studio' },
+            submatches: [{ match: { text: 'studio' }, start: 12 }]
+          }
+        })
+        vi.spyOn(ripgrepModule, 'runRipgrep')
+          .mockResolvedValueOnce({ ok: true, stdout: '1\n', stderr: '', exitCode: 0 })
+          .mockResolvedValueOnce({ ok: true, stdout: `${matchRecord}\n`, stderr: '', exitCode: 0 })
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'a', maxMatches: 2 })
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
 
-      expect(result.totalMatches).toBe(5)
-      expect(result.matches).toHaveLength(2)
-    })
-
-    it('does not loop forever on a zero-width pattern', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('abc')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x*' })
-
-      // 'x*' matches empty at each position (4 in "abc"); the lastIndex bump keeps it terminating.
-      expect(result.totalMatches).toBe(4)
-    })
-
-    it('matches anchors and bounds matching per line (no full-document backtracking)', async () => {
-      const service = new KnowledgeService()
-      // `^`/`$` bind to each line now that matching is line-oriented: a whole-document scan
-      // would never match `^beta$` mid-string.
-      arrangeReadable('alpha\nbeta\ngamma')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
-
-      expect(result.totalMatches).toBe(1)
-      expect(result.matches[0].line).toBe(2)
-    })
-
-    it('drops matches past the per-line length cap so a single line cannot freeze the scan', async () => {
-      const service = new KnowledgeService()
-      // The needle sits past CONCEPT_GREP_MAX_LINE_CHARS (2000) on one line, so the truncated
-      // line the pattern runs over never reaches it — proving the per-line evaluation is bounded.
-      arrangeReadable('x'.repeat(2100) + 'NEEDLE')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
-
-      expect(result.totalMatches).toBe(0)
-    })
-
-    it('throws a validation error for an invalid regular expression', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('whatever')
-
-      await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(' })).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
+        expect(result.totalMatches).toBe(1)
+        expect(text.slice(result.matches[0].charStart, result.matches[0].charEnd)).toBe('studio')
       })
     })
 

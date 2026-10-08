@@ -22,7 +22,7 @@ sources:
 ## 首期实施边界
 
 - 桌面 `RemoteAdvertisement` 使用现有 Bonjour 库发布 `_cherry-remote._tcp`；TXT 仅公开身份与发现版本，
-  SRV 使用 Gateway 的实际共享端口，仅发布当前 IPv4 listener 能接入的地址。Gateway 将真实入口状态推给远程 owner，没有反向 lifecycle 依赖。
+  SRV 使用 Gateway 的实际共享端口，仅发布当前 IPv4 / IPv6 listeners 能接入的地址。Gateway 将真实入口状态推给远程 owner，没有反向 lifecycle 依赖。
 - 局域网访问统一控制连接入口与发现发布，不提供独立的发现开关。仅本机临时 API 租约不会
   打开发现。发布组件检查网卡变化，并在恢复唤醒时刷新；停机撤销异步发布意图。发现失败只显示状态提示。
 - 移动端使用单个 Expo 原生发现模块和内存 Resolver；Manager 串行尝试候选，每轮最多 15 秒，socket

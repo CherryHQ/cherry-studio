@@ -16,6 +16,8 @@ describe.each([
 ] as const)('Copilot endpoint patch (%s)', (_format, createCopilot) => {
   it.each([
     ['gpt-6-astra', '/responses'],
+    ['gpt-6-sol', '/responses'],
+    ['gpt-6-luna', '/responses'],
     ['gpt-5', '/responses'],
     ['gpt-5.4', '/responses'],
     ['gpt-5.3-codex', '/responses'],
