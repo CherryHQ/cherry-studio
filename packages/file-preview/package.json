@@ -25,7 +25,8 @@
     "./assets/*": "./dist/assets/*"
   },
   "scripts": {
-    "build": "vite build --mode development",
+    "build": "vite build",
+    "prepack": "pnpm build",
     "test": "pnpm --workspace-root test:pkg:file-preview",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

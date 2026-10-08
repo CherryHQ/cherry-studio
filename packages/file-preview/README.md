@@ -81,7 +81,9 @@ const resources = {
 ```
 
 `createWorker` takes precedence over `baseUrl` for both workers. Each worker file is
-self-contained. `readPdfResource` serves names from `assets/cmaps/` (without `.bcmap`)
+self-contained. Give inline HTML a base URL, such as react-native-webview's
+`source={{ html, baseUrl: 'https://file-preview.local/' }}`: in an opaque `about:blank`
+origin, browsers refuse module workers created from blob URLs. `readPdfResource` serves names from `assets/cmaps/` (without `.bcmap`)
 and `assets/standard_fonts/`.
 
 PDF and DOCX zoom with a two-finger pinch, and images pinch-zoom in their viewport.
@@ -107,9 +109,10 @@ set these custom properties to retheme it. Root overrides win over the packaged 
 ## Building
 
 ```sh
-pnpm --dir packages/file-preview build
 pnpm --dir packages/file-preview pack --pack-destination /path/to/artifacts
 ```
+
+`pack` runs the production build first, so the tarball never carries a stale `dist`.
 
 The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 `rolldown-plugin-dts` for declaration bundles. Every third-party library except `zod`
