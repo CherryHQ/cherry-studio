@@ -36,11 +36,12 @@ const write = vi.fn()
 const ipcRequest = vi.fn()
 const showObsidian = vi.fn()
 const fetchMock = vi.fn()
-const renderExports = (topicName?: string) =>
+const renderExports = (topicName?: string, workspacePath?: string) =>
   renderHook(() =>
     useMessageExportActions({
       topicName,
-      exportToObsidian: showObsidian
+      exportToObsidian: showObsidian,
+      workspacePath
     })
   ).result
 
@@ -157,6 +158,28 @@ describe('message export actions', () => {
     ipcRequest.mockResolvedValueOnce({ ok: true, data: false })
     await act(async () => {
       expect(await result.current.exportMessages([first], 'word')).toBe(false)
+    })
+  })
+
+  it('uses the unified document exporter with the Agent workspace as the image root', async () => {
+    const result = renderExports('Agent report', '/tmp/agent-workspace')
+
+    await act(async () => {
+      await result.current.exportToWord?.('# Word', 'Word report')
+      await result.current.exportToDocument?.('# Slides', 'Deck', 'pptx')
+    })
+
+    expect(ipcRequest).toHaveBeenNthCalledWith(1, 'export.document.convert_and_save', {
+      markdown: '# Word',
+      defaultName: 'Word report',
+      format: 'docx',
+      assetRoot: '/tmp/agent-workspace'
+    })
+    expect(ipcRequest).toHaveBeenNthCalledWith(2, 'export.document.convert_and_save', {
+      markdown: '# Slides',
+      defaultName: 'Deck',
+      format: 'pptx',
+      assetRoot: '/tmp/agent-workspace'
     })
   })
 

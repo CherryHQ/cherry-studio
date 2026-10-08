@@ -3,6 +3,7 @@ import { readUIMessageStream } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { webSearchOutputSchema } from '@shared/ai/builtinTools'
+import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
 import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -113,6 +114,90 @@ describe('PiStreamAdapter', () => {
       errorText: JSON.stringify({ message: 'boom' }),
       providerMetadata: { cherry: { transport: PI_TRANSPORT } }
     })
+  })
+
+  it('preserves the parent tool call on native nested tool events', () => {
+    const chunks = collect([
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'script/1',
+        parentToolCallId: 'script',
+        toolName: 'mcp__cherry_tools__convert_to_document',
+        args: { format: 'pdf' }
+      },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'script/1',
+        parentToolCallId: 'script',
+        toolName: 'mcp__cherry_tools__convert_to_document',
+        result: { content: [{ type: 'text', text: '{"path":"report.pdf"}' }] },
+        isError: false
+      }
+    ])
+
+    expect(chunks.filter((chunk) => chunk.type.startsWith('tool-'))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          toolCallId: 'script/1',
+          providerMetadata: expect.objectContaining({
+            cherry: expect.objectContaining({ parentToolCallId: 'script' })
+          })
+        })
+      ])
+    )
+    for (const chunk of chunks.filter((chunk) => chunk.type.startsWith('tool-'))) {
+      expect(chunk).toMatchObject({
+        providerMetadata: { cherry: { parentToolCallId: 'script' } }
+      })
+    }
+  })
+
+  it('keeps a completed child document artifact when its parent codemode call fails', async () => {
+    const childToolName = 'mcp__cherry-tools__convert_to_document'
+    const childInput = { markdown: '# Report', format: 'pdf' }
+    const artifact = { path: 'report.pdf', format: 'pdf', mime: 'application/pdf' }
+    const message = await accumulate(
+      collect([
+        {
+          type: 'tool_execution_start',
+          toolCallId: 'script',
+          toolName: 'codemode',
+          args: { code: 'throw new Error("after export")' }
+        },
+        {
+          type: 'tool_execution_start',
+          toolCallId: 'script/1',
+          parentToolCallId: 'script',
+          toolName: childToolName,
+          args: childInput
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'script/1',
+          parentToolCallId: 'script',
+          toolName: childToolName,
+          result: { content: [{ type: 'text', text: JSON.stringify(artifact) }] },
+          isError: false
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'script',
+          toolName: 'codemode',
+          result: 'after export',
+          isError: true
+        }
+      ])
+    )
+
+    const child = message.parts.find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script/1')
+    const parent = message.parts.find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')
+    expect(child).toMatchObject({ state: 'output-available', input: childInput })
+    expect(child?.type).toBe('dynamic-tool')
+    if (child?.type !== 'dynamic-tool') {
+      throw new Error('Expected the completed child tool part')
+    }
+    expect(getConvertedDocumentArtifacts(child.toolName, child.input, child.output)).toEqual([artifact])
+    expect(parent).toMatchObject({ state: 'output-error', errorText: 'after export' })
   })
 
   it('keeps content-part ids unique across multiple assistant messages in one loop', () => {

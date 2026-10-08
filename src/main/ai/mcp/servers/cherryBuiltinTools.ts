@@ -15,9 +15,8 @@
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  * - {@link registerCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
  *   delegates live discovery and approved installation to BinaryManager.
- * - {@link registerDocumentTools} (`…__to_markdown`) — converts workspace, agent-data, and
- *   session-attachment documents with Cherry's bundled converter and writes agent-private
- *   temporary Markdown.
+ * - {@link registerDocumentTools} (`…__to_markdown`, `…__convert_to_document`) — converts
+ *   workspace, agent-data, and session-attachment documents with Cherry's bundled converters.
  *
  * The factory runs once per connection, so runtime-dependent tool surfaces (the painting
  * model's generate_image schema, kb_* visibility, notify recipients) are decided there.

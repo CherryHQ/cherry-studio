@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import React from 'react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -85,70 +85,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-// Minimal mock for Radix UI context menu used in cherry presentation mode
-vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await (importOriginal as () => Promise<typeof CherryStudioUi>)()
-  const React = await import('react')
-  const MenuOpenContext = React.createContext<((open: boolean) => void) | null>(null)
-
-  return {
-    ...actual,
-    ContextMenu: ({
-      children,
-      onOpenChange
-    }: {
-      children: React.ReactNode
-      onOpenChange?: (open: boolean) => void
-    }) => (
-      <MenuOpenContext value={onOpenChange ?? null}>
-        <div data-testid="radix-context-menu">{children}</div>
-      </MenuOpenContext>
-    ),
-    ContextMenuTrigger: ({
-      children,
-      onContextMenu
-    }: {
-      children: React.ReactNode
-      onContextMenu?: React.MouseEventHandler
-    }) => {
-      const onOpenChange = React.use(MenuOpenContext)
-      return (
-        <span
-          onContextMenu={(e) => {
-            onOpenChange?.(true)
-            onContextMenu?.(e)
-          }}>
-          {children}
-        </span>
-      )
-    },
-    ContextMenuContent: ({ children, ...props }: React.ComponentProps<'div'>) => (
-      <div role="menu" data-testid="context-menu-content" {...props}>
-        {children}
-      </div>
-    ),
-    ContextMenuSeparator: () => <hr />,
-    ContextMenuItem: ({
-      children,
-      disabled,
-      onSelect
-    }: {
-      children: React.ReactNode
-      disabled?: boolean
-      onSelect?: () => void
-    }) => (
-      <button type="button" role="menuitem" disabled={disabled} onClick={onSelect}>
-        {children}
-      </button>
-    ),
-    ContextMenuItemContent: ({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) => (
-      <span>
-        {icon}
-        <span>{children}</span>
-      </span>
-    )
-  }
-})
+vi.mock('@cherrystudio/ui', async (importOriginal) => (importOriginal as () => Promise<typeof CherryStudioUi>)())
 
 const defaultExternalTargets: ExternalOpenTarget[] = [
   { id: 'system_default', kind: 'system_default', name: undefined },
@@ -223,6 +160,7 @@ describe('ArtifactPane Context Menu Integration', () => {
   })
 
   it('renders tab actions and resolved open targets in cherry mode and executes actions', async () => {
+    const user = userEvent.setup()
     const onPreviewClose = vi.fn()
     const onEditModeChange = vi.fn()
     const model = createMockModel()
@@ -245,19 +183,21 @@ describe('ArtifactPane Context Menu Integration', () => {
     expect(screen.getByRole('menuitem', { name: /agent\.preview_pane\.close/ })).toBeInTheDocument()
 
     // Test external open
-    fireEvent.click(screen.getByRole('menuitem', { name: /Finder/ }))
+    await user.click(screen.getByRole('menuitem', { name: /Finder/ }))
     await waitFor(() => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/README.md', 'file', 'file_manager')
     })
 
     // Test refresh
-    fireEvent.click(screen.getByRole('menuitem', { name: /agent\.preview_pane\.refresh/ }))
+    fireEvent.contextMenu(titleElement)
+    await user.click(await screen.findByRole('menuitem', { name: /agent\.preview_pane\.refresh/ }))
     await waitFor(() => {
       expect(model.refresh).toHaveBeenCalled()
     })
 
     // Test close
-    fireEvent.click(screen.getByRole('menuitem', { name: /agent\.preview_pane\.close/ }))
+    fireEvent.contextMenu(titleElement)
+    await user.click(await screen.findByRole('menuitem', { name: /agent\.preview_pane\.close/ }))
     await waitFor(() => {
       expect(onPreviewClose).toHaveBeenCalled()
     })
@@ -294,6 +234,54 @@ describe('ArtifactPane Context Menu Integration', () => {
     await waitFor(() => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/README.md', 'file', 'vscode')
     })
+  })
+
+  it.each([
+    { selectedFile: 'reports/report.md', assetRoot: '/tmp/workspace' },
+    {
+      previewFileSelection: { workspacePath: '/tmp/other-workspace', filePath: 'reports/report.md' },
+      assetRoot: '/tmp/other-workspace'
+    }
+  ])(
+    'exports Markdown with the selected workspace as its image boundary: $assetRoot',
+    async ({ assetRoot, ...props }) => {
+      mocks.preferenceValues['menu.presentation_mode'] = 'native'
+      mocks.showNativePopupMenu.mockResolvedValueOnce({ type: 'custom', id: 'artifact.export.pdf' })
+      const markdown = '# Report\n\n![Chart](../images/chart.png)'
+      const readExternal = vi.fn().mockResolvedValue(markdown)
+      const request = vi.fn().mockResolvedValue({ ok: true, data: null })
+      Object.assign(window.api, { file: { readExternal }, ipcApi: { request } })
+
+      renderHarness(props)
+      fireEvent.contextMenu(screen.getByText('report.md'))
+
+      await waitFor(() => {
+        expect(request).toHaveBeenCalledWith('export.document.convert_and_save', {
+          markdown,
+          format: 'pdf',
+          defaultName: 'report.md',
+          sourcePath: `${assetRoot}/reports/report.md`,
+          assetRoot
+        })
+      })
+      expect(readExternal).toHaveBeenCalledWith(`${assetRoot}/reports/report.md`)
+    }
+  )
+
+  it('does not offer Markdown conversion for an existing PDF artifact', async () => {
+    mocks.preferenceValues['menu.presentation_mode'] = 'native'
+    mocks.showNativePopupMenu.mockResolvedValueOnce(null)
+
+    renderHarness({ previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'report.pdf' } })
+    fireEvent.contextMenu(screen.getByText('report.pdf'))
+
+    await waitFor(() => expect(mocks.showNativePopupMenu).toHaveBeenCalled())
+    expect(mocks.showNativePopupMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: expect.not.arrayContaining([expect.objectContaining({ id: 'artifact.export' })])
+      }),
+      expect.any(Object)
+    )
   })
 
   it('remounts context menu when preview selection switches, avoiding stale target actions (Issue 1)', async () => {
