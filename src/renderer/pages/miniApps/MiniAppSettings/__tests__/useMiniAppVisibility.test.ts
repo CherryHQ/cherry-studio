@@ -509,6 +509,65 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b'])
   })
 
+  it('does not remember either optimistic order when overlapping visible reorders both fail', async () => {
+    const first = Promise.withResolvers<void>()
+    const second = Promise.withResolvers<void>()
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.allApps = [...mocks.miniApps]
+    mocks.disabled = []
+    mocks.reorderMiniAppsByStatus
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const original = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1))
+    act(() => result.current.reorderVisible(2, 1))
+
+    first.reject(new Error('first reorder failed'))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2))
+    second.reject(new Error('second reorder failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2))
+
+    mocks.miniApps = [...original]
+    mocks.allApps = [...mocks.miniApps]
+    rerender()
+    act(() => result.current.hide(original[2]))
+    act(() => result.current.show(original[2]))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('remembers a later successful visible reorder after an earlier overlapping reorder fails', async () => {
+    const first = Promise.withResolvers<void>()
+    const second = Promise.withResolvers<void>()
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.allApps = [...mocks.miniApps]
+    mocks.disabled = []
+    mocks.reorderMiniAppsByStatus
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1))
+    act(() => result.current.reorderVisible(2, 1))
+
+    first.reject(new Error('first reorder failed'))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2))
+    second.resolve()
+    await miniAppMutationService.enqueue(() => Promise.resolve())
+
+    mocks.miniApps = [stubApp('c'), stubApp('b'), stubApp('a')]
+    mocks.allApps = [...mocks.miniApps]
+    rerender()
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.show(mocks.miniApps[0]))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['c', 'b', 'a'])
+  })
+
   it('submits overlapping visible reorders to the shared queue in user-action order', async () => {
     const first = Promise.withResolvers<void>()
     const second = Promise.withResolvers<void>()

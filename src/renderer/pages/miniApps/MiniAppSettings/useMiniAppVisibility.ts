@@ -10,6 +10,15 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 
 const logger = loggerService.withContext('useMiniAppVisibility')
 
+interface MutationCallbacks {
+  onSuccess?: () => void
+  onFailure?: () => void
+}
+
+interface PendingVisibleOrderMutation {
+  order: string[]
+}
+
 /**
  * Surface mutation errors from `setAppStatusBulk` / `updateAppStatus` /
  * `reorderMiniAppsByStatus` to the user. Those operations invalidate the
@@ -130,18 +139,32 @@ export function useMiniAppVisibility() {
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
   // Snapshot the first visible ranking so hide/show is not a reorder.
   const originalVisibleIdsRef = useRef<string[]>([])
+  const persistedVisibleIdsRef = useRef<string[]>([])
+  const pendingVisibleOrdersRef = useRef<PendingVisibleOrderMutation[]>([])
   const originalVisibleRegionRef = useRef(effectiveRegion)
   const pendingShownIdsRef = useRef(new Set<string>())
 
   const enqueueMutation = useCallback(
-    (mutation: () => Promise<unknown>, fallbackKey: string, onFailure?: () => void) => {
-      void mutation().catch((error) => {
-        onFailure?.()
-        reportFailure(t, fallbackKey)(error)
-      })
+    (mutation: () => Promise<unknown>, fallbackKey: string, callbacks?: MutationCallbacks) => {
+      void mutation()
+        .then(() => callbacks?.onSuccess?.())
+        .catch((error) => {
+          callbacks?.onFailure?.()
+          reportFailure(t, fallbackKey)(error)
+        })
     },
     [t]
   )
+
+  const settleVisibleOrderMutation = useCallback((mutation: PendingVisibleOrderMutation, succeeded: boolean) => {
+    const pending = pendingVisibleOrdersRef.current
+    const mutationIndex = pending.indexOf(mutation)
+    if (mutationIndex < 0) return
+
+    if (succeeded) persistedVisibleIdsRef.current = mutation.order
+    pending.splice(mutationIndex, 1)
+    originalVisibleIdsRef.current = pending.at(-1)?.order ?? persistedVisibleIdsRef.current
+  }, [])
 
   useEffect(() => {
     const visibleIds = allApps
@@ -151,8 +174,11 @@ export function useMiniAppVisibility() {
     if (originalVisibleRegionRef.current !== effectiveRegion) {
       originalVisibleRegionRef.current = effectiveRegion
       originalVisibleIdsRef.current = visibleIds
+      persistedVisibleIdsRef.current = visibleIds
+      pendingVisibleOrdersRef.current = []
     } else if (originalVisibleIdsRef.current.length === 0 && visibleIds.length > 0) {
       originalVisibleIdsRef.current = visibleIds
+      persistedVisibleIdsRef.current = visibleIds
     }
   }, [allApps, effectiveRegion])
 
@@ -250,7 +276,7 @@ export function useMiniAppVisibility() {
             return restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, optimisticApps, new Set([app.appId]))
           }),
         'miniApp.show_failed',
-        () => pendingShownIdsRef.current.delete(app.appId)
+        { onFailure: () => pendingShownIdsRef.current.delete(app.appId) }
       )
     },
     [enqueueMutation, updateAppStatus]
@@ -262,24 +288,20 @@ export function useMiniAppVisibility() {
       const next = [...visible]
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
-      const previousOriginalOrder = originalVisibleIdsRef.current
       const nextOriginalOrder = withUpdatedVisibleOrder(
         originalVisibleIdsRef.current,
         next.map((app) => app.appId)
       )
+      const pendingMutation = { order: nextOriginalOrder }
+      pendingVisibleOrdersRef.current.push(pendingMutation)
       originalVisibleIdsRef.current = nextOriginalOrder
       setVisible(next)
-      enqueueMutation(
-        () => reorderMiniAppsByStatus('visible', next),
-        'miniApp.reorder_failed',
-        () => {
-          if (originalVisibleIdsRef.current === nextOriginalOrder) {
-            originalVisibleIdsRef.current = previousOriginalOrder
-          }
-        }
-      )
+      enqueueMutation(() => reorderMiniAppsByStatus('visible', next), 'miniApp.reorder_failed', {
+        onSuccess: () => settleVisibleOrderMutation(pendingMutation, true),
+        onFailure: () => settleVisibleOrderMutation(pendingMutation, false)
+      })
     },
-    [enqueueMutation, visible, reorderMiniAppsByStatus]
+    [enqueueMutation, visible, reorderMiniAppsByStatus, settleVisibleOrderMutation]
   )
 
   const reorderHidden = useCallback(
