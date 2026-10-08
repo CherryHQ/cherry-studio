@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import i18n from '@renderer/i18n/resolver'
 import { MockSecretInput } from '@test-mocks/renderer/CherrystudioUI'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
 
 import { SecretInput } from '../SecretInput'
 

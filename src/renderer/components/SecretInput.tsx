@@ -1,5 +1,6 @@
-import { SecretInput as UiSecretInput, type SecretInputProps } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { SecretInput as UiSecretInput, type SecretInputProps } from '@cherrystudio/ui'
 
 type LocalizedSecretInputProps = Omit<SecretInputProps, 'showLabel' | 'hideLabel'> &
   Partial<Pick<SecretInputProps, 'showLabel' | 'hideLabel'>>

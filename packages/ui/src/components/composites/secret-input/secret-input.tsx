@@ -1,3 +1,7 @@
+import { Eye, EyeOff } from 'lucide-react'
+import type * as React from 'react'
+import { useRef, useState } from 'react'
+
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import {
   InputGroup,
@@ -7,9 +11,6 @@ import {
 } from '@cherrystudio/ui/components/primitives/input-group'
 import { NormalTooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Eye, EyeOff } from 'lucide-react'
-import type * as React from 'react'
-import { useRef, useState } from 'react'
 
 export type SecretInputProps = Omit<InputProps, 'className' | 'size' | 'type'> & {
   /** Accessible and tooltip labels supplied by the localized caller. */
