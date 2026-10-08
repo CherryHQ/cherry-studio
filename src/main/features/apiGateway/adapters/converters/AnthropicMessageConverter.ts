@@ -5,7 +5,7 @@
  * Handles messages, tools, and special content types (images, thinking, tool results).
  */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
@@ -184,8 +184,28 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
-    // Array covariance widens without a cast, so `role` narrows natively from here on.
-    const inputMessages: AgentInputMessage[] = params.messages
+    // Repair ids before collecting results so each call/result pair keeps one identity.
+    const pendingMissingIds: string[] = []
+    const inputMessages: AgentInputMessage[] = params.messages.map((msg) => {
+      if (msg.role === 'assistant') pendingMissingIds.length = 0
+      if (!Array.isArray(msg.content)) return msg
+      return {
+        ...msg,
+        content: msg.content.map((block) => {
+          if (block.type === 'tool_use' && (typeof block.id !== 'string' || !block.id.trim())) {
+            const id = `toolu_${randomUUID()}`
+            pendingMissingIds.push(id)
+            return { ...block, id }
+          }
+          if (block.type === 'tool_result' && (typeof block.tool_use_id !== 'string' || !block.tool_use_id.trim())) {
+            // Missing ids have no lookup key; pair within this turn in wire order.
+            const id = pendingMissingIds.shift()
+            if (id) return { ...block, tool_use_id: id }
+          }
+          return block
+        })
+      }
+    })
 
     // System message
     const systemText = textContentToString(params.system)
@@ -196,7 +216,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
     const toolCallIdToName = new Map<string, string>()
     const toolResults = new Map<string, ToolResultConversion>()
-    for (const msg of params.messages) {
+    for (const msg of inputMessages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
         if (block.type === 'tool_use') {
@@ -371,6 +391,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
   /** Wire-safe name for a client tool name (identity when already compatible). */
   toProviderToolName(toolName: string): string {
+    if (typeof toolName !== 'string' || !toolName.trim()) toolName = 'unknown_tool'
     return this.providerToolNames.get(toolName) ?? this.registerProviderToolName(toolName)
   }
 
