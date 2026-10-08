@@ -114,7 +114,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const renderUserMenu = () =>
     userMenuOpen ? (
       <PopoverContent
-        aria-label={t('settings.general.user_name.label')}
+        aria-label={t('sidebar.account_menu')}
         align="start"
         side="top"
         sideOffset={8}
@@ -219,10 +219,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const sidebarProps = {
     entries,
     user: sidebarUser,
-    userAction: (_footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+    userAction: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <>
-        <SidebarSettingsButton />
-        <HelpMenu layout="icon" onFeedbackClick={handleOpenFeedback} onOverlayOpenChange={onOverlayOpenChange} />
+        <SidebarSettingsButton layout={footerLayout} />
+        <HelpMenu
+          layout={footerLayout}
+          onFeedbackClick={handleOpenFeedback}
+          onOverlayOpenChange={onOverlayOpenChange}
+        />
         {layout === 'full' ? <AppUpdateButton placement="top" /> : null}
       </>
     ),

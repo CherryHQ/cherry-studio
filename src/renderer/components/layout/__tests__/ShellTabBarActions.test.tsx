@@ -229,7 +229,7 @@ describe('ShellTabBarActions', () => {
 describe('SidebarSettingsButton', () => {
   it('opens settings without a circular hover disc', async () => {
     const user = userEvent.setup()
-    render(<SidebarSettingsButton />)
+    render(<SidebarSettingsButton layout="icon" />)
 
     const button = screen.getByRole('button', { name: 'Settings' })
     expect(button).toHaveClass('hover:bg-transparent', 'hover:opacity-100', 'hover:text-foreground')
@@ -237,5 +237,13 @@ describe('SidebarSettingsButton', () => {
 
     await user.click(button)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+  })
+
+  it('renders a labeled full-width action in the full sidebar layout', () => {
+    render(<SidebarSettingsButton layout="full" />)
+
+    const button = screen.getByRole('button', { name: 'Settings' })
+    expect(button).toHaveTextContent('Settings')
+    expect(button).toHaveClass('w-full', 'justify-start')
   })
 })

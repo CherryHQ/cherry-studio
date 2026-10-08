@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/hooks/useCache', () => ({ usePersistCache: () => [mocks.sidebarWidth, vi.fn()] }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: () => ['User', vi.fn()] }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => null }))
+vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
+vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({ useOpenReleaseNotes: () => vi.fn() }))
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({ shortcuts: mocks.shortcuts, remove: mocks.remove, reorder: mocks.reorder })
 }))
@@ -46,16 +48,9 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
       update
     </button>
   ),
-  SidebarSettingsButton: () => (
-    <button type="button" aria-label="Settings" onClick={mocks.openSettingsTab}>
+  SidebarSettingsButton: ({ layout }: { layout: 'full' | 'icon' }) => (
+    <button type="button" aria-label="Settings" data-layout={layout} onClick={mocks.openSettingsTab}>
       settings
-    </button>
-  )
-}))
-vi.mock('../../layout/HelpMenu', () => ({
-  HelpMenu: () => (
-    <button type="button" aria-label="Help">
-      help
     </button>
   )
 }))
@@ -157,6 +152,7 @@ describe('app Sidebar', () => {
 
     await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'User' }))
     expect(screen.getByTestId('account-menu')).toBeVisible()
+    expect(screen.getByLabelText('sidebar.account_menu')).toBeVisible()
 
     await user.click(screen.getByTestId('account-menu'))
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
@@ -188,6 +184,14 @@ describe('app Sidebar', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledOnce()
     expect(mocks.showUpdatePopup).toHaveBeenCalledOnce()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('renders the full footer layout through the production Help action', () => {
+    render(<Sidebar />)
+    const footer = screen.getByTestId('sidebar-footer-user')
+
+    expect(within(footer).getByRole('button', { name: 'help.title' })).toHaveTextContent('help.title')
+    expect(within(footer).getByRole('button', { name: 'Settings' })).toHaveAttribute('data-layout', 'full')
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
