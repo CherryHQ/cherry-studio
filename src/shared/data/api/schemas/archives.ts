@@ -11,8 +11,7 @@ export interface ArchiveEntry {
   entityId: string
   domain: ArchiveDomain
   name: string
-  /** Owning assistant (topics) or agent (sessions); null for ownerless domains. */
-  parentId: string | null
+  /** Name of the owning assistant (topics) or agent (sessions); null for ownerless domains. */
   parentName: string | null
   deletedAt: number
 }

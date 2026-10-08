@@ -12,14 +12,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
-interface ArchiveParent {
-  parentId: string | null
-  parentName: string | null
-}
-
-type ArchiveRow = Omit<ArchiveEntry, 'parentId' | 'parentName'>
-
-const EMPTY_PARENT: ArchiveParent = { parentId: null, parentName: null }
+type ArchiveRow = Omit<ArchiveEntry, 'parentName'>
 
 export function listArchives(query: {
   domain?: ArchiveDomain
@@ -53,8 +46,8 @@ export function listArchives(query: {
     ORDER BY ${sql.join(ordering.orderBy, sql`, `)} LIMIT ${query.limit + 1}
   `)
   const page = rows.slice(0, query.limit)
-  const parents = fetchParents(page)
-  const items: ArchiveEntry[] = page.map((row) => ({ ...row, ...(parents.get(row.id) ?? EMPTY_PARENT) }))
+  const parentNames = fetchParentNames(page)
+  const items: ArchiveEntry[] = page.map((row) => ({ ...row, parentName: parentNames.get(row.id) ?? null }))
   const last = items.at(-1)
   return {
     items,
@@ -62,36 +55,36 @@ export function listArchives(query: {
   }
 }
 
-/** Resolve owning assistant/agent for a page of entries; a purged owner yields null. */
-function fetchParents(rows: ArchiveRow[]): Map<string, ArchiveParent> {
+/** Resolve owning assistant/agent names for a page of entries; a purged owner yields null. */
+function fetchParentNames(rows: ArchiveRow[]): Map<string, string | null> {
   const db = application.get('DbService').getDb()
-  const parents = new Map<string, ArchiveParent>()
+  const parentNames = new Map<string, string | null>()
   const sessionIds = rows.filter((row) => row.domain === 'sessions').map((row) => row.entityId)
   const topicIds = rows.filter((row) => row.domain === 'topics').map((row) => row.entityId)
 
   if (sessionIds.length > 0) {
     const sessionRows = db
-      .select({ id: agentSessionTable.id, parentId: agentSessionTable.agentId, parentName: agentTable.name })
+      .select({ id: agentSessionTable.id, parentName: agentTable.name })
       .from(agentSessionTable)
       .leftJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
       .where(inArray(agentSessionTable.id, sessionIds))
       .all()
     for (const row of sessionRows) {
-      parents.set(`sessions:${row.id}`, { parentId: row.parentId ?? null, parentName: row.parentName ?? null })
+      parentNames.set(`sessions:${row.id}`, row.parentName)
     }
   }
 
   if (topicIds.length > 0) {
     const topicRows = db
-      .select({ id: topicTable.id, parentId: topicTable.assistantId, parentName: assistantTable.name })
+      .select({ id: topicTable.id, parentName: assistantTable.name })
       .from(topicTable)
       .leftJoin(assistantTable, eq(assistantTable.id, topicTable.assistantId))
       .where(inArray(topicTable.id, topicIds))
       .all()
     for (const row of topicRows) {
-      parents.set(`topics:${row.id}`, { parentId: row.parentId ?? null, parentName: row.parentName ?? null })
+      parentNames.set(`topics:${row.id}`, row.parentName)
     }
   }
 
-  return parents
+  return parentNames
 }

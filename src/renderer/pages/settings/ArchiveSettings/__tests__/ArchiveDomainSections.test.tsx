@@ -78,7 +78,7 @@ function deletedTopic(id: string, name: string) {
 
 /** `/archives` entry shape; `entityId` is what the section hands to the domain actions. */
 function archivedEntry(domain: string, id: string, name: string) {
-  return { id, entityId: id, domain, name, parentId: null, parentName: null, deletedAt: '2026-08-01T00:00:00.000Z' }
+  return { id, entityId: id, domain, name, parentName: null, deletedAt: '2026-08-01T00:00:00.000Z' }
 }
 
 function deletedFile(id: string, name: string) {
@@ -309,9 +309,7 @@ describe('Archive domain batch adapters', () => {
   it('shows the owning agent on an archived session row', () => {
     mocks.pagesByPath.set('/archives', [
       {
-        items: [
-          { ...archivedEntry('sessions', 'session-1', 'Session one'), parentId: 'agent-1', parentName: 'Researcher' }
-        ]
+        items: [{ ...archivedEntry('sessions', 'session-1', 'Session one'), parentName: 'Researcher' }]
       }
     ])
 

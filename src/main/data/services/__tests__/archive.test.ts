@@ -109,9 +109,9 @@ describe('archive list', () => {
     dbh.db.update(agentSessionTable).set({ agentId: 'same' }).where(eq(agentSessionTable.id, 'same')).run()
 
     const byId = new Map(listArchives({ limit: 10 }).items.map((entry) => [entry.id, entry]))
-    expect(byId.get('sessions:same')).toMatchObject({ parentId: 'same', parentName: 'Agent' })
-    expect(byId.get('topics:same')).toMatchObject({ parentId: 'same', parentName: 'Assistant' })
-    expect(byId.get('agents:same')).toMatchObject({ parentId: null, parentName: null })
+    expect(byId.get('sessions:same')).toMatchObject({ parentName: 'Agent' })
+    expect(byId.get('topics:same')).toMatchObject({ parentName: 'Assistant' })
+    expect(byId.get('agents:same')).toMatchObject({ parentName: null })
 
     expect(listArchives({ domain: 'sessions', limit: 10 }).items.map(({ domain }) => domain)).toEqual(['sessions'])
   })
