@@ -269,6 +269,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 >
 
 type AgentSessionRuntimeEntry = {
+  interactionWindowId?: string
   sessionId: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
@@ -367,12 +368,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionWritable(sessionId: string): void {
-    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
     if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
-    if (!ownEdit || this.failedClosures.has(sessionId)) this.assertSessionWritable(sessionId)
+    if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (!ownEdit) this.assertSessionWritable(sessionId)
     const entry = this.entries.get(sessionId)
     if (
       this.isShuttingDown ||
@@ -421,6 +422,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
+    if (this.failedClosures.has(sourceSessionId)) throw new AgentSessionEditError('close_failed')
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
     return this.forks.fork(sourceSessionId, messageId)
@@ -620,6 +622,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
@@ -722,7 +725,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return
+    if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1220,7 +1223,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
-    if (this.forks.edits.has(sessionId) || this.failedClosures.has(sessionId)) return true
+    if (this.forks.edits.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -1464,7 +1467,12 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
+    // A refusal that arrived here is the user's own answer, so drivers may attribute it to them.
+    // Registry/abort denials reach dispatch() directly and stay unmarked.
+    const dispatched = toolApprovalRegistry.dispatch(
+      approvalId,
+      decision.approved ? decision : { ...decision, reasonSource: 'user' }
+    )
     if (!dispatched) return false
 
     if (dispatched.presentation === 'stream') {
@@ -1897,6 +1905,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTasks(entry, event.tasks, connection)
         break
       case 'background-work-state':
+        if (event.active) this.getMcpInteractionHost(entry.sessionId)
         this.handleBackgroundWorkState(entry, event.active, connection, event.awaitingReply)
         break
       case 'background-task-event':
@@ -2089,7 +2098,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const read = async () => {
         const usage = await connection.getContextUsage?.()
         if (!usage) return
-        if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+        // A reading belongs to the session, not the connection — persist even after the connection
+        // was replaced/closed mid-read (renderer filters stale-model readings via usage.model).
+        if (!this.isCurrentEntry(entry)) return
         this.persistContextUsage(entry, usage)
       }
 
@@ -3171,6 +3182,15 @@ export class AgentSessionRuntimeService extends BaseService {
         new TraceFlushListener(entry.topicId)
       ]
     })
+  }
+
+  getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
+    const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
+    if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
+    entry.interactionWindowId = windowId
+    return { windowId, topicId: entry.topicId, model: entry.modelId }
   }
 
   getInteractionState(sessionId: string): AgentSessionInteractionState {

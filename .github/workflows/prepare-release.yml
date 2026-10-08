@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
@@ -169,6 +169,10 @@ jobs:
 
             Use the verified published baseline tag ${{ steps.release-baseline.outputs.tag }} and collect release-note commits from ${{ steps.release-baseline.outputs.collection-base }}..HEAD. The package version may be ahead after a release withdrawal; do not use it as the release-note baseline.
 
+            Generate notes from the final user-visible differences between ${{ steps.release-baseline.outputs.tag }} and the frozen release SHA ${{ github.sha }}, not one entry per commit. Follow the skill's net-change reconciliation before writing: inspect `git diff --name-status ${{ steps.release-baseline.outputs.tag }} ${{ github.sha }}`, then the relevant patches and final code. Use this two-endpoint comparison even when the tag is not an ancestor; the collection base is only a commit-discovery boundary, not the published product state.
+
+            Reconcile related commits, including changes labeled NONE or otherwise excluded from standalone notes. Detect semantic cancellations and replacements from code, not just Revert titles. Omit changes introduced and fully undone within this cycle; describe only the surviving outcome of partial reversals, replacements, or reintroductions. If a change removes or reverses behavior present in the published baseline, describe that user-visible removal or restoration. Verify every English and Chinese item against the same surviving outcome; do not copy unsupported claims from commit titles or release-note blocks.
+
             Stop after updating package.json and electron-builder.yml. Do not edit release-history.json or the generated product manifest. The next workflow steps derive the release history from your electron-builder.yml notes, validate the contents, generate the manifest, and own release branch creation and the signed commit.
             You may create temporary helper files if needed; the workflow discards every change except those two release metadata files.
         env:
@@ -235,7 +239,7 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 

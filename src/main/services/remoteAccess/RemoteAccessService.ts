@@ -9,6 +9,7 @@ import {
   type RemoteSocket,
   RemoteSocketStream
 } from '@cherrystudio/remote-transport'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -40,7 +41,7 @@ export class RemoteAccessService extends BaseService {
   private readonly advertisement = new RemoteAdvertisement((status) => {
     application.get('CacheService').setShared('feature.remote_access.discovery_status', status)
   })
-  private endpoint?: { port: number; identity?: string }
+  private endpoint?: { port: number; ipv6?: boolean; identity?: string }
   private endpointRevision = 0
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
@@ -52,8 +53,10 @@ export class RemoteAccessService extends BaseService {
 
   protected async onInit(): Promise<void> {
     remoteCommandService.interruptPending()
+    this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
     const refreshAdvertisement = () => {
-      if (this.endpoint?.identity) this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      if (this.endpoint?.identity)
+        this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     this.registerInterval(refreshAdvertisement, 5000)
     powerMonitor.on('resume', refreshAdvertisement)
@@ -81,8 +84,8 @@ export class RemoteAccessService extends BaseService {
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
-  updateDirectEndpoint(endpoint: { port: number } | undefined): void {
-    if (this.endpoint?.port === endpoint?.port) return
+  updateDirectEndpoint(endpoint: { port: number; ipv6?: boolean } | undefined): void {
+    if (this.endpoint?.port === endpoint?.port && this.endpoint?.ipv6 === endpoint?.ipv6) return
     const revision = ++this.endpointRevision
     this.endpoint = endpoint
     this.advertisement.stop()
@@ -96,7 +99,7 @@ export class RemoteAccessService extends BaseService {
       .then((identity) => {
         if (revision !== this.endpointRevision) return
         this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
-        this.advertisement.update(this.endpoint.identity!, advertised.port)
+        this.advertisement.update(this.endpoint.identity!, advertised.port, advertised.ipv6)
       })
       .catch((error: unknown) => {
         if (revision !== this.endpointRevision) return
@@ -105,11 +108,17 @@ export class RemoteAccessService extends BaseService {
       })
   }
 
+  async getConnectionEndpoints() {
+    const desktopIdentity = deviceIdentityId(await this.getIdentity())
+    const { addresses, port } = await application.get('ApiGatewayService').getRemoteEndpoint()
+    return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
+  }
+
   async createInvitation() {
     const identity = await this.getIdentity()
     if (this.endpoint && !this.endpoint.identity) {
       this.endpoint.identity = deviceIdentityId(identity)
-      this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
   }
@@ -182,7 +191,8 @@ export class RemoteAccessService extends BaseService {
       this.pairing,
       this.tokens,
       () => application.get('IpcApiService').broadcast('api_gateway.remote.pairing_changed', undefined),
-      this.hub
+      this.hub,
+      () => this.getConnectionEndpoints()
     )
     entry.remote = remote
     let windowStart = Date.now()

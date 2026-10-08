@@ -364,9 +364,21 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi"
+        },
+        "google-generate-content": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.aiionly.com"
+          "adapterFamily": "newapi",
+          "baseUrl": "https://api.aiionly.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "aionly",
@@ -1704,7 +1716,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "doubao - AI model provider",
+      "description": "Doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -1769,7 +1781,7 @@
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao",
+      "name": "Doubao",
       "serverTools": [
         {
           "id": "web-search",
@@ -2546,6 +2558,46 @@
       "name": "Cerebras AI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-image-generation": {
+          "adapterFamily": "comfyui",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://docs.comfy.org",
+          "official": "https://www.comfy.org"
+        }
+      },
+      "modelResolution": {
+        "defaults": {
+          "capabilities": ["image-generation"],
+          "endpointTypes": ["openai-image-generation"],
+          "imageGeneration": {
+            "modes": {
+              "generate": {
+                "supports": {
+                  "seed": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          },
+          "inputModalities": ["text"],
+          "outputModalities": ["image"],
+          "supportsStreaming": false
+        },
+        "source": "provider"
+      },
+      "name": "ComfyUI"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xiaomi MiMo - AI model provider",
@@ -2636,5 +2688,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2707d81b155c6c98"
+  "version": "a97aae2405a78d18"
 }

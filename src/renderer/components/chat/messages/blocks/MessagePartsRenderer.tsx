@@ -56,7 +56,7 @@ import {
   useMessageRenderConfig
 } from '../MessageListProvider'
 import {
-  getSessionToolTarget,
+  isCherrySessionToolResponse,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
   SessionResultCards,
@@ -1520,14 +1520,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [partEntries, message.id]
   )
   const reportArtifactToolResponses = useStableItemArray(nextReportArtifactToolResponses)
-  const sessionTargets = useMemo(
+  const sessionToolResponses = useMemo(
     () =>
       isActiveTurnProcessing
         ? []
-        : buildToolRenderItems(partEntries, message.id, true).flatMap((item) => {
-            const target = getSessionToolTarget(item.toolResponse)
-            return target ? [target] : []
-          }),
+        : buildToolRenderItems(partEntries, message.id, true)
+            .map((item) => item.toolResponse)
+            .filter(isCherrySessionToolResponse),
     [isActiveTurnProcessing, message.id, partEntries]
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
@@ -1674,9 +1673,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         renderOptions={renderOptions}
       />
       {isActiveTurnProcessing && <ActiveTurnStatusView fallback={null} />}
-      {unsettledTextPlayoutPartIds.size === 0 && sessionTargets.length > 0 && (
+      {unsettledTextPlayoutPartIds.size === 0 && sessionToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
-          <SessionResultCards targets={sessionTargets} />
+          <SessionResultCards toolResponses={sessionToolResponses} />
         </AnimatedBlockWrapper>
       )}
       {canRenderReportArtifacts && (
