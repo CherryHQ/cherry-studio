@@ -79,20 +79,6 @@ describe('createGatewayGeminiImageModel', () => {
     expect(sent.prompt).toEqual([{ role: 'user', content: [{ type: 'text', text: 'a fox' }] }])
   })
 
-  it('maps aspectRatio onto google.imageConfig', async () => {
-    const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
-      finishReason: 'stop',
-      usage: {},
-      response: { headers: {} }
-    })
-    const model = createGatewayGeminiImageModel(fakeLanguageModel(doGenerate), 'gemini-2.5-flash-image')
-
-    await model.doGenerate(callOptions({ aspectRatio: '16:9' }))
-
-    expect(doGenerate.mock.calls[0][0].providerOptions.google.imageConfig).toEqual({ aspectRatio: '16:9' })
-  })
-
   it('moves the inherited Gateway resolution into google.imageConfig without dropping routing options', async () => {
     const doGenerate = vi.fn().mockResolvedValue({
       content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],

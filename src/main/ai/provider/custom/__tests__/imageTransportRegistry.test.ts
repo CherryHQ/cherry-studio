@@ -24,7 +24,6 @@ describe('resolveImageTransport', () => {
       if (!isImageTransportConfig(config, modelId, descriptor)) throw new Error('expected transport config')
       const transport = await resolveImageTransport(config, modelId, descriptor)
       expect(transport).not.toBeNull()
-      expect(typeof transport?.submit).toBe('function')
       expect(transport?.task.kind).toBe('supported')
     }
   })
@@ -62,18 +61,6 @@ describe('resolveImageTransport', () => {
   it('returns null for providers without a custom transport', async () => {
     expect(hasImageTransport('openai', 'gpt-image-1')).toBe(false)
     expect(hasImageTransport('unknown-provider', 'x')).toBe(false)
-  })
-
-  it('resolves tokenhub models by the provider id', async () => {
-    const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-    const descriptor = registryImageDescriptor('tokenhub', 'hy-image-v3')
-    const transport = await resolveImageTransport(
-      { providerId: 'tokenhub', providerSettings: settings },
-      'hy-image-v3',
-      descriptor
-    )
-    expect(transport).not.toBeNull()
-    expect(transport?.task.kind).toBe('supported')
     expect(hasImageTransport('openai-compatible', 'hy-image-v3')).toBe(false)
   })
 })

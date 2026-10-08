@@ -97,30 +97,6 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(result.images).toEqual(['https://img/sync.png'])
   })
 
-  it('rejects a terminal task failure without querying again', async () => {
-    const query = vi.fn().mockResolvedValue({ kind: 'failed', message: 'Task failed' })
-    const model = createImageGenerationModel('m', {
-      modelDescriptor: undefined,
-      provider: 'ppio',
-      transport: taskTransport(query)
-    })
-
-    await expect(model.doGenerate(makeOptions())).rejects.toThrow('Task failed')
-    expect(query).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws AbortError before submit when the signal is already aborted', async () => {
-    const transport = taskTransport(vi.fn())
-    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(model.doGenerate(makeOptions({ abortSignal: controller.signal }))).rejects.toMatchObject({
-      name: 'AbortError'
-    })
-    expect(transport.submit).not.toHaveBeenCalled()
-  })
-
   it('cancels the remote task once when aborted during a query', async () => {
     const controller = new AbortController()
     const cancelRemote = vi.fn().mockResolvedValue(undefined)

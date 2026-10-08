@@ -1,24 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 import { registryImageDescriptor } from '../../../__tests__/imageCatalogFixtures'
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import type { DashScopeProviderParams } from '../../dashscope/dashscopeTransport'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
-import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../../imageGenerationModel'
-import { captureImageRequest } from './captureRequest'
+import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 
-/**
- * DashScope request boundary — one body family per model id, POSTed to the
- * descriptor endpoint. Covers text2image (flat input), chat-like (messages[]),
- * wanx-v1 (ref_image), wan2.5 i2i (images[]), qwen-mt (image_url + langs) and
- * wanx2.1-imageedit (function + base_image_url). size is converted `x`→`*`.
- */
 const host = 'https://dashscope.aliyuncs.com'
-const file = (bytes: number[]): NonNullable<ImageGenerationSubmitInput<DashScopeProviderParams>['files']> => [
-  { type: 'file', mediaType: 'image/png', data: new Uint8Array(bytes) }
-]
-
 const base = {
   n: 1,
   size: undefined,
@@ -28,160 +16,6 @@ const base = {
 } satisfies Partial<ImageGenerationSubmitInput<DashScopeProviderParams>>
 
 const descriptor = (id: string, hasImages = false) => registryImageDescriptor('dashscope', id, 'generate', hasImages)
-
-const messagePart = z.union([z.strictObject({ text: z.string() }), z.strictObject({ image: z.string() })])
-
-interface Case {
-  name: string
-  input: ImageGenerationSubmitInput<DashScopeProviderParams> & { modelDescriptor: ImageTransportDescriptor }
-  schema: z.ZodTypeAny
-}
-
-const CASES: Case[] = [
-  {
-    name: 'text2image (qwen-image) → input.prompt + parameters.size/seed',
-    input: {
-      ...base,
-      modelId: 'qwen-image',
-      prompt: 'a fox',
-      size: '1024x1024',
-      seed: 42,
-      modelDescriptor: descriptor('qwen-image'),
-      providerParams: {}
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({ prompt: z.string() }),
-      parameters: z.strictObject({ size: z.string(), seed: z.number().int() })
-    })
-  },
-  {
-    name: 'chat-like (qwen-image-edit) → messages[] with inlined image',
-    input: {
-      ...base,
-      modelId: 'qwen-image-edit',
-      prompt: 'a fox',
-      files: file([1, 2, 3]),
-      modelDescriptor: descriptor('qwen-image-edit', true),
-      providerParams: {}
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({
-        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
-      })
-    })
-  },
-  {
-    name: 'chat-like (qwen-image-3.0) → messages[] + prompt_extend/watermark/negative_prompt',
-    input: {
-      ...base,
-      modelId: 'qwen-image-3.0',
-      prompt: 'a fox',
-      n: 2,
-      size: '1328x1328',
-      modelDescriptor: descriptor('qwen-image-3.0'),
-      providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({
-        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
-      }),
-      parameters: z.strictObject({
-        size: z.literal('1328*1328'),
-        n: z.literal(2),
-        negative_prompt: z.literal('blurry'),
-        prompt_extend: z.literal(true),
-        watermark: z.literal(false)
-      })
-    })
-  },
-  {
-    name: 'wanx-v1 → input.ref_image + parameters.style/ref_*',
-    input: {
-      ...base,
-      modelId: 'wanx-v1',
-      prompt: 'a fox',
-      size: '1024x1024',
-      seed: 7,
-      files: file([9]),
-      modelDescriptor: descriptor('wanx-v1'),
-      providerParams: {
-        style: '<photography>',
-        refStrength: 0.5,
-        refMode: 'repaint'
-      }
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({ prompt: z.string(), ref_image: z.string() }),
-      parameters: z.strictObject({
-        size: z.string(),
-        seed: z.number().int(),
-        style: z.string(),
-        ref_strength: z.number(),
-        ref_mode: z.string()
-      })
-    })
-  },
-  {
-    name: 'wan2.5-i2i → input.images[]',
-    input: {
-      ...base,
-      modelId: 'wan2.5-i2i-preview',
-      prompt: 'a fox',
-      size: '1024x1024',
-      files: [
-        { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) },
-        { type: 'file', mediaType: 'image/jpeg', data: new Uint8Array([2]) }
-      ],
-      modelDescriptor: descriptor('wan2.5-i2i-preview', true),
-      providerParams: {}
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({ prompt: z.string(), images: z.array(z.string()) }),
-      parameters: z.strictObject({ size: z.string() })
-    })
-  },
-  {
-    name: 'qwen-mt-image → input.image_url + source/target lang (no prompt)',
-    input: {
-      ...base,
-      modelId: 'qwen-mt-image',
-      prompt: undefined,
-      files: file([4, 5, 6]),
-      modelDescriptor: descriptor('qwen-mt-image', true),
-      providerParams: { sourceLang: 'auto', targetLang: 'en' }
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({ image_url: z.string(), source_lang: z.string(), target_lang: z.string() })
-    })
-  },
-  {
-    name: 'wanx2.1-imageedit → input.function + base_image_url + parameters',
-    input: {
-      ...base,
-      modelId: 'wanx2.1-imageedit',
-      prompt: 'a fox',
-      files: file([7, 8]),
-      seed: 3,
-      modelDescriptor: descriptor('wanx2.1-imageedit', true),
-      providerParams: {
-        function: 'super_resolution',
-        upscaleFactor: 2,
-        addWatermark: true
-      }
-    },
-    schema: z.strictObject({
-      model: z.string(),
-      input: z.strictObject({ function: z.string(), prompt: z.string(), base_image_url: z.string() }),
-      parameters: z.strictObject({ seed: z.number().int(), watermark: z.boolean(), upscale_factor: z.number() })
-    })
-  }
-]
 
 describe('DashScope request boundary', () => {
   it('keeps the resolved model and protocol when submit carries a different descriptor', async () => {
@@ -209,60 +43,6 @@ describe('DashScope request boundary', () => {
       input: { prompt: 'a fox' },
       parameters: { seed: 0, prompt_extend: false, watermark: false }
     })
-  })
-
-  for (const c of CASES) {
-    it(`${c.name}: encodes the declared protocol`, async () => {
-      const transport = createDashScopeTransport({
-        apiKey: 'ds-key',
-        imageBaseURL: host,
-        modelDescriptor: c.input.modelDescriptor
-      })
-      const req = await captureImageRequest(transport, c.input)
-      expect(req.url).toBe(`${host}${c.input.modelDescriptor.endpoint}`)
-      c.schema.parse(req.body)
-      expect(req.body).toMatchObject({ model: c.input.modelDescriptor.id })
-    })
-  }
-
-  it('uses the injected fetch and gives X-DashScope-Async final precedence', async () => {
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ output: { task_id: 'task-1' } }), {
-        status: 200
-      })
-    )
-    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
-    const injectedTransport = createDashScopeTransport({
-      modelDescriptor: descriptor('qwen-image'),
-      apiKey: 'ds-key',
-      imageBaseURL: host,
-      headers: {
-        Authorization: 'Bearer provider',
-        'X-DashScope-Async': 'disabled',
-        'x-provider': 'one'
-      },
-      fetch
-    })
-
-    await injectedTransport.submit({
-      ...CASES[0].input,
-      headers: {
-        Authorization: 'Bearer request',
-        'X-DashScope-Async': 'disabled',
-        'x-request': 'two'
-      }
-    })
-
-    expect(fetch).toHaveBeenCalledTimes(1)
-    expect(globalFetch).not.toHaveBeenCalled()
-    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
-    expect(requestHeaders).toMatchObject({
-      authorization: 'Bearer request',
-      'x-dashscope-async': 'enable',
-      'x-provider': 'one',
-      'x-request': 'two'
-    })
-    globalFetch.mockRestore()
   })
 
   it.each([

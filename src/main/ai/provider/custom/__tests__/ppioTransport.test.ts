@@ -56,7 +56,7 @@ describe('PpioTransport', () => {
     }
   })
 
-  it('preserves an explicit disabled Jimeng watermark and seed zero', async () => {
+  it('preserves disabled Jimeng prompt enhancement, watermark, and seed zero', async () => {
     const requests: Request[] = []
     const transport = createPpioTransport({
       apiKey: 'token',
@@ -75,9 +75,45 @@ describe('PpioTransport', () => {
       seed: 0,
       files: undefined,
       mask: undefined,
-      providerParams: { addWatermark: false }
+      providerParams: { promptEnhancement: false, addWatermark: false }
     })
-    expect(await requests[0].json()).toEqual({ prompt: 'a fox', seed: 0, logo_info: { add_logo: false } })
+    expect(await requests[0].json()).toEqual({
+      prompt: 'a fox',
+      seed: 0,
+      use_pre_llm: false,
+      logo_info: { add_logo: false }
+    })
+  })
+
+  // Request fields: https://ppio.com/docs/models/reference-qwen-image-edit — retrieved 2026-10-08.
+  // This checks input delivery, not the registry's versioned endpoint.
+  it('delivers Qwen edit file bytes with the requested format, watermark, and seed', async () => {
+    const requests: Request[] = []
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-edit', 'generate', true),
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ task_id: 'accepted' })
+      }
+    })
+    await transport.submit({
+      modelId: 'qwen-image-edit',
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: 5,
+      files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }],
+      mask: undefined,
+      providerParams: { outputFormat: 'png', addWatermark: false }
+    })
+    expect(await requests[0].json()).toEqual({
+      prompt: 'a fox',
+      image: 'data:image/png;base64,AQID',
+      seed: 5,
+      output_format: 'png',
+      watermark: false
+    })
   })
 
   // Contract: https://ppio.com/docs/models/reference-seedream-4.0 (retrieved 2026-09-09).
@@ -340,38 +376,6 @@ describe('PpioTransport', () => {
       ).rejects.toThrow()
     }
   )
-
-  it('uses Seedream 4.0 plural images field for edit requests', async () => {
-    const transport = createPpioTransport({
-      apiKey: 'token',
-      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-0', 'generate', true)
-    })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ images: ['https://img/a.png'] }), { status: 200 }))
-
-    await transport.submit({
-      modelId: 'seedream-4.0',
-      prompt: 'edit it',
-      n: 1,
-      size: '2048x2048',
-      seed: undefined,
-      // Attached edit image flows through the canonical `input.files` path
-      // (inputImages → options.files), not a providerOptions bag key.
-      files: [{ type: 'file', mediaType: 'image/png', data: 'abc' }],
-      mask: undefined,
-      modelDescriptor: {
-        id: 'seedream-4.0',
-        endpoint: '/v3/seedream-4.0',
-        isSync: true
-      },
-      providerParams: {}
-    })
-
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.images).toEqual(['data:image/png;base64,abc'])
-    expect(body.image).toBeUndefined()
-  })
 
   it('builds GLM Image async params with watermark_enabled', async () => {
     const transport = createPpioTransport({

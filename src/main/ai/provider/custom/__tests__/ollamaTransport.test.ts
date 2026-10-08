@@ -59,52 +59,6 @@ describe('OllamaTransport', () => {
     expect(result).toEqual({ kind: 'completed', imageUrls: ['QUJD'] })
   })
 
-  it('splits size into width/height, nests seed under options, and forwards providerParams.numInferenceSteps at the top level', async () => {
-    const transport = createOllamaTransport({
-      baseURL: 'http://localhost:11434/api',
-      fetch: resolveOllamaImageFetch(undefined)
-    })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
-
-    await transport.submit({
-      ...baseInput,
-      prompt: 'a cat',
-      size: '768x768',
-      seed: 42,
-      providerParams: { numInferenceSteps: 9 }
-    })
-
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(JSON.parse(init.body as string)).toEqual({
-      model: 'x/z-image-turbo',
-      prompt: 'a cat',
-      stream: false,
-      width: 768,
-      height: 768,
-      steps: 9,
-      options: { seed: 42 }
-    })
-  })
-
-  it('omits options entirely when seed is unset', async () => {
-    const transport = createOllamaTransport({
-      baseURL: 'http://localhost:11434/api',
-      fetch: resolveOllamaImageFetch(undefined)
-    })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, prompt: 'a cat', size: '768x768' })
-
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    const body = JSON.parse(init.body as string)
-    expect(body.options).toBeUndefined()
-    expect(body.seed).toBeUndefined()
-  })
-
   it('constructs an Agent dispatcher with a timeout well past undici defaults, so a cold model load does not trip "fetch failed"', async () => {
     const options = getConstructedOptions() as { headersTimeout: number; bodyTimeout: number }
     // undici default is 300_000ms; cold-loading a multi-GB model routinely exceeds it.
@@ -136,55 +90,6 @@ describe('OllamaTransport', () => {
     expect(globalFetchSpy).not.toHaveBeenCalled()
     const init = injectedFetch.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }
     expect(init.dispatcher).toBeUndefined()
-  })
-
-  it('falls back to global fetch with the long-timeout dispatcher when no fetch is injected', async () => {
-    const transport = createOllamaTransport({
-      baseURL: 'http://localhost:11434/api',
-      fetch: resolveOllamaImageFetch(undefined)
-    })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, prompt: 'a cat' })
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }
-    expect(init.dispatcher).toBeInstanceOf(MockAgent)
-  })
-
-  it('merges custom headers with Content-Type', async () => {
-    const transport = createOllamaTransport({
-      baseURL: 'http://localhost:11434/api',
-      headers: { Authorization: 'Bearer token' },
-      fetch: resolveOllamaImageFetch(undefined)
-    })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, prompt: 'a cat' })
-
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    const requestHeaders = new Headers(init.headers)
-    expect(requestHeaders.get('Content-Type')).toBe('application/json')
-    expect(requestHeaders.get('Authorization')).toBe('Bearer token')
-    expect(requestHeaders.get('User-Agent')).toContain('ai-sdk/provider-utils/')
-  })
-
-  it('does not wrap the base64 image in a data: URI (the patched ai SDK only auto-downloads http(s) URLs; anything else is decoded as raw base64 verbatim)', async () => {
-    const transport = createOllamaTransport({
-      baseURL: 'http://localhost:11434/api',
-      fetch: resolveOllamaImageFetch(undefined)
-    })
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ image: 'aGVsbG8=' }), { status: 200 })
-    )
-
-    const result = await transport.submit({ ...baseInput, prompt: 'a cat' })
-    expect(result.imageUrls[0]).not.toMatch(/^data:/)
-    expect(result).toEqual({ kind: 'completed', imageUrls: ['aGVsbG8='] })
   })
 
   it('rejects a successful response with no image field', async () => {

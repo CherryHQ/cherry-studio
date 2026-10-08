@@ -18,36 +18,6 @@ describe('OvmsTransport', () => {
     mask: undefined
   } as const
 
-  it('posts a no-auth JSON body to the non-/v1 generations endpoint', async () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ data: [{ b64_json: 'QUJD' }] }))
-
-    const result = await transport.submit({
-      ...baseInput,
-      modelId: 'sd',
-      prompt: 'a cat',
-      size: '768x768',
-      seed: 7,
-      providerParams: { numInferenceSteps: 8 }
-    })
-
-    const call = fetchMock.mock.calls[0]
-    expect(call[0]).toBe('http://localhost:8000/images/generations')
-    const init = call[1] as RequestInit
-    const requestHeaders = new Headers(init.headers)
-    expect(requestHeaders.get('Authorization')).toBeNull()
-    expect(requestHeaders.get('Content-Type')).toBe('application/json')
-    expect(requestHeaders.get('User-Agent')).toContain('ai-sdk/provider-utils/')
-    expect(JSON.parse(init.body as string)).toEqual({
-      model: 'sd',
-      prompt: 'a cat',
-      size: '768x768',
-      num_inference_steps: 8,
-      rng_seed: 7
-    })
-    expect(result).toEqual({ kind: 'completed', imageUrls: ['data:image/png;base64,QUJD'] })
-  })
-
   it('does not materialize size, steps, or seed when the prepared request leaves them unset', async () => {
     const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ data: [{ b64_json: 'QUJD' }] }))

@@ -1,10 +1,6 @@
 import { vi } from 'vitest'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportSubmission
-} from '../../imageTransport'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../../imageTransport'
 
 export interface CapturedRequest {
   url: string
@@ -66,25 +62,6 @@ export async function captureImageRequest<P>(
     spy.mockRestore()
   }
   return cap.result()
-}
-
-/**
- * Inbound boundary: run a `submit`-based transport against a canned vendor
- * response and return its normalized submission.
- */
-export async function submitWithResponse<P>(
-  transport: ImageGenerationTransport<P>,
-  input: ImageGenerationSubmitInput<P>,
-  responseBody: unknown
-): Promise<ImageTransportSubmission> {
-  const spy = vi
-    .spyOn(globalThis, 'fetch')
-    .mockResolvedValue(new Response(JSON.stringify(responseBody), { status: 200 }))
-  try {
-    return await transport.submit(input)
-  } finally {
-    spy.mockRestore()
-  }
 }
 
 /**

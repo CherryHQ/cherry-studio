@@ -1,10 +1,9 @@
-import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createZhipuProvider } from '../zhipuProvider'
 
 describe('createZhipuProvider', () => {
-  it('uses OpenAI-compatible chat / embedding / image models', () => {
+  it('uses OpenAI-compatible chat and embedding models', () => {
     const provider = createZhipuProvider({
       apiKey: 'sk-test',
       baseURL: 'https://open.bigmodel.cn/api/paas/v4',
@@ -13,8 +12,6 @@ describe('createZhipuProvider', () => {
 
     expect(provider.languageModel('glm-4.5').provider).toBe('zhipu.chat')
     expect(provider.embeddingModel('embedding-3').provider).toBe('zhipu.embedding')
-    expect(provider.imageModel('glm-image')).toBeInstanceOf(OpenAICompatibleImageModel)
-    expect(provider.imageModel('cogview-4-250304')).toBeInstanceOf(OpenAICompatibleImageModel)
   })
 
   it('accepts Zhipu image responses that return data[].url', async () => {

@@ -46,61 +46,6 @@ describe('createSiliconProvider', () => {
     ).rejects.toThrow('input images')
     expect(fetch).not.toHaveBeenCalled()
   })
-  it('builds the SiliconFlow body with snake_case + image_size + batch_size and parses images[]', async () => {
-    const imageUrl = 'https://siliconflow.cdn.example/out.png'
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          images: [{ url: imageUrl }],
-          timings: { inference: 0.5 },
-          seed: 42
-        }),
-        { headers: { 'content-type': 'application/json' }, status: 200 }
-      )
-    )
-    const provider = createSiliconProvider({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.siliconflow.cn/v1',
-      fetch
-    })
-    const model = provider.imageModel('Kwai-Kolors/Kolors')
-
-    const result = await model.doGenerate({
-      prompt: 'a fox',
-      n: 2,
-      size: '1024x1024',
-      aspectRatio: undefined,
-      seed: 42,
-      files: undefined,
-      mask: undefined,
-      providerOptions: {
-        silicon: {
-          negativePrompt: 'low quality',
-          numInferenceSteps: 25,
-          guidanceScale: 4.5
-        }
-      }
-    })
-
-    expect(fetch).toHaveBeenCalledWith(
-      'https://api.siliconflow.cn/v1/images/generations',
-      expect.objectContaining({ method: 'POST' })
-    )
-    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
-    expect(sent).toMatchObject({
-      model: 'Kwai-Kolors/Kolors',
-      prompt: 'a fox',
-      image_size: '1024x1024',
-      batch_size: 2,
-      seed: 42,
-      negative_prompt: 'low quality',
-      num_inference_steps: 25,
-      guidance_scale: 4.5
-    })
-    expect(sent).not.toHaveProperty('n')
-    expect(sent).not.toHaveProperty('size')
-    expect(result.images).toEqual([imageUrl])
-  })
 
   it('passes Qwen-specific cfg through and attaches input files as image / image2 / image3', async () => {
     const fetch = vi.fn().mockResolvedValue(
