@@ -100,6 +100,7 @@ describe('KnowledgeService integration', () => {
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: SOURCE_BASE_ID,
       name: 'Legacy KB',
       groupId: SOURCE_GROUP_ID,
@@ -231,6 +232,7 @@ describe('KnowledgeService integration', () => {
 
     const seedCompletedBaseWithNote = async () => {
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: COMPLETED_BASE_ID,
         name: 'Active KB',
         groupId: null,

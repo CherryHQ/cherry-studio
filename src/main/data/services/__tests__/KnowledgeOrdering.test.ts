@@ -135,6 +135,46 @@ describe('Knowledge ordering contracts', () => {
     bases.reorder(a.id, { anchor: { before: b.id } })
     runner.runAll([new KnowledgeBaseOrderSeeder()])
     expect(ordered(groupA)).toEqual(['Old', 'New'])
+    new KnowledgeBaseOrderSeeder().run(dbh.db)
+    expect(ordered(groupA)).toEqual(['Old', 'New'])
+    runner.runAll([
+      {
+        name: 'knowledge-base-order',
+        version: '2',
+        description: 'Re-run the initialization after a version change',
+        run: (db) => new KnowledgeBaseOrderSeeder().run(db)
+      }
+    ])
+    expect(ordered(groupA)).toEqual(['Old', 'New'])
+  })
+
+  it('preserves initialized keys including a0 when no seed journal exists', () => {
+    createBase('First', groupA)
+    createBase('Second', groupA)
+    const before = dbh.db.select().from(knowledgeBaseTable).all()
+    expect(before.some((row) => row.orderKey === 'a0')).toBe(true)
+    new KnowledgeBaseOrderSeeder().run(dbh.db)
+    expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual(before)
+  })
+
+  it('rejects inserts that omit an order key', () => {
+    expect(() =>
+      dbh.sqlite
+        .prepare(
+          'INSERT INTO knowledge_base (id, name, status, chunk_size, chunk_overlap, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )
+        .run('11111111-1111-4111-8111-111111111111', 'Missing order', 'completed', 1024, 200, 1000, 1000)
+    ).toThrow('NOT NULL constraint failed: knowledge_base.order_key')
+    expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual([])
+  })
+
+  it('keeps valid a0 keys in separate groups after initialization', () => {
+    new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
+    createBase('First group', groupA)
+    createBase('Second group', groupB)
+    const before = dbh.db.select().from(knowledgeBaseTable).all()
+    new KnowledgeBaseOrderSeeder().run(dbh.db)
+    expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual(before)
   })
 
   function insertItem(baseId: string, index: number, overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {

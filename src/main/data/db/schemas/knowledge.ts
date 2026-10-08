@@ -10,7 +10,13 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import { createUpdateTimestamps, scopedOrderKeyIndex, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import {
+  createUpdateTimestamps,
+  orderKeyColumns,
+  scopedOrderKeyIndex,
+  uuidPrimaryKey,
+  uuidPrimaryKeyOrdered
+} from './_columnHelpers'
 import { groupTable } from './group'
 import { userModelTable } from './userModel'
 
@@ -20,8 +26,7 @@ export const knowledgeBaseTable = sqliteTable(
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
-    // Existing databases are initialized by KnowledgeBaseOrderSeeder before serving reads.
-    orderKey: text('order_key').notNull().default('a0'),
+    ...orderKeyColumns,
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     dimensions: integer(),
 

@@ -35,6 +35,7 @@ describe('knowledge ordering migrate-forward', () => {
       .values(
         values.map((row) => ({
           ...row,
+          orderKey: 'a0',
           groupId,
           status: 'completed' as const,
           error: null,
@@ -51,7 +52,7 @@ describe('knowledge ordering migrate-forward', () => {
     dbh.sqlite.exec(
       'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
     )
-    dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at = ?').run(migration.when)
+    dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
     const service = new KnowledgeBaseService()
@@ -66,5 +67,28 @@ describe('knowledge ordering migrate-forward', () => {
     }
     expect(dbh.db.select().from(knowledgeItemTable).all()[0].data).toEqual(content)
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('preserves custom keys and child rows through the constraint rebuild', () => {
+    const service = new KnowledgeBaseService()
+    const first = service.create({ name: 'First' })
+    const second = service.create({ name: 'Second' })
+    service.reorder(first.id, { anchor: { before: second.id } })
+    const bases = dbh.db.select().from(knowledgeBaseTable).all()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({ baseId: first.id, type: 'note', data: { source: 'Note', content: 'Keep me' }, status: 'completed' })
+      .run()
+    const items = dbh.db.select().from(knowledgeItemTable).all()
+    dbh.sqlite.exec(
+      'DELETE FROM __drizzle_migrations WHERE created_at = (SELECT MAX(created_at) FROM __drizzle_migrations)'
+    )
+
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+
+    expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual(bases)
+    expect(dbh.db.select().from(knowledgeItemTable).all()).toEqual(items)
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(dbh.sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
   })
 })
