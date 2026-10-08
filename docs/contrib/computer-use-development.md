@@ -25,7 +25,9 @@ Build the SDK and runtime in a separate `CherryHQ/cherry-computer-use` checkout,
 COMPUTER_USE_CHECKOUT=/path/to/cherry-computer-use
 npm --prefix "$COMPUTER_USE_CHECKOUT" install
 npm --prefix "$COMPUTER_USE_CHECKOUT" run sdk:build
-# macOS: build the complete helper app.
+# macOS: use the same installed signing certificate for every helper rebuild.
+export OPEN_COMPUTER_USE_CODESIGN_MODE=identity
+export OPEN_COMPUTER_USE_CODESIGN_IDENTITY="Developer ID Application: Example, Inc. (TEAMID)"
 (cd "$COMPUTER_USE_CHECKOUT" && ./scripts/build-open-computer-use-app.sh release)
 mkdir -p .context
 ln -s "$COMPUTER_USE_CHECKOUT/packages/sdk" .context/computer-use-sdk
@@ -76,7 +78,7 @@ Completing the guide refreshes the status in Cherry. Each query or request uses 
 
 Only a native `granted` result is displayed as granted. macOS preflight cannot distinguish all ungranted states and currently reports `unknown`. Windows/Linux return an empty permission list, which means no OS permission flow is implemented; it does not establish desktop availability or authorize an Agent task.
 
-Keep the helper bundle path and signing identity stable when validating macOS grants. Rebuilding an ad-hoc signed helper may require granting permissions again. Packaged macOS builds copy `.context/computer-use-runtime` into `Contents/Resources/computer-use/Open Computer Use.app` and electron-builder re-signs it under Cherry's Developer ID, so grants given to the dev-signed helper do not carry over. Windows/Linux packaging, a published runtime artifact and packaged validation remain pending.
+Keep the helper bundle path and signing identity stable when validating macOS grants. Set the signing variables above to an installed certificate before building; automatic certificate selection can choose a different identity even when the bundle ID stays the same. If the certificate changed, remove the old System Settings entry, add the rebuilt helper again and query permissions from a fresh helper session. Rebuilding an ad-hoc signed helper may require granting permissions again. Packaged macOS builds copy `.context/computer-use-runtime` into `Contents/Resources/computer-use/Open Computer Use.app` and electron-builder re-signs it under Cherry's Developer ID, so grants given to the dev-signed helper do not carry over. Windows/Linux packaging, a published runtime artifact and packaged validation remain pending.
 
 The user reported successful testing of the existing runtime slice on all three platforms on 2026-09-21. That report does not cover this new host integration or future cursor/input capabilities. An enabled macOS System Settings toggle alone does not prove that a rebuilt helper matches its earlier grant; verify the signing identity when investigating permission regressions.
 
@@ -84,7 +86,7 @@ The user reported successful testing of the existing runtime slice on all three 
 
 Enable **Settings → Computer Use → Allow agents to control desktop applications**. This persistent grant defaults to off and is independent of OS permissions. Disabling it immediately revokes tool execution and closes current tasks. Channel-linked Agent sessions and sealed built-in agents cannot access desktop control.
 
-The ordinary chat tools are `computer_list_apps`, `computer_open_app`, `computer_get_app_state` and `computer_click`. Claude/Pi/DSH consume the same implementation through their existing in-process tool bridge under `computer`. Only semantic left clicks are exposed. Observation never activates an application and actions never enable global input. Screenshots reach the model as image content alongside snapshot and element IDs. Completed actions with unavailable observations remain completed; uncertain effects must not cause automatic replay.
+The ordinary chat tools are `computer_list_apps`, `computer_open_app`, `computer_get_app_state`, `computer_click`, `computer_perform_secondary_action`, `computer_scroll`, `computer_drag`, `computer_type_text`, `computer_press_key` and `computer_set_value`. Claude/Pi/DSH consume the same implementation through their existing in-process tool bridge under `computer`. The native runtime determines which actions the platform supports. Observation never activates an application and actions never enable global input. Screenshots reach the model as image content alongside snapshot and element IDs. Completed actions with unavailable observations remain completed; uncertain effects must not cause automatic replay.
 
 Each chat run or Agent turn lazily starts one private SDK/runtime and can own multiple applications. Host-created task handles never come from model parameters. Chat completion, failure and cancellation close the runtime. Agent terminal/idle and connection-close events also release tasks, even when the Agent connection stays warm. Permission onboarding retains separate short sessions.
 
@@ -92,7 +94,7 @@ Each chat run or Agent turn lazily starts one private SDK/runtime and can own mu
 - Protocol v2 supplies `openAppSession`, `listAppSessions` and `stopAppSession`; observations/actions require an `appSessionId`. Request cancellation and task-level close are separate. Rebuild both SDK/helper and restart Cherry after updating the link; old v1 helpers fail the handshake.
 - Native stopping bypasses the action queue, rejects new work, and waits for cleanup confirmation. Stopping automation does not quit the user's application. Tray shows stopping until confirmation; uncertain cleanup retains the application reservation and disables execution.
 - Cherry retains user-stop state in memory per conversation/Agent session across calls, turns and SDK recreation. Only **Allow control again** in the tray clears it. After stop-all, start a new turn; allowing control does not revive an ended task or old snapshots. Unconfirmed cleanup cannot be cleared through that menu. Resume is not an Agent tool.
-- On macOS the runtime reuses the upstream engine: Cherry exposes click (element or screenshot pixel), secondary actions, scroll, drag, typing, key presses and set value, and `get_app_state` returns the engine's outline whose line numbers are element IDs. Windows/Linux still support only semantic left clicks. Background scrolling of Chromium-based apps such as Feishu has no effect in the engine. The fork's `docs/design-docs/computer-use-runtime.md` owns the native contract. X11 and Wayland capabilities require separate validation.
+- On macOS the runtime reuses the upstream engine: Cherry exposes click (element or screenshot pixel), secondary actions, scroll, drag, typing, key presses and set value, and `get_app_state` returns the engine's outline whose line numbers are element IDs. Windows/Linux still support only semantic left clicks. Scroll tries native AX page actions, `AXScrollToVisible` and targeted wheel events in order, requiring observed movement before reporting success. Pass the list or scrollable container element: Chromium reveal scrolling needs suitable off-screen accessibility nodes and provides approximate distance. Missing nodes do not prove that the list is at its boundary; unverified movement returns failure with a possible effect, so observe again before retrying. Strict foreground, mouse and window-order acceptance for this scroll change remains pending; the user deferred desktop tests while using the computer. The fork's `docs/design-docs/computer-use-runtime.md` owns the native contract. X11 and Wayland capabilities require separate validation.
 
 ## Host integration acceptance
 

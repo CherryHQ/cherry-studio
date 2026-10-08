@@ -85,9 +85,9 @@ vi.mock('node:module', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeModule>()
   return {
     ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
+    createRequire: vi.fn((filename: string | URL) =>
+      Object.assign(actual.createRequire(filename), { resolve: mocks.resolveRequire })
+    )
   }
 })
 

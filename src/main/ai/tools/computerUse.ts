@@ -69,7 +69,7 @@ export const computerUseToolDefinitions = [
   },
   {
     name: 'scroll',
-    description: `Scroll an element (or the window when elementId is omitted) by pages. ${ACTION_NOTE}`,
+    description: `Scroll a list or scrollable container element (or the window when elementId is omitted) by pages. ${ACTION_NOTE}`,
     inputSchema: scrollInput
   },
   {
