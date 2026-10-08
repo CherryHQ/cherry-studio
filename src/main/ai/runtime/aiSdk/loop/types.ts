@@ -1,3 +1,4 @@
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   Experimental_DownloadFunction as DownloadFunction,
@@ -67,6 +68,7 @@ export interface AgentLoopHooks {
 
 export interface AgentOptions {
   // CallSettings
+  reasoning?: LanguageModelV4CallOptions['reasoning']
   maxOutputTokens?: number
   temperature?: number
   topP?: number

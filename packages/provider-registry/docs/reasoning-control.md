@@ -8,7 +8,7 @@ The migration may temporarily contain legacy fields and serializers, but new cod
 - A model describes **what reasoning controls it supports**.
 - A provider endpoint describes **how those controls are encoded**.
 - The renderer receives only the model capabilities needed to render the control.
-- The main process resolves one immutable reasoning invocation per request.
+- The main process resolves an immutable reasoning invocation for each model call.
 - Native AI SDK options, compatible-provider options, API Gateway requests, and Claude Agent SDK requests share
   one canonical selection vocabulary.
 
@@ -239,52 +239,63 @@ current setting at execution time. They do not add historical reasoning persiste
 
 ### Main request assembly
 
-```text
-request snapshot + assistant fallback
-                  │
-                  ▼
-       reasoning resolver ───── model intrinsic controls
-                  │             endpoint/profile + maxTokens
-                  ▼
-    ResolvedReasoningInvocation
-                  │
-                  ▼
-      closed emission encoder
-                  │
-                  ▼
-       adapter-owned providerOptions namespace
-                  │
-                  ▼
-        Agent → AI SDK adapter → HTTP
-```
+`buildAgentParams` resolves the endpoint, adapter, model controls and wire profile once. It captures
+`request.reasoningEffort ?? assistant.settings.reasoning_effort ?? 'default'` as the request baseline.
+Automatic reasoning fields are deferred until the model call; they are not stored in the agent's shared
+`providerOptions`. Explicit custom parameters and `callOverrides` retain their existing merge order.
 
-`buildAgentParams` resolves the endpoint, adapter, `aiSdkProviderId`, and wire profile once and stores them in the
-request scope. Later builders consume that scope rather than repeating adapter or profile inference.
+## AI SDK v7 delivery
 
-The merge order is:
+The aiSdk `reasoningControl` middleware runs after SDK `prepareStep` merges its call settings. It reuses
+`resolveReasoningInvocation` with the current selection and output cap and always emits the registry's
+native encoding. Model-specific fallback middleware resolves against the fallback's own contract, so
+primary-model generated parameters never become fallback input.
 
 ```text
-profile-generated parameters < assistant customParameters < request callOverrides
+request baseline + SDK call/step `reasoning` (input only)
+                    │
+                    ▼
+registry invocation resolver + current output cap
+                    │
+                    ▼
+native encoding + explicit native overrides
+                    │
+                    ▼
+effective sampling / Anthropic output headroom
+                    │
+                    ▼
+provider adapter → HTTP
 ```
 
-This lets explicit per-call input win without allowing stale assistant persistence to override the current send.
+SDK `reasoning` is accepted as input vocabulary only. `AgentOptions.reasoning`, in-process
+`CallOverrides.reasoning` and `prepareStep.reasoning` select the level for a call; a later omitted step
+override restores the call's baseline. `provider-default` selects the registry's default mode. The
+middleware then clears `reasoning` so the adapter sees one policy: the native fields.
 
-## Native AI SDK path
+Native output is deliberate. The SDK enum cannot express exact budgets, dynamic sentinels, `max`/`ultra`
+or custom toggles, and some adapters coerce levels (Claude `max` is not `xhigh`; the pinned xAI SDK maps
+Grok 4.7 `xhigh` to `high`). Projecting only the equivalent cases would change nothing on the wire while
+adding a second, adapter-version-dependent path. The same encoder serves API Gateway and Claude Agent SDK.
 
-Native profiles emit AI SDK provider option fields. These still live under the adapter's
-`providerOptions` namespace because the common AI SDK Chat call has one provider-options surface:
+Explicit input precedence is `callOverrides > assistant customParameters > generated policy`.
+The middleware respects the actual SDK namespace, including Azure's native key and Anthropic's canonical
+and provider-specific keys. Vertex Anthropic V4 reads `googleVertex`; Vertex Gemini and MaaS continue
+to use their existing `vertex` route. Generated Anthropic budget/effort fields that conflict with an
+explicit thinking mode are removed.
 
-| Adapter | AI SDK input |
-| --- | --- |
-| OpenAI | `providerOptions.openai.{ reasoningEffort, reasoningSummary }` |
-| Anthropic | `providerOptions.anthropic.{ thinking, effort, sendReasoning }` |
-| Gemini | `providerOptions.google.{ thinkingConfig / thinkingLevel }` |
-| xAI | `providerOptions.xai.{ reasoningEffort }` |
-| Bedrock | `providerOptions.bedrock.{ reasoningConfig }` |
-| Ollama | `providerOptions.ollama.{ think }` |
+Final native thinking determines Anthropic sampling and additive-budget headroom. Cherry's total
+output cap remains unchanged on the wire; only the non-thinking remainder is passed to the SDK when
+it will add an exact budget. Do not replace descriptor-derived budgets with SDK percentage defaults.
 
-These are SDK inputs, not final HTTP JSON. The provider adapter performs its own camelCase-to-wire conversion. The
-emission encoder cannot query a model ID, provider ID, creator regex, or family regex.
+Summary and visibility are independent of effort. On OpenAI Responses endpoints without a summary
+operation, use the SDK's `reasoningSummary: null` to suppress its implicit `detailed` summary; no null
+field is sent on the wire. An explicit native summary still wins. Qwen compatibility toggles and prompt
+suffixes resolve per call as well, without retaining a previous step's generated switch.
+
+The request-boundary tests in `src/main/ai/runtime/aiSdk/params/__tests__` exercise real SDK serialization,
+stream warnings, explicit overrides, budgets, retry, per-step restoration and aggregate reasoning usage.
+They do not establish provider-account acceptance. Output reasoning extraction, signatures, encrypted
+replay and accounting remain owned by their existing consumers.
 
 ## Generic compatible-provider path
 

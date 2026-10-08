@@ -68,8 +68,9 @@ and [core release history](https://github.com/vercel/ai/blob/ai%407.0.127/packag
 
 v7 adds top-level `reasoning` to model calls and agents:
 `provider-default | none | minimal | low | medium | high | xhigh`. Omission leaves the choice to the
-provider. Cherry's chat `AgentOptions` / `Agent.ts` does not yet forward it; registry-driven native
-serialization remains in use after the protocol upgrade.
+provider. Cherry's chat `AgentOptions` / `Agent.ts` now accepts it as input; the registry resolves it per
+call and always emits native serialization; see the
+[delivery contract](../../../../packages/provider-registry/docs/reasoning-control.md#ai-sdk-v7-delivery).
 
 The common option expresses intent, while adapters determine the actual request. OpenAI maps it to
 native effort fields; Anthropic selects adaptive thinking/effort or budgets; Google uses thinking levels
@@ -83,8 +84,8 @@ two competing policies is not a portable override strategy. Exact budgets still 
 The SDK's default budget ratios (2/10/30/60/90 percent) differ from Cherry's descriptor-based mapping,
 so replacing it can change cost and output headroom even when the visible label stays the same.
 
-Cherry's `default`, `auto`, `max` and `ultra` do not all map directly to the SDK enum. Adoption must decide
-those mappings, preserve exact budgets, sampling/output-limit coupling and custom endpoint dialects,
+Cherry's `default`, `auto`, `max` and `ultra` do not all map directly to the SDK enum. Adoption must preserve
+those distinctions, exact budgets, sampling/output-limit coupling and custom endpoint dialects,
 and inspect the final wire request. Reasoning visibility, summaries, signatures/encrypted replay and
 accounting remain separate. For example, `openrouterReasoning.ts` removes output `[REDACTED]` markers;
 it cannot be retired as an input serializer. The [reasoning adoption gates](./migration-plan.md#unified-reasoning-adoption)

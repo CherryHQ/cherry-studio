@@ -1,3 +1,4 @@
+import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
@@ -42,6 +43,7 @@ export type ContextOwner = 'cherry' | 'caller'
  * renderer/IPC path — same constraint as `AbortSignal` (see `AsInProcess`).
  */
 export interface CallOverrides {
+  reasoning?: LanguageModelV4CallOptions['reasoning']
   temperature?: number
   maxOutputTokens?: number
   topP?: number

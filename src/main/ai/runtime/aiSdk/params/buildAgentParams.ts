@@ -50,13 +50,7 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiChatRequest, CallOverrides } from '../../../types'
-import {
-  adjustMaxOutputTokensForReasoning,
-  filterStandardParams,
-  getTemperature,
-  getTopP,
-  stripRejectedSamplingParams
-} from '../../../utils/modelParameters'
+import { filterStandardParams, stripRejectedSamplingParams } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
@@ -584,15 +578,15 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning: { ...reasoning, emissions: [] }
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
   let bodyParams: Record<string, unknown> = {}
   if (assistant) {
     const {
-      temperature = getTemperature(assistant.settings, model, reasoning),
-      topP = getTopP(assistant.settings, model, reasoning),
+      temperature = assistant.settings.enableTemperature ? assistant.settings.temperature : undefined,
+      topP = assistant.settings.enableTopP ? assistant.settings.topP : undefined,
       ...customRest
     } = customParameters.standardParams
     standardParams = {
@@ -640,16 +634,8 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
-  const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
-    effectiveProviderOptions,
-    sdkConfig.providerOptionsKey,
-    reasoning.budgetTokens
-  )
-  const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
-    budgetTokens: effectiveBudgetTokens
-  })
-  if (maxOutputTokens !== undefined) {
-    standardParams = { ...standardParams, maxOutputTokens }
+  if (requestedMaxOutputTokens !== undefined) {
+    standardParams = { ...standardParams, maxOutputTokens: requestedMaxOutputTokens }
   } else if ('maxOutputTokens' in standardParams) {
     standardParams = { ...standardParams }
     delete standardParams.maxOutputTokens
@@ -697,21 +683,6 @@ function buildAgentOptions(
   }
 }
 
-function resolveEffectiveThinkingBudget(
-  providerOptions: ProviderOptions,
-  providerOptionsKey: string,
-  fallbackBudgetTokens: number | undefined
-): number | undefined {
-  const thinking = providerOptions[providerOptionsKey]?.thinking
-  if (thinking === undefined) return fallbackBudgetTokens
-  if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
-
-  const thinkingOptions = thinking as Record<string, unknown>
-  return thinkingOptions.type === 'enabled' && typeof thinkingOptions.budgetTokens === 'number'
-    ? thinkingOptions.budgetTokens
-    : undefined
-}
-
 /**
  * Merge per-request `callOverrides` (highest precedence) onto base sampling params +
  * providerOptions. Sampling passes through `filterStandardParams` for model-capability
@@ -726,6 +697,7 @@ export function applyCallOverrides(
   if (!callOverrides) return base
 
   const sampling: Partial<Record<string, unknown>> = {}
+  if (callOverrides.reasoning !== undefined) sampling.reasoning = callOverrides.reasoning
   if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
