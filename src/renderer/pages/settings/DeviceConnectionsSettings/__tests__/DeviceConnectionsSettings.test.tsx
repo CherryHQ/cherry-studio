@@ -1,21 +1,25 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render as renderReact, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, ReactElement } from 'react'
+import { SWRConfig } from 'swr'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-const { invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(() => ({
-  invitationMock: vi.fn(),
-  requestMock: vi.fn(),
-  navigateMock: vi.fn(),
-  useApiGatewayMock: vi.fn(),
-  useIpcOnMock: vi.fn()
-}))
+const { androidDownloadMock, invitationMock, requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(
+  () => ({
+    androidDownloadMock: vi.fn(),
+    invitationMock: vi.fn(),
+    requestMock: vi.fn(),
+    navigateMock: vi.fn(),
+    useApiGatewayMock: vi.fn(),
+    useIpcOnMock: vi.fn()
+  })
+)
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
@@ -46,6 +50,16 @@ vi.mock('react-i18next', () => {
 })
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
+
+const androidDownloadUrl =
+  'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.2/cherry-studio-0.1.2-android.apk'
+
+function render(ui: ReactElement) {
+  const provider = () => new Map()
+  return renderReact(ui, {
+    wrapper: ({ children }) => <SWRConfig value={{ provider }}>{children}</SWRConfig>
+  })
+}
 
 const createInvitation = (invitationId: string): OutputFor<'api_gateway.remote.create_invitation'> => ({
   hostname: 'desktop',
@@ -105,7 +119,9 @@ describe('DeviceConnectionsSettings', () => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
     invitationMock.mockReset().mockResolvedValue(createInvitation('default'))
+    androidDownloadMock.mockReset().mockResolvedValue(androidDownloadUrl)
     requestMock.mockReset().mockImplementation(async (name: string) => {
+      if (name === 'app.mobile.get_android_download_url') return androidDownloadMock()
       if (name === 'api_gateway.remote.list_claims') return []
       if (name === 'api_gateway.remote.create_invitation') return invitationMock()
       return undefined
@@ -122,20 +138,18 @@ describe('DeviceConnectionsSettings', () => {
     })
   })
 
-  it.each([
-    {
-      edition: 'cn',
-      androidDownloadUrl:
-        'https://gitcode.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
-    },
-    {
-      edition: 'global',
-      androidDownloadUrl:
-        'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
-    }
-  ])(
-    'uses $edition downloads and preserves steps until onboarding is completed',
+  it.each(
+    ['cn', 'global'].flatMap((edition) =>
+      ['gitcode.com', 'github.com'].map((host) => ({
+        edition,
+        host,
+        androidDownloadUrl: `https://${host}/CherryHQ/cherry-studio-app/releases/download/v0.1.2/cherry-studio-0.1.2-android.apk`
+      }))
+    )
+  )(
+    'uses the resolved $host APK in $edition edition and preserves onboarding progress',
     async ({ edition, androidDownloadUrl }) => {
+      androidDownloadMock.mockResolvedValue(androidDownloadUrl)
       vi.stubGlobal('__APP_EDITION__', edition)
       MockUseCacheUtils.resetMocks()
       MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
@@ -159,6 +173,7 @@ describe('DeviceConnectionsSettings', () => {
         'https://testflight.apple.com/join/2ryzjB66'
       )
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+      expect(requestMock).not.toHaveBeenCalledWith('app.mobile.get_android_download_url')
       await user.click(screen.getByRole('tab', { name: 'Android' }))
       expect(screen.getByRole('tab', { name: 'Android' })).toHaveAttribute('aria-selected', 'true')
       expect(
@@ -179,7 +194,7 @@ describe('DeviceConnectionsSettings', () => {
           screen.queryByRole('button', { name: enUS['deviceConnections.download.googlePlay'] })
         ).not.toBeInTheDocument()
       }
-      expect(screen.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
         'data-value',
         androidDownloadUrl
       )
@@ -211,6 +226,48 @@ describe('DeviceConnectionsSettings', () => {
     }
   )
 
+  it('shows loading until the latest Android QR code is available', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'download')
+    let resolveDownload!: (url: string) => void
+    androidDownloadMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveDownload = resolve
+      })
+    )
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('tab', { name: 'Android' }))
+    expect(screen.getByRole('status')).toHaveTextContent(enUS['common.loading'])
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+
+    await act(async () => resolveDownload(androidDownloadUrl))
+    expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      'data-value',
+      androidDownloadUrl
+    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('recovers a failed Android lookup through retry without displaying a bogus QR code', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'download')
+    androidDownloadMock
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce(androidDownloadUrl)
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('tab', { name: 'Android' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(enUS['deviceConnections.download.loadFailed'])
+    expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: enUS['common.retry'] }))
+    expect(await screen.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+      'data-value',
+      androidDownloadUrl
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('keeps the active pairing invitation while downloading the mobile app in a dialog', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.device_connections.step', 'complete')
     invitationMock.mockResolvedValue(createInvitation('active-invitation'))
@@ -232,9 +289,9 @@ describe('DeviceConnectionsSettings', () => {
       'https://testflight.apple.com/join/2ryzjB66'
     )
     await user.click(dialog.getByRole('tab', { name: 'Android' }))
-    expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
+    expect(await dialog.findByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
       'data-value',
-      'https://github.com/CherryHQ/cherry-studio-app/releases/download/v0.1.1/cherry-studio-0.1.1-android.apk'
+      androidDownloadUrl
     )
     expect(dialog.queryByRole('button', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
     await user.click(dialog.getByRole('button', { name: enUS['deviceConnections.download.googlePlay'] }))
