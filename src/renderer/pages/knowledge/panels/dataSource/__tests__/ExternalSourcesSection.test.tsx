@@ -347,13 +347,12 @@ describe('ExternalSourcesSection', () => {
     expect(within(result).queryByText('Unchanged')).not.toBeInTheDocument()
     expect(within(result).queryByText('Skipped')).not.toBeInTheDocument()
     expect(within(result).queryByText('Notices')).not.toBeInTheDocument()
-    const syncDetails = within(result).getByRole('button', { name: 'Sync details' })
-    expect(syncDetails).toHaveAttribute('aria-expanded', 'false')
-    await user.click(syncDetails)
-    expect(within(result).getByText('Unchanged')).toBeVisible()
-    expect(within(result).getByText('Skipped')).toBeVisible()
-    expect(within(result).getByText('1')).toBeVisible()
-    expect(within(result).getByText('0')).toBeVisible()
+    expect(within(result).queryByRole('button', { name: 'Sync details' })).not.toBeInTheDocument()
+    const syncDetails = within(result).getByRole('img', { name: 'Sync details' })
+    await user.hover(syncDetails)
+    const tooltip = await screen.findByRole('tooltip', { name: /Unchanged/ })
+    expect(tooltip).toHaveTextContent(/Unchanged\s*1/)
+    expect(tooltip).toHaveTextContent(/Skipped\s*0/)
     expect(mockRequest).not.toHaveBeenCalled()
     expect(within(details).queryByText(/Next scheduled run/)).not.toBeInTheDocument()
     expect(within(details).queryByText('Changes are saved automatically.')).not.toBeInTheDocument()
@@ -361,6 +360,21 @@ describe('ExternalSourcesSection', () => {
     expect(within(details).getByText('Team handbook')).toBeVisible()
     expect(within(details).queryByRole('textbox')).not.toBeInTheDocument()
     expect(within(details).getByRole('switch', { name: 'Automatic sync' })).toBeVisible()
+  })
+
+  it('opens sync details through keyboard focus on the summary icon', async () => {
+    const user = userEvent.setup()
+    render(<SourcesHarness />)
+    await openSourceSettings(user)
+    const details = screen.getByRole('dialog', { name: 'Source details' })
+    const syncDetails = within(details).getByRole('img', { name: 'Sync details' })
+    await user.click(within(details).getByRole('button', { name: 'Source information' }))
+    await user.tab({ shift: true })
+
+    expect(syncDetails).toHaveFocus()
+    const tooltip = await screen.findByRole('tooltip', { name: /Unchanged/ })
+    expect(tooltip).toHaveTextContent(/Unchanged\s*1/)
+    expect(tooltip).toHaveTextContent(/Skipped\s*0/)
   })
 
   it('does not show result counts before the first sync finishes', async () => {
@@ -378,7 +392,7 @@ describe('ExternalSourcesSection', () => {
       name: 'Last sync result'
     })
     expect(within(result).queryByText(/Documents added or updated/)).not.toBeInTheDocument()
-    expect(within(result).queryByRole('button', { name: 'Sync details' })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('img', { name: 'Sync details' })).not.toBeInTheDocument()
   })
 
   it('saves automatic sync immediately without a Save button or a name editor', async () => {
@@ -797,7 +811,7 @@ describe('ExternalSourcesSection', () => {
     fireEvent.change(time, { target: { value: '12:15' } })
     await user.tab({ shift: true })
     expect(screen.getByRole('switch', { name: 'Automatic sync' })).toHaveFocus()
-    await user.click(screen.getByRole('button', { name: 'Sync details' }))
+    await user.click(screen.getByRole('button', { name: 'Source information' }))
     await waitFor(() => expect(stored.schedule.policy.time).toBe('12:15'))
   })
 

@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  InfoTooltip,
   Input,
   Label,
   NormalTooltip,
@@ -564,63 +565,6 @@ const ExternalSourcesSection = ({
           </p>
         </div>
       </div>
-      <PageSidePanelSection
-        title={t('knowledge.external.sources.last_result')}
-        role="region"
-        aria-label={t('knowledge.external.sources.last_result')}
-        className="pt-4">
-        {selected.lastFinishedAt ? (
-          <>
-            <div className="space-y-1">
-              <p>
-                {selected.lastOutcome === 'failed'
-                  ? t('knowledge.external.sources.job_failed')
-                  : selected.lastOutcome === 'cancelled'
-                    ? t('knowledge.external.sources.job_cancelled')
-                    : selected.lastOutcome === 'completed-with-warnings'
-                      ? t('knowledge.external.sources.completed_with_warnings')
-                      : t('knowledge.external.sources.job_completed')}
-              </p>
-              <time dateTime={selected.lastFinishedAt} className="text-muted-foreground text-xs leading-5">
-                {formatTime(selected.lastFinishedAt, i18n.language, t('knowledge.external.sources.never'))}
-              </time>
-            </div>
-            <p className="text-xs leading-5">
-              {t('knowledge.external.sources.sync_update_summary', { count: selected.lastIndexedCount ?? 0 })}
-            </p>
-            {(selected.lastWarningCount ?? 0) > 0 ? (
-              <p className="text-warning-subtle-foreground text-xs leading-5">
-                {t('knowledge.external.sources.sync_attention_summary', { count: selected.lastWarningCount ?? 0 })}
-              </p>
-            ) : null}
-            <Accordion key={selected.id} type="single" collapsible>
-              <AccordionItem value="sync-details" className="first:border-t-0">
-                <AccordionTrigger className="text-muted-foreground min-h-10 py-0 text-xs font-normal">
-                  {t('knowledge.external.sources.sync_details')}
-                </AccordionTrigger>
-                <AccordionContent>
-                  <dl className="space-y-2 text-xs leading-5">
-                    {(
-                      [
-                        [t('knowledge.external.sources.unchanged'), selected.lastUnchangedCount],
-                        [t('knowledge.external.sources.skipped'), selected.lastSkippedCount]
-                      ] as const
-                    ).map(([label, count]) => (
-                      <div key={label} className="flex items-start justify-between gap-3">
-                        <dt className="text-muted-foreground wrap-anywhere">{label}</dt>
-                        <dd className="text-foreground tabular-nums">{count ?? 0}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </>
-        ) : (
-          <p className="text-muted-foreground text-xs leading-5">{t('knowledge.external.sources.never')}</p>
-        )}
-        <SourceSyncFailure source={selected} />
-      </PageSidePanelSection>
       <div
         role="region"
         aria-label={t('knowledge.external.sources.sync_settings')}
@@ -680,6 +624,64 @@ const ExternalSourcesSection = ({
           </p>
         ) : null}
       </div>
+      <PageSidePanelSection
+        title={t('knowledge.external.sources.last_result')}
+        role="region"
+        aria-label={t('knowledge.external.sources.last_result')}
+        className="pt-4">
+        {selected.lastFinishedAt ? (
+          <>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="min-w-0 flex-1 wrap-anywhere">
+                {selected.lastOutcome === 'failed'
+                  ? t('knowledge.external.sources.job_failed')
+                  : selected.lastOutcome === 'cancelled'
+                    ? t('knowledge.external.sources.job_cancelled')
+                    : selected.lastOutcome === 'completed-with-warnings'
+                      ? t('knowledge.external.sources.completed_with_warnings')
+                      : t('knowledge.external.sources.job_completed')}
+              </p>
+              <time
+                dateTime={selected.lastFinishedAt}
+                className="text-muted-foreground shrink-0 text-right text-xs leading-5 whitespace-nowrap">
+                {formatTime(selected.lastFinishedAt, i18n.language, t('knowledge.external.sources.never'))}
+              </time>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs leading-5">
+                {t('knowledge.external.sources.sync_update_summary', { count: selected.lastIndexedCount ?? 0 })}
+              </p>
+              <InfoTooltip
+                ariaLabel={t('knowledge.external.sources.sync_details')}
+                portalContainer={document.body}
+                content={
+                  <dl className="space-y-1 text-xs leading-5">
+                    {(
+                      [
+                        [t('knowledge.external.sources.unchanged'), selected.lastUnchangedCount],
+                        [t('knowledge.external.sources.skipped'), selected.lastSkippedCount]
+                      ] as const
+                    ).map(([label, count]) => (
+                      <div key={label} className="flex items-start justify-between gap-3">
+                        <dt className="wrap-anywhere">{label}</dt>
+                        <dd className="shrink-0 tabular-nums">{count ?? 0}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                }
+              />
+            </div>
+            {(selected.lastWarningCount ?? 0) > 0 ? (
+              <p className="text-warning-subtle-foreground text-xs leading-5">
+                {t('knowledge.external.sources.sync_attention_summary', { count: selected.lastWarningCount ?? 0 })}
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-muted-foreground text-xs leading-5">{t('knowledge.external.sources.never')}</p>
+        )}
+        <SourceSyncFailure source={selected} />
+      </PageSidePanelSection>
       <SourceIssues sourceId={selected.id} />
       <Accordion key={selected.id} type="single" collapsible>
         <AccordionItem value="source-info" className="first:border-t-0">
