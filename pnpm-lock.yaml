@@ -1239,6 +1239,9 @@ importers:
       nanoid:
         specifier: 3.3.11
         version: 3.3.11
+      node-api-headers:
+        specifier: 1.9.0
+        version: 1.9.0
       notion-helper:
         specifier: ^1.3.22
         version: 1.3.29
@@ -14156,6 +14159,9 @@ packages:
     resolution: {integrity: sha512-P9ZGMDkloktirLJSggfpxsJ9jog5FItE1Omxpj50UBn3LhD6TS6/yx0jEBXsCGK3P9EtW1EpQVA1QL5gb11GaQ==}
     engines: {node: '>=20'}
 
+  node-api-headers@1.9.0:
+    resolution: {integrity: sha512-2oNILP4jXwRB4ywnYKjVk1YyJ96n2D4EOVJO6S3oYZ5PtbJrw3Yt9TpAuX3nBLMuzn74rnfGQrv13pS9vC+YiA==}
+
   node-api-version@0.2.1:
     resolution: {integrity: sha512-2xP/IGGMmmSQpI1+O/k72jF/ykvZ89JeuKX3TLJAYPDVLUalrshrLHkeVcCCZqG/eEa635cr8IBYzgnDvM2O8Q==}
 
@@ -23626,11 +23632,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@sting8k/pi-vcc@0.8.1':
-    resolution: {integrity: sha512-EiXqqYY3QmwkrOLgRuTfIz+IxGG9pc/VTTJ3Aan05bMd/AVMYjA1OxUVtuTrD/GVgW30pBClWpnjg4ZjZm3v0Q==}
-    peerDependencies:
-      '@earendil-works/pi-coding-agent': '>=0.74.0 <2.0.0'
-      typebox: '>=1.1.24 <2.0.0'
+  '@sting8k/pi-vcc@0.8.1(patch_hash=ad2495c1bd33d364d13266612df4ebed4997e01acd622d0248acced107d6cba4)(@earendil-works/pi-coding-agent@1.0.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.3.4))(supports-color@8.1.1)(ws@8.21.3)(zod@4.3.4))(typebox@1.3.27)':
+    dependencies:
+      '@earendil-works/pi-coding-agent': 1.0.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.3.4))(supports-color@8.1.1)(ws@8.21.3)(zod@4.3.4)
+      typebox: 1.3.27
 
   '@storybook/addon-docs@10.6.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(storybook@10.6.0(@types/react@19.2.7)(prettier@3.8.1)(react@19.2.3))':
     dependencies:
@@ -30637,6 +30642,8 @@ snapshots:
       node-addon-require-builtin-win32-arm64-msvc: 0.1.6
       node-addon-require-builtin-win32-ia32-msvc: 0.1.6
       node-addon-require-builtin-win32-x64-msvc: 0.1.6
+
+  node-api-headers@1.9.0: {}
 
   node-api-version@0.2.1:
     dependencies:

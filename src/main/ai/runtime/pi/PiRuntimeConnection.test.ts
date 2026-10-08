@@ -1820,6 +1820,46 @@ describe('PiRuntimeConnection', () => {
     ).resolves.toMatchObject({ block: true })
   })
 
+  describe('skill installation approval', () => {
+    const installSkill = {
+      type: 'tool_call',
+      toolName: 'mcp__skills__install_skill',
+      toolCallId: 'tc-skill',
+      input: {}
+    }
+    const startWithMode = (permission_mode: string) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode } })
+      return new PiRuntimeConnection(input).start()
+    }
+
+    it('blocks an auto-mode install on a channel or scheduled turn', async () => {
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const conn = await startWithMode('auto')
+
+      await expect(approvalGateHandler()(installSkill, {})).resolves.toMatchObject({ block: true })
+      expect(toolApprovalRegistry.size()).toBe(0)
+      await conn.close()
+    })
+
+    it('asks before an interactive auto-mode install', async () => {
+      const conn = await startWithMode('auto')
+
+      void approvalGateHandler()(installSkill, {})
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(toolApprovalRegistry.size()).toBe(1)
+      toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+      await conn.close()
+    })
+
+    it('installs unattended under bypassPermissions', async () => {
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      const conn = await startWithMode('bypassPermissions')
+
+      await expect(approvalGateHandler()(installSkill, {})).resolves.toBeUndefined()
+      await conn.close()
+    })
+  })
+
   describe('MCP bridging', () => {
     it('blocks a legacy disabled alias using the actual registered tool identity', async () => {
       const serverId = '12345678-1234-4234-8234-123456789abc'

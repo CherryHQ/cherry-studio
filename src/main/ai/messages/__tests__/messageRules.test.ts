@@ -2,6 +2,8 @@ import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
+
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
@@ -116,6 +118,85 @@ describe('toModelMessages', () => {
       content: [
         { type: 'tool-call', toolCallId: '1', toolName: 'kb_manage', input: {}, providerExecuted: undefined },
         { type: 'tool-approval-request', approvalId: 'ap-1', toolCallId: '1' }
+      ]
+    })
+  })
+
+  it('attributes a denied approval reason to the user, leaving the stored part alone', async () => {
+    const messages = [
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-responded',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ]
+
+    const model = await toModelMessages(messages)
+    const attributed =
+      "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason: attributed
+        })
+      ])
+    })
+    expect(JSON.stringify(model[2]).replaceAll(JSON.stringify(attributed).slice(1, -1), '')).not.toContain('use a copy')
+    expect((messages[1].parts[0] as { approval?: { reason?: string } }).approval?.reason).toBe('use a copy')
+  })
+
+  it('attributes a denied approval reason on the terminal output-denied shape', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'output-denied',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason:
+            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+        },
+        {
+          type: 'tool-result',
+          toolCallId: '1',
+          toolName: 'kb_manage',
+          output: {
+            type: 'error-text',
+            value:
+              "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+          }
+        }
       ]
     })
   })
@@ -269,6 +350,65 @@ describe('toModelMessages', () => {
       role: 'assistant',
       content: [expect.objectContaining({ type: 'text', text: 'Projects are Project A and Project B.' })]
     })
+  })
+
+  // #21306: the MCP adapter's toModelOutput must forward image/audio blocks as structured
+  // media so the capability pipeline (routeToolResultMedia) can decide per model + wire —
+  // forward when the model accepts them, an honest omission note when it doesn't.
+  const mcpMediaTool = tool({
+    inputSchema: z.object({}),
+    toModelOutput: ({ output }) => mcpResultToModelOutput(output)
+  })
+  const mcpMediaMessages = (content: unknown[]) => [
+    ui('assistant', [
+      {
+        type: 'tool-read_media',
+        toolCallId: 'call-media-1',
+        state: 'output-available',
+        input: {},
+        output: { content }
+      }
+    ]),
+    ui('user', [{ type: 'text', text: 'describe it' }], 'u1')
+  ]
+
+  it('forwards tool-result images to a vision-capable model on a media-capable wire', async () => {
+    const imageData = 'A'.repeat(1024)
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'image', data: imageData, mimeType: 'image/png' }]),
+      { image: true, video: true, audio: true },
+      { read_media: mcpMediaTool },
+      { image: true, video: true, audio: true }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).toContain(imageData)
+  })
+
+  it('replaces tool-result media with an honest note for a non-vision model', async () => {
+    const imageData = 'A'.repeat(1024)
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'image', data: imageData, mimeType: 'image/png' }]),
+      { image: false, video: true, audio: true },
+      { read_media: mcpMediaTool },
+      { image: false, video: true, audio: true }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).not.toContain(imageData)
+    expect(text).toContain('image attachment omitted')
+  })
+
+  it('gates tool-result audio for a model without audio input', async () => {
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'audio', data: 'QUFB', mimeType: 'audio/wav' }]),
+      { image: true, video: true, audio: false },
+      { read_media: mcpMediaTool },
+      { image: true, video: true, audio: false }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).toContain('audio attachment omitted')
   })
 
   const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({
