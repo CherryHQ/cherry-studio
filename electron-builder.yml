@@ -156,6 +156,10 @@ portable:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
+  extraResources:
+    # Dev link to the companion checkout (see docs/contrib/computer-use-development.md); re-signed under Cherry's identity.
+    - from: ".context/computer-use-runtime"
+      to: "computer-use/Open Computer Use.app"
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.

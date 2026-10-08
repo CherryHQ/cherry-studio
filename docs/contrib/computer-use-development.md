@@ -76,7 +76,7 @@ Completing the guide refreshes the status in Cherry. Each query or request uses 
 
 Only a native `granted` result is displayed as granted. macOS preflight cannot distinguish all ungranted states and currently reports `unknown`. Windows/Linux return an empty permission list, which means no OS permission flow is implemented; it does not establish desktop availability or authorize an Agent task.
 
-Keep the helper bundle path and signing identity stable when validating macOS grants. Rebuilding an ad-hoc signed helper may require granting permissions again. Runtime distribution, signing, ASAR-external resources, and packaged application validation remain pending.
+Keep the helper bundle path and signing identity stable when validating macOS grants. Rebuilding an ad-hoc signed helper may require granting permissions again. Packaged macOS builds copy `.context/computer-use-runtime` into `Contents/Resources/computer-use/Open Computer Use.app` and electron-builder re-signs it under Cherry's Developer ID, so grants given to the dev-signed helper do not carry over. Windows/Linux packaging, a published runtime artifact and packaged validation remain pending.
 
 The user reported successful testing of the existing runtime slice on all three platforms on 2026-09-21. That report does not cover this new host integration or future cursor/input capabilities. An enabled macOS System Settings toggle alone does not prove that a rebuilt helper matches its earlier grant; verify the signing identity when investigating permission regressions.
 
