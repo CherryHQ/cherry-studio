@@ -1,6 +1,12 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+interface IpcMock {
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, callback: (payload: unknown) => void) => () => void
+}
 
 vi.mock('i18next', () => ({
   exists: (key: string) => key === 'translate.error.not_configured' || key === 'translate.error.not_supported',
@@ -10,10 +16,10 @@ vi.mock('i18next', () => ({
 // AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*') and
 // `translate.open` now goes through ipcApi.request('translate.open', …). `ipcMock` is re-pointed
 // at the fresh per-test mock in beforeEach.
-const { ipcMock } = vi.hoisted(() => ({
+const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: (() => undefined) as (route: string, input: unknown) => unknown,
-    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+    request: () => undefined,
+    on: () => () => {}
   }
 }))
 vi.mock('@renderer/ipc', () => ({
@@ -48,10 +54,10 @@ const TARGET = {
 } as TranslateLanguage
 
 interface MockAiApi {
-  streamAbort: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
-  onStreamDone: ReturnType<typeof vi.fn>
-  onStreamError: ReturnType<typeof vi.fn>
+  streamAbort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamChunk: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamDone: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamError: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 interface MockListeners {
@@ -62,9 +68,9 @@ interface MockListeners {
 
 function createMocks(): {
   ai: MockAiApi
-  translateOpen: ReturnType<typeof vi.fn>
+  translateOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   listeners: MockListeners
-  request: ReturnType<typeof vi.fn>
+  request: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   on: (event: string, cb: (p: unknown) => void) => () => void
 } {
   const listeners: MockListeners = { chunk: [], done: [], error: [] }
@@ -109,11 +115,11 @@ function createMocks(): {
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
       case 'ai.stream.chunk':
-        return ai.onStreamChunk(cb as never)
+        return ai.onStreamChunk(cb)
       case 'ai.stream.done':
-        return ai.onStreamDone(cb as never)
+        return ai.onStreamDone(cb)
       case 'ai.stream.error':
-        return ai.onStreamError(cb as never)
+        return ai.onStreamError(cb)
       default:
         return () => {}
     }
@@ -122,7 +128,7 @@ function createMocks(): {
 }
 
 /** Pull the renderer-generated streamId from the latest `ipcApi.request('translate.open', …)` call. */
-function lastStreamId(request: ReturnType<typeof vi.fn>): string {
+function lastStreamId(request: ReturnType<typeof vi.fn<(...args: any[]) => any>>): string {
   const calls = request.mock.calls.filter(([route]) => route === 'translate.open')
   if (calls.length === 0) throw new Error("ipcApi.request('translate.open', …) has not been called yet")
   return (calls[calls.length - 1][1] as { streamId: string }).streamId
@@ -143,7 +149,7 @@ function emitError(listeners: MockListeners, error: { name?: string; message: st
 }
 
 /** Wait until `translate.open` has resolved — guarantees subscribers are wired. */
-async function waitForOpen(request: ReturnType<typeof vi.fn>) {
+async function waitForOpen(request: ReturnType<typeof vi.fn<(...args: any[]) => any>>) {
   await vi.waitFor(() => expect(request).toHaveBeenCalledWith('translate.open', expect.anything()))
   // Microtask flush so the await on `open()` returns and listeners register.
   await Promise.resolve()
@@ -151,8 +157,8 @@ async function waitForOpen(request: ReturnType<typeof vi.fn>) {
 }
 
 let mockAi: MockAiApi
-let mockRequest: ReturnType<typeof vi.fn>
-let mockTranslateOpen: ReturnType<typeof vi.fn>
+let mockRequest: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+let mockTranslateOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 let mockListeners: MockListeners
 
 beforeEach(() => {

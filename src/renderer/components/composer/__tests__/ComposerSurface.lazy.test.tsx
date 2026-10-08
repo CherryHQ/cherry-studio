@@ -139,7 +139,7 @@ describe('deferred ComposerSurface', () => {
     expect(input).toBeEnabled()
     expect(input).toHaveClass('w-full')
     expect(input).toHaveAttribute('rows', '1')
-    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', lineHeight: '1.4' })
+    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', padding: '6px 15px 0', lineHeight: '1.4' })
     expect(narrowLayout).toHaveClass('max-w-[calc(800px+3rem)]', 'px-6')
     expect(narrowLayout).toContainElement(inputbar)
     expect(inputbar).toContainElement(screen.getByText('Composer tools'))
@@ -165,6 +165,7 @@ describe('deferred ComposerSurface', () => {
     render(<Harness text="   " />)
 
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('   ')
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
     expect(mocks.runtimeLoads).toBe(0)
   })
 
@@ -531,5 +532,32 @@ describe('deferred ComposerSurface', () => {
 
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter' })
     expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
+  })
+  it('keeps the fallback focusable while read-only and ignores draft-changing interactions', async () => {
+    const onTextChange = vi.fn()
+    const onInputHistoryNavigate = vi.fn(() => true)
+    const view = render(<Harness onTextChange={onTextChange} onInputHistoryNavigate={onInputHistoryNavigate} />)
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    input.focus()
+    view.rerender(
+      <Harness editable={false} onTextChange={onTextChange} onInputHistoryNavigate={onInputHistoryNavigate} />
+    )
+
+    expect(input).toBeEnabled()
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toHaveFocus()
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    const transfer = new DataTransfer()
+    transfer.setData('text/plain', 'blocked paste')
+    fireEvent.paste(input, { clipboardData: transfer })
+    fireEvent.drop(input, { dataTransfer: transfer })
+
+    expect(onTextChange).not.toHaveBeenCalled()
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.transfer).toBeUndefined()
   })
 })

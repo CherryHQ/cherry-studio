@@ -2,6 +2,8 @@
  * Agent session message domain API Schema definitions.
  */
 
+import * as z from 'zod'
+
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import {
   ContentMessageRoleSchema,
@@ -10,7 +12,6 @@ import {
   MessageStatsSchema,
   MessageStatusSchema
 } from '@shared/data/types/message'
-import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
 

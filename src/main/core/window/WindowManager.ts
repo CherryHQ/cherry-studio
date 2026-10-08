@@ -1,5 +1,8 @@
 import { join } from 'node:path'
 
+import { app, BrowserWindow, screen } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
@@ -30,8 +33,6 @@ import {
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import { app, BrowserWindow, screen, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 
@@ -60,6 +61,7 @@ type WarmupOp =
   | 'pool-release'
   | 'pool-release-destroy-disabled'
   | 'pool-release-destroy-overcap'
+  | 'pool-release-destroy-fullscreen'
   | 'pool-decay'
   | 'pool-lazy-backfill'
   | 'pool-suspend'
@@ -978,6 +980,16 @@ export class WindowManager extends BaseService {
     // registry-declared defaults rather than the previous consumer's pin.
     this.behavior.clearForWindow(windowId)
 
+    // Never hide a fullscreen window: on macOS `orderOut:` orphans its fullscreen Space as an
+    // undismissable black screen (electron#20263). Drop the instance — standby replenishes it.
+    if (!managed.window.isDestroyed() && managed.window.isFullScreen()) {
+      this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
+      this.logWarmupEvent('pool-release-destroy-fullscreen', type, state, { windowId })
+      this.updateDockVisibility()
+      return
+    }
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
@@ -1360,20 +1372,14 @@ export class WindowManager extends BaseService {
       }
     })
 
-    // Intercept external links: open in system browser
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
-      }
-      return { action: 'deny' }
-    })
+    // Domain services may route denied popups after onWindowCreated.
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window
@@ -1623,6 +1629,9 @@ export class WindowManager extends BaseService {
         const metadata = getWindowTypeMetadata(type)
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) return // let native close proceed
+          // A fullscreen window is closed natively, never hidden — the same rule as
+          // releaseToPool()'s fullscreen guard; cancelling here would orphan its Space.
+          if (window.isFullScreen()) return
           event.preventDefault()
           if (state.idle.includes(windowId)) return // already idle
           const managed = this.windows.get(windowId)

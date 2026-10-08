@@ -1,9 +1,10 @@
+import { isUndefined, omitBy } from 'es-toolkit/compat'
+import { useCallback } from 'react'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
-import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
 
 export function usePaintings(query?: ListPaintingsQueryParams) {
   const filtered = query ? (omitBy(query, isUndefined) as ListPaintingsQueryParams) : undefined
@@ -12,6 +13,7 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
   const { trigger: createTrigger } = useMutation('POST', '/paintings', { refresh: ['/paintings'] })
   const { trigger: updateTrigger } = useMutation('PATCH', '/paintings/:id', { refresh: ['/paintings'] })
   const { trigger: deleteTrigger } = useMutation('DELETE', '/paintings/:id', { refresh: ['/paintings'] })
+  const { trigger: restoreTrigger } = useMutation('POST', '/paintings/:id/restore', { refresh: ['/paintings'] })
   const { applyReorderedList } = useReorder('/paintings')
 
   const createPainting = useCallback(
@@ -35,9 +37,16 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
     [deleteTrigger]
   )
 
+  const restorePainting = useCallback(
+    (id: string) => {
+      return restoreTrigger({ params: { id } })
+    },
+    [restoreTrigger]
+  )
+
   const reorderPaintings = useCallback(
     (paintings: Painting[]) => {
-      return applyReorderedList(paintings as unknown as Array<Record<string, unknown>>)
+      return applyReorderedList(paintings)
     },
     [applyReorderedList]
   )
@@ -50,6 +59,7 @@ export function usePaintings(query?: ListPaintingsQueryParams) {
     createPainting,
     updatePainting,
     deletePainting,
+    restorePainting,
     reorderPaintings
   }
 }

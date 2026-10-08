@@ -1,10 +1,11 @@
+import { SaveIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { SaveIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 

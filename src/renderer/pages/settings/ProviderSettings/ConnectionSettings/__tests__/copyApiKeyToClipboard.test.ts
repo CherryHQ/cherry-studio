@@ -1,5 +1,6 @@
-import { toast } from '@renderer/services/toast'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import { copyApiKeyToClipboard } from '../copyApiKeyToClipboard'
 

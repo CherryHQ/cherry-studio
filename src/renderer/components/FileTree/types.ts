@@ -1,6 +1,7 @@
+import type React from 'react'
+
 import type { DragPosition, TreeListSlotArgs } from '@cherrystudio/ui'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
-import type React from 'react'
 
 export type FileTreeNodeKind = 'file' | 'folder'
 

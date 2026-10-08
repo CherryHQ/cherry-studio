@@ -10,6 +10,9 @@ const logger = loggerService.withContext('ToolApprovalRegistry')
 export type DispatchDecision = {
   approved: boolean
   reason?: string
+  /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
+   *  than to the host (registry/abort strings must stay unattributed). */
+  reasonSource?: 'user'
   updatedInput?: Record<string, unknown>
 }
 
@@ -127,6 +130,10 @@ class ToolApprovalRegistry {
 
   size(): number {
     return this.pending.size
+  }
+
+  hasSession(sessionId: string): boolean {
+    return [...this.pending.values()].some((entry) => entry.sessionId === sessionId)
   }
 
   private detachAbort(entry: PendingApproval): void {

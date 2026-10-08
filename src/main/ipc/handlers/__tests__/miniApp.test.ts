@@ -1,5 +1,6 @@
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const { previewFileForInstallMock } = vi.hoisted(() => ({
   previewFileForInstallMock: vi.fn()

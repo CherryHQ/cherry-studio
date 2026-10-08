@@ -25,6 +25,8 @@
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
+import type { UIMessage } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
@@ -35,10 +37,10 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { UIMessage } from 'ai'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
@@ -73,10 +75,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
   for (const message of messages ?? []) {
+    const composerFileTokenIds = collectComposerFileTokenIds(message)
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       if (!fileEntryId) continue
+      if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
       refs.push({ fileEntryId, handle, displayName })
@@ -172,16 +176,17 @@ async function prepareChatMessage<T extends UIMessage>(
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
+  const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
-    kept.push(inlined as UIMessage['parts'][number])
+    kept.push(inlined)
     return true
   }
 
   for (const part of message.parts) {
     if (part.type !== 'file') {
-      kept.push(part as UIMessage['parts'][number])
+      kept.push(part)
       continue
     }
 
@@ -193,18 +198,27 @@ async function prepareChatMessage<T extends UIMessage>(
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
-        kept.push(noteOf(name) as UIMessage['parts'][number])
+        kept.push(noteOf(name))
       } else {
         const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
         if (rejectedKind) {
           kept.push({
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
-          } as UIMessage['parts'][number])
+          })
         } else {
-          kept.push(inlined as UIMessage['parts'][number])
+          kept.push(inlined)
         }
       }
+      continue
+    }
+
+    if (!isActiveManagedFilePart(part, composerFileTokenIds)) {
+      logger.warn('Ignoring orphaned managed file part', {
+        messageId: message.id,
+        displayName: part.filename ?? 'file',
+        fileEntryId
+      })
       continue
     }
 
@@ -223,7 +237,7 @@ async function prepareChatMessage<T extends UIMessage>(
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle) as UIMessage['parts'][number])
+          kept.push(noteOf(handle))
         }
         continue
       }
@@ -232,7 +246,14 @@ async function prepareChatMessage<T extends UIMessage>(
       // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
-        if (ocrText === null) throw new NonVisionImageOcrError()
+        if (ocrText === null) {
+          logger.warn('Non-vision image OCR produced no readable text', {
+            messageId: message.id,
+            displayName,
+            fileEntryId
+          })
+          throw new NonVisionImageOcrError()
+        }
         defer(kept, pending, handle, ocrText)
         continue
       }
@@ -244,11 +265,11 @@ async function prepareChatMessage<T extends UIMessage>(
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       if (error instanceof NonVisionImageOcrError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
-      kept.push(noteOf(handle) as UIMessage['parts'][number])
+      kept.push(noteOf(handle))
     }
   }
 
-  return { ...message, parts: kept } as T
+  return { ...message, parts: kept }
 }
 
 /**

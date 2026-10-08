@@ -1,3 +1,5 @@
+import { eq } from 'drizzle-orm'
+
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
@@ -12,7 +14,6 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
-import { eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'

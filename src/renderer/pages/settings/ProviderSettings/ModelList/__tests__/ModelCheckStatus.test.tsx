@@ -1,12 +1,13 @@
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { ApiKeyWithStatus, ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { SerializedError } from '@renderer/types/error'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
 
 import ModelCheckStatus from '../ModelCheckStatus'
 

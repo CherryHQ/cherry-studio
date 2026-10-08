@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -5,7 +7,6 @@ import {
 } from '@shared/data/presets/cherryai'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AppEdition } from '@shared/types/appEdition'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'cn' as AppEdition,
@@ -159,6 +160,31 @@ describe('api gateway model listing', () => {
             capabilities: []
           }
         ]
+      }
+      return [
+        {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          apiModelId: 'gpt-4o',
+          ownedBy: 'OpenAI',
+          capabilities: []
+        }
+      ]
+    })
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  it('keeps valid models when another provider lookup throws', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'broken', name: 'Broken' },
+      { id: 'openai', name: 'OpenAI' }
+    ])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
+      if (providerId === 'broken') {
+        throw new Error('provider lookup failed')
       }
       return [
         {

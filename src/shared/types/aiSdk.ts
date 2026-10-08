@@ -7,9 +7,10 @@
  * set, so they live in shared.
  */
 
+import * as z from 'zod'
+
 import type OpenAI from '@cherrystudio/openai'
 import { objectValues, REASONING_EFFORT, type ReasoningEffort } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
 
 type NotUndefined<T> = Exclude<T, undefined>
 

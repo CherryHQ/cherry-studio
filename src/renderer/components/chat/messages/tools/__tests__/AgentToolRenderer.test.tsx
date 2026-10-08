@@ -1,9 +1,10 @@
-import type * as CherryUi from '@cherrystudio/ui'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUi from '@cherrystudio/ui'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
@@ -167,6 +168,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'message.tools.status.error': 'Error',
     'agent.toolPermission.decisionDenied': 'Denied',
     'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
@@ -1128,17 +1130,61 @@ describe('AgentToolRenderer', () => {
       const groupTrigger = screen.getByTestId('child-tool-group').querySelector('button')!
       fireEvent.click(groupTrigger)
 
-      const agentRow = screen
-        .getAllByRole('button')
-        .find((element) => element !== groupTrigger && element.tagName === 'DIV')
-      expect(agentRow).toBeDefined()
-      fireEvent.click(agentRow!)
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/, pressed: false }))
 
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
         toolName: 'Agent',
         title: 'Inspect renderer'
       })
+    })
+
+    it('shows child progress after its launch tool returns and opens the same right-pane flow', async () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const response = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: { description: 'Inspect renderer' },
+        response: { status: 'async_launched', taskId: 'child' }
+      })
+      mockPartsMap.mockReturnValue({
+        reply: [
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'child', toolUseId: 'call-123', status: 'in_progress' }
+          }
+        ]
+      })
+      const { rerender } = render(<AgentToolRenderer toolResponse={response} />)
+      expect(screen.getByText('message.tools.status.running')).toBeVisible()
+      await userEvent.setup().click(screen.getByRole('button', { name: /Inspect renderer/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'Agent',
+        title: 'Inspect renderer'
+      })
+      mockPartsMap.mockReturnValue({
+        reply: [
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'child', toolUseId: 'call-123', status: 'in_progress' }
+          },
+          { type: 'data-agent-task-event', data: { event: 'notification', taskId: 'child', status: 'completed' } }
+        ]
+      })
+      rerender(<AgentToolRenderer toolResponse={response} />)
+      expect(screen.getByText('common.completed')).toBeVisible()
+      expect(screen.queryByText('message.tools.status.running')).toBeNull()
+      mockMessageListActions.mockReturnValue({
+        openAgentToolFlow,
+        isAgentToolFlowActive: (id: string) => id === 'call-123'
+      })
+      rerender(<AgentToolRenderer toolResponse={response} />)
+      expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'true')
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow, isAgentToolFlowActive: () => false })
+      rerender(<AgentToolRenderer toolResponse={response} />)
+      expect(screen.getByRole('button', { name: /Inspect renderer/ })).toHaveAttribute('aria-pressed', 'false')
     })
 
     it('opens the right-pane flow only from subagent rows', () => {
@@ -1153,7 +1199,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('Handle').closest('[role="button"]')!)
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
         toolName: 'Agent',
@@ -1184,6 +1230,45 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
+    })
+  })
+
+  describe('Bash result presentation', () => {
+    it('labels successful Bash results as output', async () => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'pwd' },
+        response: '/workspace'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Output')
+      expect(content).toHaveTextContent('/workspace')
+    })
+
+    it('labels failed Bash execution details as an error instead of command output', async () => {
+      const user = userEvent.setup()
+      const errorText =
+        'sandbox escalation to "danger-full-access" is not strictly wider than this call\'s current "danger-full-access" mode'
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'error',
+        arguments: { command: 'pwd' },
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Error')
+      expect(content).toHaveTextContent(errorText)
+      expect(content).not.toHaveTextContent('Output')
     })
   })
 

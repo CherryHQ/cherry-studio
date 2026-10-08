@@ -1,5 +1,3 @@
-import { loggerService } from '@logger'
-import { getImageBlobFromSource } from '@renderer/utils/image'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   type CSSProperties,
@@ -12,6 +10,9 @@ import {
   useRef,
   useState
 } from 'react'
+
+import { loggerService } from '@logger'
+import { getImageBlobFromSource } from '@renderer/utils/image'
 
 const logger = loggerService.withContext('paintings/PaintingSkeletonSurface')
 

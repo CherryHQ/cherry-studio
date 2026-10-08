@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { CreatePinSchema } from '@shared/data/api/schemas/pins'
 import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 import { PinSchema } from '@shared/data/types/pin'
-import { describe, expect, it } from 'vitest'
 
 const PIN_BASE = {
   id: '11111111-1111-4111-8111-111111111111',

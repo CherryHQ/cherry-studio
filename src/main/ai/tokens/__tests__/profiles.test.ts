@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { makeProvider } from '@main/ai/__tests__/fixtures/provider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import { resolveEndpointTokenDialect, resolveModelTokenDialect } from '../dialect'
 import { getTextTokenizer, imageTokensFor } from '../profiles'

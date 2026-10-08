@@ -1,5 +1,8 @@
 import path from 'node:path'
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import {
   inferReasoningControls,
   REASONING_FORMAT_PROFILES,
@@ -7,11 +10,34 @@ import {
   type ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+
+describe('Claude Opus 5.5 reasoning requests', () => {
+  const controls = inferReasoningControls('claude-opus-5-5')
+  const model = makeModel({
+    id: 'anthropic::claude-opus-5-5',
+    reasoning: {
+      controls,
+      selectableEfforts: controls?.flatMap((control) => (control.kind === 'effort' ? control.values : [])) ?? []
+    }
+  })
+  const profile = REASONING_FORMAT_PROFILES.anthropic.wire
+
+  it('sends xhigh adaptive thinking with visible summaries', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'xhigh', model, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      effort: 'xhigh'
+    })
+  })
+
+  it('does not send disabled thinking for a saved none selection', () => {
+    const invocation = resolveReasoningInvocation({ selection: 'none', model, profile })
+    expect(encodeReasoningInvocation(invocation)).toEqual({})
+  })
+})
 
 const budgetProfile: ReasoningWireProfile = {
   effort: {
@@ -231,7 +257,9 @@ describe('OpenAI Responses reasoning summary', () => {
 })
 
 describe('resolveReasoningInvocation logging', () => {
-  beforeEach(() => mockMainLoggerService.info.mockClear())
+  beforeEach(() => {
+    mockMainLoggerService.info.mockClear()
+  })
 
   // `resolveReasoningInvocation` runs for every message. 'default' means the user asked for
   // nothing, and it reaches the omit paths on ordinary traffic: any non-reasoning model, plus

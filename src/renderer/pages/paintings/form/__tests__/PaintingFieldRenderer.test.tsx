@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-
-import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import { buildParamsSchema } from '@cherrystudio/provider-registry'
 
 import type { SliderConfigItem } from '../baseConfigItem'
 import { PaintingFieldRenderer } from '../PaintingFieldRenderer'

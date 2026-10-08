@@ -24,6 +24,9 @@
  * prefers that path whenever reference metadata is present.
  */
 
+import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
+
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import {
@@ -49,8 +52,6 @@ import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { extractOutputMetadata, normalizeToolOutputResponse, type ToolMetadata } from './toolOutput'
 
@@ -107,7 +108,7 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
 /** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
 function citableCherryToolName(wireName: string): string | null {
   const parsed = parseFunctionCallToolName(wireName)
-  if (!parsed || parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER) return null
+  if (!parsed || ![CHERRY_TOOLS_MCP_SERVER, 'cherry_tools'].includes(parsed.serverPart)) return null
   return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null
 }
 

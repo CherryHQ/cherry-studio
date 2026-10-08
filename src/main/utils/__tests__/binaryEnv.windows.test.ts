@@ -1,5 +1,6 @@
 import type * as NodePath from 'path'
 import path from 'path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Pin the Windows code path so we exercise mergeBinaryExecutionEnv's

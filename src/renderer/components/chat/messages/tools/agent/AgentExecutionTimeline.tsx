@@ -1,7 +1,8 @@
-import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
+
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
@@ -11,12 +12,22 @@ import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
+import { getSubagentTaskStatus } from './subagentStatus'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = usePartsMap()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
+
+  const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
+  const taskStatus = useMemo(
+    () =>
+      isSubagentTool
+        ? getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), toolResponse.toolCallId, status)
+        : undefined,
+    [isSubagentTool, partsMap, status, toolResponse.toolCallId]
+  )
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
@@ -44,24 +55,23 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     )
   }
 
-  const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
+  const effectiveStatus = taskStatus ?? getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {
     return null
   }
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'
-  const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
   return (
     <>
       <AgentToolCallCard
         toolCallId={toolResponse.toolCallId}
         toolName={tool?.name}
         input={args ?? parsedPartialArgs}
-        output={isLoading ? undefined : response}
+        output={isLoading && !taskStatus ? undefined : response}
         isStreaming={isLoading}
         status={effectiveStatus}
-        hasError={status === 'error'}
+        hasError={effectiveStatus === 'error'}
         isCherrySessionTool={isCherrySessionToolResponse(toolResponse)}
         openFlowOnClick={isSubagentTool}
         showInlineDetails={!isSubagentTool}

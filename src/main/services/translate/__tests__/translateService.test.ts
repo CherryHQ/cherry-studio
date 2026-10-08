@@ -1,7 +1,8 @@
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
@@ -10,6 +11,8 @@ const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutio
 const webContentsListenerMocks = vi.hoisted(() => ({
   instances: [] as Array<{
     id: string
+    sender: unknown
+    streamId: string
     onChunk: ReturnType<typeof vi.fn>
     onDone: ReturnType<typeof vi.fn>
     onPaused: ReturnType<typeof vi.fn>
@@ -43,9 +46,11 @@ vi.mock('@main/data/services/TranslateLanguageService', () => ({
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
 // test doesn't need a real WebContents.
 vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
-  WebContentsListener: vi.fn().mockImplementation((_sender: unknown, streamId: string) => {
+  WebContentsListener: vi.fn().mockImplementation(function WebContentsListenerMock(sender: unknown, streamId: string) {
     const listener = {
       id: `wc:test:${streamId}`,
+      sender,
+      streamId,
       onChunk: vi.fn(),
       onDone: vi.fn(),
       onPaused: vi.fn(),
@@ -144,7 +149,7 @@ describe('translateService.resolveTranslatePayload', () => {
   })
 
   it('throws translate.error.not_configured when the translate model preference is unset', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '' as any)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '')
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
     expect(getByKeyMock).not.toHaveBeenCalled()
@@ -420,6 +425,146 @@ describe('translateService.open', () => {
       )
     }
   )
+
+  it('rebuilds a Qwen primary request for a general fallback', () => {
+    mockQwenMtModel('qwen-mt-turbo')
+    getByLangCodeMock.mockReturnValue(TARGET)
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'Translate to {{target_language}}: {{text}}'
+    )
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:qwen-to-general',
+      text: 'hello',
+      targetLangCode: 'en-us'
+    })
+
+    const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [
+      {
+        modelAttempt: {
+          resolveFallback(input: { provider: { id: string }; model: ReturnType<typeof makeModel> }): unknown
+          onActivated(model: ReturnType<typeof makeModel>): void
+        }
+        listener: { onChunk(chunk: unknown): void }
+      }
+    ]
+    const fallback = streamInput.modelAttempt.resolveFallback({
+      provider: { id: 'openai' },
+      model: makeModel({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o' })
+    })
+
+    expect(fallback).toEqual({
+      callOverrides: { temperature: 0.3 },
+      prompt: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Translate to English: hello' }]
+        }
+      ]
+    })
+
+    streamInput.modelAttempt.onActivated(
+      makeModel({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o' })
+    )
+    streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello' })
+    streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: ' world' })
+    expect(webContentsListenerMocks.instances[0].onChunk).toHaveBeenNthCalledWith(
+      2,
+      { type: 'text-delta', id: 'text-1', delta: ' world' },
+      undefined,
+      undefined,
+      undefined
+    )
+  })
+
+  it.each([
+    ['qwen-mt-flash', true],
+    ['qwen-mt-lite', true],
+    ['qwen-mt-plus', false],
+    ['qwen-mt-turbo', false]
+  ] as const)('rebuilds fallback request semantics for %s', (modelId, incremental) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'Translate to {{target_language}}: {{text}}'
+    )
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByLangCodeMock.mockReturnValue(TARGET)
+
+    translateService.open(fakeSender, {
+      streamId: `translate:fallback-${modelId}`,
+      text: 'source',
+      targetLangCode: 'en-us'
+    })
+
+    const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [
+      {
+        modelAttempt: {
+          resolveFallback(input: { provider: { id: string }; model: ReturnType<typeof makeModel> }): any
+          onActivated(model: ReturnType<typeof makeModel>): void
+        }
+        listener: { onChunk(chunk: unknown): void }
+      }
+    ]
+    const fallbackModel = makeModel({
+      id: `dashscope::${modelId}`,
+      providerId: 'dashscope',
+      apiModelId: modelId
+    })
+    const fallback = streamInput.modelAttempt.resolveFallback({ provider: { id: 'dashscope' }, model: fallbackModel })
+
+    expect(fallback.prompt).toEqual([{ role: 'user', content: [{ type: 'text', text: 'source' }] }])
+    expect(fallback.callOverrides.rawBodyParameters).toEqual({
+      translation_options: { source_lang: 'auto', target_lang: 'English' },
+      ...(incremental && { incremental_output: true })
+    })
+
+    streamInput.modelAttempt.onActivated(fallbackModel)
+    streamInput.listener.onChunk({ type: 'text-delta', id: 'text-1', delta: 'Hello' })
+    streamInput.listener.onChunk({
+      type: 'text-delta',
+      id: 'text-1',
+      delta: incremental ? ' world' : 'Hello world'
+    })
+    expect(webContentsListenerMocks.instances[0].onChunk).toHaveBeenNthCalledWith(
+      2,
+      { type: 'text-delta', id: 'text-1', delta: ' world' },
+      undefined,
+      undefined,
+      undefined
+    )
+  })
+
+  it('skips a Qwen MT Lite fallback that cannot translate the target language', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'Translate to {{target_language}}: {{text}}'
+    )
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'el', value: 'Greek' })
+
+    translateService.open(fakeSender, {
+      streamId: 'translate:unsupported-lite-fallback',
+      text: 'source',
+      targetLangCode: 'el'
+    })
+
+    const [streamInput] = streamPromptMock.mock.calls[0] as unknown as [
+      {
+        modelAttempt: {
+          resolveFallback(input: { provider: { id: string }; model: ReturnType<typeof makeModel> }): unknown
+        }
+      }
+    ]
+    expect(
+      streamInput.modelAttempt.resolveFallback({
+        provider: { id: 'dashscope' },
+        model: makeModel({ id: 'dashscope::qwen-mt-lite', providerId: 'dashscope', apiModelId: 'qwen-mt-lite' })
+      })
+    ).toBeNull()
+  })
 
   it('rejects a Qwen MT target language that the model does not support', () => {
     mockQwenMtModel('qwen-mt-turbo')

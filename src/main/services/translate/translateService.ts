@@ -16,10 +16,13 @@
  * `src/main/ipc/handlers/translate.ts`.
  */
 
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { UIMessageChunk } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
-import type { CallOverrides } from '@main/ai/types'
+import type { CallOverrides, InProcessModelAttemptController, ModelAttemptOverrides } from '@main/ai/types'
 import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
 import {
   normalizeRequestedSelection,
@@ -42,7 +45,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { getLowerBaseModelName, getRawModelId, isQwenMTModel } from '@shared/utils/model'
 import { matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import type { UIMessageChunk } from 'ai'
 
 import {
   type StreamDoneResult,
@@ -216,16 +218,22 @@ function resolveQwenMtTargetLanguage(language: TranslateLanguage, model: Model):
   return QWEN_MT_TARGET_LANGUAGES[languageCode]
 }
 
-class CumulativeTextStreamListener implements StreamListener {
+class TranslationTextStreamListener implements StreamListener {
   readonly id: string
   private readonly previousTextById = new Map<string, string>()
+  private cumulative = false
 
   constructor(private readonly delegate: StreamListener) {
     this.id = delegate.id
   }
 
+  activate(model: Model): void {
+    this.cumulative = isQwenMtCumulativeModel(model)
+    this.previousTextById.clear()
+  }
+
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
-    if (chunk.type !== 'text-delta') {
+    if (!this.cumulative || chunk.type !== 'text-delta') {
       this.delegate.onChunk(chunk, sourceModelId, anchorMessageId, attemptId)
       return
     }
@@ -251,6 +259,10 @@ class CumulativeTextStreamListener implements StreamListener {
   isAlive(): boolean {
     return this.delegate.isAlive()
   }
+}
+
+function textPrompt(content: string): LanguageModelV3Prompt {
+  return [{ role: 'user', content: [{ type: 'text', text: content }] }]
 }
 
 /**
@@ -323,9 +335,13 @@ export class TranslateService {
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model, targetLanguage, providerOptionsKey)
 
     const rendererListener = new WebContentsListener(sender, req.streamId)
-    const listener = isQwenMtCumulativeModel(model)
-      ? new CumulativeTextStreamListener(rendererListener)
-      : rendererListener
+    const listener = new TranslationTextStreamListener(rendererListener)
+    listener.activate(model)
+    const modelAttempt: InProcessModelAttemptController = {
+      resolveFallback: ({ provider, model: fallbackModel }) =>
+        this.resolveFallbackAttempt(req.text, targetLanguage, provider, fallbackModel),
+      onActivated: (activeModel) => listener.activate(activeModel)
+    }
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({
@@ -334,7 +350,8 @@ export class TranslateService {
       prompt: content,
       listener,
       reasoningEffort,
-      callOverrides
+      callOverrides,
+      modelAttempt
     })
 
     // `info`, and with the overrides: this is the only record of what translate
@@ -409,6 +426,47 @@ export class TranslateService {
     }
   }
 
+  private resolveFallbackAttempt(
+    text: string,
+    targetLanguage: TranslateLanguage,
+    provider: NonNullable<ReturnType<typeof providerService.getByProviderId>>,
+    model: Model
+  ): ModelAttemptOverrides | null {
+    const providerOptionsKey = this.resolveProviderOptionsKey(provider, model)
+    let callOverrides: CallOverrides
+    try {
+      callOverrides = this.resolveRequestParameters(model, targetLanguage, providerOptionsKey).callOverrides
+    } catch (error) {
+      if (error instanceof Error && error.message === NOT_SUPPORTED_ERROR) return null
+      throw error
+    }
+    return {
+      callOverrides,
+      prompt: textPrompt(this.resolveContent(text, targetLanguage, model))
+    }
+  }
+
+  private resolveProviderOptionsKey(
+    provider: NonNullable<ReturnType<typeof providerService.getByProviderId>>,
+    model: Model
+  ): string {
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+    const resolvedProviderOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
+    return matchesPreset(provider, SystemProviderIds.dashscope) && resolvedProviderOptionsKey === provider.id
+      ? SystemProviderIds.dashscope
+      : resolvedProviderOptionsKey
+  }
+
+  private resolveContent(text: string, targetLanguage: TranslateLanguage, model: Model): string {
+    if (isQwenMTModel(model)) return text
+    return application
+      .get('PreferenceService')
+      .get('feature.translate.model_prompt')
+      .replaceAll(/{{target_language}}|{{text}}/g, (placeholder) =>
+        placeholder === '{{target_language}}' ? targetLanguage.value : text
+      )
+  }
+
   /**
    * Resolve the configured translate model + interpolate the translate prompt.
    *
@@ -437,19 +495,8 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
-    const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-    const resolvedProviderOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
-    const providerOptionsKey =
-      matchesPreset(provider, SystemProviderIds.dashscope) && resolvedProviderOptionsKey === provider.id
-        ? SystemProviderIds.dashscope
-        : resolvedProviderOptionsKey
-    const content = isQwenMTModel(model)
-      ? text
-      : preferenceService
-          .get('feature.translate.model_prompt')
-          .replaceAll(/{{target_language}}|{{text}}/g, (placeholder) =>
-            placeholder === '{{target_language}}' ? targetLanguage.value : text
-          )
+    const providerOptionsKey = this.resolveProviderOptionsKey(provider, model)
+    const content = this.resolveContent(text, targetLanguage, model)
 
     return { uniqueModelId, content, model, providerOptionsKey }
   }

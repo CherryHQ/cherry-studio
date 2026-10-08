@@ -6,7 +6,7 @@ import { createZipBytes } from '../../../__tests__/zipTestBytes'
 import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
-import { parseWorkbook } from '../worker/parseWorkbook'
+import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
@@ -213,6 +213,55 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
   })
 })
 
+describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', () => {
+  let workbook: ExcelJS.Workbook
+
+  beforeAll(async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    ws.getCell('A1').value = 'value'
+    wb.definedNames.add('S1!$A$1:$Z$100', 'wideRange')
+
+    const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
+    const sheetPath = 'xl/worksheets/sheet1.xml'
+    const sheetXml = await zip.file(sheetPath)!.async('string')
+    const rangeBlocks =
+      '<mergeCells count="1"><mergeCell ref="B2:Z100"/></mergeCells>' +
+      '<dataValidations count="1"><dataValidation type="list" allowBlank="1" sqref="A1:Z100">' +
+      '<formula1>"a,b"</formula1></dataValidation></dataValidations>'
+    zip.file(sheetPath, sheetXml.replace('<pageMargins', `${rangeBlocks}<pageMargins`))
+
+    workbook = await loadExcelJsWorkbook(await zip.generateAsync({ type: 'arraybuffer' }))
+  })
+
+  it('does not create cells covered by a merge', () => {
+    expect(workbook.worksheets[0].findRow(100)).toBeUndefined()
+  })
+
+  it('does not index data validations per address', () => {
+    const worksheet = workbook.worksheets[0] as ExcelJS.Worksheet & { dataValidations: { model: object } }
+    expect(worksheet.dataValidations.model).toEqual({})
+  })
+
+  it('does not index defined names per address', () => {
+    expect(workbook.definedNames.model).toEqual([])
+  })
+})
+
+describe('parseWorkbook — merges are read from each sheet part', () => {
+  it('assigns every merge to the sheet that declares it', async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.addWorksheet('First').getCell('A1').value = 'first'
+    const second = wb.addWorksheet('Second')
+    second.getCell('B2').value = 'merged'
+    second.mergeCells('B2:D4')
+
+    const parsed = await parseWorkbook(await toArrayBuffer(wb), 'merges-per-sheet.xlsx')
+
+    expect(parsed.sheets.map((sheet) => sheet.merges)).toEqual([[], [{ top: 2, left: 2, bottom: 4, right: 4 }]])
+  })
+})
+
 describe('parseWorkbook — hostile merge count is bounded', () => {
   it('keeps only the configured number of merge ranges', async () => {
     const wb = new ExcelJS.Workbook()
@@ -384,7 +433,7 @@ describe('parseWorkbook — formulas: shared formula text is translated per cell
       ref: 'O6:O7',
       shareType: 'shared'
     }
-    ws.getCell('O6').value = cachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('O6').value = cachedSharedFormulaMaster
     ws.getCell('O7').value = { sharedFormula: 'O6', result: 5 } satisfies ExcelJS.CellSharedFormulaValue
 
     const uncachedSharedFormulaMaster: SharedFormulaMaster = {
@@ -392,7 +441,7 @@ describe('parseWorkbook — formulas: shared formula text is translated per cell
       ref: 'P6:P7',
       shareType: 'shared'
     }
-    ws.getCell('P6').value = uncachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('P6').value = uncachedSharedFormulaMaster
     ws.getCell('P7').value = { sharedFormula: 'P6' } satisfies ExcelJS.CellSharedFormulaValue
 
     const buffer = await toArrayBuffer(wb)
@@ -561,7 +610,7 @@ describe('parseWorkbook — floating images', () => {
     ws.addImage(imgId, {
       tl: { col: 1, row: 1 },
       ext: { width: 20, height: 10 }
-    } as unknown as ExcelJS.ImagePosition)
+    })
     // twoCellAnchor: tl + br
     ws.addImage(imgId, { tl: { col: 3, row: 3 }, br: { col: 5, row: 5 } } as unknown as ExcelJS.ImageRange)
 
@@ -614,7 +663,7 @@ describe('parseWorkbook — floating images', () => {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
-    ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } } as unknown as ExcelJS.ImagePosition)
+    ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } })
 
     const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
     const drawingPath = 'xl/drawings/drawing1.xml'
@@ -639,6 +688,34 @@ describe('parseWorkbook — floating images', () => {
     expect(sheet.colCount).toBe(MAX_COLS)
     expect(parsed.warnings).toContain('sheet-truncated')
   }, 2000)
+})
+
+describe('parseWorkbook — sparse rows reaching the last column', () => {
+  it('reads only the cells present in the file instead of filling the gap up to column XFD', async () => {
+    const rowCount = 100
+    const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    for (let row = 1; row <= rowCount; row++) {
+      // A row-level style makes any gap cell ExcelJS fabricates come back styled, so it would be rendered.
+      ws.getRow(row).fill = fill
+      ws.getCell(row, 1).value = row
+      ws.getCell(row, 3).fill = fill
+      ws.getCell(row, 16384).fill = fill
+    }
+
+    const parsed = await parseWorkbook(await toArrayBuffer(wb), 'sparse-last-column.xlsx')
+    const sheet = parsed.sheets[0]
+
+    expect(Object.keys(sheet.cells).sort()).toEqual(
+      Array.from({ length: rowCount }, (_, i) => [`${i + 1}:1`, `${i + 1}:3`])
+        .flat()
+        .sort()
+    )
+    expect(sheet.cells[`${rowCount}:3`].styleId).toBeDefined()
+    expect(sheet.colCount).toBe(3)
+    expect(parsed.warnings).toContain('sheet-truncated')
+  })
 })
 
 describe('parseWorkbook — corrupted input', () => {

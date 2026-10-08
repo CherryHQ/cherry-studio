@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 import { resolveLocalFile } from '../localFileResolver'
 

@@ -61,7 +61,7 @@ describe('binaryProtocol', () => {
     })
 
     it('should return false when socket write returns false (backpressure)', () => {
-      ;(mockSocket.write as ReturnType<typeof vi.fn>).mockReturnValueOnce(false)
+      ;(mockSocket.write as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValueOnce(false)
 
       const result = sendBinaryChunk(mockSocket, 'test-id', 0, Buffer.from('data'))
 

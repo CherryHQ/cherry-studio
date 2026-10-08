@@ -1,10 +1,11 @@
+import { describe, expect, expectTypeOf, it } from 'vitest'
+
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type AgentSessionMessageSearchRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
   type TopicMessageSearchRole
 } from '@shared/data/types/message'
-import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,

@@ -1,7 +1,8 @@
-import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 import { useIsPrivacyUpdateRequired } from '../useIsPrivacyUpdateRequired'
 

@@ -1,5 +1,6 @@
-import { Button, getToastUtilities, ToastViewport } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Button, getToastUtilities, ToastViewport } from '@cherrystudio/ui'
 
 const toast = getToastUtilities()
 
@@ -50,6 +51,44 @@ export const WithDescription: Story = {
           })
         }>
         Show toast
+      </Button>
+    </div>
+  )
+}
+
+export const WithAction: Story = {
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <ToastViewport />
+      <Button
+        onClick={() =>
+          toast.success({
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                toast.success('Item restored')
+              }
+            },
+            title: 'Item moved to Recycle Bin'
+          })
+        }>
+        Title only
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() =>
+          toast.info({
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                toast.success('Item restored')
+              }
+            },
+            description: 'The item can be restored for 30 days.',
+            title: 'Item moved to Recycle Bin'
+          })
+        }>
+        With description
       </Button>
     </div>
   )

@@ -1,10 +1,11 @@
+import type { Dispatch, FC, MouseEvent as ReactMouseEvent, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+
 import { loggerService } from '@logger'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { DetectedWindow, ScreenshotInitData } from '@shared/types/screenshot'
-import type { Dispatch, FC, MouseEvent as ReactMouseEvent, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 
 import { AnnotationCanvas } from './components/AnnotationCanvas'
 import { CaptureCanvas } from './components/CaptureCanvas'
