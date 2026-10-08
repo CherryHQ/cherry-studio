@@ -17,6 +17,7 @@ import path from 'path'
 import { transform } from '@svgr/core'
 
 import { generateMeta } from './codegen'
+import { detectHasBackground } from './icons-generate-avatars'
 import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, type LogoType } from './svg-utils'
 
 export type IconType = 'icons' | 'providers' | 'models'
@@ -337,7 +338,8 @@ async function generateLogoDirDual(
     outPath: path.join(logoDir, 'meta.ts'),
     dirName,
     colorPrimary,
-    colorScheme: 'color'
+    colorScheme: 'color',
+    artworkKind: detectHasBackground(pair.light) ? 'tile' : undefined
   })
 }
 

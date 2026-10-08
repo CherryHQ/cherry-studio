@@ -6,6 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
@@ -44,6 +45,7 @@ export interface PiConnectionSnapshot {
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
   effectiveLanguage: string | null
+  mcpInstructions?: string
   signature: string
 }
 
@@ -75,9 +77,9 @@ export async function capturePiConnectionSnapshot(
 
   const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
-  const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
-    providerService.getByProviderId(parsed.providerId),
-    modelService.getByKey(parsed.providerId, parsed.modelId),
+  const provider = providerService.getByProviderId(parsed.providerId)
+  const model = modelService.getByKey(parsed.providerId, parsed.modelId)
+  const [skills, workspaceSkillPaths] = await Promise.all([
     skillService.list({ agentId: agent.id }),
     skillService.listLocalSkillPaths(session.workspace.path)
   ])
@@ -89,6 +91,9 @@ export async function capturePiConnectionSnapshot(
     return server ?? { idOrName }
   })
   const catalog = application.get('McpCatalogService')
+  const mcpInstructions = buildMcpInstructionsContext(
+    mcpServers.flatMap((server) => ('id' in server ? [server.id] : []))
+  )
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
@@ -112,8 +117,10 @@ export async function capturePiConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
+          mcpInstructions,
           linkedChannel,
           notificationContext,
+          browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
           gatewayCredentials
@@ -129,6 +136,7 @@ export async function capturePiConnectionSnapshot(
     model,
     enabledApiKeys: apiKeys,
     effectiveLanguage,
+    mcpInstructions,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths

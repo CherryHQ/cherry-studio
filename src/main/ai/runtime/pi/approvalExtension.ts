@@ -22,19 +22,22 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 
 import { loggerService } from '@logger'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -53,8 +56,8 @@ const READ_ONLY_TOOLS = new Set<string>(
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 )
-/** Code Mode discovery and dispatch authorize their target separately, so their own calls never
- * participate in file-path containment or add a redundant prompt. */
+/** Code Mode gates nested effects separately; recall reads only the current session's history.
+ * Neither needs file-path containment or an additional approval. */
 const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
@@ -119,7 +122,8 @@ export type PiToolAuthorizer = (
 export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer {
   return async ({ toolName, toolCallId, input, signal, onApprovalPending }) => {
     // (1) disabledTools — block regardless of permission mode.
-    if (ctx.isDisabled(toolName)) {
+    const browserPermission = resolveBrowserToolPermission(toolName)
+    if (ctx.isDisabled(toolName) || browserPermission === 'deny') {
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
     }
 
@@ -139,6 +143,8 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     const mode = ctx.getPermissionMode() ?? 'default'
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+    // Classify what the model wrote: `rtk git …` hides the real command word from detection.
+    const modelInput = { ...input }
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
@@ -169,12 +175,12 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     // (6) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
-    if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
+    if ((browserPermission === 'allow' || ctx.autoApprovedTools.has(toolName)) && !approvalRequired) return
     if (
       !(await requiresApproval(
         mode,
         toolName,
-        input,
+        modelInput,
         ctx.workspacePath,
         ctx.agentDataPath,
         ctx.additionalReadOnlyRoots,
@@ -230,7 +236,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+      return {
+        block: true,
+        reason:
+          decision.reasonSource === 'user'
+            ? withUserDenialFeedback(decision.reason)
+            : (decision.reason ?? 'User denied permission for this tool.')
+      }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return
@@ -309,7 +321,7 @@ async function isToolPathInsideAllowedRoots(
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
     canonicalizeExistingPath(agentDataPath),
-    canonicalizeToolTarget(resolved, allowMissingTarget)
+    canonicalizePathForContainment(resolved, { allowMissing: allowMissingTarget })
   ])
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
@@ -328,40 +340,6 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
     return await realpath(target)
   } catch {
     return undefined
-  }
-}
-
-async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
-
-  let parent = path.dirname(target)
-  while (true) {
-    try {
-      const canonicalParent = await realpath(parent)
-      return path.resolve(canonicalParent, path.relative(parent, target))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      try {
-        await lstat(parent)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
-    }
   }
 }
 
