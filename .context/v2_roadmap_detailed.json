@@ -1,34 +1,47 @@
 {
-  "generated_at": "2026-10-07T17:00:00Z",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-10-08T00:00:00Z",
+  "snapshot_date": "2026-10-08",
   "v2_branch_status": {
     "open_prs_targeting_v2": 0,
-    "note": "No open PRs found with base branch = v2; v2 features are tracked via 'v2' label on issues"
+    "merged_prs_last_30d": 0,
+    "note": "V2 branch appears to be inactive or already merged into main; no open/recent PRs targeting v2"
   },
   "v2_labeled_open_issues": [
-    {"number": 21085, "title": "[Bug]: File/KB scopes inline large builtin tool schemas and overflow context", "labels": ["bug","p1","rag","v2","chat"]},
-    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with empty no-response error", "labels": ["bug","p1","v2","agent","chat"]},
-    {"number": 20940, "title": "[Bug]: Responses API stream events fail TypeValidation and abort turn", "labels": ["bug","p1","models","v2","chat"]},
-    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "labels": ["bug","p1","windows","v2","agent"]},
-    {"number": 20374, "title": "Unable to read Word and PDF documents", "labels": ["bug","p1","needs-repro","data","v2"]},
-    {"number": 21051, "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart", "labels": ["bug","p2","windows","data","v2"]},
-    {"number": 20028, "title": "Managed update feed remains on 2.0.9 after newer production releases", "labels": ["bug","p2","v2"]},
-    {"number": 19753, "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions", "labels": ["bug","p1","windows","needs-repro","v2","agent"]},
-    {"number": 21044, "title": "[Feature]: Support one-click migration of notes when changing working directory", "labels": ["feature","data","v2"]}
+    {
+      "number": 21051,
+      "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart",
+      "labels": ["bug", "p2", "windows", "data", "v2"],
+      "updated_at": "2026-10-08T12:32:43Z"
+    },
+    {
+      "number": 21085,
+      "title": "[Bug]: File/KB scopes inline large tool schemas, can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "updated_at": "2026-09-27T21:15:39Z"
+    },
+    {
+      "number": 20028,
+      "title": "Managed update feed remains on 2.0.9 after newer production releases",
+      "labels": ["bug", "p2", "v2"],
+      "updated_at": "2026-10-05T21:07:38Z"
+    },
+    {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
+      "updated_at": "2026-09-29T02:10:41Z"
+    },
+    {
+      "number": 21044,
+      "title": "[Feature]: Support one-click migration of existing notes when changing notes working directory",
+      "labels": ["feature", "data", "v2"],
+      "updated_at": "2026-09-27T23:38:09Z"
+    }
   ],
-  "v2_priority_breakdown": {
-    "p1_v2_bugs": 6,
-    "p2_v2_bugs": 2,
-    "v2_features": 1,
-    "total_v2_open": 9
-  },
-  "v2_recent_merged_prs": {
-    "note": "Closed PRs search not run for v2-base; v2-labeled open PRs indicate active development focus",
-    "visible_active_prs": [
-      {"number": 20711, "title": "feat(background-tasks): detached background tasks that survive session close"},
-      {"number": 21176, "title": "fix(file-preview): stop large text previews from freezing the renderer"},
-      {"number": 21033, "title": "fix(agent-session): stop blocking the next user turn on detached task"},
-      {"number": 20776, "title": "Prevent runtime compaction summaries from leaking into chat transcript"}
-    ]
-  }
+  "key_v2_themes": [
+    "Data migration stability (EPERM, restore failures)",
+    "Agent runtime reliability (DSH, DeepSeek Harness crashes)",
+    "Context management (tool schema overflow, compaction leaks)",
+    "Update feed correctness (v2.0.9 stuck)"
+  ]
 }

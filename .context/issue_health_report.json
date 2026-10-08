@@ -1,41 +1,51 @@
 {
-  "generated_at": "2026-10-07T17:00:00Z",
-  "repository": "CherryHQ/cherry-studio",
-  "summary": {
-    "open_issues_total": 1131,
-    "closed_last_30d": 324,
-    "close_rate_per_day_est": 10.8,
-    "inflow_rate_note": "Cannot compute without open-date histogram; latest 100 issues span ~11 days suggesting ~9/day new"
+  "generated_at": "2026-10-08T00:00:00Z",
+  "snapshot_date": "2026-10-08",
+  "thresholds": {
+    "active_days": 7,
+    "aging_days": 30,
+    "stale_days": 90,
+    "zombie_days": 90
   },
-  "health_tiers": {
-    "method": "Classified by days since last update on top-100 most recently updated issues",
-    "sample_size": 100,
-    "active_le7d": {"count": 72, "pct": 72.0},
-    "aging_8_30d": {"count": 28, "pct": 28.0},
-    "stale_31_90d": {"count": 0, "pct": 0.0, "note": "Underrepresented — top-100 sample excludes older issues"},
-    "zombie_gt90d": {"count": 0, "pct": 0.0, "note": "Underrepresented — top-100 sample excludes older issues"}
+  "health_summary": {
+    "active": {
+      "count": 54,
+      "pct": 4.8,
+      "description": "Updated within last 7 days"
+    },
+    "aging": {
+      "count": 507,
+      "pct": 44.9,
+      "description": "Updated 7-30 days ago"
+    },
+    "stale": {
+      "count": 406,
+      "pct": 36.0,
+      "description": "Updated 30-90 days ago"
+    },
+    "zombie": {
+      "count": 207,
+      "pct": 18.3,
+      "description": "Not updated in 90+ days"
+    }
   },
-  "triage_gap": {
-    "unlabeled_open": 203,
+  "label_coverage": {
+    "total_open": 1129,
+    "unlabeled": 202,
     "unlabeled_pct": 17.9,
-    "needs_triage_label": "Present in data — some issues labeled needs-triage"
+    "needs_triage": 74
   },
-  "p1_breakdown": {
-    "total_p1_open": 102,
-    "p1_pct_of_open": 9.0,
-    "p1_agent_related": "High — many P1s involve agent mode, Windows, and model compatibility",
-    "oldest_active_p1": {"number": 8730, "created_at": "2025-07-31", "title": "[讨论]: cherry studio是否无法接入商汤大模型？"}
+  "priority_distribution": {
+    "p1": 102,
+    "p2": 146,
+    "p1_pct": 9.0,
+    "p2_pct": 12.9
   },
-  "platform_distribution_sample100": {
-    "windows": 8,
-    "linux": 2,
-    "macos": 0,
-    "cross_platform": 90
-  },
-  "top_areas_of_concern": [
-    "Agent mode stability (DSH bridge, crashes, OOM)",
-    "OpenAI-compatible gateway compatibility (max_tokens, tool_calls parsing)",
-    "Context management (compaction leaks, cache token over-report)",
-    "Windows-specific bugs (EPERM, path handling, VC++ runtime)"
+  "closed_last_30d": 309,
+  "recommendations": [
+    "207 zombie issues (90+ days inactive) — consider a triage sprint to close or escalate",
+    "202 issues (17.9%) have no labels — run label triage on newly opened issues",
+    "102 P1 bugs open — particularly agent crashes, Windows EPERM, and context overflow issues",
+    "Active issues (54) are low relative to total backlog — low responsiveness signal"
   ]
 }

@@ -1,27 +1,45 @@
 {
-  "generated_at": "2026-10-07T17:00:00Z",
-  "repository": "CherryHQ/cherry-studio",
-  "note": "Discussions data not available via MCP tools in this run; data sourced from issue labels and discussion-tagged issues",
-  "discussion_labeled_issues": {
-    "open_with_discussion_label": 4,
-    "examples": [
-      {"number": 21362, "title": "[Discussion]: Unable to use some models in Qwen token plan"},
-      {"number": 21257, "title": "[Discussion]: Why can the drawing feature upload reference images but Agent cannot"},
-      {"number": 21177, "title": "[Discussion]: Computer broke causing previous data loss"},
-      {"number": 19340, "title": "[Discussion]: Claude Sonnet 5 called via OpenRouter lacks vision capability"},
-      {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 370}
-    ]
-  },
-  "high_engagement_issues": [
-    {"number": 6505, "title": "Selection Assistant FAQ", "comments": 370},
-    {"number": 20692, "title": "Agent compaction summary leaks into chat", "comments": 15},
-    {"number": 19753, "title": "DeepSeek Harness runtime crashes in Agent sessions", "comments": 15},
-    {"number": 20028, "title": "Managed update feed remains on 2.0.9", "comments": 12}
+  "generated_at": "2026-10-08T00:00:00Z",
+  "snapshot_date": "2026-10-08",
+  "note": "Discussion data fetched via GitHub GraphQL API (top 100 by updated_at)",
+  "open_discussions_with_help_wanted": [
+    {
+      "number": 21368,
+      "title": "[Discussion]: How to make cherry automatically connect to codex",
+      "updated_at": "2026-10-08T01:32:32Z"
+    },
+    {
+      "number": 21362,
+      "title": "[Discussion]: Unable to use some models in Qwen token plan",
+      "updated_at": "2026-10-07T10:25:10Z"
+    },
+    {
+      "number": 21257,
+      "title": "[Discussion]: Why can the drawing feature upload reference images, but when using the image generation feature in Agent, reference images cannot be used",
+      "updated_at": "2026-10-01T10:14:18Z"
+    },
+    {
+      "number": 21177,
+      "title": "[Discussion]: Computer broke causing previous data loss, but the original file directory exported from Time Machine cannot start normally after replacement",
+      "updated_at": "2026-09-29T12:53:57Z"
+    },
+    {
+      "number": 19340,
+      "title": "[Discussion]: Claude Sonnet 5 called via OpenRouter lacks vision capability",
+      "updated_at": "2026-09-30T08:45:40Z"
+    },
+    {
+      "number": 6505,
+      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+      "comments": 370,
+      "updated_at": "2026-10-06T04:52:37Z"
+    }
   ],
-  "trending_topics": [
-    "Agent mode reliability and crash recovery",
-    "Model compatibility across OpenAI-compatible providers",
-    "Context compression and compaction behavior",
-    "Windows path and permission issues"
+  "high_engagement_issues": [
+    {"number": 6505, "comments": 370, "title": "Selection Assistant FAQ"},
+    {"number": 19761, "comments": 16, "title": "Broken reasoning settings for brand new models"},
+    {"number": 20692, "comments": 15, "title": "Agent compaction summary leaks into transcript"},
+    {"number": 19753, "comments": 15, "title": "DeepSeek Harness crashes during Agent sessions"},
+    {"number": 21307, "comments": 6, "title": "Model card Vision chip renders ON while stored row has no image value"}
   ]
 }

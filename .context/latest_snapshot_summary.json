@@ -1,72 +1,118 @@
 {
-  "generated_at": "2026-10-07T17:00:00Z",
-  "data_source": "GitHub MCP API",
+  "generated_at": "2026-10-08T00:00:00Z",
+  "snapshot_date": "2026-10-08",
   "repository": "CherryHQ/cherry-studio",
   "issues": {
-    "open_total": 1131,
-    "closed_last_30d": 324,
-    "unlabeled": 203,
+    "open_total": 1129,
+    "closed_last_30d": 309,
+    "unlabeled": 202,
     "unlabeled_pct": 17.9,
-    "p1_open": 102,
-    "p2_open": null,
+    "needs_triage": 74,
     "by_priority": {
       "p1": 102,
-      "note": "p2/p3 counts require additional query"
+      "p2": 146,
+      "p3": null
     },
-    "top_labels_sample100": {
-      "bug": 26,
-      "agent": 17,
-      "feature": 13,
-      "p1": 11,
-      "models": 11,
-      "p2": 11,
-      "windows": 8,
-      "mcp": 6,
-      "assistant": 5,
-      "v2": 5
+    "health": {
+      "active_7d": 54,
+      "aging_7_30d": 507,
+      "stale_30_90d": 406,
+      "zombie_90d_plus": 207
+    },
+    "health_pct": {
+      "active": 4.8,
+      "aging": 44.9,
+      "stale": 36.0,
+      "zombie": 18.3
     }
   },
   "pull_requests": {
-    "open_total_page1": 100,
-    "draft": 10,
-    "by_base": {
-      "main": 85,
-      "v2": 0,
-      "other_personal_branches": 15
-    },
-    "top_pr_labels": {
-      "needs-review": 6,
-      "ready-to-merge": 4,
-      "review:rerun": 4
+    "open_total": 609,
+    "open_v2_base": 0,
+    "needs_review": 9,
+    "drafts": 0,
+    "top_authors": [
+      {"login": "404-Page-Found", "count": 16},
+      {"login": "lianshuang-photo", "count": 10},
+      {"login": "Dante-dan", "count": 9},
+      {"login": "DeJeune", "count": 8},
+      {"login": "NatsUIJM", "count": 7}
+    ],
+    "base_branch_distribution": {
+      "main": 96,
+      "other": 4
     }
   },
-  "issue_health_estimate": {
-    "note": "Based on top-100 most-recently-updated open issues",
-    "active_7d": 72,
-    "active_7d_pct": 72.0,
-    "aging_8_30d": 28,
-    "aging_8_30d_pct": 28.0,
-    "stale_31_90d_pct_in_sample": 0,
-    "zombie_gt90d_pct_in_sample": 0,
-    "interpretation": "Recent activity is high; stale/zombie distribution requires full scan"
-  },
   "p1_urgent_issues": [
-    {"number": 20692, "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message", "updated_at": "2026-10-07T15:48:38Z", "comments": 15, "labels": ["bug","p1","agent"]},
-    {"number": 18765, "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400", "updated_at": "2026-10-07T04:00:42Z", "comments": 5, "labels": ["bug","p1","models","agent"]},
-    {"number": 19441, "title": "[Feature]: Video generation feature urgently needed", "updated_at": "2026-10-05T18:38:13Z", "comments": 7, "labels": ["p1","feature","models"]},
-    {"number": 20315, "title": "[Bug]: DSH bridge fails while loading cordis:include", "updated_at": "2026-10-04T14:15:36Z", "comments": 6, "labels": ["bug","p1","windows","mcp","agent"]},
-    {"number": 21085, "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context", "updated_at": "2026-09-27T21:15:39Z", "comments": 6, "labels": ["bug","p1","rag","assistant","performance","v2","chat"]},
-    {"number": 19865, "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system", "updated_at": "2026-09-28T03:15:14Z", "comments": 3, "labels": ["bug","p1","windows","performance","agent"]},
-    {"number": 19864, "title": "Large local Ollama context allocation ends in an opaque 500 and OOM", "updated_at": "2026-09-28T03:14:29Z", "comments": 2, "labels": ["bug","p1","models","agent"]},
-    {"number": 19753, "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions", "updated_at": "2026-09-29T02:10:41Z", "comments": 15, "labels": ["bug","p1","windows","needs-repro","v2","agent"]},
-    {"number": 19578, "title": "[Bug]: Linux arm64 main window continuously flickers", "updated_at": "2026-09-29T02:22:22Z", "comments": 1, "labels": ["bug","p1","needs-more-info","linux","ui-ux"]},
-    {"number": 20365, "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens", "updated_at": "2026-09-26T18:29:48Z", "comments": 2, "labels": ["bug","p1","windows","models","performance","chat"]},
-    {"number": 20937, "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM)", "updated_at": "2026-09-22T16:32:14Z", "comments": 2, "labels": ["bug","p1","windows","v2","agent"]},
-    {"number": 20941, "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error", "updated_at": "2026-09-22T17:31:00Z", "comments": 4, "labels": ["bug","p1","v2","agent","chat"]},
-    {"number": 20940, "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn", "updated_at": "2026-09-22T16:32:21Z", "comments": 2, "labels": ["bug","p1","models","v2","chat"]}
-  ],
-  "v2_branch": {
-    "open_prs": 0,
-    "note": "No open PRs targeting v2 branch detected; v2 work may be tracked via labels or merged"
-  }
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+      "labels": ["bug", "p1", "agent"],
+      "updated_at": "2026-10-07T15:48:38Z",
+      "comments": 15
+    },
+    {
+      "number": 18765,
+      "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400",
+      "labels": ["bug", "p1", "models", "agent"],
+      "updated_at": "2026-10-07T04:00:42Z",
+      "comments": 5
+    },
+    {
+      "number": 19441,
+      "title": "[Feature]: Video generation feature urgently needed",
+      "labels": ["p1", "feature", "models"],
+      "updated_at": "2026-10-05T18:38:13Z",
+      "comments": 7
+    },
+    {
+      "number": 20315,
+      "title": "[Bug]: DSH bridge fails while loading cordis:include",
+      "labels": ["bug", "p1", "windows", "mcp", "agent"],
+      "updated_at": "2026-10-04T14:15:36Z",
+      "comments": 6
+    },
+    {
+      "number": 21085,
+      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "updated_at": "2026-09-27T21:15:39Z",
+      "comments": 6
+    },
+    {
+      "number": 19753,
+      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
+      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
+      "updated_at": "2026-09-29T02:10:41Z",
+      "comments": 15
+    },
+    {
+      "number": 19578,
+      "title": "[Bug]: Linux arm64 main window continuously flickers",
+      "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"],
+      "updated_at": "2026-09-29T02:22:22Z",
+      "comments": 1
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": ["bug", "p1", "windows", "performance", "agent"],
+      "updated_at": "2026-09-28T03:15:14Z",
+      "comments": 3
+    },
+    {
+      "number": 19864,
+      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+      "labels": ["bug", "p1", "models", "agent"],
+      "updated_at": "2026-09-28T03:14:29Z",
+      "comments": 2
+    },
+    {
+      "number": 19917,
+      "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request",
+      "labels": ["bug", "p1", "agent"],
+      "updated_at": "2026-09-06T15:32:47Z",
+      "comments": 0
+    }
+  ]
 }
