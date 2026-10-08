@@ -15,7 +15,7 @@ export function MobileAppDownload() {
       name: 'deviceConnections.download.platform.ios',
       label: 'deviceConnections.download.ios',
       logo: iosLogo,
-      url: 'https://testflight.apple.com/join/2ryzjB66'
+      url: 'https://apps.apple.com/app/id6809783714'
     },
     {
       platform: 'android',
@@ -51,6 +51,20 @@ export function MobileAppDownload() {
               onClick={() => void ipcApi.request('system.shell.open_external_website', url)}>
               {t(label)}
             </Button>
+            {platform === 'ios' && (
+              <Button
+                variant="link"
+                size="sm"
+                className="text-muted-foreground shadow-none"
+                onClick={() =>
+                  void ipcApi.request(
+                    'system.shell.open_external_website',
+                    'https://testflight.apple.com/join/2ryzjB66'
+                  )
+                }>
+                {t('deviceConnections.download.testFlight')}
+              </Button>
+            )}
           </div>
         </TabsContent>
       ))}

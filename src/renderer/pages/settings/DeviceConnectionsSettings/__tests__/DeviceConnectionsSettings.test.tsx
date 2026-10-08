@@ -147,15 +147,23 @@ describe('DeviceConnectionsSettings', () => {
       await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.ios'] }))
       expect(requestMock).toHaveBeenCalledWith(
         'system.shell.open_external_website',
-        'https://testflight.apple.com/join/2ryzjB66'
+        'https://apps.apple.com/app/id6809783714'
       )
       expect(screen.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
         'data-value',
+        'https://apps.apple.com/app/id6809783714'
+      )
+      await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.testFlight'] }))
+      expect(requestMock).toHaveBeenLastCalledWith(
+        'system.shell.open_external_website',
         'https://testflight.apple.com/join/2ryzjB66'
       )
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.android'] })).not.toBeInTheDocument()
       await user.click(screen.getByRole('tab', { name: 'Android' }))
       expect(screen.getByRole('tab', { name: 'Android' })).toHaveAttribute('aria-selected', 'true')
+      expect(
+        screen.queryByRole('button', { name: enUS['deviceConnections.download.testFlight'] })
+      ).not.toBeInTheDocument()
       expect(screen.queryByRole('img', { name: enUS['deviceConnections.download.ios'] })).not.toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: enUS['deviceConnections.download.android'] }))
       expect(requestMock).toHaveBeenCalledWith('system.shell.open_external_website', androidDownloadUrl)
@@ -199,7 +207,15 @@ describe('DeviceConnectionsSettings', () => {
     const download = screen.getByRole('button', { name: enUS['deviceConnections.downloadMobile'] })
     await user.click(download)
     const dialog = within(screen.getByRole('dialog', { name: enUS['deviceConnections.downloadMobile'] }))
-    expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toBeVisible()
+    expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.ios'] })).toHaveAttribute(
+      'data-value',
+      'https://apps.apple.com/app/id6809783714'
+    )
+    await user.click(dialog.getByRole('button', { name: enUS['deviceConnections.download.testFlight'] }))
+    expect(requestMock).toHaveBeenLastCalledWith(
+      'system.shell.open_external_website',
+      'https://testflight.apple.com/join/2ryzjB66'
+    )
     await user.click(dialog.getByRole('tab', { name: 'Android' }))
     expect(dialog.getByRole('img', { name: enUS['deviceConnections.download.android'] })).toHaveAttribute(
       'data-value',
