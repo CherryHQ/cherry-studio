@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -127,6 +127,7 @@ import { ParallelIcon } from './parallel'
 import { PerplexityIcon } from './perplexity'
 import { Ph8Icon } from './ph8'
 import { PoeIcon } from './poe'
+import { PowertokensIcon } from './powertokens/powertokens'
 import { PpioIcon } from './ppio'
 import { PulseIcon } from './pulse'
 import { QiniuIcon } from './qiniu'
@@ -293,6 +294,7 @@ export const PROVIDER_ICON_CATALOG = {
   perplexity: PerplexityIcon,
   ph8: Ph8Icon,
   poe: PoeIcon,
+  powertokens: PowertokensIcon,
   ppio: PpioIcon,
   pulse: PulseIcon,
   qiniu: QiniuIcon,

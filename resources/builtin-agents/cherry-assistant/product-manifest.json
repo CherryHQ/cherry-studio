@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "1b44511badb438e6",
-    "count": 66,
+    "version": "9e539ad8b61635f1",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -734,6 +734,10 @@
       {
         "id": "poe",
         "name": "Poe"
+      },
+      {
+        "id": "powertokens",
+        "name": "PowerTokens"
       },
       {
         "id": "longcat",
