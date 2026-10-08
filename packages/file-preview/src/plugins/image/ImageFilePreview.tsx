@@ -41,7 +41,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         if (controller.signal.aborted) return
         const extension = fileName.split('.').at(-1)?.toLowerCase()
         const mime =
-          mediaType ??
+          mediaType?.trim() ||
           (extension === 'svg' ? 'image/svg+xml' : extension === 'jpg' ? 'image/jpeg' : `image/${extension}`)
         objectUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: mime }))
         setUrl(objectUrlRef.current)

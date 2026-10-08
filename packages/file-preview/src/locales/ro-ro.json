@@ -9,9 +9,11 @@
   "file_preview.pdf.outline.load_error": "Cuprinsul nu a putut fi încărcat.",
   "file_preview.pdf.outline.title": "Cuprins",
   "file_preview.pdf.page_number": "Numărul paginii",
-  "file_preview.pdf.too_large.action": "Deschide cu aplicația implicită",
   "file_preview.pdf.too_large.description": "O parte din acest PDF este prea mare pentru a fi previzualizată în siguranță în aplicație.",
   "file_preview.pdf.too_large.title": "Fișierul este prea mare",
+  "file_preview.too_large.action": "Deschide cu aplicația implicită",
+  "file_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
+  "file_preview.too_large.title": "Fișier prea mare pentru previzualizare",
   "file_preview.unsupported.description": "Acest tip de fișier nu poate fi previzualizat încă.",
   "file_preview.unsupported.title": "Previzualizare indisponibilă",
   "preview.flip_horizontal": "Întoarce orizontal",
@@ -26,7 +28,5 @@
   "xlsx_preview.chart_unsupported": "Acest tip de diagramă nu este încă acceptat",
   "xlsx_preview.error.description": "Această foaie de calcul nu a putut fi previzualizată.",
   "xlsx_preview.formula_not_evaluated": "Formula nu a putut fi evaluată",
-  "xlsx_preview.sheet_tabs_label": "Foi",
-  "xlsx_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
-  "xlsx_preview.too_large.title": "Fișier prea mare pentru previzualizare"
+  "xlsx_preview.sheet_tabs_label": "Foi"
 }

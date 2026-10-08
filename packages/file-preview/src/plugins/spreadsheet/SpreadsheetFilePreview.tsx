@@ -1,4 +1,4 @@
-import { AlertCircle, FileSpreadsheet, LoaderCircle } from 'lucide-react'
+import { AlertCircle, LoaderCircle } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,7 +6,7 @@ import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 
 import { SELECTION_EXCERPT_MAX_LENGTH } from '../../documentAnchor'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { formatFileSize } from '../../formatFileSize'
+import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
 import { usePreviewLogger } from '../../previewContext'
 import { createPreviewSelection, normalizeSelectionText } from '../../selection'
 import type { FilePreviewPluginProps } from '../../types'
@@ -238,17 +238,7 @@ export default function SpreadsheetFilePreview({
       />
     )
   } else if (state.status === 'oversize') {
-    content = (
-      <EmptyState
-        icon={FileSpreadsheet}
-        title={t('xlsx_preview.too_large.title')}
-        description={t('xlsx_preview.too_large.description', {
-          size: formatFileSize(state.sizeBytes),
-          limit: formatFileSize(XLSX_PREVIEW_MAX_SIZE_BYTES)
-        })}
-        className="h-full"
-      />
-    )
+    content = <FilePreviewTooLarge sizeBytes={state.sizeBytes} limitBytes={XLSX_PREVIEW_MAX_SIZE_BYTES} />
   } else if (!model || !activeSheet) {
     content = null
   } else {

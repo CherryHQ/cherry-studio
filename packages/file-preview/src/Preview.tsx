@@ -120,7 +120,7 @@ function PreviewSession({
     }),
     [resources, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
   )
-  const plugin = useMemo(() => resolvePreviewPlugin(source.name), [source.name])
+  const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
   const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
 
   useEffect(() => {

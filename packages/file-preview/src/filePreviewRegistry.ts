@@ -19,7 +19,11 @@ export const previewFormats = plugins.map(({ id, extensions, supportsSelectionRe
   supportsSelectionReference: supportsSelectionReference === true
 }))
 
-export function resolvePreviewPlugin(name: string) {
+export function resolvePreviewPlugin(name: string, mediaType?: string) {
+  const normalizedMediaType = mediaType?.split(';', 1)[0].trim().toLowerCase()
+  const mediaTypePlugin = plugins.find((plugin) => plugin.mediaTypes.includes(normalizedMediaType ?? ''))
+  if (mediaTypePlugin) return mediaTypePlugin
+
   const extension = name
     .split(/[\\/]/)
     .at(-1)
@@ -28,10 +32,10 @@ export function resolvePreviewPlugin(name: string) {
   return plugins.find((plugin) => plugin.extensions.includes(extension ?? '')) ?? null
 }
 
-export function supportsPreview(name: string): boolean {
-  return resolvePreviewPlugin(name) !== null
+export function supportsPreview(name: string, mediaType?: string): boolean {
+  return resolvePreviewPlugin(name, mediaType) !== null
 }
 
-export function canSelectPreview(name: string): boolean {
-  return resolvePreviewPlugin(name)?.supportsSelectionReference === true
+export function canSelectPreview(name: string, mediaType?: string): boolean {
+  return resolvePreviewPlugin(name, mediaType)?.supportsSelectionReference === true
 }

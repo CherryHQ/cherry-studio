@@ -9,9 +9,11 @@
   "file_preview.pdf.outline.load_error": "無法載入目錄。",
   "file_preview.pdf.outline.title": "目錄",
   "file_preview.pdf.page_number": "頁碼",
-  "file_preview.pdf.too_large.action": "使用預設應用程式開啟",
   "file_preview.pdf.too_large.description": "這份 PDF 的部分內容過大，無法在應用程式中安全預覽。",
   "file_preview.pdf.too_large.title": "無法預覽此 PDF",
+  "file_preview.too_large.action": "使用預設應用程式開啟",
+  "file_preview.too_large.description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
+  "file_preview.too_large.title": "檔案過大，無法預覽",
   "file_preview.unsupported.description": "此檔案類型尚無法預覽。",
   "file_preview.unsupported.title": "無法預覽",
   "preview.flip_horizontal": "水平翻轉",
@@ -26,7 +28,5 @@
   "xlsx_preview.chart_unsupported": "暫不支援此圖表類型",
   "xlsx_preview.error.description": "無法預覽此試算表。",
   "xlsx_preview.formula_not_evaluated": "公式無法求值",
-  "xlsx_preview.sheet_tabs_label": "工作表",
-  "xlsx_preview.too_large.description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
-  "xlsx_preview.too_large.title": "檔案過大，無法預覽"
+  "xlsx_preview.sheet_tabs_label": "工作表"
 }

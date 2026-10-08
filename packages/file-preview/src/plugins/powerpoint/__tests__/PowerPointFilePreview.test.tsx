@@ -9,6 +9,7 @@ import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 
 interface MockViewerOptions {
   onSlideChange?: (index: number) => void
+  onSlideError?: (index: number, error: Error) => void
 }
 
 const mocks = vi.hoisted(() => {
@@ -72,10 +73,12 @@ const mocks = vi.hoisted(() => {
     goToSlide: vi.fn(),
     load: vi.fn(),
     logger: { error: vi.fn(), warn: vi.fn() },
+    failDocument: vi.fn(),
     materializeSlideNodes: vi.fn(),
     mockFiles: { slides: new Map() },
     parseZipLazyMedia: vi.fn(),
     renderList: vi.fn(),
+    slideError: null as Error | null,
     setZoom: vi.fn()
   }
 
@@ -95,6 +98,7 @@ const mocks = vi.hoisted(() => {
 
     async renderList(options: unknown) {
       state.renderList(options)
+      if (state.slideError) this.options.onSlideError?.(0, state.slideError)
       this.container.textContent = 'rendered pptx'
       this.options.onSlideChange?.(0)
     }
@@ -129,7 +133,7 @@ vi.mock('@aiden0z/pptx-renderer', () => ({
 
 vi.mock('../../../previewContext', () => ({
   usePreviewLogger: () => mocks.logger,
-  usePreviewHost: () => ({})
+  usePreviewHost: () => ({ failDocument: mocks.failDocument })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -163,6 +167,7 @@ beforeEach(() => {
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
   mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
   mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
+  mocks.slideError = null
   // Only a group node would reach the text index, and this deck has none.
   mocks.buildTextIndex.mockReturnValue([])
   Object.defineProperty(window, 'api', {
@@ -391,18 +396,23 @@ describe('PowerPointFilePreview', () => {
     expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
   })
 
-  it('rejects oversized PPTX via metadata before reading bytes', async () => {
-    render(
-      <PowerPointFilePreview
-        sourceId={filePath}
-        fileName="roadmap.pptx"
-        document={previewTestDocument(25 * 1024 * 1024 + 1, 1, mocks.fsRead, 0)}
-      />
-    )
+  it('reports an empty deck as a preview error instead of showing 0 / 0', async () => {
+    mocks.buildPresentation.mockReturnValueOnce({ ...mocks.createMockPresentation(), slides: [] })
+
+    renderWithCapture()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
+    expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ code: 'load_error' }))
+  })
+
+  it('reports lazy slide failures to the host and shows the error state', async () => {
+    const error = new Error('Failed to parse PPTX XML')
+    mocks.slideError = error
+
+    renderWithCapture()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.failDocument).toHaveBeenCalledWith(error)
   })
 
   it('contains read failures inside the preview and logs the cause', async () => {

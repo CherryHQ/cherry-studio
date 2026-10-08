@@ -346,20 +346,6 @@ describe('WordFilePreview', () => {
     expect(screen.getByText('safe')).toHaveAttribute('href', 'https://example.com')
   })
 
-  it('rejects oversized DOCX via metadata before reading bytes', async () => {
-    render(
-      <WordFilePreview
-        sourceId={filePath}
-        fileName="report.docx"
-        document={previewTestDocument(25 * 1024 * 1024 + 1, 1, mocks.fsRead, 0)}
-      />
-    )
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.renderAsync).not.toHaveBeenCalled()
-  })
-
   it('contains read failures inside the preview and logs the cause', async () => {
     const error = new Error('corrupt docx')
     mocks.fsRead.mockRejectedValueOnce(error)

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@cherrystudio/ui'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
 import { assertZipLimits } from '../../officeZipPreflight'
 import { usePreviewHost, usePreviewLogger } from '../../previewContext'
 import { createPreviewSelection } from '../../selection'
@@ -324,12 +325,16 @@ export default function WordFilePreview({
           ) : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
-              <EmptyState
-                icon={AlertCircle}
-                title={t('file_preview.load_error.title')}
-                description={t('file_preview.load_error.description')}
-                className="h-full"
-              />
+              {error instanceof PreviewError && error.code === 'too_large' ? (
+                <FilePreviewTooLarge sizeBytes={previewDocument.size} limitBytes={DOCX_PREVIEW_MAX_SOURCE_BYTES} />
+              ) : (
+                <EmptyState
+                  icon={AlertCircle}
+                  title={t('file_preview.load_error.title')}
+                  description={t('file_preview.load_error.description')}
+                  className="h-full"
+                />
+              )}
             </div>
           ) : null}
         </div>

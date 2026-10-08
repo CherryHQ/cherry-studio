@@ -33,11 +33,18 @@ and PPTX slides. The host owns held selections across refreshes and file switche
 `revision` is opaque to the package and only distinguishes document versions. Hosts
 map selections back to their own file identity; the package never parses it.
 
+Recognized `source.mediaType` values take precedence over the filename extension;
+missing or unrecognized media types fall back to the extension. `supportsPreview`
+and `canSelectPreview` accept the same optional media type as their second argument.
+
 `onDiagnostic` routes engine warnings and errors to the host logger. `onRequestOpen`
-delegates unsupported formats and the PDF range-limit fallback to the host.
+delegates unsupported formats and size-limit fallbacks to the host. DOCX/PPTX above
+25 MiB and XLSX above 20 MiB show the size limit and an external-open button when
+the host provides this callback; PDF offers the same action for its range limit.
 `resources.baseUrl` optionally overrides the bundled worker/font/CMap directory;
 include a trailing slash. Relative URLs resolve against the host page.
-Electron provides `readPdfResource` for file-scheme pages.
+`readPdfResource` takes precedence over resource URLs for PDF fonts and CMaps,
+including font substitution. Electron provides it for file-scheme pages.
 PDF workers belong to individual previews and never change pdf.js global options.
 Translations use an independent i18next instance with resources for all 13 desktop
 languages; other locales fall back to English.
@@ -116,7 +123,7 @@ pnpm --dir packages/file-preview pack --pack-destination /path/to/artifacts
 
 The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 `rolldown-plugin-dts` for declaration bundles. Every third-party library except `zod`
-is bundled, including UI components and the patched docx-preview, so they are dev
+is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`. Build and runtime verification must
 be requested explicitly in this workspace.

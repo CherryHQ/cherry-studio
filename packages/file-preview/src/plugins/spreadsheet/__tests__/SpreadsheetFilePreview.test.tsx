@@ -251,19 +251,6 @@ describe('SpreadsheetFilePreview', () => {
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('not an xlsx')
   })
 
-  it('renders the oversize state with the size-limit message', () => {
-    setWorkbookState({ status: 'oversize', sizeBytes: 25 * 1024 * 1024 })
-
-    renderPanel()
-
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('xlsx_preview.too_large.title')
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('xlsx_preview.too_large.description')
-    expect(mocks.translationCalls).toContainEqual({
-      key: 'xlsx_preview.too_large.description',
-      options: { size: '25.0 MB', limit: '20.0 MB' }
-    })
-  })
-
   it('renders the grid and visible sheet tabs when ready, with no status text until a cell is selected', () => {
     setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
 

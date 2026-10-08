@@ -54,8 +54,15 @@ describe('image file preview plugin', () => {
     expect(image).toHaveAttribute('src', 'blob:preview-test')
   })
 
-  it('renders SVG as an image Blob with its MIME type', async () => {
-    render(<FilePreview filePath={'/tmp/art/logo.svg'} />)
+  it('infers the SVG MIME type when the host supplies an empty media type', async () => {
+    render(
+      <ImageFilePreview
+        sourceId="logo"
+        fileName="logo.svg"
+        mediaType=""
+        document={previewTestDocument(128, 1, mocks.read, 0)}
+      />
+    )
 
     const image = await screen.findByAltText('logo.svg', undefined, { timeout: 5000 })
 

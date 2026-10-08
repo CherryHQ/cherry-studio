@@ -643,6 +643,14 @@ describe('PdfFilePreview', () => {
 
       expect(createWorker).toHaveBeenCalledWith('pdf')
       expect(mocks.workerCreate).toHaveBeenCalledWith({ port: hostWorker })
+      const options = mocks.getDocument.mock.lastCall?.[0]
+      expect(options).not.toHaveProperty('cMapUrl')
+      expect(options).not.toHaveProperty('standardFontDataUrl')
+      expect(options.useWorkerFetch).toBe(false)
+      const font = new Uint8Array([1, 2, 3])
+      mocks.readResource.mockResolvedValueOnce(font)
+      expect(await new options.StandardFontDataFactory().fetch({ filename: 'FoxitSerif.pfb' })).toBe(font)
+      expect(mocks.readResource).toHaveBeenCalledWith('standard_font', 'FoxitSerif.pfb')
       view.unmount()
       expect(hostWorker.terminate).toHaveBeenCalled()
     } finally {
@@ -798,7 +806,7 @@ describe('PdfFilePreview', () => {
       })
     )
 
-    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.too_large.action' }))
+    await user.click(screen.getByRole('button', { name: 'file_preview.too_large.action' }))
 
     expect(mocks.requestOpen).toHaveBeenCalledWith('too_large')
   })

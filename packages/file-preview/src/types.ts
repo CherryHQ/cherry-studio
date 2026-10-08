@@ -29,6 +29,7 @@ export interface FilePreviewPluginProps {
 export interface FilePreviewPlugin {
   id: string
   extensions: readonly string[]
+  mediaTypes: readonly string[]
   load: () => Promise<{ default: ComponentType<FilePreviewPluginProps> }>
   supportsSelectionReference?: boolean
 }

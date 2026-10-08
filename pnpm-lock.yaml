@@ -228,6 +228,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.109': 2423513a443860e240fb1c10554f616ce6dcaf553eebfb044ba266aab075cc4d
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
+  '@aiden0z/pptx-renderer@1.2.2': e65f4e49d4d3beb6d78b36734de51adeda398347318ecb6390bfdcf7078c7ce7
   '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': 22e1bba3e6b5d2567a6c64821bc2310147b41f8f6d993774d1c65b249f7d6d78
   '@deepseek-ai/dsh-sandbox-local@0.2.0-rc.2': 8a2acc0e4ca1a7015dd7dedf825038230b7770b4f260fc93ae205247b3b3e9ec
   '@deepseek-ai/dsh-sdk-client@0.2.0-rc.2': 8fb5e7319c89da505a9584fcbb09a5bc8cf200ec92f2998de4142034596eb918
@@ -2045,7 +2046,7 @@ importers:
     devDependencies:
       '@aiden0z/pptx-renderer':
         specifier: 1.2.2
-        version: 1.2.2(pdfjs-dist@5.4.296)
+        version: 1.2.2(patch_hash=e65f4e49d4d3beb6d78b36734de51adeda398347318ecb6390bfdcf7078c7ce7)(pdfjs-dist@5.4.296)
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:../ui
@@ -17381,7 +17382,7 @@ snapshots:
       '@aiany/sqlite-vec-windows-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-windows-x64': 0.1.10-alpha.4.aiany.2
 
-  '@aiden0z/pptx-renderer@1.2.2(pdfjs-dist@5.4.296)':
+  '@aiden0z/pptx-renderer@1.2.2(patch_hash=e65f4e49d4d3beb6d78b36734de51adeda398347318ecb6390bfdcf7078c7ce7)(pdfjs-dist@5.4.296)':
     dependencies:
       echarts: 6.1.0
       jszip: 3.10.1

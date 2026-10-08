@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@cherrystudio/ui'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
 import { usePreviewHost, usePreviewLogger } from '../../previewContext'
 import { createPreviewSelection } from '../../selection'
 import { PreviewError, readPreviewDocument } from '../../source'
@@ -202,6 +203,9 @@ export default function PowerPointFilePreview({
         const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
         throwIfAborted(controller.signal)
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
+        if (presentation.slides.length === 0) {
+          throw new PreviewError('load_error', 'PPTX contains no slides to preview')
+        }
         stripExternalMediaRelationships(presentation)
         presentationRef.current = presentation
         throwIfAborted(controller.signal)
@@ -227,11 +231,15 @@ export default function PowerPointFilePreview({
             setPreviewControlsBusy(false)
           },
           onSlideError: (index, slideError) => {
-            logger.warn('Failed to render PPTX preview slide', {
+            if (cancelled) return
+            const normalized = slideError instanceof Error ? slideError : new Error(String(slideError))
+            logger.error('Failed to render PPTX preview slide', {
               sourceId,
               slide: index + 1,
-              error: slideError instanceof Error ? slideError.message : String(slideError)
+              error: normalized.message
             })
+            failDocument?.(normalized)
+            setError(normalized)
           },
           onNodeError: (nodeId, nodeError) => {
             logger.warn('Failed to render PPTX preview node', {
@@ -387,12 +395,16 @@ export default function PowerPointFilePreview({
           ) : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
-              <EmptyState
-                icon={AlertCircle}
-                title={t('file_preview.load_error.title')}
-                description={t('file_preview.load_error.description')}
-                className="h-full"
-              />
+              {error instanceof PreviewError && error.code === 'too_large' ? (
+                <FilePreviewTooLarge sizeBytes={previewDocument.size} limitBytes={PPTX_PREVIEW_MAX_SOURCE_BYTES} />
+              ) : (
+                <EmptyState
+                  icon={AlertCircle}
+                  title={t('file_preview.load_error.title')}
+                  description={t('file_preview.load_error.description')}
+                  className="h-full"
+                />
+              )}
             </div>
           ) : null}
         </div>

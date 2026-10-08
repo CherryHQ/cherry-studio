@@ -103,7 +103,7 @@ function PdfPreviewTooLarge() {
         icon={FileWarning}
         title={t('file_preview.pdf.too_large.title')}
         description={t('file_preview.pdf.too_large.description')}
-        actionLabel={onRequestOpen ? t('file_preview.pdf.too_large.action') : undefined}
+        actionLabel={onRequestOpen ? t('file_preview.too_large.action') : undefined}
         onAction={onRequestOpen ? () => onRequestOpen('too_large') : undefined}
         className="h-full"
       />
@@ -392,7 +392,7 @@ export default function PdfFilePreview({
     void (async () => {
       try {
         if (cancelled) return
-        const resourceBase = resolveResourceBase(resources?.baseUrl)
+        const resourceBase = resources?.readPdfResource ? null : resolveResourceBase(resources?.baseUrl)
         workerPort = resources?.createWorker
           ? resources.createWorker('pdf')
           : resources?.baseUrl
