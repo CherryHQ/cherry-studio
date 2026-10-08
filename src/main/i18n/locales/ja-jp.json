@@ -64,6 +64,8 @@
   "appMenu.zoom": "ズーム",
   "appMenu.zoomIn": "ズームイン",
   "appMenu.zoomOut": "ズームアウト",
+  "backup.restore.failed": "復元に失敗しました",
+  "backup.restore.retry": "バックアップを復元できませんでした。元のデータは保持されています。Cherry Studio のデータファイルを使用している他のアプリを閉じてから、復元を再試行してください。",
   "chat.conversation.new": "新しいチャット",
   "common.channel_available_commands": "利用可能なコマンド：",
   "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",

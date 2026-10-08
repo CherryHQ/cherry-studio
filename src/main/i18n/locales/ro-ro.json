@@ -64,6 +64,8 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Mărește",
   "appMenu.zoomOut": "Micșorează",
+  "backup.restore.failed": "Restaurare eșuată",
+  "backup.restore.retry": "Copia de rezervă nu a fost restaurată. Datele anterioare au fost păstrate. Închideți celelalte aplicații care folosesc fișierele de date Cherry Studio, apoi încercați din nou restaurarea.",
   "chat.conversation.new": "Conversație nouă",
   "common.channel_available_commands": "Comenzi disponibile:",
   "common.channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",

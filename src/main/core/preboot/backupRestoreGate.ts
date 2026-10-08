@@ -1,3 +1,6 @@
+import { app, dialog } from 'electron'
+
+import { readRestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   cleanupTerminalRestoreArtifacts,
   isLiveDbStranded,
@@ -5,6 +8,7 @@ import {
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('BackupRestoreGate')
 
@@ -49,6 +53,12 @@ export async function runBackupRestoreGate(): Promise<void> {
         'Restore recovery failed: the live database is missing while the previous database is still parked aside — refusing to boot into an empty database'
       )
     }
+  }
+  const result = readRestoreJournal()
+  if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
+    await app.whenReady()
+    const language = resolveSystemLanguage(app.getLocale())
+    dialog.showErrorBox(t('backup.restore.failed', undefined, language), t('backup.restore.retry', undefined, language))
   }
   cleanupTerminalRestoreArtifacts()
 }

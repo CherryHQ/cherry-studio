@@ -688,7 +688,20 @@ function renameOnceIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  const wait = new Int32Array(new SharedArrayBuffer(4))
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(source, target)
+      break
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (process.platform !== 'win32' || (code !== 'EPERM' && code !== 'EBUSY') || attempt >= 4) {
+        throw error
+      }
+      // Keep preboot synchronous while Windows releases transient scanner handles.
+      Atomics.wait(wait, 0, 0, 250 * 2 ** attempt)
+    }
+  }
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {

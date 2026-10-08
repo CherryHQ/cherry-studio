@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { readRestoreJournal } from '@data/db/restore/restoreJournal'
+
 /**
  * Shell contract only (the promotion logic and the crash net's journal/aside
  * behavior are covered by restorePromotion.test.ts): the gate never throws —
@@ -13,6 +15,14 @@ const runRestorePromotionMock = vi.fn<() => Promise<void>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
+const readRestoreJournalMock = vi.fn<typeof readRestoreJournal>()
+const showErrorBoxMock = vi.fn()
+
+vi.mock('@data/db/restore/restoreJournal', () => ({ readRestoreJournal: () => readRestoreJournalMock() }))
+vi.mock('electron', () => ({
+  app: { whenReady: vi.fn().mockResolvedValue(undefined), getLocale: () => 'en-US' },
+  dialog: { showErrorBox: (...args: unknown[]) => showErrorBoxMock(...args) }
+}))
 
 vi.mock('@data/db/restore/restorePromotion', () => ({
   runRestorePromotion: () => runRestorePromotionMock(),
@@ -29,18 +39,33 @@ beforeEach(() => {
   isLiveDbStrandedMock.mockReset()
   cleanupTerminalRestoreArtifactsMock.mockReset()
   isLiveDbStrandedMock.mockReturnValue(false)
+  readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+  showErrorBoxMock.mockClear()
 })
 
 describe('runBackupRestoreGate', () => {
+  it.each(['failed', 'expired'] as const)('reports a %s restore before its journal is consumed', async (state) => {
+    readRestoreJournalMock.mockReturnValue({
+      kind: 'ok',
+      journal: { state } as Extract<ReturnType<typeof readRestoreJournal>, { kind: 'ok' }>['journal']
+    })
+    cleanupTerminalRestoreArtifactsMock.mockImplementation(() => {
+      expect(showErrorBoxMock).toHaveBeenCalledWith(
+        'Restore failed',
+        expect.stringContaining('Your previous data has been kept')
+      )
+    })
+
+    await expect(runBackupRestoreGate()).resolves.toBeUndefined()
+    expect(showErrorBoxMock).toHaveBeenCalledOnce()
+  })
+
   it('delegates to the promotion logic and skips the crash net on success', async () => {
     runRestorePromotionMock.mockResolvedValue(undefined)
 
     await expect(runBackupRestoreGate()).resolves.toBeUndefined()
 
-    expect(runRestorePromotionMock).toHaveBeenCalledOnce()
-    expect(markRestoreFailedAfterCrashMock).not.toHaveBeenCalled()
-    expect(isLiveDbStrandedMock).not.toHaveBeenCalled()
-    expect(cleanupTerminalRestoreArtifactsMock).toHaveBeenCalledOnce()
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
   })
 
   it('swallows a substance crash and invokes the crash net', async () => {

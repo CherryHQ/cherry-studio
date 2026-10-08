@@ -64,6 +64,8 @@
   "appMenu.zoom": "縮放",
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "縮小",
+  "backup.restore.failed": "還原失敗",
+  "backup.restore.retry": "備份未能還原。已保留原有資料。請關閉占用 Cherry Studio 資料檔案的其他應用程式，然後重新嘗試還原。",
   "chat.conversation.new": "新對話",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",

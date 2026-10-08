@@ -67,9 +67,16 @@ const markerFailure = vi.hoisted(() => ({
 const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
+const renameFailure = vi.hoisted(() => ({ source: '', remaining: 0, code: 'EPERM' }))
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    if (args[0] === renameFailure.source && renameFailure.remaining-- > 0) {
+      throw Object.assign(new Error('injected rename lock'), { code: renameFailure.code })
+    }
+    return actual.renameSync(...args)
+  }
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
     const [target, flags] = args
     if (typeof target === 'string' && flags === 'r' && fsyncDirFailure.shouldFail?.(target)) {
@@ -77,7 +84,7 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -111,6 +118,7 @@ vi.mock('@application', () => ({
 }))
 
 const RID = 'restore-t1'
+const originalPlatform = process.platform
 const MARKER_KEY = 'restore-test-marker'
 
 const dataDir = () => join(userData, 'Data')
@@ -257,10 +265,70 @@ describe('runRestorePromotion', () => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
+    renameFailure.source = ''
   })
 
   afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform })
+    vi.restoreAllMocks()
     rmSync(userData, { recursive: true, force: true })
+  })
+
+  it.each([
+    { code: 'EPERM', failures: 2, expected: 'new', source: 'live' },
+    { code: 'EBUSY', failures: 2, expected: 'new', source: 'live' },
+    { code: 'EBUSY', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'live' },
+    { code: 'EPERM', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'staged' },
+    { code: 'EACCES', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'live' }
+  ])(
+    'keeps $expected data for a Windows $code rename with $failures failures at $source',
+    async ({ code, failures, expected, source }) => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const live = join(userData, 'Local Storage')
+      const staged = join(stagingDir(), 'Local Storage')
+      mkdirSync(live)
+      mkdirSync(staged)
+      writeFileSync(join(live, 'data'), 'old')
+      writeFileSync(join(staged, 'data'), 'new')
+      writeRestoreJournal(
+        await buildJournal({
+          fileResources: [
+            {
+              kind: 'overwrite',
+              livePath: 'Local Storage',
+              stagingPath: `restore-staging/${RID}/Local Storage`,
+              asidePath: `restore-staging/${RID}/aside/Local Storage`
+            }
+          ]
+        })
+      )
+      Object.defineProperty(process, 'platform', { value: 'win32' })
+      renameFailure.source = source === 'live' ? live : staged
+      renameFailure.remaining = failures
+      renameFailure.code = code
+
+      await runRestorePromotion()
+
+      expect(journalState()).toBe(expected === 'new' ? 'completed' : 'failed')
+      expect(readMarker(livePath())).toBe(expected)
+      expect(readFileSync(join(live, 'data'), 'utf8')).toBe(expected)
+    }
+  )
+
+  it('keeps the original database when a Windows rename lock persists', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    writeRestoreJournal(await buildJournal())
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    renameFailure.source = workPath()
+    renameFailure.remaining = Number.POSITIVE_INFINITY
+    renameFailure.code = 'EBUSY'
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('failed')
+    expect(readMarker(livePath())).toBe('old')
   })
 
   it('does nothing and creates nothing when no journal exists (zero-cost early exit)', async () => {
