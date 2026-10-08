@@ -99,6 +99,48 @@ swiping scrolls without selecting. Disable page zoom in the host page
 (`<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">`)
 so a pinch outside these surfaces does not scale the whole preview.
 
+### Opt-in host layout and font compatibility
+
+All `options` are opt-in. Omitting them preserves desktop rendering: a PDF sidebar,
+DOCX at 100% with its existing font handling, translucent spreadsheet headers, and
+the existing viewport inset. The package does not detect the host platform.
+
+```tsx
+<Preview
+  source={source}
+  resources={resources}
+  options={{
+    bottomInset: 'content',
+    pdf: { outlineLayout: useOverlayOutline ? 'overlay' : 'panel' },
+    docx: { initialZoom: 'fit-width', normalizeSymbolBullets: true },
+    xlsx: { opaqueHeaders: true }
+  }}
+/>
+```
+
+The host chooses `useOverlayOutline` from its actual available width, including
+landscape orientation. Overlay mode covers the preview without shrinking its pages;
+Escape, the close button, the backdrop, and selecting an internal destination dismiss
+it. Explicitly selecting either PDF layout also keeps page-width zoom in sync with
+container resizing; manual zoom is preserved.
+
+DOCX `fit-width` includes the document wrapper and widest page, permits scales below
+50%, and never enlarges beyond 100%. It follows container resizing until the user
+zooms using the toolbar or a pinch; Reset resumes fitting. No orientation message is
+needed for DOCX. `normalizeSymbolBullets` is read when opening the document: it maps
+known single-character Symbol/Wingdings bullet markers to Unicode and removes their
+legacy font override. Other fonts, unknown symbols and numbered lists are preserved.
+
+`bottomInset: 'content'` places `--file-preview-bottom-inset` inside the PDF, DOCX,
+PPTX and XLSX scroll containers, in unscaled host CSS pixels. It does not reserve a
+fixed strip outside those viewports. Other formats retain their existing inset behavior.
+`opaqueHeaders` composites the muted XLSX header color over an opaque version of
+`--background`, including the frozen corner, so cells cannot show through alpha colors.
+
+Keep `source` and `resources` references stable during layout, locale and theme updates.
+Changing `options` does not reopen the source. Font compatibility takes effect on the
+next document open or explicit refresh; it does not reparse an open document.
+
 ## Styling
 
 `className` and `style` apply to the preview root. Add `dark` for the dark theme, and
@@ -111,7 +153,7 @@ set these custom properties to retheme it. Root overrides win over the packaged 
 | `--muted`, `--muted-foreground` | Secondary surfaces, icons and labels |
 | `--border`, `--border-subtle`, `--ring` | Dividers, outlines and focus rings |
 | `--file-preview-toolbar-button-size` | Toolbar button size, default `1.75rem` |
-| `--file-preview-bottom-inset` | Trailing space under scrolling content |
+| `--file-preview-bottom-inset` | Bottom space; use `options.bottomInset: 'content'` for trailing document scroll space |
 
 ## Building
 

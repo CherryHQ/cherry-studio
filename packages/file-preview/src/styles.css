@@ -9,6 +9,7 @@
 @source './plugins/*/*.tsx';
 @source '../../ui/src/components/primitives/button.tsx';
 @source '../../ui/src/components/primitives/context-menu.tsx';
+@source '../../ui/src/components/primitives/dialog.tsx';
 @source '../../ui/src/components/primitives/input.tsx';
 @source '../../ui/src/components/primitives/tooltip.tsx';
 @source '../../ui/src/components/primitives/tabs.tsx';

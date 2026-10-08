@@ -5,7 +5,7 @@ import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.m
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogTitle, EmptyState } from '@cherrystudio/ui'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { usePreviewHost, usePreviewLogger } from '../../previewContext'
@@ -127,7 +127,7 @@ export default function PdfFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PdfFilePreview')
-  const { resources, failDocument } = usePreviewHost()
+  const { resources, options, failDocument } = usePreviewHost()
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -146,6 +146,10 @@ export default function PdfFilePreview({
   const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([])
   const [outlineStatus, setOutlineStatus] = useState<PdfOutlineStatus>('loading')
   const [pickedPage, setPickedPage] = useState<number | null>(null)
+  const outlineLayout = options?.pdf?.outlineLayout ?? 'panel'
+  const responsiveLayout = options?.pdf?.outlineLayout !== undefined
+  const outlineTriggerRef = useRef<HTMLElement | null>(null)
+  const outlineNavigatedRef = useRef(false)
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -312,13 +316,32 @@ export default function PdfFilePreview({
       const linkService = linkServiceRef.current
       if (!linkService) return
 
+      if (outlineLayout === 'overlay') {
+        outlineNavigatedRef.current = true
+        setIsOutlineOpen(false)
+      }
+
       void linkService.goToDestination(destination).catch((error: unknown) => {
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error(`Failed to navigate PDF outline: ${sourceId}`, normalized, 'navigation_error')
       })
     },
-    [sourceId, logger]
+    [sourceId, logger, outlineLayout]
   )
+
+  useEffect(() => {
+    const container = containerRef.current
+    const viewer = pdfViewerRef.current
+    if (!responsiveLayout || status !== 'ready' || !container || !viewer) return
+
+    const observer = new ResizeObserver(() => {
+      if (container.clientWidth > 0 && viewer.currentScaleValue === DEFAULT_PDF_SCALE) {
+        viewer.currentScaleValue = DEFAULT_PDF_SCALE
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [responsiveLayout, status, documentProxy])
 
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
@@ -683,9 +706,13 @@ export default function PdfFilePreview({
         onZoomOut={() => zoomBy('out')}
         onZoomIn={() => zoomBy('in')}
         onResetZoom={resetZoom}
-        onToggleOutline={() => setIsOutlineOpen((open) => !open)}
+        onToggleOutline={() => {
+          outlineTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          outlineNavigatedRef.current = false
+          setIsOutlineOpen((open) => !open)
+        }}
       />
-      <FilePreviewLayout.Content>
+      <FilePreviewLayout.Content scrollsInternally>
         <div
           ref={rootRef}
           data-testid="pdf-file-preview"
@@ -704,13 +731,18 @@ export default function PdfFilePreview({
           ) : (
             <>
               <div className="flex h-full min-h-0 w-full">
-                {isOutlineOpen ? (
+                {isOutlineOpen && outlineLayout === 'panel' ? (
                   <PdfOutline items={outlineItems} status={outlineStatus} onNavigate={navigateToOutlineDestination} />
                 ) : null}
                 <div className="relative min-w-0 flex-1">
                   <div
                     ref={containerRef}
                     data-testid="pdfjs-viewer-container"
+                    style={
+                      options?.bottomInset === 'content'
+                        ? { paddingBottom: 'var(--file-preview-bottom-inset, 0px)' }
+                        : undefined
+                    }
                     data-picker={onSelection ? 'true' : undefined}
                     role="region"
                     aria-label={fileName}
@@ -733,6 +765,29 @@ export default function PdfFilePreview({
           )}
         </div>
       </FilePreviewLayout.Content>
+      {outlineLayout === 'overlay' ? (
+        <Dialog open={isOutlineOpen} onOpenChange={setIsOutlineOpen}>
+          <DialogContent
+            aria-describedby={undefined}
+            closeLabel={t('common.close')}
+            motion="fade-scale"
+            overlayClassName="absolute"
+            className="absolute top-0 left-0 h-full w-64 max-w-[calc(100%-2rem)] translate-x-0 translate-y-0 gap-0 rounded-none p-0 sm:max-w-64"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              if (outlineNavigatedRef.current) focusContainer()
+              else outlineTriggerRef.current?.focus({ preventScroll: true })
+            }}>
+            <DialogTitle className="sr-only">{t('file_preview.pdf.outline.title')}</DialogTitle>
+            <PdfOutline
+              className="w-full border-r-0"
+              items={outlineItems}
+              status={outlineStatus}
+              onNavigate={navigateToOutlineDestination}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </FilePreviewLayout.Frame>
   )
 }

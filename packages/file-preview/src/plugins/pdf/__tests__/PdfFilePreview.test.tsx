@@ -1,13 +1,12 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type React from 'react'
-import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 import { dispatchTouch } from '../../../__tests__/touchEvents'
 import type { PreviewDocument } from '../../../source'
+import type { PreviewOptions } from '../../../types'
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
 
@@ -193,39 +192,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   }
 })
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  EmptyState: ({
-    title,
-    description,
-    actionLabel,
-    onAction
-  }: {
-    title: string
-    description?: string
-    actionLabel?: string
-    onAction?: () => void
-  }) => (
-    <div data-testid="empty-state">
-      <span>{title}</span>
-      <span>{description}</span>
-      {actionLabel ? (
-        <button type="button" onClick={onAction}>
-          {actionLabel}
-        </button>
-      ) : null}
-    </div>
-  ),
-  Input: (props: React.ComponentPropsWithoutRef<'input'>) => <input {...props} />,
-  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-    <div {...props}>{children}</div>
-  )
-}))
+vi.unmock('@cherrystudio/ui')
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -234,9 +201,10 @@ vi.mock('react-i18next', () => ({
 const resources: { readPdfResource: typeof mocks.readResource; createWorker?: (kind: 'pdf' | 'xlsx') => Worker } = {
   readPdfResource: mocks.readResource
 }
+let previewOptions: PreviewOptions | undefined
 vi.mock('../../../previewContext', () => ({
   usePreviewLogger: () => mockRendererLoggerService,
-  usePreviewHost: () => ({ resources, onRequestOpen: mocks.requestOpen })
+  usePreviewHost: () => ({ resources, options: previewOptions, onRequestOpen: mocks.requestOpen })
 }))
 
 const filePath = '/tmp/workspace/paper.pdf'
@@ -491,6 +459,7 @@ describe('PdfFilePreview', () => {
   })
 
   beforeEach(() => {
+    previewOptions = undefined
     vi.stubGlobal(
       'Worker',
       class {
@@ -713,6 +682,26 @@ describe('PdfFilePreview', () => {
     expect(mocks.linkServiceGoToDestination).toHaveBeenCalledWith('background')
   })
 
+  it('dismisses an overlay outline with Escape or navigation and restores the appropriate focus', async () => {
+    const user = userEvent.setup()
+    previewOptions = { pdf: { outlineLayout: 'overlay' } }
+    mocks.pdfDocument.getOutline.mockResolvedValueOnce([{ title: 'Introduction', dest: 'intro', url: null, items: [] }])
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const trigger = screen.getByRole('button', { name: 'file_preview.pdf.outline.title' })
+    await user.click(trigger)
+    expect(await screen.findByRole('dialog', { name: 'file_preview.pdf.outline.title' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
+
+    await user.click(trigger)
+    await user.click(await screen.findByRole('button', { name: 'Introduction' }))
+    expect(mocks.linkServiceGoToDestination).toHaveBeenCalledWith('intro')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('region', { name: 'paper.pdf' })).toHaveFocus()
+  })
+
   it('explains when a PDF has no outline', async () => {
     const user = userEvent.setup()
     renderPreview()
@@ -751,8 +740,8 @@ describe('PdfFilePreview', () => {
     renderPreview()
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.load_error.title')
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.load_error.description')
+    expect(screen.getByRole('heading', { name: 'file_preview.load_error.title' })).toBeInTheDocument()
+    expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
     expect(screen.queryByText('sensitive parser details')).not.toBeInTheDocument()
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to load PDF preview: ${filePath}`,

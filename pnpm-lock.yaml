@@ -250,7 +250,7 @@ patchedDependencies:
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
   dingtalk-stream@2.1.7-beta.1: b81b5999ab52fb82bc76c6c7599eb74137cf8c6304b84aa5e8d3c3c562049172
-  docx-preview@0.3.7: e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5
+  docx-preview@0.3.7: 885160b2f61fc51ebb02b186f253f293aa1d91f0decf3224215dc3f1360e2d7c
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
@@ -2082,7 +2082,7 @@ importers:
         version: 2.1.1
       docx-preview:
         specifier: 0.3.7
-        version: 0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5)
+        version: 0.3.7(patch_hash=885160b2f61fc51ebb02b186f253f293aa1d91f0decf3224215dc3f1360e2d7c)
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -27073,7 +27073,7 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
-  docx-preview@0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5):
+  docx-preview@0.3.7(patch_hash=885160b2f61fc51ebb02b186f253f293aa1d91f0decf3224215dc3f1360e2d7c):
     dependencies:
       jszip: 3.10.1
 

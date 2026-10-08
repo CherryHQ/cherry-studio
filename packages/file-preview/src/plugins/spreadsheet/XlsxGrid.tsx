@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import { usePreviewHost } from '../../previewContext'
 import {
   axisIndexAt,
   type AxisLayout,
@@ -342,6 +343,7 @@ const isFloatingObject = (target: EventTarget | null) =>
   target instanceof Element && target.closest('[data-xlsx-floating]') !== null
 
 const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, renderChart }: XlsxGridProps) => {
+  const { options } = usePreviewHost()
   const scrollElRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<GridSelection | null>(null)
   /** Cell or merged range under the pointer while picking. Null whenever the picker is off. */
@@ -849,6 +851,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     hoverRect.right <= selectionRect.right
   )
 
+  const opaqueHeaders = options?.xlsx?.opaqueHeaders === true
+  const headerBackground = opaqueHeaders
+    ? {
+        backgroundColor: 'rgb(from var(--background) r g b / 1)',
+        backgroundImage: 'linear-gradient(var(--muted), var(--muted))'
+      }
+    : undefined
+
   const totalWidth = colLayout.totalSize * zoom + scaledHeaderWidth
   const totalHeight = rowLayout.totalSize * zoom + scaledHeaderHeight
 
@@ -856,6 +866,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     <div
       ref={scrollElCallback}
       data-testid="xlsx-grid-scroll"
+      style={
+        options?.bottomInset === 'content' ? { paddingBottom: 'var(--file-preview-bottom-inset, 0px)' } : undefined
+      }
       data-picker={pickerActive ? 'true' : undefined}
       className={cn('relative h-full w-full overflow-auto bg-background', pickerActive && 'cursor-cell')}
       onScroll={handleScroll}
@@ -876,10 +889,27 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       aria-colcount={sheet.colCount}
       tabIndex={0}>
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
+        {opaqueHeaders ? (
+          <div
+            aria-hidden
+            className="sticky top-0 left-0 z-30 border-r border-b border-border"
+            style={{
+              ...headerBackground,
+              width: scaledHeaderWidth,
+              height: scaledHeaderHeight,
+              marginBottom: -scaledHeaderHeight
+            }}
+          />
+        ) : null}
         {/* Column header (sticky top): A, B, C... The box is positioned in scroll coordinates; content is scaled. */}
         <div
           className="sticky top-0 z-20 border-border border-b bg-muted"
-          style={{ height: scaledHeaderHeight, marginLeft: scaledHeaderWidth, width: colLayout.totalSize * zoom }}>
+          style={{
+            ...headerBackground,
+            height: scaledHeaderHeight,
+            marginLeft: scaledHeaderWidth,
+            width: colLayout.totalSize * zoom
+          }}>
           <div className="absolute" style={zoomTransform}>
             {virtualCols.map((vc) => (
               <div
@@ -899,7 +929,12 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
         {/* Row header (sticky left): 1, 2, 3... */}
         <div
           className="sticky left-0 z-20 border-border border-r bg-muted"
-          style={{ width: scaledHeaderWidth, height: rowLayout.totalSize * zoom, top: scaledHeaderHeight }}>
+          style={{
+            ...headerBackground,
+            width: scaledHeaderWidth,
+            height: rowLayout.totalSize * zoom,
+            top: scaledHeaderHeight
+          }}>
           <div className="absolute" style={zoomTransform}>
             {virtualRows.map((vr) => (
               <div

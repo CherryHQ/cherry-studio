@@ -95,7 +95,7 @@ export default function PowerPointFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PowerPointFilePreview')
-  const { failDocument } = usePreviewHost()
+  const { options, failDocument } = usePreviewHost()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -368,7 +368,7 @@ export default function PowerPointFilePreview({
         onZoomIn={() => setViewerZoom(zoom + PPTX_PREVIEW_ZOOM_STEP)}
         onResetZoom={() => setViewerZoom(PPTX_PREVIEW_DEFAULT_ZOOM)}
       />
-      <FilePreviewLayout.Content>
+      <FilePreviewLayout.Content scrollsInternally>
         <div
           data-testid="powerpoint-file-preview"
           className="relative h-full min-h-0 w-full overflow-hidden bg-background">
@@ -378,6 +378,11 @@ export default function PowerPointFilePreview({
           <div
             ref={containerRef}
             data-testid="pptx-viewer-container"
+            style={
+              options?.bottomInset === 'content'
+                ? { paddingBottom: 'var(--file-preview-bottom-inset, 0px)' }
+                : undefined
+            }
             data-picker={onSelection ? 'true' : undefined}
             role="region"
             aria-label={fileName}

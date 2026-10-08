@@ -310,7 +310,7 @@ export default function SpreadsheetFilePreview({
 
   return (
     <FilePreviewLayout.Frame>
-      <FilePreviewLayout.Content>{content}</FilePreviewLayout.Content>
+      <FilePreviewLayout.Content scrollsInternally>{content}</FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )
 }

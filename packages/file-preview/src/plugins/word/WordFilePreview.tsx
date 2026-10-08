@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react'
@@ -71,18 +72,54 @@ export default function WordFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('WordFilePreview')
-  const { failDocument } = usePreviewHost()
+  const { options, failDocument } = usePreviewHost()
   const { t } = useTranslation()
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
+  const fitScrollTopRef = useRef<number | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
+  const [fitZoom, setFitZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
+  const [manualZoom, setManualZoom] = useState(false)
+  const [normalizeSymbolBullets] = useState(() => options?.docx?.normalizeSymbolBullets === true)
+  const fitWidth = options?.docx?.initialZoom === 'fit-width'
+  const minZoom = fitWidth ? Math.min(DOCX_PREVIEW_MIN_ZOOM, fitZoom) : DOCX_PREVIEW_MIN_ZOOM
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const body = bodyRef.current
+    if (!fitWidth || !container || !body || pageCount <= 0) return
+
+    const fit = () => {
+      const width = body.offsetWidth
+      if (container.clientWidth > 0 && width > 0) {
+        setFitZoom(Math.min(DOCX_PREVIEW_DEFAULT_ZOOM, container.clientWidth / width))
+      }
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(container)
+    observer.observe(body)
+    return () => observer.disconnect()
+  }, [fitWidth, pageCount])
+
+  useLayoutEffect(() => {
+    if (!fitWidth || manualZoom) return
+    const container = containerRef.current
+    if (zoom === fitZoom) {
+      if (container && fitScrollTopRef.current !== null) container.scrollTop = fitScrollTopRef.current
+      fitScrollTopRef.current = null
+      return
+    }
+    if (container) fitScrollTopRef.current = container.scrollTop * (fitZoom / zoom)
+    setZoom(fitZoom)
+  }, [fitWidth, fitZoom, manualZoom, zoom])
 
   const focusContainer = useCallback(() => {
     containerRef.current?.focus({ preventScroll: true })
@@ -104,22 +141,24 @@ export default function WordFilePreview({
 
   const zoomBy = useCallback(
     (direction: 'in' | 'out') => {
+      setManualZoom(true)
       setZoom((value) =>
         clamp(
           Number((value + (direction === 'in' ? DOCX_PREVIEW_ZOOM_STEP : -DOCX_PREVIEW_ZOOM_STEP)).toFixed(2)),
-          DOCX_PREVIEW_MIN_ZOOM,
+          minZoom,
           DOCX_PREVIEW_MAX_ZOOM
         )
       )
       focusContainer()
     },
-    [focusContainer]
+    [focusContainer, minZoom]
   )
 
   const resetZoom = useCallback(() => {
-    setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
+    setManualZoom(false)
+    if (!fitWidth) setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
     focusContainer()
-  }, [focusContainer])
+  }, [focusContainer, fitWidth])
 
   useEffect(() => {
     const bodyContainer = bodyRef.current
@@ -134,6 +173,9 @@ export default function WordFilePreview({
     setCurrentPage(0)
     setPageCount(0)
     setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
+    setFitZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
+    setManualZoom(false)
+    fitScrollTopRef.current = null
 
     const stagingHost = document.createElement('div')
     const stagingBody = document.createElement('div')
@@ -163,7 +205,8 @@ export default function WordFilePreview({
           renderFootnotes: true,
           renderEndnotes: true,
           useBase64URL: true,
-          renderAltChunks: false
+          renderAltChunks: false,
+          normalizeSymbolBullets
         })
         if (!isCurrent()) return
 
@@ -201,7 +244,7 @@ export default function WordFilePreview({
       styleContainer.innerHTML = ''
       stagingHost.remove()
     }
-  }, [sourceId, focusContainer, previewDocument, logger, failDocument, docxClassName])
+  }, [sourceId, focusContainer, previewDocument, logger, failDocument, docxClassName, normalizeSymbolBullets])
 
   useEffect(() => {
     const scrollRoot = containerRef.current
@@ -271,10 +314,11 @@ export default function WordFilePreview({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    return attachTouchPinch(container, (scaleFactor) =>
-      setZoom((value) => clamp(value * scaleFactor, DOCX_PREVIEW_MIN_ZOOM, DOCX_PREVIEW_MAX_ZOOM))
-    )
-  }, [])
+    return attachTouchPinch(container, (scaleFactor) => {
+      setManualZoom(true)
+      setZoom((value) => clamp(value * scaleFactor, minZoom, DOCX_PREVIEW_MAX_ZOOM))
+    })
+  }, [minZoom])
 
   const hasPages = !error && pageCount > 0
   const contentStyle = { zoom } as CSSProperties
@@ -287,19 +331,24 @@ export default function WordFilePreview({
         zoomLabel={formatDocxZoom(zoom)}
         canPreviousPage={hasPages && currentPage > 1}
         canNextPage={hasPages && currentPage < pageCount}
-        canZoomOut={hasPages && zoom > DOCX_PREVIEW_MIN_ZOOM}
+        canZoomOut={hasPages && zoom > minZoom}
         canZoomIn={hasPages && zoom < DOCX_PREVIEW_MAX_ZOOM}
-        canResetZoom={hasPages && zoom !== DOCX_PREVIEW_DEFAULT_ZOOM}
+        canResetZoom={hasPages && (fitWidth ? manualZoom : zoom !== DOCX_PREVIEW_DEFAULT_ZOOM)}
         onPreviousPage={() => jumpToPage(currentPage - 1)}
         onNextPage={() => jumpToPage(currentPage + 1)}
         onZoomOut={() => zoomBy('out')}
         onZoomIn={() => zoomBy('in')}
         onResetZoom={resetZoom}
       />
-      <FilePreviewLayout.Content>
+      <FilePreviewLayout.Content scrollsInternally>
         <div data-testid="word-file-preview" className="relative h-full min-h-0 w-full overflow-hidden bg-background">
           <div
             ref={containerRef}
+            style={
+              options?.bottomInset === 'content'
+                ? { paddingBottom: 'var(--file-preview-bottom-inset, 0px)' }
+                : undefined
+            }
             role="region"
             aria-label={fileName}
             className="absolute inset-0 touch-pan-x touch-pan-y overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"

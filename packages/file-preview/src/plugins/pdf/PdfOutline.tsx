@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export type PdfDestination = string | unknown[]
 
@@ -59,18 +60,22 @@ function PdfOutlineList({ items, onNavigate }: PdfOutlineListProps) {
 }
 
 interface PdfOutlineProps {
+  className?: string
   items: PdfOutlineItem[]
   onNavigate: (destination: PdfDestination) => void
   status: PdfOutlineStatus
 }
 
-export function PdfOutline({ items, onNavigate, status }: PdfOutlineProps) {
+export function PdfOutline({ className, items, onNavigate, status }: PdfOutlineProps) {
   const { t } = useTranslation()
 
   return (
     <nav
       aria-label={t('file_preview.pdf.outline.title')}
-      className="flex h-full w-64 shrink-0 flex-col border-border-subtle border-r bg-sidebar text-sidebar-foreground">
+      className={cn(
+        'flex h-full w-64 shrink-0 flex-col border-border-subtle border-r bg-sidebar text-sidebar-foreground',
+        className
+      )}>
       <h2 className="flex h-10 shrink-0 items-center border-border-subtle border-b px-3 font-medium text-sm">
         {t('file_preview.pdf.outline.title')}
       </h2>

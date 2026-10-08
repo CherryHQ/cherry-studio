@@ -23,7 +23,7 @@ import { createPreviewI18n } from './i18n'
 import { PreviewHostContext } from './previewContext'
 import type { PreviewSelection } from './selection'
 import { assertPreviewRange, type PreviewDocument, PreviewError, type PreviewSource } from './source'
-import type { PreviewDiagnostic, PreviewResources } from './types'
+import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
 
 export interface PreviewProps {
   source: PreviewSource
@@ -34,6 +34,7 @@ export interface PreviewProps {
   header?: ReactNode
   refreshKey?: number
   resources?: PreviewResources
+  options?: PreviewOptions
   onSelection?: (selection: PreviewSelection | null) => void
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onError?: (error: PreviewError) => void
@@ -81,6 +82,7 @@ function PreviewSession({
   style,
   refreshKey = 0,
   resources,
+  options,
   onSelection,
   onDiagnostic,
   onError,
@@ -114,11 +116,12 @@ function PreviewSession({
   const host = useMemo(
     () => ({
       resources,
+      options,
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
       failDocument
     }),
-    [resources, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
+    [resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
   )
   const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
   const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
@@ -207,7 +210,11 @@ function PreviewSession({
     <div
       ref={setRoot}
       data-file-preview-root=""
-      className={cn('file-preview-root h-full min-h-0 w-full', className)}
+      className={cn(
+        'file-preview-root h-full min-h-0 w-full',
+        options?.pdf?.outlineLayout === 'overlay' && 'relative',
+        className
+      )}
       style={style}>
       <PortalContainerProvider container={root}>
         <PreviewHostContext value={host}>

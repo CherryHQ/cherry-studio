@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
+import { usePreviewHost } from './previewContext'
+
 interface FilePreviewFrameProps {
   children: ReactNode
 }
@@ -18,14 +20,24 @@ function FilePreviewFrame({ children }: FilePreviewFrameProps) {
   )
 }
 
-function FilePreviewContent({ children, composerInset = true }: { children: ReactNode; composerInset?: boolean }) {
+function FilePreviewContent({
+  children,
+  composerInset = true,
+  scrollsInternally = false
+}: {
+  children: ReactNode
+  composerInset?: boolean
+  scrollsInternally?: boolean
+}) {
+  const { options } = usePreviewHost()
+  const reserveInset = composerInset && !(scrollsInternally && options?.bottomInset === 'content')
   return (
     // Leave room for a host's floating composer without reserving a scrollbar gutter.
     <Scrollbar
       data-testid="file-preview-content"
       className={cn(
         'min-h-0 flex-1 [scrollbar-gutter:auto]',
-        composerInset && 'pb-[var(--file-preview-bottom-inset,0px)]'
+        reserveInset && 'pb-[var(--file-preview-bottom-inset,0px)]'
       )}>
       {children}
     </Scrollbar>

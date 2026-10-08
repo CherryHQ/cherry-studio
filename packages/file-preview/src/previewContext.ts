@@ -1,9 +1,10 @@
 import { createContext, use, useMemo } from 'react'
 
-import type { PreviewDiagnostic, PreviewResources } from './types'
+import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
 
 export interface PreviewHost {
   resources?: PreviewResources
+  options?: PreviewOptions
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
   failDocument?: (error: unknown) => void

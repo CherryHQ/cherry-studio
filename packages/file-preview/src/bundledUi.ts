@@ -6,6 +6,7 @@ export {
 } from '@cherrystudio/ui/components/composites/image-preview/use-image-preview-transform'
 export { default as Scrollbar } from '@cherrystudio/ui/components/composites/scrollbar'
 export { Button } from '@cherrystudio/ui/components/primitives/button'
+export { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui/components/primitives/dialog'
 export { Input } from '@cherrystudio/ui/components/primitives/input'
 export { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 export { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui/components/primitives/tabs'
