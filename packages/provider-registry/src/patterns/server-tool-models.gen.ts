@@ -874,6 +874,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'grok-4-3',
         'grok-4-5',
         'grok-4-6',
+        'grok-4-7',
         'grok-4-fast'
       ]
     },
