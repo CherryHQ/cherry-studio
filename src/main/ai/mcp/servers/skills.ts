@@ -1,7 +1,6 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { net } from 'electron'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -11,36 +10,17 @@ const logger = loggerService.withContext('McpServer:Skills')
 
 const REQUEST_TIMEOUT_MS = 15_000
 
-const SEARCH_TOOL: Tool = {
-  name: 'search_skills',
-  description:
-    'Search supported skill marketplaces for installable skills by keyword, or resolve a GitHub SKILL.md URL the user gave you. Returns quality/source metadata, a review URL, and an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill, or points you at a skill on GitHub.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: {
-        type: 'string',
-        description:
-          'Keywords describing the capability, e.g. "react performance" or "pr review". A GitHub link to a skill\'s SKILL.md file resolves that one skill instead of searching — use it when the registries do not list what the user asked for.'
-      }
-    },
-    required: ['query']
-  }
-}
-
-const INSTALL_TOOL: Tool = {
-  name: 'install_skill',
-  description:
-    "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
-  inputSchema: {
-    type: 'object',
-    properties: {
-      install_source: {
-        type: 'string',
-        description: 'The exact `install_source` value from a search_skills result. Opaque — pass it verbatim.'
-      }
-    },
-    required: ['install_source']
+async function fetchMarketplaceJson(url: string): Promise<unknown> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
+    }
+    return response.json()
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -56,155 +36,104 @@ const INSTALL_TOOL: Tool = {
  * `SkillService.reconcileSkills` catalogs them. Install goes through the main process so a weak model
  * only needs one tool call, not a correct multi-step shell sequence.
  */
-class SkillsServer {
-  public mcpServer: McpServer
-  private agentId: string
-  private readonly issuedInstallSources = new Set<string>()
+export function createSkillsServer(agentId: string): McpServer {
+  const issuedInstallSources = new Set<string>()
+  const server = new McpServer({ name: 'skills', version: '1.0.0' })
 
-  constructor(agentId: string) {
-    this.agentId = agentId
-    this.mcpServer = new McpServer(
-      {
-        name: 'skills',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.setupHandlers()
-  }
-
-  private setupHandlers() {
-    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_TOOL, INSTALL_TOOL]
-    }))
-
-    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const toolName = request.params.name
-      const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
-
-      try {
-        switch (toolName) {
-          case 'search_skills':
-            return await this.searchSkills(args)
-          case 'install_skill':
-            return await this.installSkill(args)
-          default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${message}` }],
-          isError: true
-        }
-      }
-    })
-  }
-
-  private async searchSkills(args: Record<string, string | undefined>) {
-    const query = args.query
-    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search_skills")
-
-    // A GitHub SKILL.md URL already identifies exactly one skill, so the registries have nothing to
-    // add — and a skill they never indexed is only reachable this way.
-    const githubResult = buildGithubSkillResult(query)
-    const results = githubResult
-      ? [githubResult]
-      : await searchSkillMarketplaces(
-          query.replace(/[-_]+/g, ' ').trim(),
-          (url) => this.fetchMarketplaceJson(url),
-          (source, error) => {
+  server.registerTool(
+    'search_skills',
+    {
+      description:
+        'Search supported skill marketplaces for installable skills by keyword, or resolve a GitHub SKILL.md URL the user gave you. Returns quality/source metadata, a review URL, and an opaque `install_source` string you pass verbatim to install_skill. Use this when the user wants a capability that might already exist as a skill, or points you at a skill on GitHub.',
+      inputSchema: z.object({
+        query: z
+          .string()
+          .min(1)
+          .describe(
+            'Keywords describing the capability, e.g. "react performance" or "pr review". A GitHub link to a skill\'s SKILL.md file resolves that one skill instead of searching — use it when the registries do not list what the user asked for.'
+          )
+      })
+    },
+    async ({ query }) => {
+      // A GitHub SKILL.md URL already identifies exactly one skill, so the registries have nothing to
+      // add — and a skill they never indexed is only reachable this way.
+      const githubResult = buildGithubSkillResult(query)
+      const results = githubResult
+        ? [githubResult]
+        : await searchSkillMarketplaces(query.replace(/[-_]+/g, ' ').trim(), fetchMarketplaceJson, (source, error) => {
             logger.warn('Skill marketplace search source failed', {
-              agentId: this.agentId,
+              agentId,
               source,
               error: error instanceof Error ? error.message : String(error)
             })
-          }
-        )
+          })
 
-    if (results.length === 0) {
-      return { content: [{ type: 'text' as const, text: `No installable skills found for "${query}".` }] }
-    }
-
-    const view = results.map((r) => ({
-      name: r.name,
-      description: r.description,
-      author: r.author,
-      stars: r.stars,
-      installs: r.downloads,
-      source_registry: r.sourceRegistry,
-      source_url: r.sourceUrl,
-      install_source: r.installSource
-    }))
-    for (const result of results) {
-      this.issuedInstallSources.add(result.installSource)
-    }
-
-    logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: view.length })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nWhen the user asks to install one, pass its exact 'install_source' string to install_skill.`
-        }
-      ]
-    }
-  }
-
-  private async fetchMarketplaceJson(url: string): Promise<unknown> {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-    try {
-      const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
-      if (!response.ok) {
-        throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
+      if (results.length === 0) {
+        return { content: [{ type: 'text', text: `No installable skills found for "${query}".` }] }
       }
-      return response.json()
-    } finally {
-      clearTimeout(timer)
-    }
-  }
 
-  private async installSkill(args: Record<string, string | undefined>) {
-    const installSource = args.install_source
-    if (!installSource) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        "'install_source' is required — use the value from a search_skills result"
-      )
-    }
-    if (!this.issuedInstallSources.has(installSource)) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        "'install_source' was not returned by search_skills in this session; search again and use the exact result"
-      )
-    }
+      const view = results.map((r) => ({
+        name: r.name,
+        description: r.description,
+        author: r.author,
+        stars: r.stars,
+        installs: r.downloads,
+        source_registry: r.sourceRegistry,
+        source_url: r.sourceUrl,
+        install_source: r.installSource
+      }))
+      for (const result of results) {
+        issuedInstallSources.add(result.installSource)
+      }
 
-    // SkillService validates the source prefix and (for claude-plugins) resolves the exact directory,
-    // rejecting a path that escapes the clone root. The tool never builds the identifier itself.
-    const installed = await skillService.install({ installSource })
-    // Enable the freshly-installed skill for the CURRENT agent only; enablement is per-agent.
-    const enabled = skillService.toggle({
-      skillId: installed.id,
-      agentId: this.agentId,
-      isEnabled: true
-    })
-
-    logger.info('Skill installed via tool', { agentId: this.agentId, installSource, name: installed.name })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Skill installed${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
-        }
-      ]
+      logger.info('Skills search via tool', { agentId, query, resultCount: view.length })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Found ${view.length} installable skill(s) for "${query}":\n${JSON.stringify(view, null, 2)}\n\nWhen the user asks to install one, pass its exact 'install_source' string to install_skill.`
+          }
+        ]
+      }
     }
-  }
+  )
+
+  server.registerTool(
+    'install_skill',
+    {
+      description:
+        "Install ONE marketplace skill into Cherry Studio's managed library and enable it for the current agent. Pass the exact `install_source` string from a search_skills result — do NOT construct it yourself, and do NOT run `npx skills add`, `git clone`, or any shell command. Cherry clones the repo, installs just that single skill, and registers it. Call this only when the user intends to install the skill; the active Claude permission mode controls whether execution prompts or runs directly.",
+      inputSchema: z.object({
+        install_source: z
+          .string()
+          .min(1)
+          .describe('The exact `install_source` value from a search_skills result. Opaque — pass it verbatim.')
+      })
+    },
+    async ({ install_source: installSource }) => {
+      if (!issuedInstallSources.has(installSource)) {
+        throw new Error(
+          "'install_source' was not returned by search_skills in this session; search again and use the exact result"
+        )
+      }
+
+      // SkillService validates the source prefix and (for claude-plugins) resolves the exact directory,
+      // rejecting a path that escapes the clone root. The tool never builds the identifier itself.
+      const installed = await skillService.install({ installSource })
+      // Enable the freshly-installed skill for the CURRENT agent only; enablement is per-agent.
+      const enabled = skillService.toggle({ skillId: installed.id, agentId, isEnabled: true })
+
+      logger.info('Skill installed via tool', { agentId, installSource, name: installed.name })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Skill installed${enabled?.isEnabled ? ' and enabled for this agent' : ' (warning: failed to enable)'}:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
+          }
+        ]
+      }
+    }
+  )
+
+  return server
 }
-
-export default SkillsServer

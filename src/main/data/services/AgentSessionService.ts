@@ -1110,6 +1110,22 @@ export class AgentSessionService {
     })
   }
 
+  /**
+   * Restore the sessions trashed together with their agent inside the caller's
+   * transaction: `trashByAgentIdTx` stamps them with the agent's own `deletedAt`,
+   * so that timestamp scopes the operation. Individually archived sessions carry
+   * a different one and stay in the Recycle Bin.
+   */
+  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
+    return tx
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+      .map((row) => row.id)
+  }
+
   restore(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
 
