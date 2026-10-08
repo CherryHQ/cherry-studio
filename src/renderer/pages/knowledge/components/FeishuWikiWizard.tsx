@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Field,
   FieldLabel,
+  InfoTooltip,
   Input,
   Label,
   SegmentedControl
@@ -80,7 +81,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<ScopePreview | null>(null)
   const [createdCount, setCreatedCount] = useState(0)
-  const [policy, setPolicy] = useState<'manual' | 'daily'>('daily')
+  const [policy, setPolicy] = useState<'manual' | 'daily'>('manual')
   const [dailyTime, setDailyTime] = useState('09:00')
   const [authorization, setAuthorization] = useState<AuthorizationStart | null>(null)
   const [busy, setBusy] = useState(false)
@@ -691,8 +692,15 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                         ) : null}
                       </section>
                     ))}
-                    <div className="space-y-1.5">
-                      <Label id="feishu-sync-frequency">{t('knowledge.external.wizard.sync_frequency')}</Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Label id="feishu-sync-frequency">{t('knowledge.external.wizard.sync_frequency')}</Label>
+                        <InfoTooltip
+                          ariaLabel={t('knowledge.external.wizard.preview_cost_label')}
+                          content={t('knowledge.external.wizard.preview_exact_cost')}
+                          portalContainer={document.body}
+                        />
+                      </div>
                       <SegmentedControl<'manual' | 'daily'>
                         aria-labelledby="feishu-sync-frequency"
                         value={policy}
@@ -705,7 +713,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
                       />
                     </div>
                     {policy === 'daily' ? (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <Label htmlFor="feishu-daily-time">{t('knowledge.external.wizard.daily_time')}</Label>
                         <Input
                           id="feishu-daily-time"

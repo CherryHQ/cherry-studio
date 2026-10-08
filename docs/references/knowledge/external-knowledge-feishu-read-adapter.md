@@ -100,6 +100,10 @@ the summary and details agree. Expanding the wizard's initially collapsed docume
 and reason lists makes no additional provider request and never reads document
 bodies. The wizard hides the reasons entry when no items are skipped and retains
 the empty-scope warning when no documents can synchronize.
+An information icon beside the sync-frequency label opens a tooltip on hover or
+keyboard focus. It explains that synchronization with a paid model may incur
+charges based on the volume of document content and the model's pricing, without
+estimating an exact amount.
 
 The provider-neutral descriptor retains stable remote object identity, node and
 parent identity, relative breadcrumb, title, safe original URL, remote revision,
@@ -126,10 +130,10 @@ Source, rejects paused Sources and failed bases, and enqueues the same
 per-Source idempotency key coalesces repeated requests while a Job remains
 non-terminal.
 
-The create command defaults to manual-only scheduling. The wizard instead selects
-daily synchronization at 09:00 local time by default and applies that choice through
-the existing schedule-update command after creation. Users can select manual mode;
-if schedule setup fails, the Source remains manual-only and the wizard reports it.
+The create command and wizard default to manual-only scheduling. Users can select
+daily synchronization, initially set to 09:00 local time, and the wizard applies
+that choice through the existing schedule-update command after creation. If
+schedule setup fails, the Source remains manual-only and the wizard reports it.
 `knowledge.external_source.schedule.update`
 can attach one daily schedule with a local time and IANA timezone, update that
 schedule, or return the Source to manual-only mode. The Source owns provider-work

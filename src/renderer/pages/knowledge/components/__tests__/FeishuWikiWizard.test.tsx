@@ -472,18 +472,19 @@ describe('FeishuWikiWizard', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('creates a source with automatic daily sync enabled by default without waiting for sync', async () => {
+  it('creates a source with manual sync selected by default without adding a daily schedule', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     render(<FeishuWikiWizard open baseId="00000000-0000-4000-8000-000000000001" onOpenChange={onOpenChange} />)
 
     await reachReview(user)
+    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
+    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
     expect(screen.getByText('Documents to sync: 3')).toBeInTheDocument()
     expect(screen.getByText('Items to skip: 1')).toBeInTheDocument()
     expect(screen.getByText('Team handbook')).toBeVisible()
     expect(screen.queryByRole('textbox', { name: 'Source name' })).not.toBeInTheDocument()
     expect(screen.queryByText('4 visible nodes')).not.toBeInTheDocument()
-    expect(screen.queryByText('Embedding cost depends on the content fetched during sync.')).not.toBeInTheDocument()
     expect(screen.queryByText(/^Time zone:/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled()
@@ -497,12 +498,30 @@ describe('FeishuWikiWizard', () => {
       url,
       name: 'Team handbook'
     })
-    expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
-      sourceId: createdSource.id,
-      policy: { kind: 'daily', time: '09:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }
-    })
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.schedule.update', expect.anything())
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.sync', expect.anything())
     expect(mockInvalidate).toHaveBeenCalledWith('/knowledge-bases/:id/external-knowledge-sources')
+  })
+
+  it.each(['hover', 'keyboard focus'])('reveals synchronization costs through icon %s', async (interaction) => {
+    const user = userEvent.setup()
+    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
+    await reachReview(user)
+
+    const explanation =
+      "Syncing documents with a paid model may incur charges. The amount depends on the volume of document content and the model's pricing."
+    const costInfo = screen.getByRole('img', { name: 'Synchronization costs' })
+    expect(screen.queryByText(explanation)).not.toBeInTheDocument()
+
+    if (interaction === 'hover') {
+      await user.hover(costInfo)
+    } else {
+      await user.click(screen.getByRole('radio', { name: 'Manual' }))
+      await user.tab({ shift: true })
+      expect(costInfo).toHaveFocus()
+    }
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(explanation)
   })
 
   it('keeps preview details collapsed until the user expands documents or skipped reasons', async () => {
@@ -595,16 +614,20 @@ describe('FeishuWikiWizard', () => {
     expect(screen.getByText('This content type is not supported yet.')).toBeVisible()
   })
 
-  it('allows disabling the default automatic sync before creating a source', async () => {
+  it('allows enabling daily sync before creating a source', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
     await reachReview(user)
-    await user.click(screen.getByRole('radio', { name: 'Manual' }))
-    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
+    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+    expect(screen.getByLabelText('Daily sync time')).toHaveValue('09:00')
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.schedule.update', expect.anything())
+    expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
+      sourceId: createdSource.id,
+      policy: { kind: 'daily', time: '09:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }
+    })
   })
 
   it('keeps the URL step available when preview fails, then permits a retry', async () => {
@@ -664,6 +687,7 @@ describe('FeishuWikiWizard', () => {
     render(<FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />)
     await reachReview(user)
 
+    await user.click(screen.getByRole('radio', { name: 'Daily' }))
     expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
     const time = screen.getByLabelText('Daily sync time')
     await user.clear(time)
@@ -841,6 +865,8 @@ describe('FeishuWikiWizard', () => {
 
     expect(await screen.findByText('Project Wiki')).toBeVisible()
     expect(screen.getByText('Documents to sync: 5')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Manual' })).toBeChecked()
+    expect(screen.queryByLabelText('Daily sync time')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -854,6 +880,7 @@ describe('FeishuWikiWizard', () => {
       spaceId: space.spaceId,
       name: 'Project Wiki'
     })
+    expect(mockRequest).not.toHaveBeenCalledWith('knowledge.external_source.schedule.update', expect.anything())
   })
 
   it('creates selected Wikis with their original names and a shared sync frequency', async () => {
