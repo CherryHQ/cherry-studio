@@ -87,6 +87,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
     if (!toolName) return {}
+    application
+      .get('AgentSessionRuntimeService')
+      .recordToolTimingBoundary(sessionId, input.tool_use_id, toolName, undefined, input.agent_id)
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
@@ -125,6 +128,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
     if (decision.effect === 'deny') {
+      application
+        .get('AgentSessionRuntimeService')
+        .recordToolTimingBoundary(sessionId, input.tool_use_id, toolName, 'cancelled')
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
     return {
@@ -282,6 +288,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
+    application
+      .get('AgentSessionRuntimeService')
+      .recordToolTimingBoundary(
+        sessionId,
+        input.tool_use_id,
+        input.tool_name,
+        input.hook_event_name === 'PostToolUse' ? 'success' : input.is_interrupt ? 'cancelled' : 'failed'
+      )
     const event = input as unknown as Record<string, unknown>
     const toolCallId = event.tool_use_id
     const toolName = event.tool_name

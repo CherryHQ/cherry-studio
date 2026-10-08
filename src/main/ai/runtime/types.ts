@@ -50,6 +50,7 @@ export interface AiRuntimeDriver {
 }
 
 export interface AgentRuntimeTraceContext {
+  taskId?: string
   topicId: string
   traceId: string
   modelName?: string

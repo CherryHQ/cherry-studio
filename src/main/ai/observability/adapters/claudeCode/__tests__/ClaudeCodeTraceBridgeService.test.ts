@@ -295,12 +295,17 @@ describe('ClaudeCodeTraceBridgeService', () => {
     expect((service as any).server).toBeUndefined()
   })
 
-  it('does not prepare trace env when developer mode is disabled', async () => {
+  it('enables metadata tracing without content capture outside developer mode', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
     const service = new ClaudeCodeTraceBridgeService()
     await service._doInit()
 
-    await expect(service.prepareTrace(traceContext)).resolves.toBeUndefined()
-    expect((service as any).server).toBeUndefined()
+    await expect(service.prepareTrace(traceContext)).resolves.toMatchObject({
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOG_USER_PROMPTS: '0',
+      OTEL_LOG_TOOL_DETAILS: '0',
+      OTEL_LOG_TOOL_CONTENT: '0',
+      OTEL_LOG_RAW_API_BODIES: '0'
+    })
   })
 })

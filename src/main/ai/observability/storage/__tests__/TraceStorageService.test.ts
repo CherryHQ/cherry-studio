@@ -87,6 +87,40 @@ describe('TraceStorageService', () => {
     await fs.rm(traceDir, { recursive: true, force: true })
   })
 
+  it('persists metadata outside developer mode and strips later payload updates and events', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+    await service._doInit()
+    const topicId = 'agent-session:privacy'
+    const raw = span({
+      topicId,
+      traceId: 'privacy',
+      attributes: { 'cs.task_id': 'task', inputs: 'secret' },
+      events: [{ name: 'secret', time: [0, 0] }],
+      links: []
+    })
+    service.saveEntity(raw)
+    service.addSpanEvent('privacy', raw.id, timedEvent('secret'))
+    await service.saveSpans(topicId)
+    const records = await service.getSpans(topicId, 'privacy')
+    expect(records).toHaveLength(1)
+    expect(records[0].attributes).toEqual({ 'cs.task_id': 'task' })
+    expect(JSON.stringify(records)).not.toContain('secret')
+  })
+
+  it('keeps running nodes writable after an intermediate flush', async () => {
+    await service._doInit()
+    const topicId = 'agent-session:running'
+    service.setTopicId('running', topicId)
+    service.createSpan(readableSpan({ traceId: 'running', spanId: 'node', ended: false }))
+    await service.saveSpans(topicId)
+    expect((await service.getSpans(topicId, 'running'))[0].isEnd).toBe(false)
+    service.endSpan({ ...readableSpan({ traceId: 'running', spanId: 'node', ended: true }), duration: [1, 0] })
+    await service.saveSpans(topicId)
+    const records = await service.getSpans(topicId, 'running')
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({ isEnd: true, endTime: 2000, durationMs: 1000 })
+  })
+
   it('activates without touching the trace path', async () => {
     await service._doInit()
 

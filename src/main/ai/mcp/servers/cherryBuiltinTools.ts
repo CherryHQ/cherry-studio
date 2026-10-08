@@ -69,6 +69,7 @@ import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTo
 import { CherryCliTools } from './cherryCliTools'
 import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
+import { CherryTimingTools } from './cherryTimingTools'
 
 export type { CherryAgentContext }
 export type CherryBuiltinToolsContext = CherryAgentContext & CherryDocumentContext
@@ -226,6 +227,7 @@ export class CherryBuiltinToolsServer {
     const knowledge = new CherryKnowledgeTools(agentContext)
     const cli = new CherryCliTools()
     const documents = new CherryDocumentTools(agentContext)
+    const timing = new CherryTimingTools(agentContext.sessionId)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
@@ -233,11 +235,13 @@ export class CherryBuiltinToolsServer {
         ...knowledge.tools(),
         ...autonomy.tools(),
         ...cli.tools(),
-        ...documents.tools()
+        ...documents.tools(),
+        ...timing.tools()
       ]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
+      if (name === 'task_timing') return timing.call(request.params.arguments)
       if (cli.handles(name)) {
         return cli.call(name, request.params.arguments)
       }
