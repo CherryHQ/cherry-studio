@@ -24,7 +24,8 @@ export default defineProvider({
   },
   metadata: {
     website: {
-      apiKey: 'https://www.powertokens.ai/en/api-keys?utm_source=github&utm_medium=cherry-studio&utm_campaign=cherry-studio',
+      apiKey:
+        'https://www.powertokens.ai/en/api-keys?utm_source=github&utm_medium=cherry-studio&utm_campaign=cherry-studio',
       docs: 'https://docs.powertokens.ai?utm_source=github&utm_medium=cherry-studio&utm_campaign=cherry-studio',
       models: 'https://powertokens.ai/models?utm_source=github&utm_medium=cherry-studio&utm_campaign=cherry-studio',
       official: 'https://powertokens.ai?utm_source=github&utm_medium=cherry-studio&utm_campaign=cherry-studio'
