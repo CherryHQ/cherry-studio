@@ -27,6 +27,8 @@ const knowledgeService = {
   previewFeishuScope: vi.fn(),
   createExternalKnowledgeSource: vi.fn(),
   requestExternalKnowledgeSourceSync: vi.fn(),
+  updateExternalKnowledgeSourceSchedule: vi.fn(),
+  disconnectExternalKnowledgeSource: vi.fn(),
   createBase: vi.fn(),
   restoreBase: vi.fn(),
   deleteBase: vi.fn(),
@@ -102,6 +104,65 @@ describe('knowledgeHandlers', () => {
     ).resolves.toMatchObject({ id: externalSource.id, lastTrigger: 'manual' })
     expect(knowledgeService.createExternalKnowledgeSource).toHaveBeenCalledWith(createInput)
     expect(knowledgeService.requestExternalKnowledgeSourceSync).toHaveBeenCalledWith({ sourceId: externalSource.id })
+  })
+
+  it('routes daily/manual schedule updates and both disconnect modes through KnowledgeService', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+    const daily = { kind: 'daily' as const, time: '09:30', timezone: 'Asia/Shanghai' }
+    knowledgeService.updateExternalKnowledgeSourceSchedule.mockResolvedValue({
+      ...externalSource,
+      scheduleId: '01960000-0000-7000-8000-000000000012'
+    })
+    knowledgeService.disconnectExternalKnowledgeSource.mockResolvedValue(undefined)
+
+    await expect(
+      router.dispatch('knowledge.external_source.schedule.update', { sourceId: externalSource.id, policy: daily }, ctx)
+    ).resolves.toMatchObject({ id: externalSource.id, scheduleId: '01960000-0000-7000-8000-000000000012' })
+    await expect(
+      router.dispatch('knowledge.external_source.disconnect', { sourceId: externalSource.id, mode: 'keep-local' }, ctx)
+    ).resolves.toBeUndefined()
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.disconnect',
+        { sourceId: externalSource.id, mode: 'remove-local' },
+        ctx
+      )
+    ).resolves.toBeUndefined()
+
+    expect(knowledgeService.updateExternalKnowledgeSourceSchedule).toHaveBeenCalledWith({
+      sourceId: externalSource.id,
+      policy: daily
+    })
+    expect(knowledgeService.disconnectExternalKnowledgeSource).toHaveBeenNthCalledWith(1, {
+      sourceId: externalSource.id,
+      mode: 'keep-local'
+    })
+    expect(knowledgeService.disconnectExternalKnowledgeSource).toHaveBeenNthCalledWith(2, {
+      sourceId: externalSource.id,
+      mode: 'remove-local'
+    })
+  })
+
+  it('rejects arbitrary cron schedules and unknown disconnect modes at the IPC boundary', async () => {
+    const router = new IpcRouter(knowledgeRequestSchemas, knowledgeHandlers)
+
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.schedule.update',
+        { sourceId: externalSource.id, policy: { kind: 'cron', expression: '* * * * *' } },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+    await expect(
+      router.dispatch(
+        'knowledge.external_source.disconnect',
+        { sourceId: externalSource.id, mode: 'delete-remote' },
+        ctx
+      )
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+
+    expect(knowledgeService.updateExternalKnowledgeSourceSchedule).not.toHaveBeenCalled()
+    expect(knowledgeService.disconnectExternalKnowledgeSource).not.toHaveBeenCalled()
   })
 
   it('rejects renderer credentials, preview data, and provider payloads from source commands', async () => {

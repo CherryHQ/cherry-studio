@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { ExternalKnowledgeDocumentSchema, ExternalKnowledgeSourceSchema } from '../externalKnowledge'
+import {
+  ExternalKnowledgeDocumentSchema,
+  ExternalKnowledgeSchedulePolicySchema,
+  ExternalKnowledgeSourceSchema
+} from '../externalKnowledge'
 
 const SOURCE_ID = '0198f3f2-7d1a-7abc-8def-123456789ab1'
 const BASE_ID = '22222222-2222-4222-8222-222222222222'
@@ -80,6 +84,28 @@ describe('ExternalKnowledgeSourceSchema', () => {
     ).toBe(true)
     expect(ExternalKnowledgeSourceSchema.safeParse({ ...source, lastTrigger: 'hourly' }).success).toBe(false)
     expect(ExternalKnowledgeSourceSchema.safeParse({ ...source, lastOutcome: 'running' }).success).toBe(false)
+  })
+})
+
+describe('ExternalKnowledgeSchedulePolicySchema', () => {
+  it('accepts manual-only and strict daily wall-clock policies', () => {
+    expect(ExternalKnowledgeSchedulePolicySchema.parse({ kind: 'manual' })).toEqual({ kind: 'manual' })
+    expect(
+      ExternalKnowledgeSchedulePolicySchema.parse({ kind: 'daily', time: '09:05', timezone: 'Asia/Shanghai' })
+    ).toEqual({ kind: 'daily', time: '09:05', timezone: 'Asia/Shanghai' })
+  })
+
+  it.each(['9:05', '09:5', '24:00', '23:60', '09:05:00'])('rejects invalid daily time %s', (time) => {
+    expect(
+      ExternalKnowledgeSchedulePolicySchema.safeParse({ kind: 'daily', time, timezone: 'Asia/Shanghai' }).success
+    ).toBe(false)
+  })
+
+  it('rejects extra schedule modes and blank timezones', () => {
+    expect(ExternalKnowledgeSchedulePolicySchema.safeParse({ kind: 'interval', minutes: 30 }).success).toBe(false)
+    expect(
+      ExternalKnowledgeSchedulePolicySchema.safeParse({ kind: 'daily', time: '09:05', timezone: ' ' }).success
+    ).toBe(false)
   })
 })
 

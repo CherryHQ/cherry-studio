@@ -156,6 +156,20 @@ describe('ExternalKnowledgeDocumentService', () => {
     ).toEqual(['doc-1', 'doc-2'])
   })
 
+  it('lists only the knowledge items currently owned by a source for durable cleanup', () => {
+    seedOwnership()
+
+    expect(externalKnowledgeDocumentService.listOwnedKnowledgeItemIdsBySourceIdTx(dbh.db, SOURCE_ID)).toEqual([
+      FIRST_ITEM_ID
+    ])
+    expect(
+      externalKnowledgeDocumentService.listOwnedKnowledgeItemIdsBySourceIdTx(
+        dbh.db,
+        '0198f3f2-7d1a-7abc-8def-123456789aff'
+      )
+    ).toEqual([])
+  })
+
   it('returns only active ownership in one batch and ignores ownerless items', () => {
     seedOwnership()
 
