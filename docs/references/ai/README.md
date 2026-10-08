@@ -56,6 +56,12 @@ renderer-side transport that connects to them.
 | [Text Translation](./translation.md) | `translate.open` prompt streams, renderer-owned result handling, and Home `data-translation` persistence |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
+## Design research
+
+- [Unified Runtime and AI SDK v7](./unified-runtime/README.md) — research refreshed on 2026-10-04
+  against ai@7.0.127 and pinned upstream main; research conclusions, implementation plans and
+  acceptance boundaries for SDK controls, files, images, tools, media and Harness.
+
 ## Where the code lives
 
 > **Scope of the focused docs.** The reference documents in this folder map
