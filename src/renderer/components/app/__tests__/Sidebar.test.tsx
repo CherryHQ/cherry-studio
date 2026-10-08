@@ -63,6 +63,7 @@ vi.mock('../../Sidebar', () => ({
     isFloating = false,
     onEntriesReorder,
     onHoverChange,
+    actions,
     renderUserTrigger,
     user,
     userAction
@@ -77,6 +78,7 @@ vi.mock('../../Sidebar', () => ({
     isFloating?: boolean
     onEntriesReorder: (event: { oldIndex: number; newIndex: number }) => void
     onHoverChange?: (visible: boolean) => void
+    actions?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
     renderUserTrigger?: (trigger: ReactElement) => ReactElement
     user?: { name: string; onClick?: () => void }
     userAction?: ReactNode | ((layout: 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
@@ -87,11 +89,13 @@ vi.mock('../../Sidebar', () => ({
       </button>
     ) : null
     const accountTrigger = accountButton ? (renderUserTrigger?.(accountButton) ?? accountButton) : null
+    const resolvedActions = typeof actions === 'function' ? actions('full', vi.fn()) : actions
     const resolvedUserAction = typeof userAction === 'function' ? userAction('full', vi.fn()) : userAction
 
     return (
       <div data-testid={isFloating ? 'floating-sidebar' : 'docked-sidebar'} onMouseEnter={() => onHoverChange?.(true)}>
         <div data-testid="sidebar-footer-user">
+          {resolvedActions}
           {accountTrigger}
           {resolvedUserAction}
         </div>

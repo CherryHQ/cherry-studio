@@ -219,7 +219,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const sidebarProps = {
     entries,
     user: sidebarUser,
-    userAction: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <>
         <SidebarSettingsButton layout={footerLayout} />
         <HelpMenu
@@ -227,9 +227,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           onFeedbackClick={handleOpenFeedback}
           onOverlayOpenChange={onOverlayOpenChange}
         />
-        {layout === 'full' ? <AppUpdateButton placement="top" /> : null}
       </>
     ),
+    userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,
     renderUserTrigger: renderSidebarUserTrigger,
     onEntriesReorder: handleReorder
   }
