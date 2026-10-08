@@ -80,15 +80,15 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
-    route: '/settings/computer-use',
-    titleKey: 'settings.computerUse.title',
-    icon: createElement(MousePointer2),
-    groupKey: 'settings.menuGroups.capabilities'
-  },
-  {
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/computer-use',
+    titleKey: 'settings.computerUse.title',
+    icon: createElement(MousePointer2),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
