@@ -317,7 +317,12 @@ export function useGlobalSearchPanelData({
     })
   }, [contentSearchStateKey])
 
-  const { data, isLoading, error } = useQuery('/search/entities', {
+  const {
+    data,
+    isLoading,
+    isRefreshing: isEntitySearchRefreshing,
+    error
+  } = useQuery('/search/entities', {
     enabled: hasQuery && panelMode === 'search',
     query: searchQuery
   })
@@ -403,6 +408,11 @@ export function useGlobalSearchPanelData({
     hasMoreMessageResults,
     isLoading,
     isLoadingMoreMessageResults,
+    // In-flight signals for the aligned deferred query: while either is true the
+    // rendered results still belong to the previous query (entities keep previous
+    // data during revalidation; message state resets only after the render).
+    isEntitySearchRefreshing,
+    isMessageSearchFetching: isMessageSearchMode && (isContentSearchLoading || isContentSearchRefreshing),
     isMessageLoading,
     isMessageSearchMode,
     loadMoreMessageResults,

@@ -66,14 +66,14 @@ export type BinaryAvailability =
  * - `broken`   — the exact recipe has only inactive entries, no executable shim, or a shim that resolves outside the active entry's install.
  * - `absent`   — the exact recipe has no installed entries (and no live shim of its own).
  * - `conflict` — no exact entries, but a shim mise still resolves to a runnable target.
- * - `unknown`  — the mise backend was unavailable or its query failed/was malformed.
+ * - `unknown`  — the mise backend was unavailable or its query failed/was malformed; query failures carry a sanitized message.
  */
 export type BinaryApplication =
   | { status: 'applied'; version?: string }
   | { status: 'broken'; version?: string }
   | { status: 'absent' }
   | { status: 'conflict' }
-  | { status: 'unknown'; reason: 'backend_unavailable' | 'query_failed' }
+  | { status: 'unknown'; reason: 'backend_unavailable' | 'query_failed'; message?: string }
 
 /** Main-computed runtime facts for one binary. */
 export type BinaryToolSnapshot = {

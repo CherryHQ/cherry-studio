@@ -39,7 +39,7 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { skillService } from '@main/ai/skills/SkillService'
+import { SKILLS_PLUGIN_NAME, skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -93,6 +93,10 @@ const sessionState = () => application.get('ClaudeCodeSessionStateService')
 
 const OUT_OF_TURN_APPROVAL_DENIAL =
   'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
+
+// Claude has no cleanup-off value while transcript persistence remains enabled.
+// Cherry owns transcript retention through Agent Session purge and orphan reconciliation.
+const CLAUDE_SESSION_RETENTION_DAYS = 365_000
 
 /** Facade over {@link ClaudeCodeSessionStateService} — keeps the driver's historical import path. */
 export function disposeToolPolicySnapshot(sessionId: string): void {
@@ -172,32 +176,33 @@ export async function buildClaudeCodeSessionSettings(
   const notificationContext =
     options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
-  const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
+  const mountedServers = resolveMountedMcpServers(agent, {
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    channelLinked: linkedChannelSnapshot !== null
+  })
 
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
-  const [agentDataPath, env, workspacePlugins] = await Promise.all([
+  const [agentDataPath, env, workspacePlugins, skillSnapshot] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
-    discoverPlugins(cwd, agent.id)
+    discoverPlugins(cwd, agent.id),
+    capabilities.environment === 'sealed' ? undefined : skillService.prepareSnapshotForSession(agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
-  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
   const plugins =
     capabilities.environment === 'sealed'
       ? builtinPluginDirectory
         ? [localPlugin(builtinPluginDirectory)]
         : undefined
-      : needsPrivateSkillPlugin || builtinPluginDirectory
-        ? [
-            ...(workspacePlugins ?? []),
-            ...(needsPrivateSkillPlugin ? [localPlugin(skillService.getSkillPluginDirectory())] : []),
-            ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
-          ]
-        : workspacePlugins
+      : [
+          ...(workspacePlugins ?? []),
+          ...(skillSnapshot ? [localPlugin(skillSnapshot.pluginDirectory)] : []),
+          ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
+        ]
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -276,15 +281,15 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 8. Auto-approve allowlist for injected built-in MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+  // Newer models omit task tracking from the SDK's default tool surface.
+  const finalAllowedTools = [
+    ...['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList'].filter((name) => !disallowedTools.includes(name)),
+    ...adjustAllowedToolsForMcp(mountedServers, disallowedTools)
+  ]
 
-  // 9. Skills — prepare managed mirrors once before initial SDK settings materialization,
-  // then build the read-only whitelist also reused by live connection reconciliation.
-  const refreshedSkills =
-    resolveAgentCapabilities(agent).environment !== 'sealed'
-      ? await skillService.refreshMirrorsForSession(agent.id)
-      : undefined
-  const skills = await buildSkillWhitelist(agent, cwd, refreshedSkills)
+  // 9. Skills — initial settings use the same immutable snapshot that the plugin path exposes.
+  // Live connection reconciliation rebuilds only the read-only whitelist.
+  const skills = await buildSkillWhitelist(agent, cwd, skillSnapshot?.skills)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -312,6 +317,10 @@ export async function buildClaudeCodeSessionSettings(
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
+  // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
+  // every other value (including an unreadable preference), so nothing changes unless asked.
+  const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
+
   const settings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
@@ -323,12 +332,16 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
+      cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
       // Disable Claude Code's separate auto-memory store so the preset does not introduce a
       // second, conflicting memory contract.
       autoMemoryEnabled: false,
       ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
-      fastMode: options?.fastMode === true
+      fastMode: options?.fastMode === true,
+      // Left unset while attribution is on: the runtime then signs with its own default text,
+      // and an explicit `attribution` in the user's own Claude Code settings file still wins.
+      ...(hideCommitAttribution ? { attribution: { commit: '', pr: '' } } : {})
     },
     includePartialMessages: true,
     agentProgressSummaries: true,
@@ -373,18 +386,18 @@ export { buildMcpServers } from './mcpCatalog'
  * the sources below.
  *
  * `Options.skills` is a *filter over everything the SDK discovers* — both the
- * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
- * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ * immutable managed-skill plugin snapshot and the workspace's own
+ * `cwd/.claude/skills`. So the whitelist must list:
  *   - the agent's enabled managed skills, and
  *   - the workspace's project-local skills (omitting them would filter the
  *     user's own project skills out of their session).
  *
- * For other agents, we match by directory name (`folderName` for managed
- * skills and the `.claude/skills/<dir>` name for workspace skills), preserving
- * their existing discovery behavior.
+ * Managed names are plugin-qualified so a stale or user-authored skill with the
+ * same unqualified name cannot satisfy the filter. Workspace names remain keyed
+ * by their `.claude/skills/<dir>` directory.
  *
  * This builder is read-only because live connection reconciliation also calls it.
- * Initial settings materialization refreshes managed mirrors before calling here.
+ * Initial settings materialization passes the exact skills copied into its snapshot.
  */
 export async function buildSkillWhitelist(
   agent: Pick<AgentEntity, 'id' | 'configuration'>,
@@ -393,15 +406,47 @@ export async function buildSkillWhitelist(
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
-  if (resolveAgentCapabilities(agent).environment === 'sealed') {
-    return bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
+  let names = bundledNames.map((skill) => ({ name: skill, value: `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}` }))
+  if (resolveAgentCapabilities(agent).environment !== 'sealed') {
+    const [installedSkills, workspaceNames] = await Promise.all([
+      installedSkillsSnapshot ?? skillService.list({ agentId: agent.id }),
+      skillService.listLocalFolderNames(cwd)
+    ])
+    const enabledNames = installedSkills
+      .filter((skill) => skill.isEnabled)
+      .map((skill) => ({ name: skill.folderName, value: `${SKILLS_PLUGIN_NAME}:${skill.folderName}` }))
+    names = [
+      ...enabledNames,
+      ...workspaceNames.map((name) => ({ name, value: name })),
+      ...bundledNames.map((name) => ({ name, value: name }))
+    ]
   }
 
-  const installedSkills = installedSkillsSnapshot ?? (await skillService.list({ agentId: agent.id }))
-  const workspaceNames = await skillService.listLocalFolderNames(cwd)
-  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-
-  return Array.from(new Set([...enabledNames, ...workspaceNames, ...bundledNames]))
+  // The SDK validates the entire list before spawning; never rewrite a name into a different skill.
+  const seen = new Set<string>()
+  return names.flatMap(({ name, value }) => {
+    const valid =
+      name.length > 0 &&
+      name === name.trim() &&
+      name.isWellFormed() &&
+      !/[(),\p{Cc}]/u.test(name) &&
+      name !== '*' &&
+      !name.endsWith(':*') &&
+      !name.endsWith(' *') &&
+      !name.startsWith('/') &&
+      !name.includes('\\\\') &&
+      !name.endsWith('\\')
+    if (!valid) {
+      logger.warn('Skipping SDK-incompatible skill name; rename its directory to enable it', {
+        agentId: agent.id,
+        cwd,
+        skillName: name
+      })
+    }
+    if (!valid || seen.has(value)) return []
+    seen.add(value)
+    return [value]
+  })
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
@@ -497,7 +542,11 @@ async function buildToolPermissions(
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
-    if (toolName !== ASK_USER_QUESTION_TOOL_NAME && access?.approval === 'auto') {
+    if (
+      toolName !== ASK_USER_QUESTION_TOOL_NAME &&
+      !approvalHoldsInThisMode &&
+      (policy?.approval === 'auto' || access?.approval === 'auto')
+    ) {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -621,11 +670,15 @@ export async function buildSystemPrompt(
     effectiveLanguage
   })
 
-  // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.
+  // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.
   if (prompt.base.kind === 'native') {
-    return { type: 'preset', preset: 'claude_code', append: prompt.append }
+    return { type: 'preset', preset: 'claude_code', append: prompt.append, snapshot: false }
   }
-  return prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append
+  return {
+    type: 'custom',
+    prompt: prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append,
+    snapshot: false
+  }
 }
 
 /**

@@ -3,6 +3,10 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import { Server } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +15,8 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { BrowserSessionService } from '@main/features/browser'
+import type * as FileUtils from '@main/utils/file'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
@@ -35,13 +41,10 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
-  createAssistantServer: vi.fn(function () {
-    return { mcpServer: {} }
-  }),
   createAssistantFileToolsServer: vi.fn(function () {
     return { mcpServer: {} }
   }),
-  refreshSkillMirrorsForSession: vi.fn(),
+  prepareSkillSnapshotForSession: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -130,8 +133,9 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
+  SKILLS_PLUGIN_NAME: 'cherry-studio-skills',
   skillService: {
-    refreshMirrorsForSession: mocks.refreshSkillMirrorsForSession,
+    prepareSnapshotForSession: mocks.prepareSkillSnapshotForSession,
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
@@ -159,10 +163,8 @@ vi.mock('@main/ai/agents/prompt', () => ({
   })
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
-
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
-  AssistantFileToolsServer: mocks.createAssistantFileToolsServer
+  createAssistantFileToolsServer: mocks.createAssistantFileToolsServer
 }))
 
 vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
@@ -214,7 +216,8 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtils>()),
   getPathStatus: mocks.getPathStatus,
   isPathInside: (child: string, parent: string) => {
     const relative = path.relative(path.resolve(parent), path.resolve(child))
@@ -277,6 +280,26 @@ const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStat
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
 const sessionStateService = new ClaudeCodeSessionStateService()
+
+async function listCherryTools(settings: { mcpServers?: Record<string, unknown> }) {
+  const { instance } = settings.mcpServers!['cherry-tools'] as McpSdkServerConfigWithInstance
+  const client = await connectMcpTestClient(instance)
+  try {
+    return await client.listTools()
+  } finally {
+    await client.close()
+  }
+}
+
+async function listAssistantToolNames(settings: { mcpServers?: Record<string, unknown> }) {
+  const assistant = settings.mcpServers?.assistant as McpSdkServerConfigWithInstance
+  const client = await connectMcpTestClient(assistant.instance)
+  try {
+    return (await client.listTools()).tools.map((tool) => tool.name)
+  } finally {
+    await client.close()
+  }
+}
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -369,8 +392,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
-    mocks.refreshSkillMirrorsForSession.mockResolvedValue(undefined)
     mocks.listSkills.mockResolvedValue([])
+    mocks.prepareSkillSnapshotForSession.mockImplementation(async (agentId: string) => ({
+      skills: await mocks.listSkills({ agentId }),
+      pluginDirectory: '/app/feature.agents.claude.root/session-skill-snapshots/current'
+    }))
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
@@ -482,9 +508,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
-    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
+    expect(mocks.prepareSkillSnapshotForSession).toHaveBeenCalledWith('agent-1')
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
-    expect(mocks.refreshSkillMirrorsForSession.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.prepareSkillSnapshotForSession.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.listSkills.mock.invocationCallOrder[0]
     )
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
@@ -503,10 +529,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
-  it('uses the mirror refresh snapshot for the SDK whitelist', async () => {
-    mocks.refreshSkillMirrorsForSession.mockResolvedValue([
-      { id: 'fresh', folderName: 'fresh', isEnabled: true } as never
-    ])
+  it('uses the immutable plugin snapshot for the SDK whitelist', async () => {
+    mocks.prepareSkillSnapshotForSession.mockResolvedValue({
+      skills: [{ id: 'fresh', folderName: 'fresh', isEnabled: true } as never],
+      pluginDirectory: '/snapshots/fresh'
+    })
     mocks.listSkills.mockResolvedValue([{ id: 'stale', folderName: 'stale', isEnabled: true }])
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -518,20 +545,87 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(settings.skills).toEqual(['fresh'])
-    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
+    expect(settings.skills).toEqual(['cherry-studio-skills:fresh'])
+    expect(settings.plugins).toContainEqual({ type: 'local', path: '/snapshots/fresh', skipMcpDiscovery: true })
+    expect(mocks.prepareSkillSnapshotForSession).toHaveBeenCalledWith('agent-1')
     expect(mocks.listSkills).not.toHaveBeenCalled()
   })
 
-  it('rebuilds the SDK skill whitelist without refreshing managed mirrors', async () => {
+  it('does not whitelist a managed skill omitted from the prepared snapshot', async () => {
+    mocks.prepareSkillSnapshotForSession.mockResolvedValue({
+      skills: [],
+      pluginDirectory: '/snapshots/without-failed-skill'
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'failed', folderName: 'failed', isEnabled: true }])
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      { id: 'anthropic', apiHost: 'https://api.anthropic.com' } as never,
+      {}
+    )
+
+    expect(settings.skills).toEqual([])
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/snapshots/without-failed-skill',
+      skipMcpDiscovery: true
+    })
+    expect(mocks.listSkills).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds the SDK skill whitelist without preparing another snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
 
     await expect(buildSkillWhitelist({ id: 'agent-1', configuration: {} }, '/workspace/project')).resolves.toEqual([
-      'pdf'
+      'cherry-studio-skills:pdf'
     ])
 
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
-    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
+    expect(mocks.prepareSkillSnapshotForSession).not.toHaveBeenCalled()
+  })
+
+  it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
+  })
+
+  it('only overrides commit attribution when the preference explicitly turns it off', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    // Route the shared preference mock in so the shipping default decides the first assertion.
+    // The pane browser stays off to match the stub every neighbouring test builds against.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? MockMainPreferenceServiceExport.preferenceService : priorGet(name)
+    )
+
+    try {
+      const attributed = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(attributed.settings).not.toHaveProperty('attribution')
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', false)
+      const hidden = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(hidden.settings).toMatchObject({ attribution: { commit: '', pr: '' } })
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', true)
+    }
   })
 
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
@@ -842,14 +936,64 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    await buildClaudeCodeSessionSettings(
+    mocks.createMcpBridgeServer.mockImplementation(
+      () => new Server({ name: 'bridge', version: '1' }, { capabilities: { tools: {} } })
+    )
+    const settings = await buildClaudeCodeSessionSettings(
       session as never,
       {} as never,
       { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
       agent as never
     )
+    // Bridges are built per connection, so connect once to materialize it.
+    const { instance } = settings.mcpServers!['mcp-1'] as McpSdkServerConfigWithInstance
+    await (await connectMcpTestClient(instance)).close()
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
+      interactionContext: expect.objectContaining({
+        topicId: 'agent-session:session-1',
+        model: 'anthropic::claude-sonnet'
+      })
+    })
+  })
+
+  it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {
+    const service = new BrowserSessionService()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'BrowserSessionService'
+        ? service
+        : name === 'PreferenceService'
+          ? MockMainPreferenceServiceExport.preferenceService
+          : priorGet(name)
+    )
+    const agent = { ...mocks.getAgent(), mcps: ['legacy-browser', 'remote-browser'] }
+    const snapshot = new Map([
+      ['legacy-browser', { id: 'legacy-browser', name: '@cherry/browser', type: 'inMemory' }],
+      [
+        'remote-browser',
+        { id: 'remote-browser', name: '@cherry/browser', type: 'streamableHttp', baseUrl: 'https://example.com/mcp' }
+      ]
+    ])
+    mocks.findByIdOrName.mockReturnValue({ id: 'legacy-browser', name: 'edited', type: 'stdio' })
+    try {
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never,
+        { mcpServerSnapshots: snapshot as never },
+        agent
+      )
+      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
+      expect(settings.mcpServers?.['remote-browser']).toBeDefined()
+      expect(settings.allowedTools).toEqual(
+        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
+      )
+      expect(settings.allowedTools).not.toContain('mcp__browser__*')
+    } finally {
+      await service._doStop()
+    }
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {
@@ -884,10 +1028,67 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.skills).toEqual(['pdf-tools', 'my-project-skill'])
+    expect(settings.skills).toEqual(['cherry-studio-skills:pdf-tools', 'my-project-skill'])
     expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
     expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
+  it('keeps Task management available on newer models while leaving TodoWrite disabled', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList']))
+    expect(settings.allowedTools).not.toContain('TodoWrite')
+    expect(settings.disallowedTools).toContain('TodoWrite')
+  })
+
+  it('skips SDK-incompatible skill names without renaming or dropping valid skills', async () => {
+    const invalidNames = [
+      '',
+      ' padded',
+      'trailing ',
+      'bad(name)',
+      'bad,name',
+      'bad\nname',
+      'bad\u007fname',
+      '*',
+      'plugin:*',
+      'name *',
+      '/name',
+      'bad\\\\name',
+      'name\\',
+      '\ud800'
+    ]
+    const validNames = ['pdf-tools', 'my skill', '技能', 'plugin:skill', 'emoji-😀']
+    mocks.listSkills.mockResolvedValue([
+      { folderName: 'managed,bad', isEnabled: true },
+      { folderName: 'managed-good', isEnabled: true },
+      { folderName: 'disabled', isEnabled: false }
+    ])
+    mocks.listLocalSkillFolderNames.mockResolvedValue([...invalidNames, ...validNames, 'managed-good'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['cherry-studio-skills:managed-good', ...validNames, 'managed-good'])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping'),
+      expect.objectContaining({ agentId: 'agent-1', cwd: '/workspace/project', skillName: 'managed,bad' })
+    )
+  })
+
+  it('keeps an empty skill whitelist when every discovered name is incompatible', async () => {
+    mocks.listLocalSkillFolderNames.mockResolvedValue(['bad(name)', '*'])
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual([])
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
@@ -2396,7 +2597,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settingSources).toEqual(['user', 'project', 'local'])
     expect(settings.plugins).toContainEqual({
       type: 'local',
-      path: '/app/feature.agents.claude.root',
+      path: '/app/feature.agents.claude.root/session-skill-snapshots/current',
       skipMcpDiscovery: true
     })
     expect(settings.plugins).toContainEqual({
@@ -2404,7 +2605,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       path: '/app/feature.agents.builtin/cherry-assistant/.claude',
       skipMcpDiscovery: true
     })
-    expect(settings.skills).toEqual(expect.arrayContaining(['system-skill', 'cherry-assistant-guide', 'faq-collector']))
+    expect(settings.skills).toEqual(
+      expect.arrayContaining(['cherry-studio-skills:system-skill', 'cherry-assistant-guide', 'faq-collector'])
+    )
     expect(settings.mcpServers?.skills).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__skills__search_skills')
   })
@@ -2459,12 +2662,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     ])
     expect(settings.settingSources).toEqual([])
-    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
+    expect(mocks.prepareSkillSnapshotForSession).not.toHaveBeenCalled()
     expect(mocks.listSkills).not.toHaveBeenCalled()
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+    expect(await listAssistantToolNames(settings)).toEqual([
       'navigate',
       'diagnose',
       'product_info',
@@ -2496,6 +2699,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // Only read-only Assistant tools are pre-approved. Mutations and diagnose use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant__prepare_diagnostic_report')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
     expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
@@ -2507,6 +2711,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__prepare_diagnostic_report')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
@@ -2514,15 +2719,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.arrayContaining(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
     )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', undefined)
-    expect(mocks.createAssistantFileToolsServer).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      workspacePath: '/workspace/project'
-    })
+    expect(await listAssistantToolNames(settings)).toContain('create_agent')
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
     )
@@ -2537,9 +2736,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
 
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['cli_list', 'cli_search', 'cli_install'])
@@ -2592,11 +2789,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       notificationContext
     })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toContain('notify')
     expect(mocks.getTurnTrustedNotifyChannels).not.toHaveBeenCalled()
   })
@@ -2670,7 +2863,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+    expect(await listAssistantToolNames(settings)).toEqual([
       'navigate',
       'diagnose',
       'product_info',
@@ -2692,11 +2885,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never)
     ).resolves.toMatchObject({ behavior: 'allow' })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
@@ -3278,7 +3467,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.settingSources).toEqual(['project', 'local'])
     })
 
-    it('loads the private skill mirror as a local plugin only for external CLI sessions', async () => {
+    it('loads the immutable skill snapshot as a local plugin for external CLI sessions', async () => {
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
         { id: 'claude-code', authMethods: ['external-cli'] } as never
@@ -3286,7 +3475,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(settings.plugins).toContainEqual({
         type: 'local',
-        path: '/app/feature.agents.claude.root',
+        path: '/app/feature.agents.claude.root/session-skill-snapshots/current',
         skipMcpDiscovery: true
       })
     })
@@ -3391,7 +3580,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 
       expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
-      expect(settings.plugins).toBeUndefined()
+      expect(settings.plugins).toEqual([
+        {
+          type: 'local',
+          path: '/app/feature.agents.claude.root/session-skill-snapshots/current',
+          skipMcpDiscovery: true
+        }
+      ])
     })
   })
 

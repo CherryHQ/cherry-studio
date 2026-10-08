@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -9,44 +9,66 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { decodeTextBufferIfText, isOutsidePath, isPathInside, openReadableFileSnapshot } from '@main/utils/file'
+import { runPathMutationExclusive } from '@main/services/file'
+import { isPathInside } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
-  SkillFileNode,
   SkillImportSystemOptions,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,
   SkillInstallOptions,
+  SkillRemoteUpdateCheck,
   SkillToggleOptions,
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
+import {
+  hasSkillRemoteUpdateProvenance,
+  isSkillDirectoryContentHash,
+  parseSkillSourceUrl
+} from '@shared/utils/skillMarketplace'
 
-import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
+import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
-import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
+import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
-const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
+export const SKILLS_PLUGIN_NAME = 'cherry-studio-skills'
+const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: SKILLS_PLUGIN_NAME }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+export interface SessionSkillSnapshot {
+  skills: InstalledSkill[]
+  pluginDirectory: string
+}
+
+type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
+
+export class SkillRemoteUpdateError extends Error {
+  constructor(
+    readonly code: SkillRemoteUpdateErrorCode,
+    message: string
+  ) {
+    super(message)
+    this.name = 'SkillRemoteUpdateError'
+  }
+}
 
 /**
  * Skill management service.
  *
  * Skills are stored in `{dataPath}/Skills/{folderName}/` — the app-owned canonical
- * library. They are mirrored into `CLAUDE_CONFIG_DIR/skills` (where the Claude Agent
- * SDK discovers them) at install / uninstall / startup reconcile — see `linkMirror` /
- * `reconcileSkills`. Initial session preparation explicitly refreshes enabled mirror
- * entries from the canonical library under the same mutation lock.
+ * library. Initial session preparation copies enabled skills into an immutable,
+ * content-addressed plugin snapshot so a running SDK session never reads a shared
+ * mirror while another session refreshes it.
  *
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
@@ -58,6 +80,9 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  // Once the first immutable session snapshot exists, the legacy shared mirror stays empty so
+  // Claude's user setting source cannot discover stale duplicates alongside the snapshot plugin.
+  private sessionSnapshotsActive = false
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -82,14 +107,11 @@ export class SkillService {
     return agentGlobalSkillService.list(query)
   }
 
-  /** Refresh an agent's enabled Claude mirror entries before its session starts. */
-  async refreshMirrorsForSession(agentId: string): Promise<InstalledSkill[]> {
+  /** Build an immutable plugin snapshot of an agent's enabled skills before launch. */
+  async prepareSnapshotForSession(agentId: string): Promise<SessionSkillSnapshot> {
     return this.mutationLock.runExclusive(async () => {
       const skills = await this.list({ agentId })
-      for (const skill of skills) {
-        if (skill.isEnabled) await this.linkMirror(skill.folderName)
-      }
-      return skills
+      return this.createSessionSkillSnapshot(skills.filter((skill) => skill.isEnabled))
     })
   }
 
@@ -108,49 +130,6 @@ export class SkillService {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
-  }
-
-  async readFile(skillId: string, filename: string): Promise<string | null> {
-    const skill = agentGlobalSkillService.getById(skillId)
-    if (!skill) return null
-
-    const skillRoot = this.getMirrorPath(skill.folderName)
-    const filePath = path.resolve(skillRoot, filename)
-
-    // Prevent path traversal
-    if (!filePath.startsWith(skillRoot + path.sep) && filePath !== skillRoot) return null
-
-    try {
-      const [realRoot, realFile] = await Promise.all([fs.promises.realpath(skillRoot), fs.promises.realpath(filePath)])
-      if (isOutsidePath(path.relative(realRoot, realFile))) return null
-
-      const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(realFile))
-      try {
-        if (snapshot.size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return null
-
-        const chunks: Buffer[] = []
-        for await (const chunk of snapshot.createReadStream()) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-        }
-        return decodeTextBufferIfText(Buffer.concat(chunks, snapshot.size))
-      } finally {
-        await snapshot.close()
-      }
-    } catch {
-      return null
-    }
-  }
-
-  async listFiles(skillId: string): Promise<SkillFileNode[]> {
-    const skill = agentGlobalSkillService.getById(skillId)
-    if (!skill) return []
-
-    const skillRoot = this.getMirrorPath(skill.folderName)
-    try {
-      return await buildFileTree(skillRoot, skillRoot)
-    } catch {
-      return []
-    }
   }
 
   async uninstallByFolderName(folderName: string): Promise<void> {
@@ -176,7 +155,13 @@ export class SkillService {
 
   /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
-    return this.getSkillStoragePath(skill.folderName)
+    const rootPath = path.resolve(application.getPath('feature.agents.skills'))
+    const skillPath = path.resolve(rootPath, skill.folderName)
+    const relativePath = path.relative(rootPath, skillPath)
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error(`Invalid managed Skill folder: ${skill.folderName}`)
+    }
+    return skillPath
   }
 
   /** Classify only registered skills, following symlinks rather than import provenance. */
@@ -269,6 +254,7 @@ export class SkillService {
     try {
       await extractZip(canonicalZipPath, tempDir)
       const skillDir = await resolveSkillDirectory(tempDir, null, null)
+      await assertSkillDirectoryWithinLimits(skillDir)
       return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
       await safeRemoveDirectory(tempDir)
@@ -534,13 +520,12 @@ export class SkillService {
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
     if (existing) {
-      // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
-      // existing folder in place. Anything else — a marketplace install colliding with a builtin,
-      // system, local, or different-origin skill of the same folder name — is a conflict, not a
-      // silent replace: overwriting would clobber the files while the DB row keeps the old source
-      // (e.g. a third-party `skill-creator` replacing the builtin, which then stays
-      // enabled-for-all-agents), or irrecoverably destroy the user's own local skill.
-      const sameOrigin = existing.source === source && (existing.sourceUrl ?? null) === (sourceUrl ?? null)
+      // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
+      // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
+      const sameOrigin =
+        existing.source === source &&
+        ((existing.sourceUrl ?? null) === (sourceUrl ?? null) ||
+          this.isLegacySkillsShReinstall(existing, sourceUrl, folderName))
       if (!sameOrigin) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -583,6 +568,7 @@ export class SkillService {
           version: metadata.version ?? null,
           tags,
           contentHash,
+          ...(source === 'marketplace' ? { sourceUrl } : {}),
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
       })
@@ -669,8 +655,110 @@ export class SkillService {
     await fs.promises.writeFile(path.join(manifestDirectory, 'plugin.json'), SKILLS_PLUGIN_MANIFEST, 'utf-8')
   }
 
+  private async createSessionSkillSnapshot(skills: InstalledSkill[]): Promise<SessionSkillSnapshot> {
+    const snapshotsRoot = path.join(this.getSkillPluginDirectory(), 'session-skill-snapshots')
+    if (!this.sessionSnapshotsActive) {
+      await Promise.all([
+        fs.promises.rm(this.getMirrorRoot(), { recursive: true, force: true }),
+        fs.promises.rm(snapshotsRoot, { recursive: true, force: true })
+      ])
+      this.sessionSnapshotsActive = true
+    }
+
+    await fs.promises.mkdir(snapshotsRoot, { recursive: true })
+    const stagingDirectory = path.join(snapshotsRoot, `.staging-${randomUUID()}`)
+    const stagingSkillsDirectory = path.join(stagingDirectory, 'skills')
+    const preparedSkills: InstalledSkill[] = []
+    const fingerprints: string[] = []
+
+    try {
+      await fs.promises.mkdir(path.join(stagingDirectory, '.claude-plugin'), { recursive: true })
+      await fs.promises.mkdir(stagingSkillsDirectory, { recursive: true })
+      await fs.promises.writeFile(
+        path.join(stagingDirectory, '.claude-plugin', 'plugin.json'),
+        SKILLS_PLUGIN_MANIFEST,
+        'utf-8'
+      )
+
+      const groups = new Map<string, InstalledSkill[]>()
+      for (const skill of skills) {
+        const key = normalizeFolderKey(skill.folderName)
+        const group = groups.get(key)
+        if (group) group.push(skill)
+        else groups.set(key, [skill])
+      }
+
+      for (const group of groups.values()) {
+        if (group.length !== 1) {
+          logger.warn('Skipping case-ambiguous skills in session snapshot', {
+            folderNames: group.map((skill) => skill.folderName)
+          })
+          continue
+        }
+
+        const skill = group[0]
+        const sourceDirectory = this.getSkillStoragePath(skill.folderName)
+        const snapshotDirectory = path.join(stagingSkillsDirectory, skill.folderName)
+        try {
+          const descriptor = await this.readSkillMdState(sourceDirectory)
+          if (descriptor.status !== 'found') {
+            logger.warn('Skipping unavailable skill in session snapshot', {
+              folderName: skill.folderName,
+              status: descriptor.status
+            })
+            continue
+          }
+          if (skill.source === 'builtin') {
+            const actualHash = await this.computeBuiltinDirectoryHash(sourceDirectory)
+            if (actualHash !== skill.contentHash) {
+              logger.warn('Skipping modified built-in skill in session snapshot', { folderName: skill.folderName })
+              continue
+            }
+          }
+
+          const sourceHash = await this.installer.computeContentHash(sourceDirectory)
+          await fs.promises.cp(sourceDirectory, snapshotDirectory, { recursive: true, force: true })
+          const snapshotHash = await this.installer.computeContentHash(snapshotDirectory)
+          if (snapshotHash !== sourceHash) {
+            await fs.promises.rm(snapshotDirectory, { recursive: true, force: true })
+            logger.warn('Skipping skill changed while preparing session snapshot', { folderName: skill.folderName })
+            continue
+          }
+
+          preparedSkills.push(skill)
+          fingerprints.push(`${normalizeFolderKey(skill.folderName)}\0${snapshotHash}`)
+        } catch (error) {
+          await fs.promises.rm(snapshotDirectory, { recursive: true, force: true })
+          logger.warn('Failed to copy skill into session snapshot; skipping it', {
+            folderName: skill.folderName,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+
+      const snapshotId = createHash('sha256').update(fingerprints.sort().join('\0')).digest('hex')
+      const pluginDirectory = path.join(snapshotsRoot, snapshotId)
+      if (!(await directoryExists(pluginDirectory))) {
+        try {
+          await fs.promises.rename(stagingDirectory, pluginDirectory)
+        } catch (error) {
+          if (!(await directoryExists(pluginDirectory))) throw error
+        }
+      }
+
+      return { skills: preparedSkills, pluginDirectory }
+    } finally {
+      await fs.promises.rm(stagingDirectory, { recursive: true, force: true })
+    }
+  }
+
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string): Promise<void> {
+  async linkMirror(folderName: string, options: { throwOnError?: boolean } = {}): Promise<void> {
+    if (this.sessionSnapshotsActive) {
+      await this.unlinkMirror(folderName)
+      return
+    }
+
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -752,6 +840,7 @@ export class SkillService {
       }
     } catch (error) {
       logger.warn('Failed to mirror skill to Claude config', { folderName, sourceDir, targetDir, error })
+      if (options.throwOnError) throw error
     }
   }
 
@@ -805,12 +894,243 @@ export class SkillService {
     return this.reconcileInFlight
   }
 
+  async reconcileSkill(skillId: string): Promise<void> {
+    await this.mutationLock.runExclusive(() => this.reconcileSkillLocked(skillId))
+  }
+
+  private async reconcileSkillLocked(skillId: string): Promise<void> {
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source === 'builtin') throw new Error(`Built-in Skill is read-only: ${skill.folderName}`)
+
+    const skillDir = this.getSkillStoragePath(skill.folderName)
+    let stats: fs.Stats
+    try {
+      stats = await fs.promises.lstat(skillDir)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      agentGlobalSkillService.deleteById(skillId)
+      await this.unlinkMirror(skill.folderName)
+      agentGlobalSkillService.notifySkillMembershipChange(skillId)
+      logger.info('Pruned missing Skill during scoped reconcile', { skillId, folderName: skill.folderName })
+      return
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error(`Managed Skill path is not a directory: ${skill.folderName}`)
+    }
+
+    await this.normalizeSkillMdCasing(skillDir)
+    const descriptor = await this.readSkillMdState(skillDir)
+    if (descriptor.status !== 'found') {
+      await this.unlinkMirror(skill.folderName)
+      throw new Error(`Skill descriptor is ${descriptor.status}: ${skill.folderName}`)
+    }
+
+    let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+    try {
+      metadata = await parseSkillMetadata(skillDir, skill.folderName, 'skills')
+    } catch (error) {
+      await this.unlinkMirror(skill.folderName)
+      throw error
+    }
+
+    await this.linkMirror(skill.folderName, { throwOnError: true })
+    if (this.hasMetadataChanges(skill, metadata)) {
+      agentGlobalSkillService.update(skillId, {
+        name: metadata.name,
+        description: metadata.description ?? null,
+        author: metadata.author ?? null,
+        version: metadata.version ?? null,
+        tags: metadata.tags ?? []
+      })
+      agentGlobalSkillService.notifySkillProjectionChange(skillId)
+    }
+    logger.info('Scoped Skill reconcile completed', { skillId, folderName: skill.folderName })
+  }
+
+  async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
+    const skill = agentGlobalSkillService.getById(skillId)
+    if (!skill) throw new Error(`Skill not found: ${skillId}`)
+    if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
+    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+      return { state: 'unsupported', reason: 'missing_provenance' }
+    }
+
+    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    try {
+      const [currentHash, remoteHash, metadata] = await Promise.all([
+        this.installer.computeContentHash(this.getSkillStoragePath(skill.folderName)),
+        this.installer.computeContentHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
+      ])
+      const localChanges = currentHash !== skill.contentHash
+      if (remoteHash === skill.contentHash) {
+        return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
+      }
+      return {
+        state: 'available',
+        localChanges,
+        remoteVersion: metadata.version ?? null,
+        revision: this.createRemoteRevision({
+          skillId,
+          sourceUrl: skill.sourceUrl!,
+          baselineHash: skill.contentHash,
+          currentHash,
+          remoteHash
+        })
+      }
+    } finally {
+      await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  async applyRemoteUpdate(options: {
+    skillId: string
+    revision: string
+    overwriteLocalChanges: boolean
+  }): Promise<InstalledSkill> {
+    const skill = agentGlobalSkillService.getById(options.skillId)
+    if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
+    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
+    }
+
+    const fetched = await this.fetchRemote(skill.sourceUrl!)
+    try {
+      const [remoteHash, metadata] = await Promise.all([
+        this.installer.computeContentHash(fetched.skillDir),
+        parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
+      ])
+
+      return await this.mutationLock.runExclusive(() =>
+        runPathMutationExclusive(async () => {
+          const currentSkill = agentGlobalSkillService.getById(options.skillId)
+          if (
+            !currentSkill ||
+            !this.hasSupportedRemoteUpdateProvenance(currentSkill) ||
+            currentSkill.sourceUrl !== skill.sourceUrl ||
+            currentSkill.contentHash !== skill.contentHash
+          ) {
+            throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update provenance changed')
+          }
+
+          const destination = this.getSkillStoragePath(currentSkill.folderName)
+          const currentHash = await this.installer.computeContentHash(destination)
+          const revision = this.createRemoteRevision({
+            skillId: options.skillId,
+            sourceUrl: currentSkill.sourceUrl!,
+            baselineHash: currentSkill.contentHash,
+            currentHash,
+            remoteHash
+          })
+          if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
+            throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+          }
+
+          const hasLocalChanges = currentHash !== currentSkill.contentHash
+          if (hasLocalChanges && !options.overwriteLocalChanges) {
+            throw new SkillRemoteUpdateError(
+              skillErrorCodes.REMOTE_LOCAL_CHANGES,
+              'Skill has local changes that require explicit overwrite'
+            )
+          }
+
+          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
+          let databaseUpdated = false
+          try {
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true })
+            application.get('DbService').withWriteTx((tx) => {
+              agentGlobalSkillService.updateTx(tx, options.skillId, {
+                name: metadata.name,
+                description: metadata.description ?? null,
+                author: metadata.author ?? null,
+                version: metadata.version ?? null,
+                tags: metadata.tags ?? [],
+                sourceUrl: fetched.sourceUrl,
+                contentHash: remoteHash
+              })
+            })
+            databaseUpdated = true
+            const updated = agentGlobalSkillService.getById(options.skillId)
+            if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
+            await prepared.commit()
+
+            agentGlobalSkillService.notifySkillProjectionChange(options.skillId)
+            logger.info('Remote Skill update applied', {
+              skillId: options.skillId,
+              folderName: currentSkill.folderName,
+              overwriteLocalChanges: options.overwriteLocalChanges
+            })
+            return updated
+          } catch (error) {
+            const recoveryErrors: unknown[] = []
+            await prepared.rollback().catch((recoveryError) => recoveryErrors.push(recoveryError))
+            if (databaseUpdated) {
+              try {
+                application.get('DbService').withWriteTx((tx) => {
+                  agentGlobalSkillService.updateTx(tx, options.skillId, {
+                    name: currentSkill.name,
+                    description: currentSkill.description,
+                    author: currentSkill.author,
+                    version: currentSkill.version,
+                    tags: currentSkill.sourceTags,
+                    sourceUrl: currentSkill.sourceUrl,
+                    contentHash: currentSkill.contentHash
+                  })
+                })
+              } catch (recoveryError) {
+                recoveryErrors.push(recoveryError)
+              }
+            }
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true }).catch((recoveryError) =>
+              recoveryErrors.push(recoveryError)
+            )
+            if (recoveryErrors.length > 0) {
+              throw new AggregateError(
+                [error, ...recoveryErrors],
+                `Failed to apply and restore remote Skill update: ${options.skillId}`
+              )
+            }
+            throw error
+          }
+        })
+      )
+    } finally {
+      await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  private fetchRemote(sourceUrl: string) {
+    const parsed = parseSkillSourceUrl(sourceUrl)
+    if (!parsed) {
+      throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill source URL is not installable')
+    }
+    const installSource = parsed.installSource
+    const [source, ...identifier] = installSource.split(':')
+    return fetchRemoteSkill(source, identifier.join(':'))
+  }
+
+  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
+    if (!hasSkillRemoteUpdateProvenance(skill)) return false
+    return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
+  }
+
+  private createRemoteRevision(input: {
+    skillId: string
+    sourceUrl: string
+    baselineHash: string
+    currentHash: string
+    remoteHash: string
+  }): string {
+    return createHash('sha256').update(JSON.stringify(input)).digest('hex')
+  }
+
   /**
    * Reconcile the managed library (Data/Skills) with the `agent_global_skill`
-   * catalog: adopt skills present on disk but missing a row, refresh non-builtin rows
-   * whose SKILL.md changed, and prune non-builtin rows whose files are gone. Builtins
+   * catalog: adopt skills present on disk but missing a row, refresh projected metadata,
+   * and prune non-builtin rows whose files are gone. Builtins
    * are owned by `installBuiltinSkills`; direct changes are not adopted and fail mirror
-   * integrity checks. Presence and authored-skill change detection read SKILL.md directly.
+   * integrity checks. Reconcile never replaces the persisted installation baseline.
    */
   private async reconcileLibraryToDb(): Promise<void> {
     const storageRoot = application.getPath('feature.agents.skills')
@@ -849,7 +1169,7 @@ export class SkillService {
         })
       }
     }
-    const onDisk = new Map<string, string>()
+    const onDisk = new Set<string>()
     // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
     // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
     // saving a SKILL.md atomically briefly removes it (both casings ENOENT), and that transient
@@ -895,7 +1215,7 @@ export class SkillService {
       await this.normalizeSkillMdCasing(dir)
       const read = await this.readSkillMdState(dir)
       if (read.status === 'found') {
-        onDisk.set(entry.name, createHash('sha256').update(read.content).digest('hex'))
+        onDisk.add(entry.name)
       } else if (read.status === 'error') {
         logger.warn('Skill descriptor unreadable during reconcile; keeping any catalog row', {
           folderName: entry.name
@@ -905,7 +1225,7 @@ export class SkillService {
       // not adopted, and the presentFolders guard below keeps any existing row + enablement intact.
     }
 
-    for (const [folderName, contentHash] of onDisk) {
+    for (const folderName of onDisk) {
       const folderKey = normalizeFolderKey(folderName)
       if (conflictingDbKeys.has(folderKey)) continue
 
@@ -916,8 +1236,6 @@ export class SkillService {
         // hash and removes the mirror when canonical content no longer matches the trusted DB hash.
         continue
       }
-      if (existing && existing.contentHash === contentHash) continue
-
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
       try {
         metadata = await parseSkillMetadata(path.join(storageRoot, folderName), folderName, 'skills')
@@ -932,15 +1250,17 @@ export class SkillService {
       const tags = metadata.tags ?? []
 
       if (existing) {
-        agentGlobalSkillService.update(existing.id, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash
-        })
+        if (this.hasMetadataChanges(existing, metadata)) {
+          agentGlobalSkillService.update(existing.id, {
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags
+          })
+        }
       } else {
+        const contentHash = await this.installer.computeContentHash(path.join(storageRoot, folderName))
         agentGlobalSkillService.insert({
           name: metadata.name,
           description: metadata.description ?? null,
@@ -1080,9 +1400,61 @@ export class SkillService {
   }
 
   private computeBuiltinDirectoryHash(skillDir: string): Promise<string> {
-    return this.installer.computeDirectoryHash(skillDir, {
+    return this.installer.computeContentHash(skillDir, {
       ignoredRelativePaths: [BUILTIN_VERSION_FILE]
     })
+  }
+
+  private hasMetadataChanges(skill: InstalledSkill, metadata: Awaited<ReturnType<typeof parseSkillMetadata>>): boolean {
+    const tags = metadata.tags ?? []
+    return (
+      skill.name !== metadata.name ||
+      skill.description !== (metadata.description ?? null) ||
+      skill.author !== (metadata.author ?? null) ||
+      skill.version !== (metadata.version ?? null) ||
+      skill.sourceTags.length !== tags.length ||
+      skill.sourceTags.some((tag, index) => tag !== tags[index])
+    )
+  }
+
+  private isLegacySkillsShReinstall(existing: InstalledSkill, sourceUrl: string | null, folderName: string): boolean {
+    if (
+      existing.source !== 'marketplace' ||
+      !existing.sourceUrl ||
+      !sourceUrl ||
+      isSkillDirectoryContentHash(existing.contentHash)
+    ) {
+      return false
+    }
+
+    const parsed = parseSkillSourceUrl(sourceUrl)
+    if (parsed?.sourceRegistry !== 'skills.sh') return false
+    const [owner, repo, skillName, ...extraParts] = parsed.installSource.slice('skills.sh:'.length).split('/')
+    if (
+      !owner ||
+      !repo ||
+      !skillName ||
+      extraParts.length > 0 ||
+      normalizeFolderKey(sanitizeFolderName(skillName)) !== normalizeFolderKey(folderName)
+    ) {
+      return false
+    }
+
+    try {
+      const legacyUrl = new URL(existing.sourceUrl)
+      const [legacyOwner, legacyRepo, ...legacyPath] = legacyUrl.pathname.split('/').filter(Boolean)
+      return (
+        legacyUrl.protocol === 'https:' &&
+        legacyUrl.hostname.toLowerCase() === 'github.com' &&
+        !legacyUrl.search &&
+        !legacyUrl.hash &&
+        legacyPath.length === 0 &&
+        legacyOwner?.toLowerCase() === owner.toLowerCase() &&
+        legacyRepo?.replace(/\.git$/i, '').toLowerCase() === repo.toLowerCase()
+      )
+    } catch {
+      return false
+    }
   }
 
   private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
@@ -1180,8 +1552,7 @@ export class SkillService {
         await fs.promises.writeFile(path.join(destPath, BUILTIN_VERSION_FILE), appVersion, 'utf-8')
       }
 
-      // Builtin contentHash is the trusted full-directory hash (excluding Cherry's version marker),
-      // unlike authored skills whose hash tracks SKILL.md metadata changes.
+      // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
       if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
 
       const metadata = await parseSkillMetadata(destPath, folderName, 'skills')

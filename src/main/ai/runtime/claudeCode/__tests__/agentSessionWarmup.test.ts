@@ -16,9 +16,10 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
-  refreshSkillMirrorsForSession: vi.fn(),
+  prepareSkillSnapshotForSession: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
+  getMcpInstructions: vi.fn(),
   preferenceGet: vi.fn(),
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
@@ -40,7 +41,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { refreshMirrorsForSession: mocks.refreshSkillMirrorsForSession }
+  skillService: { prepareSnapshotForSession: mocks.prepareSkillSnapshotForSession }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -97,6 +98,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'McpRuntimeService') {
+        return { getConnectedServerInstructions: mocks.getMcpInstructions }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -246,6 +250,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('carries the materialized skill snapshot plugin and qualified whitelist into warm query options', async () => {
+    const snapshotPlugin = {
+      type: 'local' as const,
+      path: '/snapshots/session-a',
+      skipMcpDiscovery: true
+    }
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: {},
+      plugins: [snapshotPlugin],
+      skills: ['cherry-studio-skills:pdf']
+    })
+
+    const request = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(request?.options.plugins).toEqual([snapshotPlugin])
+    expect(request?.options.skills).toEqual(['cherry-studio-skills:pdf'])
   })
 
   it('passes the connection rebuild signature into the warm query request', async () => {
@@ -910,6 +932,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('injects a per-provider dummy token for a keyless local provider', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'omlx::qwen3-coder-30b' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'omlx',
+      presetProviderId: 'omlx',
+      authOptional: true,
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:8000' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'qwen3-coder-30b', apiModelId: 'qwen3-coder-30b' })
+    mocks.resolveApiKey.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://localhost:8000',
+      ANTHROPIC_API_KEY: 'omlx',
+      ANTHROPIC_AUTH_TOKEN: 'omlx'
+    })
+  })
+
   it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1294,7 +1337,7 @@ describe('deriveConnectionConfig', () => {
       expect.objectContaining({ id: 'agent-1' }),
       '/workspace/project'
     )
-    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
+    expect(mocks.prepareSkillSnapshotForSession).not.toHaveBeenCalled()
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside
     // buildClaudeCodeSessionSettings — derive must never enter it.
     expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
@@ -1646,6 +1689,16 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['contextWindow'])
   })
 
+  it('rebuilds when browser control or browser permissions change', async () => {
+    const originalGet = mocks.preferenceGet.getMockImplementation()
+    const base = await deriveSignature()
+    mocks.preferenceGet.mockImplementation((key) =>
+      key === 'app.browser.agent_control.enabled' ? true : originalGet?.(key)
+    )
+    const enabled = await deriveSignature()
+    expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
+  })
+
   it('changes the rebuild signature for each rebuild-group input', async () => {
     const base = await deriveSignature()
 
@@ -1720,6 +1773,14 @@ describe('deriveConnectionConfig', () => {
     })
     const mcpDefinitionChanged = await deriveSignature()
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
+    mocks.getMcpInstructions.mockReturnValueOnce({
+      serverId: 'mcp-1',
+      serverName: 'server',
+      text: 'Use search before reading.',
+      truncated: false
+    })
+    const instructionsArrived = await deriveSignature()
+    expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {

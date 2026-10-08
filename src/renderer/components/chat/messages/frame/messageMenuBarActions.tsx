@@ -38,6 +38,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import { messageExportTargets } from '../messageExportTargets'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
 import type { MessageMenuConfig } from '../types'
 import { getMessageListItemModelName } from '../utils/messageListItem'
@@ -125,6 +126,15 @@ function toolbarAvailability(
       enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
     }
   }
+}
+
+function canStartEditing({
+  actions,
+  message,
+  isTranslating,
+  startEditingMessage
+}: MessageMenuBarActionContext): boolean {
+  return !isTranslating && !!startEditingMessage && (actions.canEditMessage?.(message) ?? !!actions.editMessage)
 }
 
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
@@ -224,6 +234,9 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
+registerCommand('message.forkSession', async ({ actions, message }) => {
+  await actions.forkSession?.run(message.id)
+})
 
 registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
   await actions.copyBranchToNewTopic?.(message.id)
@@ -249,7 +262,7 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
-  await actions.copyText?.(messageToPlainText(messageForExport), {
+  await actions.copyText?.(await messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
 })
@@ -327,13 +340,9 @@ registerCommand('message.useful', ({ message, onSelectContext }) => {
 registerToolbarAction({
   id: 'user-edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
-  )
+  availability: toolbarAvailability('user-edit', (context) => context.isUserMessage && canStartEditing(context))
 })
 
 registerToolbarAction({
@@ -454,17 +463,13 @@ registerToolbarAction({
 registerAction({
   id: 'edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editLabel ?? t('common.edit'),
   icon: <FilePenLine size={15} />,
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating &&
-    isEditable &&
-    !!actions.editMessage &&
-    !!startEditingMessage &&
-    (isUserMessage || isAssistantMessage)
+  availability: (context) =>
+    context.isEditable && (context.isUserMessage || context.isAssistantMessage) && canStartEditing(context)
 })
 
 registerAction({
@@ -479,6 +484,17 @@ registerAction({
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
   }
+})
+
+registerAction({
+  id: 'fork-session',
+  commandId: 'message.forkSession',
+  label: ({ actions }) => actions.forkSession?.label ?? '',
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 22,
+  surface: 'menu',
+  availability: ({ actions, message }) => actions.forkSession?.availability(message) ?? false
 })
 
 registerAction({
@@ -554,72 +570,15 @@ registerAction({
       order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
     },
-    {
-      id: 'export.markdown',
-      commandId: 'message.exportMarkdown',
-      label: ({ t }) => t('chat.topics.export.md.label'),
-      group: 'file',
-      order: 20,
-      availability: ({ actions, menuConfig }) =>
-        menuConfig.exportMenuOptions.markdown && !!actions.exportMessageAsMarkdown
-    },
-    {
-      id: 'export.markdown-reason',
-      commandId: 'message.exportMarkdownReason',
-      label: ({ t }) => t('chat.topics.export.md.reason'),
-      group: 'file',
-      order: 30,
-      availability: ({ actions, menuConfig }) =>
-        menuConfig.exportMenuOptions.markdown_reason && !!actions.exportMessageAsMarkdown
-    },
-    {
-      id: 'export.word',
-      commandId: 'message.exportWord',
-      label: ({ t }) => t('chat.topics.export.word'),
-      group: 'file',
-      order: 40,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.docx && !!actions.exportToWord
-    },
-    {
-      id: 'export.notion',
-      commandId: 'message.exportNotion',
-      label: ({ t }) => t('chat.topics.export.notion'),
-      group: 'external',
-      order: 50,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.notion && !!actions.exportToNotion
-    },
-    {
-      id: 'export.yuque',
-      commandId: 'message.exportYuque',
-      label: ({ t }) => t('chat.topics.export.yuque'),
-      group: 'external',
-      order: 60,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.yuque && !!actions.exportToYuque
-    },
-    {
-      id: 'export.obsidian',
-      commandId: 'message.exportObsidian',
-      label: ({ t }) => t('chat.topics.export.obsidian'),
-      group: 'external',
-      order: 70,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.obsidian && !!actions.exportToObsidian
-    },
-    {
-      id: 'export.joplin',
-      commandId: 'message.exportJoplin',
-      label: ({ t }) => t('chat.topics.export.joplin'),
-      group: 'external',
-      order: 80,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.joplin && !!actions.exportToJoplin
-    },
-    {
-      id: 'export.siyuan',
-      commandId: 'message.exportSiyuan',
-      label: ({ t }) => t('chat.topics.export.siyuan'),
-      group: 'external',
-      order: 90,
-      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
-    },
+    ...messageExportTargets.map(({ target, commandId, labelKey, group, option, action }, index) => ({
+      id: `export.${target}`,
+      commandId,
+      label: ({ t }: MessageMenuBarActionContext) => t(labelKey),
+      group,
+      order: (index + 2) * 10,
+      availability: ({ actions, menuConfig }: MessageMenuBarActionContext) =>
+        menuConfig.exportMenuOptions[option] && !!actions[action]
+    })),
     {
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',
