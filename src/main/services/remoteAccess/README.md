@@ -51,9 +51,8 @@ The pinned Bonjour patch adds an optional address allowlist to record generation
 
 `connection.endpoints` requires an authenticated, current capability and returns the
 Gateway's actual IPv4 / IPv6 interface addresses (excluding scoped link-local IPv6) and port without creating an invitation.
-The mobile owns candidate verification and explicit persistence. Local setup checks and
-Tailscale installation belong to [device connection setup](../deviceConnectionSetup/README.md), shared by the IPC wizard and Cherry tools; installer success
-does not mean VPN login or phone verification succeeded. System packages use BinaryManager.
+The mobile owns candidate verification and address persistence. Any reachable network can
+carry a connection; VPN clients are configured outside Cherry Studio.
 
 Execution failures use the shared failure snapshot in both live terminal events and historical
 messages. The persistence listener supplies the actual saved message identity and revisions before

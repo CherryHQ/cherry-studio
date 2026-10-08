@@ -13,6 +13,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
@@ -151,7 +152,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const cache = application.get('CacheService')
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
-      cache.setShared('feature.api_gateway.endpoint', endpoint)
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
@@ -349,13 +349,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
-    const endpoint = this.getRemoteEndpoint()
+    const endpoint = await this.getRemoteEndpoint()
     if (endpoint.addresses.length === 0) throw new Error('No connection address is available')
     const invitation = await application.get('RemoteAccessService').createInvitation()
     return { ...endpoint, ...invitation }
   }
 
-  getRemoteEndpoint() {
+  async getRemoteEndpoint() {
+    const metadata = await getInterfaceMetadata()
     if (!this.isRunning()) throw new Error('API Gateway is not running')
     if (
       !this.getCurrentConfig().enabled ||
@@ -366,24 +367,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
 
     const ipv6 = this.apiGateway.getHosts().includes('::')
-    const addresses = Object.values(networkInterfaces()).flatMap((infos) =>
-      (infos ?? [])
-        .filter(
-          (info) =>
-            !info.internal &&
-            (info.family === 'IPv4' ||
-              (info.family === 'IPv6' &&
-                ipv6 &&
-                !/^fe[89ab][0-9a-f]:/i.test(info.address) &&
-                !info.address.includes('%')))
-        )
-        .map((info) => info.address)
-    )
+    const addressOptions = getRemoteAddressOptions(networkInterfaces(), metadata, ipv6)
 
     return {
       hostname: hostname(),
       port: this.apiGateway.getPort(),
-      addresses: [...new Set(addresses)].slice(0, 32)
+      addresses: addressOptions.slice(0, 32).map(({ address }) => address),
+      addressOptions
     }
   }
 

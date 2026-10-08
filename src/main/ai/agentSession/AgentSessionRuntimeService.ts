@@ -1477,7 +1477,12 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
+    // A refusal that arrived here is the user's own answer, so drivers may attribute it to them.
+    // Registry/abort denials reach dispatch() directly and stay unmarked.
+    const dispatched = toolApprovalRegistry.dispatch(
+      approvalId,
+      decision.approved ? decision : { ...decision, reasonSource: 'user' }
+    )
     if (!dispatched) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (dispatched.presentation === 'stream') {
