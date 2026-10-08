@@ -26,7 +26,7 @@ class FilesystemMutationService {
     // Serialize registration only (not mutations). O(n) over pending ops is acceptable:
     // n is bounded by concurrent in-flight MCP calls, not workspace size.
     const { result } = await this.registrationMutex.runExclusive(async () => {
-      const canonicalPath = await validatePath(requestedPath, baseDir)
+      const canonicalPath = await this.resolveMutationPath(requestedPath, baseDir)
       const path = normalizePathForComparison(canonicalPath)
       const subtreeRoot = opts?.subtreeRoot ?? false
       for (const other of this.pending) {
@@ -58,6 +58,16 @@ class FilesystemMutationService {
       return { result }
     })
     return result
+  }
+
+  private async resolveMutationPath(requestedPath: string, baseDir: string) {
+    try {
+      return await validatePath(requestedPath, baseDir)
+    } catch (error) {
+      if (this.pending.size === 0) throw error
+      await Promise.all([...this.pending].map((other) => other.done))
+      return await validatePath(requestedPath, baseDir)
+    }
   }
 }
 

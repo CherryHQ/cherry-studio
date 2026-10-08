@@ -99,7 +99,9 @@ export {
   isPathInside,
   isSameOrInside,
   normalizePathForComparison,
-  resolvePath
+  normalizeRealpathResult,
+  resolvePath,
+  stripExtendedPathPrefix
 } from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
 export { open, showInFolder } from './shell'
