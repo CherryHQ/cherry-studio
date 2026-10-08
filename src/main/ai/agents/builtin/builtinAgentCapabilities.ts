@@ -15,6 +15,7 @@ import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
 /**
@@ -115,7 +116,7 @@ export function resolveMountedMcpServers(
   if (resolveAgentCapabilities(agent).environment === 'open') {
     if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
       mounted.add(CHERRY_MCP_SERVER.BROWSER)
-    if (computerUseEnabled && !channelLinked && !agent.disabledTools?.includes('mcp__computer'))
+    if (computerUseEnabled && !channelLinked && !agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP))
       mounted.add(CHERRY_MCP_SERVER.COMPUTER)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.

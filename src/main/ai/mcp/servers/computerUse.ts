@@ -7,6 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { callComputerUseTool, computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import type { ComputerUseTask } from '@main/services/ComputerUseService'
+import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 
 export function createComputerUseMcpServer(sessionId: string, agentId: string): McpServer {
   const server = new McpServer({ name: 'computer', version: '1.0.0' })
@@ -40,7 +41,7 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
         session.agentId !== agentId ||
         !messageId ||
         resolveAgentCapabilities(agent).environment !== 'open' ||
-        agent.disabledTools?.includes('mcp__computer') ||
+        agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP) ||
         agentChannelService.findBySessionId(sessionId)
       )
         throw new Error('Computer Use requires an active local Agent task')
