@@ -98,9 +98,11 @@ export class WebviewService extends BaseService {
     wvSession.setUserAgent(newUA)
     wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
       const language = getAppLanguage()
+      // Only sign-in needs the native identity; application APIs must match the page UA.
+      const isGoogleSignIn = new URL(details.url).hostname === 'accounts.google.com'
       const headers = {
         ...details.requestHeaders,
-        'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+        'User-Agent': isGoogleSignIn ? originUA : newUA,
         'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
       }
       cb({ requestHeaders: headers })

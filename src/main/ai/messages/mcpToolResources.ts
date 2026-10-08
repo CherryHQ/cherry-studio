@@ -1,4 +1,4 @@
-import { EmbeddedResourceSchema } from '@modelcontextprotocol/sdk/types.js'
+import { EmbeddedResourceSchema } from '@modelcontextprotocol/core'
 import { isToolUIPart, type UIMessage } from 'ai'
 
 import type { McpResource } from '@shared/types/mcp'
