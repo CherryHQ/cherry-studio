@@ -16,7 +16,7 @@ import { net } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 
@@ -54,21 +54,6 @@ function isTransportFallbackError(error: unknown): boolean {
   if (error instanceof SseError) return error.code === 405
   if (error instanceof SdkHttpError) return error.status === 404 || error.status === 405
   return false
-}
-
-function mergeHeaders(...sources: Array<Record<string, string> | undefined>): Record<string, string> {
-  const headers: Record<string, string> = {}
-  const nameByLowercase = new Map<string, string>()
-
-  for (const source of sources) {
-    for (const [name, value] of Object.entries(source ?? {})) {
-      const previousName = nameByLowercase.get(name.toLowerCase())
-      if (previousName !== undefined) delete headers[previousName]
-      nameByLowercase.set(name.toLowerCase(), name)
-      headers[name] = value
-    }
-  }
-  return headers
 }
 
 function createClient(appVersion: string, events: McpConnectionEvents): ClientMcpConnection {
@@ -119,7 +104,7 @@ export async function createExternalMcpConnection({
       .digest('hex')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
-  const useOAuth = !Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')
+  const useOAuth = !('authorization' in headers)
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
