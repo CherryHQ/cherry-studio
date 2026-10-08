@@ -33,6 +33,7 @@ const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
 ])
 // Mirrored progress outlives the 5s poll cadence (see FILE_PROCESSING_CHECK_DELAY_MS) but
 // self-collects if polling ever stops without a terminal round deleting it first.
+// Single writer: only the check chain writes this key, so no epoch guard is needed.
 const FILE_PROCESSING_PROGRESS_TTL_MS = 60_000
 
 function fileProcessingProgressCacheKey(itemId: string): `knowledge.item.file_processing_progress.${string}` {
@@ -170,6 +171,9 @@ export function createCheckFileProcessingResultJobHandler(
         logger,
         'Failed to flip knowledge file-processing check target to failed in onSettled'
       )
+      if (event.status !== 'completed') {
+        application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(event.input.itemId))
+      }
     }
   }
 }
@@ -236,6 +240,9 @@ function markItemFailed(itemId: string, error: string): void {
     }
     return
   }
+  // A failed item can be reindexed into a fresh chain that restarts at 0 — a
+  // lingering percentage from this run would read as the new run's progress.
+  application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 
