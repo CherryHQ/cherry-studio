@@ -3,6 +3,10 @@ import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof fs>())
+}))
+
 import { application } from '@application'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -10,6 +14,9 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { callBuiltinTool, toolText } from '../../__tests__/builtinMcpClient'
 import { resolveFilesystemBaseDir } from '../config'
 import { createFileSystemServer } from '../server'
+import { handleDeleteTool } from '../tools/delete'
+import { handleEditTool } from '../tools/edit'
+import { handleWriteTool } from '../tools/write'
 import * as types from '../types'
 import { validatePath } from '../types'
 
