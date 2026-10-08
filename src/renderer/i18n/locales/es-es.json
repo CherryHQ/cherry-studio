@@ -1774,6 +1774,7 @@
   "knowledge.data_source.status.embedding": "Embeddings",
   "knowledge.data_source.status.error": "Error",
   "knowledge.data_source.status.pending": "Esperando",
+  "knowledge.data_source.status.reading": "Leyendo documento",
   "knowledge.data_source.status.ready": "Listo",
   "knowledge.data_source.table.aria_label": "Fuentes de datos",
   "knowledge.data_source.table.columns.actions": "Acciones",

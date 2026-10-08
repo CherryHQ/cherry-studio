@@ -166,6 +166,23 @@ describe('check-file-processing-result job handler', () => {
         detail: { stage: 'polling' }
       }
     })
+    // The mirror is what the data-source row's percentage reads — the job-level
+    // progress above never reaches the renderer.
+    expect(
+      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
+    ).toBe(42)
+  })
+
+  it('publishes no mirrored percentage when the processor reports no progress', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(
+      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
+    ).toBeUndefined()
   })
 
   it('marks the item failed when file processing exceeds the wait limit', async () => {
@@ -208,6 +225,28 @@ describe('check-file-processing-result job handler', () => {
     expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
     expect(ingestionService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
+  })
+
+  it('clears the mirrored percentage when file processing completes', async () => {
+    // The row keeps showing 'processing' until its next poll observes the indexing job's
+    // 'reading' flip, so a lingering mirror would display a stale percentage in that window.
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'completed',
+        output: {
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+        }
+      })
+    )
+    MockMainCacheServiceUtils.setSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`, 42)
+
+    await handler.execute(createCtx(createCheckPayload()))
+
+    expect(
+      MockMainCacheServiceUtils.getSharedCacheValue(`knowledge.item.file_processing_progress.${FILE_ITEM_ID}`)
+    ).toBeUndefined()
   })
 
   it('schedules indexing under the original workflow parent after polling completion', async () => {

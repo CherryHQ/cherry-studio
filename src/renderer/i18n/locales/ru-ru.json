@@ -1774,6 +1774,7 @@
   "knowledge.data_source.status.embedding": "Создание эмбеддингов",
   "knowledge.data_source.status.error": "Ошибка",
   "knowledge.data_source.status.pending": "Ожидание",
+  "knowledge.data_source.status.reading": "Чтение документа",
   "knowledge.data_source.status.ready": "Готов",
   "knowledge.data_source.table.aria_label": "Источники данных",
   "knowledge.data_source.table.columns.actions": "Действия",
