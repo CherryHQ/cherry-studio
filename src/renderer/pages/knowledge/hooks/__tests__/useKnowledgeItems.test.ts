@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as DataApiHooks from '@data/hooks/useDataApi'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemListItem, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 
@@ -19,10 +20,9 @@ const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
   })
 }
 
-vi.mock('@data/hooks/useDataApi', () => ({
+vi.mock('@data/hooks/useDataApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof DataApiHooks>()),
   useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
-  // Flatten pages the same way the real helper does so the hook's `items` is testable.
-  useInfiniteFlatItems: (pages?: KnowledgeItemListResponse[]) => pages?.flatMap((page) => page.items) ?? [],
   useInvalidateCache: () => vi.fn()
 }))
 

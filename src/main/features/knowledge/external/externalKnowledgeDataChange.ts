@@ -14,6 +14,9 @@ export function notifyExternalKnowledgeSourceChange(
     },
     { endpoint: '/external-knowledge-sources/:id', routeParams: { id: sourceId }, entityIds: [sourceId] }
   ])
+  if (kind === 'membership') {
+    notifyDataApiDataChange([{ endpoint: '/external-knowledge-connections', kind: 'projection' }])
+  }
 }
 
 export function notifyExternalKnowledgeSyncContentChange(baseId: string, sourceId: string): void {

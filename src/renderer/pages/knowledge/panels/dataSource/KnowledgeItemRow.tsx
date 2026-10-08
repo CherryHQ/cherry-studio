@@ -12,14 +12,14 @@ import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/e
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItemListItem } from '@shared/data/api/schemas/knowledges'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
-  item: KnowledgeItem
+  item: KnowledgeItemListItem
   selected: boolean
   onToggleSelect: (next: boolean) => void
   onClick: () => void
@@ -128,7 +128,9 @@ const KnowledgeItemRow = ({
   const canActivate = true
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
-  const fullTitle = 'source' in item.data ? item.data.source : title
+  const fullTitle = item.type === 'external' ? title : 'source' in item.data ? item.data.source : title
+  const externalOrigin =
+    item.type === 'external' ? t('knowledge.data_source.external_origin', { source: item.data.source }) : null
 
   // Row actions, surfaced via the whole-row right-click menu (replacing the old per-row more
   // button). Same shape the navigator's KnowledgeBaseRow uses, so presentation stays consistent.
@@ -175,22 +177,24 @@ const KnowledgeItemRow = ({
       })
     }
 
-    items.push({ type: 'separator' })
-    items.push({
-      type: 'item',
-      id: 'delete',
-      label: t('knowledge.data_source.actions.delete'),
-      icon: <Trash2 className="size-3.5" />,
-      destructive: true,
-      onSelect: () => {
-        void Promise.resolve(onDelete()).catch((error) => {
-          toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
-        })
-      }
-    })
+    if (item.canDelete) {
+      items.push({ type: 'separator' })
+      items.push({
+        type: 'item',
+        id: 'delete',
+        label: t('knowledge.data_source.actions.delete'),
+        icon: <Trash2 className="size-3.5" />,
+        destructive: true,
+        onSelect: () => {
+          void Promise.resolve(onDelete()).catch((error) => {
+            toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+          })
+        }
+      })
+    }
 
     return items
-  }, [canReindex, canViewChunks, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
+  }, [canReindex, canViewChunks, item.canDelete, item.type, onDelete, onPreviewSource, onReindex, onViewChunks, t])
 
   // Keyboard equivalent for the row's primary click action. Only handle keys raised on the row
   // itself so Enter/Space on the checkbox (which bubble up) don't also open chunks.
@@ -238,11 +242,20 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullTitle}>
-            {title}
-          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-foreground" title={fullTitle}>
+              {title}
+            </span>
+            {externalOrigin ? (
+              <NormalTooltip content={externalOrigin} contentProps={{ className: 'max-w-72 wrap-anywhere' }}>
+                <span tabIndex={0} className="text-muted-foreground block truncate text-xs">
+                  {externalOrigin}
+                </span>
+              </NormalTooltip>
+            ) : null}
+          </div>
         </div>
-        <div role="gridcell" className="truncate text-xs text-muted-foreground">
+        <div role="gridcell" className="text-muted-foreground truncate text-xs" title={typeLabel}>
           {typeLabel}
         </div>
         <div role="gridcell">
@@ -261,7 +274,7 @@ const KnowledgeItemRow = ({
             }
           />
         </div>
-        <div role="gridcell" className="truncate text-xs text-foreground-tertiary">
+        <div role="gridcell" className="text-foreground-tertiary truncate text-xs">
           {updatedAt}
         </div>
         <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>

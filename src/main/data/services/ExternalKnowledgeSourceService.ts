@@ -6,11 +6,16 @@ import {
   type InsertExternalKnowledgeSourceRow,
   externalKnowledgeSourceTable
 } from '@data/db/schemas/externalKnowledgeSource'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { ExternalKnowledgeSourceListItem } from '@shared/data/api/schemas/externalKnowledge'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
 import {
+  ExternalKnowledgeSchedulePolicySchema,
   type ExternalKnowledgeSource,
+  type ExternalKnowledgeSchedulePolicy,
   type ExternalKnowledgeSourceState,
   ExternalKnowledgeSourceSchema,
   type ExternalKnowledgeSyncOutcome,
@@ -22,6 +27,28 @@ import { timestampToISO } from './utils/rowMappers'
 
 const nullableTimestampToISO = (value: number | null): string | null => (value === null ? null : timestampToISO(value))
 const SOURCE_SCOPE_CONFLICT_MESSAGE = 'An external knowledge source already exists for this provider scope'
+
+export function encodeExternalKnowledgeDailySchedule(
+  policy: Extract<ExternalKnowledgeSchedulePolicy, { kind: 'daily' }>
+): Extract<Trigger, { kind: 'cron' }> {
+  const [hour, minute] = policy.time.split(':')
+  return { kind: 'cron', expr: `${Number(minute)} ${Number(hour)} * * *`, timezone: policy.timezone }
+}
+
+export function decodeExternalKnowledgeDailySchedule(trigger: Trigger): ExternalKnowledgeSchedulePolicy {
+  if (trigger.kind === 'cron') {
+    const match = /^(\d{1,2}) (\d{1,2}) \* \* \*$/.exec(trigger.expr)
+    if (match) {
+      const policy = ExternalKnowledgeSchedulePolicySchema.safeParse({
+        kind: 'daily',
+        time: `${match[2].padStart(2, '0')}:${match[1].padStart(2, '0')}`,
+        timezone: trigger.timezone
+      })
+      if (policy.success) return policy.data
+    }
+  }
+  throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeSource', 'Linked schedule is not daily')
+}
 
 export type CreateExternalKnowledgeSourceInput = Pick<
   InsertExternalKnowledgeSourceRow,
@@ -100,6 +127,32 @@ export class ExternalKnowledgeSourceService {
   listByBaseId(baseId: string): ExternalKnowledgeSource[] {
     knowledgeBaseService.getById(baseId)
     return this.listByBaseIdTx(this.db, baseId)
+  }
+
+  listByBaseIdWithSchedule(baseId: string): ExternalKnowledgeSourceListItem[] {
+    knowledgeBaseService.getById(baseId)
+    return this.db
+      .select({
+        source: externalKnowledgeSourceTable,
+        trigger: jobScheduleTable.trigger,
+        enabled: jobScheduleTable.enabled,
+        nextRun: jobScheduleTable.nextRun
+      })
+      .from(externalKnowledgeSourceTable)
+      .leftJoin(jobScheduleTable, eq(externalKnowledgeSourceTable.scheduleId, jobScheduleTable.id))
+      .where(eq(externalKnowledgeSourceTable.baseId, baseId))
+      .orderBy(desc(externalKnowledgeSourceTable.updatedAt), desc(externalKnowledgeSourceTable.id))
+      .all()
+      .map(({ source, trigger, enabled, nextRun }) => {
+        const policy = trigger ? decodeExternalKnowledgeDailySchedule(trigger) : { kind: 'manual' as const }
+        return {
+          ...rowToEntity(source),
+          schedule: {
+            policy,
+            nextRunAt: enabled && nextRun !== null ? timestampToISO(nextRun) : null
+          }
+        }
+      })
   }
 
   listByBaseIdTx(tx: Pick<DbType, 'select'>, baseId: string): ExternalKnowledgeSource[] {

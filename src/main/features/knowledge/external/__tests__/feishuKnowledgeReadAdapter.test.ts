@@ -6,6 +6,7 @@ import {
   FeishuKnowledgeReadError,
   parseFeishuKnowledgeUrl,
   previewFeishuKnowledgeScope,
+  previewFeishuKnowledgeSpace,
   readFeishuDocx,
   resolveFeishuKnowledgeScope,
   scanFeishuKnowledgeSource,
@@ -332,6 +333,25 @@ describe('previewFeishuKnowledgeScope', () => {
       visibleNodeCount: 6,
       supportedDocxCount: 3,
       unsupportedOrSkippedCount: 2,
+      supportedDocuments: [
+        { nodeId: 'root', title: 'Architecture', documentKind: 'document' },
+        { nodeId: 'second-doc', title: 'Second document', documentKind: 'document' },
+        { nodeId: 'nested-doc', title: 'Nested document', documentKind: 'document' }
+      ],
+      skippedItems: [
+        {
+          nodeId: 'sheet-parent',
+          title: 'Unsupported parent',
+          documentKind: 'spreadsheet',
+          reason: 'unsupported-type'
+        },
+        {
+          nodeId: 'cross-shortcut',
+          title: 'Cross-space shortcut',
+          documentKind: 'document',
+          reason: 'cross-space-shortcut'
+        }
+      ],
       embeddingCostExact: false,
       warnings: []
     })
@@ -369,6 +389,11 @@ describe('previewFeishuKnowledgeScope', () => {
       visibleNodeCount: 2,
       supportedDocxCount: 0,
       unsupportedOrSkippedCount: 2,
+      supportedDocuments: [],
+      skippedItems: [
+        { nodeId: 'root', title: 'Architecture', documentKind: 'spreadsheet', reason: 'unsupported-type' },
+        { nodeId: 'child', title: 'Architecture', documentKind: 'file', reason: 'unsupported-type' }
+      ],
       embeddingCostExact: false,
       warnings: ['no-supported-documents']
     })
@@ -404,6 +429,75 @@ describe('previewFeishuKnowledgeScope', () => {
         { ...operations(root), listChildNodes }
       )
     ).rejects.toMatchObject({ code: 'invalid-provider-response' })
+  })
+})
+
+describe('previewFeishuKnowledgeSpace', () => {
+  it('uses the canonical document name and keeps each skipped reference without reading document bodies', async () => {
+    const origin = node({ nodeToken: 'origin', objToken: 'doc-1', parentNodeToken: null, title: 'Original document' })
+    const shortcut = node({
+      nodeToken: 'shortcut',
+      objToken: 'doc-1',
+      parentNodeToken: null,
+      nodeType: 'shortcut',
+      originNodeToken: 'origin',
+      originSpaceId: 'space-1',
+      title: 'Alias'
+    })
+    const provider = {
+      ...operations(),
+      getNode: async (token: string) => {
+        if (token !== 'origin') throw new Error('Preview must stay within the selected Wiki')
+        return origin
+      },
+      listChildNodes: vi
+        .fn()
+        .mockResolvedValueOnce({ nodes: [shortcut], nextPageToken: 'second' })
+        .mockResolvedValueOnce({
+          nodes: [
+            origin,
+            node({ nodeToken: 'sheet-1', objToken: 'sheet', objType: 'sheet', parentNodeToken: null, title: 'Plan' }),
+            node({
+              nodeToken: 'sheet-2',
+              objToken: 'sheet',
+              objType: 'sheet',
+              parentNodeToken: null,
+              title: 'Plan copy'
+            }),
+            node({
+              nodeToken: 'cross-shortcut',
+              objToken: 'other-doc',
+              parentNodeToken: null,
+              nodeType: 'shortcut',
+              originNodeToken: 'other-origin',
+              originSpaceId: 'other-space',
+              title: 'Other Wiki document'
+            })
+          ]
+        }),
+      getDocumentMarkdown: async () => {
+        throw new Error('Preview must use metadata only')
+      }
+    }
+
+    await expect(previewFeishuKnowledgeSpace({ spaceId: 'space-1' }, provider)).resolves.toEqual({
+      visibleNodeCount: 5,
+      supportedDocxCount: 1,
+      unsupportedOrSkippedCount: 3,
+      supportedDocuments: [{ nodeId: 'origin', title: 'Original document', documentKind: 'document' }],
+      skippedItems: [
+        { nodeId: 'sheet-1', title: 'Plan', documentKind: 'spreadsheet', reason: 'unsupported-type' },
+        { nodeId: 'sheet-2', title: 'Plan copy', documentKind: 'spreadsheet', reason: 'unsupported-type' },
+        {
+          nodeId: 'cross-shortcut',
+          title: 'Other Wiki document',
+          documentKind: 'document',
+          reason: 'cross-space-shortcut'
+        }
+      ],
+      embeddingCostExact: false,
+      warnings: []
+    })
   })
 })
 

@@ -1,9 +1,11 @@
 import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKnowledgeConnection'
 
+export type ExternalKnowledgeConnectionListItem = ExternalKnowledgeConnection & { sourceCount: number }
+
 export type ExternalKnowledgeConnectionSchemas = {
   '/external-knowledge-connections': {
     GET: {
-      response: ExternalKnowledgeConnection[]
+      response: ExternalKnowledgeConnectionListItem[]
     }
   }
 

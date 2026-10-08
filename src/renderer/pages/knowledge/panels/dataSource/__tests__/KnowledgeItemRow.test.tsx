@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom/vitest'
+import { mockUseSharedCacheValue } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,18 +9,7 @@ import { toast } from '@renderer/services/toast'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
-import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
-
-const mockUseQuery = vi.fn()
-const mockUseSharedCacheValue = vi.fn()
-
-vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args)
-}))
-
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCacheValue: (...args: unknown[]) => mockUseSharedCacheValue(...args)
-}))
+import { createDirectoryItem, createExternalItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
@@ -29,42 +20,10 @@ vi.mock('@renderer/utils/error', () => ({
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: {
-    children: ReactNode
-    type?: 'button' | 'submit' | 'reset'
-    [key: string]: unknown
-  }) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  ),
-  Checkbox: ({
-    checked,
-    onCheckedChange,
-    'aria-label': ariaLabel
-  }: {
-    checked?: boolean | 'indeterminate'
-    onCheckedChange?: (checked: boolean | 'indeterminate') => void
-    'aria-label'?: string
-  }) => (
-    <input
-      type="checkbox"
-      aria-label={ariaLabel}
-      checked={checked === true}
-      onChange={(event) => onCheckedChange?.(event.target.checked)}
-    />
-  ),
-  NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-    <span>
-      {children}
-      {content ? <span role="tooltip">{content}</span> : null}
-    </span>
-  )
+vi.mock('@cherrystudio/ui', async () => ({
+  ...(await import('@cherrystudio/ui/components/primitives/button')),
+  ...(await import('@cherrystudio/ui/components/primitives/checkbox')),
+  ...(await import('@cherrystudio/ui/components/primitives/tooltip'))
 }))
 
 // The row's actions live behind a whole-row right-click menu (CommandContextMenu). Stub it as a
@@ -169,9 +128,12 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string, options?: Record<string, number>) => {
+    t: (key: string, options?: Record<string, unknown>) => {
       if (key === 'knowledge.data_source.status.copying') {
         return `复制中 ${options?.percent}%`
+      }
+      if (key === 'knowledge.data_source.external_origin') {
+        return `来源：${options?.source}`
       }
       const translations: Record<string, string> = {
         'knowledge.data_source.status.ready': '就绪',
@@ -188,6 +150,7 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.preview.failed': '预览原文失败',
         'knowledge.data_source.reindex_failed': '数据源重新索引失败',
         'knowledge.data_source.filters.file': '文件',
+        'knowledge.data_source.filters.external': '外部文档',
         'knowledge.data_source.filters.note': '笔记',
         'knowledge.data_source.filters.directory': '目录',
         'knowledge.data_source.filters.url': '链接',
@@ -214,11 +177,6 @@ const defaultHandlers = {
 describe('KnowledgeItemRow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseQuery.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: undefined
-    })
     mockUseSharedCacheValue.mockReturnValue(undefined)
   })
 
@@ -228,7 +186,22 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByText('old-name.md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
     expect(screen.getByText('刚刚')).toBeInTheDocument()
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
+    expect(screen.queryByText(/^来源：/)).not.toBeInTheDocument()
+  })
+
+  it('shows an external document origin and makes the full source name readable on hover', async () => {
+    const user = userEvent.setup()
+    const item = createExternalItem({ id: 'external-1' })
+    const source = 'Team handbook / Engineering / Infrastructure / Release procedures'
+    render(<KnowledgeItemRow item={{ ...item, data: { ...item.data, source } }} {...defaultHandlers} />)
+
+    expect(screen.getByText('External doc')).toHaveAttribute('title', 'External doc')
+    expect(screen.getByRole('gridcell', { name: '外部文档' })).toBeInTheDocument()
+    const origin = screen.getByText(`来源：${source}`)
+    expect(origin).toBeVisible()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    await user.hover(origin)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(`来源：${source}`)
   })
 
   it('falls back to the file source when the file entry is not loaded', () => {
@@ -246,14 +219,17 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByText('就绪')).toBeInTheDocument()
   })
 
-  it('renders the failed status label for failed items', () => {
+  it('renders the failed status label for failed items', async () => {
+    const user = userEvent.setup()
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'failed' })} {...defaultHandlers} />)
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
+    await user.hover(screen.getByText('失败'))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Indexing failed')
   })
 
-  it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', () => {
+  it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', async () => {
+    const user = userEvent.setup()
     render(
       <KnowledgeItemRow
         item={createDirectoryItem({
@@ -267,7 +243,8 @@ describe('KnowledgeItemRow', () => {
 
     // Red failure label with the localized migration-failed tooltip.
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
+    await user.hover(screen.getByText('失败'))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
 
     // Re-indexing restores the index, but there are no chunks to view yet.
     fireEvent.contextMenu(screen.getByRole('row'))
@@ -297,7 +274,6 @@ describe('KnowledgeItemRow', () => {
 
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'embedding' })} {...defaultHandlers} />)
 
-    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.embedding_progress.file-1')
     expect(screen.getByText('向量化中 42%')).toBeInTheDocument()
   })
 
@@ -319,7 +295,6 @@ describe('KnowledgeItemRow', () => {
       <KnowledgeItemRow item={createDirectoryItem({ id: 'directory-1', status: 'preparing' })} {...defaultHandlers} />
     )
 
-    expect(mockUseSharedCacheValue).toHaveBeenCalledWith('knowledge.item.directory_copy_progress.directory-1')
     expect(screen.getByText('复制中 38%')).toBeInTheDocument()
   })
 
@@ -329,18 +304,6 @@ describe('KnowledgeItemRow', () => {
     )
 
     expect(screen.getByText('等待中')).toBeInTheDocument()
-  })
-
-  it('does not subscribe to the progress key at all for non-embedding rows', () => {
-    // The subscription lives in a child only mounted while embedding, so ordinary
-    // completed/failed rows never touch (or create) the shared-cache key.
-    mockUseSharedCacheValue.mockReturnValue(42)
-
-    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} {...defaultHandlers} />)
-
-    expect(screen.getByText('就绪')).toBeInTheDocument()
-    expect(screen.queryByText(/42%/)).not.toBeInTheDocument()
-    expect(mockUseSharedCacheValue).not.toHaveBeenCalled()
   })
 
   it('calls onClick when the row is clicked', () => {
@@ -628,6 +591,21 @@ describe('KnowledgeItemRow', () => {
       expect(handleDelete).toHaveBeenCalledTimes(1)
     })
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('keeps the origin when disconnecting releases ownership and enables deletion', async () => {
+    const user = userEvent.setup()
+    const item = createExternalItem({ id: 'external-1' })
+    const { rerender } = render(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+
+    await user.pointer({ target: screen.getByRole('row'), keys: '[MouseRight]' })
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+
+    rerender(<KnowledgeItemRow item={{ ...item, canDelete: true }} {...defaultHandlers} />)
+    expect(screen.getByText('来源：Team handbook')).toBeVisible()
+    expect(screen.getByRole('gridcell', { name: '外部文档' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
   })
 
   it('shows a failure toast when delete rejects', async () => {

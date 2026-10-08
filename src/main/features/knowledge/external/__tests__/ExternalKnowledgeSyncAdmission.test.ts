@@ -56,6 +56,7 @@ const resolution = {
 describe('ExternalKnowledgeSyncAdmission', () => {
   const dbh = setupTestDatabase()
   const resolveFeishuScope = vi.fn()
+  const resolveFeishuSpace = vi.fn()
   let gateOpen = true
   const deletingBaseIds = new Set<string>()
   const assertOpen = vi.fn(() => {
@@ -67,7 +68,10 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     }
   })
   const createAdmission = (now = 123) =>
-    new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => now, assertOpen, assertBaseAvailable })
+    new ExternalKnowledgeSyncAdmission(
+      { resolveFeishuScope, resolveFeishuSpace },
+      { now: () => now, assertOpen, assertBaseAvailable }
+    )
 
   const seedBase = (id: string, status: 'completed' | 'failed' = 'completed') =>
     dbh.db
@@ -149,6 +153,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     gateOpen = true
     deletingBaseIds.clear()
     resolveFeishuScope.mockResolvedValue(resolution)
+    resolveFeishuSpace.mockResolvedValue({ tenantId: 'tenant-1', spaceId: 'space-1' })
     enqueueTxMock.mockImplementation(
       (tx: DbOrTx, type: string, input: unknown, options: { queue: string; idempotencyKey?: string }) => {
         const existing = options.idempotencyKey
@@ -217,11 +222,27 @@ describe('ExternalKnowledgeSyncAdmission', () => {
       },
       { endpoint: '/external-knowledge-sources/:id', routeParams: { id: source.id }, entityIds: [source.id] }
     ])
+    expect(notifyDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/external-knowledge-connections', kind: 'projection' }
+    ])
+  })
+
+  it('revalidates a selected whole space and creates a source without a synthetic URL', async () => {
+    const source = await createAdmission().create({
+      baseId: BASE_ID,
+      connectionId: CONNECTION_ID,
+      spaceId: 'space-1',
+      name: 'Engineering Wiki'
+    })
+
+    expect(resolveFeishuSpace).toHaveBeenCalledWith(CONNECTION_ID, 'space-1')
+    expect(resolveFeishuScope).not.toHaveBeenCalled()
+    expect(source).toMatchObject({ spaceId: 'space-1', scope: { kind: 'space' }, activeJobId: JOB_ID })
   })
 
   it('rolls back both the source and enqueued job when binding activeJobId fails', async () => {
     const admission = new ExternalKnowledgeSyncAdmission(
-      { resolveFeishuScope },
+      { resolveFeishuScope, resolveFeishuSpace },
       {
         now: () => {
           throw new Error('clock failed after enqueue')

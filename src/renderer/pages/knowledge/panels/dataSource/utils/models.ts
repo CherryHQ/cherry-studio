@@ -125,7 +125,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
 
 export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
   external: {
-    filterLabelKey: 'knowledge.data_source.filters.file',
+    filterLabelKey: 'knowledge.data_source.filters.external',
     icon: {
       icon: FileText,
       iconClassName: 'text-blue-500'

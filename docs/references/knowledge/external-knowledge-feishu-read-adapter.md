@@ -26,6 +26,30 @@ Feishu China `/wiki/{token}` and `/docx/{token}` URLs. It rejects credentials in
 the URL, non-default ports, Lark hosts, arbitrary hosts, path traversal, and
 unsupported paths before a provider request is admitted.
 
+`knowledge.feishu.spaces.list` pages through Wiki spaces available to the
+connected user. It requires the optional `wiki:space:retrieve` user scope;
+missing discovery permission does not change Connection or Source state. Feishu
+does not include the personal `my_library` in this list. The picker retains the
+URL path for connections without discovery permission and for a specific node
+or document. `knowledge.feishu.space.preview` accepts a selected space id and
+rechecks access in main before scanning all of its visible root nodes.
+The wizard supports selecting multiple spaces. It previews each space and creates
+a Source named after each Wiki space, using one shared scheduling choice. Link-based
+Sources use the resolved Wiki or document title. The renderer does not offer a
+separate Source name field or rename action.
+Creation continues after an individual failure; retries skip Sources already
+created in that wizard session, and partial success keeps the confirmed plan fixed.
+New PersonalAgent registrations request the discovery scope. The connection wizard
+also requests it by default for a new self-built app, so authorized users can choose
+spaces or paste a link. If the app cannot grant discovery permission, the user may
+explicitly start a new link-only authorization attempt; the wizard does not silently
+remove the permission or retry consent. The main command keeps discovery opt-in via
+`includeSpaceDiscovery`, and callers that omit it retain link-only authorization.
+An existing connection may explicitly reauthorize with discovery consent. This
+uses the existing reconnect lifecycle, so dependent Sources pause until the
+connection succeeds again. A missing discovery permission alone does not pause
+them.
+
 Only the validated token and URL kind enter provider operations. API requests
 always use the fixed `https://open.feishu.cn` origin. Query strings and fragments
 from the input URL do not enter the returned safe original URL. Renderer output
@@ -35,6 +59,9 @@ provider payload, or Feishu-specific traversal sidecar.
 Resolve and preview are separate commands. Preview re-runs resolution from the
 raw URL and does not accept a prior resolution or session handle as authority.
 Its result is an ephemeral observation, not an initial-sync snapshot.
+Space preview likewise rechecks the space id instead of trusting list metadata
+from the renderer. It returns space metadata, counts, and document details without
+inventing a root-node descriptor or URL.
 
 ## Resolution and traversal
 
@@ -65,6 +92,19 @@ Preview counts have deliberately different units:
 - A scope with no supported Docx object succeeds with the
   `no-supported-documents` warning.
 
+Preview also returns `supportedDocuments` and `skippedItems` with public node ids,
+titles, and document kinds. Supported documents use the same canonical references
+as synchronization; skipped items retain each reference and report either
+`unsupported-type` or `cross-space-shortcut`. Counts come from these arrays, so
+the summary and details agree. Expanding the wizard's initially collapsed document
+and reason lists makes no additional provider request and never reads document
+bodies. The wizard hides the reasons entry when no items are skipped and retains
+the empty-scope warning when no documents can synchronize.
+An information icon beside the sync-frequency label opens a tooltip on hover or
+keyboard focus. It explains that synchronization with a paid model may incur
+charges based on the volume of document content and the model's pricing, without
+estimating an exact amount.
+
 The provider-neutral descriptor retains stable remote object identity, node and
 parent identity, relative breadcrumb, title, safe original URL, remote revision,
 document kind, and support state. Main-only validated Feishu data retains the
@@ -76,11 +116,13 @@ the scan with persisted Documents and publishes the resulting changes.
 
 ## Source creation, synchronization, and lifecycle
 
-`knowledge.external_source.create` accepts only a base id, connection id, raw
-URL, and name. Main re-runs trusted scope resolution rather than accepting a
-preview result as authority. Source creation, the initial durable Job enqueue,
-and the `activeJobId` fence commit in one SQLite transaction. A failure in any
-step leaves no Source or Job intent behind.
+`knowledge.external_source.create` accepts a base id, connection id, name, and
+either a raw URL or a selected space id. Main re-runs trusted URL resolution or
+rechecks that the selected space is available to the connected user rather than
+accepting a preview result as authority. A selected space creates a whole-space
+scope. Source creation, the initial durable Job enqueue, and the `activeJobId`
+fence commit in one SQLite transaction. A failure in any step leaves no Source
+or Job intent behind.
 
 `knowledge.external_source.sync` accepts only a Source id. It re-reads the
 Source, rejects paused Sources and failed bases, and enqueues the same
@@ -88,7 +130,11 @@ Source, rejects paused Sources and failed bases, and enqueues the same
 per-Source idempotency key coalesces repeated requests while a Job remains
 non-terminal.
 
-Sources default to manual-only scheduling. `knowledge.external_source.schedule.update`
+The create command and wizard default to manual-only scheduling. Users can select
+daily synchronization, initially set to 09:00 local time, and the wizard applies
+that choice through the existing schedule-update command after creation. If
+schedule setup fails, the Source remains manual-only and the wizard reports it.
+`knowledge.external_source.schedule.update`
 can attach one daily schedule with a local time and IANA timezone, update that
 schedule, or return the Source to manual-only mode. The Source owns provider-work
 admission through its active/paused state; the JobManager schedule separately owns
@@ -114,6 +160,11 @@ Each committed document publication, metadata or warning update, and withdrawal
 emits content read-model notifications before synchronization advances to the
 next document. Rolled-back publication and invisible staging do not emit these
 notifications. The Job also emits a final reconciliation signal on exit.
+The Knowledge Item list must subscribe for its selected base and revalidate all
+loaded pages, so a slow later document does not hold earlier updates off-screen.
+Notifications do not acknowledge renderer refresh: an operation that already
+captured a retired Item id can still fail as unavailable. It must not resolve
+to unrelated content or revive a withdrawn snapshot.
 
 The Job output and metadata contain only validated counts, stable error/warning
 codes, and remote object ids. Credentials, account details, raw provider
@@ -122,11 +173,20 @@ summaries. Job settlement updates the Source only while its revision and
 `activeJobId` still match, and DataApi read-model notifications are emitted
 only after the owning transaction commits.
 
+Acceptance must keep the Knowledge page mounted while an existing remote
+document changes, then verify the updated row, local preview, and recall without
+manual list refresh or navigation. A controlled two-document run must also hold
+the second read pending and verify that the first document's committed update
+or withdrawal is observable before the whole run settles. Unchanged-content
+sync and opening the setup wizard alone do not satisfy these cases.
+
 Terminal credential failures mark the Connection `reauthorization-required`,
 pause every dependent Source, and disable their schedules. Successful
 reauthorization restores those Sources and schedules without starting a sync.
 Startup credential reconciliation applies the same paused state before provider
 admission opens.
+The renderer's manual synchronization action requests reauthorization first when
+needed, then enqueues synchronization only after that authorization succeeds.
 
 `knowledge.external_source.disconnect` has two local-only modes. Keep-local
 removes Source/Document ownership while preserving completed snapshots, chunks,
@@ -166,6 +226,7 @@ limits:
 The budget state lives in the existing per-credential runtime state. There is no
 application-wide limiter, provider registry, module-global queue, or adapter
 singleton.
+Wiki space-list requests also use a 600 ms per-credential minimum interval.
 
 ## Error boundary
 
@@ -174,6 +235,8 @@ The runtime and IPC boundary preserve these distinct outcomes:
 - terminal connection authentication marks the Connection as
   `reauthorization-required`;
 - missing required application or user scope reports `scope-missing`;
+- missing optional Wiki discovery permission reports `scope-missing` only for
+  space-list and space-selection commands, without pausing existing Sources;
 - resource ACL denial does not change Connection authorization state;
 - a missing scope or node reports `scope-not-found`;
 - an unsupported node reports `unsupported-resource` without invalidating the

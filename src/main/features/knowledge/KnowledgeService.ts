@@ -8,7 +8,9 @@ import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges
 import type { ExternalKnowledgeSchedulePolicy, ExternalKnowledgeSource } from '@shared/data/types/externalKnowledge'
 import type {
   ExternalKnowledgeScopePreview,
-  ExternalKnowledgeScopeResolution
+  ExternalKnowledgeScopeResolution,
+  FeishuWikiSpacePage,
+  FeishuWikiSpacePreview
 } from '@shared/data/types/externalKnowledgeRead'
 import type {
   CreateKnowledgeBaseDto,
@@ -274,10 +276,11 @@ export class KnowledgeService extends BaseService {
 
   async reconnectFeishuConnection(
     connectionId: string,
-    replacement?: BeginUserAuthorizationInput
+    replacement?: BeginUserAuthorizationInput,
+    includeSpaceDiscovery?: boolean
   ): Promise<BeginAuthorizationResult> {
     this.assertExternalKnowledgeReady()
-    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement)
+    return await this.externalKnowledgeRuntime.beginReconnect(connectionId, replacement, includeSpaceDiscovery)
   }
 
   async validateFeishuConnection(connectionId: string): Promise<ExternalKnowledgeConnection> {
@@ -293,6 +296,16 @@ export class KnowledgeService extends BaseService {
   async previewFeishuScope(connectionId: string, url: string): Promise<ExternalKnowledgeScopePreview> {
     this.assertExternalKnowledgeReady()
     return await this.externalKnowledgeRuntime.previewFeishuScope(connectionId, url)
+  }
+
+  async listFeishuSpaces(connectionId: string, pageToken?: string): Promise<FeishuWikiSpacePage> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.listFeishuSpaces(connectionId, pageToken)
+  }
+
+  async previewFeishuSpace(connectionId: string, spaceId: string): Promise<FeishuWikiSpacePreview> {
+    this.assertExternalKnowledgeReady()
+    return await this.externalKnowledgeRuntime.previewFeishuSpace(connectionId, spaceId)
   }
 
   async createExternalKnowledgeSource(input: CreateExternalKnowledgeSourceCommand): Promise<ExternalKnowledgeSource> {
