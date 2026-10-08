@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,17 +40,12 @@ vi.mock('@application', async () => {
   }
 })
 
-import DoctorServer from '@main/ai/mcp/servers/doctor'
+import { createDoctorServer } from '@main/ai/mcp/servers/doctor'
 
 import { applyWrite, undoWrite, writeRisk } from '../doctorWrites'
 
-async function connect() {
-  const server = new DoctorServer('session-1')
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-  const client = new Client({ name: 'doctor-test', version: '1.0.0' }, { capabilities: {} })
-  await server.mcpServer.connect(serverTransport)
-  await client.connect(clientTransport)
-  return client
+async function connect(): Promise<Client> {
+  return connectMcpTestClient(() => createDoctorServer('session-1'))
 }
 
 function text(result: unknown): string {

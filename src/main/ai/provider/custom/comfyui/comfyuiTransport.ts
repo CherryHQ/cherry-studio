@@ -15,7 +15,7 @@ import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 import { type ComfyuiRequestOptions, normalizeComfyuiBaseUrl, requestJson, withDeadline } from './comfyuiHttp'
 import { WORKFLOW_DIR, WORKFLOW_FILE_EXTENSION } from './comfyuiWorkflows'
-import { applySeed, convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo } from './uiToApiPrompt'
+import { applySeed, convertUiWorkflowToPrompt, findPromptTarget, hasPromptText, type ObjectInfo } from './uiToApiPrompt'
 
 /**
  * ComfyUI transport: expand a saved workflow into a prompt, submit it, then poll
@@ -163,17 +163,27 @@ class ComfyuiTransport implements ImageGenerationTransport {
       )
     ])
 
-    const { prompt: graph, warnings } = convertUiWorkflowToPrompt(workflow, objectInfo)
+    const { prompt: graph, warnings, promotedText } = convertUiWorkflowToPrompt(workflow, objectInfo)
     for (const warning of warnings) logger.warn(`workflow conversion: ${warning}`)
 
-    const target = findPromptTarget(graph)
-    if (!target) {
+    const target = findPromptTarget(graph, { promotedText, objectInfo })
+    // A workflow that holds no text at all — an upscaler, a background remover,
+    // a depth estimator — takes no prompt and runs as it was saved. One that
+    // holds text we could not place is still an error: generating with the
+    // workflow's own text instead of the run's is worse than refusing.
+    if (!target && hasPromptText(graph)) {
       throw createPaintingGenerateError('REMOTE_ERROR', {
         message: t('paintings.comfyui.no_prompt_node', { workflow: input.modelId })
       })
     }
-    graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
-    applySeed(graph, input.seed, target.samplerId)
+    if (target) {
+      graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
+      applySeed(graph, input.seed, target.samplerId)
+    } else {
+      // Nothing in the graph says which node the run's seed belongs to, so the
+      // whole run — the seed included — stays exactly as the workflow saved it.
+      logger.warn(`workflow ${input.modelId} holds no prompt; running it as it was saved`)
+    }
 
     // The submit and its body share one deadline, and we name the prompt: a lost
     // response still leaves the id ours to cancel. ComfyUI v0.37+ rejects a

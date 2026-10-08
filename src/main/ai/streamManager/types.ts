@@ -88,6 +88,7 @@ export interface StreamErrorResult extends TerminalOutcome {
 // ── StreamListener ──────────────────────────────────────────────────
 
 export interface StreamListener {
+  readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
   /** Orders terminal persistence before notifications and cleanup work after them. */

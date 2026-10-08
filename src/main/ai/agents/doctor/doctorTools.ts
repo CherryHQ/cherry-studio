@@ -10,8 +10,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import type { NeutralTool, NeutralToolResult } from '@main/ai/agents/tools/types'
-import { ToolError, ToolErrorCode } from '@main/ai/agents/tools/types'
 import { isBlockedSourceFile } from '@main/ai/mcp/servers/assistant'
 import { isSameOrInside } from '@main/utils/file'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
@@ -32,6 +30,33 @@ export interface DoctorToolContext {
   readonly sessionId: string
 }
 
+export interface DoctorToolResult {
+  [key: string]: unknown
+  content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[]
+  isError?: boolean
+}
+
+export enum ToolErrorCode {
+  InvalidParams = -32602
+}
+
+export class ToolError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: ToolErrorCode
+  ) {
+    super(message)
+    this.name = 'ToolError'
+  }
+}
+
+export interface DoctorTool {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+  handler: (args: Record<string, unknown>, ctx: DoctorToolContext) => Promise<DoctorToolResult> | DoctorToolResult
+}
+
 const PROBE_TIMEOUT_MS = 15_000
 const READ_FILE_MAX_BYTES = 128 * 1024
 const READ_FILE_DEFAULT_LINES = 200
@@ -44,7 +69,7 @@ const READ_FILE_BLOCKED_DIRS = [
   'Data/Memory'
 ]
 
-function json(value: unknown): NeutralToolResult {
+function json(value: unknown): DoctorToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
 }
 
@@ -69,12 +94,12 @@ async function requestWrite(
   ctx: DoctorToolContext,
   write: DoctorAgentWrite,
   summary: string
-): Promise<NeutralToolResult> {
+): Promise<DoctorToolResult> {
   const outcome = await application.get('DoctorAgentService').requestWrite(ctx.sessionId, write, summary)
   return { ...json(outcome), ...(outcome.status === 'failed' ? { isError: true } : {}) }
 }
 
-const REPORT_TOOL: NeutralTool<DoctorToolContext> = {
+const REPORT_TOOL: DoctorTool = {
   name: 'report',
   description:
     'Re-read the System Doctor report this analysis is bound to (same run the user sees). Use after a fix to confirm the finding changed; do not run the Doctor again.',
@@ -82,7 +107,7 @@ const REPORT_TOOL: NeutralTool<DoctorToolContext> = {
   handler: (_args, ctx) => json(application.get('DoctorAgentService').reportForSession(ctx.sessionId))
 }
 
-const DATA_API_TOOL: NeutralTool<DoctorToolContext> = {
+const DATA_API_TOOL: DoctorTool = {
   name: 'data_api',
   description: `Query Cherry Studio's business data (SQLite) through its internal REST-style Data API. Secrets are redacted in every response.
 
@@ -123,7 +148,7 @@ PATCH is recorded as a proposal the user applies; allowed only on /providers/{id
   }
 }
 
-const PREFERENCE_TOOL: NeutralTool<DoctorToolContext> = {
+const PREFERENCE_TOOL: DoctorTool = {
   name: 'preference',
   description: `Read or change user preferences (the settings store; keys like app.proxy.mode, chat.default_model_id, BootConfig.app.disable_hardware_acceleration).
 
@@ -167,7 +192,7 @@ list: every key and value, secrets redacted. get: one key. set: recorded as a pr
   }
 }
 
-const PROBE_ENDPOINT_TOOL: NeutralTool<DoctorToolContext> = {
+const PROBE_ENDPOINT_TOOL: DoctorTool = {
   name: 'probe_endpoint',
   description:
     'Layered reachability of any URL: DNS, TLS handshake, proxy in use, HTTP status (HEAD, no body). Use it to distinguish a wrong base URL from a blocked network or a proxy problem. Local addresses are fine (Ollama, LM Studio).',
@@ -195,7 +220,7 @@ const PROBE_ENDPOINT_TOOL: NeutralTool<DoctorToolContext> = {
   }
 }
 
-const DOCTOR_FIX_TOOL: NeutralTool<DoctorToolContext> = {
+const DOCTOR_FIX_TOOL: DoctorTool = {
   name: 'doctor_fix',
   description:
     'Run a fix the System Doctor catalog declares for a failing check (the report lists them under actions of kind "fix"). Reversible fixes that need no relaunch run immediately and return the re-probed result; others become a proposal the user applies.',
@@ -258,7 +283,7 @@ export function resolveDoctorReadablePath(requested: string): string {
   return resolved
 }
 
-const READ_FILE_TOOL: NeutralTool<DoctorToolContext> = {
+const READ_FILE_TOOL: DoctorTool = {
   name: 'read_file',
   description:
     'Read an app-owned file or list a directory inside the app data directory (userData) or the log directory: log files, crash dumps, MCP/Claude runtime settings, cache.json, config.json, Toolchain. Relative paths resolve against userData. Files return their LAST `lines` lines (default 200) with secrets redacted; user content (Files, KnowledgeBase, Notes, transcripts, memory) is refused.',
@@ -300,7 +325,7 @@ const READ_FILE_TOOL: NeutralTool<DoctorToolContext> = {
   }
 }
 
-export const DOCTOR_TOOLS: readonly NeutralTool<DoctorToolContext>[] = [
+export const DOCTOR_TOOLS: readonly DoctorTool[] = [
   READ_FILE_TOOL,
   REPORT_TOOL,
   DATA_API_TOOL,

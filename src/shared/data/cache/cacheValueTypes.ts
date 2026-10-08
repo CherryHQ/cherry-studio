@@ -41,6 +41,8 @@ export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**

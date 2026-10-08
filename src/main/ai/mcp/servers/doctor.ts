@@ -1,25 +1,35 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { type CallToolResult, fromJsonSchema, type JsonSchemaType, McpServer } from '@modelcontextprotocol/server'
 
 import { loggerService } from '@logger'
-import { DOCTOR_TOOLS, type DoctorToolContext } from '@main/ai/agents/doctor/doctorTools'
-
-import { createNeutralToolMcpServer } from './neutralToolMcpServer'
+import { DOCTOR_TOOLS, ToolError } from '@main/ai/agents/doctor/doctorTools'
 
 const logger = loggerService.withContext('DoctorServer')
 
-/** In-process MCP server mounted only for the doctor built-in Agent; see `agents/doctor/doctorTools`. */
-class DoctorServer {
-  public mcpServer: McpServer
-
-  constructor(sessionId: string) {
-    const context: DoctorToolContext = { sessionId }
-    this.mcpServer = createNeutralToolMcpServer(
-      { name: 'doctor', version: '1.0.0' },
-      [...DOCTOR_TOOLS],
-      context,
-      logger
-    )
-  }
+function formatToolError(error: unknown): string {
+  if (error instanceof ToolError && error.code !== undefined) return `MCP error ${error.code}: ${error.message}`
+  return error instanceof Error ? error.message : String(error)
 }
 
-export default DoctorServer
+/** In-process MCP server mounted only for the doctor built-in Agent; see `agents/doctor/doctorTools`. */
+export function createDoctorServer(sessionId: string): McpServer {
+  const server = new McpServer({ name: 'doctor', version: '1.0.0' })
+  for (const tool of DOCTOR_TOOLS) {
+    server.registerTool(
+      tool.name,
+      {
+        description: tool.description,
+        inputSchema: fromJsonSchema<Record<string, unknown>>(tool.inputSchema as JsonSchemaType)
+      },
+      async (args): Promise<CallToolResult> => {
+        try {
+          return await tool.handler(args, { sessionId })
+        } catch (error) {
+          const message = formatToolError(error)
+          logger.error(`Tool error: ${tool.name}`, { error: message })
+          return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
+        }
+      }
+    )
+  }
+  return server
+}

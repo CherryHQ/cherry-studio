@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, FolderOpen, MoreHorizontal, Play, RefreshCw, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,6 +36,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const launchSkill = useSkillLauncher()
+  // Received from the list route; handed back on return so the list restores the active tab.
+  const { scope } = useSearch({ strict: false }) as { scope?: 'all' | 'system' | 'builtin' }
   const { data: skill, isLoading, error, refetch } = useQuery('/skills/:skillId', { params: { skillId } })
   const { updateGlobalEnabled, uninstallSkill, isUpdating } = useSkillMutationsById(skillId)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -49,7 +51,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   useDataChange('/skills/:skillId', () => void refetch())
 
-  const goBack = () => void navigate({ to: '/settings/skills' })
+  const goBack = () => void navigate({ to: '/settings/skills', search: { scope } })
 
   const handleOpenFolder = async () => {
     try {
