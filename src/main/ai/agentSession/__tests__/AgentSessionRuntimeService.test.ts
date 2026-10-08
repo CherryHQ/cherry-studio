@@ -128,6 +128,8 @@ vi.mock('@application', () => ({
 
 const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
 const { AgentSessionForkOperations } = await import('../fork')
+import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
+
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
@@ -1289,6 +1291,36 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
     })
 
+    it('closes an unheld headless session immediately after the turn settles', async () => {
+      const service = new AgentSessionRuntimeService()
+      const connection = { close: vi.fn().mockResolvedValue(undefined), send: vi.fn(), events: [] }
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = connection
+      entry.lastResumeToken = 'resume-1'
+
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(service.inspect('session-1')).toBeUndefined()
+      await vi.waitFor(() => expect(connection.close).toHaveBeenCalled())
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+    })
+
+    it('closes an unheld headless session when background work finishes after the turn settled', () => {
+      const service = new AgentSessionRuntimeService()
+      const connection = { close: vi.fn().mockResolvedValue(undefined), send: vi.fn(), events: [] }
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = connection
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
     async function rollContinuation(initialHeadless: boolean, steerHeadless: boolean) {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), headless: initialHeadless })
@@ -1524,6 +1556,12 @@ describe('AgentSessionRuntimeService', () => {
         onSessionIdle
       })
       const service = new AgentSessionRuntimeService()
+      class FakeWebContents extends EventEmitter {
+        isDestroyed(): boolean {
+          return false
+        }
+      }
+      service.acquireWarmLease('session-1', new FakeWebContents() as unknown as Electron.WebContents)
       const handle = service.beginTurn(baseTurnInput)
       getEntry(service).lastResumeToken = 'resume-1'
 
@@ -1556,6 +1594,38 @@ describe('AgentSessionRuntimeService', () => {
       vi.advanceTimersByTime(5 * 60 * 1000)
 
       expect(onSessionIdle).not.toHaveBeenCalled()
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('hands an idle session with a resume token but no warm lease to onSessionIdleWithoutWarmLease', () => {
+    vi.useFakeTimers()
+    try {
+      const onSessionIdleWithoutWarmLease = vi.fn()
+      const driver: AgentSessionRuntimeDriver = {
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue({
+          events: [],
+          send: vi.fn(),
+          close: vi.fn()
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdleWithoutWarmLease
+      }
+      runtimeDriverRegistry.register(driver)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(service.inspect('session-1')).toBeUndefined()
     } finally {
       vi.useRealTimers()
@@ -3280,6 +3350,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
       const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
 
@@ -6139,9 +6210,25 @@ describe('AgentSessionRuntimeService', () => {
     let service: InstanceType<typeof AgentSessionRuntimeService>
     let prime: MockInstance<(sessionId: string) => Promise<void>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
+    let onSessionIdleWithoutWarmLease: NonNullable<AgentSessionRuntimeDriver['onSessionIdleWithoutWarmLease']>
 
     beforeEach(() => {
       vi.useFakeTimers()
+      onSessionIdleWithoutWarmLease = vi.fn()
+      const driver: AgentSessionRuntimeDriver = {
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue({
+          events: [],
+          send: vi.fn(),
+          close: vi.fn()
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdleWithoutWarmLease
+      }
+      runtimeDriverRegistry.register(driver)
+      mocks.getSessionById.mockReturnValue({ agentId: 'agent-1' })
       service = new AgentSessionRuntimeService()
       prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
       releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
@@ -6159,12 +6246,13 @@ describe('AgentSessionRuntimeService', () => {
 
       service.releaseWarmLease('session-1', asSender(windowA))
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(onSessionIdleWithoutWarmLease).not.toHaveBeenCalled()
       expect(releaseIdle).not.toHaveBeenCalled()
 
       service.releaseWarmLease('session-1', asSender(windowB))
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 
@@ -6177,7 +6265,60 @@ describe('AgentSessionRuntimeService', () => {
       expect(releaseIdle).not.toHaveBeenCalled()
 
       vi.advanceTimersByTime(1)
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('does not throw when the session row is gone before the warm-lease grace elapses', () => {
+      const windowA = createWebContents()
+      service.beginTurn(baseTurnInput)
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.releaseWarmLease('session-1', asSender(windowA))
+      void service.closeSession('session-1')
+      mocks.getSessionById.mockImplementation(() => {
+        throw new Error('Session not found')
+      })
+
+      expect(() => vi.runAllTimers()).not.toThrow()
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('still notifies the runtime driver after idle closure when the warm lease releases later', () => {
+      const windowA = createWebContents()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+      service.acquireWarmLease('session-1', asSender(windowA))
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+      expect(service.inspect('session-1')).toBeUndefined()
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.runAllTimers()
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('still notifies the runtime driver when the session row is gone before the warm lease grace elapses', () => {
+      const windowA = createWebContents()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+      service.acquireWarmLease('session-1', asSender(windowA))
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+      expect(service.inspect('session-1')).toBeUndefined()
+
+      mocks.getSessionById.mockImplementation(() => {
+        throw new Error('Session not found')
+      })
+      mocks.getAgent.mockReturnValue(undefined)
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.runAllTimers()
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 
@@ -6191,7 +6332,7 @@ describe('AgentSessionRuntimeService', () => {
       service.acquireWarmLease('session-1', asSender(windowA))
 
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(onSessionIdleWithoutWarmLease).not.toHaveBeenCalled()
       expect(releaseIdle).not.toHaveBeenCalled()
       expect(prime).toHaveBeenCalledTimes(1)
     })
@@ -6217,7 +6358,8 @@ describe('AgentSessionRuntimeService', () => {
 
       windowB.destroy()
       vi.runAllTimers()
-      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(onSessionIdleWithoutWarmLease).toHaveBeenCalledWith('session-1')
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
       expect(releaseIdle).toHaveBeenCalledWith('session-1')
     })
 

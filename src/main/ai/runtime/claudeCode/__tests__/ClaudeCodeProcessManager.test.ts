@@ -3,8 +3,9 @@ import { PassThrough } from 'node:stream'
 
 import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
+import { application } from '@application'
 import {
   BaseService,
   DependsOn,
@@ -277,6 +278,89 @@ describe('ClaudeCodeProcessManager', () => {
 
     await expect(manager._doStop()).resolves.toBeUndefined()
     expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+
+  it('still signals warm-query children dropped from the spawn cap during eviction', () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('warm-ref')
+    manager.spawn(spawnOptions, diagnostics)
+
+    expect(manager.getActiveProcessCount()).toBe(1)
+    manager.releaseWarmQueryProcess('warm-ref')
+    expect(manager.getActiveProcessCount()).toBe(1)
+    child.kill.mockClear()
+
+    manager.killAll('SIGTERM')
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith('SIGTERM')
+  })
+
+  it('frees a warm-eviction cap slot at SIGTERM but keeps the child active until exit', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('warm-ref')
+    manager.spawn(spawnOptions, diagnostics)
+
+    manager.releaseWarmQueryProcess('warm-ref')
+    expect(manager.getCapSlotProcessCount()).toBe(0)
+    expect(manager.getActiveProcessCount()).toBe(1)
+
+    child.emitExit()
+    expect(manager.getCapSlotProcessCount()).toBe(0)
+    await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(0))
+  })
+
+  it('refuses a live spawn at the active cap until an evicted warm child exits', async () => {
+    const warmChildren = Array.from({ length: 6 }, () => createFakeChild())
+    const liveChild = createFakeChild()
+    const spawnProcess = vi.fn()
+    for (const child of warmChildren) spawnProcess.mockReturnValueOnce(child.process)
+    spawnProcess.mockReturnValueOnce(liveChild.process)
+    const manager = new TestProcessManager(spawnProcess)
+    const applicationGetExisting = vi.spyOn(application, 'getExisting') as unknown as Mock
+    applicationGetExisting.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') return manager
+      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery: vi.fn(() => false) }
+      throw new Error(`unexpected service ${name}`)
+    })
+    try {
+      for (let i = 0; i < 6; i++) {
+        manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics(`warm-${i}`), 'warm')
+      }
+
+      manager.releaseWarmQueryProcess('warm-0')
+      expect(manager.getCapSlotProcessCount()).toBe(5)
+      expect(manager.getActiveProcessCount()).toBe(6)
+      expect(() => manager.spawn(spawnOptions)).toThrow('Claude Code CLI process cap reached')
+
+      warmChildren[0].emitExit()
+      await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(5))
+
+      manager.spawn(spawnOptions)
+      expect(manager.getCapSlotProcessCount()).toBe(6)
+      expect(manager.getActiveProcessCount()).toBe(6)
+      expect(warmChildren[0].kill).toHaveBeenCalledWith('SIGTERM')
+    } finally {
+      applicationGetExisting.mockRestore()
+    }
+  })
+
+  it('refuses a warm park while an evicted child keeps the active count at the cap', () => {
+    const applicationGetExisting = vi.spyOn(application, 'getExisting') as unknown as Mock
+    applicationGetExisting.mockImplementation((name: string) => {
+      if (name === 'ClaudeCodeProcessManager') {
+        return { getActiveProcessCount: () => 6, getCapSlotProcessCount: () => 5 }
+      }
+      if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery: vi.fn(() => false) }
+      throw new Error(`unexpected service ${name}`)
+    })
+    try {
+      expect(() =>
+        new TestProcessManager(vi.fn()).spawn(spawnOptions, createClaudeCodeProcessDiagnostics(), 'warm')
+      ).toThrow('Claude Code CLI process cap reached')
+    } finally {
+      applicationGetExisting.mockRestore()
+    }
   })
 
   it('absorbs child kill failures', () => {
