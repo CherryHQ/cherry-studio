@@ -1,16 +1,29 @@
 import { preferenceTable } from '@data/db/schemas/preference'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SupportedPlatform } from '@shared/types/command'
+import { type CommandId, getCommandDefaultShortcutPreference, REGISTERED_KEYBINDINGS } from '@shared/utils/command'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
+
+const SHORTCUT_PLATFORM_DEFAULTS_REVISION = 1
+
+const shortcutCommandByPreferenceKey = new Map<string, CommandId>(
+  REGISTERED_KEYBINDINGS.map((rule) => [rule.preferenceKey, rule.command])
+)
 
 export class PreferenceSeeder implements ISeeder {
   readonly name = 'preference'
   readonly description = 'Insert default preference values'
   readonly version: string
+  private readonly platform: SupportedPlatform
 
-  constructor() {
-    this.version = hashObject(DefaultPreferences)
+  constructor(platform: SupportedPlatform = process.platform as SupportedPlatform) {
+    this.platform = platform
+    this.version = hashObject({
+      ...DefaultPreferences,
+      shortcutPlatformDefaults: SHORTCUT_PLATFORM_DEFAULTS_REVISION
+    })
   }
 
   run(db: DbType): void {
@@ -37,11 +50,16 @@ export class PreferenceSeeder implements ISeeder {
           continue
         }
 
+        const command = shortcutCommandByPreferenceKey.get(key)
+        const resolved = command ? getCommandDefaultShortcutPreference(command, this.platform) : undefined
+        // Keep every schema field; overlay only the resolved platform binding and enabled flag.
+        const seededValue = resolved && typeof value === 'object' && value !== null ? { ...value, ...resolved } : value
+
         // Add to new preferences array
         newPreferences.push({
           scope,
           key,
-          value
+          value: seededValue
         })
       }
     }

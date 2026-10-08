@@ -114,4 +114,113 @@ describe('PreferenceSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, sidebarKey)))
     expect(row.value).toEqual(persisted)
   })
+
+  it('seeds darwin sidebar Alt brackets and tab.next Ctrl+Tab', async () => {
+    new PreferenceSeeder('darwin').run(dbh.db)
+
+    const [leftSidebar] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.app.sidebar.toggle')))
+    const [rightSidebar] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.topic.sidebar.toggle')))
+    const [nextTab] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.tab.next')))
+
+    expect(leftSidebar.value).toEqual({
+      binding: ['CommandOrControl', 'Alt', '['],
+      customized: false,
+      enabled: true
+    })
+    expect(rightSidebar.value).toEqual({
+      binding: ['CommandOrControl', 'Alt', ']'],
+      customized: false,
+      enabled: true
+    })
+    expect(nextTab.value).toEqual({ binding: ['Ctrl', 'Tab'], enabled: true })
+  })
+
+  it('seeds the shared shortcut default on linux', async () => {
+    new PreferenceSeeder('linux').run(dbh.db)
+
+    const [leftSidebar] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.app.sidebar.toggle')))
+    const [rightSidebar] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.topic.sidebar.toggle')))
+    const [nextTab] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'shortcut.tab.next')))
+
+    expect(leftSidebar.value).toEqual({
+      binding: ['CommandOrControl', '['],
+      customized: false,
+      enabled: true
+    })
+    expect(rightSidebar.value).toEqual({
+      binding: ['CommandOrControl', ']'],
+      customized: false,
+      enabled: true
+    })
+    expect(nextTab.value).toEqual({ binding: ['CommandOrControl', 'Tab'], enabled: true })
+  })
+
+  it('keeps existing schema-default shortcut rows exact when customized is true, false, or absent', async () => {
+    const preserved = [
+      {
+        key: 'shortcut.app.sidebar.toggle',
+        value: DefaultPreferences.default['shortcut.app.sidebar.toggle']
+      },
+      {
+        key: 'shortcut.topic.sidebar.toggle',
+        value: {
+          ...DefaultPreferences.default['shortcut.topic.sidebar.toggle'],
+          customized: true
+        }
+      },
+      {
+        key: 'shortcut.tab.next',
+        value: DefaultPreferences.default['shortcut.tab.next']
+      }
+    ]
+
+    expect(preserved[0].value).toEqual({
+      binding: ['CommandOrControl', '['],
+      customized: false,
+      enabled: true
+    })
+    expect(preserved[1].value).toEqual({
+      binding: ['CommandOrControl', ']'],
+      customized: true,
+      enabled: true
+    })
+    expect(preserved[2].value).toEqual({ binding: ['CommandOrControl', 'Tab'], enabled: true })
+    expect(preserved[2].value).not.toHaveProperty('customized')
+
+    await dbh.db.insert(preferenceTable).values(
+      preserved.map((entry) => ({
+        scope: 'default',
+        key: entry.key,
+        value: entry.value
+      }))
+    )
+
+    new PreferenceSeeder('darwin').run(dbh.db)
+
+    for (const entry of preserved) {
+      const [row] = await dbh.db
+        .select()
+        .from(preferenceTable)
+        .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, entry.key)))
+      expect(row.value).toEqual(entry.value)
+    }
+  })
 })

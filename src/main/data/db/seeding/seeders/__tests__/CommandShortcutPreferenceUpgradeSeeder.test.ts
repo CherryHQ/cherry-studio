@@ -106,23 +106,31 @@ describe('CommandShortcutPreferenceUpgradeSeeder', () => {
     ])
   })
 
-  it('keeps a fresh installation row on its stored shared-default chord', () => {
-    new SeedRunner(dbh.db).runAll([new CommandShortcutPreferenceUpgradeSeeder(), new PreferenceSeeder()])
+  it('keeps platform-specific fresh-install rows', () => {
+    new SeedRunner(dbh.db).runAll([new CommandShortcutPreferenceUpgradeSeeder(), new PreferenceSeeder('darwin')])
 
     const appSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[0]) as PreferenceShortcutType
     const topicSidebar = readPreference(SIDEBAR_SHORTCUT_KEYS[1]) as PreferenceShortcutType
-    expect(appSidebar).toEqual({ binding: ['CommandOrControl', '['], customized: false, enabled: true })
-    expect(topicSidebar).toEqual({ binding: ['CommandOrControl', ']'], customized: false, enabled: true })
+    expect(appSidebar).toEqual({ binding: ['CommandOrControl', 'Alt', '['], customized: false, enabled: true })
+    expect(topicSidebar).toEqual({ binding: ['CommandOrControl', 'Alt', ']'], customized: false, enabled: true })
     expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'darwin')?.binding).toEqual([
       'CommandOrControl',
+      'Alt',
       '['
     ])
     expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar, 'darwin')?.binding).toEqual([
       'CommandOrControl',
+      'Alt',
       ']'
+    ])
+    expect(resolveCommandShortcutPreference('app.sidebar.toggle', appSidebar, 'win32')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      '['
     ])
     expect(resolveCommandShortcutPreference('topic.sidebar.toggle', topicSidebar, 'win32')?.binding).toEqual([
       'CommandOrControl',
+      'Alt',
       ']'
     ])
   })
