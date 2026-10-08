@@ -12,6 +12,7 @@ import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
+import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -110,6 +111,7 @@ function controlledStream(): {
   stream: ReadableStream<UIMessageChunk>
   enqueue: (chunk: UIMessageChunk) => void
   close: () => void
+  error: (reason: unknown) => void
 } {
   let controller!: ReadableStreamDefaultController<UIMessageChunk>
   const stream = new ReadableStream<UIMessageChunk>({
@@ -120,7 +122,8 @@ function controlledStream(): {
   return {
     stream,
     enqueue: (chunk) => controller.enqueue(chunk),
-    close: () => controller.close()
+    close: () => controller.close(),
+    error: (reason) => controller.error(reason)
   }
 }
 
@@ -167,7 +170,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
-const { TerminalPersistenceError } = await import('../listeners/PersistenceListener')
+const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -3133,6 +3136,84 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
+      'retains partial content after an accumulation failure and selects the correct terminal outcome (%s)',
+      async (ending) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockResolvedValueOnce(controlled.stream)
+        const listener = new FakeListener('l:a')
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId: 'a',
+          backend: {
+            kind: 'test',
+            persistAssistant: (input) => {
+              writes.push(input)
+            }
+          },
+          onPersistFailed: (error) => {
+            throw new Error(error.message ?? 'Persistence failed')
+          }
+        })
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener, persistence]
+        })
+        const chunks: UIMessageChunk[] = [
+          { type: 'start', messageId: 'reply' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'Preserved content' },
+          { type: 'reasoning-end', id: 'missing' },
+          ...Array.from({ length: 32 }, (): UIMessageChunk => ({ type: 'text-delta', id: 't1', delta: ' later' }))
+        ]
+        for (const chunk of chunks) controlled.enqueue(chunk)
+        if (ending === 'provider-error') controlled.enqueue({ type: 'error', errorText: 'Provider unavailable' })
+        if (ending === 'abort' || ending === 'source-error') {
+          await flushUntil(() => listener.chunks.length === chunks.length)
+          if (ending === 'abort') mgr.abort('a', 'user-stop')
+          else controlled.error(new Error('Source disconnected'))
+        } else controlled.close()
+
+        await flushUntil(() => listener.errorResults.length + listener.pausedResults.length === 1)
+
+        expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+        expect(listener.doneResults).toEqual([])
+        const terminal = listener.errorResults[0] ?? listener.pausedResults[0]
+        expect(terminal.finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content' })
+        )
+        expect(writes).toHaveLength(1)
+        expect(writes[0].status).toBe(ending === 'abort' ? 'paused' : 'error')
+        expect(writes[0].finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Preserved content', state: 'done' })
+        )
+        if (ending === 'abort') {
+          expect(listener.errorResults).toEqual([])
+          expect(terminal.status).toBe('paused')
+          expect(mgr.inspect('a')!.status).toBe('aborted')
+        } else if (ending === 'provider-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ name: 'StreamError', message: 'Provider unavailable' })
+        } else if (ending === 'source-error') {
+          expect(listener.errorResults[0].error).toMatchObject({ message: 'Source disconnected' })
+        } else {
+          expect(listener.errorResults[0].error.executionFailure).toMatchObject({
+            retryable: false,
+            failure: { reasonCode: 'internal', source: { layer: 'host' } }
+          })
+          expect(writes[0].finalMessage?.parts).toContainEqual(
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ executionFailure: listener.errorResults[0].error.executionFailure })
+            })
+          )
+          expect(mgr.inspect('a')!.status).toBe('error')
+        }
+      }
+    )
+
     it.each([
       { statusCode: 400, isRetryable: false, message: 'Maximum context length exceeded' },
       { statusCode: 503, isRetryable: true, message: 'Upstream unavailable' }

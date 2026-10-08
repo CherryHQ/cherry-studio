@@ -201,7 +201,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
-    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
+    const reason = rejectionReason.trim() || undefined
     await respond(
       {
         match: request.match,
@@ -210,7 +210,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       },
       'deny'
     )
-  }, [isSubmitting, rejectionReason, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond])
 
   useHotkeys(
     'enter',

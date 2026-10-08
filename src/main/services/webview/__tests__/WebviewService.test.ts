@@ -205,6 +205,48 @@ const input = (documentSessionId: string, annotations: WebviewAnnotation[] = [an
   annotations
 })
 
+describe('WebviewService request identity', () => {
+  it.each([
+    ['https://accounts.google.com/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://accounts.google.com/v3/signin/identifier', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://accounts.google.com/o/oauth2/v2/auth', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://ACCOUNTS.GOOGLE.COM/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+    ['https://google.com/', 'Browser/1.0'],
+    ['https://aistudio.google.com/', 'Browser/1.0'],
+    [
+      'https://alkalimakersuite-pa.clients6.google.com/$rpc/google.internal.alkali.applications.makersuite.v1.MakerSuiteService/CreateCloudProject',
+      'Browser/1.0'
+    ],
+    ['https://waa-pa.clients6.google.com/$rpc/google.internal.waa.v1.Waa/Create', 'Browser/1.0'],
+    ['https://www.google.com/recaptcha/enterprise.js', 'Browser/1.0'],
+    ['https://generativelanguage.googleapis.com/', 'Browser/1.0'],
+    ['https://example.com/', 'Browser/1.0'],
+    ['https://example.com/echo?google.com', 'Browser/1.0'],
+    ['https://google.com.example.com/', 'Browser/1.0'],
+    ['https://notgoogle.com/', 'Browser/1.0'],
+    ['https://google.com@example.com/', 'Browser/1.0'],
+    ['https://accounts.google.com.example.com/', 'Browser/1.0'],
+    ['https://example.com/?next=https://accounts.google.com/', 'Browser/1.0'],
+    ['https://accounts.google.com@example.com/', 'Browser/1.0']
+  ])('preserves sign-in compatibility and browser identity for %s', (url, userAgent) => {
+    const service = new WebviewService()
+    ;(service as unknown as { initSessionUserAgent: () => void }).initSessionUserAgent()
+    const handleRequest = siteSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
+    let headers: Record<string, string> = {}
+    handleRequest(
+      { url, requestHeaders: { 'User-Agent': 'CherryStudio/1.0 Electron/1.0 Browser/1.0', Accept: '*/*' } },
+      (response: { requestHeaders: Record<string, string> }) => {
+        headers = response.requestHeaders
+      }
+    )
+    expect(headers).toEqual({
+      Accept: '*/*',
+      'User-Agent': userAgent,
+      'Accept-Language': 'en-US, en;q=0.9, *;q=0.5'
+    })
+  })
+})
+
 describe('WebviewService webview ownership', () => {
   let service: WebviewService
   let host: object

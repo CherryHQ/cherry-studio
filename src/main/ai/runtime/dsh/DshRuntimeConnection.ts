@@ -18,7 +18,7 @@ import {
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -61,8 +61,7 @@ import {
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
-  type DshCherryToolBridge,
-  warmDshMcpToolCatalogs
+  type DshCherryToolBridge
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
 import {
@@ -304,7 +303,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.
     if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
-    await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,

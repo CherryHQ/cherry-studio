@@ -104,6 +104,7 @@ beforeEach(() => {
   mocks.applicationGet.mockImplementation((name: string) => {
     if (name === 'AiStreamManager') {
       return {
+        getInteractionWindow: () => undefined,
         startRuntimeTurn: mocks.startRuntimeTurn,
         abort: mocks.abortStream,
         suspendUnadmittedRuntimeTurn: mocks.suspendUnadmittedRuntimeTurn,
