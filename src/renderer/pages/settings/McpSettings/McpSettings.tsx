@@ -361,14 +361,16 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         try {
           await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
 
-          const localPrompts = await ipcApi.request('mcp.server.list_prompts', { serverId: serverForUpdate.id })
+          const serverId = serverForUpdate.id
+          const [localPrompts, localResources, localTemplates, version] = await Promise.all([
+            ipcApi.request('mcp.server.list_prompts', { serverId }),
+            ipcApi.request('mcp.server.list_resources', { serverId }),
+            ipcApi.request('mcp.server.list_resource_templates', { serverId }),
+            ipcApi.request('mcp.server.get_version', { serverId })
+          ])
           setPrompts(localPrompts)
-
-          const localResources = await ipcApi.request('mcp.server.list_resources', { serverId: serverForUpdate.id })
           setResources(localResources)
-          setTemplates(await ipcApi.request('mcp.server.list_resource_templates', { serverId: serverForUpdate.id }))
-
-          const version = await ipcApi.request('mcp.server.get_version', { serverId: serverForUpdate.id })
+          setTemplates(localTemplates)
           setServerVersion(version)
 
           markCapabilityLoaded('tools')

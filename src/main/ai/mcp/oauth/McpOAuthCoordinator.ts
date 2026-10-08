@@ -22,12 +22,7 @@ export class McpOAuthCoordinator {
     }
     const controller = new AbortController()
     const effectiveSignal = AbortSignal.any([signal, controller.signal])
-    let resolve!: () => void
-    let reject!: (error: unknown) => void
-    const done = new Promise<void>((res, rej) => {
-      resolve = res
-      reject = rej
-    })
+    const { promise: done, resolve, reject } = Promise.withResolvers<void>()
     void done.catch(() => undefined)
     const abort = () => lease.finish(effectiveSignal.reason)
     const lease: McpAuthorizationLease = {

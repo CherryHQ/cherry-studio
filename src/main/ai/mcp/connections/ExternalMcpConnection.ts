@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import crypto from 'node:crypto'
 
 import {
   SdkHttpError,
@@ -29,6 +28,7 @@ import {
   type McpAuthorizationLease
 } from '../oauth/McpOAuthCoordinator'
 import { McpOAuthClientProvider } from '../oauth/provider'
+import { oauthServerUrlHash } from '../oauth/storage'
 import { getBuiltinAutoInstallEnv } from '../servers/factory'
 import { ClientMcpConnection } from './ClientMcpConnection'
 import type { McpConnection, McpConnectionEvents } from './McpConnection'
@@ -36,10 +36,8 @@ import type { McpConnection, McpConnectionEvents } from './McpConnection'
 type UrlTransport = SSEClientTransport | StreamableHTTPClientTransport
 
 export interface ExternalMcpConnectionLog {
-  debug(message: string, data?: unknown): void
   info(message: string, data?: unknown): void
   warn(message: string, data?: unknown): void
-  error(message: string, error?: Error): void
   stdio(message: string): void
 }
 
@@ -98,10 +96,7 @@ export async function createExternalMcpConnection({
   signal?: AbortSignal
 }): Promise<McpConnection> {
   const authProvider = new McpOAuthClientProvider({
-    serverUrlHash: crypto
-      .createHash('md5')
-      .update(server.baseUrl || '')
-      .digest('hex')
+    serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
   const useOAuth = !('authorization' in headers)

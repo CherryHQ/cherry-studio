@@ -59,6 +59,8 @@ export type McpForwardMethod = 'tools/call' | 'prompts/get' | 'resources/read'
 export type McpForwardResult = CallToolResult | GetPromptResult | ReadResourceResult | InputRequiredResult
 export interface McpForwardOptions extends McpCallToolOptions {
   capabilities: ClientCapabilities
+  /** Known definition of the forwarded tool; saves a tools/list round trip per call. */
+  toolDefinition?: Tool
 }
 
 /**

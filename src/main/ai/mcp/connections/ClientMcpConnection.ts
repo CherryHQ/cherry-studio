@@ -20,6 +20,7 @@ import {
   type ReadResourceRequest,
   type ReadResourceResult,
   type Resource,
+  type JsonSchemaValidator,
   type Tool,
   type Transport
 } from '@modelcontextprotocol/client'
@@ -310,8 +311,6 @@ export class ClientMcpConnection implements McpConnection {
 
   public async callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult> {
     return this.withRequestContext(options, async (signal) => {
-      const toolDefinition = (await this.listTools('use', signal)).find((tool) => tool.name === name)
-
       const params: CallToolRequest['params'] = {
         name,
         arguments: (args ?? {}) as Record<string, unknown>
@@ -321,7 +320,6 @@ export class ClientMcpConnection implements McpConnection {
         timeout: options.timeoutMs,
         resetTimeoutOnProgress: options.resetTimeoutOnProgress,
         maxTotalTimeout: options.maxTotalTimeoutMs,
-        toolDefinition,
         onprogress: options.onProgress
           ? (progress) => options.onProgress?.(progress.progress, progress.total)
           : undefined
@@ -333,6 +331,18 @@ export class ClientMcpConnection implements McpConnection {
     // The SDK reads the negotiated server capabilities and returns [] when prompts are not advertised.
     const { prompts } = await this.client.listPrompts(this.paramsWithLogLevel({}), { cacheMode, signal })
     return prompts
+  }
+
+  // Keyed by schema object: catalog snapshots keep the same object until the tool list changes.
+  private readonly outputValidators = new WeakMap<object, JsonSchemaValidator<unknown>>()
+
+  private outputValidator(schema: NonNullable<Tool['outputSchema']>): JsonSchemaValidator<unknown> {
+    let validate = this.outputValidators.get(schema)
+    if (!validate) {
+      validate = new CfWorkerJsonSchemaValidator().getValidator(schema)
+      this.outputValidators.set(schema, validate)
+    }
+    return validate
   }
 
   public async forwardRequest(
@@ -368,11 +378,9 @@ export class ClientMcpConnection implements McpConnection {
           requestOptions
         )
       const name = String(params.name)
-      const definition = (await this.listTools('use', signal)).find((tool) => tool.name === name)
-      const validate =
-        definition?.outputSchema !== undefined
-          ? new CfWorkerJsonSchemaValidator().getValidator(definition.outputSchema)
-          : undefined
+      const definition =
+        options.toolDefinition ?? (await this.listTools('use', signal)).find((tool) => tool.name === name)
+      const validate = definition?.outputSchema && this.outputValidator(definition.outputSchema)
       // callTool's complete-result validator cannot accept input_required; validate only the final result here.
       const result = await this.client.callTool(
         { ...forwarded, name },

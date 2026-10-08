@@ -29,7 +29,8 @@ export interface McpBridgeOptions {
 
 const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
 
-function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
+/** Drops Cherry's catalog bookkeeping before a tool/prompt/resource goes on the wire. */
+export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
   const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
   for (const field of CATALOG_FIELDS) delete result[field]
   return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
@@ -173,12 +174,7 @@ export function createMcpBridgeServer(
       observations.set(params.uri, entry)
       entry.ready = (async () => {
         const signal = AbortSignal.any([ctx.mcpReq.signal, entry.abort.signal, AbortSignal.timeout(10_000)])
-        let acknowledge!: () => void
-        let reject!: (error: Error) => void
-        const ack = new Promise<void>((resolve, fail) => {
-          acknowledge = resolve
-          reject = fail
-        })
+        const { promise: ack, resolve: acknowledge, reject } = Promise.withResolvers<void>()
         const cancel = () => reject(new Error('MCP bridge subscription cancelled'))
         signal.addEventListener('abort', cancel, { once: true })
         const opening = application

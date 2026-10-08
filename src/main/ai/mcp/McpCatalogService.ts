@@ -14,7 +14,7 @@ import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}`
-const emptyToolsRetryCacheKey = (serverId: string) => `mcp:tools-empty-retry:${serverId}`
+const failedToolsBackoffKey = (serverId: string) => `mcp:tools-failed-backoff:${serverId}`
 const PREWARM_CONCURRENCY = 3
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
@@ -85,16 +85,16 @@ export class McpCatalogService extends BaseService {
    * their host-side tool metadata and policy snapshot. Stringify order-sensitivity is fine —
    * lists are rebuilt from the same upstream source, so key/element order is stable across refreshes.
    */
-  private writeToolsCache(serverId: string, tools: McpTool[], emptyRetryMs = 0): void {
+  private writeToolsCache(serverId: string, tools: McpTool[], failureBackoffMs = 0): void {
     this.projectionRevisions.set(serverId, (this.projectionRevisions.get(serverId) ?? 0) + 1)
     const cacheService = application.get('CacheService')
     const cacheKey = mcpToolsCacheKey(serverId)
     const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
     cacheService.setShared(cacheKey, tools)
-    if (tools.length === 0 && emptyRetryMs > 0) {
-      cacheService.set(emptyToolsRetryCacheKey(serverId), true, emptyRetryMs)
+    if (failureBackoffMs > 0) {
+      cacheService.set(failedToolsBackoffKey(serverId), true, failureBackoffMs)
     } else {
-      cacheService.delete(emptyToolsRetryCacheKey(serverId))
+      cacheService.delete(failedToolsBackoffKey(serverId))
     }
     if (JSON.stringify(previous ?? []) !== JSON.stringify(tools)) {
       this._onToolsCacheUpdated.fire({ serverId })
@@ -193,9 +193,11 @@ export class McpCatalogService extends BaseService {
     return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
   }
 
-  /** Revalidate the application snapshot through the SDK's cache; only failed reads back off. */
+  /** Fill an empty snapshot; list_changed keeps a populated one fresh, and failed reads back off. */
   public async warmToolsCache(serverId: string): Promise<void> {
-    if (application.get('CacheService').has(emptyToolsRetryCacheKey(serverId))) {
+    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+    if (cached !== undefined && cached.length > 0) return
+    if (application.get('CacheService').has(failedToolsBackoffKey(serverId))) {
       logger.debug('Skipping MCP tools warm during retry backoff', { serverId })
       return
     }

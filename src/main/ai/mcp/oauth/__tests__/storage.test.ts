@@ -5,7 +5,7 @@ import path from 'path'
 import type { StoredOAuthClientInformation, StoredOAuthTokens } from '@modelcontextprotocol/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { JsonFileStorage, type OAuthSecretCipher } from '../storage'
+import { deleteOAuthStorage, JsonFileStorage, type OAuthSecretCipher } from '../storage'
 
 const cipher: OAuthSecretCipher = {
   isAvailable: () => true,
@@ -103,6 +103,20 @@ describe('JsonFileStorage round-trip', () => {
     const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
     await expect(reader.getCodeVerifier()).resolves.toBe('verifier-1')
     await expect(reader.getTokens()).resolves.toEqual({ access_token: 'tok', token_type: 'Bearer' })
+  })
+
+  it('forgets process-only credentials when the server storage is deleted', async () => {
+    const noSecureStorage: OAuthSecretCipher = { ...cipher, isAvailable: () => false }
+    await new JsonFileStorage(serverUrlHash, configDir, noSecureStorage).saveTokens({
+      access_token: 'tok',
+      token_type: 'Bearer'
+    })
+    await expect(new JsonFileStorage(serverUrlHash, configDir, noSecureStorage).getTokens()).resolves.toBeDefined()
+
+    await deleteOAuthStorage(serverUrlHash, configDir)
+
+    await expect(fs.access(path.join(configDir, `${serverUrlHash}_oauth.json`))).rejects.toThrow()
+    await expect(new JsonFileStorage(serverUrlHash, configDir, noSecureStorage).getTokens()).resolves.toBeUndefined()
   })
 
   it('clear() removes stored data so a fresh instance reads empty state', async () => {

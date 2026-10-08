@@ -311,14 +311,15 @@ describe('McpCatalogService', () => {
     expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
   })
 
-  it('revalidates populated projections through the SDK', async () => {
+  // Legacy servers send no ttlMs, so an SDK 'use' read still hits the wire; a warm cache must not.
+  it('leaves a populated projection alone instead of re-listing the server', async () => {
     cacheStore.set('mcp.tools.server-1', [{ name: 'search' }])
     getById.mockReturnValue(server())
     listTools.mockResolvedValue([sdkTool('replacement')])
     const service = new McpCatalogService()
     await service.warmToolsCache('server-1')
-    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['replacement'])
-    expect(runtimeService.listTools).toHaveBeenCalledWith('server-1', 'use')
+    expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
+    expect(runtimeService.listTools).not.toHaveBeenCalled()
   })
 
   it('warmToolsCache resolves and leaves a warmed-but-empty cache when the refresh fails', async () => {

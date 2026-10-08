@@ -1,6 +1,5 @@
 import {
   CLIENT_CAPABILITIES_META_KEY,
-  type Tool,
   createMcpHandler,
   Server,
   type ServerContext,
@@ -11,6 +10,7 @@ import {
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpForwardMethod } from '@main/ai/mcp/connections/McpConnection'
+import { stripCatalogFields } from '@main/ai/mcp/createMcpBridgeServer'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('ModernMcpProxy')
@@ -37,7 +37,9 @@ export class ModernMcpProxy {
   }
 
   private async createServer(config: McpServer): Promise<Server> {
-    await application.get('McpRuntimeService').getServerCapabilities(config.id)
+    const runtime = application.get('McpRuntimeService')
+    // Connected servers skip the per-request liveness probe; the factory runs on every request.
+    if (!runtime.getConnectedServerCapabilities(config.id)) await runtime.getServerCapabilities(config.id)
     const server = new Server(
       { name: config.name, version: '2.0.0' },
       {
@@ -50,25 +52,24 @@ export class ModernMcpProxy {
       }
     )
     server.setRequestHandler('tools/list', async () => ({
-      tools: (await application.get('McpCatalogService').getCurrentTools(config.id)).map(
-        stripCatalogMetadata
-      ) as Tool[],
+      // The route warms the catalog before tools/list, and list_changed keeps it fresh.
+      tools: application.get('McpCatalogService').listTools(config.id).map(stripCatalogFields),
       ttlMs: 0,
       cacheScope: 'private'
     }))
     server.setRequestHandler('prompts/list', async () => ({
-      prompts: (await application.get('McpCatalogService').listPrompts(config.id)).map(stripCatalogMetadata),
+      prompts: (await application.get('McpCatalogService').listPrompts(config.id)).map(stripCatalogFields),
       ttlMs: 0,
       cacheScope: 'private'
     }))
     server.setRequestHandler('resources/list', async () => ({
-      resources: (await application.get('McpCatalogService').listResources(config.id)).map(stripCatalogMetadata),
+      resources: (await application.get('McpCatalogService').listResources(config.id)).map(stripCatalogFields),
       ttlMs: 0,
       cacheScope: 'private'
     }))
     server.setRequestHandler('resources/templates/list', async () => ({
       resourceTemplates: (await application.get('McpCatalogService').listResourceTemplates(config.id)).map(
-        stripCatalogMetadata
+        stripCatalogFields
       ),
       ttlMs: 0,
       cacheScope: 'private'
@@ -136,10 +137,4 @@ export class ModernMcpProxy {
     this.catalogSubscription.dispose()
     await this.handler.close()
   }
-}
-
-function stripCatalogMetadata<T extends object>(item: T): T {
-  const copy = { ...item }
-  for (const key of ['id', 'serverId', 'serverName', 'type']) Reflect.deleteProperty(copy, key)
-  return copy
 }

@@ -1,4 +1,5 @@
 import fs from 'fs/promises'
+import crypto from 'node:crypto'
 import path from 'path'
 
 import type {
@@ -37,6 +38,20 @@ function emptySecretData(): OAuthSecretData {
   }
 }
 
+/** Storage key for a server URL; servers sharing a URL share credentials. */
+export function oauthServerUrlHash(serverUrl: string): string {
+  return crypto.createHash('md5').update(serverUrl).digest('hex')
+}
+
+const storagePath = (configDir: string, serverUrlHash: string) => path.join(configDir, `${serverUrlHash}_oauth.json`)
+
+/** Forgets a server's credentials, including process-only ones kept when secure storage is unavailable. */
+export async function deleteOAuthStorage(serverUrlHash: string, configDir: string): Promise<void> {
+  const filePath = storagePath(configDir, serverUrlHash)
+  volatileSecrets.delete(filePath)
+  await fs.rm(filePath, { force: true })
+}
+
 export class JsonFileStorage implements IOAuthStorage {
   private readonly filePath: string
   private readonly cipher: OAuthSecretCipher
@@ -48,7 +63,7 @@ export class JsonFileStorage implements IOAuthStorage {
     configDir: string,
     cipher: OAuthSecretCipher = electronSecretCipher
   ) {
-    this.filePath = path.join(configDir, `${serverUrlHash}_oauth.json`)
+    this.filePath = storagePath(configDir, serverUrlHash)
     this.cipher = cipher
   }
 

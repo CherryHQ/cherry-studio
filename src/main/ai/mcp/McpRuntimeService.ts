@@ -1,6 +1,3 @@
-import crypto from 'node:crypto'
-import fs from 'node:fs/promises'
-
 import {
   isInputRequiredResult,
   SdkHttpError,
@@ -55,6 +52,7 @@ import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
 import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
+import { deleteOAuthStorage, oauthServerUrlHash } from './oauth/storage'
 import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
 
@@ -123,7 +121,6 @@ export const McpStringArgSchema = NonEmptyStringSchema
 const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
-const MCP_INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 const MCP_CONNECT_RETRY_BASE_MS = 10_000
 const MCP_CONNECT_MAX_ATTEMPTS = 5
 
@@ -406,10 +403,8 @@ export class McpRuntimeService extends BaseService {
       events,
       connectTimeoutMs,
       log: {
-        debug: (message, data) => getServerLogger(server).debug(message, { data }),
         info: (message, data) => getServerLogger(server).info(message, { data }),
         warn: (message, data) => getServerLogger(server).warn(message, { data }),
-        error: (message, error) => getServerLogger(server).error(message, error),
         stdio: (message) => {
           this.emitServerLog(server, {
             timestamp: Date.now(),
@@ -781,6 +776,13 @@ export class McpRuntimeService extends BaseService {
       await this.getOrCreateConnection(server, null, options.signal)
     ).forwardRequest(method, params, {
       ...options,
+      toolDefinition:
+        method === 'tools/call'
+          ? application
+              .get('McpCatalogService')
+              .listTools(server.id, { includeDisabled: true })
+              .find((tool) => tool.name === params.name)
+          : undefined,
       timeoutMs: policy.timeout,
       resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
       maxTotalTimeoutMs: policy.maxTotalTimeout
@@ -1030,7 +1032,6 @@ export class McpRuntimeService extends BaseService {
     return new Promise((resolve, reject) => {
       let settled = false
       const cleanup = () => {
-        clearTimeout(timeout)
         signal.removeEventListener('abort', onAbort)
         this.pendingInteractions.delete(requestId)
         window.removeListener('closed', onWindowClosed)
@@ -1048,9 +1049,9 @@ export class McpRuntimeService extends BaseService {
         cleanup()
         reject(error)
       }
-      const onAbort = () => fail(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
+      // The connection's request signal already carries the interaction deadline.
+      const onAbort = () => fail(signal.reason)
       const onWindowClosed = () => fail(new Error('MCP interaction window closed'))
-      const timeout = setTimeout(() => fail(new Error('MCP interaction timed out')), MCP_INTERACTION_TIMEOUT_MS)
 
       this.pendingInteractions.set(requestId, { windowId, validate, resolve: finish, reject: fail, cleanup })
       if (signal.aborted) {
@@ -1212,13 +1213,10 @@ export class McpRuntimeService extends BaseService {
       try {
         const { items } = mcpServerService.list({})
         if (!items.some((item) => item.id !== server.id && item.baseUrl === server.baseUrl)) {
-          const hash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
-          await fs.unlink(application.getPath('feature.mcp.oauth', `${hash}_oauth.json`))
+          await deleteOAuthStorage(oauthServerUrlHash(server.baseUrl), application.getPath('feature.mcp.oauth'))
         }
       } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-          getServerLogger(server).error('Failed to clean OAuth storage', error as Error)
-        }
+        getServerLogger(server).error('Failed to clean OAuth storage', error as Error)
       }
     }
 
