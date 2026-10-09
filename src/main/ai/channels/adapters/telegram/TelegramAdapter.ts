@@ -47,6 +47,7 @@ import { splitMessage } from '../../utils'
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
   private pollingBot: Bot | null = null
+  private pollingPromise: Promise<void> | null = null
   private readonly botToken: string
   private readonly allowedChatIds: string[]
 
@@ -223,7 +224,7 @@ class TelegramAdapter extends ChannelAdapter {
   private startPolling(bot: Bot): void {
     const generation = ++this.pollingGeneration
     this.pollingBot = bot
-    bot
+    this.pollingPromise = bot
       .start({
         timeout: TELEGRAM_LONG_POLL_TIMEOUT_SECONDS,
         onStart: () => {
@@ -267,6 +268,7 @@ class TelegramAdapter extends ChannelAdapter {
   }
 
   private async restartPollingAfterResume(bot: Bot): Promise<void> {
+    const polling = this.pollingPromise
     this.pollingGeneration++
     this.pollingBot = null
     this.clearReconnectTimer()
@@ -278,6 +280,8 @@ class TelegramAdapter extends ChannelAdapter {
       const msg = err instanceof Error ? err.message : String(err)
       this.log.warn(`Failed to stop stale Telegram poll after system resume: ${msg}`)
     }
+    // grammY stop() does not wait for middleware or the old polling loop to finish.
+    await polling
     if (this.shouldStop || this.bot !== bot) return
     await this.startBot(bot)
   }

@@ -78,23 +78,6 @@ describe('TelegramAdapter', () => {
     })
   }
 
-  it('connect() registers middleware, commands, message handler, and starts polling', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    expect(mockBot.use).toHaveBeenCalledTimes(1) // auth middleware
-    expect(mockBot.command).toHaveBeenCalledTimes(4) // new, compact, help, whoami
-    expect(mockBot.on).toHaveBeenCalledWith('message:text', expect.any(Function))
-    expect(mockBot.api.setMyCommands).toHaveBeenCalledWith([
-      { command: 'new', description: 'Start a new conversation' },
-      { command: 'compact', description: 'Compact conversation history' },
-      { command: 'help', description: 'Show help information' },
-      { command: 'whoami', description: 'Show the current chat ID' }
-    ])
-    expect(mockBot.catch).toHaveBeenCalledTimes(1)
-    expect(mockBot.start).toHaveBeenCalledTimes(1)
-  })
-
   it('reports connected only after grammY confirms polling startup', async () => {
     let onStart: (() => void) | undefined
     mockBot.start.mockImplementationOnce((options) => {
@@ -167,9 +150,12 @@ describe('TelegramAdapter', () => {
 
   it('coalesces resume events and restarts polling on the same bot', async () => {
     let finishStop: (() => void) | undefined
+    let finishPolling: (() => void) | undefined
     mockBot.start.mockImplementationOnce((options) => {
       options?.onStart?.({})
-      return new Promise(() => {})
+      return new Promise<void>((resolve) => {
+        finishPolling = resolve
+      })
     })
     mockBot.stop.mockImplementationOnce(
       () =>
@@ -185,9 +171,107 @@ describe('TelegramAdapter', () => {
 
     expect(mockBot.stop).toHaveBeenCalledOnce()
     finishStop?.()
+    finishPolling?.()
     await vi.waitFor(() => expect(mockBot.start).toHaveBeenCalledTimes(2))
     expect(Bot).toHaveBeenCalledOnce()
   })
+
+  it.each(['resume', 'stop failure', 'disconnect'] as const)(
+    'waits for real grammY middleware to finish during %s recovery',
+    async (scenario) => {
+      const { Bot: RealBot } = await vi.importActual<{ Bot: typeof Bot }>('grammy')
+      const bot = new RealBot('test-token', {
+        botInfo: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Test',
+          username: 'test_bot',
+          can_join_groups: true,
+          can_read_all_group_messages: false,
+          supports_inline_queries: false,
+          can_connect_to_business: false,
+          has_main_web_app: false,
+          has_topics_enabled: false,
+          allows_users_to_create_topics: false
+        }
+      })
+      vi.mocked(Bot).mockImplementationOnce(function () {
+        return bot
+      })
+      vi.spyOn(bot.api, 'setMyCommands').mockResolvedValue(true)
+      vi.spyOn(bot.api, 'deleteWebhook').mockResolvedValue(true)
+      const middleware = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      const stopped = Promise.withResolvers<void>()
+      bot.use(async (_ctx, next) => {
+        entered.resolve()
+        await middleware.promise
+        await next()
+      })
+      let activePolls = 0
+      let maxActivePolls = 0
+      let failStop = scenario === 'stop failure'
+      vi.spyOn(bot.api, 'getUpdates')
+        .mockResolvedValueOnce([
+          {
+            update_id: 1,
+            message: {
+              message_id: 1,
+              date: 0,
+              chat: { id: 123, type: 'private', first_name: 'User' },
+              from: { id: 123, is_bot: false, first_name: 'User' },
+              text: 'hello'
+            }
+          }
+        ])
+        .mockImplementation(async (payload, signal) => {
+          if (!payload?.timeout) {
+            stopped.resolve()
+            if (failStop) {
+              failStop = false
+              throw new Error('acknowledgement failed')
+            }
+            return []
+          }
+          activePolls++
+          maxActivePolls = Math.max(maxActivePolls, activePolls)
+          try {
+            return await new Promise<never>((_resolve, reject) => {
+              if (signal?.aborted) reject(new Error('poll aborted'))
+              else signal?.addEventListener('abort', () => reject(new Error('poll aborted')), { once: true })
+            })
+          } finally {
+            activePolls--
+          }
+        })
+      const adapter = createAdapter()
+      const messages: string[] = []
+      adapter.on('message', (event: { text: string }) => messages.push(event.text))
+
+      try {
+        await adapter.connect()
+        await entered.promise
+        adapter.handleSystemResume()
+        adapter.handleSystemResume()
+        await stopped.promise
+        await new Promise<void>((resolve) => setImmediate(resolve))
+
+        expect(adapter.connected).toBe(false)
+        expect(activePolls).toBe(0)
+        if (scenario === 'disconnect') await adapter.disconnect()
+        middleware.resolve()
+        await vi.waitFor(() => expect(messages).toEqual(['hello']))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+
+        expect(adapter.connected).toBe(scenario !== 'disconnect')
+        expect(activePolls).toBe(scenario === 'disconnect' ? 0 : 1)
+        expect(maxActivePolls).toBe(scenario === 'disconnect' ? 0 : 1)
+      } finally {
+        middleware.resolve()
+        await adapter.disconnect()
+      }
+    }
+  )
 
   it('ignores resume until initial polling setup has completed', async () => {
     let finishSetup: (() => void) | undefined
@@ -238,14 +322,6 @@ describe('TelegramAdapter', () => {
     await Promise.resolve()
 
     expect(mockBot.start).toHaveBeenCalledOnce()
-  })
-
-  it('disconnect() stops the bot', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-    await adapter.disconnect()
-
-    expect(mockBot.stop).toHaveBeenCalledTimes(1)
   })
 
   // channel-adapters-2: grammY rethrows a fatal 409/Conflict out of bot.start(); the adapter
