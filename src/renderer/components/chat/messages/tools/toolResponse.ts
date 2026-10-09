@@ -6,6 +6,7 @@ import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { hasCherryTransportTag, toRenderedAgentToolName } from '@shared/ai/renderedAgentToolNames'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -17,24 +18,11 @@ export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
-const CHERRY_AGENT_TRANSPORTS = new Set<string>(Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport))
 const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
   AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
 )
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
-const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
-  ['bash', AgentToolsType.Bash],
-  ['pwsh', AgentToolsType.Bash],
-  ['edit', AgentToolsType.Edit],
-  ['exit_plan_mode', AgentToolsType.ExitPlanMode],
-  ['read', AgentToolsType.Read],
-  ['skill', AgentToolsType.Skill],
-  ['subagent', AgentToolsType.Task],
-  ['subagent_fork', AgentToolsType.Task],
-  ['todo_write', AgentToolsType.TodoWrite],
-  ['write', AgentToolsType.Write]
-])
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -59,9 +47,7 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
   const toolPart = part as unknown as ToolResponsePart
   const toolName = getToolName(toolPart).trim()
   if (!toolName) return undefined
-  return hasCherryTransport(toolPart.callProviderMetadata)
-    ? (CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(toolName) ?? toolName)
-    : toolName
+  return toRenderedAgentToolName(toolName, toolPart.callProviderMetadata)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -138,22 +124,16 @@ function extractParentToolUseId(part: ToolResponsePart): string | undefined {
   return extractParentToolCallIdFrom(part.callProviderMetadata) ?? extractParentToolCallIdFrom(resultProviderMetadata)
 }
 
-function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
-  if (!isRecord(metadata)) return false
-  const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
-  return typeof cherry?.transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(cherry.transport)
-}
-
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (isMetaToolName(toolName)) return 'builtin'
-  if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
-  if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransport(part.callProviderMetadata)) return 'provider'
+  if (AGENT_TOOL_NAMES.has(toolName) && hasCherryTransportTag(part.callProviderMetadata)) return 'provider'
+  if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName) && hasCherryTransportTag(part.callProviderMetadata)) return 'provider'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (toolPartWasProviderExecuted(part)) return 'provider'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
-  if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
+  if (hasCherryTransportTag(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
   if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'

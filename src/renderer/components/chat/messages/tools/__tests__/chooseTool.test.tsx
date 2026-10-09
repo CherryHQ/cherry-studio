@@ -21,9 +21,6 @@ vi.mock('../agent/AgentExecutionTimeline', () => ({
 vi.mock('../painting/MessageGenerateImage', () => ({
   MessageGenerateImageToolTitle: () => <div data-testid="image-card" />
 }))
-// Empty enum → isAgentTool only matches the `mcp__` prefix, not our builtin names.
-vi.mock('../shared/agentToolTypes', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
-
 const { chooseTool } = await import('../chooseTool')
 const { buildToolResponseFromPart } = await import('../toolResponse')
 
