@@ -39,7 +39,7 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { skillService } from '@main/ai/skills/SkillService'
+import { SKILLS_PLUGIN_NAME, skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -59,6 +59,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { InstalledSkill } from '@shared/data/api/schemas/skills'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -184,26 +185,24 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
-  const [agentDataPath, env, workspacePlugins] = await Promise.all([
+  const [agentDataPath, env, workspacePlugins, skillSnapshot] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
-    discoverPlugins(cwd, agent.id)
+    discoverPlugins(cwd, agent.id),
+    capabilities.environment === 'sealed' ? undefined : skillService.prepareSnapshotForSession(agent.id)
   ])
   const mcpWarm = await mcpWarmPromise
-  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
   const localPlugin = (pluginPath: string) => ({ type: 'local' as const, path: pluginPath, skipMcpDiscovery: true })
   const plugins =
     capabilities.environment === 'sealed'
       ? builtinPluginDirectory
         ? [localPlugin(builtinPluginDirectory)]
         : undefined
-      : needsPrivateSkillPlugin || builtinPluginDirectory
-        ? [
-            ...(workspacePlugins ?? []),
-            ...(needsPrivateSkillPlugin ? [localPlugin(skillService.getSkillPluginDirectory())] : []),
-            ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
-          ]
-        : workspacePlugins
+      : [
+          ...(workspacePlugins ?? []),
+          ...(skillSnapshot ? [localPlugin(skillSnapshot.pluginDirectory)] : []),
+          ...(builtinPluginDirectory ? [localPlugin(builtinPluginDirectory)] : [])
+        ]
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -288,10 +287,9 @@ export async function buildClaudeCodeSessionSettings(
     ...adjustAllowedToolsForMcp(mountedServers, disallowedTools)
   ]
 
-  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
-  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
-  // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent, cwd)
+  // 9. Skills — initial settings use the same immutable snapshot that the plugin path exposes.
+  // Live connection reconciliation rebuilds only the read-only whitelist.
+  const skills = await buildSkillWhitelist(agent, cwd, skillSnapshot?.skills)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -388,37 +386,45 @@ export { buildMcpServers } from './mcpCatalog'
  * the sources below.
  *
  * `Options.skills` is a *filter over everything the SDK discovers* — both the
- * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
- * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ * immutable managed-skill plugin snapshot and the workspace's own
+ * `cwd/.claude/skills`. So the whitelist must list:
  *   - the agent's enabled managed skills, and
  *   - the workspace's project-local skills (omitting them would filter the
  *     user's own project skills out of their session).
  *
- * For other agents, we match by directory name (`folderName` for managed
- * skills and the `.claude/skills/<dir>` name for workspace skills), preserving
- * their existing discovery behavior.
+ * Managed names are plugin-qualified so a stale or user-authored skill with the
+ * same unqualified name cannot satisfy the filter. Workspace names remain keyed
+ * by their `.claude/skills/<dir>` directory.
  *
- * Read-only: the filesystem mirror is maintained at install / uninstall /
- * startup reconcile, never here — so concurrent session builds never race.
+ * This builder is read-only because live connection reconciliation also calls it.
+ * Initial settings materialization passes the exact skills copied into its snapshot.
  */
 export async function buildSkillWhitelist(
   agent: Pick<AgentEntity, 'id' | 'configuration'>,
-  cwd: string
+  cwd: string,
+  installedSkillsSnapshot?: readonly InstalledSkill[]
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
-  let names = bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
+  let names = bundledNames.map((skill) => ({ name: skill, value: `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}` }))
   if (resolveAgentCapabilities(agent).environment !== 'sealed') {
     const [installedSkills, workspaceNames] = await Promise.all([
-      skillService.list({ agentId: agent.id }),
+      installedSkillsSnapshot ?? skillService.list({ agentId: agent.id }),
       skillService.listLocalFolderNames(cwd)
     ])
-    const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
-    names = [...enabledNames, ...workspaceNames, ...bundledNames]
+    const enabledNames = installedSkills
+      .filter((skill) => skill.isEnabled)
+      .map((skill) => ({ name: skill.folderName, value: `${SKILLS_PLUGIN_NAME}:${skill.folderName}` }))
+    names = [
+      ...enabledNames,
+      ...workspaceNames.map((name) => ({ name, value: name })),
+      ...bundledNames.map((name) => ({ name, value: name }))
+    ]
   }
 
   // The SDK validates the entire list before spawning; never rewrite a name into a different skill.
-  return [...new Set(names)].filter((name) => {
+  const seen = new Set<string>()
+  return names.flatMap(({ name, value }) => {
     const valid =
       name.length > 0 &&
       name === name.trim() &&
@@ -437,7 +443,9 @@ export async function buildSkillWhitelist(
         skillName: name
       })
     }
-    return valid
+    if (!valid || seen.has(value)) return []
+    seen.add(value)
+    return [value]
   })
 }
 

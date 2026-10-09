@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
+  prepareSkillSnapshotForSession: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
   getMcpInstructions: vi.fn(),
@@ -37,6 +38,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSessionById }
+}))
+
+vi.mock('@main/ai/skills/SkillService', () => ({
+  skillService: { prepareSnapshotForSession: mocks.prepareSkillSnapshotForSession }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -245,6 +250,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('carries the materialized skill snapshot plugin and qualified whitelist into warm query options', async () => {
+    const snapshotPlugin = {
+      type: 'local' as const,
+      path: '/snapshots/session-a',
+      skipMcpDiscovery: true
+    }
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: {},
+      plugins: [snapshotPlugin],
+      skills: ['cherry-studio-skills:pdf']
+    })
+
+    const request = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(request?.options.plugins).toEqual([snapshotPlugin])
+    expect(request?.options.skills).toEqual(['cherry-studio-skills:pdf'])
   })
 
   it('passes the connection rebuild signature into the warm query request', async () => {
@@ -1310,6 +1333,11 @@ describe('deriveConnectionConfig', () => {
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.buildSkillWhitelist).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'agent-1' }),
+      '/workspace/project'
+    )
+    expect(mocks.prepareSkillSnapshotForSession).not.toHaveBeenCalled()
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside
     // buildClaudeCodeSessionSettings — derive must never enter it.
     expect(mocks.buildSessionSettings).not.toHaveBeenCalled()

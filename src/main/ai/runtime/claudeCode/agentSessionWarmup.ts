@@ -376,6 +376,7 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
   }
+  // Live reconciliation reads current whitelist inputs but never mutates shared mirrors.
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
