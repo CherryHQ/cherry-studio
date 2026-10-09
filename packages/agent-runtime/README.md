@@ -51,7 +51,7 @@ models and settings, `SessionManager.inMemory` rebuilt from the host's transcrip
 `DefaultResourceLoader` with extension, skill, prompt-template and theme discovery off. The host
 supplies the system prompt (Pi's own prompt when omitted; Pi still appends a `<cwd>` section) and any
 appended prompt, custom tools, the enabled built-in tools (none by default), extra extension
-factories, the model descriptor and Pi settings such as compaction or `shellCommandPrefix`. It may
+factories, the model descriptor, compaction and Pi settings such as `shellCommandPrefix`. It may
 opt in to workspace `AGENTS.md` / `CLAUDE.md` context files and to explicit skill directories, as
 Cherry's current Pi runtime does. `dispose()` aborts the running turn, emits `session_shutdown` to
 extensions and disposes the session.
@@ -92,6 +92,19 @@ host session because it is also the prompt-cache routing key.
 - **Tool loadout** – tools activated beyond the session's base tools (by `tool_search`) are
   recorded as a `cherry.tool-loadout` state entry and re-activated on rebuild, after the tools the
   host enables now. Deactivating a base tool is not recorded.
+
+## Compaction
+
+Pi's native compaction runs, configured by `compaction: { reserveTokens, keepRecentTokens,
+enabled?, summarize? }`: it compacts once the context passes `contextWindow - reserveTokens` (also
+mid-turn, before the next model request) and compacts and retries once when a request overflows.
+The host computes both numbers from its own settings. Without `summarize`, Pi's default summarizer
+runs on the session model through the port. With it, the host summarizes with its own prompt and
+model: `summarize({ reason, messages, previousSummary, instructions, signal })` receives the folded
+messages as AI SDK messages and returns the summary text, which is stored as is; Pi frames it when it
+builds the context. A failing summarizer cancels that compaction (it never falls back to the session
+model) and `compaction-end` carries the error: a threshold compaction leaves the turn running, an
+overflow then ends the turn with the provider's error.
 
 ## Known gaps
 
