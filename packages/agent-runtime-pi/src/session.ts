@@ -1,23 +1,40 @@
-import type { Api, Model } from '@earendil-works/pi-ai'
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
   type AgentSession,
   createAgentSession,
   type CreateAgentSessionOptions,
   DefaultResourceLoader,
   type ExtensionFactory,
-  type ModelRuntime,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 
-export type AgentRuntimeModel = Model<Api>
+import { type AiSdkModelSpec, createAiSdkProvider } from './aiSdkProvider'
+import type { ModelCallPort, ModelCallSideChannel } from './ports'
+import { rebuildSessionEntries } from './rebuild'
+import type { TranscriptEntry } from './transcript'
+import { type AgentRuntimeEvent, TranscriptTap } from './transcriptTap'
 
-export type AgentRuntimeSettings = NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>
+export type AgentRuntimeModel = AiSdkModelSpec & {
+  /** Pi provider id. */
+  provider: string
+  /**
+   * Stable host identity of the model (e.g. Cherry's unique model id), stored on assistant entries.
+   * A stored reply replays its reasoning and signatures only to a model with the same key.
+   */
+  key: string
+}
 
-export interface AgentRuntimeSessionOptions {
-  /** Borrowed native runtime; the caller owns provider registration and credentials. */
-  modelRuntime: ModelRuntime
+/** Pi settings the host may set. Retry is always off: retries belong to the host's AI SDK layer. */
+export type AgentRuntimeSettings = Omit<NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>, 'retry'>
+
+export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
+  port: ModelCallPort<TRequestOptions>
+  /** Forwarded on every model request; the host decides reasoning here, not through `thinkingLevel`. */
+  requestOptions: TRequestOptions
+  sideChannel?: ModelCallSideChannel
   model: AgentRuntimeModel
   /** Working directory for Pi's built-in tools and the `<cwd>` prompt section. */
   cwd: string
@@ -31,33 +48,22 @@ export interface AgentRuntimeSessionOptions {
   contextFiles?: boolean
   /** Skill directories the host enables; loaded although skill discovery stays off. */
   skillPaths?: string[]
-  /** Native storage owner. Defaults to an in-memory session; pass create/open for persistence. */
-  sessionManager?: SessionManager
+  /** Pi session id; keep it stable per host session, it is also the prompt-cache routing key. Random when omitted. */
+  sessionId?: string
+  /**
+   * The host session so far: the full active path, oldest first, uncompacted. The session lives only
+   * in memory. An invalid transcript throws a `TranscriptError` before anything is created.
+   */
+  transcript?: readonly TranscriptEntry[]
+  /** New transcript entries and turn events, in order. Runs inline with Pi's events and must not throw. */
+  onEvent?: (event: AgentRuntimeEvent) => void
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
   extensionFactories?: ExtensionFactory[]
   settings?: AgentRuntimeSettings
-  /** Native Pi thinking level (default `off`). */
+  /** Pi's own thinking level (default `off`). It does not reach the model request. */
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
-}
-
-/** What every session built on one model runtime must have, whoever builds it. */
-export interface SessionRequirements {
-  /** Installed ahead of the session's own extensions. */
-  extensionFactories?: ExtensionFactory[]
-  /** Applied over the session's own settings. */
-  settings?: AgentRuntimeSettings
-}
-
-const sessionRequirements = new WeakMap<ModelRuntime, SessionRequirements>()
-
-/**
- * For the owner of `modelRuntime` (e.g. a model binding): every session built on it gets
- * `requirements`, so a host cannot leave them out.
- */
-export function setSessionRequirements(modelRuntime: ModelRuntime, requirements: SessionRequirements): void {
-  sessionRequirements.set(modelRuntime, requirements)
 }
 
 export interface AgentRuntimeSession {
@@ -69,14 +75,47 @@ export interface AgentRuntimeSession {
 }
 
 /**
- * Builds a Pi agent session using the caller's native model runtime and native session storage.
+ * Builds a Pi agent session in memory: no credentials, settings, extensions or session files from disk.
  * Workspace context files and skills load only when the host opts in.
  */
-export async function createAgentRuntimeSession(options: AgentRuntimeSessionOptions): Promise<AgentRuntimeSession> {
+export async function createAgentRuntimeSession<TRequestOptions>(
+  options: AgentRuntimeSessionOptions<TRequestOptions>
+): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
-  const { modelRuntime, model } = options
-  const required = sessionRequirements.get(modelRuntime)
-  const settingsManager = SettingsManager.inMemory({ ...options.settings, ...required?.settings })
+  const { provider, key, ...modelSpec } = options.model
+  const transcriptModel = { key, provider, id: modelSpec.id }
+  const transcript = options.transcript ?? []
+  const rebuilt = rebuildSessionEntries(transcript, transcriptModel)
+
+  // Pi validates `{}` before `tool_call`, so only a schema that accepts it reaches the guard.
+  const invalidToolCalls = new Map<string, string>()
+  const invalidToolCallGuard: ExtensionFactory = (pi) => {
+    pi.on('turn_start', () => invalidToolCalls.clear())
+    pi.on('tool_call', (event) => {
+      const reason = invalidToolCalls.get(event.toolCallId)
+      return reason === undefined ? undefined : { block: true, reason }
+    })
+  }
+
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    refreshOnCreate: false
+  })
+  modelRuntime.registerProvider(
+    provider,
+    createAiSdkProvider({
+      port: options.port,
+      requestOptions: options.requestOptions,
+      sideChannel: options.sideChannel,
+      models: [modelSpec],
+      onInvalidToolCall: (toolCallId, error) => invalidToolCalls.set(toolCallId, error)
+    })
+  )
+  const model = modelRuntime.getModel(provider, modelSpec.id)
+  if (!model) throw new Error(`Model ${provider}/${modelSpec.id} was not registered`)
+
+  const settingsManager = SettingsManager.inMemory({ ...options.settings, retry: { enabled: false } })
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -87,14 +126,19 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: [...(required?.extensionFactories ?? []), ...(options.extensionFactories ?? [])],
+    // First, so no host `tool_call` handler (an approval prompt) sees a call Pi will not run.
+    extensionFactories: [invalidToolCallGuard, ...(options.extensionFactories ?? [])],
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
   })
   await resourceLoader.reload()
 
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const sessionManager = SessionManager.inMemory(
+    cwd,
+    options.sessionId === undefined ? undefined : { id: options.sessionId },
+    rebuilt.entries
+  )
 
   const { session } = await createAgentSession({
     cwd,
@@ -110,7 +154,18 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
+  const tap = new TranscriptTap(
+    sessionManager,
+    transcriptModel,
+    { transcript, piEntryCount: rebuilt.entries.length, activatedTools: rebuilt.activatedTools },
+    options.onEvent ?? (() => {})
+  )
+  session.subscribe((event) => tap.handle(event))
+  // State entries are in the session before extensions bind, so `session_start` sees them.
   await session.bindExtensions({})
+  const baseTools = session.getActiveToolNames()
+  tap.setBaseTools(baseTools)
+  if (rebuilt.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...rebuilt.activatedTools])
 
   return {
     session,
