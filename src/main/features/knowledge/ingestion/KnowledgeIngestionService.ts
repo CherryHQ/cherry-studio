@@ -4,7 +4,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
@@ -19,10 +18,10 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
-import { classifyKnowledgeItemReacquireSource } from '../items'
+import { classifyKnowledgeItemReacquireSource, isSupportedKnowledgeFilePath } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -56,7 +55,6 @@ import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
-const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
@@ -110,25 +108,48 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         }
       } else {
         // replace: incoming sources win. Drop earlier same-name batch items (last
-        // wins) and cancel any in-flight job on the conflicting existing subtrees
-        // BEFORE taking the lock — cancel awaits handler settlement and the
-        // index/prepare handlers take this same base lock, so cancelling while
-        // holding it would deadlock.
+        // wins). Conflicting jobs are cancelled after file admission succeeds:
+        // rejecting an incoming file must not interrupt the existing item it
+        // would have replaced.
         itemsToAdd = resolution.keptInputs
-        if (resolution.conflictingExistingRootIds.length > 0) {
-          await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
-            rootItemIds: resolution.conflictingExistingRootIds,
-            onCancelTimeout: 'throw'
-          })
-        }
+      }
+    }
+
+    // Content admission can read and decode the external file, so do it outside the lock.
+    // Path reservation and mutation remain serialized below.
+    for (const input of itemsToAdd) {
+      if (input.type === 'file') {
+        await assertSupportedKnowledgeFilePath(input.data.path)
+      }
+    }
+
+    if (conflictStrategy === 'replace') {
+      // Re-read after admission because classification runs outside the lock.
+      // Cancellation must also stay outside the lock: it waits for handlers
+      // that can acquire this same base mutex while settling.
+      const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+      const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+      if (conflictingExistingRootIds.length > 0) {
+        await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
+          rootItemIds: conflictingExistingRootIds,
+          onCancelTimeout: 'throw'
+        })
       }
     }
 
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
-    await this.knowledgeLockManager.runExclusive(base.id, async () => {
+    const detectedConflict = await this.knowledgeLockManager.runExclusive(base.id, async () => {
       try {
+        if (conflictStrategy === 'detect') {
+          const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+          const { conflicts } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+          if (conflicts.length > 0) {
+            return { status: 'conflicts' as const, conflicts }
+          }
+        }
+
         if (conflictStrategy === 'replace') {
           // Purge the conflicting existing items synchronously inside the lock and
           // BEFORE reserving paths, so the freed name is claimed by the incoming
@@ -163,7 +184,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         })
         throw error
       }
+
+      return undefined
     })
+
+    if (detectedConflict) {
+      return detectedConflict
+    }
 
     const completedSchedulingItemIds = new Set<string>()
     try {
@@ -610,7 +637,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return input
     }
 
-    assertSupportedKnowledgeFilePath(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
@@ -678,8 +704,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 }
 
-function assertSupportedKnowledgeFilePath(filePath: string): void {
-  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+async function assertSupportedKnowledgeFilePath(filePath: AbsoluteFilePath): Promise<void> {
+  if (!(await isSupportedKnowledgeFilePath(filePath))) {
     throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
 }
