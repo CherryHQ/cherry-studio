@@ -58,9 +58,26 @@ import {
   getClaudeCodeLoginShellEnvironment,
   type McpServerSnapshotMap
 } from './settingsBuilder'
-import type { ClaudeCodeSettings } from './types'
+import type { ClaudeCodeSettings, ClaudeCodeSubagentImageSupport } from './types'
 
 const logger = loggerService.withContext('agentSessionWarmup')
+
+function resolveSubagentImageSupport(
+  primaryModel: Model,
+  planModel?: Model,
+  smallModel?: Model
+): ClaudeCodeSubagentImageSupport {
+  const primary = Array.isArray(primaryModel.capabilities) && isVisionModel(primaryModel)
+  const configured = (model: Model | undefined): boolean => {
+    if (!model || !Array.isArray(model.capabilities)) return primary
+    return isVisionModel(model)
+  }
+  return {
+    opus: primary,
+    sonnet: configured(planModel),
+    haiku: configured(smallModel)
+  }
+}
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   connectionConfig: ConnectionConfig
@@ -89,6 +106,8 @@ interface ClaudeCodeRouteFacts {
     sonnet: string
     haiku: string
   }
+  /** Image support for each SDK model alias, after route pinning has selected the effective refs. */
+  subagentImageSupport: ClaudeCodeSubagentImageSupport
   /**
    * Whether the primary model accepts dynamically-loaded tool declarations — the mechanism behind
    * the SDK's ToolSearch, which Cherry force-enables via `ENABLE_TOOL_SEARCH=auto`
@@ -538,6 +557,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
+        subagentImageSupport: route.subagentImageSupport,
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage
@@ -660,6 +680,7 @@ function deriveRouteFacts(
   const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
+  const subagentImageSupport = resolveSubagentImageSupport(primaryModel, sonnetRef.model, haikuRef.model)
 
   // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
   // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
@@ -694,6 +715,11 @@ function deriveRouteFacts(
       credentialsFingerprint: 'external-cli',
       toolSearchCompatible,
       modelIds,
+      subagentImageSupport: resolveSubagentImageSupport(
+        primaryModel,
+        externalRefs.sonnet.model,
+        externalRefs.haiku.model
+      ),
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
@@ -726,6 +752,7 @@ function deriveRouteFacts(
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
       },
+      subagentImageSupport,
       usageModels: []
     }
   }
@@ -758,6 +785,7 @@ function deriveRouteFacts(
     ]),
     toolSearchCompatible,
     modelIds,
+    subagentImageSupport,
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
       { sdkModelId: modelIds.opus, ref: opusRef },
@@ -845,6 +873,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
+    subagentImageSupport: route.subagentImageSupport,
     usageModels: route.usageModels
   }
 }
