@@ -123,7 +123,9 @@ export function formatMediaAnalysisCompact(
     Math.max(0, sections.length - 1) * 2 +
     (warning ? warning.length + 2 : 0)
   const share = sections.length > 0 ? Math.floor(Math.max(0, budget.maxChars - fixed) / sections.length) : 0
-  const output = sections.map(({ title, lines, empty }) => `${title}\n${truncateLines(lines.length > 0 ? lines : [empty], share)}`)
+  const output = sections.map(
+    ({ title, lines, empty }) => `${title}\n${truncateLines(lines.length > 0 ? lines : [empty], share)}`
+  )
   if (warning) output.push(warning)
   return output.join('\n\n').trim().slice(0, budget.maxChars)
 }
