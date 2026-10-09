@@ -35,6 +35,10 @@ const modelSwitchConfirmationCacheMock = vi.hoisted(() => ({
   value: false,
   set: vi.fn()
 }))
+const agentSwitchConfirmationCacheMock = vi.hoisted(() => ({
+  value: false,
+  set: vi.fn()
+}))
 const agentRightPanePropsMock = vi.hoisted(() => ({
   last: undefined as any,
   openAgentToolFlow: vi.fn(),
@@ -134,7 +138,9 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useSharedCache: (key: string) =>
     key === 'agent.model_switch_confirmation.skipped'
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
-      : [null, vi.fn()],
+      : key === 'agent.agent_switch_confirmation.skipped'
+        ? [agentSwitchConfirmationCacheMock.value, agentSwitchConfirmationCacheMock.set]
+        : [null, vi.fn()],
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -193,6 +199,9 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         </button>
         <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider::model-2', name: 'Model 2' })}>
           change topbar model
+        </button>
+        <button type="button" onClick={() => void props.onAgentChange?.('agent-2')}>
+          change topbar agent
         </button>
       </div>
     )
@@ -389,6 +398,12 @@ describe('AgentChat settings panel', () => {
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
+    updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' })
+    agentSwitchConfirmationCacheMock.value = false
+    agentSwitchConfirmationCacheMock.set.mockReset()
+    agentSwitchConfirmationCacheMock.set.mockImplementation((value: boolean) => {
+      agentSwitchConfirmationCacheMock.value = value
+    })
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -617,7 +632,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'selector')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
@@ -638,7 +653,7 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'selector')
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
@@ -739,6 +754,109 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('switches the agent directly when the session has no messages', async () => {
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the agent selector available once the session has messages', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'selector')
+  })
+
+  it('asks for confirmation before switching the agent when the session has messages', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.agent_switch_confirm.description')
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.agent_switch_confirm.skip_for_app_run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+    expect(
+      screen.getByRole('checkbox', { name: 'agent.session.agent_switch_confirm.skip_for_app_run' })
+    ).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.agent_switch_confirm.confirm' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
+  it('shares the agent confirmation opt-out for the current app run when requested', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.agent_switch_confirm.skip_for_app_run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.agent_switch_confirm.confirm' }))
+
+    await waitFor(() => expect(agentSwitchConfirmationCacheMock.set).toHaveBeenCalledWith(true))
+  })
+
+  it('skips agent confirmations when the app-run shared cache is enabled', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    agentSwitchConfirmationCacheMock.value = true
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    await waitFor(() => expect(updateSessionMock.updateSession).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('reassigns an unlinked session with messages without confirmation', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
+
+    fireEvent.click(screen.getByRole('button', { name: 'select replacement agent' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-unlinked', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

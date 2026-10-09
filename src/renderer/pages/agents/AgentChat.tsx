@@ -189,6 +189,9 @@ const AgentChat = ({
   const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
     'agent.model_switch_confirmation.skipped'
   )
+  const [skipAgentSwitchConfirmationsForAppRun, setSkipAgentSwitchConfirmationsForAppRun] = useSharedCache(
+    'agent.agent_switch_confirmation.skipped'
+  )
   const currentSessionId = conversationBootstrap.session?.id
   const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
@@ -196,6 +199,9 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
+  const [agentSwitchTarget, setAgentSwitchTarget] = useState<string | undefined>()
+  const [agentSwitchConfirmOpen, setAgentSwitchConfirmOpen] = useState(false)
+  const [skipAgentSwitchConfirmation, setSkipAgentSwitchConfirmation] = useState(false)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -292,6 +298,14 @@ const AgentChat = ({
   const handleSessionAgentChange = useCallback(
     async (nextAgentId: string | null) => {
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
+      // Re-pointing an established conversation swaps the prompt/tools/model for
+      // subsequent messages — confirm first, like mid-conversation model switches.
+      if (!isEmptyConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
+        setAgentSwitchTarget(nextAgentId)
+        setSkipAgentSwitchConfirmation(false)
+        setAgentSwitchConfirmOpen(true)
+        return
+      }
       setSessionAgentChanging(true)
       try {
         await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
@@ -299,7 +313,14 @@ const AgentChat = ({
         setSessionAgentChanging(false)
       }
     },
-    [sessionAgentChanging, sessionSnapshot, updateSession]
+    [
+      sessionAgentChanging,
+      sessionSnapshot,
+      updateSession,
+      isEmptyConversation,
+      activeAgent,
+      skipAgentSwitchConfirmationsForAppRun
+    ]
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
@@ -457,7 +478,7 @@ const AgentChat = ({
               selectModelLabel={t('button.select_model')}
               selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
               shouldAutoSelectCreatedAgent
-              agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+              agentTriggerMode="selector"
               canChangeModel
               onAgentChange={handleSessionAgentChange}
               onModelSelect={handleAgentModelChange}
@@ -579,6 +600,39 @@ const AgentChat = ({
           )
           if (updatedAgent && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={agentSwitchConfirmOpen}
+        onOpenChange={setAgentSwitchConfirmOpen}
+        title={t('agent.session.agent_switch_confirm.title')}
+        description={t('agent.session.agent_switch_confirm.description')}
+        content={
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="skip-agent-switch-confirmation"
+              size="sm"
+              checked={skipAgentSwitchConfirmation}
+              onCheckedChange={(checked) => setSkipAgentSwitchConfirmation(checked === true)}
+            />
+            <label
+              htmlFor="skip-agent-switch-confirmation"
+              className="cursor-pointer text-sm leading-none text-foreground">
+              {t('agent.session.agent_switch_confirm.skip_for_app_run')}
+            </label>
+          </div>
+        }
+        confirmText={t('agent.session.agent_switch_confirm.confirm')}
+        cancelText={t('common.cancel')}
+        onConfirm={async () => {
+          if (!sessionSnapshot || !agentSwitchTarget || agentSwitchTarget === sessionSnapshot.agentId) return
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, agentId: agentSwitchTarget },
+            { showSuccessToast: false }
+          )
+          if (updatedSession && skipAgentSwitchConfirmation) {
+            setSkipAgentSwitchConfirmationsForAppRun(true)
           }
         }}
       />
