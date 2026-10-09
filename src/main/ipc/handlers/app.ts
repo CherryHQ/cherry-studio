@@ -56,7 +56,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     requestUserDataRelocation(path, copy)
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
-  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge }, ctx) => {
+  'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge, expectedSourceRealPath }, ctx) => {
     if (!tryBeginNotesDirectoryMigration()) {
       throw new IpcError(
         notesRelocationErrorCodes.NOTES_RELOCATION_FAILED,
@@ -77,7 +77,10 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       // Close the TOCTOU window where a writer could start after the first idle
       // check but before blocked roots are installed (e.g. chat → notes export).
       await waitForNotesFilesystemMutationsIdle()
-      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
+      const result = await migrateNotesDirectory(sourcePath, targetPath, {
+        merge,
+        expectedSourceRealPath
+      })
       const sessionId = getNotesMigrationSessionId()
       if (!sessionId) {
         releaseNotesMigrationSession()

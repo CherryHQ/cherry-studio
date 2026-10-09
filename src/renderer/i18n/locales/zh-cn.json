@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "新目录与当前笔记目录相同",
   "settings.data.notes_relocation.error.source_missing": "无法读取当前笔记目录",
   "settings.data.notes_relocation.error.source_not_directory": "当前笔记路径不是文件夹",
+  "settings.data.notes_relocation.error.stale_source": "迁移过程中笔记目录已变更，请重新开始迁移。",
   "settings.data.notes_relocation.error.target_contains_source": "新目录包含当前笔记文件夹",
   "settings.data.notes_relocation.error.target_inside_source": "新目录位于当前笔记文件夹内",
   "settings.data.notes_relocation.error.target_not_writable": "新目录没有写入权限",

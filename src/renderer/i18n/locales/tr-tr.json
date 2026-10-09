@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Yeni dizin mevcut notlar diziniyle aynı",
   "settings.data.notes_relocation.error.source_missing": "Mevcut notlar dizini okunamadı",
   "settings.data.notes_relocation.error.source_not_directory": "Mevcut not yolu bir dizin değil",
+  "settings.data.notes_relocation.error.stale_source": "Taşıma sırasında notlar dizini değişti. Taşımayı yeniden başlatın.",
   "settings.data.notes_relocation.error.target_contains_source": "Yeni dizin mevcut not klasörünü içeriyor",
   "settings.data.notes_relocation.error.target_inside_source": "Yeni dizin mevcut not klasörünün içinde",
   "settings.data.notes_relocation.error.target_not_writable": "Yeni dizine yazma izni yok",

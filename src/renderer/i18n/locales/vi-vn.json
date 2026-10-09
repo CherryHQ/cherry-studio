@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Thư mục mới trùng với thư mục ghi chú hiện tại",
   "settings.data.notes_relocation.error.source_missing": "Không thể đọc thư mục ghi chú hiện tại",
   "settings.data.notes_relocation.error.source_not_directory": "Đường dẫn ghi chú hiện tại không phải thư mục",
+  "settings.data.notes_relocation.error.stale_source": "Thư mục ghi chú đã thay đổi trong khi di chuyển. Hãy bắt đầu lại thao tác di chuyển.",
   "settings.data.notes_relocation.error.target_contains_source": "Thư mục mới chứa thư mục ghi chú hiện tại",
   "settings.data.notes_relocation.error.target_inside_source": "Thư mục mới nằm trong thư mục ghi chú hiện tại",
   "settings.data.notes_relocation.error.target_not_writable": "Thư mục mới không có quyền ghi",

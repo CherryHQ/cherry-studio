@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Le nouveau répertoire est identique au répertoire de notes actuel",
   "settings.data.notes_relocation.error.source_missing": "Impossible de lire le répertoire de notes actuel",
   "settings.data.notes_relocation.error.source_not_directory": "Le chemin de notes actuel n’est pas un répertoire",
+  "settings.data.notes_relocation.error.stale_source": "Le répertoire des notes a changé pendant la migration. Relancez la migration.",
   "settings.data.notes_relocation.error.target_contains_source": "Le nouveau répertoire contient le dossier de notes actuel",
   "settings.data.notes_relocation.error.target_inside_source": "Le nouveau répertoire se trouve dans le dossier de notes actuel",
   "settings.data.notes_relocation.error.target_not_writable": "Le nouveau répertoire n’a pas l’autorisation d’écriture",

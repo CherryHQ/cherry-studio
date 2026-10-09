@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Новый каталог совпадает с текущим каталогом заметок",
   "settings.data.notes_relocation.error.source_missing": "Не удалось прочитать текущий каталог заметок",
   "settings.data.notes_relocation.error.source_not_directory": "Текущий путь заметок не является каталогом",
+  "settings.data.notes_relocation.error.stale_source": "Каталог заметок изменился во время переноса. Начните перенос заново.",
   "settings.data.notes_relocation.error.target_contains_source": "Новый каталог содержит текущую папку заметок",
   "settings.data.notes_relocation.error.target_inside_source": "Новый каталог находится внутри текущей папки заметок",
   "settings.data.notes_relocation.error.target_not_writable": "В новый каталог нельзя записывать",

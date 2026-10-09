@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "The new directory is the same as the current notes directory",
   "settings.data.notes_relocation.error.source_missing": "The current notes directory could not be read",
   "settings.data.notes_relocation.error.source_not_directory": "The current notes path is not a directory",
+  "settings.data.notes_relocation.error.stale_source": "The notes directory changed while migration was in progress. Start the migration again.",
   "settings.data.notes_relocation.error.target_contains_source": "The new directory contains the current notes folder",
   "settings.data.notes_relocation.error.target_inside_source": "The new directory is inside the current notes folder",
   "settings.data.notes_relocation.error.target_not_writable": "The new directory does not have write permission",

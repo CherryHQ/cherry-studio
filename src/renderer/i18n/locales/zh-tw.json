@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "新目錄與目前筆記目錄相同",
   "settings.data.notes_relocation.error.source_missing": "無法讀取目前筆記目錄",
   "settings.data.notes_relocation.error.source_not_directory": "目前筆記路徑不是資料夾",
+  "settings.data.notes_relocation.error.stale_source": "移轉過程中筆記目錄已變更，請重新開始移轉。",
   "settings.data.notes_relocation.error.target_contains_source": "新目錄包含目前筆記資料夾",
   "settings.data.notes_relocation.error.target_inside_source": "新目錄位於目前筆記資料夾內",
   "settings.data.notes_relocation.error.target_not_writable": "新目錄沒有寫入權限",

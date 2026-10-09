@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Das neue Verzeichnis ist identisch mit dem aktuellen Notizverzeichnis",
   "settings.data.notes_relocation.error.source_missing": "Das aktuelle Notizverzeichnis konnte nicht gelesen werden",
   "settings.data.notes_relocation.error.source_not_directory": "Der aktuelle Notizpfad ist kein Verzeichnis",
+  "settings.data.notes_relocation.error.stale_source": "Das Notizenverzeichnis hat sich während der Migration geändert. Bitte starten Sie die Migration erneut.",
   "settings.data.notes_relocation.error.target_contains_source": "Das neue Verzeichnis enthält den aktuellen Notizordner",
   "settings.data.notes_relocation.error.target_inside_source": "Das neue Verzeichnis liegt im aktuellen Notizordner",
   "settings.data.notes_relocation.error.target_not_writable": "Das neue Verzeichnis hat keine Schreibberechtigung",

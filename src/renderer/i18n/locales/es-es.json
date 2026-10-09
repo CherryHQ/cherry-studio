@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "El nuevo directorio es el mismo que el directorio de notas actual",
   "settings.data.notes_relocation.error.source_missing": "No se pudo leer el directorio de notas actual",
   "settings.data.notes_relocation.error.source_not_directory": "La ruta de notas actual no es un directorio",
+  "settings.data.notes_relocation.error.stale_source": "El directorio de notas cambió durante la migración. Vuelva a iniciar la migración.",
   "settings.data.notes_relocation.error.target_contains_source": "El nuevo directorio contiene la carpeta de notas actual",
   "settings.data.notes_relocation.error.target_inside_source": "El nuevo directorio está dentro de la carpeta de notas actual",
   "settings.data.notes_relocation.error.target_not_writable": "El nuevo directorio no tiene permiso de escritura",

@@ -9,10 +9,30 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceService'
+
 import { application } from '@application'
 
 import { inspectNotesRelocation, migrateNotesDirectory } from '../migrate'
-import { assertNotesRelocationPaths } from '../validation'
+import { assertNotesRelocationPaths, realPath } from '../validation'
+
+function bindConfiguredNotesPath(dirPath: string): void {
+  MockMainPreferenceServiceExport.preferenceService.get.mockImplementation((key: string) =>
+    key === 'feature.notes.path' ? dirPath : ''
+  )
+}
+
+async function migrateNotes(source: string, target: string, merge: boolean) {
+  bindConfiguredNotesPath(source)
+  const inspection = inspectNotesRelocation(source, target)
+  if (!inspection.valid) {
+    throw new Error('invalid inspection')
+  }
+  return migrateNotesDirectory(source, target, {
+    merge,
+    expectedSourceRealPath: inspection.sourceRealPath
+  })
+}
 
 describe('notesRelocation', () => {
   let tempRoot: string
@@ -54,7 +74,7 @@ describe('notesRelocation', () => {
     expect(inspection.source.markdownFileCount).toBe(2)
     expect(inspection.source.folderCount).toBe(1)
 
-    const result = await migrateNotesDirectory(source, target, { merge: false })
+    const result = await migrateNotes(source, target, false)
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.existsSync(path.join(target, 'image.png'))).toBe(true)
     expect(fs.readFileSync(path.join(source, 'note-a.md'), 'utf8')).toBe('# A')
@@ -68,7 +88,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Source')
     fs.writeFileSync(path.join(target, 'image.png'), 'png')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, false)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })
@@ -81,7 +101,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Source')
     fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, false)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })
@@ -94,7 +114,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'new-note.md'), '# New')
     fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
 
-    const result = await migrateNotesDirectory(source, target, { merge: true })
+    const result = await migrateNotes(source, target, true)
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('# New')
   })
@@ -107,7 +127,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# New')
     fs.writeFileSync(path.join(target, 'image.png'), 'png')
 
-    const result = await migrateNotesDirectory(source, target, { merge: true })
+    const result = await migrateNotes(source, target, true)
     expect(result.target.markdownFileCount).toBe(1)
     expect(fs.readFileSync(path.join(target, 'image.png'), 'utf8')).toBe('png')
   })
@@ -128,7 +148,7 @@ describe('notesRelocation', () => {
       }
     })
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, true)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_VERIFY_FAILED'
     })
     copyFileSpy.mockRestore()
@@ -143,9 +163,25 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(target, 'conflict.md'), '# Existing')
     fs.writeFileSync(path.join(source, 'added.md'), '# Added')
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, true)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_MERGE_CONFLICT'
     })
+  })
+
+  it('rejects merge when the target entry is a symlink to a missing outside file', async () => {
+    const source = path.join(tempRoot, 'source-notes-broken-symlink')
+    const target = path.join(tempRoot, 'target-notes-broken-symlink')
+    const outside = path.join(tempRoot, 'outside-broken-symlink')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Source')
+    fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
+    fs.symlinkSync(path.join(outside, 'missing.md'), path.join(target, 'note.md'))
+
+    await expect(migrateNotes(source, target, true)).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_MERGE_CONFLICT'
+    })
+    expect(fs.existsSync(path.join(outside, 'missing.md'))).toBe(false)
   })
 
   it('rejects merge when the same relative path exists with same-sized different content', async () => {
@@ -156,7 +192,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'conflict.md'), 'aaaa')
     fs.writeFileSync(path.join(target, 'conflict.md'), 'bbbb')
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, true)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_MERGE_CONFLICT'
     })
   })
@@ -172,7 +208,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'folder-a', 'note.md'), '# A')
     fs.symlinkSync(outside, path.join(target, 'folder-a'))
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toThrow(/Destination is a symlink/)
+    await expect(migrateNotes(source, target, false)).rejects.toThrow(/Destination is a symlink/)
     expect(fs.existsSync(path.join(outside, 'note.md'))).toBe(false)
   })
 
@@ -185,7 +221,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# A')
     fs.symlinkSync(physical, target)
 
-    const result = await migrateNotesDirectory(source, target, { merge: false })
+    const result = await migrateNotes(source, target, false)
 
     expect(fs.existsSync(path.join(physical, 'note.md'))).toBe(true)
     expect(result.target.markdownFileCount).toBe(1)
@@ -200,7 +236,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# A')
     fs.symlinkSync(path.join(physicalRoot, 'real'), path.join(physicalRoot, 'link'))
 
-    const result = await migrateNotesDirectory(source, target, { merge: false })
+    const result = await migrateNotes(source, target, false)
 
     expect(fs.existsSync(path.join(physicalRoot, 'real', 'notes', 'note.md'))).toBe(true)
     expect(result.target.markdownFileCount).toBe(1)
@@ -213,7 +249,12 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# A')
     fs.symlinkSync(path.join(tempRoot, 'files'), target)
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(
+      migrateNotesDirectory(source, target, {
+        merge: false,
+        expectedSourceRealPath: realPath(source)
+      })
+    ).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_INVALID'
     })
     expect(fs.existsSync(path.join(tempRoot, 'files', 'note.md'))).toBe(false)
@@ -254,7 +295,7 @@ describe('notesRelocation', () => {
       return originalCopyFile(from, to, mode)
     })
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateNotes(source, target, false)).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
     expect(fs.readFileSync(path.join(target, 'second.md'), 'utf8')).toBe('late arrival')

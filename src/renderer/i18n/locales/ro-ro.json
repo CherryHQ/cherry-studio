@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Noul director este același cu directorul actual de notițe",
   "settings.data.notes_relocation.error.source_missing": "Directorul actual de notițe nu a putut fi citit",
   "settings.data.notes_relocation.error.source_not_directory": "Calea actuală de notițe nu este un director",
+  "settings.data.notes_relocation.error.stale_source": "Directorul de notițe s-a schimbat în timpul migrării. Reporniți migrarea.",
   "settings.data.notes_relocation.error.target_contains_source": "Noul director conține folderul actual de notițe",
   "settings.data.notes_relocation.error.target_inside_source": "Noul director se află în folderul actual de notițe",
   "settings.data.notes_relocation.error.target_not_writable": "Noul director nu are permisiune de scriere",

@@ -3886,6 +3886,7 @@
   "settings.data.notes_relocation.error.same_path": "Ο νέος κατάλογος είναι ίδιος με τον τρέχοντα κατάλογο σημειώσεων",
   "settings.data.notes_relocation.error.source_missing": "Δεν ήταν δυνατή η ανάγνωση του τρέχοντος καταλόγου σημειώσεων",
   "settings.data.notes_relocation.error.source_not_directory": "Η τρέχουσα διαδρομή σημειώσεων δεν είναι κατάλογος",
+  "settings.data.notes_relocation.error.stale_source": "Ο κατάλογος σημειώσεων άλλαξε κατά τη διάρκεια της μετεγκατάστασης. Ξεκινήστε τη μετεγκατάσταση ξανά.",
   "settings.data.notes_relocation.error.target_contains_source": "Ο νέος κατάλογος περιέχει τον τρέχοντα φάκελο σημειώσεων",
   "settings.data.notes_relocation.error.target_inside_source": "Ο νέος κατάλογος βρίσκεται μέσα στον τρέχοντα φάκελο σημειώσεων",
   "settings.data.notes_relocation.error.target_not_writable": "Ο νέος κατάλογος δεν έχει δικαίωμα εγγραφής",

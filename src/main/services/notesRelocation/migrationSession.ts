@@ -100,9 +100,6 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
 }
 
 export function beginNotesFilesystemMutation(): void {
-  if (blockedRoots) {
-    throw new NotesMigrationWriteBlockedError()
-  }
   activeNotesFilesystemMutations++
 }
 
