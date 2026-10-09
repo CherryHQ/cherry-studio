@@ -3,10 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { readWorkbook } from '@cherrystudio/spreadsheet'
 
 import { printService } from '../../PrintService'
 import { convertDocumentBundle } from '../convertDocument'
@@ -59,8 +60,9 @@ describe('document conversion', () => {
   it('exports one sheet per table with unique valid names and literal formula-like text', async () => {
     const name = `${'a'.repeat(30)}'tail`
     const markdown = `## ${name}\n\n${table}\n\n## ${name}\n\n${table}\n\n## History\n\n${table}`
-    const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(Uint8Array.from((await convertDocumentBundle({ markdown, format: 'xlsx' })).bytes).buffer)
+    const workbook = await readWorkbook(
+      Uint8Array.from((await convertDocumentBundle({ markdown, format: 'xlsx' })).bytes).buffer
+    )
     expect(workbook.worksheets).toHaveLength(3)
     expect(new Set(workbook.worksheets.map(({ name }) => name.toLowerCase())).size).toBe(3)
     for (const sheet of workbook.worksheets) {
@@ -69,24 +71,29 @@ describe('document conversion', () => {
       expect(sheet.getCell('A2').value).toBe('中文')
       expect(sheet.getCell('B2').value).toBe('=SUM(A1:A2)')
       expect(sheet.getCell('B2').formula).toBeUndefined()
+      expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 })
+      expect(sheet.getCell('A1').font.bold).toBe(true)
+      expect(sheet.getCell('B2').alignment).toMatchObject({ vertical: 'top', wrapText: true })
+      expect(sheet.getColumn(2).width).toBeGreaterThanOrEqual(12)
+      expect(sheet.autoFilter).toBe('A1:B2')
     }
   })
 
   it('preserves plain text when a spreadsheet has no tables', async () => {
-    const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(
+    const workbook = await readWorkbook(
       Uint8Array.from((await convertDocumentBundle({ markdown: '# Report\n\nQuarterly text', format: 'xlsx' })).bytes)
         .buffer
     )
     expect(workbook.worksheets[0].getCell('A2').value).toBe('Quarterly text')
+    expect(workbook.worksheets[0].getCell('A2').alignment.wrapText).toBe(true)
+    expect(workbook.worksheets[0].getColumn(1).width).toBe(90)
   })
 
   it('validates malformed tables without rejecting valid nested Markdown tables', async () => {
     await expect(
       convertDocumentBundle({ markdown: '| A | B |\n| --- | --- |\n| 1 | 2 | 3 |', format: 'xlsx' })
     ).rejects.toMatchObject({ code: 'INVALID_TABLE', preview: expect.stringContaining('| 1 | 2 | 3 |') })
-    const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(
+    const workbook = await readWorkbook(
       Uint8Array.from(
         (await convertDocumentBundle({ markdown: '- | A | B |\n  | --- | --- |\n  | 1 | 2 |', format: 'xlsx' })).bytes
       ).buffer

@@ -3,8 +3,8 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 import type { DocumentBlock } from './parseMarkdown'
 
 export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal): Promise<Buffer> {
-  const { default: ExcelJS } = await import('exceljs')
-  const workbook = new ExcelJS.Workbook()
+  const { createWorkbook, writeWorkbook } = await import('@cherrystudio/spreadsheet')
+  const workbook = createWorkbook()
   const names = new Set<string>()
   let index = 0
   let heading = ''
@@ -43,7 +43,7 @@ export async function convertXlsx(blocks: DocumentBlock[], signal?: AbortSignal)
     }
   }
   signal?.throwIfAborted()
-  const buffer = await workbook.xlsx.writeBuffer()
+  const buffer = await writeWorkbook(workbook)
   signal?.throwIfAborted()
   return Buffer.from(buffer)
 }
