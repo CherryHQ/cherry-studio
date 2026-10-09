@@ -423,6 +423,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     anthropic: {
       'web-search': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -439,6 +440,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ],
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -457,6 +459,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     'claude-code': {
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
