@@ -4,6 +4,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import {
   createTestSession,
   finish,
+  hostStore,
   lastAssistant,
   MODEL,
   scriptedModel,
@@ -96,12 +97,14 @@ describe('Pi compaction through the port', () => {
         }
       }
     })
+    const host = hostStore()
     const { session } = await createTestSession({
       port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: 9_000 },
       tools: [fetchPage],
       // threshold = contextWindow - reserveTokens = 7k tokens; three pages (~8k) cross it.
-      settings: { compaction: { enabled: true, reserveTokens: 2_000, keepRecentTokens: 3_000 } }
+      settings: { compaction: { enabled: true, reserveTokens: 2_000, keepRecentTokens: 3_000 } },
+      onEvent: host.onEvent
     })
     session.subscribe((event) => {
       if (event.type === 'tool_execution_end') timeline.push('tool:end')
@@ -127,5 +130,56 @@ describe('Pi compaction through the port', () => {
     expect(finalPrompt).not.toMatch(/PAGE-1 /)
     expect(finalPrompt.length).toBeLessThan(JSON.stringify(agentCalls[2].prompt).length)
     expect(lastAssistant(session).content).toEqual([{ type: 'text', text: 'Done reading.' }])
+
+    const compaction = host.entries.find((entry) => entry.kind === 'compaction')
+    expect(host.events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
+      { type: 'compaction-start', reason: 'threshold' },
+      { type: 'compaction-end', reason: 'threshold', entryId: compaction?.id }
+    ])
+    const next = scriptedModel([[...textParts('n', 'Next.'), finish('stop')]])
+    const rebuilt = await createTestSession({
+      port: gatewayModel(next.model).port,
+      model: { ...MODEL, contextWindow: 9_000 },
+      tools: [fetchPage],
+      transcript: host.entries
+    })
+    await rebuilt.session.prompt('And now?')
+    const rebuiltPrompt = JSON.stringify(next.calls[0].prompt)
+    expect(rebuiltPrompt).toMatch(/SUMMARY-MARKER/)
+    expect(rebuiltPrompt).not.toMatch(/PAGE-1 /)
+    expect(rebuiltPrompt).toMatch(/Done reading\./)
+  })
+
+  it('keeps a compaction rebuildable when Pi keeps from an entry the transcript leaves out', async () => {
+    const long = (label: string) => `${label} ${'detail '.repeat(60)}`
+    const { model } = scriptedModel([
+      [...textParts('a', long('ANSWER-ONE')), finish('stop')],
+      [...textParts('b', long('ANSWER-TWO')), finish('stop')],
+      [...textParts('s', 'SUMMARY-MARKER'), finish('stop')]
+    ])
+    const host = hostStore()
+    const { session } = await createTestSession({
+      port: gatewayModel(model).upstream,
+      // Each message is ~100 tokens: keeping 150 cuts at the second question.
+      settings: { compaction: { keepRecentTokens: 150 } },
+      // Pi's cut moves back over entries without context, here a non-`cherry.` custom entry.
+      extensionFactories: [
+        (pi) => {
+          pi.on('agent_settled', () => pi.appendEntry('other.state', { n: 1 }))
+        }
+      ],
+      onEvent: host.onEvent
+    })
+    await session.prompt(long('QUESTION-ONE'))
+    await session.prompt(long('QUESTION-TWO'))
+    await session.compact()
+
+    const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
+    const rebuilt = await createTestSession({ port: gatewayModel(next.model).port, transcript: host.entries })
+    await rebuilt.session.prompt('Third')
+    const prompt = JSON.stringify(next.calls[0].prompt)
+    expect(prompt).toMatch(/SUMMARY-MARKER/)
+    expect(prompt).not.toMatch(/QUESTION-ONE/)
+    expect(prompt).toMatch(/QUESTION-TWO/)
   })
 })

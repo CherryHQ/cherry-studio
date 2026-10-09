@@ -15,35 +15,81 @@ Pi owns the execution loop, tools, context accounting and compaction. Content us
 Native deltas accumulate once into ordered SDK messages, including preliminary/final tool results.
 
 
+
 ## Session builder
 
-`createAgentRuntimeSession({ modelRuntime, model, cwd, agentDir, ... })` returns a native
-`AgentSession` and an asynchronous `dispose()` method. The model runtime is borrowed: the caller
-owns credentials and provider registration, and closing a session does not unregister its providers.
-Settings, including retries and thinking level, retain native Pi semantics.
+`createAgentRuntimeSession` builds an `AgentSession` entirely in memory: in-memory credentials,
+models and settings, `SessionManager.inMemory` rebuilt from the host's transcript, and a
+`DefaultResourceLoader` with extension, skill, prompt-template and theme discovery off. The host
+supplies the system prompt (Pi's own prompt when omitted; Pi still appends a `<cwd>` section) and any
+appended prompt, custom tools, the enabled built-in tools (none by default), extra extension
+factories, the model descriptor and Pi settings such as compaction or `shellCommandPrefix`. It may
+opt in to workspace `AGENTS.md` / `CLAUDE.md` context files and to explicit skill directories, as
+Cherry's current Pi runtime does. `dispose()` aborts the running turn, emits `session_shutdown` to
+extensions and disposes the session.
 
-The builder uses in-memory settings and session state, disables resource discovery, and accepts
-explicit tools, extension factories, system prompts, workspace context files and skill directories.
-Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
-built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
-load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
-`dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
-Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
+## Transcript
 
-Known gap: Pi's resource loader still resolves its discovery directories while it loads; the
-`no*` flags and prompt overrides discard everything it finds there.
+The host owns storage. It passes the session's transcript in (`transcript`, the full active path,
+oldest first, uncompacted) and persists what comes out (`onEvent`). A session is always rebuilt from
+the transcript; nothing is kept between sessions except `sessionId`, which should stay stable per
+host session because it is also the prompt-cache routing key.
 
-## Cherry integration
+`TranscriptEntry` is plain JSON:
 
-Cherry registers a native Pi provider pointed at its internal gateway in
-`src/main/ai/runtime/pi/gatewayModelBinding.ts`. Pi owns protocol encoding, streaming, replay and
-tool execution; the gateway owns Cherry provider resolution, credentials and usage records.
-No model-call interface or session requirements are needed in this package.
+| Kind | Holds | Pi entry |
+| --- | --- | --- |
+| `message` | AI SDK `ModelMessage` (`user`, `assistant`, `tool` with one `tool-result`), plus `modelKey`, `usage`, `stopReason`, `errorMessage`, `responseId` (assistant) and `details` (tool) | `message` |
+| `message` with `custom` | a `user` message an extension added (`pi.sendMessage`), with its type, display flag and details | `custom_message` |
+| `compaction` | `summary`, `firstKeptEntryId`, `tokensBefore`, `details` | `compaction` |
+| `context-edit` | an omitted message (`replacement: null`) | `context_edit` |
+| `state` | extension state: a Pi `custom` entry whose type starts with `cherry.` | `custom` |
 
-The desktop cutover is a later stack layer. Gateway integration tests live in Cherry's Main
-process project; `tests/nativeSession.test.ts` verifies native providers and borrowed-runtime ownership.
+- **What the model saw** – the message payload is what the bridge sends (one codec in
+  `modelMessages.ts`). Reasoning keeps its provider options, so signatures replay to the same model
+  key. Images are inline base64.
+- **Rebuild** – `SessionManager.inMemory(cwd, { id }, entries)` with the host's ids and
+  timestamps, so Pi's compaction, context accounting and extension state behave as in the live
+  session. State entries are in place before extensions bind, so `session_start` sees them. The
+  transcript is validated first; a bad one throws `TranscriptError` (`invalid_entry`,
+  `duplicate_id`, `unsupported_content`, `orphan_tool_result`, `compaction_boundary_missing`,
+  `edit_target_missing`) and nothing is created. Tool calls left without a result (a crash
+  mid-turn) and failed or aborted replies are valid: Pi answers or skips them when it builds a
+  request.
+- **Output** – `onEvent` receives `transcript-append` with new entries in Pi order, each exactly
+  once; `compaction-start` / `compaction-end` (after the compaction entry was appended); and
+  `turn-complete` with the head entry id when a run settles. Pi `system`, `model_change`,
+  `thinking_level_change` and `usage` entries are never emitted: the host owns the prompt, the
+  model and billing.
+- **Tool loadout** – tools activated beyond the session's base tools (by `tool_search`) are
+  recorded as a `cherry.tool-loadout` state entry and re-activated on rebuild, after the tools the
+  host enables now. Deactivating a base tool is not recorded.
+
+## Known gaps
+
+- A single tool result larger than the context window survives compaction (it is the kept recent
+  turn), so the next request is rejected as context overflow and the turn ends without an answer.
+  Truncating oversized results is the next step.
+- Pi's `after_provider_response` extension event never fires for these models: `streamText` does not
+  expose response headers before the body is consumed.
+- Tool call ids from another provider are replayed as-is (no `normalizeToolCallId`). A provider
+  with stricter id rules may reject history recorded by a different one.
+- Pi's resource loader still scans its discovery directories (`cwd/.pi`, `agentDir`,
+  `~/.agents/skills`) while loading. The `no*` flags and prompt overrides discard everything it finds.
+- Not carried in the transcript: context edits that replace content (Pi itself only omits
+  messages), `bashExecution` and `branch_summary` entries (no Cherry producer), and `isError` on a
+  tool result that also holds images.
+- The CherryIN Anthropic endpoint omits the thinking block of tool-only replies but requires one on
+  replay; Cherry's Pi runtime rebuilds it from the response id (`piThinkingReplay.ts`). The
+  transcript keeps `responseId` for this, but requests do not expose it to the port yet.
+
+## Tests
 
 ```bash
-pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts
-pnpm --filter @cherrystudio/agent-runtime-pi typecheck
+pnpm test:agent-runtime                              # from the repository root
+pnpm --filter @cherrystudio/agent-runtime test       # or the package's own Vitest config
+pnpm --filter @cherrystudio/agent-runtime typecheck
 ```
+
+Tests drive real `streamText` over `MockLanguageModelV3` (and one real provider over local HTTP)
+through the same port shape the host implements.
