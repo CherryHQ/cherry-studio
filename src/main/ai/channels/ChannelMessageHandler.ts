@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import mime from 'mime'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
@@ -19,6 +22,7 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -229,6 +233,8 @@ export class ChannelMessageHandler {
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
       if (existing) {
+        const previous = existing.messages.at(-1)!
+        adapter.discardResponse(previous.chatId, responseOptionsFor(previous))
         // Append to existing batch and reset the debounce timer
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
@@ -370,6 +376,7 @@ export class ChannelMessageHandler {
     onAdmitted?: () => void
   ): Promise<void> {
     const { agentId } = adapter
+    let streamStarted = false
 
     try {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
@@ -401,59 +408,15 @@ export class ChannelMessageHandler {
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
-        try {
-          await prepareAgentSessionWorkspaceDirectory(session)
-        } catch (error) {
-          if (isAgentSessionWorkspaceError(error)) {
-            await adapter.sendMessage(message.chatId, error.message, responseOptionsFor(message)).catch(() => {})
-          }
-          throw error
-        }
+        await prepareAgentSessionWorkspaceDirectory(session)
       }
 
-      // Save images to agent workspace so the agent can read them via the Read tool
-      let imagePaths: string[] = []
-      if (message.images && message.images.length > 0 && workDir) {
-        try {
-          imagePaths = await this.persistImages(workDir, message.images)
-          logger.info('Persisted channel images to workspace', {
-            agentId,
-            count: imagePaths.length,
-            dir: path.join(workDir, '.cherry-studio', 'channel-images')
-          })
-        } catch (error) {
-          logger.warn('Failed to persist channel images', {
-            agentId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
+      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      if (message.images?.length && workDir) {
+        userParts.push(...(await this.persistImages(workDir, message.images)))
       }
-
-      // Save files to agent workspace so the agent can read them via the Read tool
-      let filePaths: string[] = []
-      if (message.files && message.files.length > 0 && workDir) {
-        try {
-          filePaths = await this.persistFiles(workDir, message.files)
-          logger.info('Persisted channel files to workspace', {
-            agentId,
-            count: filePaths.length,
-            dir: path.join(workDir, '.cherry-studio', 'channel-files')
-          })
-        } catch (error) {
-          logger.warn('Failed to persist channel files', {
-            agentId,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-
-      // Build text with attachment file paths appended so the agent knows where they are saved
-      let textWithAttachments = message.text
-      if (imagePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
-      }
-      if (filePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
+      if (message.files?.length && workDir) {
+        userParts.push(...(await this.persistFiles(workDir, message.files)))
       }
 
       const abortController = new AbortController()
@@ -474,30 +437,28 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          textWithAttachments,
+          userParts,
           abortController,
           adapter,
           message.chatId,
           responseOptions,
-          onAdmitted
+          onAdmitted,
+          () => {
+            streamStarted = true
+          }
         )
-      } catch (streamError) {
-        const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
-        if (isAgentSessionWorkspaceError(streamError) || streamError instanceof AgentSessionRunNotStartedError) {
-          // Thrown before streaming starts (validateSession), so no controller exists yet and
-          // onStreamError is a no-op on most adapters — send a plain message so the inbound
-          // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter.sendMessage(message.chatId, streamErrorMessage, responseOptionsFor(message)).catch(() => {})
-        } else {
-          // Mid-stream error: let the adapter update its streaming UI.
-          adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
-        }
-        throw streamError
       } finally {
         this.activeAbortControllers.delete(session.id)
         clearInterval(typingInterval)
       }
     } catch (error) {
+      if (!streamStarted) {
+        const messageText =
+          isAgentSessionWorkspaceError(error) || error instanceof AgentSessionRunNotStartedError
+            ? error.message
+            : t('common.channel_message_processing_error')
+        await adapter.sendMessage(message.chatId, messageText, responseOptionsFor(message)).catch(() => {})
+      }
       const context = {
         agentId,
         chatId: message.chatId,
@@ -602,7 +563,7 @@ export class ChannelMessageHandler {
           try {
             const response = await this.collectStreamResponse(
               session,
-              '/compact',
+              [{ type: 'text', text: '/compact' }],
               abortController,
               adapter,
               command.chatId,
@@ -896,12 +857,13 @@ export class ChannelMessageHandler {
 
   private async collectStreamResponse(
     session: AgentSessionEntity,
-    content: string,
+    userParts: CherryMessagePart[],
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
     responseOptions?: SendMessageOptions,
-    onAdmitted?: () => void
+    onAdmitted?: () => void,
+    onStarted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -935,7 +897,7 @@ export class ChannelMessageHandler {
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
-        userParts: [{ type: 'text', text: content }],
+        userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
@@ -943,6 +905,7 @@ export class ChannelMessageHandler {
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
       // Add durable admission only if channels require guaranteed busy-session delivery.
       if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
+      onStarted?.()
     } finally {
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.
@@ -952,45 +915,42 @@ export class ChannelMessageHandler {
     return executionDone
   }
 
-  /**
-   * Save images to the agent's workspace so the agent can read them via the Read tool.
-   * Returns the list of absolute file paths written.
-   */
-  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<string[]> {
+  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<FileUIPart[]> {
     const dir = path.join(workDir, '.cherry-studio', 'channel-images')
     await fs.mkdir(dir, { recursive: true })
 
-    const paths: string[] = []
+    const parts: FileUIPart[] = []
     for (const img of images) {
-      const ext = img.media_type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+      // media_type is attacker-supplied; only a registered extension may reach the filename.
+      const ext = mime.getExtension(img.media_type) || 'png'
       const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))
-      paths.push(filePath)
+      parts.push({ type: 'file', url: pathToFileURL(filePath).href, mediaType: img.media_type, filename })
     }
 
-    return paths
+    return parts
   }
 
-  /**
-   * Save files to the agent's workspace so the agent can read them via the Read tool.
-   * Returns the list of absolute file paths written.
-   */
-  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<string[]> {
+  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<FileUIPart[]> {
     const dir = path.join(workDir, '.cherry-studio', 'channel-files')
     await fs.mkdir(dir, { recursive: true })
 
-    const paths: string[] = []
+    const parts: FileUIPart[] = []
     for (const file of files) {
-      // Prefix with timestamp to avoid collisions, preserve original filename for readability
       const safeName = file.filename.replace(/[/\\:*?"<>|]/g, '_')
-      const filename = `${Date.now()}-${safeName}`
+      const filename = `${Date.now()}-${randomUUID().slice(0, 8)}-${safeName}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(file.data, 'base64'))
-      paths.push(filePath)
+      parts.push({
+        type: 'file',
+        url: pathToFileURL(filePath).href,
+        mediaType: file.media_type,
+        filename: file.filename
+      })
     }
 
-    return paths
+    return parts
   }
 }
 

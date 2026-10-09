@@ -8,8 +8,12 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelStreamErrorOptions,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
@@ -425,7 +429,19 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
+  override async onStreamError(
+    chatId: string,
+    error: string,
+    opts?: SendMessageOptions,
+    options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
+    if (options?.suppressDelivery) {
+      const key = this.responseKey(chatId, opts)
+      this.streams.get(key)?.dispose()
+      this.streams.delete(key)
+      await this.clearChatReaction(key)
+      return true
+    }
     const streamKey = this.responseKey(chatId, opts)
     if (opts?.replyToMessageId) {
       await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
@@ -438,9 +454,10 @@ class FeishuAdapter extends ChannelAdapter {
       } finally {
         this.streams.delete(streamKey)
       }
-      return
+      return true
     }
     await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
+    return true
   }
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
@@ -576,11 +593,8 @@ class FeishuAdapter extends ChannelAdapter {
   }
 }
 
-registerAdapterFactory('feishu', (channel, agentId) => {
+export function createFeishuAdapter(config: ChannelAdapterConfig<'feishu'>) {
   return new FeishuAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

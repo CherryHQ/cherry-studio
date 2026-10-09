@@ -65,12 +65,14 @@ export function usePaintingGenerationSubmit({
   // for the UI.
   const submittingRef = useRef(false)
   const [submitting, setSubmitting] = useState(false)
+  const [preparing, setPreparing] = useState(false)
 
   const submit = useCallback(
     async (materialize: MaterializeInputs) => {
       if (generating || submittingRef.current) return
       submittingRef.current = true
       setSubmitting(true)
+      setPreparing(true)
       try {
         const guardResult = await validateBeforeGenerate()
         if (!guardResult.ok) {
@@ -82,14 +84,15 @@ export function usePaintingGenerationSubmit({
         // dropped the failed chip and told the user; generating anyway would spend
         // the request on a silently smaller input set.
         if (!complete) return
-        await generate(entries)
+        await generate(entries, () => setPreparing(false))
       } finally {
         submittingRef.current = false
         setSubmitting(false)
+        setPreparing(false)
       }
     },
     [generate, generating, painting.providerId, validateBeforeGenerate]
   )
 
-  return { generating, submitting, submit, cancel }
+  return { generating, submitting, preparing, submit, cancel }
 }

@@ -16,7 +16,9 @@ import { useTopicOverlayHandoffOnTerminal } from '../useTopicStreamStatus'
 const setStatus = (status: TopicStreamStatus | undefined) => mockEntry.mockReturnValue({ status })
 
 describe('useTopicOverlayHandoffOnTerminal', () => {
-  beforeEach(() => mockEntry.mockReset())
+  beforeEach(() => {
+    mockEntry.mockReset()
+  })
 
   it.each<TopicStreamStatus>(['done', 'error', 'aborted'])('fires once on streaming → %s', async (terminal) => {
     const handoff = vi.fn(async () => {})

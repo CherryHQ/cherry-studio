@@ -1110,6 +1110,28 @@ describe('ComposerToken', () => {
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps modified sent-link clicks on the global opener when a host opener is present', async () => {
+    const user = userEvent.setup()
+    const url = 'https://www.example.com/docs'
+    const onOpenLink = vi.fn()
+    render(
+      <ComposerToken
+        token={{ id: 'link-token-1', kind: 'link', label: 'example.com/docs', promptText: url }}
+        readOnly
+        onOpenLink={onOpenLink}
+      />
+    )
+    const link = screen.getByRole('link', { name: url })
+    for (const modifier of ['Control', 'Meta', 'Shift', 'Alt']) {
+      ipcRequestMock.mockClear()
+      await user.keyboard(`{${modifier}>}`)
+      await user.click(link)
+      await user.keyboard(`{/${modifier}}`)
+      expect(ipcRequestMock).toHaveBeenCalledExactlyOnceWith('system.shell.open_website', url)
+    }
+    expect(onOpenLink).not.toHaveBeenCalled()
+  })
+
   it('renders sent links with their hostname favicon', () => {
     const url = 'https://www.example.com/docs'
     const { container } = render(
@@ -1151,6 +1173,53 @@ describe('ComposerToken', () => {
 
     fireEvent.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders no knowledge chip when no knowledge reference is selected', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF Reader',
+          description: 'Read and summarize PDF files.'
+        }}
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toBeNull()
+    expect(container.querySelector('[data-composer-token-remove]')).toBeNull()
+  })
+
+  it('renders multiple knowledge chips with independent remove actions', async () => {
+    const user = userEvent.setup()
+    const onRemoveFirst = vi.fn()
+    const onRemoveSecond = vi.fn()
+    render(
+      <>
+        <ComposerToken
+          token={{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Product Docs' }}
+          onRemove={onRemoveFirst}
+          removeLabel="Remove Product Docs"
+        />
+        <ComposerToken
+          token={{ id: 'knowledge:base-2', kind: 'knowledge', label: 'API Guide' }}
+          onRemove={onRemoveSecond}
+          removeLabel="Remove API Guide"
+        />
+      </>
+    )
+
+    expect(screen.getByText('Product Docs')).toBeInTheDocument()
+    expect(screen.getByText('API Guide')).toBeInTheDocument()
+
+    const removeButtons = screen.getAllByRole('button', { name: /remove/i })
+    expect(removeButtons).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Remove Product Docs' }))
+    expect(onRemoveFirst).toHaveBeenCalledTimes(1)
+    expect(onRemoveSecond).not.toHaveBeenCalled()
+    expect(screen.getByText('API Guide')).toBeInTheDocument()
   })
 
   it.each([

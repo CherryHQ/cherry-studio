@@ -9,6 +9,8 @@ on:
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
+      - "packages/remote-protocol/**"
+      - "packages/remote-transport/**"
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
@@ -44,7 +46,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -57,14 +59,20 @@ jobs:
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Remote Packages
+        run: |
+          pnpm --filter '@cherrystudio/remote-*' typecheck
+          pnpm --filter '@cherrystudio/remote-*' test
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          publish: pnpm changeset:publish
-          version: pnpm changeset:version
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          create-github-releases: false
+          publish-script: pnpm changeset:publish
+          version-script: pnpm changeset:version
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -78,4 +86,4 @@ jobs:
           echo "The following packages were published:" >> $GITHUB_STEP_SUMMARY
           echo "$PUBLISHED_PACKAGES" >> $GITHUB_STEP_SUMMARY
         env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}

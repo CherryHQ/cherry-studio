@@ -89,6 +89,24 @@ const spawnOptions: SpawnOptions = {
 }
 
 describe('ClaudeCodeProcessManager', () => {
+  it('confirms native exit only after the OS exit event, not after a kill request', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(() => child.process)
+    const diagnostics = createClaudeCodeProcessDiagnostics()
+    manager.spawn(spawnOptions, diagnostics)
+    let exited = false
+    void diagnostics.exited!.then(() => {
+      exited = true
+    })
+    manager.killAll('SIGTERM')
+    await Promise.resolve()
+    expect(exited).toBe(false)
+    child.emitExit()
+    await diagnostics.exited
+    expect(exited).toBe(true)
+    child.stderr.end()
+  })
+
   beforeEach(() => {
     LifecycleManager.reset()
     ServiceContainer.reset()
@@ -155,7 +173,7 @@ describe('ClaudeCodeProcessManager', () => {
     expect(child.kill).not.toHaveBeenCalled()
   })
 
-  it('recovers repeated startup and cleanup after macOS rejects high pipe descriptors', () => {
+  it('recovers repeated startup and cleanup after macOS rejects high pipe descriptors', async () => {
     const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
     const getuidDescriptor = Object.getOwnPropertyDescriptor(process, 'getuid')
     const recovered = createFakeChild()
@@ -174,7 +192,12 @@ describe('ClaudeCodeProcessManager', () => {
     Object.defineProperty(process, 'getuid', { value: () => 501, configurable: true })
 
     try {
-      manager.spawn(spawnOptions)
+      const diagnostics = createClaudeCodeProcessDiagnostics()
+      manager.spawn(spawnOptions, diagnostics)
+      let exited = false
+      void diagnostics.exited!.then(() => {
+        exited = true
+      })
       expect(spawnProcess).toHaveBeenNthCalledWith(2, spawnOptions.command, spawnOptions.args, {
         env: spawnOptions.env,
         signal: spawnOptions.signal,
@@ -182,7 +205,11 @@ describe('ClaudeCodeProcessManager', () => {
         uid: 501,
         windowsHide: true
       })
+      await Promise.resolve()
+      expect(exited).toBe(false)
       recovered.emitExit()
+      await diagnostics.exited
+      expect(exited).toBe(true)
 
       manager.spawn(spawnOptions)
       next.emitExit()
