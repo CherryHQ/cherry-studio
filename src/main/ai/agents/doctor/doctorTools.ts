@@ -60,13 +60,12 @@ export interface DoctorTool {
 const PROBE_TIMEOUT_MS = 15_000
 const READ_FILE_MAX_BYTES = 128 * 1024
 const READ_FILE_DEFAULT_LINES = 200
-/** User content the doctor never needs; everything else under userData/logs is app state. */
-const READ_FILE_BLOCKED_DIRS = [
-  'Data/Files',
-  'Data/KnowledgeBase',
-  'Data/Notes',
-  'Data/AgentTranscripts',
-  'Data/Memory'
+/** userData is full of user content (databases, transcripts, cookies), so only these app-state paths are readable. */
+const READ_FILE_USERDATA_ALLOWLIST: readonly RegExp[] = [
+  /^logs(\/|$)/,
+  /^(Data\/)?config\.json$/,
+  /^Toolchain(\/|$)/,
+  /^Crashpad(\/|$)/
 ]
 const DATA_API_GET_PATHS: readonly RegExp[] = [
   /^\/providers(?:\/[^/]+(?:\/api-keys)?)?$/,
@@ -281,13 +280,17 @@ function realOrNearest(target: string): string {
 /** Resolves a doctor-readable path or throws; roots are userData and the log directory. */
 export function resolveDoctorReadablePath(requested: string): string {
   const roots = [application.getPath('app.userdata'), application.getPath('app.logs')].map(realOrNearest)
-  const resolved = realOrNearest(path.isAbsolute(requested) ? requested : path.join(roots[0], requested))
-  const root = roots.find((candidate) => isSameOrInside(resolved, candidate))
-  if (!root)
-    throw new ToolError('Access denied: path must be inside the app data or log directory', ToolErrorCode.InvalidParams)
-  const relative = path.relative(root, resolved).split(path.sep).join('/')
-  if (READ_FILE_BLOCKED_DIRS.some((dir) => relative === dir || relative.startsWith(`${dir}/`))) {
-    throw new ToolError('Access denied: user content is not readable by the doctor', ToolErrorCode.InvalidParams)
+  const [userData, logs] = roots
+  const resolved = realOrNearest(path.isAbsolute(requested) ? requested : path.join(userData, requested))
+  const relative = path.relative(userData, resolved).split(path.sep).join('/')
+  const readable =
+    isSameOrInside(resolved, logs) ||
+    (isSameOrInside(resolved, userData) && READ_FILE_USERDATA_ALLOWLIST.some((pattern) => pattern.test(relative)))
+  if (!readable) {
+    throw new ToolError(
+      'Access denied: only logs, config.json, Toolchain and Crashpad are readable by the doctor',
+      ToolErrorCode.InvalidParams
+    )
   }
   if (isBlockedSourceFile(path.basename(resolved))) {
     throw new ToolError('Access denied: cannot read credential files', ToolErrorCode.InvalidParams)
@@ -348,11 +351,11 @@ function listOpenedDirectory(resolved: string, handle: number): DoctorToolResult
 const READ_FILE_TOOL: DoctorTool = {
   name: 'read_file',
   description:
-    'Read an app-owned file inside the app data directory (userData) or the log directory: log files, crash dumps, MCP/Claude runtime settings, cache.json, config.json, Toolchain. Linux can also list directories through a stable file descriptor; other platforms refuse directory listing. Relative paths resolve against userData. Files return their LAST `lines` lines (default 200) with secrets redacted; user content (Files, KnowledgeBase, Notes, transcripts, memory) is refused.',
+    'Read an app-state file: anything in the log directory, plus userData-relative logs/, config.json, Data/config.json, Toolchain/ (managed tool installs) and Crashpad/ (crash dumps). Everything else in userData (databases, transcripts, cookies, user files) is refused. Linux can also list directories through a stable file descriptor; other platforms refuse directory listing. Relative paths resolve against userData. Files return their LAST `lines` lines (default 200) with secrets redacted.',
   inputSchema: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Absolute path, or relative to userData (e.g. "logs" or "Data/Mcp")' },
+      path: { type: 'string', description: 'Absolute path, or relative to userData (e.g. "logs" or "Toolchain")' },
       lines: { type: 'number', description: 'How many trailing lines to return (max 2000)' }
     },
     required: ['path'],

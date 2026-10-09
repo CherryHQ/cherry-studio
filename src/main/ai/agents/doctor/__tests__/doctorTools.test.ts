@@ -301,32 +301,56 @@ describe('doctor read_file tool', () => {
     ['a path outside userData', path.join(outside, 'x.txt')],
     ['a traversal', '../escape.txt'],
     ['user content', 'Data/Files/upload.pdf'],
-    ['a credential file', 'Data/Mcp/credentials.json']
+    ['the app database', 'Data/cherrystudio.sqlite'],
+    ['an agent transcript', 'Data/Agents/.claude/projects/p/session.jsonl'],
+    ['the MCP memory graph', 'Data/Mcp/memory.json'],
+    ['channel credentials', 'Data/weixin_bot_1.json'],
+    ['browser cookies', 'Cookies'],
+    ['the persisted cache', 'cache.json'],
+    ['a credential file under logs', 'logs/credentials.json']
   ])('refuses %s', async (_label, target) => {
+    const file = path.isAbsolute(target) ? target : path.join(userData, target)
+    if (file.startsWith(userData)) {
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, 'private')
+    }
     const client = await connect()
     const result = await client.callTool({ name: 'read_file', arguments: { path: target } })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('Access denied')
+    expect(text(result)).not.toContain('private')
     await client.close()
   })
 
+  it.each(['config.json', 'Data/config.json', 'Toolchain/mise/config.toml', 'Crashpad/settings.dat'])(
+    'reads app state at %s',
+    async (target) => {
+      fs.mkdirSync(path.dirname(path.join(userData, target)), { recursive: true })
+      fs.writeFileSync(path.join(userData, target), 'state')
+      const client = await connect()
+      const result = await client.callTool({ name: 'read_file', arguments: { path: target } })
+      expect(JSON.parse(text(result)).text).toBe('state')
+      await client.close()
+    }
+  )
+
   it('refuses a symlink inside userData that points outside', async () => {
     fs.writeFileSync(path.join(outside, 'secret.txt'), 'nope')
-    fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(userData, 'link.txt'))
+    fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(userData, 'logs', 'link.txt'))
     const client = await connect()
-    const result = await client.callTool({ name: 'read_file', arguments: { path: 'link.txt' } })
+    const result = await client.callTool({ name: 'read_file', arguments: { path: 'logs/link.txt' } })
     expect(result.isError).toBe(true)
     expect(text(result)).not.toContain('nope')
     await client.close()
   })
 
   it('refuses an ancestor replaced by an outside symlink after path validation', () => {
-    const directory = path.join(userData, 'race')
-    const movedDirectory = path.join(userData, 'race-original')
+    const directory = path.join(userData, 'logs', 'race')
+    const movedDirectory = path.join(userData, 'logs', 'race-original')
     fs.mkdirSync(directory)
     fs.writeFileSync(path.join(directory, 'secret.txt'), 'inside')
     fs.writeFileSync(path.join(outside, 'secret.txt'), 'outside secret')
-    const resolved = resolveDoctorReadablePath('race/secret.txt')
+    const resolved = resolveDoctorReadablePath('logs/race/secret.txt')
     fs.renameSync(directory, movedDirectory)
     fs.symlinkSync(outside, directory)
     try {
