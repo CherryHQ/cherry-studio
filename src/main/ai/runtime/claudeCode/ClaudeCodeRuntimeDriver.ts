@@ -1154,7 +1154,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * current local paths so the Agent decides how to inspect them with its tools. Images
  * keep the capability-aware path: supported formats become native Anthropic image
  * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
+ * is unavailable, and unlisted-extension images survive routing as file parts for the
+ * path fallback. Assistant attachment handles remain an additional compatibility
  * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
@@ -1195,7 +1196,10 @@ async function materializeUserContent(
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: supportsAttachmentReads
+      isToolCapable: supportsAttachmentReads,
+      // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
+      // stay a file part so the local-path fallback below still holds its file reference.
+      keepUnroutableFileParts: true
     })
     preparedParts = prepared.parts
   }

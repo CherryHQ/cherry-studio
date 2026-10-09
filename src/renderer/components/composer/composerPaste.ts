@@ -1,10 +1,11 @@
 import type { JSONContent } from '@tiptap/core'
 
-import { getFileExtension } from '@renderer/utils/file'
+import { getFileExtension, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 
+import { COMPOSER_INPUT_MAX_LENGTH } from './composerDraft'
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
@@ -23,7 +24,9 @@ export function hasSupportedClipboardImage(
   files: readonly Pick<File, 'name' | 'type'>[],
   supportedExts: readonly string[]
 ) {
-  return files.some((file) => file.type.startsWith('image/') && supportedExts.includes(getFileExtension(file.name)))
+  return files.some(
+    (file) => file.type.startsWith('image/') && isSupportedExtension(getFileExtension(file.name), supportedExts)
+  )
 }
 
 interface ComposerPlainTextPasteOptions {
@@ -85,6 +88,35 @@ function createKnowledgeBaseMarkerRule(
 
 export function createComposerPlainTextPasteContent(text: string): JSONContent[] {
   return createComposerPlainTextContent(text)
+}
+
+/**
+ * The text a wildcard path paste adds to the draft. Appended at the end of a non-empty draft it
+ * needs a break of its own, or the path runs on after the last word; at the caret it is the user's
+ * own text and gets none.
+ */
+export function createComposerPathReferenceText(paths: string, draftIsEmpty: boolean): string {
+  return draftIsEmpty ? paths : `\n${paths}`
+}
+
+/**
+ * The part of `nextText` that still fits the composer. An insert that replaces a selection has to be
+ * measured against the draft without it, or text the insert removes is charged against the budget
+ * twice and an insertion that would fit is refused.
+ */
+export function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = ''): string {
+  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
+  if (remainingLength <= 0) return ''
+  return nextText.slice(0, remainingLength)
+}
+
+/**
+ * The path text a wildcard paste adds, or '' when it does not fit whole. Unlike text, which fills
+ * the remaining budget and truncates, a path is all-or-nothing: a partial absolute path names a
+ * file that does not exist, and a separator with no path behind it drops the paste entirely.
+ */
+export function getComposerPathReferenceInsertion(currentText: string, body: string, replacedText = ''): string {
+  return getComposerInputTextWithinLimit(currentText, body, replacedText) === body ? body : ''
 }
 
 function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {

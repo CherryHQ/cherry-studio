@@ -1142,6 +1142,75 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('sends an unlisted-extension image the router cannot classify as a local path', async () => {
+    // AVIF/HEIC carry an image/* MIME but no listed extension, so shared routing would
+    // replace them with an unsupported-type note unless the driver opts into keeping the
+    // part — the mock mirrors that contract — after which the path fallback forwards it.
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]: any[], ctx: any) =>
+      ctx.keepUnroutableFileParts
+        ? [message]
+        : [
+            {
+              ...message,
+              parts: [
+                ...message.parts.filter((part: any) => part.type !== 'file'),
+                {
+                  type: 'text',
+                  text: 'Attached file "photo.avif":\nCannot read the attached file "photo.avif" as text (unsupported file type).'
+                }
+              ]
+            }
+          ]
+    )
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/avif;base64,QUJD',
+      mediaType: 'image/avif',
+      filename: 'photo.avif',
+      providerMetadata: { cherry: { fileEntryId: 'entry-avif' } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'look at this photo' },
+            {
+              type: 'file',
+              url: 'file:///tmp/photo.avif',
+              mediaType: 'image/avif',
+              filename: 'photo.avif',
+              providerMetadata: { cherry: { fileEntryId: 'entry-avif' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'look at this photo\n\nAttached files (read them with your tools using these absolute paths):\n- "photo.avif": /managed/entry-avif'
+        }
+      },
+      done: false
+    })
+    void connection.close()
+  })
+
   it.each([
     ['PDF', 'spec.pdf', 'application/pdf'],
     ['HTML', 'page.html', 'text/html'],
@@ -1457,7 +1526,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
       attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
       nativeSupport: { image: false, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: false,
+      keepUnroutableFileParts: true
     })
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
     void connection.close()
