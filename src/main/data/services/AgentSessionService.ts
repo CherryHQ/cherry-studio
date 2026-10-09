@@ -22,6 +22,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -154,6 +155,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
+  readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
@@ -826,6 +830,7 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -872,6 +877,7 @@ export class AgentSessionService {
       ...agentSessionReadModelEffects([id], 'projection'),
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
+    this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
 
@@ -1102,6 +1108,22 @@ export class AgentSessionService {
     return this.trashByIdsTx(tx, ids, {
       deletedAt: options.deletedAt
     })
+  }
+
+  /**
+   * Restore the sessions trashed together with their agent inside the caller's
+   * transaction: `trashByAgentIdTx` stamps them with the agent's own `deletedAt`,
+   * so that timestamp scopes the operation. Individually archived sessions carry
+   * a different one and stay in the Recycle Bin.
+   */
+  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
+    return tx
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+      .map((row) => row.id)
   }
 
   restore(id: string): AgentSessionEntity {
@@ -1402,6 +1424,7 @@ export class AgentSessionService {
 
   reorder(id: string, anchor: OrderRequest): void {
     application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
@@ -1422,6 +1445,7 @@ export class AgentSessionService {
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    for (const id of new Set(moves.map((move) => move.id))) this.sessionUpdated.fire({ sessionId: id })
   }
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {

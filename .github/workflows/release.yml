@@ -56,6 +56,11 @@ jobs:
       cancel-in-progress: false
     if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' && inputs.mode != 'sync-only'
     runs-on: ubuntu-latest
+    permissions:
+      # Draft releases are only visible to tokens with push access.
+      actions: read
+      contents: write
+      pull-requests: read
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
@@ -185,7 +190,7 @@ jobs:
           ref: ${{ inputs.expected_sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
@@ -451,7 +456,7 @@ jobs:
           path: release-source
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
@@ -750,7 +755,7 @@ jobs:
           ref: ${{ github.workflow_sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
@@ -901,7 +906,7 @@ jobs:
           ref: ${{ github.workflow_sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 

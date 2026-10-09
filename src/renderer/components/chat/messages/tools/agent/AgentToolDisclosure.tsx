@@ -99,7 +99,7 @@ export function AgentToolDisclosure({
             data-testid={`collapse-content-${item.key}`}
             hidden={!isExpanded}
             className={cn(
-              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground',
+              'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto overscroll-contain rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground',
               item.classNames?.body
             )}>
             {item.children}

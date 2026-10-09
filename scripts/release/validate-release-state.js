@@ -114,7 +114,8 @@ function main() {
 
   if (phase === 'prepare') {
     validatePreparationState({
-      releasePages: parseOptionalJson(fs.readFileSync(0, 'utf8'), 'release list'),
+      // Avoid Node 24.21.0's UTF-8 pipe-read overflow: https://github.com/nodejs/node/issues/66341.
+      releasePages: parseOptionalJson(fs.readFileSync(0).toString('utf8'), 'release list'),
       tag
     })
     return

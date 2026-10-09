@@ -19,7 +19,9 @@ on:
           - mini-app
           - notes
           - custom-provider-chat
+          - provider-model-scroll
           - custom-assistant
+          - chat-stream-failure
           - translation
           - quick-assistant
           - knowledge
@@ -63,7 +65,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -128,7 +130,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -201,7 +203,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
@@ -446,7 +448,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
