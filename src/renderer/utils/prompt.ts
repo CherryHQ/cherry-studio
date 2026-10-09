@@ -38,8 +38,10 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   }
 
   if (userSystemPrompt.includes('{{time}}')) {
-    const time = now.toLocaleTimeString()
-    userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
+    userSystemPrompt = userSystemPrompt.replace(
+      /{{time}}/g,
+      now.toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric' })
+    )
   }
 
   if (userSystemPrompt.includes('{{datetime}}')) {
@@ -49,8 +51,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       month: 'numeric',
       day: 'numeric',
       hour: 'numeric',
-      minute: 'numeric',
-      second: 'numeric'
+      minute: 'numeric'
     })
     userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
   }
