@@ -118,8 +118,20 @@ hold. Images and `structuredContent` (for the UI and codemode) are kept. Not off
 which reach the model only through their caller. The transcript stores the marker, which is what the
 model saw. The host must let `read` open the store's paths without an approval prompt.
 
+## Recall
+
+`recall: true` registers `vcc_recall`, with pi-vcc's tool name and parameters (`query`, `range`,
+`expand`, `page`, `scope`, `mode`), so existing tool settings and approvals apply; the host disables
+it by name like any tool. It reads this session's transcript: the full replayed path plus every entry
+since, including the running turn. `#N` is an entry's position among the message entries, so it stays
+the same once the host stores the running turn and rebuilds. `query` is a keyword search (entries matching more of the
+words first, 5 per page), `range: [from, to]` lists entries in order (20 per page) and `expand: [N]`
+returns full text. `scope: 'all'` is the same as `'lineage'`: edits drop the turns after them.
+
 ## Known gaps
 
+- `vcc_recall` has no regex search, `mode: 'touched'` (files worked on) or `#N:path` file
+  drill-down yet; compaction summaries do not cite `#N` entries.
 - `read` results are never offloaded, and Pi caps them at 50 KB, which can still overflow a small
   context window.
 - A parallel tool batch whose results together exceed the context window, each below the
@@ -137,7 +149,8 @@ model saw. The host must let `read` open the store's paths without an approval p
   tool result that also holds images.
 - The CherryIN Anthropic endpoint omits the thinking block of tool-only replies but requires one on
   replay; Cherry's Pi runtime rebuilds it from the response id (`piThinkingReplay.ts`). The
-  transcript keeps `responseId` for this, but requests do not expose it to the port yet.
+  transcript keeps `responseId` for this, but requests do not expose it to the port yet; how they
+  will is decided when the host is wired up.
 
 ## Tests
 
