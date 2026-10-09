@@ -153,15 +153,19 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         devTools: true
       },
       platformOverrides: {
-        // macOS keeps the native frame with window-controls overlay; Windows and
-        // Linux are frameless (the in-window tab bar renders its own controls).
+        // macOS and Linux get system window controls via the window-controls overlay;
+        // Windows is frameless (the in-window tab bar renders its own controls).
         mac: {
           titleBarStyle: 'hidden',
           titleBarOverlay: { height: 42 }, // WCO height (macOS)
           trafficLightPosition: { x: 13, y: 13 }
         },
         win: { frame: false },
-        linux: { frame: false }
+        linux: {
+          titleBarStyle: 'hidden',
+          // Matches the tab bar's #tab-row; colors follow the theme via CdpBrowserController.
+          titleBarOverlay: { height: 42 }
+        }
       }
     },
     behavior: {
