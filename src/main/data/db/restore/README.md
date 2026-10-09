@@ -3,6 +3,8 @@
 Offline-merge + preboot-promotion primitives for the backup restore flow.
 The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM INTO` copy of live), stages file resources, writes a `staged` journal, and relaunches; the preboot promotion gate then swaps `work.sqlite` in by atomic rename during the zero-connection window. The live DB is never written during a restore.
 
+Before Sentry initialization or asynchronous preboot work, active restores redirect Chromium's `sessionData` to a temporary directory under `feature.backup.restore.session`. This prevents session initialization from opening `Local Storage` while promotion replaces it. The isolated launch consumes the terminal journal and relaunches without bootstrapping; the next normal launch cleans up the temporary session and opens the restored profile. An unresolved journal stops the isolated launch rather than triggering an automatic relaunch loop.
+
 **No barrel** — consumers deep-import specific files (same convention as `src/main/core/preboot/`).
 
 ## Modules

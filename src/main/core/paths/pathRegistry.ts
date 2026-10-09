@@ -259,6 +259,7 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    'feature.backup.restore.session': path.join(appUserData, 'restore-session'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
@@ -384,6 +385,7 @@ const NO_ENSURE = [
   'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
+  'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.pdfjs.cmaps',
