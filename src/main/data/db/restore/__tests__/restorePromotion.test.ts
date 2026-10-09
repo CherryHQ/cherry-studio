@@ -67,12 +67,12 @@ const markerFailure = vi.hoisted(() => ({
 const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
-const renameFailure = vi.hoisted(() => ({ source: '', remaining: 0, code: 'EPERM' }))
+const renameFailure = vi.hoisted(() => ({ source: '', code: 'EPERM' }))
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
   const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
-    if (args[0] === renameFailure.source && renameFailure.remaining-- > 0) {
+    if (args[0] === renameFailure.source) {
       throw Object.assign(new Error('injected rename lock'), { code: renameFailure.code })
     }
     return actual.renameSync(...args)
@@ -118,7 +118,6 @@ vi.mock('@application', () => ({
 }))
 
 const RID = 'restore-t1'
-const originalPlatform = process.platform
 const MARKER_KEY = 'restore-test-marker'
 
 const dataDir = () => join(userData, 'Data')
@@ -266,23 +265,16 @@ describe('runRestorePromotion', () => {
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
     renameFailure.source = ''
+    renameFailure.code = 'EPERM'
   })
 
   afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform })
-    vi.restoreAllMocks()
     rmSync(userData, { recursive: true, force: true })
   })
 
-  it.each([
-    { code: 'EPERM', failures: 2, expected: 'new', source: 'live' },
-    { code: 'EBUSY', failures: 2, expected: 'new', source: 'live' },
-    { code: 'EBUSY', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'live' },
-    { code: 'EPERM', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'staged' },
-    { code: 'EACCES', failures: Number.POSITIVE_INFINITY, expected: 'old', source: 'live' }
-  ])(
-    'keeps $expected data for a Windows $code rename with $failures failures at $source',
-    async ({ code, failures, expected, source }) => {
+  it.each(['live', 'staged'] as const)(
+    'keeps the original database and storage when the %s directory rename fails',
+    async (source) => {
       makeDb(livePath(), 'old')
       makeDb(workPath(), 'new')
       const live = join(userData, 'Local Storage')
@@ -303,26 +295,21 @@ describe('runRestorePromotion', () => {
           ]
         })
       )
-      Object.defineProperty(process, 'platform', { value: 'win32' })
       renameFailure.source = source === 'live' ? live : staged
-      renameFailure.remaining = failures
-      renameFailure.code = code
 
       await runRestorePromotion()
 
-      expect(journalState()).toBe(expected === 'new' ? 'completed' : 'failed')
-      expect(readMarker(livePath())).toBe(expected)
-      expect(readFileSync(join(live, 'data'), 'utf8')).toBe(expected)
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(join(live, 'data'), 'utf8')).toBe('old')
     }
   )
 
-  it('keeps the original database when a Windows rename lock persists', async () => {
+  it('keeps the original database when the work database rename fails', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
     writeRestoreJournal(await buildJournal())
-    Object.defineProperty(process, 'platform', { value: 'win32' })
     renameFailure.source = workPath()
-    renameFailure.remaining = Number.POSITIVE_INFINITY
     renameFailure.code = 'EBUSY'
 
     await runRestorePromotion()

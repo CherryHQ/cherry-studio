@@ -65,7 +65,7 @@
   "appMenu.zoomIn": "Heranzoomen",
   "appMenu.zoomOut": "Herauszoomen",
   "backup.restore.failed": "Wiederherstellung fehlgeschlagen",
-  "backup.restore.retry": "Die Sicherung wurde nicht wiederhergestellt. Ihre bisherigen Daten wurden beibehalten. Schließen Sie andere Anwendungen, die Cherry Studio-Datendateien verwenden, und versuchen Sie die Wiederherstellung erneut.",
+  "backup.restore.retry": "Die Sicherung wurde nicht wiederhergestellt. Ihre bisherigen Daten wurden beibehalten. Bitte versuchen Sie die Wiederherstellung erneut.",
   "chat.conversation.new": "Neuer Chat",
   "common.channel_available_commands": "Verfügbare Befehle:",
   "common.channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",

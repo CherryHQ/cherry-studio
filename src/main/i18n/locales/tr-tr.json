@@ -65,7 +65,7 @@
   "appMenu.zoomIn": "Yakınlaştır",
   "appMenu.zoomOut": "Uzaklaştır",
   "backup.restore.failed": "Geri yükleme başarısız",
-  "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Cherry Studio veri dosyalarını kullanan diğer uygulamaları kapatıp geri yüklemeyi yeniden deneyin.",
+  "backup.restore.retry": "Yedek geri yüklenemedi. Önceki verileriniz korundu. Lütfen geri yüklemeyi yeniden deneyin.",
   "chat.conversation.new": "Yeni Sohbet",
   "common.channel_available_commands": "Kullanılabilir komutlar:",
   "common.channel_command_processing_error": "⚠️ Komut işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",

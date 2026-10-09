@@ -65,7 +65,7 @@
   "appMenu.zoomIn": "Zoom Avant",
   "appMenu.zoomOut": "Dézoomer",
   "backup.restore.failed": "La restauration a échoué",
-  "backup.restore.retry": "La sauvegarde n’a pas été restaurée. Vos données précédentes ont été conservées. Fermez les autres applications utilisant les fichiers de données de Cherry Studio, puis réessayez la restauration.",
+  "backup.restore.retry": "La sauvegarde n’a pas été restaurée. Vos données précédentes ont été conservées. Veuillez réessayer la restauration.",
   "chat.conversation.new": "Nouvelle conversation",
   "common.channel_available_commands": "Commandes disponibles :",
   "common.channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
