@@ -10,7 +10,7 @@ import {
 } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
-import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { type RuntimeForkAnchor, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { loadPiSdk } from './piSdk'
@@ -54,7 +54,24 @@ async function importHistory(sessionId: string): Promise<void> {
   const manager = sdk.SessionManager.inMemory(history.workspacePath, { id: migration.resumeToken })
   const anchors = new Map<string, RuntimeForkAnchor>()
   const excludedMessageIds: string[] = []
+  const orderedMessages: typeof history.messages = []
+  let queuedMessages: typeof history.messages = []
+  let boundaryExclusions = new Set<string>()
+  // Queued prompts are persisted before their assistant placeholders, so timestamps alone
+  // cannot recover which prompts had entered the model context at a historical boundary.
   for (const row of history.messages) {
+    if (row.role !== 'assistant') {
+      queuedMessages.push(row)
+      continue
+    }
+    boundaryExclusions = new Set(
+      RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).data?.excludedMessageIds ?? []
+    )
+    orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)), row)
+    queuedMessages = queuedMessages.filter((message) => boundaryExclusions.has(message.id))
+  }
+  orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)))
+  for (const row of orderedMessages) {
     if (
       row.status === 'pending' ||
       row.status === 'streaming' ||
@@ -113,7 +130,12 @@ async function importHistory(sessionId: string): Promise<void> {
     if (leafId && row.role === 'assistant') {
       anchors.set(row.id, {
         checkpoint: { runtime: 'pi', runtimeSessionId: migration.resumeToken, leafId },
-        excludedMessageIds: [...excludedMessageIds]
+        excludedMessageIds: [
+          ...new Set([
+            ...excludedMessageIds,
+            ...(RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).data?.excludedMessageIds ?? [])
+          ])
+        ]
       })
     }
   }

@@ -9,6 +9,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx, DbType } from '@data/db/types'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 
 const MIGRATION_KEY_PREFIX = 'agent-runtime-migration:'
@@ -30,7 +31,7 @@ export function queueRetiredAgentRuntimeMigration(db: DbType): void {
         const disabledTools = [
           ...new Set(
             agent.disabledTools.flatMap((name) => {
-              if (PI_FILE_SHELL_TOOLS.has(name)) return [name]
+              if (PI_FILE_SHELL_TOOLS.has(name) || name === BROWSER_TOOL_GROUP) return [name]
               if (name === 'read_image') return ['read']
               if (name === 'pwsh') return ['bash']
               return name.startsWith('mcp__') ? [`${LEGACY_DSH_TOOL_PREFIX}${name}`] : []

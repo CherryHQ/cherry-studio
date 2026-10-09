@@ -26,6 +26,8 @@ import {
   listRetiredAgentSessionMigrations
 } from '@data/services/retiredAgentRuntimeMigration'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 
 import { forkPiSession } from '../piFork'
 import { resolveResumeTokenSessionFile } from '../piSessionFile'
@@ -251,6 +253,91 @@ describe('retired DSH session migration', () => {
     const before = readFileSync(file, 'utf8')
     await ensureRetiredSessionHistory('conversation')
     expect(readFileSync(file, 'utf8')).toBe(before)
+  })
+
+  it('preserves the browser capability opt-out instead of requiring legacy tool repair', () => {
+    dbh.db
+      .update(agentTable)
+      .set({ disabledTools: [BROWSER_TOOL_GROUP] })
+      .where(eq(agentTable.id, 'legacy'))
+      .run()
+    seeder.run(dbh.db)
+    expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy')).get()?.disabledTools).toEqual([
+      BROWSER_TOOL_GROUP
+    ])
+  })
+
+  it.each([false, true])('preserves queued turn boundaries when the later turn completed: %s', async (completed) => {
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({
+        data: {
+          parts: [{ type: 'text', text: 'Second response' }],
+          runtimeAnchor: {
+            checkpoint: { runtime: 'dsh', runtimeSessionId: 'old-dsh-token', boundary: 2 },
+            excludedMessageIds: ['user-3']
+          }
+        }
+      })
+      .where(eq(agentSessionMessageTable.id, 'assistant-2'))
+      .run()
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: 'user-3',
+        sessionId: 'conversation',
+        role: 'user',
+        status: 'success',
+        createdAt: 35,
+        data: { parts: [{ type: 'text', text: 'Third queued prompt' }] }
+      })
+      .run()
+    if (completed) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          id: 'assistant-3',
+          sessionId: 'conversation',
+          role: 'assistant',
+          status: 'success',
+          createdAt: 50,
+          data: { parts: [{ type: 'text', text: 'Third response' }] }
+        })
+        .run()
+    }
+    seeder.run(dbh.db)
+    await ensureRetiredSessionHistory('conversation')
+    const row = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, 'assistant-2'))
+      .get()!
+    const anchor = RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor)
+    expect(anchor.excludedMessageIds).toContain('user-3')
+    const file = resolveResumeTokenSessionFile(row.runtimeResumeToken!, path.join(directory, 'sessions'))!
+    const manager = SessionManager.open(file, path.dirname(file), directory)
+    const markers = ['Second turn', 'Second response', 'Third queued prompt', 'Third response']
+    const order = manager
+      .buildContextEntries()
+      .map((entry) => markers.find((marker) => JSON.stringify(entry).includes(marker)))
+      .filter(Boolean)
+    expect(order).toEqual(completed ? markers : markers.slice(0, 2))
+    const artifactDirectory = path.join(directory, 'queued-fork')
+    mkdirSync(artifactDirectory)
+    const forked = await forkPiSession({
+      sourceSessionId: 'conversation',
+      checkpoint: anchor.checkpoint,
+      checkpoints: [anchor.checkpoint],
+      targetSessionId: 'child',
+      targetCwd: directory,
+      artifactDirectory,
+      signal: new AbortController().signal
+    })
+    const fork = SessionManager.open(forked.publish[0].source, path.dirname(forked.publish[0].source), directory)
+    const context = JSON.stringify(fork.buildContextEntries())
+    expect(context).toContain('Second response')
+    expect(context).not.toContain('Third queued prompt')
+    expect(context).not.toContain('Third response')
   })
 
   it('retains the old native identity on filesystem failure and safely retries without duplicating history', async () => {
