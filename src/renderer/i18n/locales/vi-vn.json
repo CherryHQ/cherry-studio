@@ -4846,7 +4846,7 @@
   "settings.models.default_assistant_model": "Mô hình Trợ lý Mặc định",
   "settings.models.default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
   "settings.models.docs": "Tài liệu mô hình",
-  "settings.models.edit.classification_save_hint": "Các thiết lập có thể đến từ danh mục mô hình. Thay đổi bất kỳ tùy chọn nào sẽ lưu ngay toàn bộ phương thức đầu vào đang hiển thị thành thiết lập riêng, không còn theo các cập nhật của danh mục. Chỉ bật đầu vào mà nhà cung cấp hỗ trợ.",
+  "settings.models.edit.classification_save_hint": "Các thiết lập có thể đến từ danh mục mô hình. Thay đổi được lưu ngay. Phương thức đầu vào của mô hình có sẵn trùng với danh mục vẫn theo các cập nhật của danh mục; giá trị khác được lưu thành thiết lập ghi đè. Mô hình tùy chỉnh lưu rõ ràng các phương thức đầu vào đang hiển thị. Chỉ bật đầu vào mà nhà cung cấp hỗ trợ.",
   "settings.models.empty": "Chọn mô hình",
   "settings.models.empty_hint": "Nhấp vào “Đồng bộ mô hình” ở trên để thêm mô hình.",
   "settings.models.enabled_models": "Đã bật",
