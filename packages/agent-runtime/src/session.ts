@@ -13,6 +13,7 @@ import {
 
 import { type AiSdkModelSpec, createAiSdkProvider } from './aiSdkProvider'
 import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
+import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
 import type { ModelCallPort, ModelCallSideChannel } from './ports'
 import { rebuildSessionEntries } from './rebuild'
 import type { TranscriptEntry } from './transcript'
@@ -70,6 +71,8 @@ export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   extensionFactories?: ExtensionFactory[]
   /** Pi's defaults (reserve 16384, keep 20000, its own summarizer) when omitted. */
   compaction?: AgentRuntimeCompaction
+  /** Saves oversized tool outputs through the host and sends a marker instead. Off when omitted. */
+  offload?: ToolOutputOffload
   settings?: AgentRuntimeSettings
   /** Pi's own thinking level (default `off`). It does not reach the model request. */
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
@@ -128,7 +131,9 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     ...(compaction?.summarize
       ? [compactionSummaryExtension(compaction.summarize, (message) => (tap.summaryFailure = message))]
       : []),
-    ...(options.extensionFactories ?? [])
+    ...(options.extensionFactories ?? []),
+    // Last, so it sees what other `tool_result` handlers made of the output.
+    ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
   const settingsManager = SettingsManager.inMemory({
     ...options.settings,
