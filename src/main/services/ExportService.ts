@@ -10,6 +10,7 @@ import type MarkdownIt from 'markdown-it'
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -413,7 +414,10 @@ export class ExportService {
 
       const buffer = await docx.Packer.toBuffer(doc)
 
-      await fs.promises.writeFile(filePath, buffer)
+      await withNotesFilesystemMutation(async () => {
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        await fs.promises.writeFile(filePath, buffer)
+      })
       logger.debug('Document exported successfully')
       return true
     } catch (error) {

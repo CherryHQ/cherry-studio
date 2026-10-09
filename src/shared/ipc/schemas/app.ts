@@ -28,7 +28,8 @@ const notesRelocationInspectionSchema = z.discriminatedUnion('valid', [
     valid: z.literal(true),
     source: notesDirectoryStatsSchema,
     target: notesDirectoryStatsSchema,
-    targetHasFiles: z.boolean()
+    targetHasFiles: z.boolean(),
+    sourceRealPath: z.string().min(1)
   }),
   z.object({ valid: z.literal(false), reason: z.enum(NOTES_RELOCATION_VALIDATION_REASONS) })
 ])
@@ -89,7 +90,8 @@ export const appRequestSchemas = {
     input: z.object({
       sourcePath: z.string().min(1),
       targetPath: z.string().min(1),
-      merge: z.boolean()
+      merge: z.boolean(),
+      expectedSourceRealPath: z.string().min(1)
     }),
     output: z.object({
       source: notesDirectoryStatsSchema,

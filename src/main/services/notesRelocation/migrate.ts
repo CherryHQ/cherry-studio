@@ -8,6 +8,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationInspection, NotesRelocationResult } from '@shared/types/notesRelocation'
 
+import { assertNotesRelocationSourceStillCurrent } from './configuredSource'
 import { scanNotesDirectory } from './stats'
 import { assertNotesRelocationPaths, NotesRelocationValidationError, realPath } from './validation'
 
@@ -22,7 +23,8 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
       valid: true,
       source,
       target,
-      targetHasFiles: target.fileCount > 0
+      targetHasFiles: target.fileCount > 0,
+      sourceRealPath: realPath(sourcePath)
     }
   } catch (error) {
     if (error instanceof NotesRelocationValidationError) {
@@ -53,11 +55,15 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
         continue
       }
 
-      if (!fs.existsSync(targetEntryPath)) {
-        continue
+      let targetEntry: fs.Stats
+      try {
+        targetEntry = fs.lstatSync(targetEntryPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          continue
+        }
+        throw error
       }
-
-      const targetEntry = fs.lstatSync(targetEntryPath)
       if (targetEntry.isSymbolicLink()) {
         conflicts.push(relativePath)
         continue
@@ -111,13 +117,21 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
       }
 
       const sourceSize = fs.statSync(sourceEntryPath).size
-      if (!fs.existsSync(targetEntryPath)) {
+      let targetEntry: fs.Stats
+      try {
+        targetEntry = fs.lstatSync(targetEntryPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          unresolved.push(relativePath)
+          continue
+        }
+        throw error
+      }
+      if (targetEntry.isSymbolicLink() || !targetEntry.isFile()) {
         unresolved.push(relativePath)
         continue
       }
-
-      const targetSize = fs.statSync(targetEntryPath).size
-      if (targetSize !== sourceSize) {
+      if (targetEntry.size !== sourceSize) {
         unresolved.push(relativePath)
       }
     }
@@ -136,11 +150,15 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
 export async function migrateNotesDirectory(
   sourcePath: string,
   targetPath: string,
-  options: { merge: boolean }
+  options: { merge: boolean; expectedSourceRealPath: string }
 ): Promise<NotesRelocationResult> {
   const inspection = inspectNotesRelocation(sourcePath, targetPath)
   if (!inspection.valid) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, inspection.reason)
+  }
+
+  if (realPath(options.expectedSourceRealPath) !== inspection.sourceRealPath) {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'stale_source')
   }
 
   if (!options.merge && inspection.targetHasFiles) {
@@ -151,6 +169,12 @@ export async function migrateNotesDirectory(
 
   const resolvedSource = realPath(sourcePath)
   const resolvedTarget = realPath(targetPath)
+
+  try {
+    assertNotesRelocationSourceStillCurrent(resolvedSource, options.expectedSourceRealPath)
+  } catch {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'stale_source')
+  }
 
   // Anchor the copy to the physical location validation evaluates: a symlinked
   // target root or ancestor would otherwise redirect writes outside the

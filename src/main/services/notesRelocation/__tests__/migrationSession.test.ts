@@ -67,6 +67,16 @@ describe('notes migration session', () => {
     endNotesFilesystemMutation()
   })
 
+  it('still allows filesystem mutations outside migration roots once the write barrier is active', () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-outside-'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-outside-'))
+    setNotesMigrationBlockedRoots(source, target)
+
+    expect(() => beginNotesFilesystemMutation()).not.toThrow()
+    endNotesFilesystemMutation()
+    expect(() => assertNotesPathNotMutatingDuringMigration(path.join(os.tmpdir(), 'skill.md'))).not.toThrow()
+  })
+
   it('waits for in-flight filesystem mutations before installing the write barrier', async () => {
     beginNotesFilesystemMutation()
     const idle = waitForNotesFilesystemMutationsIdle()

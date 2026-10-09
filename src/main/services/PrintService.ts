@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
 import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
 import { sanitizeFilename } from '@shared/utils/file'
 
@@ -311,7 +312,10 @@ export class PrintService {
         preferCSSPageSize: true,
         printBackground: true
       })
-      await fs.writeFile(filePath, pdfData)
+      await withNotesFilesystemMutation(async () => {
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        await fs.writeFile(filePath, pdfData)
+      })
       return true
     } catch (error) {
       logger.error('Failed to export printable document to PDF', error as Error)

@@ -151,6 +151,9 @@ const HeaderNavbar = ({
   }, [getPrintableDocumentPayload])
 
   const handlePrint = useCallback(async () => {
+    if (blockNotesActionsDuringMigration(t)) {
+      return
+    }
     const payload = getPrintableDocumentPayload()
     if (!payload) return
 

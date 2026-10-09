@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useMemo, useSyncExternalStore, type FC, type ReactNode } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useSyncExternalStore, type FC, type ReactNode } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
@@ -38,12 +38,23 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => notesEditFlushService.register(session.flush), [session.flush])
 
+  const pendingMigrationLockAckRef = useRef<string | null>(null)
+
   useIpcOn('app.notes_relocation.migration_started', ({ batchId }) => {
     notesEditFlushService.beginMigrationLock()
+    pendingMigrationLockAckRef.current = batchId
+  })
+
+  useEffect(() => {
+    const batchId = pendingMigrationLockAckRef.current
+    if (!migrationLocked || !batchId) {
+      return
+    }
+    pendingMigrationLockAckRef.current = null
     void ipcApi
       .request('app.notes_relocation.migration_lock_ack', { batchId, ok: true })
       .catch((error) => logger.warn('Failed to acknowledge notes migration lock', error as Error))
-  })
+  }, [migrationLocked])
   useIpcOn('app.notes_relocation.migration_finished', () => {
     notesEditFlushService.endMigrationLock()
   })

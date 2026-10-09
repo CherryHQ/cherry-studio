@@ -5,7 +5,8 @@ export const NOTES_RELOCATION_VALIDATION_REASONS = [
   'target_inside_source',
   'target_contains_source',
   'invalid_target',
-  'target_not_writable'
+  'target_not_writable',
+  'stale_source'
 ] as const
 
 export type NotesRelocationValidationReason = (typeof NOTES_RELOCATION_VALIDATION_REASONS)[number]
@@ -23,6 +24,7 @@ export type NotesRelocationInspection =
       source: NotesDirectoryStats
       target: NotesDirectoryStats
       targetHasFiles: boolean
+      sourceRealPath: string
     }
   | { valid: false; reason: NotesRelocationValidationReason }
 

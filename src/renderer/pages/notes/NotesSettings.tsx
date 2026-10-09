@@ -63,11 +63,11 @@ const NotesSettings: FC = () => {
       return
     }
 
-    const preferencePath = notesPath || ''
+    const configuredPathSnapshot = notesPath || ''
 
     try {
       const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
-      if ((notesPath || '') !== preferencePath) {
+      if ((notesPath || '') !== configuredPathSnapshot) {
         return
       }
       if (!isValidDir) {
@@ -75,14 +75,15 @@ const NotesSettings: FC = () => {
         return
       }
 
-      const resolvedSource = await resolveNotesPath(preferencePath)
-      if ((notesPath || '') !== preferencePath) {
+      const resolvedSource = await resolveNotesPath(configuredPathSnapshot)
+      if ((notesPath || '') !== configuredPathSnapshot) {
         return
       }
       await migrateNotesDirectoryWithUi({
         t,
         sourcePath: resolvedSource.path,
         targetPath: tempPath,
+        configuredNotesPath: configuredPathSnapshot,
         onSuccess: async (path) => {
           await updateNotesPath(path)
           setTempPath(path)

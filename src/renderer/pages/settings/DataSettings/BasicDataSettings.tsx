@@ -384,6 +384,7 @@ const BasicDataSettings: React.FC = () => {
                       await startNotesDirectoryMigration({
                         t,
                         sourcePath: resolved.path,
+                        configuredNotesPath: notesPath || '',
                         onSuccess: async (path) => {
                           await updateNotesPath(path)
                         }

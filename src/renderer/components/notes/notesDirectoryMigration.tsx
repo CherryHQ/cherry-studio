@@ -3,6 +3,8 @@ import type { TFunction } from 'i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { recordNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
+import { resolveNotesPath } from '@renderer/services/NotesService'
+import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
@@ -60,9 +62,10 @@ export async function migrateNotesDirectoryWithUi(options: {
   t: TFunction
   sourcePath: string
   targetPath: string
+  configuredNotesPath: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
-  const { t, sourcePath, targetPath, onSuccess } = options
+  const { t, sourcePath, targetPath, configuredNotesPath, onSuccess } = options
 
   try {
     const inspection = await ipcApi.request('app.notes_relocation.inspect', {
@@ -96,13 +99,20 @@ export async function migrateNotesDirectoryWithUi(options: {
       return
     }
 
+    const resolvedSource = await resolveNotesPath(configuredNotesPath)
+    if (normalizePathValue(resolvedSource.path) !== normalizePathValue(sourcePath)) {
+      showValidationError(t, 'stale_source')
+      return
+    }
+
     let filesCopied = false
     let migrationSessionId: string | undefined
     try {
       const migrationResult = await ipcApi.request('app.notes_relocation.migrate', {
         sourcePath,
         targetPath,
-        merge
+        merge,
+        expectedSourceRealPath: inspection.sourceRealPath
       })
       migrationSessionId = migrationResult.sessionId
       filesCopied = true
@@ -135,6 +145,7 @@ export async function pickNotesTargetDirectory(t: TFunction): Promise<string> {
 export async function startNotesDirectoryMigration(options: {
   t: TFunction
   sourcePath: string
+  configuredNotesPath: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
   try {
