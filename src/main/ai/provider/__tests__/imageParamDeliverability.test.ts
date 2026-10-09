@@ -143,7 +143,7 @@ describe('registry image params are deliverable on the runtime wire', () => {
       // provider's wire profile, or carried by its passthrough.
       const modelId = override.apiModelId ?? override.modelId
       const descriptor = imageTransportDescriptorFor(modelId, operation, support, hasImages)
-      const registration = resolveWireRegistration(sdkConfig.providerId)
+      const registration = resolveWireRegistration(sdkConfig.providerId, modelId)
       const hasTransport =
         isImageTransportConfig(sdkConfig, modelId, descriptor) &&
         Boolean(await resolveImageTransport(sdkConfig, modelId, descriptor))
@@ -187,7 +187,8 @@ describe('wire-passthrough bodies do not shadow a native AI SDK field', () => {
 
     for (const declaration of declarations) {
       const sdkConfig = await resolveSdkConfig(declaration)
-      if (resolveWireRegistration(sdkConfig.providerId).passthrough !== 'wire') continue
+      const modelId = declaration.override.apiModelId ?? declaration.override.modelId
+      if (resolveWireRegistration(sdkConfig.providerId, modelId).passthrough !== 'wire') continue
 
       const { keys } = declaration
       const shadowing = keys.filter((key) => {

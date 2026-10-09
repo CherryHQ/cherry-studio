@@ -247,7 +247,7 @@ function stubSdkImageConfig() {
       providerId: 'openai-compatible',
       providerSettings: { name: 'test-provider', baseURL: 'https://provider.example/v1' },
       providerOptionsKey: resolveProviderOptionsKey('openai-compatible', { actualProviderId: 'test-provider' }),
-      imageWireRegistration: resolveWireRegistration('openai-compatible'),
+      imageWireRegistration: resolveWireRegistration('openai-compatible', 'test-model'),
       modelId: 'test-model'
     },
     credentialReceipt: { attribution: 'unknown' }

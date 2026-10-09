@@ -2,6 +2,7 @@
 description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
 sources:
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - packages/provider-registry/scripts/upstream.ts
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
@@ -76,6 +77,14 @@ After provider-model merging, `resolveImageCapability` applies `withImages`
 `remix` and `upscale` inherit the base plus their own declared differences,
 without `withImages`. Missing support is `unconfigured`; an undeclared
 non-generate operation or an explicitly disabled operation is `unsupported`.
+
+Discovery responses are not already provider differences. The OpenRouter
+`/images/models` parser receives the creator base and explicitly removes the
+native `imageResolution` control with `null`; OpenRouter's independent
+`resolution` declaration comes from discovery. An omitted standard parameter
+does not by itself remove inherited vendor options or the documented `size`
+shorthand. This translation belongs to catalog generation, not to the form or
+request validator.
 
 ## Read half — effective capability to form
 
@@ -157,10 +166,11 @@ canonical parameters independently; they do not both encode one request:
   `numImages → n`; the remaining canonical bag reaches the selected SDK adapter.
 - SDK provider-options encoding uses
   [`buildVendorProviderOptions`](../../../src/main/ai/provider/custom/wire/buildImageRequest.ts)
-  and [`WIRE_REGISTRY`](../../../src/main/ai/provider/custom/wire/wireProfile.ts).
-  Profiles describe forwarding or nested placement, and `wireName` supplies the
-  default field spelling. Delivery uses `sdkConfig.providerOptionsKey`, the
-  namespace the actual SDK model reads, not necessarily the provider ID.
+  and [`resolveWireRegistration`](../../../src/main/ai/provider/custom/wire/wireProfile.ts),
+  resolved from the SDK provider and exact API model ID. Profiles describe
+  forwarding or nested placement, and `wireName` supplies the default field
+  spelling. Delivery uses `sdkConfig.providerOptionsKey`, the namespace the
+  actual SDK model reads, not necessarily the provider ID.
 - The Job path currently calls `splitParamValues` before enqueueing. Its payload
   carries the fixed native target, structured values and canonical
   `providerParams`. The custom transport builds its vendor-specific envelope;
@@ -172,6 +182,17 @@ whether a value is sent or omitted: OpenAI `quality`, `background` and
 resolution omit their individual `imageConfig` fields. Other explicitly set
 fields remain intact. The encoder still omits absent/empty contributions, not
 `0` or `false`. Broader terminal-encoding consolidation remains follow-up work.
+
+OpenRouter has two distinct namespaces: SDK options go under `openrouter`, while
+vendor-specific controls are nested inside the HTTP body at
+`provider.options[provider_slug]`. FLUX.2 Flex uses `black-forest-labs/us-3`,
+FLUX.2 Pro uses `black-forest-labs`, and GPT Image 1 / Mini use `openai`.
+The terminal mapping sends `safetyTolerance` as `safety_tolerance` and preserves
+`moderation`, including `auto`. Standard controls such as `resolution` remain
+top-level `/images` fields; native Google `image_config` is not used here.
+These placements follow the [OpenRouter image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation)
+and the per-model `/images/models/{model}/endpoints` discovery responses
+(`provider_slug`, not routing `provider_tag`; retrieved 2026-10-08).
 
 ### 4. Task and output ownership
 

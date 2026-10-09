@@ -85,6 +85,47 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
   }
 }
 
+function openRouterWireProfile(modelId: string): WireProfile {
+  switch (modelId) {
+    case 'black-forest-labs/flux.2-flex':
+    case 'black-forest-labs/flux.2-pro': {
+      const providerSlug = modelId === 'black-forest-labs/flux.2-flex' ? 'black-forest-labs/us-3' : 'black-forest-labs'
+      return {
+        ...OPENROUTER_WIRE_PROFILE,
+        fields: {
+          ...OPENROUTER_WIRE_PROFILE.fields,
+          safetyTolerance: {
+            contribute: (value) => ({
+              provider: {
+                options: {
+                  [providerSlug]: { safety_tolerance: IMAGE_PARAM_CATALOG.safetyTolerance.schema.unwrap().parse(value) }
+                }
+              }
+            })
+          }
+        }
+      }
+    }
+    case 'openai/gpt-image-1':
+    case 'openai/gpt-image-1-mini':
+      return {
+        ...OPENROUTER_WIRE_PROFILE,
+        fields: {
+          ...OPENROUTER_WIRE_PROFILE.fields,
+          moderation: {
+            contribute: (value) => ({
+              provider: {
+                options: { openai: { moderation: IMAGE_PARAM_CATALOG.moderation.schema.unwrap().parse(value) } }
+              }
+            })
+          }
+        }
+      }
+    default:
+      return OPENROUTER_WIRE_PROFILE
+  }
+}
+
 /**
  * Doubao (Volcengine Ark) via `@ai-sdk/bytedance`. That package's option schema is
  * camelCase and does the vendor naming itself (`outputFormat` → `output_format`,
@@ -185,13 +226,12 @@ export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
 /**
  * AI SDK provider id → its engine registration, declaring the provider's bespoke
  * delivery (dual-keying / passthrough / sibling keys). Providers absent from this
- * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
- * migrated provider with bespoke delivery; the plain diffusion family needs no row.
+ * map use model-aware resolution or {@link DEFAULT_DIFFUSION_REGISTRATION}.
+ * The plain diffusion family needs no row.
  *
  * Keyed by {@link KnownAppProviderId}: a row for an unregistered id is dead config.
  */
 export const WIRE_REGISTRY = {
-  openrouter: { profile: OPENROUTER_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -238,12 +278,9 @@ export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
   passthrough: true
 }
 
-/**
- * The registration for a resolved SDK provider id — a plain table lookup, falling
- * back to the raw diffusion catch-all. `openai-compatible` is a row like any other
- * ({@link OPENAI_COMPAT_FALLBACK_REGISTRATION}); it needs no branch here.
- */
-export function resolveWireRegistration(sdkProviderId: AppProviderId): WireRegistration {
+/** Resolve wire placement from the SDK provider and the exact API model ID. */
+export function resolveWireRegistration(sdkProviderId: AppProviderId, modelId: string): WireRegistration {
+  if (sdkProviderId === 'openrouter') return { profile: openRouterWireProfile(modelId) }
   // The caller's id is open, the table's keys are closed — widen for the lookup only.
   return (WIRE_REGISTRY as Partial<Record<string, WireRegistration>>)[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

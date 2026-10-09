@@ -147,7 +147,7 @@ export default defineCreator({
           },
           safetyTolerance: {
             default: 2,
-            max: 6,
+            max: 5,
             min: 0,
             type: 'range'
           },
@@ -187,7 +187,7 @@ export default defineCreator({
           },
           safetyTolerance: {
             default: 2,
-            max: 6,
+            max: 5,
             min: 0,
             type: 'range'
           },

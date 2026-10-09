@@ -24953,6 +24953,7 @@
             "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
             "type": "enum"
           },
+          "imageResolution": null,
           "numImages": {
             "max": 1,
             "min": 1,
@@ -25150,6 +25151,7 @@
             ],
             "type": "enum"
           },
+          "imageResolution": null,
           "numImages": {
             "max": 1,
             "min": 1,
@@ -25237,6 +25239,7 @@
             ],
             "type": "enum"
           },
+          "imageResolution": null,
           "numImages": {
             "max": 1,
             "min": 1,
@@ -25787,6 +25790,7 @@
             "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
             "type": "enum"
           },
+          "imageResolution": null,
           "numImages": {
             "max": 1,
             "min": 1,
@@ -25855,6 +25859,7 @@
             "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
             "type": "enum"
           },
+          "imageResolution": null,
           "numImages": {
             "max": 1,
             "min": 1,
@@ -40647,5 +40652,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "3778213fe6d65239"
+  "version": "f4119570aa61f126"
 }

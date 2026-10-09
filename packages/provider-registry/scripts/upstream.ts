@@ -12,7 +12,13 @@
  */
 import * as z from 'zod'
 
-import type { ImageGenerationSupport, ModelConfig, ReasoningSupport, SupportSpec } from '../src/schemas/model'
+import type {
+  ImageGenerationOverride,
+  ImageGenerationSupport,
+  ModelConfig,
+  ReasoningSupport,
+  SupportSpec
+} from '../src/schemas/model'
 import type { ProviderModelOverride } from '../src/schemas/provider-models'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
@@ -288,11 +294,18 @@ function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrPara
 }
 
 /** Convert `/images/models` parameter descriptors into OpenRouter-specific painting controls. */
-export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | null {
+export function parseOrImageGeneration(
+  raw: unknown,
+  base: ImageGenerationSupport | undefined
+): ImageGenerationOverride | null {
   const p = OrEntry.safeParse(raw)
   if (!p.success || Array.isArray(p.data.supported_parameters) || !p.data.supported_parameters) return null
 
-  const supports: ImageGenerationSupport['supports'] = {}
+  // OpenRouter uses resolution, not the native Google/Ark imageResolution control.
+  // Absence inherits in a provider delta, so explicitly remove that native alias.
+  const supports: NonNullable<ImageGenerationOverride['supports']> = base?.supports.imageResolution
+    ? { imageResolution: null }
+    : {}
   for (const [wireKey, canonicalKey] of Object.entries(OR_IMAGE_PARAM_KEYS)) {
     const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
     if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)

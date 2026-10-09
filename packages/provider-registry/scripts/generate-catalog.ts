@@ -28,7 +28,7 @@ import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
-import type { ReasoningFamilyRule } from '../src/schemas/model'
+import type { ModelConfig, ReasoningFamilyRule } from '../src/schemas/model'
 import { ModelListSchema, ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { ProviderModelListSchema } from '../src/schemas/provider-models'
 import { validateProviderImageCapabilities } from '../src/utils/imageCapabilities'
@@ -520,7 +520,7 @@ function buildProviderModels(
   md: ModelsDevApi,
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
-  baseIds: Set<string>
+  baseModels: ReadonlyMap<string, ModelConfig>
 ): { overrides: any[] } {
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
@@ -572,7 +572,7 @@ function buildProviderModels(
       const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
-      if (!baseIds.has(modelId)) {
+      if (!baseModels.has(modelId)) {
         if (!meta.name) continue
         row.name ??= meta.name // vendor-exclusive → standalone
       }
@@ -600,12 +600,12 @@ function buildProviderModels(
     }
 
     const meta = parseOrEntry(entry)
-    if (!baseIds.has(modelId) && !meta?.name) continue
+    if (!baseModels.has(modelId) && !meta?.name) continue
     addOverride({
       providerId: 'openrouter',
       modelId,
       apiModelId: entry.id,
-      ...(!baseIds.has(modelId) ? { name: meta?.name } : {}),
+      ...(!baseModels.has(modelId) ? { name: meta?.name } : {}),
       reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined)
     })
   }
@@ -613,15 +613,16 @@ function buildProviderModels(
   // these as provider overrides: the same canonical model can expose different controls through
   // another provider, and the raw org/model id must remain the API id used for lookup and requests.
   for (const model of orImageModels.data ?? []) {
-    const imageGeneration = parseOrImageGeneration(model)
     const modelId = canonOf(model.id)
-    if (!imageGeneration || !modelId) continue
+    if (!modelId) continue
+    const imageGeneration = parseOrImageGeneration(model, baseModels.get(modelId)?.imageGeneration)
+    if (!imageGeneration) continue
     const meta = parseOrEntry(model)
     const existing =
       rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id) ??
       rows.find(
         (row) =>
-          !baseIds.has(modelId) &&
+          !baseModels.has(modelId) &&
           row.providerId === 'openrouter' &&
           row.modelId === modelId &&
           row.apiModelId === undefined
@@ -630,7 +631,7 @@ function buildProviderModels(
       providerId: 'openrouter',
       modelId,
       apiModelId: model.id,
-      ...(!baseIds.has(modelId)
+      ...(!baseModels.has(modelId)
         ? {
             name: existing?.name ?? model.name ?? model.id,
             ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
@@ -704,7 +705,7 @@ void (async () => {
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
   const providers = buildProviders()
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const pm = buildProviderModels(md, orModels, orImageModels, models)
   validateProviderImageCapabilities(
     ModelListSchema.shape.models.parse(list),
     ProviderModelListSchema.shape.overrides.parse(pm.overrides)

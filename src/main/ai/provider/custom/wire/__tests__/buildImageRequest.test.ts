@@ -1,6 +1,7 @@
-import type { ParamValues } from '@cherrystudio/provider-registry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import type { ParamValues } from '@cherrystudio/provider-registry'
 
 import { splitParamValues } from '../../../../utils/imageOptions'
 import { resolveProviderOptionsKey } from '../../../endpoint'
@@ -26,7 +27,7 @@ describe('image option encoding responsibilities', () => {
       const result = buildVendorProviderOptions(
         resolveProviderOptionsKey(providerId),
         params,
-        resolveWireRegistration(providerId),
+        resolveWireRegistration(providerId, 'test-model'),
         vendorBag
       )
       expect(result).toEqual({ [providerId]: { numInferenceSteps: 20, addWatermark: false, sourceLang: 'auto' } })

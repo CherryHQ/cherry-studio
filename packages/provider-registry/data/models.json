@@ -5519,7 +5519,7 @@
           },
           "safetyTolerance": {
             "default": 2,
-            "max": 6,
+            "max": 5,
             "min": 0,
             "type": "range"
           },
@@ -5607,7 +5607,7 @@
           },
           "safetyTolerance": {
             "default": 2,
-            "max": 6,
+            "max": 5,
             "min": 0,
             "type": "range"
           },
@@ -22787,5 +22787,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0eba6e7f4f4ee05e"
+  "version": "4612bb81c4435c8c"
 }

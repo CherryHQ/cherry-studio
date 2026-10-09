@@ -70,7 +70,7 @@ export async function resolveSdkImageConfig(
     sdkConfig: {
       ...config,
       modelId: target.modelId,
-      imageWireRegistration: resolveWireRegistration(optionsProviderId),
+      imageWireRegistration: resolveWireRegistration(optionsProviderId, target.modelId),
       providerOptionsKey: resolveProviderOptionsKey(optionsProviderId, {
         actualProviderId
       })
