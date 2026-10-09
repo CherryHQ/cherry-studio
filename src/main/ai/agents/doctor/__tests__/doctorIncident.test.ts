@@ -150,13 +150,20 @@ describe('incidentRequest', () => {
 
 describe('incidentLogs', () => {
   it('keeps only lines naming this conversation, including the API gateway hop, with keys redacted', () => {
+    // The logger writes keys alphabetically, so an id key like `agentSessionId` leads the line.
     const lines = [
-      { message: 'Dispatching stream request', topicId: 'agent-session:session-1', timestamp: '2026-10-09 00:00:01' },
-      { message: 'Getting session', sessionId: 'session-1', timestamp: '2026-10-09 00:00:02' },
       {
-        message: 'Error in message processing',
+        level: 'debug',
+        message: 'Dispatching stream request',
+        timestamp: '2026-10-09 00:00:01',
+        topicId: 'agent-session:session-1'
+      },
+      { level: 'debug', message: 'Getting session', sessionId: 'session-1', timestamp: '2026-10-09 00:00:02' },
+      {
         agentSessionId: 'session-1',
-        error: `401 invalid key ${KEY}`,
+        error: { message: `Authentication failed for ${KEY}`, statusCode: 401 },
+        level: 'warn',
+        message: 'Gateway stream failed',
         timestamp: '2026-10-09 00:00:03'
       },
       { message: 'unrelated', sessionId: 'session-2', timestamp: '2026-10-09 00:00:04' }
@@ -165,11 +172,16 @@ describe('incidentLogs', () => {
       path.join(logsDir, 'app.2026-10-09.log'),
       ['not json', ...lines.map((line) => JSON.stringify(line))].join('\n')
     )
-    const result = incidentLogs(incident, 100) as { count: number; lines: string[] }
+    const result = incidentLogs(incident, 100) as { count: number; entries: Record<string, unknown>[] }
     expect(result.count).toBe(3)
-    expect(result.lines.join('\n')).toContain('Error in message processing')
-    expect(result.lines.join('\n')).not.toContain('session-2')
-    expect(result.lines.join('\n')).not.toContain(KEY)
+    expect(result.entries.at(-1)).toMatchObject({
+      message: 'Gateway stream failed',
+      level: 'warn',
+      error: { statusCode: 401, message: expect.stringContaining('Authentication failed') }
+    })
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain('unrelated')
+    expect(serialized).not.toContain(KEY)
   })
 })
 

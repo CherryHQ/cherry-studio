@@ -269,7 +269,7 @@ const SESSION_TOOL: DoctorTool = {
 
 overview: conversation kind (topic / agent / temporary), the Agent or assistant behind it, the failed message and its full error parts.
 messages: the failed message and the \`before\` messages leading up to it (default 5, max 20).
-logs: app log lines that name this conversation (stream dispatch, persistence, runtime, API gateway), newest last; \`limit\` default 100, max 300.
+logs: parsed app log entries that name this conversation (stream dispatch, persistence, runtime, API gateway), oldest first; \`limit\` default 100, max 300.
 request: for AI SDK and API-gateway failures, the endpoint the model resolves to now vs the URL at error time, and the shape of the request body (keys, parameters, tool names, message counts by role; never message text).
 transcript: Agent sessions only; the runtime's own transcript tail as events (API errors with retry counts, synthetic error turns, failing tool results, hook errors, the assistant/tool timeline); \`limit\` default 60, max 200. Claude Code only for now.`,
   inputSchema: {

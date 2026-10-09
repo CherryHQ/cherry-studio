@@ -203,7 +203,19 @@ export function incidentMessages(incident: DoctorAgentIncident, before: number):
   return untrustedForModel({ messages, ...(messages.length === 0 ? { missing: true } : {}) })
 }
 
-/** App log lines (newest last) that name this conversation, from the most recent log files. */
+function truncateStrings(value: unknown): unknown {
+  if (typeof value === 'string') return truncateText(value, LOG_LINE_LIMIT)
+  if (Array.isArray(value)) return value.map(truncateStrings)
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, truncateStrings(item)]))
+  }
+  return value
+}
+
+/**
+ * App log entries (oldest first) that name this conversation, from the most recent log files. Entries stay
+ * parsed: text redaction on a raw JSON line treats a leading `agentSessionId` key as a secret and eats the line.
+ */
 export function incidentLogs(incident: DoctorAgentIncident, limit: number): unknown {
   const ids = new Set([incident.topicId, conversationIdOf(incident.topicId)])
   const logsDir = application.getPath('app.logs')
@@ -215,7 +227,7 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): unkn
         .sort((a, b) => b.mtime - a.mtime)
         .slice(0, LOG_FILES_SCANNED)
     : []
-  const matches: { file: string; line: string; at: string }[] = []
+  const matches: Record<string, unknown>[] = []
   for (const file of files) {
     for (const line of fs.readFileSync(path.join(logsDir, file.name), 'utf-8').split('\n')) {
       if (!line.startsWith('{')) continue
@@ -227,13 +239,13 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): unkn
       }
       if (![entry.topicId, entry.sessionId, entry.agentSessionId].some((id) => typeof id === 'string' && ids.has(id)))
         continue
-      matches.push({ file: file.name, at: String(entry.timestamp ?? ''), line: truncateText(line, LOG_LINE_LIMIT) })
+      matches.push({ file: file.name, ...(truncateStrings(entry) as Record<string, unknown>) })
     }
   }
-  matches.sort((a, b) => a.at.localeCompare(b.at))
-  let lines = matches.slice(-limit).map(({ file, line }) => `[${file}] ${line}`)
-  while (lines.length > 1 && lines.join('\n').length > OUTPUT_LIMIT) lines = lines.slice(1)
-  return untrustedForModel({ count: matches.length, lines })
+  matches.sort((a, b) => String(a.timestamp ?? '').localeCompare(String(b.timestamp ?? '')))
+  let entries = matches.slice(-limit)
+  while (entries.length > 1 && JSON.stringify(entries).length > OUTPUT_LIMIT) entries = entries.slice(1)
+  return untrustedForModel({ count: matches.length, entries })
 }
 
 function requestShape(body: unknown): unknown {
@@ -278,16 +290,17 @@ function originOf(url: unknown): string | undefined {
 export function incidentRequest(incident: DoctorAgentIncident): unknown {
   const message = readIncidentMessage(incident)
   if (!message) return { missing: true }
-  let route: { endpointType?: string; baseUrl?: string; providerOptionsKey?: string; providerId: string } | undefined
+  let route: { endpointType?: string; baseUrl?: string; optionsNamespace?: string; providerId: string } | undefined
   try {
     if (message.modelId) {
       // Pure resolution only: resolveSdkConfig would advance multi-key rotation and may refresh OAuth.
       const { providerId, modelId } = parseUniqueModelId(message.modelId as UniqueModelId)
-      const resolved = resolveEffectiveEndpoint(
+      const { endpointType, baseUrl, providerOptionsKey } = resolveEffectiveEndpoint(
         providerService.getByProviderId(providerId),
         modelService.getByKey(providerId, modelId)
       )
-      route = { providerId, ...resolved }
+      // Renamed: key-name redaction masks any field containing "Key".
+      route = { providerId, endpointType, baseUrl, optionsNamespace: providerOptionsKey }
     }
   } catch {
     route = undefined
