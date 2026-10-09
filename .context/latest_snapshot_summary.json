@@ -1,46 +1,61 @@
 {
-  "generated_at": "2026-10-08T00:00:00Z",
-  "snapshot_date": "2026-10-08",
+  "generated_at": "2026-10-09T00:00:00Z",
+  "snapshot_date": "2026-10-09",
   "repository": "CherryHQ/cherry-studio",
   "issues": {
-    "open_total": 1129,
-    "closed_last_30d": 309,
-    "unlabeled": 202,
-    "unlabeled_pct": 17.9,
-    "needs_triage": 74,
+    "open_total": 1131,
+    "closed_last_30d": 311,
+    "unlabeled": 204,
+    "unlabeled_pct": 18.0,
+    "needs_triage": 75,
     "by_priority": {
       "p1": 102,
-      "p2": 146,
+      "p2": 147,
       "p3": null
     },
     "health": {
-      "active_7d": 54,
-      "aging_7_30d": 507,
-      "stale_30_90d": 406,
+      "active_7d": 60,
+      "aging_7_30d": 510,
+      "stale_30_90d": 405,
       "zombie_90d_plus": 207
     },
     "health_pct": {
-      "active": 4.8,
-      "aging": 44.9,
-      "stale": 36.0,
+      "active": 5.3,
+      "aging": 45.1,
+      "stale": 35.8,
       "zombie": 18.3
     }
   },
   "pull_requests": {
-    "open_total": 609,
+    "open_total": 610,
     "open_v2_base": 0,
     "needs_review": 9,
     "drafts": 0,
     "top_authors": [
-      {"login": "404-Page-Found", "count": 16},
-      {"login": "lianshuang-photo", "count": 10},
-      {"login": "Dante-dan", "count": 9},
-      {"login": "DeJeune", "count": 8},
-      {"login": "NatsUIJM", "count": 7}
+      {
+        "login": "404-Page-Found",
+        "count": 16
+      },
+      {
+        "login": "Dante-dan",
+        "count": 10
+      },
+      {
+        "login": "lianshuang-photo",
+        "count": 10
+      },
+      {
+        "login": "DeJeune",
+        "count": 8
+      },
+      {
+        "login": "NatsUIJM",
+        "count": 6
+      }
     ],
     "base_branch_distribution": {
-      "main": 96,
-      "other": 4
+      "main": 94,
+      "other": 6
     }
   },
   "p1_urgent_issues": [
@@ -48,29 +63,8 @@
       "number": 20692,
       "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
       "labels": ["bug", "p1", "agent"],
-      "updated_at": "2026-10-07T15:48:38Z",
-      "comments": 15
-    },
-    {
-      "number": 18765,
-      "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400",
-      "labels": ["bug", "p1", "models", "agent"],
-      "updated_at": "2026-10-07T04:00:42Z",
-      "comments": 5
-    },
-    {
-      "number": 19441,
-      "title": "[Feature]: Video generation feature urgently needed",
-      "labels": ["p1", "feature", "models"],
-      "updated_at": "2026-10-05T18:38:13Z",
-      "comments": 7
-    },
-    {
-      "number": 20315,
-      "title": "[Bug]: DSH bridge fails while loading cordis:include",
-      "labels": ["bug", "p1", "windows", "mcp", "agent"],
-      "updated_at": "2026-10-04T14:15:36Z",
-      "comments": 6
+      "updated_at": "2026-10-08T18:05:27Z",
+      "comments": 17
     },
     {
       "number": 21085,
@@ -80,39 +74,105 @@
       "comments": 6
     },
     {
+      "number": 20695,
+      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and duplicated tail fragments",
+      "labels": ["bug", "p1"],
+      "updated_at": "2026-09-24T15:37:51Z",
+      "comments": 3
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "updated_at": "2026-09-22T17:31:00Z",
+      "comments": 2
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-09-22T16:32:21Z",
+      "comments": 2
+    },
+    {
+      "number": 20937,
+      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "updated_at": "2026-09-22T16:32:14Z",
+      "comments": 2
+    },
+    {
+      "number": 20532,
+      "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
+      "labels": ["bug", "p1", "windows"],
+      "updated_at": "2026-09-19T06:55:06Z",
+      "comments": 0
+    },
+    {
+      "number": 20476,
+      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
+      "labels": ["bug", "p1", "windows", "models", "chat"],
+      "updated_at": "2026-09-12T18:36:43Z",
+      "comments": 0
+    },
+    {
+      "number": 20460,
+      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
+      "labels": ["bug", "p1", "models", "agent"],
+      "updated_at": "2026-09-12T12:40:31Z",
+      "comments": 0
+    },
+    {
+      "number": 20458,
+      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
+      "labels": ["bug", "p1", "models", "chat"],
+      "updated_at": "2026-09-18T11:26:50Z",
+      "comments": 2
+    },
+    {
+      "number": 20374,
+      "title": "Unable to read Word and PDF documents",
+      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
+      "updated_at": "2026-09-11T08:00:58Z",
+      "comments": 0
+    },
+    {
+      "number": 18765,
+      "title": "[Bug]: Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways -> GPT-5.x 400",
+      "labels": ["bug", "p1", "models", "agent"],
+      "updated_at": "2026-10-07T04:00:42Z",
+      "comments": 5
+    },
+    {
       "number": 19753,
       "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
       "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
       "updated_at": "2026-09-29T02:10:41Z",
       "comments": 15
-    },
-    {
-      "number": 19578,
-      "title": "[Bug]: Linux arm64 main window continuously flickers",
-      "labels": ["bug", "p1", "needs-more-info", "linux", "ui-ux"],
-      "updated_at": "2026-09-29T02:22:22Z",
-      "comments": 1
-    },
-    {
-      "number": 19865,
-      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
-      "labels": ["bug", "p1", "windows", "performance", "agent"],
-      "updated_at": "2026-09-28T03:15:14Z",
-      "comments": 3
-    },
-    {
-      "number": 19864,
-      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
-      "labels": ["bug", "p1", "models", "agent"],
-      "updated_at": "2026-09-28T03:14:29Z",
-      "comments": 2
-    },
-    {
-      "number": 19917,
-      "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request",
-      "labels": ["bug", "p1", "agent"],
-      "updated_at": "2026-09-06T15:32:47Z",
-      "comments": 0
     }
-  ]
+  ],
+  "notable_new_issues_today": [
+    {
+      "number": 21420,
+      "title": "[Bug]: Text Selection Assistant Popup Cannot Be Dragged After Using the Vertical Scrollbar",
+      "created_at": "2026-10-09T16:05:10Z"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); backup archive corrupted (Bad archive) and old backup version incompatible (v6→v7) — data cannot be restored",
+      "created_at": "2026-10-09T13:31:32Z",
+      "note": "Potential P1 — EPERM + backup corruption, data loss risk"
+    },
+    {
+      "number": 21417,
+      "title": "[Bug]: Deferred-tools reminder is factually wrong — direct calls succeed, ToolSearch doesn't exist, schemas still in request; compliant models abandon all MCP tools",
+      "created_at": "2026-10-09T13:18:36Z"
+    }
+  ],
+  "delta_from_yesterday": {
+    "open_issues": "+2",
+    "p1_count": "+0",
+    "active_issues": "+6",
+    "notes": "2 new issues opened Oct 9; #21418 (backup corruption + EPERM) may warrant P1 triage"
+  }
 }

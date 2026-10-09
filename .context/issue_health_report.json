@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-08T00:00:00Z",
-  "snapshot_date": "2026-10-08",
+  "generated_at": "2026-10-09T00:00:00Z",
+  "snapshot_date": "2026-10-09",
   "thresholds": {
     "active_days": 7,
     "aging_days": 30,
@@ -9,18 +9,18 @@
   },
   "health_summary": {
     "active": {
-      "count": 54,
-      "pct": 4.8,
+      "count": 60,
+      "pct": 5.3,
       "description": "Updated within last 7 days"
     },
     "aging": {
-      "count": 507,
-      "pct": 44.9,
+      "count": 510,
+      "pct": 45.1,
       "description": "Updated 7-30 days ago"
     },
     "stale": {
-      "count": 406,
-      "pct": 36.0,
+      "count": 405,
+      "pct": 35.8,
       "description": "Updated 30-90 days ago"
     },
     "zombie": {
@@ -30,22 +30,57 @@
     }
   },
   "label_coverage": {
-    "total_open": 1129,
-    "unlabeled": 202,
-    "unlabeled_pct": 17.9,
-    "needs_triage": 74
+    "total_open": 1131,
+    "unlabeled": 204,
+    "unlabeled_pct": 18.0,
+    "needs_triage": 75
   },
   "priority_distribution": {
     "p1": 102,
-    "p2": 146,
+    "p2": 147,
     "p1_pct": 9.0,
-    "p2_pct": 12.9
+    "p2_pct": 13.0
   },
-  "closed_last_30d": 309,
+  "closed_last_30d": 311,
+  "top_active_p1_issues": [
+    {
+      "number": 20692,
+      "title": "Agent compaction summary leaks into visible chat transcript",
+      "comments": 17,
+      "updated_at": "2026-10-08T18:05:27Z"
+    },
+    {
+      "number": 21085,
+      "title": "File/KB scopes inline large tool schemas, can overflow context",
+      "comments": 6,
+      "updated_at": "2026-09-27T21:15:39Z"
+    },
+    {
+      "number": 18765,
+      "title": "Agent mode sends Anthropic max_tokens to OpenAI gateways → GPT-5.x 400",
+      "comments": 5,
+      "updated_at": "2026-10-07T04:00:42Z"
+    }
+  ],
+  "watch_list": [
+    {
+      "number": 21418,
+      "title": "Restore triggers app auto-restart; EPERM rename + backup corruption (v6→v7 incompatible)",
+      "reason": "Data loss risk — EPERM during restore + incompatible backup version; no P1 label yet",
+      "created_at": "2026-10-09T13:31:32Z"
+    },
+    {
+      "number": 21307,
+      "title": "Model card Vision chip renders ON while stored row has no image value",
+      "reason": "7 comments, active discussion, UI state inconsistency",
+      "updated_at": "2026-10-09T16:53:07Z"
+    }
+  ],
   "recommendations": [
-    "207 zombie issues (90+ days inactive) — consider a triage sprint to close or escalate",
-    "202 issues (17.9%) have no labels — run label triage on newly opened issues",
-    "102 P1 bugs open — particularly agent crashes, Windows EPERM, and context overflow issues",
-    "Active issues (54) are low relative to total backlog — low responsiveness signal"
+    "207 zombie issues (90+ days inactive) — consider triage sprint to close or escalate",
+    "204 issues (18.0%) have no labels — run label triage on newly opened issues",
+    "102 P1 bugs open — particularly agent crashes, Windows EPERM, and context overflow",
+    "#21418 (new Oct 9) — backup EPERM + v6→v7 incompatibility — recommend P1 triage",
+    "Active issue ratio improved slightly (5.3% vs 4.8% yesterday) — good sign of community engagement"
   ]
 }

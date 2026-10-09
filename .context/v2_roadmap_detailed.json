@@ -1,12 +1,18 @@
 {
-  "generated_at": "2026-10-08T00:00:00Z",
-  "snapshot_date": "2026-10-08",
+  "generated_at": "2026-10-09T00:00:00Z",
+  "snapshot_date": "2026-10-09",
   "v2_branch_status": {
     "open_prs_targeting_v2": 0,
     "merged_prs_last_30d": 0,
-    "note": "V2 branch appears to be inactive or already merged into main; no open/recent PRs targeting v2"
+    "note": "V2 branch migration into main is complete; no open or recent (30d) PRs targeting v2 base. Last v2-labeled merges were in April-May 2026."
   },
   "v2_labeled_open_issues": [
+    {
+      "number": 21085,
+      "title": "[Bug]: File/KB scopes inline large builtin tool schemas and can overflow context",
+      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
+      "updated_at": "2026-09-27T21:15:39Z"
+    },
     {
       "number": 21051,
       "title": "[Bug]: Windows restore fails with EPERM renaming Local Storage after restart",
@@ -14,34 +20,77 @@
       "updated_at": "2026-10-08T12:32:43Z"
     },
     {
-      "number": 21085,
-      "title": "[Bug]: File/KB scopes inline large tool schemas, can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
-      "updated_at": "2026-09-27T21:15:39Z"
+      "number": 20993,
+      "title": "[Bug]: MCP tools/list fails entirely when a tool's outputSchema has a boolean sub-schema",
+      "labels": ["bug", "mcp", "v2"],
+      "updated_at": "2026-09-23T20:44:25Z"
+    },
+    {
+      "number": 20942,
+      "title": "[Bug]: Chat streams fail with net::ERR_HTTP2_PROTOCOL_ERROR and are not retried",
+      "labels": ["bug", "p2", "connectivity", "v2", "chat"],
+      "updated_at": "2026-09-22T16:32:26Z"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": ["bug", "p1", "v2", "agent", "chat"],
+      "updated_at": "2026-09-22T17:31:00Z"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": ["bug", "p1", "models", "v2", "chat"],
+      "updated_at": "2026-09-22T16:32:21Z"
+    },
+    {
+      "number": 20937,
+      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": ["bug", "p1", "windows", "v2", "agent"],
+      "updated_at": "2026-09-22T16:32:14Z"
+    },
+    {
+      "number": 20913,
+      "title": "[Bug]: Agent reasoning stream split mid-sentence — half persisted as text, half as reasoning",
+      "labels": ["bug", "p2", "windows", "v2", "agent"],
+      "updated_at": "2026-09-22T21:01:34Z"
+    },
+    {
+      "number": 20791,
+      "title": "[Bug]: Windows 2.1.0 restore fails with EPERM renaming Local Storage from 2.0.14 backup",
+      "labels": ["bug", "p2", "windows", "data", "v2"],
+      "updated_at": "2026-09-21T23:08:46Z"
+    },
+    {
+      "number": 21044,
+      "title": "[Feature]: Support one-click migration when changing notes working directory",
+      "labels": ["feature", "data", "v2"],
+      "updated_at": "2026-09-27T23:38:09Z"
+    },
+    {
+      "number": 20374,
+      "title": "Unable to read Word and PDF documents",
+      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
+      "updated_at": "2026-09-11T08:00:58Z"
     },
     {
       "number": 20028,
       "title": "Managed update feed remains on 2.0.9 after newer production releases",
       "labels": ["bug", "p2", "v2"],
       "updated_at": "2026-10-05T21:07:38Z"
-    },
-    {
-      "number": 19753,
-      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
-      "updated_at": "2026-09-29T02:10:41Z"
-    },
-    {
-      "number": 21044,
-      "title": "[Feature]: Support one-click migration of existing notes when changing notes working directory",
-      "labels": ["feature", "data", "v2"],
-      "updated_at": "2026-09-27T23:38:09Z"
     }
   ],
   "key_v2_themes": [
-    "Data migration stability (EPERM, restore failures)",
-    "Agent runtime reliability (DSH, DeepSeek Harness crashes)",
-    "Context management (tool schema overflow, compaction leaks)",
-    "Update feed correctness (v2.0.9 stuck)"
-  ]
+    "Data migration stability (EPERM on Windows restore — affects multiple users across 2.0.x→2.1.x)",
+    "Agent runtime reliability (DSH, DeepSeek Harness crashes, empty-response errors)",
+    "Context management (tool schema overflow, compaction leaks into visible chat)",
+    "Stream reliability (HTTP/2 errors, TypeValidation aborts)",
+    "Update feed correctness (managed update stuck on old version)"
+  ],
+  "v2_open_issue_summary": {
+    "total_v2_labeled_open": 12,
+    "p1_count": 5,
+    "p2_count": 5,
+    "feature_count": 2
+  }
 }
