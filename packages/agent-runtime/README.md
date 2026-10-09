@@ -130,7 +130,7 @@ returns full text. `scope: 'all'` is the same as `'lineage'`: edits drop the tur
 
 ## Extensions
 
-Factories the host passes in `extensionFactories`. Tools are `model-only` (never callable from
+Factories the host passes in `extensionFactories`. Both tools are `model-only` (never callable from
 codemode scripts, so every call stays its own tool part) and use the names Cherry's renderer already
 handles.
 
@@ -141,9 +141,19 @@ handles.
   `{ todos, counts }`. The extension keeps no state: the latest list is the last successful
   `todo_write` on the transcript's active path, so it follows forks and edits and the model sees it in
   the rebuilt history.
+- **`createAskUserExtension(port)`** – `AskUserQuestion` with Claude Code's input schema (1–4
+  questions, each with a `header`, 2–4 options and `multiSelect`; question texts must differ, since
+  answers are keyed by them). The tool waits on `AskUserPort.ask`, which resolves `answered`
+  (`answers`, optional `annotations` notes), `declined` (optional `feedback`) or `unavailable` (no
+  one can answer, e.g. a channel or scheduled run). The result text tells the model what happened;
+  only `answered` is a success. `details` is always `{ questions, answers, annotations? }`. Calls in
+  one model step run one at a time. When the turn aborts, the tool stops waiting at once and the
+  request's `signal` aborts so the host can withdraw the question; a late answer is ignored. A
+  question pending at a crash is not persisted: the rebuilt session closes the call as failed.
 
-The host's approval layer may auto-allow `todo_write` (it only changes the session's list).
-`TODO_TOOL_NAME` holds the name.
+The host's approval layer must not ask approval for `AskUserQuestion` (the question is itself the
+interaction, or the user would be asked twice) and may auto-allow `todo_write` (it only changes the
+session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the names.
 
 ## Known gaps
 
