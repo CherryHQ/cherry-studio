@@ -22,6 +22,17 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
+  it('keeps the Computer Use SDK while its native helpers are installed outside ASAR', () => {
+    expect(includesFile('node_modules/@cherrystudio/computer-use/dist/index.cjs')).toBe(true)
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      for (const platform of ['darwin', 'linux', 'win32']) {
+        for (const arch of ['arm64', 'x64']) {
+          expect(includesFile(`${modules}/@cherrystudio/computer-use-${platform}-${arch}/runtime/helper`)).toBe(false)
+        }
+      }
+    }
+  })
+
   it.each([
     ['darwin', 'arm64', 'darwin-arm64'],
     ['darwin', 'x64', 'darwin-x64'],

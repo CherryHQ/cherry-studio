@@ -38,6 +38,7 @@ files:
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
+  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -156,10 +157,6 @@ portable:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
-  extraResources:
-    # Dev link to the companion checkout (see docs/contrib/computer-use-development.md); re-signed under Cherry's identity.
-    - from: ".context/computer-use-runtime"
-      to: "computer-use/Open Computer Use.app"
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.

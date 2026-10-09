@@ -37,7 +37,11 @@ assert.rejects(ComputerUse.start({ runtimePath: './missing-runtime' }), error =>
 }).catch(error => { throw error })
 `
       )
-      execFileSync(process.execPath, [entry], { cwd: consumer, timeout: 10_000 })
+      execFileSync(process.execPath, [entry], {
+        cwd: consumer,
+        timeout: 10_000,
+        env: { ...process.env, NODE_PATH: '' }
+      })
     }
 
     for (const extension of ['mts', 'cts']) {

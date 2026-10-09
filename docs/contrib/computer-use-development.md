@@ -12,13 +12,15 @@ sources:
 
 # Computer Use development
 
-This development slice connects the native SDK to permission settings, ordinary chat tools and local Claude/Pi/DSH Agent tools. Cherry owns runtime lifecycle, application ownership and user-stop state. A packaged runtime and a dedicated Computer Use scripting API remain pending; ordinary tools work with Code Mode disabled.
+This integration connects the native SDK to permission settings, ordinary chat tools and local Claude/Pi/DSH Agent tools. Cherry owns runtime lifecycle, application ownership and user-stop state. Production builds bundle the matching npm runtime; a dedicated Computer Use scripting API remains pending, and ordinary tools work with Code Mode disabled.
 
 ## SDK installation and local runtime setup
 
 `pnpm install --frozen-lockfile` installs the published `@cherrystudio/computer-use@0.1.1` SDK from npm, including its ESM/CJS exports and type declarations. The version and integrity are pinned in the lockfile; clean checkout installation, type checks and unit tests need no `.context` setup or checked-in SDK tarball.
 
-Desktop control still requires a matching native runtime. Cherry supplies an explicit runtime path; publishing the SDK does not replace that helper setup. Build it in a separate `CherryHQ/cherry-computer-use` checkout matching the SDK release, then link its output from this workspace. On macOS/Linux:
+Production packaging installs the target OS/architecture runtime from the SDK's exact-version npm platform package in `resources/computer-use`, outside ASAR and before application signing. The build fails if that package or its executable is missing, or its version differs from the SDK. The complete macOS bundle is installed at `Contents/Resources/computer-use/Open Computer Use.app`, matching Cherry's existing runtime path; its signed bundle identity remains **Cherry Computer Use**. Native packages are excluded from ASAR to avoid duplicate helpers. Production builds do not read `.context`.
+
+Development runs still use an explicit local runtime path. Build it in a separate `CherryHQ/cherry-computer-use` checkout matching the SDK release, then link its output from this workspace. On macOS/Linux:
 
 ```sh
 # Set this to your fork checkout; do not commit its value.
@@ -63,7 +65,7 @@ pnpm install --frozen-lockfile
 pnpm debug
 ```
 
-Copy the rebuilt executable again after changing the runtime. The helper copy avoids requiring file-symlink privileges. On Windows, **Settings → Computer Use** should return the platform's empty permission list; enable desktop control separately to expose the Cherry tools. Native desktop tests and packaged helper delivery still require separate setup.
+Copy the rebuilt executable again after changing the development runtime. The helper copy avoids requiring file-symlink privileges. On Windows, **Settings → Computer Use** should return the platform's empty permission list; enable desktop control separately to expose the Cherry tools. Native desktop tests still require an interactive desktop.
 
 ## Permission flow
 
@@ -75,7 +77,7 @@ Completing the guide refreshes the status in Cherry. Each query or request uses 
 
 Only a native `granted` result is displayed as granted. macOS preflight cannot distinguish all ungranted states and currently reports `unknown`. Windows/Linux return an empty permission list, which means no OS permission flow is implemented; it does not establish desktop availability or authorize an Agent task.
 
-Keep the helper bundle path and signing identity stable when validating macOS grants. Set the signing variables above to an installed certificate before building; automatic certificate selection can choose a different identity even when the bundle ID stays the same. If the certificate changed, remove the old System Settings entry, add the rebuilt helper again and query permissions from a fresh helper session. Rebuilding an ad-hoc signed helper may require granting permissions again. Packaged macOS builds copy `.context/computer-use-runtime` into `Contents/Resources/computer-use/Open Computer Use.app` and electron-builder re-signs it under Cherry's Developer ID, so grants given to the dev-signed helper do not carry over. Windows/Linux packaging, a published runtime artifact and packaged validation remain pending.
+Keep the helper bundle path and signing identity stable when validating macOS grants. Set the signing variables above to an installed certificate before building; automatic certificate selection can choose a different identity even when the bundle ID stays the same. If the certificate changed, remove the old System Settings entry, add the rebuilt helper again and query permissions from a fresh helper session. Rebuilding an ad-hoc signed helper may require granting permissions again. Packaged macOS builds install the npm helper and electron-builder signs it under Cherry's Developer ID, so do not assume a differently signed development helper's grants carry over. Packaging and permission-query checks do not establish real desktop action acceptance.
 
 The user reported successful testing of the existing runtime slice on all three platforms on 2026-09-21. That report does not cover this new host integration or future cursor/input capabilities. An enabled macOS System Settings toggle alone does not prove that a rebuilt helper matches its earlier grant; verify the signing identity when investigating permission regressions.
 
