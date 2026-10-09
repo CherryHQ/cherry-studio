@@ -29,6 +29,7 @@ vi.mock('@application', () => ({
       if (name === 'ApiGatewayService')
         return {
           isInternalAgentRequest: vi.fn(() => mockGetAgentSessionId() !== undefined),
+          isInternalSupportRequest: vi.fn(() => false),
           resolveAgentSessionUsage: vi.fn(() => undefined),
           getAgentSessionId: mockGetAgentSessionId
         }

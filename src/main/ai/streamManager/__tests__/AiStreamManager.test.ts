@@ -312,6 +312,21 @@ describe('AiStreamManager', () => {
       )
     })
 
+    it('forwards trusted standing instructions to AiService.streamText', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        system: 'Cherry-owned standing instructions',
+        listener: new FakeListener('gateway:request-1'),
+        contextOwner: 'caller'
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ system: 'Cherry-owned standing instructions', contextOwner: 'caller' })
+      )
+    })
+
     it('makes an anonymous prompt stream its own conversation', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
