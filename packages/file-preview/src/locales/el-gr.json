@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.too_large.description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
   "file_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση",
+  "file_preview.unsupported.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.unsupported.description": "Αυτός ο τύπος αρχείου δεν μπορεί να προεπισκοπηθεί ακόμα.",
   "file_preview.unsupported.title": "Η προεπισκόπηση δεν είναι διαθέσιμη",
   "preview.flip_horizontal": "Αναστροφή Οριζόντια",

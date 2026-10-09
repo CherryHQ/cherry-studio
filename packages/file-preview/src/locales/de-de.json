@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Mit Standard-App öffnen",
   "file_preview.too_large.description": "Die Dateigröße {{size}} überschreitet das Vorschaulimit von {{limit}}.",
   "file_preview.too_large.title": "Datei zu groß für die Vorschau",
+  "file_preview.unsupported.action": "Mit Standard-App öffnen",
   "file_preview.unsupported.description": "Dieser Dateityp kann noch nicht in der Vorschau angezeigt werden.",
   "file_preview.unsupported.title": "Vorschau nicht verfügbar",
   "preview.flip_horizontal": "Horizontal spiegeln",

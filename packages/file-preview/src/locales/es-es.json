@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Abrir con la aplicación predeterminada",
   "file_preview.too_large.description": "El tamaño del archivo {{size}} supera el límite de vista previa de {{limit}}.",
   "file_preview.too_large.title": "El archivo es demasiado grande para previsualizarlo",
+  "file_preview.unsupported.action": "Abrir con la aplicación predeterminada",
   "file_preview.unsupported.description": "Este tipo de archivo aún no se puede previsualizar.",
   "file_preview.unsupported.title": "Vista previa no disponible",
   "preview.flip_horizontal": "Voltear horizontalmente",

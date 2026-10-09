@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Open with default app",
   "file_preview.too_large.description": "File size {{size}} exceeds the {{limit}} preview limit.",
   "file_preview.too_large.title": "File too large to preview",
+  "file_preview.unsupported.action": "Open with default app",
   "file_preview.unsupported.description": "This file type cannot be previewed yet.",
   "file_preview.unsupported.title": "Preview unavailable",
   "preview.flip_horizontal": "Flip Horizontal",

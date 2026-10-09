@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Abrir com aplicação padrão",
   "file_preview.too_large.description": "O tamanho do ficheiro {{size}} excede o limite de pré-visualização de {{limit}}.",
   "file_preview.too_large.title": "Ficheiro demasiado grande para pré-visualizar",
+  "file_preview.unsupported.action": "Abrir com aplicação padrão",
   "file_preview.unsupported.description": "Este tipo de ficheiro ainda não pode ser visualizado.",
   "file_preview.unsupported.title": "Visualização indisponível",
   "preview.flip_horizontal": "Virar Horizontalmente",

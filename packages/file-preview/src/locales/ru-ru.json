@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Открыть с помощью приложения по умолчанию",
   "file_preview.too_large.description": "Размер файла {{size}} превышает ограничение предварительного просмотра {{limit}}.",
   "file_preview.too_large.title": "Файл слишком велик для предварительного просмотра",
+  "file_preview.unsupported.action": "Открыть с помощью приложения по умолчанию",
   "file_preview.unsupported.description": "Этот тип файла пока нельзя просмотреть.",
   "file_preview.unsupported.title": "Предварительный просмотр недоступен",
   "preview.flip_horizontal": "Отразить по горизонтали",

@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Varsayılan uygulamayla aç",
   "file_preview.too_large.description": "{{size}} dosya boyutu, {{limit}} önizleme sınırını aşıyor.",
   "file_preview.too_large.title": "Dosya önizlenemeyecek kadar büyük",
+  "file_preview.unsupported.action": "Varsayılan uygulamayla aç",
   "file_preview.unsupported.description": "Bu dosya türü henüz önizlenemiyor.",
   "file_preview.unsupported.title": "Önizleme kullanılamıyor",
   "preview.flip_horizontal": "Yatay Çevir",

@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "使用預設應用程式開啟",
   "file_preview.too_large.description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
   "file_preview.too_large.title": "檔案過大，無法預覽",
+  "file_preview.unsupported.action": "使用預設應用程式開啟",
   "file_preview.unsupported.description": "此檔案類型尚無法預覽。",
   "file_preview.unsupported.title": "無法預覽",
   "preview.flip_horizontal": "水平翻轉",

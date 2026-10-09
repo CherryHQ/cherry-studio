@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Mở bằng ứng dụng mặc định",
   "file_preview.too_large.description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
   "file_preview.too_large.title": "Tệp quá lớn để xem trước",
+  "file_preview.unsupported.action": "Mở bằng ứng dụng mặc định",
   "file_preview.unsupported.description": "Loại tệp này chưa thể xem trước được.",
   "file_preview.unsupported.title": "Xem trước không khả dụng",
   "preview.flip_horizontal": "Lật ngang",

@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Ouvrir avec l'application par défaut",
   "file_preview.too_large.description": "La taille du fichier {{size}} dépasse la limite d’aperçu de {{limit}}.",
   "file_preview.too_large.title": "Fichier trop volumineux pour être prévisualisé",
+  "file_preview.unsupported.action": "Ouvrir avec l'application par défaut",
   "file_preview.unsupported.description": "Ce type de fichier ne peut pas encore être prévisualisé.",
   "file_preview.unsupported.title": "Aperçu indisponible",
   "preview.flip_horizontal": "Retourner horizontalement",

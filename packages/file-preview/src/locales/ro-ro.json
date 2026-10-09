@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "Deschide cu aplicația implicită",
   "file_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
   "file_preview.too_large.title": "Fișier prea mare pentru previzualizare",
+  "file_preview.unsupported.action": "Deschide cu aplicația implicită",
   "file_preview.unsupported.description": "Acest tip de fișier nu poate fi previzualizat încă.",
   "file_preview.unsupported.title": "Previzualizare indisponibilă",
   "preview.flip_horizontal": "Întoarce orizontal",

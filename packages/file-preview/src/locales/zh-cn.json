@@ -15,6 +15,7 @@
   "file_preview.too_large.action": "用默认应用打开",
   "file_preview.too_large.description": "文件大小 {{size}} 超过 {{limit}} 的预览大小限制。",
   "file_preview.too_large.title": "文件过大，无法预览",
+  "file_preview.unsupported.action": "用默认应用打开",
   "file_preview.unsupported.description": "此文件类型暂不支持预览。",
   "file_preview.unsupported.title": "暂不支持预览",
   "preview.flip_horizontal": "水平翻转",
