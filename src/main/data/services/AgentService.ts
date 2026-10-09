@@ -66,7 +66,6 @@ type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
-  groupId?: string | null
   skillIds?: string[]
 }
 
@@ -336,8 +335,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
-      configuration: req.configuration,
-      groupId: req.groupId
+      configuration: req.configuration
     }
 
     // Validate referenced skills before opening the write tx so the main path
@@ -359,7 +357,6 @@ export class AgentService {
         application.get('DbService').withWriteTx((tx) => {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
-          validateAgentGroupTx(tx, req.groupId)
           const result = this.createAgentTx(tx, id, insertData, 'first')
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -922,6 +919,8 @@ export class AgentService {
                 sessionIds
               )
             }
+      // Archiving intentionally drops group membership (trashed entities leave
+      // their group); restore leaves the agent ungrouped — same contract as assistants.
       const result = tx
         .update(agentsTable)
         .set({ deletedAt: trashedAt, groupId: null })

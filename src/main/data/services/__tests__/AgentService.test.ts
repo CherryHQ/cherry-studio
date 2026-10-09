@@ -1875,71 +1875,30 @@ describe('AgentService', () => {
       return row
     }
 
-    it('persists groupId on create and reports it on the entity', async () => {
-      const group = await insertGroup()
-
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Grouped',
-        model: TEST_MODEL_ID,
-        groupId: group.id
-      })
-
-      expect(created.groupId).toBe(group.id)
-      expect(agentService.getAgent(created.id)?.groupId).toBe(group.id)
-    })
-
     it('defaults ungrouped agents to groupId null', async () => {
       const created = createAgentForTest({ type: 'claude-code', name: 'Ungrouped', model: TEST_MODEL_ID })
 
       expect(created.groupId).toBeNull()
     })
 
-    it('rejects a groupId that no group row backs', async () => {
-      const error = captureError(() =>
-        createAgentForTest({
-          type: 'claude-code',
-          name: 'Ghost Group',
-          model: TEST_MODEL_ID,
-          groupId: randomUUID()
-        })
-      )
-
-      expect(error).toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { groupId: [expect.stringContaining('not found')] } }
-      })
-      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Ghost Group'))).toHaveLength(0)
-    })
-
-    it("rejects a group whose entityType is not 'agent'", async () => {
+    it("rejects an update to a group whose entityType is not 'agent'", async () => {
       const assistantGroup = await insertGroup('assistant')
+      const created = createAgentForTest({ type: 'claude-code', name: 'Wrong Bucket', model: TEST_MODEL_ID })
 
-      const error = captureError(() =>
-        createAgentForTest({
-          type: 'claude-code',
-          name: 'Wrong Bucket',
-          model: TEST_MODEL_ID,
-          groupId: assistantGroup.id
-        })
-      )
+      const error = captureError(() => agentService.updateAgent(created.id, { groupId: assistantGroup.id }))
 
       expect(error).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: { fieldErrors: { groupId: [expect.stringContaining("entityType 'agent'")] } }
       })
-      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Wrong Bucket'))).toHaveLength(0)
+      expect(agentService.getAgent(created.id)?.groupId).toBeNull()
     })
 
     it('reassigns groupId on update and clears it when PATCHed with null', async () => {
       const first = await insertGroup()
       const second = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Movable',
-        model: TEST_MODEL_ID,
-        groupId: first.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Movable', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: first.id })
 
       const moved = agentService.updateAgent(created.id, { groupId: second.id })
       expect(moved?.groupId).toBe(second.id)
@@ -1952,12 +1911,8 @@ describe('AgentService', () => {
     it('broadcasts agent membership when an update moves the agent between groups', async () => {
       const first = await insertGroup()
       const second = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Mover',
-        model: TEST_MODEL_ID,
-        groupId: first.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Mover', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: first.id })
       notifyDataApiDataChangeMock.mockClear()
 
       agentService.updateAgent(created.id, { groupId: second.id })
@@ -1969,12 +1924,8 @@ describe('AgentService', () => {
 
     it('skips the membership broadcast when the group assignment does not change', async () => {
       const group = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Stays',
-        model: TEST_MODEL_ID,
-        groupId: group.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Stays', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: group.id })
       notifyDataApiDataChangeMock.mockClear()
 
       agentService.updateAgent(created.id, { name: 'Renamed Only' })
@@ -1985,12 +1936,8 @@ describe('AgentService', () => {
 
     it('rejects an unknown groupId on update and leaves the assignment unchanged', async () => {
       const group = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Stays Put',
-        model: TEST_MODEL_ID,
-        groupId: group.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Stays Put', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: group.id })
 
       const error = captureError(() => agentService.updateAgent(created.id, { groupId: randomUUID() }))
 
@@ -2000,12 +1947,8 @@ describe('AgentService', () => {
 
     it('unbinds member agents when the group is deleted (agent.group_id FK ON DELETE SET NULL)', async () => {
       const group = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Orphan Me',
-        model: TEST_MODEL_ID,
-        groupId: group.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Orphan Me', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: group.id })
       notifyDataApiDataChangeMock.mockClear()
 
       groupService.delete(group.id)
@@ -2020,12 +1963,8 @@ describe('AgentService', () => {
 
     it('stops counting an archived agent as a group member', async () => {
       const group = await insertGroup()
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Archive Me',
-        model: TEST_MODEL_ID,
-        groupId: group.id
-      })
+      const created = createAgentForTest({ type: 'claude-code', name: 'Archive Me', model: TEST_MODEL_ID })
+      agentService.updateAgent(created.id, { groupId: group.id })
       notifyDataApiDataChangeMock.mockClear()
 
       agentService.deleteAgent(created.id)
