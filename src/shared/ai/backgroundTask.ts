@@ -12,6 +12,8 @@ export interface BackgroundTaskRecord {
   status: BackgroundTaskStatus
   exitCode: number | null
   signal: string | null
+  /** Channel IDs authorized by the starting turn; completion notices stay inside this scope. */
+  notifyChannelIds?: string[]
   finishedAt?: string
   durationMs?: number
   stopRequestedAt?: string
