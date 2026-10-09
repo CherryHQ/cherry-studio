@@ -1,4 +1,15 @@
 export { AI_SDK_API, type AiSdkModelSpec, type AiSdkProviderOptions, createAiSdkProvider } from './aiSdkProvider'
+export {
+  ASK_USER_TOOL_NAME,
+  type AskUserAnnotations,
+  type AskUserPort,
+  type AskUserQuestionDetails,
+  type AskUserQuestionItem,
+  type AskUserQuestionOption,
+  type AskUserRequest,
+  type AskUserResponse,
+  createAskUserExtension
+} from './askUserExtension'
 export type { AgentRuntimeCompaction, CompactionSummarizer, CompactionSummaryRequest } from './compaction'
 export type { ToolOutputOffload, ToolOutputStore } from './offload'
 export type {
