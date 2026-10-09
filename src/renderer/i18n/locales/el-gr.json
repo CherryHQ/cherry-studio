@@ -3175,6 +3175,7 @@
   "provider.tesseract": "Tesseract",
   "provider.together": "Together",
   "provider.tokendance": "TokenDance",
+  "provider.tokendos": "TokenDos",
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
@@ -5896,6 +5897,5 @@
   "xlsx_preview.formula_not_evaluated": "Δεν ήταν δυνατή η αξιολόγηση του τύπου",
   "xlsx_preview.sheet_tabs_label": "Φύλλα",
   "xlsx_preview.too_large.description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
-  "xlsx_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση",
-  "provider.tokendos": "TokenDos"
+  "xlsx_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση"
 }

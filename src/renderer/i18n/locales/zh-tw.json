@@ -3175,6 +3175,7 @@
   "provider.tesseract": "Tesseract",
   "provider.together": "Together",
   "provider.tokendance": "TokenDance",
+  "provider.tokendos": "TokenDos",
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
@@ -5896,6 +5897,5 @@
   "xlsx_preview.formula_not_evaluated": "公式無法求值",
   "xlsx_preview.sheet_tabs_label": "工作表",
   "xlsx_preview.too_large.description": "檔案大小 {{size}} 超過 {{limit}} 的預覽大小限制。",
-  "xlsx_preview.too_large.title": "檔案過大，無法預覽",
-  "provider.tokendos": "TokenDos"
+  "xlsx_preview.too_large.title": "檔案過大，無法預覽"
 }

@@ -3175,6 +3175,7 @@
   "provider.tesseract": "Tesseract",
   "provider.together": "Together",
   "provider.tokendance": "TokenDance",
+  "provider.tokendos": "TokenDos",
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
@@ -5896,6 +5897,5 @@
   "xlsx_preview.formula_not_evaluated": "数式を評価できませんでした",
   "xlsx_preview.sheet_tabs_label": "シート",
   "xlsx_preview.too_large.description": "ファイルサイズ {{size}} はプレビュー上限の {{limit}} を超えています。",
-  "xlsx_preview.too_large.title": "ファイルが大きすぎてプレビューできません",
-  "provider.tokendos": "TokenDos"
+  "xlsx_preview.too_large.title": "ファイルが大きすぎてプレビューできません"
 }
