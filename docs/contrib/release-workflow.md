@@ -59,7 +59,7 @@ Confirm all of the following:
 
 Do not create the release branch, release tag, or metadata synchronization pull request by hand during the normal flow. Do not publish from the GitHub Releases page. The workflows own those operations and serialize them with the repository-wide `release-state` concurrency group.
 
-An administrator must create the `release` Environment before this flow is enabled and configure the trusted people or teams who may approve publication. GitHub enforces the Environment's current protection rules before the **Release** approval job continues. Allow trusted `release/v*` branches in that Environment; approvals now run on release branches rather than a separate default-branch workflow.
+An administrator must create the `release` Environment before this flow is enabled and configure the trusted people or teams who may approve publication. GitHub enforces the Environment's current protection rules before the **Release** approval job continues. Configure that Environment's deployment branch policy to allow `main`, where the **Release** workflow and approval job run. A policy allowing only `release/v*` blocks this approval; the release branch identifies the installer source, not the deployment branch.
 
 ## 1. Prepare the Release Branch
 
@@ -274,7 +274,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 ## Invariants
 
 - Build internal feature previews only with **Preview Release** from a same-repository branch; source branches must be trusted because builds use repository-level secrets without deployment approval, and preview packages are available only as Actions artifacts.
-- Build from `release/v<version>` and publish only the exact approved release-branch SHA, never `main`.
+- Start **Release** from `main`, passing `tag` and `expected_sha` for the selected `release/v<version>` commit. Build and publish only that exact approved release SHA; workflow and publication control code come from the pinned `main` commit.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
 - Never merge all of `main` into an active release branch.
