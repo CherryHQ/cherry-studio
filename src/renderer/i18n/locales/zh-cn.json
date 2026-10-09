@@ -1363,6 +1363,7 @@
   "error.diagnosis.ai_result": "AI 诊断结果",
   "error.diagnosis.auth": "API 密钥无效，请检查后重新配置",
   "error.diagnosis.bad_request": "服务商请求失败（HTTP 400）",
+  "error.diagnosis.bad_request_recovery": "如果重试后仍出现同一错误，请检查之前的消息和附件。编辑相关消息，移除不受支持的内容后重新发送。重启不会移除已保存的对话内容。",
   "error.diagnosis.content": "内容被安全系统拦截，请修改后重试",
   "error.diagnosis.context_length": "对话上下文过长，请清理历史消息或开始新对话",
   "error.diagnosis.deprecated": "该模型已弃用，请更换其他模型",

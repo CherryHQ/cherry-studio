@@ -218,6 +218,12 @@ const MessageErrorInfo: React.FC<{
         <ErrorMessage error={error} />
       </div>
 
+      {classification.category === 'bad_request' && (
+        <p className="mt-1.5 ml-5.75 text-xs leading-normal" style={{ color: ERROR_DESCRIPTION_COLOR }}>
+          {t('error.diagnosis.bad_request_recovery')}
+        </p>
+      )}
+
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
         {canNavigate && (

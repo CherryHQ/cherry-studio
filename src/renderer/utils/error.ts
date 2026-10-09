@@ -14,7 +14,11 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
-import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import {
+  getSafeProviderErrorCode,
+  getSafeProviderErrorMessage,
+  serializeNestedProviderError
+} from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -347,7 +351,9 @@ function retryProviderText(error: SerializedError): string {
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
-  return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+  const text = payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+  const code = getSafeProviderErrorMessage({ message: error.providerErrorCode }) || getSafeProviderErrorCode(error)
+  return code && text ? `${code}: ${text}` : code || text
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>
