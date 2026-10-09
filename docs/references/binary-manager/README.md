@@ -146,6 +146,8 @@ Fixed npm presets that require lifecycle scripts must list the exact packages in
 
 To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
+Linux FFmpeg is the exception to the flat layout. Its shared LGPL tree stays under `ffmpeg/` (`bin/`, `lib/`, `licenses/`, `SOURCE.txt`, `manifest.json`) because `DT_RPATH` is `$ORIGIN/../lib`. BinaryManager copies that tree into `cherry.bin/ffmpeg/`, chmods `bin/ffmpeg` and `bin/ffprobe`, and still publishes `.ffmpeg-version` only after the tree is in place. Darwin and Windows FFmpeg stay flat files in `cherry.bin`.
+
 `scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
 
 A dev run instead downloads into a cache shared by every worktree of the checkout, at `<git-common-dir>/cherry-binaries/<platform>-<arch>/<tool>/<version>/`, and hard-links from it into `resources/binaries/` — so a second worktree costs links rather than a repeat download, and the runtime still reads the one path it always did. The version is part of the cache path, so two worktrees on branches with different tool versions each keep their own copy instead of overwriting each other. Version markers live only in the bundle, written per worktree; the cache holds binaries alone.

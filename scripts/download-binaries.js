@@ -126,14 +126,18 @@ function materialize(tools, platformKey, cacheRoot, bundleDir) {
 
     for (const binary of pkg.executableFiles ?? pkg.binaries) chmodExec(path.join(bundleDir, binary))
     // Marker last: a reader seeing the new version finds every binary in place.
-    fs.writeFileSync(path.join(bundleDir, tool.versionFile), tool.version, 'utf8')
+    fs.writeFileSync(path.join(bundleDir, tool.versionFile), packageVersion(tool, platformKey), 'utf8')
   }
   return stats
 }
 
 /** Where the shared cache keeps one immutable copy of one tool version. */
+function packageVersion(tool, platformKey) {
+  return tool.packages[platformKey]?.version ?? tool.version
+}
+
 function cachedVersionDir(cacheRoot, platformKey, tool) {
-  return path.join(cacheRoot, platformKey, tool.name, tool.version)
+  return path.join(cacheRoot, platformKey, tool.name, packageVersion(tool, platformKey))
 }
 
 /**
@@ -214,8 +218,11 @@ function hasReferencedFile(dir) {
 //                (for 'zip-tree' these live under `dir`, e.g. 'git/cmd/git.exe')
 //   archiveFiles — optional subset of binaries present inside the archive
 //   localFiles — repository files copied into the package after extraction
-//   dir       — for 'zip-tree': subdir under outputDir to extract the full tree into
-//   strip     — for zip: glob prefix per binary; for tar.gz: --strip-components depth
+//   dir       — for 'zip-tree' or a tar.gz tree: subdir under outputDir for the full tree
+//   strip     — for zip: glob prefix per binary
+//   stripComponents — tar.gz --strip-components depth (default 1)
+//   version   — optional per-platform marker version (defaults to the tool version)
+//   tree      — for a tar.gz tree: executables, shared-library globs, and notice paths relative to dir
 //   sha256    — checksum of the downloaded file (binary itself or archive)
 //
 // Tool fields:
@@ -245,6 +252,28 @@ function mingitUrl(asset) {
 }
 function ffmpegUrl(asset) {
   return `https://github.com/serversideup/ffmpeg-lgpl-builds/releases/download/v${FFMPEG_VERSION}/${asset}`
+}
+const FFMPEG_LGPL_TAG = 'ffmpeg-lgpl-v8.1.2-r1'
+function ffmpegLgplUrl(asset) {
+  return `https://github.com/CherryHQ/cherry-studio-ffmpeg-lgpl/releases/download/${FFMPEG_LGPL_TAG}/${asset}`
+}
+function linuxFfmpegPackage(arch, sha256) {
+  return {
+    url: ffmpegLgplUrl(`ffmpeg-lgpl-v8.1.2-linux-${arch}.tar.gz`),
+    archive: 'tar.gz',
+    dir: 'ffmpeg',
+    stripComponents: 1,
+    version: FFMPEG_LGPL_TAG,
+    binaries: ['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe', 'ffmpeg/SOURCE.txt', 'ffmpeg/manifest.json'],
+    executableFiles: ['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe'],
+    // DT_RPATH is $ORIGIN/../lib, so the stripped archive tree stays intact under ffmpeg/.
+    tree: {
+      executables: ['bin/ffmpeg', 'bin/ffprobe'],
+      sharedLibraries: ['lib/libav*.so*', 'lib/libsw*.so*'],
+      notices: ['licenses/**', 'SOURCE.txt', 'manifest.json']
+    },
+    sha256
+  }
 }
 
 const TOOLS = [
@@ -460,12 +489,12 @@ const TOOLS = [
     }
   },
   {
-    // Pinned self-contained LGPL builds; Linux stays gated until immutable desktop artifacts exist.
+    // Darwin and Windows stay flat. Linux keeps the CherryHQ shared tree under ffmpeg/.
     // Windows arm64 uses x64 emulation because this release has no native arm64 artifact.
     name: 'ffmpeg',
     version: FFMPEG_VERSION,
     versionFile: '.ffmpeg-version',
-    supportedPlatforms: ['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64'],
+    supportedPlatforms: ['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64', 'linux-x64', 'linux-arm64'],
     packages: {
       'darwin-arm64': {
         url: ffmpegUrl('ffmpeg-8.1.2-aarch64-apple-darwin.tar.gz'),
@@ -570,7 +599,9 @@ const TOOLS = [
         ],
         executableFiles: ['ffmpeg.exe', 'ffprobe.exe'],
         sha256: 'fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0'
-      }
+      },
+      'linux-x64': linuxFfmpegPackage('x64', '1de031a8774b7b10b2e823be50bbed52be27bf89a46b7cf8b33cc48cfb5143d2'),
+      'linux-arm64': linuxFfmpegPackage('arm64', 'e579ec85a8fe6206030e2f0ca1a9b699d3a9db03c7eb1987f5b0aa1083d04f5d')
     }
   }
 ]
@@ -589,12 +620,46 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
-function isUpToDate(binaryPaths, versionPath, expectedVersion) {
+function isUpToDate(binaryPaths, versionPath, expectedVersion, treeRoot = null, tree = null) {
   if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
+  if (treeRoot && tree && missingTreeEntries(treeRoot, tree).length > 0) return false
   // No marker path means the directory itself is version-scoped.
   if (!versionPath) return true
   if (!fs.existsSync(versionPath)) return false
   return fs.readFileSync(versionPath, 'utf8').trim() === expectedVersion
+}
+
+/** Patterns are relative to the stripped tree root. `**` means a non-empty directory. */
+function missingTreeEntries(root, tree) {
+  const required = [...(tree.executables ?? []), ...(tree.sharedLibraries ?? []), ...(tree.notices ?? [])]
+  return required.filter((pattern) => !treeEntryExists(root, pattern))
+}
+
+function treeEntryExists(root, pattern) {
+  if (pattern.endsWith('/**')) {
+    const dir = path.join(root, pattern.slice(0, -3))
+    return Boolean(statOrNull(dir)?.isDirectory()) && hasAnyFile(dir)
+  }
+  if (!pattern.includes('*')) {
+    return Boolean(statOrNull(path.join(root, pattern))?.isFile())
+  }
+  const dir = path.join(root, path.dirname(pattern))
+  if (!statOrNull(dir)?.isDirectory()) return false
+  const expression = new RegExp(
+    `^${path
+      .basename(pattern)
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^/]*')}$`
+  )
+  return readdirOrEmpty(dir).some((name) => expression.test(name))
+}
+
+function hasAnyFile(dir) {
+  for (const entry of readdirOrEmpty(dir, { withFileTypes: true })) {
+    if (entry.isFile()) return true
+    if (entry.isDirectory() && hasAnyFile(path.join(dir, entry.name))) return true
+  }
+  return false
 }
 
 function download(url, dest) {
@@ -655,6 +720,20 @@ function extract(archivePath, archive, outputDir, pkg) {
     } else {
       execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
+  } else if (archive === 'tar.gz' && pkg.dir) {
+    // One top directory is stripped, then the whole remaining tree is kept.
+    // Flat copies would break DT_RPATH ($ORIGIN/../lib) and drop licenses.
+    const destDir = path.join(outputDir, pkg.dir)
+    fs.rmSync(destDir, { recursive: true, force: true })
+    fs.mkdirSync(destDir, { recursive: true })
+    const stripComponents = pkg.stripComponents ?? 1
+    execFileSync('tar', ['xzf', archivePath, '-C', destDir, `--strip-components=${stripComponents}`], {
+      stdio: 'inherit'
+    })
+    const missing = pkg.tree ? missingTreeEntries(destDir, pkg.tree) : []
+    if (missing.length > 0) {
+      throw new Error(`FFmpeg tree at ${destDir} is missing ${missing.join(', ')}`)
+    }
   } else if (archive === 'tar.gz') {
     // Extract to a tmp dir and copy only the listed binaries — tarballs often
     // ship LICENSE/README/man/completions that would otherwise bloat the bundle
@@ -696,16 +775,18 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
   // here, and a later cache hit would otherwise skip past it forever.
   sweepRetired(outputDir)
 
+  const version = packageVersion(tool, platformKey)
   const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
   const versionPath = versionFile ? path.join(outputDir, versionFile) : null
+  const treeRoot = pkg.dir ? path.join(outputDir, pkg.dir) : null
 
-  if (isUpToDate(binaryPaths, versionPath, tool.version)) {
+  if (isUpToDate(binaryPaths, versionPath, version, treeRoot, pkg.tree)) {
     for (const binary of pkg.executableFiles ?? pkg.binaries) chmodExec(path.join(outputDir, binary))
     // A partial download of a version already installed has nothing left to
     // resume, and a cache hit is the one path that would otherwise never clear
     // it — leaving verifyBundledBinaries to reject the bundle on every run.
     discardStaging(outputDir, tool.name)
-    console.log(`[${tool.name}] ${tool.version} already installed`)
+    console.log(`[${tool.name}] ${version} already installed`)
     return
   }
 
@@ -716,13 +797,13 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
   fs.mkdirSync(staging, { recursive: true })
 
   if (pkg.archive === 'none') {
-    const staged = path.join(staging, `${pkg.binaries[0]}.${tool.version}.part`)
+    const staged = path.join(staging, `${pkg.binaries[0]}.${version}.part`)
     download(pkg.url, staged)
     verifyHash(staged, pkg.sha256)
     fs.renameSync(staged, path.join(staging, pkg.binaries[0]))
   } else {
     const ext = pkg.archive === 'tar.gz' ? 'tar.gz' : 'zip'
-    const archivePath = path.join(staging, `${tool.name}-${tool.version}.${ext}`)
+    const archivePath = path.join(staging, `${tool.name}-${version}.${ext}`)
     download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
     extract(archivePath, pkg.archive, staging, pkg)
@@ -743,13 +824,13 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null } = {})
     // and would push the new version through any hard link to it. Last, so a
     // reader seeing the new version finds every binary already committed.
     const stagedMarker = path.join(staging, path.basename(versionPath))
-    fs.writeFileSync(stagedMarker, tool.version, 'utf8')
+    fs.writeFileSync(stagedMarker, version, 'utf8')
     fs.renameSync(stagedMarker, versionPath)
   }
 
   // Only on success: an interrupted run keeps its partial file to resume from.
   discardStaging(outputDir, tool.name)
-  console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${tool.version}`)
+  console.log(`[${tool.name}] Installed ${pkg.binaries.join(', ')} ${version}`)
 }
 
 /** Drop this checkout's staging for one tool, and the parent once it is empty. */
@@ -900,15 +981,21 @@ function verifyBundledBinaries(platform, arch, options = {}) {
     for (const binary of pkg.binaries) {
       if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
     }
+    if (pkg.tree && pkg.dir) {
+      for (const pattern of missingTreeEntries(path.join(outputDir, pkg.dir), pkg.tree)) {
+        problems.push(`${path.join(platformKey, pkg.dir, pattern)} (required FFmpeg tree entry)`)
+      }
+    }
     // BinaryManager refuses to extract a tool whose marker is missing, so a
     // bundle without one ships a dead toolchain and no error until runtime.
     const markerPath = path.join(outputDir, tool.versionFile)
+    const expectedVersion = pkg.version ?? tool.version
     if (!fs.existsSync(markerPath)) {
       problems.push(`${path.join(platformKey, tool.versionFile)} (missing; the app would never extract ${tool.name})`)
     } else {
       const marked = fs.readFileSync(markerPath, 'utf8').trim()
-      if (marked !== tool.version) {
-        problems.push(`${path.join(platformKey, tool.versionFile)} says ${marked}, expected ${tool.version}`)
+      if (marked !== expectedVersion) {
+        problems.push(`${path.join(platformKey, tool.versionFile)} says ${marked}, expected ${expectedVersion}`)
       }
     }
   }

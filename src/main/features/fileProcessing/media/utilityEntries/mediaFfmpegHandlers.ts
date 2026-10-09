@@ -15,6 +15,7 @@ import {
 import { dirname, join } from 'node:path'
 
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+import { mediaFfmpegCommandEnv } from '@main/features/fileProcessing/media/mediaFfmpegLoader'
 import type {
   MediaExtractedAudioChunk,
   MediaFfmpegContract,
@@ -107,7 +108,8 @@ async function runCommand(
     const child = spawn(binary, guardedArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
-      detached: false
+      detached: false,
+      env: mediaFfmpegCommandEnv(requireInitData().linuxLibraryDir, process.env)
     })
     liveChildren.add(child)
     registerChildPid(child.pid, options.pidRegistryPath)
