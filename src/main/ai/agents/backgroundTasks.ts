@@ -16,7 +16,7 @@ import { execFile, execFileSync, spawn } from 'node:child_process'
 import type { SpawnOptions } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
-import { mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
@@ -76,6 +76,11 @@ export interface StartDetachedBackgroundTaskInput {
   /** Working directory for the task; callers use the session workspace. */
   cwd: string
   name?: string
+  /**
+   * Channel IDs whose chats may receive the completion notice. Persisted on the record so
+   * delivery after the starting turn stays inside that turn's authorized recipients.
+   */
+  notifyChannelIds?: readonly string[]
   /** Invoked once when the task exits while this app process is still alive. */
   onExit?: (task: CompletedBackgroundTask) => void
 }
@@ -168,7 +173,8 @@ export async function startDetachedBackgroundTask(
       logFile,
       status: 'running',
       exitCode: null,
-      signal: null
+      signal: null,
+      ...(input.notifyChannelIds ? { notifyChannelIds: [...input.notifyChannelIds] } : {})
     }
     if (record.pid > 0) activeTaskPids.set(id, record.pid)
 
@@ -469,6 +475,18 @@ async function finalizeDetachedBackgroundTask(
   await withRecordLock(record.id, async () => {
     try {
       const current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
+      if (!current) {
+        // The record is gone (purged with the agent, or the spawn write failed) — a late exit must
+        // not resurrect files or notify. A present-but-unreadable record still falls through.
+        try {
+          await access(recordPath(storageDir, record.id))
+        } catch {
+          logger.info('Detached background task record is gone; skipping completion persistence', {
+            taskId: record.id
+          })
+          return
+        }
+      }
       if (current?.status === 'stopped') return
       if (current?.stopRequestedAt) status = 'stopped'
       const completion: BackgroundTaskCompletion = {

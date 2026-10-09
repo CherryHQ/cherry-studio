@@ -1,12 +1,13 @@
-import { mkdtemp, mkdir, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getPathMock, sendMessageMock, getAgentAdaptersMock } = vi.hoisted(() => ({
+const { getPathMock, sendMessageMock, sendMessageOtherMock, getAgentAdaptersMock } = vi.hoisted(() => ({
   getPathMock: vi.fn(),
   sendMessageMock: vi.fn<(chatId: string, message: string) => Promise<void>>(async () => undefined),
+  sendMessageOtherMock: vi.fn<(chatId: string, message: string) => Promise<void>>(async () => undefined),
   getAgentAdaptersMock: vi.fn<() => unknown[]>(() => [])
 }))
 
@@ -33,6 +34,40 @@ import { getDetachedBackgroundTask, startDetachedBackgroundTask, stopDetachedBac
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
+
+/** A disk record that reconciles as running: live pid, no start stamp, no completion evidence. */
+async function writeRunningRecord(storageDir: string, id: string): Promise<void> {
+  await writeFile(
+    path.join(storageDir, `${id}.json`),
+    JSON.stringify({
+      id,
+      name: id,
+      command: 'true',
+      pid: process.pid,
+      cwd: storageDir,
+      startedAt: new Date().toISOString(),
+      logFile: path.join(storageDir, `${id}.log`),
+      status: 'running',
+      exitCode: null,
+      signal: null
+    })
+  )
+}
+
+async function writeCompletionSentinel(storageDir: string, id: string): Promise<void> {
+  await writeFile(
+    path.join(storageDir, `${id}.done`),
+    JSON.stringify({
+      id,
+      status: 'completed',
+      exitCode: 0,
+      signal: null,
+      finishedAt: new Date().toISOString(),
+      durationMs: 1,
+      logFile: path.join(storageDir, `${id}.log`)
+    })
+  )
+}
 
 describe('stopAllAgentBackgroundTasks', () => {
   let agentsRoot: string
@@ -101,6 +136,38 @@ describe('stopAllAgentBackgroundTasks', () => {
       await Promise.all(records.map((record) => stopDetachedBackgroundTask(storageDir, record.id, true)))
     }
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'completes the purge when a task finishes between listing and stopping it',
+    async () => {
+      // A record the sweep lists as running (live pid, no completion yet) whose task exits right
+      // as the stop runs: the stop's own reconcile then reads a terminal record and returns
+      // undefined, which must not abort the permanent delete of an already-finished task.
+      await writeRunningRecord(storageDir, 'bt-race')
+      const stopSpy = vi.spyOn(tasks, 'stopDetachedBackgroundTask')
+      stopSpy.mockImplementation(async (dir, id) => {
+        await writeCompletionSentinel(dir, id)
+        return undefined
+      })
+      try {
+        await expect(stopAllAgentBackgroundTasks('agent-1')).resolves.toBeUndefined()
+      } finally {
+        stopSpy.mockRestore()
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'still refuses the purge while a listed task stays live and unverifiable',
+    async () => {
+      // The pid is alive but the record carries no start stamp, so the stop cannot prove the
+      // process is the task's and returns undefined without signalling it — the delete must refuse.
+      await writeRunningRecord(storageDir, 'bt-unverifiable')
+      await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+        'Cannot permanently delete Agent agent-1 while background task bt-unverifiable is running'
+      )
+    }
+  )
 })
 
 describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {
@@ -161,6 +228,7 @@ describe('stopAgentBackgroundTask', () => {
     getPathMock.mockReturnValue(agentsRoot)
     vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1' } as never)
     sendMessageMock.mockClear()
+    sendMessageOtherMock.mockClear()
     getAgentAdaptersMock.mockReturnValue([])
   })
 
@@ -168,24 +236,46 @@ describe('stopAgentBackgroundTask', () => {
     await rm(agentsRoot, { recursive: true, force: true })
   })
 
-  it.skipIf(process.platform === 'win32')('announces a kill on the channels watching the Agent', async () => {
-    // The panel's Stop/Kill reaches the same completion hook the Agent tools use, so a force-kill
-    // from the GUI cannot leave a chat watching the Agent believing the task is still running.
+  it.skipIf(process.platform === 'win32')(
+    'announces a kill only to the recipients the starting turn authorized',
+    async () => {
+      // The panel's Stop/Kill reaches the same completion hook the Agent tools use. Delivery keeps
+      // the record's persisted recipient scope: a channel the start never authorized hears nothing.
+      getAgentAdaptersMock.mockReturnValue([
+        { channelId: 'channel-1', notifyChatIds: ['chat-1'], sendMessage: sendMessageMock },
+        { channelId: 'channel-2', notifyChatIds: ['chat-2'], sendMessage: sendMessageOtherMock }
+      ])
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir,
+        notifyChannelIds: ['channel-1']
+      })
+
+      const stopped = await stopAgentBackgroundTask('agent-1', record.id, true)
+
+      expect(stopped?.status).toBe('stopped')
+      expect(sendMessageMock).toHaveBeenCalledTimes(1)
+      const [chatId, summary] = sendMessageMock.mock.calls[0]
+      expect(chatId).toBe('chat-1')
+      expect(summary).toContain(record.id)
+      expect(sendMessageOtherMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')('stays silent on kill when the start authorized no recipients', async () => {
     getAgentAdaptersMock.mockReturnValue([
       { channelId: 'channel-1', notifyChatIds: ['chat-1'], sendMessage: sendMessageMock }
     ])
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
-      cwd: storageDir
+      cwd: storageDir,
+      notifyChannelIds: []
     })
 
-    const stopped = await stopAgentBackgroundTask('agent-1', record.id, true)
+    await stopAgentBackgroundTask('agent-1', record.id, true)
 
-    expect(stopped?.status).toBe('stopped')
-    expect(sendMessageMock).toHaveBeenCalledTimes(1)
-    const [chatId, summary] = sendMessageMock.mock.calls[0]
-    expect(chatId).toBe('chat-1')
-    expect(summary).toContain(record.id)
+    expect(sendMessageMock).not.toHaveBeenCalled()
   })
 })

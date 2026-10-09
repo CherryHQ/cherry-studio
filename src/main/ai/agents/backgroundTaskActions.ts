@@ -6,6 +6,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 
 import {
+  getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask,
@@ -75,11 +76,16 @@ export async function listAgentBackgroundTasks(agentId: string): Promise<Backgro
   return agentBackgroundTaskService.listByAgent(agentId)
 }
 
-/** Announces a finished task on every channel that watches this agent, wherever it was stopped from. */
+/**
+ * Announces a finished task to the recipients the starting turn authorized, wherever the task was
+ * stopped from. The summary carries task name, id, outcome, and the log path, so delivery stays
+ * inside the record's persisted recipient scope — the same authority `notify` enforces live.
+ */
 export function notifyAgentBackgroundTaskCompletion(agentId: string, task: CompletedBackgroundTask): void {
   try {
+    const authorized = new Set(task.record.notifyChannelIds ?? [])
     const adapters = application.get('ChannelManager').getAgentAdapters(agentId)
-    for (const adapter of adapters) {
+    for (const adapter of adapters.filter((adapter) => authorized.has(adapter.channelId))) {
       for (const chatId of adapter.notifyChatIds) {
         adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
           logger.warn('Failed to deliver background task completion notification', {
@@ -135,8 +141,12 @@ export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void
   const running = (await listDetachedBackgroundTasks(storageDir)).filter((record) => record.status === 'running')
   const stopped = await Promise.all(running.map((record) => stopDetachedBackgroundTask(storageDir, record.id, true)))
   for (const [index, record] of running.entries()) {
-    if (!stopped[index] || stopped[index].status === 'running') {
-      throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
-    }
+    if (stopped[index] && stopped[index].status !== 'running') continue
+    // An empty stop result can also mean the task finished between listing and stopping, because
+    // the stop itself re-reconciles the record. Re-read before rejecting: a task now verified
+    // terminal is safe to delete; one still running or unverifiable still refuses the purge.
+    const settled = await getDetachedBackgroundTask(storageDir, record.id)
+    if (settled && settled.status !== 'running') continue
+    throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
   }
 }

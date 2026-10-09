@@ -52,6 +52,8 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { evaluateShellCommandSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -327,7 +329,7 @@ const SessionSendInputSchema = z.object({
 
 const BACKGROUND_TASK_DESCRIPTION = [
   'Run, inspect, or list fully detached background tasks. Unlike the runtime-native background shell (run_in_background-style), whose processes live inside the agent CLI process tree and are killed when the CLI session exits, the user aborts, or the app quits, a task started here is spawned into its own process session (setsid) and keeps running across turns, CLI exits, and app restarts. ',
-  "Completion handling is best-effort: while the app is running, the task's exit notifies configured channels and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
+  "Completion handling is best-effort: while the app is running, the task's exit notifies the notification recipients authorized by the starting turn and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
   'stdout and stderr stream to a task log file; every task is registered with PID, log path, and start time. ',
   'Use the runtime-native background shell for short work that should report back inside this session; use this tool when the task must outlive the session or the app. Commands run with shell semantics in the session workspace and require user approval.'
 ].join('')
@@ -1170,6 +1172,21 @@ async function startBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTa
       )
     }
   }
+  // A detached command is a shell command, so the shared command denials of native shell execution
+  // must hold here too: this tool's MCP name is not a bound tool of those guards, and Full Access
+  // lifts the per-call approval, so the restrictions are enforced at this boundary itself.
+  const sqliteDecision = await evaluateShellCommandSqliteGuard({
+    command,
+    cwd: ctx.workspacePath,
+    workspacePath: ctx.workspacePath
+  })
+  if (sqliteDecision) throw new Error(sqliteDecision.reason)
+  const globalInstallReason = detectGlobalInstall(command)
+  if (globalInstallReason) {
+    throw new Error(
+      `Blocked to avoid cross-agent dependency pollution: ${globalInstallReason}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg>\` python for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
+    )
+  }
   const storageDir = backgroundTaskStorageDir(ctx)
   const record = await startAgentBackgroundTask({
     agentId: ctx.agentId,
@@ -1177,6 +1194,8 @@ async function startBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTa
     command,
     cwd: ctx.workspacePath,
     name: args.name,
+    // Completion delivery is scoped to these recipients; see notifyBackgroundTaskCompletion.
+    notifyChannelIds: ctx.trustedNotifyChannels.map((channel) => channel.id),
     onExit: (task) => {
       indexBackgroundTask(ctx.agentId, task.record)
       notifyBackgroundTaskCompletion(ctx.agentId, task)
@@ -1262,8 +1281,8 @@ function indexBackgroundTasks(agentId: string, records: BackgroundTaskRecord[]):
 
 /**
  * Out-of-band completion delivery — the app's ordinary notify authority does
- * not exist this long after the starting turn, so this mirrors scheduled-task
- * delivery: every live channel adapter of the agent, best-effort.
+ * not exist this long after the starting turn, so the starting turn's trusted
+ * recipients were persisted on the task and delivery stays inside that scope.
  */
 function notifyBackgroundTaskCompletion(agentId: string, task: CompletedBackgroundTask): void {
   notifyAgentBackgroundTaskCompletion(agentId, task)

@@ -53,6 +53,13 @@ export interface UserDataSqliteGuardInput {
   signal?: AbortSignal
 }
 
+export interface ShellCommandSqliteGuardInput {
+  command: string
+  cwd: string
+  workspacePath: string
+  signal?: AbortSignal
+}
+
 interface GuardRoots {
   userData: string
   databaseFiles: readonly string[]
@@ -98,7 +105,26 @@ export async function evaluateUserDataSqliteGuard(
     return classification === 'safe' ? undefined : deny()
   }
 
-  const shellTokens = parseShellTokens(rawValue)
+  return evaluateShellCommandSqliteGuard({
+    command: rawValue,
+    cwd: input.cwd,
+    workspacePath: input.workspacePath,
+    signal: input.signal
+  })
+}
+
+/**
+ * The shell-command half of the guard, for command boundaries that hand a raw string to a shell
+ * without a bound tool name — native Bash tools and detached command runners alike. The MCP tool
+ * name of such a runner is not in `TOOL_BINDINGS`, so callers at those boundaries must invoke this
+ * directly; approval state is irrelevant because the underlying denials are unconditional.
+ */
+export async function evaluateShellCommandSqliteGuard(
+  input: ShellCommandSqliteGuardInput
+): Promise<UserDataSqliteGuardDecision | undefined> {
+  if (!input.command.trim() || input.signal?.aborted) return undefined
+
+  const shellTokens = parseShellTokens(input.command)
   const interpreterSegments = new Set(
     shellTokens
       .filter(({ commandStart, value }) => commandStart && isBundledInterpreter(value))

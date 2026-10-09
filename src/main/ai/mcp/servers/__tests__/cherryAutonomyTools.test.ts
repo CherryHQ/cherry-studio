@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -17,6 +18,7 @@ const {
   mockDeleteTask,
   mockGetNotifyAdapters,
   mockSendMessage,
+  mockSendMessageOther,
   mockSendFile,
   mockGetAgent,
   mockListAgents,
@@ -47,6 +49,7 @@ const {
   mockDeleteTask: vi.fn(),
   mockGetNotifyAdapters: vi.fn(),
   mockSendMessage: vi.fn(),
+  mockSendMessageOther: vi.fn(),
   mockSendFile: vi.fn(),
   mockGetAgent: vi.fn(),
   mockListAgents: vi.fn(),
@@ -2043,6 +2046,46 @@ describe('cherry-tools autonomy tools', () => {
       expect(result.content[0].text).toContain('cannot submit Cherry Studio feedback')
     })
 
+    // The tool's MCP name is not a bound tool of the shared command guards and Full Access lifts
+    // its per-call approval, so the native Bash denials must be re-enforced at this boundary.
+    it('denies a detached command writing the user-data SQLite database and spawns nothing', async () => {
+      const userDataDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-userdata-'))
+      const dbFile = path.join(userDataDir, 'cherryStudio.sqlite')
+      vi.mocked(application.getPath).mockImplementation((key: string) => {
+        if (key === 'feature.agents.data') return agentsDataDir
+        if (key === 'app.userdata') return userDataDir
+        if (key === 'app.database.file') return dbFile
+        return `/mock/${key}`
+      })
+      try {
+        await writeFile(dbFile, '')
+        const result = await callTool(
+          createServer('agent_test', workspaceDir),
+          { action: 'start', command: `sqlite3 "${dbFile}" "DELETE FROM agents"` },
+          'background_task'
+        )
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Access to SQLite files inside Cherry Studio user data is blocked.')
+        const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+        expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+      } finally {
+        await rm(userDataDir, { recursive: true, force: true })
+      }
+    })
+
+    // `--help` keeps the command harmless if a regression ever lets it start.
+    it('denies a detached global package install the native shell blocks and spawns nothing', async () => {
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'uv tool install --help' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('cross-agent dependency pollution')
+      const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+      expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+    })
+
     it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
       const server = createServer('agent_test', workspaceDir)
       const result = await callTool(
@@ -2075,6 +2118,49 @@ describe('cherry-tools autonomy tools', () => {
       await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
       expect(mockSendMessage.mock.calls[0][0]).toBe('100')
       expect(mockSendMessage.mock.calls[0][1]).toContain('finished with exit code 0')
+    })
+
+    it('keeps the completion notice inside the starting turn’s recipients', async () => {
+      // A task started in a turn authorized for ch1 only must not broadcast its summary (name,
+      // id, outcome, log path) to the Agent's other channel.
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage },
+        { channelId: 'ch2', connected: true, notifyChatIds: ['200'], sendMessage: mockSendMessageOther }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+      mockSendMessageOther.mockResolvedValue(undefined)
+
+      const started = await callTool(
+        createServer('agent_test', workspaceDir, 'ch1'),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+      expect(record.notifyChannelIds).toEqual(['ch1'])
+
+      await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      expect(mockSendMessageOther).not.toHaveBeenCalled()
+    })
+
+    it('delivers no completion notice when the starting turn had no recipients', async () => {
+      mockGetNotifyAdapters.mockReturnValue([
+        { channelId: 'ch1', connected: true, notifyChatIds: ['100'], sendMessage: mockSendMessage }
+      ])
+      mockSendMessage.mockResolvedValue(undefined)
+
+      const started = await callTool(
+        createServer('agent_test', workspaceDir, null),
+        { action: 'start', command: `${nodeBin} -e "process.exit(0)"` },
+        'background_task'
+      )
+      const record = JSON.parse(started.content[0].text)
+      expect(record.notifyChannelIds).toEqual([])
+
+      // Wait until the exit is fully reconciled (sentinel on disk) and past the finalize tick.
+      const sentinel = path.join(agentsDataDir, 'agent_test', 'background-tasks', `${record.id}.done`)
+      await vi.waitFor(() => expect(existsSync(sentinel)).toBe(true), { timeout: 10_000 })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
     it('reports status reconciliation and errors for unknown task ids', async () => {
