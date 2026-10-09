@@ -15,7 +15,7 @@ import { isSameOrInside } from '@main/utils/file'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import { isDoctorFixRequest } from '@shared/utils/doctor'
 
-import { incidentLogs, incidentMessages, incidentOverview, incidentRequest } from './doctorIncident'
+import { incidentLogs, incidentMessages, incidentOverview, incidentRequest, incidentTranscript } from './doctorIncident'
 import {
   assertNoSecretFields,
   isDataApiPatchPath,
@@ -270,18 +270,19 @@ const SESSION_TOOL: DoctorTool = {
 overview: conversation kind (topic / agent / temporary), the Agent or assistant behind it, the failed message and its full error parts.
 messages: the failed message and the \`before\` messages leading up to it (default 5, max 20).
 logs: app log lines that name this conversation (stream dispatch, persistence, runtime, API gateway), newest last; \`limit\` default 100, max 300.
-request: for AI SDK and API-gateway failures, the endpoint the model resolves to now vs the URL at error time, and the shape of the request body (keys, parameters, tool names, message counts by role; never message text).`,
+request: for AI SDK and API-gateway failures, the endpoint the model resolves to now vs the URL at error time, and the shape of the request body (keys, parameters, tool names, message counts by role; never message text).
+transcript: Agent sessions only; the runtime's own transcript tail as events (API errors with retry counts, synthetic error turns, failing tool results, hook errors, the assistant/tool timeline); \`limit\` default 60, max 200. Claude Code only for now.`,
   inputSchema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['overview', 'messages', 'logs', 'request'] },
+      action: { type: 'string', enum: ['overview', 'messages', 'logs', 'request', 'transcript'] },
       before: { type: 'number', description: 'messages only' },
-      limit: { type: 'number', description: 'logs only' }
+      limit: { type: 'number', description: 'logs and transcript only' }
     },
     required: ['action'],
     additionalProperties: false
   },
-  handler(args, ctx) {
+  async handler(args, ctx) {
     const incident = application.get('DoctorAgentService').incidentForSession(ctx.sessionId)
     if (!incident) {
       throw new ToolError('This analysis was not opened from a failed message', ToolErrorCode.InvalidParams)
@@ -291,6 +292,7 @@ request: for AI SDK and API-gateway failures, the endpoint the model resolves to
     if (action === 'messages') return json(incidentMessages(incident, clampInt(args.before, 5, 0, 20)))
     if (action === 'logs') return json(incidentLogs(incident, clampInt(args.limit, 100, 1, 300)))
     if (action === 'request') return json(incidentRequest(incident))
+    if (action === 'transcript') return json(await incidentTranscript(incident, clampInt(args.limit, 60, 1, 200)))
     throw new ToolError(`Unknown action: ${action}`, ToolErrorCode.InvalidParams)
   }
 }

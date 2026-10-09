@@ -166,7 +166,8 @@ Diagnosis is open-ended: the Agent mounts the `assistant` server (`diagnose`, `p
 server (`session`, `read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).
 `session` reads only the incident's conversation (`ai/agents/doctor/doctorIncident.ts`): `overview`, `messages`,
 `logs` (JSONL lines naming its topic/session id, including the API gateway's `agentSessionId`) and `request`
-(endpoint now vs at error time, request-body shape without message text). It takes no conversation id argument.
+(endpoint now vs at error time, request-body shape without message text), plus `transcript` for Agent sessions via
+the runtime driver's optional `readTranscriptEvidence` (Claude Code only so far). It takes no conversation id argument.
 `read_file` is the only filesystem reach: the log dir plus an allowlist of userData app state (`logs/`, `config.json`, `Toolchain/`, `Crashpad/`), tail-first, secrets redacted.
 Files are opened without following symlinks and checked by inode before reading. Directory listing uses a stable
 file-descriptor alias on Linux and is refused on platforms that cannot provide one —

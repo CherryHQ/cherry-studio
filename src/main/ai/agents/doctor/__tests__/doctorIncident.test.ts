@@ -10,6 +10,8 @@ afterAll(() => fs.rmSync(logsDir, { recursive: true, force: true }))
 const KEY = 'sk-proj-abcdefghijklmnopqrstuvwxyz123456'
 
 const mocks = vi.hoisted(() => ({
+  agentType: 'claude-code',
+  readTranscriptEvidence: vi.fn(),
   sessionMessages: [] as unknown[],
   provider: { id: 'openai', isEnabled: true } as Record<string, unknown>
 }))
@@ -35,6 +37,18 @@ vi.mock('@main/ai/messages/readConversation', () => ({
     message: (mocks.sessionMessages as { id: string }[]).find((message) => message.id === messageId)
   })
 }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: (id: string) => ({ id, agentId: 'agent-1', workspace: { type: 'system' } }) }
+}))
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: (id: string) => ({ id, type: mocks.agentType }) }
+}))
+vi.mock('@main/ai/runtime/registry', () => ({
+  runtimeDriverRegistry: {
+    getAgentSessionDriver: (type: string) =>
+      type === 'claude-code' ? { readTranscriptEvidence: mocks.readTranscriptEvidence } : { type }
+  }
+}))
 vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProviderId: () => mocks.provider } }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: () => ({ id: 'openai::gpt-4o' }) } }))
 vi.mock('@main/ai/provider/endpoint', () => ({
@@ -44,7 +58,7 @@ vi.mock('@main/ai/provider/endpoint', () => ({
   })
 }))
 
-import { incidentLogs, incidentMessages, incidentRequest } from '../doctorIncident'
+import { incidentLogs, incidentMessages, incidentRequest, incidentTranscript } from '../doctorIncident'
 
 const incident = { topicId: 'agent-session:session-1', messageId: 'msg-3' }
 
@@ -65,6 +79,7 @@ beforeEach(() => {
     message('msg-4', 'user', 'after the failure'),
     message('msg-3', 'assistant', '', {
       status: 'error',
+      runtimeResumeToken: 'native-3',
       modelId: 'openai::gpt-4o',
       data: {
         parts: [
@@ -93,6 +108,8 @@ beforeEach(() => {
     message('msg-1', 'assistant', 'earlier answer')
   ]
   mocks.provider = { id: 'openai', isEnabled: true, baseUrl: 'https://new.example.com/v1' }
+  mocks.agentType = 'claude-code'
+  mocks.readTranscriptEvidence.mockReset()
 })
 
 describe('incidentMessages', () => {
@@ -153,5 +170,28 @@ describe('incidentLogs', () => {
     expect(result.lines.join('\n')).toContain('Error in message processing')
     expect(result.lines.join('\n')).not.toContain('session-2')
     expect(result.lines.join('\n')).not.toContain(KEY)
+  })
+})
+
+describe('incidentTranscript', () => {
+  it("reads the failed message's own runtime transcript, redacted", async () => {
+    mocks.readTranscriptEvidence.mockImplementation(async (token: string) =>
+      token === 'native-3'
+        ? [{ kind: 'system', subtype: 'api_error', error: { message: `401 bad key ${KEY}` } }]
+        : undefined
+    )
+    const result = (await incidentTranscript(incident, 60)) as { runtime: string; events: unknown[] }
+    expect(result.runtime).toBe('claude-code')
+    expect(result.events).toHaveLength(1)
+    expect(JSON.stringify(result)).toContain('401 bad key')
+    expect(JSON.stringify(result)).not.toContain(KEY)
+  })
+
+  it('says why no transcript is available instead of failing', async () => {
+    mocks.agentType = 'dsh'
+    expect(await incidentTranscript(incident, 60)).toEqual({ unavailable: expect.stringContaining('dsh') })
+    expect(await incidentTranscript({ topicId: 'topic-1', messageId: 'm' }, 60)).toEqual({
+      unavailable: expect.stringContaining('Agent sessions')
+    })
   })
 })

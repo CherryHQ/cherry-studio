@@ -19,6 +19,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import { conversationPartEvidence } from '@main/ai/messages/conversationEvidence'
 import { readConversation } from '@main/ai/messages/readConversation'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { defangSystemReminderTags, sanitizeUntrustedText } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { Message } from '@shared/data/types/message'
@@ -305,4 +306,24 @@ export function incidentRequest(incident: DoctorAgentIncident): unknown {
     ]
   })
   return untrustedForModel({ modelId: message.modelId, route: route ?? { unresolved: true }, requests })
+}
+
+/** The Agent runtime's own transcript around the failure: API errors, retries, failing tools, hook errors. */
+export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<unknown> {
+  if (conversationKind(incident) !== 'agent') return { unavailable: 'only Agent sessions keep a runtime transcript' }
+  const sessionId = conversationIdOf(incident.topicId)
+  const session = agentSessionService.getById(sessionId)
+  const agent = session.agentId ? agentService.getAgent(session.agentId) : null
+  const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+  if (!agent || !driver?.readTranscriptEvidence) {
+    return { unavailable: `the ${agent?.type ?? 'unknown'} runtime keeps no readable transcript` }
+  }
+  const message = readIncidentMessage(incident) as AgentSessionMessageEntity | undefined
+  // The message's own token survives forks and edits; the session's latest one is the fallback.
+  const token = message?.runtimeResumeToken ?? agentSessionMessageService.getNativeSessionId(sessionId)
+  const events = token ? await driver.readTranscriptEvidence(token, maxEntries) : undefined
+  if (!events) return { unavailable: 'no transcript for this session (Claude-login sessions keep theirs in ~/.claude)' }
+  let kept = events
+  while (kept.length > 1 && JSON.stringify(kept).length > OUTPUT_LIMIT) kept = kept.slice(1)
+  return untrustedForModel({ runtime: agent.type, events: kept })
 }

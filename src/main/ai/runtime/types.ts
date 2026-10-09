@@ -271,6 +271,11 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     keptResumeTokens: ReadonlySet<string>,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
+  /**
+   * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
+   * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
+   */
+  readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
 }
 
 export interface OrphanSessionReclaimOptions {
