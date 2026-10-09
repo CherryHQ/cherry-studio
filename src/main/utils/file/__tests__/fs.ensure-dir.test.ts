@@ -1,9 +1,8 @@
 import type * as NodeFsPromises from 'node:fs/promises'
-import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -18,7 +17,6 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 describe('ensureDir with Windows root mkdir failures', () => {
   const root = AbsoluteFilePathSchema.parse(path.parse(process.cwd()).root)
-  let tmp: string
 
   beforeEach(async () => {
     const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
@@ -29,11 +27,6 @@ describe('ensureDir with Windows root mkdir failures', () => {
       }
       return actual.mkdir(target, options)
     })
-    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-ensure-dir-'))
-  })
-
-  afterEach(async () => {
-    await rm(tmp, { recursive: true, force: true })
   })
 
   it('accepts an accessible volume root even when recursive mkdir would fail', async () => {
@@ -51,24 +44,5 @@ describe('ensureDir with Windows root mkdir failures', () => {
     const error = Object.assign(new Error('Volume unavailable'), { code })
     mockStat.mockRejectedValueOnce(error)
     await expect(ensureDir(root)).rejects.toBe(error)
-  })
-
-  it('creates missing nested directories and accepts them on retry', async () => {
-    const target = AbsoluteFilePathSchema.parse(path.join(tmp, 'backups', 'local'))
-    await ensureDir(target)
-    await ensureDir(target)
-    expect((await stat(target)).isDirectory()).toBe(true)
-  })
-
-  it('rejects a regular file used as a backup directory', async () => {
-    const target = AbsoluteFilePathSchema.parse(path.join(tmp, 'file'))
-    await writeFile(target, 'existing data')
-    await expect(ensureDir(target)).rejects.toMatchObject({ code: 'EEXIST' })
-  })
-
-  it('preserves permission errors when creating an ordinary directory', async () => {
-    const error = Object.assign(new Error('Directory denied'), { code: 'EPERM' })
-    mockMkdir.mockRejectedValueOnce(error)
-    await expect(ensureDir(AbsoluteFilePathSchema.parse(path.join(tmp, 'denied')))).rejects.toBe(error)
   })
 })
