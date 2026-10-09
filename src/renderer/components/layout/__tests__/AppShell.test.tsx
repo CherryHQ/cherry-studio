@@ -38,7 +38,8 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return mocks.platformState.isMac
-  }
+  },
+  isLinux: false
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
