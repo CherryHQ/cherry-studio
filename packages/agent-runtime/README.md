@@ -48,10 +48,12 @@ accounting, retries) applies to Pi's requests unchanged.
 
 `createAgentRuntimeSession` builds an `AgentSession` entirely in memory: in-memory credentials,
 models and settings, `SessionManager.inMemory` seeded with the host's Pi `Message[]` history,
-and a `DefaultResourceLoader` with extensions, skills, prompt templates, themes and context files
-off. The host supplies the system prompt (Pi still appends a `<cwd>` section), custom tools, the
-enabled built-in tools (none by default), extra extension factories, the model descriptor and Pi
-settings such as compaction. `dispose()` aborts the running turn, emits `session_shutdown` to
+and a `DefaultResourceLoader` with extension, skill, prompt-template and theme discovery off. The
+host supplies the system prompt (Pi's own prompt when omitted; Pi still appends a `<cwd>` section)
+and any appended prompt, custom tools, the enabled built-in tools (none by default), extra extension
+factories, the model descriptor and Pi settings such as compaction or `shellCommandPrefix`. It may
+opt in to workspace `AGENTS.md` / `CLAUDE.md` context files and to explicit skill directories, as
+Cherry's current Pi runtime does. `dispose()` aborts the running turn, emits `session_shutdown` to
 extensions and disposes the session.
 
 ## Known gaps

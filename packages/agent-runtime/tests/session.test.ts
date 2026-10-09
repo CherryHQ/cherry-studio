@@ -50,6 +50,44 @@ describe('createAgentRuntimeSession', () => {
     expect(existsSync(sentinel)).toBe(false)
   })
 
+  it('falls back to Pi’s own prompt, never a SYSTEM.md on disk, and keeps the host’s appended prompt', async () => {
+    const agentDir = tempDir('agent')
+    write(path.join(agentDir, 'SYSTEM.md'), 'MARKER system prompt')
+    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
+    const { port, requests } = streamTextPort(model)
+    const { session } = await createTestSession({
+      port,
+      agentDir,
+      systemPrompt: undefined,
+      appendSystemPrompt: ['Answer in Chinese.']
+    })
+    await session.prompt('hi')
+
+    expect(requests[0].system).toContain('operating inside pi')
+    expect(requests[0].system).toContain('Answer in Chinese.')
+    expect(requests[0].system).not.toContain('MARKER')
+  })
+
+  it('loads workspace context files and host-enabled skills when asked', async () => {
+    const cwd = tempDir('cwd')
+    write(path.join(cwd, 'AGENTS.md'), 'Use tabs in this repository.')
+    const skillDir = path.join(tempDir('skills'), 'release-notes')
+    write(path.join(skillDir, 'SKILL.md'), '---\nname: release-notes\ndescription: Drafts release notes\n---\nSteps')
+    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
+    const { port, requests } = streamTextPort(model)
+    const { session } = await createTestSession({
+      port,
+      cwd,
+      builtinTools: ['read'],
+      contextFiles: true,
+      skillPaths: [skillDir]
+    })
+    await session.prompt('hi')
+
+    expect(requests[0].system).toContain('Use tabs in this repository.')
+    expect(requests[0].system).toContain('Drafts release notes')
+  })
+
   it('exposes only the requested built-in tools next to host and extension tools', async () => {
     const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
     const { port, requests } = streamTextPort(model)
