@@ -6,8 +6,10 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import type * as ExternalOpenTargetServiceModule from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { ArtifactPaneView } from '../ArtifactPane'
+import type { ArtifactPaneFileSelection } from '../artifactPanePath'
 import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +20,8 @@ const mocks = vi.hoisted(() => ({
   listOpenTargets: vi.fn(),
   openTarget: vi.fn(),
   loggerWarn: vi.fn(),
-  loggerError: vi.fn()
+  loggerError: vi.fn(),
+  clipboardWrite: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -53,7 +56,9 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>
+  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>,
+  FilePreviewModeToolbarPortalHost: () => null,
+  FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
@@ -173,7 +178,7 @@ function createMockModel(): ArtifactFileTreeModel {
 function renderHarness(props: {
   workspacePath?: string
   selectedFile?: string | null
-  previewFileSelection?: { workspacePath: string; filePath: string } | null
+  previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose?: () => void
   onSelectedFileChange?: (file: string | null) => void
   onEditModeChange?: (mode: 'preview' | 'edit') => void
@@ -211,6 +216,11 @@ describe('ArtifactPane Context Menu Integration', () => {
       targets: defaultExternalTargets
     })
     mocks.openTarget.mockResolvedValue(undefined)
+    mocks.clipboardWrite.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mocks.clipboardWrite }
+    })
     window.api = {
       command: {
         showNativePopupMenu: mocks.showNativePopupMenu
@@ -260,6 +270,25 @@ describe('ArtifactPane Context Menu Integration', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /agent\.preview_pane\.close/ }))
     await waitFor(() => {
       expect(onPreviewClose).toHaveBeenCalled()
+    })
+  })
+
+  it('copies an input preview display path instead of its managed file path', async () => {
+    renderHarness({
+      previewFileSelection: {
+        workspacePath: '/managed/message-files',
+        filePath: 'entry-1.md',
+        displayPath: '/Users/alice/Documents/report.md' as AbsoluteFilePath,
+        previewType: 'file',
+        readOnly: true
+      }
+    })
+
+    fireEvent.contextMenu(screen.getByText('entry-1.md'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+
+    await waitFor(() => {
+      expect(mocks.clipboardWrite).toHaveBeenCalledWith('/Users/alice/Documents/report.md')
     })
   })
 

@@ -1,6 +1,9 @@
 import { createContext, type ReactNode, use, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { SegmentedControl } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+
 interface FilePreviewToolbarPortalContextValue {
   setTarget: (target: HTMLDivElement | null) => void
   target: HTMLDivElement | null
@@ -29,10 +32,11 @@ export function FilePreviewToolbarPortalHost() {
 
 interface FilePreviewToolbarProps {
   'aria-label': string
+  align?: 'center' | 'start'
   children: ReactNode
 }
 
-export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePreviewToolbarProps) {
+export function FilePreviewToolbar({ 'aria-label': ariaLabel, align = 'center', children }: FilePreviewToolbarProps) {
   const context = use(FilePreviewToolbarPortalContext)
 
   if (context && !context.target) return null
@@ -46,9 +50,63 @@ export function FilePreviewToolbar({ 'aria-label': ariaLabel, children }: FilePr
       role="toolbar"
       aria-label={ariaLabel}
       className="relative flex h-11 min-h-11 shrink-0 items-center overflow-x-auto px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
-      <div className="mx-auto flex min-w-max shrink-0 items-center justify-center gap-1">{children}</div>
+      <div
+        className={cn(
+          'flex min-w-max shrink-0 items-center gap-1',
+          align === 'center' ? 'mx-auto justify-center' : 'justify-start'
+        )}>
+        {children}
+      </div>
     </div>
   )
 
   return context?.target ? createPortal(toolbar, context.target) : toolbar
+}
+
+export interface FilePreviewModeTabOption<TValue extends string = string> {
+  disabled?: boolean
+  icon: ReactNode
+  label: string
+  value: TValue
+}
+
+interface FilePreviewModeTabsProps<TValue extends string = string> {
+  'aria-label': string
+  disabled?: boolean
+  onValueChange: (value: TValue) => void
+  options: readonly FilePreviewModeTabOption<TValue>[]
+  value: TValue
+}
+
+export function FilePreviewModeTabs<TValue extends string = string>({
+  'aria-label': ariaLabel,
+  disabled = false,
+  onValueChange,
+  options,
+  value
+}: FilePreviewModeTabsProps<TValue>) {
+  const control = (
+    <SegmentedControl
+      aria-label={ariaLabel}
+      data-testid="file-preview-mode-tabs"
+      className="h-7.5 shrink-0 rounded-md border-border-subtle bg-muted/40 [&>button]:size-6 [&>button]:rounded-sm [&>button]:p-0 [&>button]:leading-none [&>button_svg]:size-4 [&>button_svg]:shrink-0"
+      disabled={disabled}
+      size="sm"
+      value={value}
+      onValueChange={onValueChange}
+      options={options.map((option) => ({
+        value: option.value,
+        label: option.icon,
+        ariaLabel: option.label,
+        disabled: option.disabled,
+        tooltip: option.label
+      }))}
+    />
+  )
+
+  return (
+    <FilePreviewToolbar aria-label={ariaLabel} align="start">
+      {control}
+    </FilePreviewToolbar>
+  )
 }
