@@ -14,6 +14,7 @@ import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
 import { createAssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import { createCherryToolsServer } from '@main/ai/mcp/servers/cherryBuiltinTools'
+import { createComputerUseMcpServer } from '@main/ai/mcp/servers/computerUse'
 import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -106,6 +107,13 @@ export function buildAgentMcpServers(
       connect: application
         .get('BrowserSessionService')
         .createAgentMcpServer({ agentId: agent.id, sessionId: session.id })
+    }
+  }
+
+  if (mountedServers.has(CHERRY_MCP_SERVER.COMPUTER)) {
+    servers.computer = {
+      name: CHERRY_MCP_SERVER.COMPUTER,
+      connect: serveAgentMcpServer(() => createComputerUseMcpServer(session.id, agent.id))
     }
   }
 

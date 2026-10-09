@@ -31,12 +31,19 @@ vi.mock('electron', () => ({
 
 vi.mock('@application', () => ({
   application: {
-    get: vi.fn((name: string) => (name === 'PreferenceService' ? { get: mocks.preferenceGet } : {}))
+    get: vi.fn((name: string) =>
+      name === 'PreferenceService'
+        ? { get: mocks.preferenceGet }
+        : name === 'ComputerUseService'
+          ? { getControls: () => [], onControlsChanged: () => ({ dispose() {} }) }
+          : {}
+    )
   }
 }))
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {},
+  DependsOn: () => () => {},
   Injectable: () => () => {},
   Phase: { WhenReady: 'whenReady' },
   ServicePhase: () => () => {}

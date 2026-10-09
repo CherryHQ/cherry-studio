@@ -5,7 +5,8 @@ import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
 import { v5 as uuidv5 } from 'uuid'
 
 import { application } from '@application'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { loggerService } from '@logger'
+import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { getApplicationId } from '@main/utils/appEdition'
@@ -14,6 +15,8 @@ import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
 
+const logger = loggerService.withContext('TrayService')
+
 function getWindowsTrayGuid(): string {
   const executablePath = win32.resolve(app.getPath('exe')).toLowerCase()
   return uuidv5(`${getApplicationId()}:${executablePath}`, uuidv5.URL)
@@ -21,12 +24,18 @@ function getWindowsTrayGuid(): string {
 
 @Injectable('TrayService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ComputerUseService'])
 export class TrayService extends BaseService implements Activatable {
   private tray: Tray | null = null
   private contextMenu: Menu | null = null
 
   protected async onInit() {
     this.watchConfigChanges()
+    this.registerDisposable(
+      application.get('ComputerUseService').onControlsChanged(() => {
+        void this.syncVisibility().catch((error) => logger.error('Failed to update control tray', error))
+      })
+    )
   }
 
   protected async onReady() {
@@ -111,6 +120,7 @@ export class TrayService extends BaseService implements Activatable {
           this.updateContextMenu()
         }
       },
+      ...this.computerUseMenu(),
       { type: 'separator' },
       {
         label: t('tray.quit'),
@@ -119,14 +129,71 @@ export class TrayService extends BaseService implements Activatable {
     ].filter(Boolean) as MenuItemConstructorOptions[]
 
     this.contextMenu = Menu.buildFromTemplate(template)
+    if (isLinux) this.tray?.setContextMenu(this.contextMenu)
+  }
+
+  private computerUseMenu(): MenuItemConstructorOptions[] {
+    const service = application.get('ComputerUseService')
+    const controls = service.getControls()
+    if (!controls.length) return []
+    const statusLabels = {
+      opening: t('tray.computer_use.opening'),
+      active: t('tray.computer_use.active'),
+      stopping: t('tray.computer_use.stopping'),
+      stopped: t('tray.computer_use.stopped'),
+      unconfirmed: t('tray.computer_use.unconfirmed')
+    }
+    return [
+      {
+        label: t('tray.computer_use.title'),
+        submenu: [
+          ...controls.map(
+            (control): MenuItemConstructorOptions => ({
+              label: t('tray.computer_use.entry', {
+                app: (control.appName ?? t('tray.computer_use.all_apps')).replaceAll('&', '&&'),
+                task: control.label.replaceAll('&', '&&'),
+                status: statusLabels[control.status]
+              }),
+              submenu: [
+                {
+                  label: control.status === 'stopped' ? t('tray.computer_use.allow') : t('tray.computer_use.stop'),
+                  enabled: ['opening', 'active', 'stopped'].includes(control.status),
+                  click: () => {
+                    if (control.status === 'stopped') service.allowControl(control.ownerId, control.appId)
+                    else if (control.appId) void service.stopApp(control.ownerId, control.appId)
+                  }
+                }
+              ]
+            })
+          ),
+          { type: 'separator' },
+          {
+            label: t('tray.computer_use.stop_all'),
+            enabled: controls.some((control) => ['opening', 'active'].includes(control.status)),
+            click: () => {
+              void service.stopAll()
+            }
+          }
+        ]
+      }
+    ]
+  }
+
+  private async syncVisibility(): Promise<void> {
+    const needed =
+      application.get('PreferenceService').get('app.tray.enabled') ||
+      application.get('ComputerUseService').getControls().length > 0
+    if (needed) {
+      await this.activate()
+      this.updateContextMenu()
+    } else await this.deactivate()
   }
 
   private watchConfigChanges() {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(
-      preferenceService.subscribeChange('app.tray.enabled', (enabled: boolean) => {
-        if (enabled) void this.activate()
-        else void this.deactivate()
+      preferenceService.subscribeChange('app.tray.enabled', () => {
+        void this.syncVisibility().catch((error) => logger.error('Failed to update tray visibility', error))
       })
     )
     this.registerDisposable(

@@ -171,6 +171,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.browserEnabled === true ||
+        toolSignals.computerUseEnabled === true ||
         toolSignals.mcpToolIds.size > 0 ||
         // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
         // mistaken for a request that loads no function tool.
@@ -249,6 +250,16 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
+  const computerUseTask =
+    toolSignals?.computerUseEnabled && assistant && request.conversation.topicId
+      ? application
+          .get('ComputerUseService')
+          .createTask(
+            `topic:${request.conversation.topicId}:${assistant.id}`,
+            `${assistant.name} · ${request.conversation.topicId.slice(0, 8)}`,
+            signal
+          )
+      : undefined
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -256,6 +267,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
     abortSignal: signal,
+    computerUseTask,
     fileAttachments,
     knowledgeBaseIds,
     // fs_read's exact allow-list: blobs referenced by the conversation, plus
@@ -321,6 +333,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   )
   applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
+  const hookParts = [...contributions.hookParts]
+  if (computerUseTask) {
+    const finish = () => application.get('ComputerUseService').finishTask(computerUseTask)
+    hookParts.push({
+      onFinish: finish,
+      onAbort: finish,
+      onError: async () => {
+        await finish()
+        return 'abort' as const
+      }
+    })
+  }
+
   return {
     sdkConfig,
     credentialReceipt,
@@ -328,7 +353,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     plugins: contributions.modelAdapters,
     system,
     options,
-    hookParts: contributions.hookParts,
+    hookParts,
     nativeFileSupport,
     fileAttachments
   }
@@ -387,6 +412,7 @@ async function resolveRequestToolSignals(
   mcpResourceServerIds: ReadonlySet<string>
   hasAnyKnowledgeBase: boolean
   browserEnabled?: boolean
+  computerUseEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
   if (!mcpIdList && request.assistantId) {
@@ -400,6 +426,12 @@ async function resolveRequestToolSignals(
       assistant &&
       assistant.settings.enableBrowser !== false &&
       application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ),
+    computerUseEnabled: Boolean(
+      request.conversation.topicId &&
+      assistant &&
+      request.contextOwner !== 'caller' &&
+      application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
     ),
     hasAnyKnowledgeBase: resolveHasAnyKnowledgeBase()
   }
@@ -428,7 +460,7 @@ export async function resolveTools(
   mcpResourceServerIds: ReadonlySet<string>
   mcpServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled } =
+  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled, computerUseEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
@@ -441,6 +473,7 @@ export async function resolveTools(
     assistant,
     paintingModel: paintingModel ?? undefined,
     browserEnabled,
+    computerUseEnabled,
     mcpToolIds,
     mcpResourceServerIds,
     hasFileAttachments,

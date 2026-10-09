@@ -267,6 +267,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
+      '@cherrystudio/computer-use':
+        specifier: 0.1.1
+        version: 0.1.1
       '@cherrystudio/dsh-bridge':
         specifier: workspace:*
         version: link:packages/dsh-bridge
@@ -3115,6 +3118,40 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  '@cherrystudio/computer-use-darwin-arm64@0.1.1':
+    resolution: {integrity: sha512-8azp+ticG0m1UW5rVfCuJZHKot4wHD8gz5F7NZVzlFLVVPhp4s4bEl+HxSVYu9UN1reNuujitSNrEFsVylYiiw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@cherrystudio/computer-use-darwin-x64@0.1.1':
+    resolution: {integrity: sha512-ZBSlvSooljN1M4fOeWtVeD080Or3fMDjMsgoxXnHWwVTUgmuLoLKRsq05d+6rUm0XM5/R1s2Pdi7awKcv/nrUQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@cherrystudio/computer-use-linux-arm64@0.1.1':
+    resolution: {integrity: sha512-ayFX1s0VFsEOWPudE4Y7t80VPFreBk7jeFb0Y0bc/AMElXb/nMvBBXF8Opl4kSD5enMvnaR0Wn4MSw4Pa/P/zg==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@cherrystudio/computer-use-linux-x64@0.1.1':
+    resolution: {integrity: sha512-FP0aB7tLn2Uw1bmsRDMG8RFPS6MtKOHXEVXgRnEiAcNLjjdKr6sPyhfMLJ7hS49dwmgZaOZIyn26y47f4wKFmg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@cherrystudio/computer-use-win32-arm64@0.1.1':
+    resolution: {integrity: sha512-F578LFPEsxhaTC0kTDQ1XMlaIH/hu4u3PDKi+0lxjzzyPHCjAaVCLtZ1ImbmDlvVGxgJNzmxxCjyfjUPAcO4eA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@cherrystudio/computer-use-win32-x64@0.1.1':
+    resolution: {integrity: sha512-o6ws/X9MRIho9oI4LAXmGbF2tt0To4LzRGtvjBj8oEuVbPsF31WAw0gZ2cP/MHdcUKCfDNbsgoNVPAW4YnbIhg==}
+    cpu: [x64]
+    os: [win32]
+
+  '@cherrystudio/computer-use@0.1.1':
+    resolution: {integrity: sha512-+17kqfzQdr91jBVmPv/9T4mFV6OT4xc8F1MhBnUbXz7Jbplcqzuez3OwxmY25GqfjzfSUFg8hWb05UiWV4cWPg==}
+    engines: {node: '>=24'}
 
   '@cherrystudio/openai@6.15.0':
     resolution: {integrity: sha512-w7JNWd73u9dr1DiA7+lmpGj+Cms4IEiwMp9ibCxMpGnGuiFaVvqrPky+MeOur2CWNMZLmnGAjZhX2mDBOMvPCg==}
@@ -18208,6 +18245,33 @@ snapshots:
   '@cherrystudio/analytics-client@1.4.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
+
+  '@cherrystudio/computer-use-darwin-arm64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use-darwin-x64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use-linux-arm64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use-linux-x64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use-win32-arm64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use-win32-x64@0.1.1':
+    optional: true
+
+  '@cherrystudio/computer-use@0.1.1':
+    optionalDependencies:
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.1
+      '@cherrystudio/computer-use-darwin-x64': 0.1.1
+      '@cherrystudio/computer-use-linux-arm64': 0.1.1
+      '@cherrystudio/computer-use-linux-x64': 0.1.1
+      '@cherrystudio/computer-use-win32-arm64': 0.1.1
+      '@cherrystudio/computer-use-win32-x64': 0.1.1
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
     optionalDependencies:

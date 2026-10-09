@@ -346,6 +346,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       const mountedServers = resolveMountedMcpServers(agent, {
         browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
         channelLinked: linkedChannel !== null
       })
       const mcpServers = buildAgentMcpServers(
