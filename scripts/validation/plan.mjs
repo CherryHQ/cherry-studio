@@ -10,6 +10,7 @@ export const testProjects = [
   'shared',
   'provider-registry',
   'scripts',
+  'agent-runtime',
   'ai-sdk-provider',
   'dsh-bridge',
   'remote-protocol',
@@ -27,6 +28,7 @@ export const checkTasks = {
   'types-web': { group: 'types', args: ['typecheck:web'] },
   'types-aicore': { group: 'types', args: ['--filter', '@cherrystudio/ai-core', 'typecheck'] },
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
+  'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
   'types-file-preview': { group: 'types', args: ['--filter', '@cherrystudio/file-preview', 'typecheck'] },
@@ -40,6 +42,7 @@ const consumers = {
   renderer: ['renderer'],
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
+  'agent-runtime': ['agent-runtime'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
@@ -125,6 +128,7 @@ export function createPlan(files, fullReason) {
       add('types-node', file)
     if (affected.includes('renderer')) add('types-web', file)
     if (affected.includes('aiCore')) add('types-aicore', file)
+    if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)
