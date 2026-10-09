@@ -236,6 +236,11 @@ export class DoctorAgentService extends BaseService {
     return report ? projectDoctorReport(report, 'upload') : { status: 'missing' }
   }
 
+  /** The failed message this analysis is about; undefined for a report-only analysis. */
+  incidentForSession(sessionId: string): DoctorAgentIncident | undefined {
+    return this.runForSession(sessionId).incident
+  }
+
   reportBindingForSession(sessionId: string): { scope: DoctorScopeKey; reportRunId: string } {
     const { scope, reportRunId } = this.runForSession(sessionId)
     return { scope, reportRunId }

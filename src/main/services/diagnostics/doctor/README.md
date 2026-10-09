@@ -155,13 +155,18 @@ separate global full-system Doctor without replacing the contextual report.
 
 `DoctorAgentService` runs the `doctor` built-in Agent (bundle `resources/builtin-agents/cherry-doctor`) over a
 completed report: one headless turn in a hidden `background` session, published on
-`doctorAgentStateCacheKey(scope)` as streamed text, tool calls, proposals and a change ledger. Routes:
+`doctorAgentStateCacheKey(key)` as streamed text, tool calls, proposals and a change ledger. The key is the scope,
+or `scope#messageId` when the dialog was opened from a failed message (`DoctorAgentIncident`): each failure gets its
+own analysis, and its redacted error parts go into the prompt. Routes:
 `diagnostics.doctor.agent.{start,cancel,apply,undo}`. The renderer entry is the footer button "AI consultation"
 (`DoctorAgentDialog`: model picker → consultation with proposals/ledger) in the Doctor panel and the Error Details
 dialog; a completed analysis also shows as the `DoctorAgentAccordionItem` row above the checks.
 
 Diagnosis is open-ended: the Agent mounts the `assistant` server (`diagnose`, `product_info`) and the `doctor`
-server (`read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).
+server (`session`, `read_file`, `report`, `data_api`, `preference`, `probe_endpoint`, `doctor_fix`; see `ai/agents/doctor/doctorTools.ts`).
+`session` reads only the incident's conversation (`ai/agents/doctor/doctorIncident.ts`): `overview`, `messages`,
+`logs` (JSONL lines naming its topic/session id, including the API gateway's `agentSessionId`) and `request`
+(endpoint now vs at error time, request-body shape without message text). It takes no conversation id argument.
 `read_file` is the only filesystem reach: the log dir plus an allowlist of userData app state (`logs/`, `config.json`, `Toolchain/`, `Crashpad/`), tail-first, secrets redacted.
 Files are opened without following symlinks and checked by inode before reading. Directory listing uses a stable
 file-descriptor alias on Linux and is refused on platforms that cannot provide one —

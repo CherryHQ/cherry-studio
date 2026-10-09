@@ -120,6 +120,7 @@ const BUILTIN_TOOL_POLICIES = {
   assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
 
   // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
+  doctorSession: tool(CHERRY_MCP_SERVER.DOCTOR, 'session', 'auto'),
   doctorReadFile: tool(CHERRY_MCP_SERVER.DOCTOR, 'read_file', 'auto'),
   doctorReport: tool(CHERRY_MCP_SERVER.DOCTOR, 'report', 'auto'),
   doctorDataApi: tool(CHERRY_MCP_SERVER.DOCTOR, 'data_api', 'auto'),

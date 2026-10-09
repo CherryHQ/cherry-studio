@@ -29,7 +29,8 @@ vi.mock('@application', async () => {
     DoctorAgentService: {
       requestWrite: mocks.requestWrite,
       reportBindingForSession: mocks.reportBinding,
-      reportForSession: vi.fn()
+      reportForSession: vi.fn(),
+      incidentForSession: () => undefined
     },
     NetworkService: { diagnoseEndpoint: mocks.diagnoseEndpoint }
   } as never)
@@ -271,6 +272,16 @@ describe('doctor server binding', () => {
       { id: 'custom', url: 'https://example.com' },
       expect.any(AbortSignal)
     )
+    await client.close()
+  })
+})
+
+describe('doctor session tool', () => {
+  it('refuses to read any conversation when the analysis was not opened from a failed message', async () => {
+    const client = await connect()
+    const result = await client.callTool({ name: 'session', arguments: { action: 'overview' } })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('not opened from a failed message')
     await client.close()
   })
 })
