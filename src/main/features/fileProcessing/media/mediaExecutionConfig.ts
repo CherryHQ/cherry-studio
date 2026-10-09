@@ -15,9 +15,8 @@ import {
 } from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
-import { isNonChatModel, isVisionModel } from '@shared/utils/model'
+import { isVideoVisionSelectableModel } from '@shared/utils/model'
 
 export interface MediaAsrExecutionConfig {
   modelId: LocalTranscriptionModelId
@@ -104,10 +103,6 @@ function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
   } catch {
     return null
   }
-}
-
-export function isVideoVisionSelectableModel(model: Parameters<typeof isVisionModel>[0], provider?: Provider): boolean {
-  return Boolean(provider) && isVisionModel(model) && !isNonChatModel(model) && provider?.id !== 'qiniu'
 }
 
 async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfig | null> {

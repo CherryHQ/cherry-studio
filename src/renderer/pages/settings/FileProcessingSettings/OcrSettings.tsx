@@ -7,6 +7,7 @@ import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProc
 import { useTheme } from '@renderer/hooks/useTheme'
 
 import { ProcessorPanel } from './components/ProcessorPanel'
+import { VideoVisionModelSettings } from './components/VideoVisionModelSettings'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
 import { type FileProcessingMenuEntry, getFeatureSections } from './utils/fileProcessingMeta'
 
@@ -15,8 +16,16 @@ const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
 const OcrSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
-  const { defaultImageProcessor, processors, setApiKeys, setCapabilityField, setDefaultProcessor, setLanguageOptions } =
-    useFileProcessingPreferences()
+  const {
+    defaultImageProcessor,
+    defaultVideoVisionModel,
+    processors,
+    setApiKeys,
+    setCapabilityField,
+    setDefaultProcessor,
+    setLanguageOptions,
+    setVideoVisionModel
+  } = useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
   const visibleProcessorIds = useMemo(
@@ -47,26 +56,29 @@ const OcrSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={themeMode}>
-      {activeEntry ? (
-        <ProcessorPanel
-          entry={activeEntry}
-          entries={menuEntries}
-          selectionDisabled={availableProcessors.status !== 'ready'}
-          onSelectEntry={(entry) => setActiveKey(entry.key)}
-          onSetApiKeys={setApiKeys}
-          onSetCapabilityField={setCapabilityField}
-          onSetDefaultProcessor={setDefaultProcessor}
-          onSetLanguageOptions={setLanguageOptions}
-        />
-      ) : availableProcessors.status === 'error' ? (
-        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
-          {t('settings.tool.file_processing.errors.load_processors_failed')}
-        </div>
-      ) : (
-        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
-          {t('common.no_results')}
-        </div>
-      )}
+      <div className="flex flex-col">
+        {activeEntry ? (
+          <ProcessorPanel
+            entry={activeEntry}
+            entries={menuEntries}
+            selectionDisabled={availableProcessors.status !== 'ready'}
+            onSelectEntry={(entry) => setActiveKey(entry.key)}
+            onSetApiKeys={setApiKeys}
+            onSetCapabilityField={setCapabilityField}
+            onSetDefaultProcessor={setDefaultProcessor}
+            onSetLanguageOptions={setLanguageOptions}
+          />
+        ) : availableProcessors.status === 'error' ? (
+          <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+            {t('settings.tool.file_processing.errors.load_processors_failed')}
+          </div>
+        ) : (
+          <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+            {t('common.no_results')}
+          </div>
+        )}
+        <VideoVisionModelSettings modelId={defaultVideoVisionModel} onModelChange={setVideoVisionModel} />
+      </div>
     </SettingsContentColumn>
   )
 }
