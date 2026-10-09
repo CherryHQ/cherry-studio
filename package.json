@@ -94,6 +94,7 @@
     "start:cn": "dotenv -v CHERRY_EDITION=cn -- pnpm start",
     "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "test": "vitest run --silent",
+    "test:agent-runtime": "vitest run --project agent-runtime",
     "test:ai-sdk-provider": "vitest run --project ai-sdk-provider",
     "test:aicore": "vitest run --project aiCore",
     "test:coverage": "vitest run --coverage --silent",
