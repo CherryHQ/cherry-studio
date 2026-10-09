@@ -12,6 +12,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 
 import { type AiSdkModelSpec, createAiSdkProvider } from './aiSdkProvider'
+import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
 import type { ModelCallPort, ModelCallSideChannel } from './ports'
 import { rebuildSessionEntries } from './rebuild'
 import type { TranscriptEntry } from './transcript'
@@ -27,8 +28,14 @@ export type AgentRuntimeModel = AiSdkModelSpec & {
   key: string
 }
 
-/** Pi settings the host may set. Retry is always off: retries belong to the host's AI SDK layer. */
-export type AgentRuntimeSettings = Omit<NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>, 'retry'>
+/**
+ * Pi settings the host may set. Retry is always off: retries belong to the host's AI SDK layer.
+ * Compaction has its own option.
+ */
+export type AgentRuntimeSettings = Omit<
+  NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>,
+  'retry' | 'compaction'
+>
 
 export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   port: ModelCallPort<TRequestOptions>
@@ -61,6 +68,8 @@ export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
   extensionFactories?: ExtensionFactory[]
+  /** Pi's defaults (reserve 16384, keep 20000, its own summarizer) when omitted. */
+  compaction?: AgentRuntimeCompaction
   settings?: AgentRuntimeSettings
   /** Pi's own thinking level (default `off`). It does not reach the model request. */
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
@@ -102,7 +111,36 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   const model = modelRuntime.getModel(provider, modelSpec.id)
   if (!model) throw new Error(`Model ${provider}/${modelSpec.id} was not registered`)
 
-  const settingsManager = SettingsManager.inMemory({ ...options.settings, retry: { enabled: false } })
+  const sessionManager = SessionManager.inMemory(
+    cwd,
+    options.sessionId === undefined ? undefined : { id: options.sessionId },
+    rebuilt.entries
+  )
+  const tap = new TranscriptTap(
+    sessionManager,
+    transcriptModel,
+    { transcript, piEntryCount: rebuilt.entries.length, activatedTools: rebuilt.activatedTools },
+    options.onEvent ?? (() => {})
+  )
+
+  const { compaction } = options
+  const extensionFactories = [
+    ...(compaction?.summarize
+      ? [compactionSummaryExtension(compaction.summarize, (message) => (tap.summaryFailure = message))]
+      : []),
+    ...(options.extensionFactories ?? [])
+  ]
+  const settingsManager = SettingsManager.inMemory({
+    ...options.settings,
+    ...(compaction && {
+      compaction: {
+        enabled: compaction.enabled ?? true,
+        reserveTokens: compaction.reserveTokens,
+        keepRecentTokens: compaction.keepRecentTokens
+      }
+    }),
+    retry: { enabled: false }
+  })
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -113,18 +151,12 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: options.extensionFactories,
+    extensionFactories,
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
   })
   await resourceLoader.reload()
-
-  const sessionManager = SessionManager.inMemory(
-    cwd,
-    options.sessionId === undefined ? undefined : { id: options.sessionId },
-    rebuilt.entries
-  )
 
   const { session } = await createAgentSession({
     cwd,
@@ -140,12 +172,6 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
-  const tap = new TranscriptTap(
-    sessionManager,
-    transcriptModel,
-    { transcript, piEntryCount: rebuilt.entries.length, activatedTools: rebuilt.activatedTools },
-    options.onEvent ?? (() => {})
-  )
   session.subscribe((event) => tap.handle(event))
   // State entries are in the session before extensions bind, so `session_start` sees them.
   await session.bindExtensions({})

@@ -57,6 +57,8 @@ export class TranscriptTap {
   private head: string | undefined
   private baseTools: Set<string> | undefined
   private activatedTools: string[]
+  /** Why the host summarizer failed during the running compaction. */
+  summaryFailure: string | undefined
 
   constructor(
     private readonly sessionManager: SessionManager,
@@ -79,15 +81,19 @@ export class TranscriptTap {
     switch (event.type) {
       case 'compaction_start':
         this.flush()
+        this.summaryFailure = undefined
         this.listener({ type: 'compaction-start', reason: event.reason })
         return
       case 'compaction_end': {
         const entryId = this.flush().findLast((entry) => entry.kind === 'compaction')?.id
+        // A failed host summarizer cancels the compaction, which Pi reports as an abort.
+        const error = event.errorMessage ?? this.summaryFailure
+        this.summaryFailure = undefined
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
           ...(entryId === undefined ? {} : { entryId }),
-          ...(event.errorMessage === undefined ? {} : { error: event.errorMessage })
+          ...(error === undefined ? {} : { error })
         })
         return
       }
