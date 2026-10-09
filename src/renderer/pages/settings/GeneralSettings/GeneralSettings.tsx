@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
@@ -55,6 +55,12 @@ const GeneralSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
+    optimistic: false
+  })
+  const [remoteDebuggingPort, setRemoteDebuggingPort] = usePreference('BootConfig.app.remote_debugging.port', {
+    optimistic: false
+  })
   const [clientId] = usePreference('app.user.id')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
@@ -64,6 +70,8 @@ const GeneralSettings: FC = () => {
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
+  const developerSettingsSaving = useRef(false)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -127,6 +135,37 @@ const GeneralSettings: FC = () => {
       },
       500
     )
+  }
+
+  const saveDeveloperSettings = async (save: () => Promise<void>) => {
+    if (developerSettingsSaving.current) return
+    developerSettingsSaving.current = true
+    setIsSavingDeveloperSettings(true)
+    try {
+      await save()
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      developerSettingsSaving.current = false
+      setIsSavingDeveloperSettings(false)
+    }
+  }
+
+  const handleRemoteDebuggingChange = (checked: boolean) =>
+    saveDeveloperSettings(() => setRemoteDebuggingEnabled(checked))
+
+  const handleDeveloperModeChange = (checked: boolean) =>
+    saveDeveloperSettings(async () => {
+      if (!checked) await setRemoteDebuggingEnabled(false)
+      await setEnableDeveloperMode(checked)
+    })
+
+  const handleRemoteDebuggingPortChange = async (port: number | null) => {
+    try {
+      await setRemoteDebuggingPort(port ?? 9222)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
   }
 
   return (
@@ -355,8 +394,47 @@ const GeneralSettings: FC = () => {
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
-          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+          <Switch
+            checked={enableDeveloperMode}
+            disabled={isSavingDeveloperSettings}
+            onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
+            aria-label={t('settings.developer.enable_developer_mode')}
+          />
         </SettingRow>
+        {enableDeveloperMode && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={remoteDebuggingEnabled}
+                disabled={isSavingDeveloperSettings}
+                onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
+                aria-label={t('settings.developer.cdp.title')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
+              <div className="w-28 shrink-0">
+                <InputNumber
+                  min={1}
+                  max={65534}
+                  step={1}
+                  value={remoteDebuggingPort}
+                  disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
+                  aria-label={t('settings.developer.cdp.port')}
+                  onBlur={handleRemoteDebuggingPortChange}
+                />
+              </div>
+            </SettingRow>
+          </>
+        )}
         {enableDeveloperMode && clientId ? (
           <>
             <SettingDivider />
