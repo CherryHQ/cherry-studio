@@ -1,9 +1,10 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow
+description: Per-attachment native routing or capped extracted analysis, with read_file paging for full attachment detail
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/main/features/fileProcessing/media/MediaAnalysisService.ts
   - src/shared/utils/file/fileExtensions.ts
   - src/renderer/utils/file.ts
 ---
@@ -38,9 +39,9 @@ Decided per file part in `prepareChatMessages`
 | text / code | — | decoded text, inline (capped) |
 | extensionless | — | decoded text when content is text; otherwise unsupported note |
 | audio | model and resolved endpoint are audio-capable | native audio part (inline) |
-| audio | otherwise | short note ("can't process audio") |
+| audio | otherwise | compact timestamped media analysis, inline (capped) |
 | video | model and resolved endpoint are video-capable | native video part (inline) |
-| video | otherwise | short note ("can't process video") |
+| video | otherwise | compact timestamped media analysis, inline (capped) |
 | other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
 - **Native** → the file part is left in place and materialized as a `data:` URL
@@ -59,6 +60,8 @@ Decided per file part in `prepareChatMessages`
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
+- Audio/video probe or analysis failure degrades to a clear model-visible note.
+  Cancellation is not degraded and continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -85,7 +88,7 @@ unsupported-type note instead (see the routing matrix above).
 
 ## The cap (the only context guard)
 
-Extracted text is bounded so multi-turn context stays in control:
+Extracted text and compact media analysis are bounded so multi-turn context stays in control:
 
 - text ≤ cap → inlined in full.
 - text > cap → inline the first `cap` chars + a trailer:
@@ -94,7 +97,7 @@ Extracted text is bounded so multi-turn context stays in control:
 
 Default cap ≈ 8k chars/file (tunable).
 
-## `read_file` — text-only overflow tool
+## `read_file` — paged full attachment detail
 
 `src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
 per-request attachment allow-list from the tool-call context.
@@ -103,8 +106,9 @@ per-request attachment allow-list from the tool-call context.
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
-- Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+- Returns paginated text: extracted document text, image OCR, or full
+  timestamped audio/video analysis. Errors are sanitized to filename-level
+  messages; details are logged, not returned. Cancellation propagates.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
@@ -114,9 +118,9 @@ per-request attachment allow-list from the tool-call context.
   session transcript when each tool call runs, so deleting a message revokes
   access immediately. Ordinary Claude Code Agents receive neither this server
   nor its attachment manifest.
-- Because native media is kept inline (never routed through the tool),
-  `read_file` carries no media result — no `toModelOutput` base64 re-read, no
-  resend re-materialization.
+- Both the AI SDK Agent tool and Claude Code's `assistant-files` MCP server call
+  the same `ReadFileTool.readFile` implementation. Media reads therefore share
+  identical offset/limit paging and model-visible continuation instructions.
 
 Cherry Assistant also gets approval-gated `save_attachment` from the same
 session-scoped server. It writes only new paths inside the session workspace and
@@ -129,6 +133,7 @@ to the shared chat runtime or to ordinary Agents.
 |---|---|
 | office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
 | image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
+| audio/video → timestamped analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
@@ -139,6 +144,11 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `officeparser`/`word-extractor`, known text extensions via
 `decodeTextWithAutoEncoding`, and extensionless text via
 `decodeTextBufferIfText`) and dispatches on the `FileEntry` canonical `ext`.
+
+`MediaAnalysisService` similarly owns media caching. Compact Chat fallback and
+full `read_file` output share one analysis keyed by file identity/version and
+the ASR, Vision, OCR, and execution-budget configuration, so repeated reads do
+not duplicate preprocessing while configuration changes invalidate the cache.
 
 ## Capability resolution
 

@@ -3,12 +3,9 @@
  * the conversation).
  *
  * The overflow/paging tool for chat attachments: attachments are already
- * inlined into the conversation by the chat path, so this only loads *more* of
- * a file's **text** — the truncated tail of a capped inline excerpt, or further
- * pages of a long file. Natively-consumable files (image on a vision model,
- * PDF on a native provider, …) are sent inline as the real file and never
- * routed here, so `read_file` is text-only: documents/text are extracted,
- * images are OCR'd, audio/video/binary have no text form.
+ * inlined into the conversation by the chat path, so this loads more detail —
+ * the truncated tail of extracted document/image text, or the full timestamped
+ * analysis behind an audio/video attachment's compact inline result.
  *
  * Never throws on a read failure (returns `{ error }`, sanitized) so the
  * agentic loop keeps running; a cancellation rethrows so it propagates as the
@@ -44,7 +41,7 @@ const logger = loggerService.withContext('ReadFile')
 
 export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
-Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
+Attachments are already inlined into the conversation. Call this when an attachment was truncated and you need the rest, when compact audio/video analysis lacks needed detail, or to page further through a long result with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
 
 /** Resolution context: the allow-list of this request's attachments. */
 export interface ReadFileContext {
@@ -99,18 +96,19 @@ export async function readFile(
     const bareExt = ext?.toLowerCase() ?? ''
     const fileType = getFileTypeByExt(bareExt)
 
-    if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
-    }
     if (fileType === FILE_TYPE.OTHER && bareExt) {
       // Binary / unsupported — don't auto-decode it into mojibake.
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
 
-    const text =
-      fileType === FILE_TYPE.IMAGE
-        ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
-        : await extractDocumentText(entryId, { signal })
+    let text: string | null
+    if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
+      text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)
+    } else if (fileType === FILE_TYPE.IMAGE) {
+      text = await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
+    } else {
+      text = await extractDocumentText(entryId, { signal })
+    }
 
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)

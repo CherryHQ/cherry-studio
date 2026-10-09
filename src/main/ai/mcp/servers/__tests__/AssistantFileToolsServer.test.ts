@@ -20,8 +20,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 
 vi.mock('@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool', async (importOriginal) => ({
   ...(await importOriginal<typeof ReadFileToolModule>()),
-  readFile: mocks.readFile,
-  readFileModelOutput: (result: { text: string }) => ({ type: 'text', value: result.text })
+  readFile: mocks.readFile
 }))
 
 vi.mock('@main/ai/tools/saveAttachment', async (importOriginal) => ({
@@ -150,6 +149,25 @@ describe('assistant-files MCP server', () => {
     expect(first.content[0].text).toBe(handle)
     expect(second.content[0].text).toBe('(none)')
     expect(JSON.stringify(first)).not.toContain(entryId)
+  })
+
+  it('projects shared timestamped paging results through the Claude Code MCP tool', async () => {
+    const entryId = 'entry-video'
+    const handle = createAssistantFileAttachmentHandle(entryId)
+    mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'clip.mp4')], nextCursor: undefined })
+    mocks.readFile.mockResolvedValue({ text: '[00:10] beta', totalChars: 40, nextOffset: 26 })
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: handle, offset: 14, limit: 12 })
+
+    expect(result.content[0].text).toBe(
+      '[00:10] beta\n\n[Showing 12 of 40 chars. Call read_file again with offset=26 for more.]'
+    )
+    expect(mocks.readFile).toHaveBeenCalledWith(
+      { filename: handle, offset: 14, limit: 12 },
+      { attachments: [{ fileEntryId: entryId, handle, displayName: 'clip.mp4' }] },
+      expect.any(AbortSignal)
+    )
   })
 
   it('does not expose orphaned managed attachments to read_file', async () => {
