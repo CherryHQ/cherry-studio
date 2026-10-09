@@ -5,8 +5,15 @@ The package owns rendering, controls, structural selections, workers and transla
 Hosts own file access, permissions, navigation, external opening and logging.
 HTML, Markdown and source-code previews remain in the desktop application.
 
-This workspace package remains private until publication is configured. Its packed
-artifact can be installed independently of the Cherry Studio workspace.
+Install a published version alongside React 19 and React DOM 19:
+
+```sh
+pnpm add @cherrystudio/file-preview react@^19 react-dom@^19
+```
+
+The package can be installed independently of the Cherry Studio workspace. It bundles
+its rendering engines and UI components; consumers do not need workspace packages or
+dependency patches.
 
 ```tsx
 import type { PreviewSource } from '@cherrystudio/file-preview/core'
@@ -220,3 +227,22 @@ The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`.
+
+## Publishing
+
+Versioning and npm publishing use the repository's [Changesets workflow](../../.changeset/README.md).
+The initial changeset promotes `0.1.0-alpha.0` to `0.1.0` in the automated version PR.
+Merging that version PR publishes the package under the `latest` tag. Subsequent
+publishable changes must include a changeset for `@cherrystudio/file-preview`.
+
+Both release and snapshot workflows build this package through `pnpm packages:build`.
+The manual snapshot workflow publishes under the `snapshot` tag for integration testing:
+
+```sh
+pnpm add @cherrystudio/file-preview@snapshot
+```
+
+The `prepack` hook rebuilds the package before packing or publishing. The artifact
+contains the JavaScript and declaration entry points, scoped stylesheet, worker scripts,
+PDF CMaps and standard fonts, README and license. Verify the packed artifact in an
+independent consumer before the first release, including worker and PDF resource loading.

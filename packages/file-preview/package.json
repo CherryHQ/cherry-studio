@@ -1,9 +1,13 @@
 {
   "name": "@cherrystudio/file-preview",
   "version": "0.1.0-alpha.0",
-  "private": true,
   "description": "Portable read-only document preview for Cherry Studio",
   "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/file-preview"
+  },
   "files": [
     "dist",
     "README.md"
@@ -23,6 +27,9 @@
     },
     "./styles.css": "./dist/styles.css",
     "./assets/*": "./dist/assets/*"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "vite build",
