@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   editorContentLineCount: 1,
   editorViewComposing: false,
   editorViewDom: undefined as HTMLElement | undefined,
+  viewState: undefined as any,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
   insertContentAt: vi.fn(),
@@ -246,6 +247,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         },
         get dom() {
           return mocks.editorViewDom
+        },
+        get state() {
+          return mocks.viewState
         },
         dispatch: mocks.dispatch
       },
@@ -476,6 +480,7 @@ describe('ComposerSurface', () => {
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
     mocks.editorViewDom = document.createElement('div')
+    mocks.viewState = { doc: { textBetween: mocks.docTextBetween } }
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -720,6 +725,28 @@ describe('ComposerSurface', () => {
 
       expect(mocks.insertContentAt).not.toHaveBeenCalled()
       expect(mocks.insertContent).not.toHaveBeenCalled()
+    })
+
+    it('replaces a selected token with the path once its serialized text is credited', () => {
+      // 38,600 ordinary chars plus a 1,400-char prompt variable is exactly full, so the pasted
+      // path fits only when the selection is measured by the token's serialized prompt text:
+      // the plain leaf callback counts the atom as empty and silently drops the paste.
+      const ordinary = 'x'.repeat(38600)
+      const promptText = 'v'.repeat(1400)
+      const tokenNode = {
+        type: { name: 'composerToken' },
+        attrs: { id: 'prompt-variable:1', kind: 'promptVariable', label: 'Var', promptText }
+      }
+      mocks.editorIsFocused = true
+      mocks.selection = { from: 2, to: 3 }
+      mocks.docTextBetween.mockImplementation(
+        (_from: number, _to: number, _separator: string, leaf: (node: unknown) => string) => leaf(tokenNode)
+      )
+      render(<ComposerSurface {...baseProps} text={ordinary + promptText} />)
+
+      mocks.pasteHandlerOptions.onInsertPaths(['/tmp/model.onnx'])
+
+      expect(mocks.insertContent).toHaveBeenCalledWith(createComposerPlainTextContent('/tmp/model.onnx'))
     })
   })
 

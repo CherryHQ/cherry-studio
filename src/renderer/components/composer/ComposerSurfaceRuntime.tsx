@@ -35,7 +35,12 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import {
+  COMPOSER_INPUT_MAX_LENGTH,
+  createComposerDraftContent,
+  getComposerSerializedLeafText,
+  serializeComposerDocument
+} from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
 import {
@@ -363,7 +368,9 @@ function exceedsComposerInputMaxLength(currentText: string, nextText: string, re
 
 function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
   if (!view || from >= to) return ''
-  return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+  // Measured against the serialized draft, so a selected token counts by the prompt text
+  // serialization gives it — the plain leaf callback would count the atom as empty.
+  return view.state.doc.textBetween(from, to, '\n', getComposerSerializedLeafText)
 }
 
 function getComposerSelectedText(editor: Editor) {
