@@ -12,6 +12,7 @@ import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, DEFAULT_APPLE_ASR_LOCALE } from
 
 import type { LocalVoiceStatus } from '../localAdapters'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { checkAbort, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 import { voiceAudioProcess } from './voiceAudioProcess'
 
@@ -154,21 +155,29 @@ export function createAppleTranscriptionModel(options: TranscriptionOptions): Tr
     provider: 'local-voice',
     modelId: APPLE_ASR_MODEL_ID,
     async doGenerate(input) {
-      if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
-        throw new VoiceRuntimeError('invalid_audio')
+      if (!(input.audio instanceof Uint8Array)) throw new VoiceRuntimeError('invalid_audio')
+      const audio = input.audio
+      const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
+      const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
+      if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
       await requireReady(APPLE_ASR_MODEL_ID, options, input.abortSignal)
       return withScratch(
         async (directory) => {
-          const timeout = AbortSignal.timeout(30_000)
-          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-          const decoded = await application
-            .get('UtilityProcessManager')
-            .client(voiceAudioProcess)
-            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-            .catch((error: unknown) => {
-              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
-            })
+          let decoded: { wav: Uint8Array; durationSeconds: number }
+          if (wavMetadata) {
+            decoded = { wav: audio, durationSeconds: wavMetadata.durationSeconds }
+          } else {
+            const timeout = AbortSignal.timeout(30_000)
+            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
+            decoded = await application
+              .get('UtilityProcessManager')
+              .client(voiceAudioProcess)
+              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
+              .catch((error: unknown) => {
+                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
+                throw error
+              })
+          }
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
           await writeFile(inputPath, decoded.wav, { mode: 0o600 })
