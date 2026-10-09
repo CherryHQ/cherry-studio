@@ -4252,26 +4252,154 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('does not inspect or extract FFmpeg on Linux', async () => {
-      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
-      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
-      Object.defineProperties(process, {
-        platform: { value: 'linux' },
-        arch: { value: 'x64' }
-      })
-
-      try {
+    it('skips the Linux FFmpeg tree when the installed marker and executables match', async () => {
+      await withPlatform('linux', 'x64', async () => {
         const service = new BinaryManager()
         mockFs.existsSync.mockReturnValue(true)
-        mockFs.readFileSync.mockReturnValue('same-version')
+        mockFs.readFileSync.mockReturnValue('ffmpeg-lgpl-v8.1.2-r1')
 
         await (service as any).extractBundledBinaries()
 
-        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(false)
-        expect(mockFsp.copyFile.mock.calls.some(([path]) => String(path).includes('ffmpeg'))).toBe(false)
-      } finally {
-        Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
-      }
+        expect(mockFs.readFileSync.mock.calls.some(([file]) => String(file).includes('.ffmpeg-version'))).toBe(true)
+        expect(mockFsp.copyFile).not.toHaveBeenCalled()
+        expect(mockFsp.writeFile).not.toHaveBeenCalled()
+      })
+    })
+
+    it('installs the Linux FFmpeg tree, chmods bin executables, and writes the marker last', async () => {
+      await withPlatform('linux', 'x64', async () => {
+        const service = new BinaryManager()
+        mockFs.readFileSync.mockImplementation((file: string) => {
+          if (String(file).includes('binaries') && String(file).includes('.ffmpeg-version')) {
+            return 'ffmpeg-lgpl-v8.1.2-r1'
+          }
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+        mockFs.existsSync.mockImplementation((file: string) => String(file).includes('app.root.resources.binaries'))
+        mockFsp.readdir.mockImplementation(async (dir: string) => {
+          const relative = ffmpegTreeRelative(String(dir))
+          const entries = LINUX_FFMPEG_TREE[relative ?? 'missing'] ?? []
+          return entries.map((entry) => ({
+            name: entry.name,
+            isDirectory: () => entry.dir,
+            isFile: () => !entry.dir
+          }))
+        })
+
+        await (service as any).extractBundledBinaries()
+
+        const copies = slashCalls(mockFsp.copyFile.mock.calls)
+        expect(copies).toEqual(
+          expect.arrayContaining([
+            [
+              '/mock/app.root.resources.binaries/linux-x64/ffmpeg/bin/ffmpeg',
+              expect.stringContaining('/mock/cherry.bin/ffmpeg.tmp-')
+            ],
+            [
+              '/mock/app.root.resources.binaries/linux-x64/ffmpeg/lib/libavcodec.so.61',
+              expect.stringContaining('/mock/cherry.bin/ffmpeg.tmp-')
+            ],
+            [
+              '/mock/app.root.resources.binaries/linux-x64/ffmpeg/licenses/COPYING.LGPLv2.1',
+              expect.stringContaining('/mock/cherry.bin/ffmpeg.tmp-')
+            ],
+            [
+              '/mock/app.root.resources.binaries/linux-x64/ffmpeg/SOURCE.txt',
+              expect.stringContaining('/mock/cherry.bin/ffmpeg.tmp-')
+            ],
+            [
+              '/mock/app.root.resources.binaries/linux-x64/ffmpeg/manifest.json',
+              expect.stringContaining('/mock/cherry.bin/ffmpeg.tmp-')
+            ]
+          ])
+        )
+        expect(copies.some(([source]) => source.endsWith('/linux-x64/ffmpeg'))).toBe(false)
+        const chmodPaths = mockFsp.chmod.mock.calls.map(([file]) => String(file).replaceAll('\\', '/'))
+        expect(chmodPaths.some((file) => file.endsWith('/bin/ffmpeg'))).toBe(true)
+        expect(chmodPaths.some((file) => file.endsWith('/bin/ffprobe'))).toBe(true)
+        expect(chmodPaths.some((file) => file.includes('.so'))).toBe(false)
+        const renameIndex = mockFsp.rename.mock.calls.findIndex(
+          ([, dest]) => String(dest).replaceAll('\\', '/') === '/mock/cherry.bin/ffmpeg'
+        )
+        expect(renameIndex).toBeGreaterThanOrEqual(0)
+        const writeIndex = mockFsp.writeFile.mock.calls.findIndex(([file]) => String(file).endsWith('.ffmpeg-version'))
+        expect(mockFsp.writeFile.mock.calls[writeIndex]?.[1]).toBe('ffmpeg-lgpl-v8.1.2-r1')
+        expect(mockFsp.writeFile.mock.invocationCallOrder[writeIndex]).toBeGreaterThan(
+          mockFsp.rename.mock.invocationCallOrder[renameIndex]
+        )
+      })
+    })
+
+    it('keeps Darwin FFmpeg as flat binaries', async () => {
+      await withPlatform('darwin', 'arm64', async () => {
+        const service = new BinaryManager()
+        mockFs.readFileSync.mockImplementation((file: string) => {
+          if (String(file).includes('binaries') && String(file).includes('.ffmpeg-version')) return '8.1.2-27'
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        })
+        mockFs.existsSync.mockImplementation((file: string) => String(file).includes('app.root.resources.binaries'))
+
+        await (service as any).extractBundledBinaries()
+
+        const sources = slashCalls(mockFsp.copyFile.mock.calls).map(([source]) => source)
+        expect(sources).toEqual(
+          expect.arrayContaining([
+            '/mock/app.root.resources.binaries/darwin-arm64/ffmpeg',
+            '/mock/app.root.resources.binaries/darwin-arm64/ffprobe'
+          ])
+        )
+        expect(sources.some((source) => source.includes('/ffmpeg/bin/'))).toBe(false)
+        expect(mockFsp.readdir).not.toHaveBeenCalled()
+      })
     })
   })
 })
+
+function slashCalls(calls: unknown[][]): string[][] {
+  return calls.map((call) => call.map((value) => String(value).replaceAll('\\', '/')))
+}
+
+function ffmpegTreeRelative(dir: string): string | null {
+  const normalized = dir.replaceAll('\\', '/')
+  const marker = '/ffmpeg'
+  const index = normalized.lastIndexOf(marker)
+  if (index === -1) return null
+  const rest = normalized.slice(index + marker.length)
+  if (rest === '') return ''
+  // `ffmpeg.tmp-*` staging directories share the prefix and are not the source tree.
+  if (!rest.startsWith('/')) return null
+  return rest.slice(1)
+}
+
+const LINUX_FFMPEG_TREE: Record<string, Array<{ name: string; dir: boolean }>> = {
+  '': [
+    { name: 'bin', dir: true },
+    { name: 'lib', dir: true },
+    { name: 'licenses', dir: true },
+    { name: 'SOURCE.txt', dir: false },
+    { name: 'manifest.json', dir: false }
+  ],
+  bin: [
+    { name: 'ffmpeg', dir: false },
+    { name: 'ffprobe', dir: false }
+  ],
+  lib: [
+    { name: 'libavcodec.so.61', dir: false },
+    { name: 'libswscale.so.8', dir: false }
+  ],
+  licenses: [{ name: 'COPYING.LGPLv2.1', dir: false }]
+}
+
+async function withPlatform(platform: NodeJS.Platform, arch: string, run: () => Promise<void>) {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+  const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+  Object.defineProperties(process, {
+    platform: { value: platform },
+    arch: { value: arch }
+  })
+  try {
+    await run()
+  } finally {
+    Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
+  }
+}
