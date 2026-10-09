@@ -106,11 +106,26 @@ builds the context. A failing summarizer cancels that compaction (it never falls
 model) and `compaction-end` carries the error: a threshold compaction leaves the turn running, an
 overflow then ends the turn with the provider's error.
 
+## Tool output offload
+
+`offload: { store, thresholdChars }` keeps one oversized tool result from overflowing the context.
+A `tool_result` hook (after every other extension's) saves text output longer than
+`thresholdChars` through the host's `ToolOutputStore` and gives the model its head and tail around a
+`<persisted-output>` note with the saved path, to read back with Pi's `read` tool. Names are content
+addressed (`tool-output-<sha256>.txt`), so the same output gives the same marker and prompt caches
+hold. Images and `structuredContent` (for the UI and codemode) are kept. Not offloaded: errors,
+`read` results (reading an offloaded file back must not offload it again) and nested tool calls,
+which reach the model only through their caller. The transcript stores the marker, which is what the
+model saw. The host must let `read` open the store's paths without an approval prompt.
+
 ## Known gaps
 
-- A single tool result larger than the context window survives compaction (it is the kept recent
-  turn), so the next request is rejected as context overflow and the turn ends without an answer.
-  Truncating oversized results is the next step.
+- `read` results are never offloaded, and Pi caps them at 50 KB, which can still overflow a small
+  context window.
+- A parallel tool batch whose results together exceed the context window, each below the
+  threshold, still overflows; offloading at `turn_end` is deferred.
+- Pi's `bash` tool saves the full output of a truncated command to a temp file and names it in the
+  result; that file is not moved into the offload store and may be gone when read later.
 - Pi's `after_provider_response` extension event never fires for these models: `streamText` does not
   expose response headers before the body is consumed.
 - Tool call ids from another provider are replayed as-is (no `normalizeToolCallId`). A provider

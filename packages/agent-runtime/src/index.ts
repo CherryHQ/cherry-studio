@@ -1,5 +1,6 @@
 export { AI_SDK_API, type AiSdkModelSpec, type AiSdkProviderOptions, createAiSdkProvider } from './aiSdkProvider'
 export type { AgentRuntimeCompaction, CompactionSummarizer, CompactionSummaryRequest } from './compaction'
+export type { ToolOutputOffload, ToolOutputStore } from './offload'
 export type {
   ModelCallInfo,
   ModelCallPort,
