@@ -43,6 +43,20 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   return ` ${progress}%`
 }
 
+/**
+ * Live " NN%" suffix for a row whose linked document processor is running (remote OCR /
+ * conversion). Mounted only while `item.status === 'processing'`; the check job mirrors the
+ * processor job's progress into the shared cache every poll round and TTL-collects it when
+ * polling stops, so absence just means the processor reports no progress.
+ */
+const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
+  const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)
+  if (progress == null) {
+    return null
+  }
+  return ` ${progress}%`
+}
+
 const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
   const { t } = useTranslation()
   const progress = useSharedCacheValue(`knowledge.item.directory_copy_progress.${itemId}` as const)
@@ -255,6 +269,7 @@ const KnowledgeItemRow = ({
               ) : (
                 <>
                   {t(status.labelKey)}
+                  {item.status === 'processing' ? <KnowledgeItemFileProcessingProgress itemId={item.id} /> : null}
                   {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
                 </>
               )

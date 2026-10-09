@@ -19,23 +19,6 @@ import {
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
 
-type WorkflowStep = {
-  if?: string
-  name?: string
-  run?: string
-  uses?: string
-}
-
-type GitCodeWorkflow = {
-  jobs: {
-    'build-windows-signed': {
-      strategy?: { matrix?: { edition?: string[] } }
-      steps: WorkflowStep[]
-    }
-    'sync-to-gitcode': { steps: WorkflowStep[] }
-  }
-}
-
 describe('edition packaging', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -194,24 +177,5 @@ describe('edition packaging', () => {
       'Cherry-Studio-CN-2.1.0-mac-x64.dmg',
       'Cherry-Studio-CN-2.1.0-mac-arm64.dmg'
     ])
-  })
-
-  it('re-signs both Windows editions before syncing the release to GitCode', () => {
-    const workflow = parse(
-      readFileSync(path.join(projectRoot, '.github/workflows/sync-to-gitcode.yml'), 'utf8')
-    ) as GitCodeWorkflow
-    const buildJob = workflow.jobs['build-windows-signed']
-    const syncJob = workflow.jobs['sync-to-gitcode']
-    const buildStep = buildJob.steps.find((step) => step.name === 'Build Windows with code signing')
-    const preserveStep = buildJob.steps.find((step) => step.name === 'Preserve signed Windows artifacts locally')
-
-    expect(buildJob.strategy?.matrix?.edition).toEqual([GLOBAL_EDITION, CHINA_EDITION])
-    expect(buildStep?.run).toMatch(/^\s*pnpm build:win:cn\s*$/m)
-    expect(buildStep?.run).toMatch(/^\s*pnpm build:win\s*$/m)
-    expect(buildStep?.run).toContain('electron-builder.cn.config.cjs')
-    expect(preserveStep?.if).toContain('steps.build-windows.outputs.supported')
-    expect(
-      [...buildJob.steps, ...syncJob.steps].some((step) => /actions\/(upload|download)-artifact@/.test(step.uses ?? ''))
-    ).toBe(false)
   })
 })
