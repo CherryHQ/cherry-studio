@@ -199,9 +199,13 @@ function isExecutableShim(shimPath: string): Promise<boolean> {
 const BUNDLED_TOOLS: Array<{
   name: string
   binaries: string[]
+  platforms?: NodeJS.Platform[]
   windowsBinaries?: string[]
+  windowsSupportFiles?: string[]
   versionFile: string
   internal?: boolean
+  /** Linux shared runtime kept as a directory. `executables` are relative to `dir`. */
+  linuxTree?: { dir: string; executables: string[] }
 }> = [
   {
     name: 'mise',
@@ -212,7 +216,22 @@ const BUNDLED_TOOLS: Array<{
   },
   { name: 'bun', binaries: ['bun'], versionFile: '.bun-version' },
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
-  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
+  { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' },
+  {
+    name: 'ffmpeg',
+    binaries: ['ffmpeg', 'ffprobe'],
+    platforms: ['darwin', 'win32', 'linux'],
+    linuxTree: { dir: 'ffmpeg', executables: ['bin/ffmpeg', 'bin/ffprobe'] },
+    windowsSupportFiles: [
+      'libvpl-2.dll',
+      'libwinpthread-1.dll',
+      'libgcc_s_seh-1.dll',
+      'libstdc++-6.dll',
+      'libopenh264-7.dll'
+    ],
+    versionFile: '.ffmpeg-version',
+    internal: true
+  }
 ]
 
 export type ManagedCliStatus = 'ready' | 'not_installed' | 'installing' | 'removing' | 'failed' | 'unknown'
@@ -796,7 +815,12 @@ export class BinaryManager extends BaseService {
     await fsp.mkdir(binDir, { recursive: true })
 
     for (const tool of BUNDLED_TOOLS) {
+      if (tool.platforms && !tool.platforms.includes(process.platform)) continue
       try {
+        if (process.platform === 'linux' && tool.linuxTree) {
+          await this.extractBundledLinuxTree(tool, bundledDir, binDir)
+          continue
+        }
         const executables = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
@@ -841,6 +865,65 @@ export class BinaryManager extends BaseService {
         // on (e.g.) bun would prevent mise/uv/rg from being extracted at all.
         logger.error(`Failed to extract bundled ${tool.name}`, err as Error)
       }
+    }
+  }
+
+  private async extractBundledLinuxTree(
+    tool: (typeof BUNDLED_TOOLS)[number],
+    bundledDir: string,
+    binDir: string
+  ): Promise<void> {
+    const tree = tool.linuxTree
+    if (!tree) return
+    const bundledVersion = this.readVersionMarker(path.join(bundledDir, tool.versionFile))
+    if (!bundledVersion) {
+      logger.error(
+        `Expected bundled ${tool.name} version marker missing`,
+        new Error(`Missing ${path.join(bundledDir, tool.versionFile)}`)
+      )
+      return
+    }
+    const sourceDir = path.join(bundledDir, tree.dir)
+    if (!fs.existsSync(sourceDir)) {
+      logger.error(`Expected bundled ${tool.name} tree missing`, new Error(`Missing ${sourceDir}`))
+      return
+    }
+
+    const destDir = path.join(binDir, tree.dir)
+    const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
+    const executablesPresent = tree.executables.every((relative) => fs.existsSync(path.join(destDir, relative)))
+    if (executablesPresent && bundledVersion === installedVersion) return
+
+    const stagingDir = path.join(binDir, `${tree.dir}.tmp-${process.pid}`)
+    const retiredDir = path.join(binDir, `${tree.dir}.retired-${process.pid}`)
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+    await this.copyBundledTree(sourceDir, stagingDir)
+    for (const relative of tree.executables) {
+      await fsp.chmod(path.join(stagingDir, relative), 0o755)
+    }
+    if (fs.existsSync(destDir)) {
+      fs.rmSync(retiredDir, { recursive: true, force: true })
+      await fsp.rename(destDir, retiredDir)
+    }
+    await fsp.rename(stagingDir, destDir)
+    fs.rmSync(retiredDir, { recursive: true, force: true })
+    await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
+    logger.info(`Extracted bundled ${tool.name}`, { binDir: destDir, version: bundledVersion })
+  }
+
+  private async copyBundledTree(sourceDir: string, destDir: string): Promise<void> {
+    await fsp.mkdir(destDir, { recursive: true })
+    const entries = await fsp.readdir(sourceDir, { withFileTypes: true })
+    for (const entry of entries) {
+      const source = path.join(sourceDir, entry.name)
+      const dest = path.join(destDir, entry.name)
+      if (entry.isDirectory()) {
+        await this.copyBundledTree(source, dest)
+        continue
+      }
+      const tmp = `${dest}.tmp-${process.pid}`
+      await fsp.copyFile(source, tmp)
+      await fsp.rename(tmp, dest)
     }
   }
 
