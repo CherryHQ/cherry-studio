@@ -170,6 +170,8 @@ describe('AiService voice operations through real aiCore', () => {
       provider: 'test-local',
       modelId: APPLE_ASR_MODEL_ID,
       doGenerate: async ({ audio, mediaType }) => {
+        expect(audio).toBeInstanceOf(Uint8Array)
+        if (!(audio instanceof Uint8Array)) throw new TypeError('expected canonical WAV bytes')
         delivered = { audio, mediaType }
         return {
           text: 'canonical transcript',
