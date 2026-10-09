@@ -88,10 +88,9 @@ describe('AssistantDataService CherryIN official assistants', () => {
   it('maps all six brands to valid CherryIN chat models', async () => {
     await seedModels()
 
-    const result = assistantDataService.initializeCherryInOfficialAssistants()
+    assistantDataService.initializeCherryInOfficialAssistants()
     const rows = await readOfficialRows()
 
-    expect(result.createdAssistantIds).toHaveLength(6)
     expect(Object.fromEntries(rows.map((row) => [row.name, row.modelId]))).toEqual(
       Object.fromEntries(
         OFFICIAL_ASSISTANTS.map(({ name, modelId }) => [name, createUniqueModelId('cherryin', modelId)])
@@ -178,11 +177,10 @@ describe('AssistantDataService CherryIN official assistants', () => {
       .set({ name: 'My Claude', prompt: 'My custom prompt' })
       .where(eq(assistantTable.id, '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1'))
 
-    const result = assistantDataService.initializeCherryInOfficialAssistants()
+    assistantDataService.initializeCherryInOfficialAssistants()
     const rows = await readOfficialRows()
     const claude = rows.find(({ id }) => id === '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1')
 
-    expect(result.createdAssistantIds).toEqual([])
     expect(rows).toHaveLength(6)
     expect(claude).toMatchObject({ name: 'My Claude', prompt: 'My custom prompt' })
   })
@@ -229,10 +227,13 @@ describe('AssistantDataService CherryIN official assistants', () => {
     expect((await readOfficialRows()).map(({ name }) => name)).not.toContain('Kimi')
 
     await seedModels([{ modelId: 'kimi-k2-0905-preview' }])
-    const result = assistantDataService.initializeCherryInOfficialAssistants()
+    assistantDataService.initializeCherryInOfficialAssistants()
 
-    expect(result.createdAssistantIds).toEqual(['b76d4a0f-09a7-48e9-894f-681552a9bca3'])
-    expect(await readOfficialRows()).toHaveLength(6)
+    const rows = await readOfficialRows()
+    expect(rows).toHaveLength(6)
+    expect(rows.find(({ name }) => name === 'Kimi')?.modelId).toBe(
+      createUniqueModelId('cherryin', 'kimi-k2-0905-preview')
+    )
   })
 
   it('rolls back every assistant when writing the completion marker fails', async () => {

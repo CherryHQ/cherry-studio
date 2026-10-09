@@ -160,14 +160,12 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants:initialize-cherryin-official', () => {
-    it('forwards an empty initialization request', async () => {
+    it('completes initialization without exposing created assistant IDs', async () => {
       initializeCherryInOfficialAssistantsMock.mockReturnValueOnce({ createdAssistantIds: [ASSISTANT_ID] })
 
-      await expect(assistantHandlers['/assistants:initialize-cherryin-official'].POST({ body: {} })).resolves.toEqual({
-        createdAssistantIds: [ASSISTANT_ID]
-      })
-
-      expect(initializeCherryInOfficialAssistantsMock).toHaveBeenCalledOnce()
+      await expect(
+        assistantHandlers['/assistants:initialize-cherryin-official'].POST({ body: {} })
+      ).resolves.toBeUndefined()
     })
 
     it('rejects client-controlled initialization fields', async () => {

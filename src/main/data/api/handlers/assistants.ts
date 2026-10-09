@@ -45,7 +45,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants:initialize-cherryin-official': {
     POST: async ({ body }) => {
       InitializeCherryInOfficialAssistantsSchema.parse(body)
-      return assistantDataService.initializeCherryInOfficialAssistants()
+      assistantDataService.initializeCherryInOfficialAssistants()
     }
   },
 

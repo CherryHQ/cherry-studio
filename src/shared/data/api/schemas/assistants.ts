@@ -80,10 +80,6 @@ export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 export const InitializeCherryInOfficialAssistantsSchema = z.strictObject({})
 export type InitializeCherryInOfficialAssistantsDto = z.infer<typeof InitializeCherryInOfficialAssistantsSchema>
 
-export interface InitializeCherryInOfficialAssistantsResult {
-  createdAssistantIds: string[]
-}
-
 /**
  * DTO for updating an existing assistant. All fields optional.
  *
@@ -212,7 +208,7 @@ export type AssistantSchemas = {
   '/assistants:initialize-cherryin-official': {
     POST: {
       body: InitializeCherryInOfficialAssistantsDto
-      response: InitializeCherryInOfficialAssistantsResult
+      response: void
     }
   }
 
