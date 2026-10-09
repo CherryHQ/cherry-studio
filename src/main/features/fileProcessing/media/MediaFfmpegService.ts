@@ -27,7 +27,7 @@ export type MediaExtractFramesRequest = Omit<MediaExtractFramesInput, 'pidRegist
 @Injectable('MediaFfmpegService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['UtilityProcessManager'])
-@Conditional(onPlatform('darwin', 'win32'))
+@Conditional(onPlatform('darwin', 'win32', 'linux'))
 export class MediaFfmpegService extends BaseService {
   private gate: Promise<unknown> = Promise.resolve()
   private initialized = false
