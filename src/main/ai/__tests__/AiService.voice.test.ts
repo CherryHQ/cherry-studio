@@ -162,4 +162,29 @@ describe('AiService voice operations through real aiCore', () => {
     expect(logs).not.toContain('PRIVATE-TRANSCRIPT')
     expect(logs).not.toContain('/private/recording.webm')
   })
+
+  it('delivers canonical PCM WAV through transcribe as audio/wav', async () => {
+    let delivered: { audio: Uint8Array; mediaType: string } | undefined
+    models.transcription = {
+      specificationVersion: 'v3',
+      provider: 'test-local',
+      modelId: APPLE_ASR_MODEL_ID,
+      doGenerate: async ({ audio, mediaType }) => {
+        delivered = { audio, mediaType }
+        return {
+          text: 'canonical transcript',
+          segments: [],
+          language: undefined,
+          durationInSeconds: undefined,
+          warnings: [],
+          response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID }
+        }
+      }
+    }
+
+    const result = await new AiService().transcribe(APPLE_ASR_MODEL_ID, wav, {}, new AbortController().signal)
+
+    expect(delivered).toEqual({ audio: wav, mediaType: 'audio/wav' })
+    expect(result).toEqual({ text: 'canonical transcript', segments: [] })
+  })
 })
