@@ -7,6 +7,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
@@ -201,6 +203,11 @@ export async function buildEnvironment(
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
+    // Identify Cherry Studio in the agent CLI's User-Agent (appends
+    // `client-app/cherry-studio/<version>`) so gateways and analytics can
+    // distinguish agent-mode traffic from a standalone Claude Code CLI.
+    // Documented in the Agent SDK `Options.env` JSDoc.
+    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -226,6 +233,7 @@ export async function buildEnvironment(
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
       'CHERRY_STUDIO_SKILLS_DIR',
+      'CLAUDE_AGENT_SDK_CLIENT_APP',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',

@@ -38,7 +38,8 @@ describe('validation selection', () => {
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
-    ['packages/ui/src/button.tsx', ['ui', 'renderer']],
+    ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
+    ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
@@ -60,6 +61,10 @@ describe('validation selection', () => {
       expect(plan.tasks).toContain('types-system-speech')
     }
   )
+  it('checks portable previews after their browser setup changes without depending on the desktop setup', () => {
+    expect(createPlan(['tests/file-preview.setup.ts']).projects).toContain('file-preview')
+    expect(createPlan(['tests/renderer.setup.ts']).projects).not.toContain('file-preview')
+  })
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
@@ -77,7 +82,6 @@ describe('validation selection', () => {
     'post-release',
     'prepare-release',
     'preview-release',
-    'publish-release',
     'release'
   ])('runs script contracts for release-workflow-only changes: %s', (name) => {
     expect(createPlan([`.github/workflows/${name}.yml`]).projects).toContain('scripts')

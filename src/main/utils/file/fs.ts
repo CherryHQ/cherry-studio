@@ -847,6 +847,12 @@ export async function mkdir(target: AbsoluteFilePath): Promise<void> {
 
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
 export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
+  const resolved = path.resolve(target)
+  if (resolved === path.parse(resolved).root) {
+    // Windows rejects recursive mkdir on volume roots, even when they exist.
+    await fsStat(resolved)
+    return
+  }
   await fsMkdirPromise(target, { recursive: true })
 }
 

@@ -182,6 +182,21 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(pending).resolves.toEqual({ block: true, reason: 'not allowed' })
   })
 
+  it('attributes a reason the user supplied', async () => {
+    const { handler, emitted } = buildGate()
+    const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
+    await flush()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, {
+      approved: false,
+      reason: 'not allowed',
+      reasonSource: 'user'
+    })
+    await expect(pending).resolves.toEqual({
+      block: true,
+      reason: expect.stringContaining('the user said:\nnot allowed')
+    })
+  })
+
   it('applies the edited input in place when approved with updatedInput', async () => {
     const { handler, emitted } = buildGate()
     const event = toolEvent('bash', { command: 'ls' })

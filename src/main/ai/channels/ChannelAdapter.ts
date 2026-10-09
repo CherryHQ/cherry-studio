@@ -204,6 +204,9 @@ export abstract class ChannelAdapter extends EventEmitter {
     this.connectAbort = null
   }
 
+  /** Allow adapters to recover transports invalidated while the system was suspended. */
+  handleSystemResume(): void {}
+
   /**
    * Check if the adapter has everything it needs to connect immediately.
    * Return true if credentials/config are available (e.g. cached token exists).

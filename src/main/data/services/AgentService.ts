@@ -74,6 +74,7 @@ interface EnsureBuiltinAgentInput {
   name: string
   preferredModelId: UniqueModelId | null
   type: AgentType
+  disabledTools?: readonly string[]
 }
 
 export interface EnsureBuiltinAgentResult {
@@ -93,9 +94,15 @@ function getAgentDescription(id: string, description: string, configuration: unk
     if (id === CHERRY_SUPPORT_AGENT_ID && builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       return t('agent.builtin.cherry_support.description')
     }
+    if (builtinRole === BUILTIN_AGENT_ROLE.DOCTOR) {
+      return t('agent.builtin.cherry_doctor.description')
+    }
   }
   return ''
 }
+
+/** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
+const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
 
 function buildAgentSearchPredicate(search: string): SQL {
   const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
@@ -105,7 +112,8 @@ function buildAgentSearchPredicate(search: string): SQL {
   // its localized main-process fallback in SQL rather than limiting search to a renderer page.
   const assistantDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.ASSISTANT} AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
   const supportDescriptionMatch = sql`${agentsTable.id} = ${CHERRY_SUPPORT_AGENT_ID} AND ${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.SUPPORT} AND ${t('agent.builtin.cherry_support.description')} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch)!
+  const doctorDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.DOCTOR} AND ${t('agent.builtin.cherry_doctor.description')} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch, doctorDescriptionMatch)!
 }
 
 /**
@@ -511,6 +519,7 @@ export class AgentService {
       description: '',
       instructions: '',
       model,
+      disabledTools: [...(input.disabledTools ?? [])],
       configuration: {
         ...input.configuration,
         builtin_role: input.builtinRole
@@ -586,7 +595,8 @@ export class AgentService {
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
     const conditions: SQL[] = [
-      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt),
+      notDoctorAgent
     ]
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
     if (options.search) {
@@ -665,7 +675,7 @@ export class AgentService {
 
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt), buildAgentSearchPredicate(options.q)]
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt), notDoctorAgent, buildAgentSearchPredicate(options.q)]
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
@@ -944,14 +954,28 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /** Restore a trashed agent. Related sessions remain independently restorable. */
+  /**
+   * Restore a trashed agent together with the sessions trashed by the same
+   * operation. Sessions archived on their own stay independently restorable.
+   */
   restoreAgent(id: string): AgentEntity {
-    const agent = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
+    const { agent, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
+    agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
     this.notifyReadModelChange([id], 'membership')
     return agent
   }
 
-  restoreAgentTx(tx: DbOrTx, id: string): AgentEntity {
+  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+    const [target] = tx
+      .select({ deletedAt: agentsTable.deletedAt })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
+
+    const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
+
     const [row] = tx
       .update(agentsTable)
       .set({ deletedAt: null })
@@ -970,7 +994,7 @@ export class AgentService {
       fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
     )
     logger.info('Restored agent', { id })
-    return agent
+    return { agent, restoredSessionIds }
   }
 
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): AgentPurgeImpact {
