@@ -22,7 +22,6 @@ import {
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
@@ -32,7 +31,7 @@ import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
+import { ProviderSettingsPage, useCherryInSetup } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -47,8 +46,6 @@ import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
-
-const logger = loggerService.withContext('OnboardingPage')
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
@@ -91,7 +88,7 @@ export default function OnboardingPage({
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
   const { addApiKey, updateProvider } = useProvider('cherryin')
-  const { syncProviderModels } = useProviderModelSync('cherryin')
+  const { completeSetup } = useCherryInSetup('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models: enabledModels, isLoading: isModelsLoading } = useModels({ enabled: true })
   const { defaultModel, quickModel, translateModel } = useDefaultModel()
@@ -368,26 +365,16 @@ export default function OnboardingPage({
         },
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
-      if (loginAttemptRef.current !== attemptId) return
-
-      let cherryInModels: Model[]
+      let cherryInModels: Model[] | undefined
       try {
-        cherryInModels = await syncProviderModels()
-      } catch (error) {
+        cherryInModels = await completeSetup(() => loginAttemptRef.current === attemptId)
+      } catch {
         if (loginAttemptRef.current !== attemptId) return
-        logger.error('Failed to sync CherryIN models after login', error as Error)
         toast.error(t('onboarding.toast.model_sync_failed'))
         setStep('provider')
         return
       }
-      if (loginAttemptRef.current !== attemptId) return
-
-      try {
-        await dataApiService.post('/assistants:initialize-cherryin-official', { body: {} })
-      } catch (error) {
-        logger.error('Failed to initialize CherryIN official assistants', error as Error)
-      }
-      if (loginAttemptRef.current !== attemptId) return
+      if (!cherryInModels) return
 
       if (!cherryInModels.some((model) => model.isEnabled)) {
         toast.error(t('onboarding.provider_setup.missing_model'))
@@ -409,7 +396,7 @@ export default function OnboardingPage({
         setIsLoggingIn(false)
       }
     }
-  }, [addApiKey, syncProviderModels, t, updateProvider])
+  }, [addApiKey, completeSetup, t, updateProvider])
 
   const isPrimaryLoginPending = shouldUseCherryAccountLogin ? isCloudAuthorizing : isLoggingIn
   const primaryLoginLabel = shouldUseCherryAccountLogin

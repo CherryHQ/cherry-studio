@@ -5,7 +5,6 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons/providers'
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -20,7 +19,7 @@ import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { useProviderModelSync } from '../hooks/useProviderModelSync'
+import { useCherryInSetup } from '../hooks/useCherryInSetup'
 
 const logger = loggerService.withContext('CherryInOauth')
 
@@ -41,7 +40,7 @@ function formatCurrency(value: number | null | undefined): string {
 
 const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
-  const { syncProviderModels } = useProviderModelSync(provider?.id ?? providerId)
+  const { completeSetup } = useCherryInSetup(providerId)
   const { t } = useTranslation()
 
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -141,16 +140,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
       if (providerId === SystemProviderIds.cherryin) {
         try {
-          await syncProviderModels()
-        } catch (error) {
-          logger.error('Failed to sync CherryIN models after login', error as Error)
+          const models = await completeSetup(() => signInRequestIdRef.current === requestId)
+          if (!models) return
+        } catch {
           toast.warning(t('settings.provider.oauth.cherryIn.model_sync_failed'))
           return
-        }
-        try {
-          await dataApiService.post('/assistants:initialize-cherryin-official', { body: {} })
-        } catch (error) {
-          logger.error('Failed to initialize CherryIN official assistants', error as Error)
         }
       }
       toast.success(t('auth.get_key_success'))
@@ -164,7 +158,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         setIsLoggingIn(false)
       }
     }
-  }, [addApiKey, fetchData, providerId, refreshHasToken, syncProviderModels, t, updateProvider])
+  }, [addApiKey, completeSetup, fetchData, providerId, refreshHasToken, t, updateProvider])
 
   const handleCancelLogin = useCallback(async () => {
     const requestId = signInRequestIdRef.current

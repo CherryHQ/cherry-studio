@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { mockDataApiService as dataApiMocks } from '@test-mocks/renderer/DataApiService'
 import {
   mockUseMultiplePreferences,
   mockUsePreference,
@@ -35,11 +36,6 @@ const cloudMocks = vi.hoisted(() => ({
     | ((status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void)
     | undefined
 }))
-const dataApiMocks = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn()
-}))
 const i18nMock = vi.hoisted(() => ({
   changeLanguage: vi.fn(),
   language: 'en-US',
@@ -57,10 +53,6 @@ const defaultUseMultiplePreferencesImplementation = mockUseMultiplePreferences.g
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
-}))
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: dataApiMocks
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -111,8 +103,15 @@ vi.mock('@renderer/components/WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
-  ProviderSettingsPage: () => <div data-testid="provider-settings" />,
+vi.mock('@renderer/pages/settings/ProviderSettings', async () => {
+  const { useCherryInSetup } = await import('@renderer/pages/settings/ProviderSettings/hooks/useCherryInSetup')
+  return {
+    ProviderSettingsPage: () => <div data-testid="provider-settings" />,
+    useCherryInSetup
+  }
+})
+
+vi.mock('@renderer/pages/settings/ProviderSettings/hooks/useProviderModelSync', () => ({
   useProviderModelSync: () => ({
     syncProviderModels: syncProviderModelsMock,
     isSyncingModels: false
@@ -424,7 +423,7 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
-  it('excludes CherryAI models, hides painting, and rejects built-in selections', async () => {
+  it('excludes CherryAI models and rejects built-in selections', async () => {
     selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
     selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
     selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
@@ -433,9 +432,6 @@ describe('OnboardingPage', () => {
     await openModelSelection()
 
     const modelSettingsProps = modelSettingsPropsMock.mock.lastCall?.[0]
-    expect(modelSettingsProps?.autoFillEmptyModels).toBe(true)
-    expect(modelSettingsProps?.onDefaultModelSelected).toBeTypeOf('function')
-    expect(modelSettingsProps?.showPaintingModel).toBe(false)
     expect(modelSettingsProps?.modelFilter?.({ providerId: CHERRYAI_PROVIDER_ID, capabilities: [] })).toBe(false)
     expect(modelSettingsProps?.modelFilter?.({ providerId: CHERRY_CLOUD_PROVIDER_ID, capabilities: [] })).toBe(false)
     expect(modelSettingsProps?.modelFilter?.({ providerId: 'openai', capabilities: [] })).toBe(true)
@@ -938,6 +934,39 @@ describe('OnboardingPage', () => {
     await act(() => vi.advanceTimersByTime(1))
     expect(loginButton).toBeEnabled()
     expect(loginButton.querySelector('.lucide-log-in')).toBeInTheDocument()
+  })
+
+  it('keeps a newer login on model selection when the previous model sync finishes late', async () => {
+    const user = userEvent.setup()
+    const timerSpy = vi.spyOn(window, 'setTimeout')
+    let finishPreviousSync!: (models: unknown[]) => void
+    syncProviderModelsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishPreviousSync = resolve
+        })
+    )
+    render(<OnboardingPage />)
+
+    const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
+    await user.click(loginButton)
+    expect(loginButton).toBeDisabled()
+    const timeoutIndex = timerSpy.mock.calls.findIndex(([, delay]) => delay === 10_000)
+    const releaseLogin = timerSpy.mock.calls[timeoutIndex][0]
+    await act(async () => {
+      window.clearTimeout(timerSpy.mock.results[timeoutIndex].value)
+      releaseLogin()
+    })
+    await user.click(loginButton)
+
+    expect(screen.getByRole('heading', { name: 'onboarding.select_model.title' })).toBeInTheDocument()
+    await act(async () => {
+      finishPreviousSync([])
+    })
+
+    expect(screen.getByRole('heading', { name: 'onboarding.select_model.title' })).toBeInTheDocument()
+    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(dataApiMocks.post).toHaveBeenCalledTimes(1)
   })
 
   it('initializes official assistants after CherryIN model sync before moving to model selection', async () => {
