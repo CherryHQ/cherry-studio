@@ -28,6 +28,7 @@ import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model } from '@shared/data/types/model'
 import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
+import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import type {
   DoctorAgentChange,
   DoctorAgentProposal,
@@ -52,6 +53,8 @@ type ModelCheckState =
 const GENERIC_MODEL_CHECK_ERRORS = new Set(['Error', 'IpcError', 'AI_APICallError'])
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
+  /** Set when opened from a failed message; the analysis then reads that conversation. */
+  readonly incident?: DoctorAgentIncident
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
   readonly onReportProblem?: () => void
@@ -61,12 +64,18 @@ export interface DoctorAgentDialogProps {
  * The "AI consultation" flow: pick a model, run one headless doctor turn over the report the panel
  * shows, then apply or undo what it proposed. Reopening shows the last analysis for this scope.
  */
-export function DoctorAgentConsultation({ subject, open, onOpenChange, onReportProblem }: DoctorAgentDialogProps) {
+export function DoctorAgentConsultation({
+  subject,
+  incident,
+  open,
+  onOpenChange,
+  onReportProblem
+}: DoctorAgentDialogProps) {
   const { t } = useTranslation()
   const scope = doctorScopeKey(subject)
   const doctorState = useSharedCacheValue(doctorStateCacheKey(scope))
   const reportRunId = doctorState?.status === 'completed' ? doctorState.report.runId : undefined
-  const agent = useDoctorAgent({ scope, reportRunId })
+  const agent = useDoctorAgent({ scope, incident, reportRunId })
   const { state } = agent
   const [pickerForced, setPickerForced] = useState(false)
   const showPicker = pickerForced || state.status === 'idle' || agent.isStale
@@ -91,6 +100,9 @@ export function DoctorAgentConsultation({ subject, open, onOpenChange, onReportP
           <DialogDescription>
             {showPicker ? t('settings.doctor.agent.model_picker.description') : t('settings.doctor.agent.description')}
           </DialogDescription>
+          {showPicker && incident ? (
+            <p className="text-xs text-muted-foreground">{t('settings.doctor.agent.incident_disclosure')}</p>
+          ) : null}
           {!showPicker ? (
             <p className="text-xs text-muted-foreground">
               {t('settings.doctor.agent.agent_model', { model: modelLabel })}

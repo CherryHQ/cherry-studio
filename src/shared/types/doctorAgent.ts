@@ -1,4 +1,13 @@
-import type { DoctorFixRequest, DoctorFixResult } from './doctor'
+import type { DoctorFixRequest, DoctorFixResult, DoctorScopeKey } from './doctor'
+
+/** The failed message an analysis is about; `topicId` is a chat topic or `agent-session:<id>`. */
+export interface DoctorAgentIncident {
+  readonly topicId: string
+  readonly messageId: string
+}
+
+/** Identity of one analysis: a scope, or a scope narrowed to one failed message. */
+export type DoctorAgentKey = DoctorScopeKey | `${DoctorScopeKey}#${string}`
 
 /**
  * A bounded write the doctor Agent may ask for. Every variant maps onto an existing validated write
@@ -38,6 +47,8 @@ export interface DoctorAgentChange {
 
 export interface DoctorAgentRun {
   readonly runId: string
+  readonly scope: DoctorScopeKey
+  readonly incident?: DoctorAgentIncident
   /** The Doctor report this analysis read; proposals bound to it go stale with it. */
   readonly reportRunId: string
   readonly sessionId: string
@@ -52,7 +63,7 @@ export interface DoctorAgentRun {
   readonly changes: readonly DoctorAgentChange[]
 }
 
-/** Published on `doctorAgentStateCacheKey(scope)`; one analysis per scope at a time. */
+/** Published on `doctorAgentStateCacheKey(key)`; one analysis per key at a time. */
 export type DoctorAgentState =
   | { readonly status: 'idle' }
   | ({ readonly status: 'running' | 'completed' | 'canceled' } & DoctorAgentRun)

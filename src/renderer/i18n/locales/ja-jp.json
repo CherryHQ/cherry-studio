@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "元に戻しました",
   "settings.doctor.agent.changes": "適用した変更",
   "settings.doctor.agent.description": "現在の診断結果とアプリの実行時状態を合わせて分析しています。",
+  "settings.doctor.agent.incident_disclosure": "この分析では、この会話のメッセージと実行記録を読み取り、選択したモデルに送信します。",
   "settings.doctor.agent.messages.applied": "変更を適用しました。",
   "settings.doctor.agent.messages.apply_failed": "適用できません: {{message}}",
   "settings.doctor.agent.messages.no_model": "既定のモデルが設定されていません。分析の前に設定で選択してください。",

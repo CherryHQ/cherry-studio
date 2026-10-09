@@ -84,7 +84,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               role="region"
               aria-label={t('settings.doctor.copy.checks_heading')}
               className="min-w-0 overflow-hidden rounded-xl border border-border bg-background [&>[data-slot=accordion-item]:first-child]:border-t-0">
-              <DoctorAgentAccordionItem scope={controller.scope} reportRunId={viewModel.report?.runId} />
+              <DoctorAgentAccordionItem agentKey={controller.scope} reportRunId={viewModel.report?.runId} />
               <DoctorCheckAccordionItems
                 compact
                 defaultLocalDetailsExpanded

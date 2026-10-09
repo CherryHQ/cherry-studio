@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Отменено",
   "settings.doctor.agent.changes": "Применённые изменения",
   "settings.doctor.agent.description": "Анализ текущих результатов вместе с состоянием приложения во время выполнения.",
+  "settings.doctor.agent.incident_disclosure": "Этот анализ читает сообщения и журналы выполнения этого диалога и отправляет их выбранной вами модели.",
   "settings.doctor.agent.messages.applied": "Изменение применено.",
   "settings.doctor.agent.messages.apply_failed": "Не удалось применить: {{message}}",
   "settings.doctor.agent.messages.no_model": "Модель по умолчанию не настроена. Выберите её в настройках перед анализом.",

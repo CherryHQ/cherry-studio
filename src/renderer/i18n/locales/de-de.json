@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Rückgängig gemacht",
   "settings.doctor.agent.changes": "Angewendete Änderungen",
   "settings.doctor.agent.description": "Die aktuellen Befunde werden zusammen mit dem Laufzeitzustand der App analysiert.",
+  "settings.doctor.agent.incident_disclosure": "Diese Analyse liest die Nachrichten und Laufzeitprotokolle dieser Unterhaltung und sendet sie an das von Ihnen gewählte Modell.",
   "settings.doctor.agent.messages.applied": "Änderung angewendet.",
   "settings.doctor.agent.messages.apply_failed": "Anwenden nicht möglich: {{message}}",
   "settings.doctor.agent.messages.no_model": "Kein Standardmodell konfiguriert. Wähle vor der Analyse eines in den Einstellungen.",

@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Αναιρέθηκε",
   "settings.doctor.agent.changes": "Εφαρμοσμένες αλλαγές",
   "settings.doctor.agent.description": "Ανάλυση των τρεχόντων ευρημάτων μαζί με την κατάσταση εκτέλεσης της εφαρμογής.",
+  "settings.doctor.agent.incident_disclosure": "Αυτή η ανάλυση διαβάζει τα μηνύματα και τα αρχεία εκτέλεσης αυτής της συνομιλίας και τα στέλνει στο μοντέλο που επιλέγετε.",
   "settings.doctor.agent.messages.applied": "Η αλλαγή εφαρμόστηκε.",
   "settings.doctor.agent.messages.apply_failed": "Δεν ήταν δυνατή η εφαρμογή: {{message}}",
   "settings.doctor.agent.messages.no_model": "Δεν έχει οριστεί προεπιλεγμένο μοντέλο. Επιλέξτε ένα στις Ρυθμίσεις πριν από την ανάλυση.",

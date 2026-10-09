@@ -7,7 +7,7 @@ import type * as DoctorWrites from '@main/ai/agents/doctor/doctorWrites'
 import type { StreamListener } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorReport } from '@shared/types/doctor'
-import { doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
+import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
   startRun: vi.fn(),
   applyWrite: vi.fn(),
-  undoWrite: vi.fn()
+  undoWrite: vi.fn(),
+  readConversation: vi.fn()
 }))
 
 vi.mock('@application', async () =>
@@ -35,6 +36,8 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProvi
 vi.mock('@main/ai/agents/ensureBuiltinAgent', () => ({ loadBuiltinAgentEnsureInput: () => ({}) }))
 vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: mocks.startRun }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US' }))
+vi.mock('@main/ai/messages/readConversation', () => ({ readConversation: mocks.readConversation }))
+vi.mock('@data/services/TemporaryChatService', () => ({ temporaryChatService: { hasTopic: () => false } }))
 vi.mock('@main/ai/agents/doctor/doctorWrites', async (importOriginal) => ({
   ...(await importOriginal<typeof DoctorWrites>()),
   applyWrite: mocks.applyWrite,
@@ -226,7 +229,7 @@ describe('DoctorAgentService writes', () => {
       proposals: [{ id: proposalId, status: 'pending', summary: 'Fix the base URL' }]
     })
 
-    const applied = await service.apply({ scope: 'global', runId, proposalId })
+    const applied = await service.apply({ key: 'global', runId, proposalId })
     expect(applied.status).toBe('applied')
     expect(mocks.applyWrite).toHaveBeenCalledWith(write)
     const changeId = (applied as { change: { id: string } }).change.id
@@ -242,13 +245,13 @@ describe('DoctorAgentService writes', () => {
         }
       ]
     })
-    expect(await service.apply({ scope: 'global', runId, proposalId })).toEqual({ status: 'stale' })
+    expect(await service.apply({ key: 'global', runId, proposalId })).toEqual({ status: 'stale' })
 
-    const undone = await service.undo({ scope: 'global', runId, changeId })
+    const undone = await service.undo({ key: 'global', runId, changeId })
     expect(undone.status).toBe('undone')
     expect(mocks.undoWrite).toHaveBeenCalledWith(write, { apiHost: 'https://old' }, { apiHost: 'https://new' })
     expect(agentState()).toMatchObject({ changes: [{ id: changeId, undone: true }] })
-    expect(await service.undo({ scope: 'global', runId, changeId })).toEqual({ status: 'stale' })
+    expect(await service.undo({ key: 'global', runId, changeId })).toEqual({ status: 'stale' })
   })
 
   it('rejects a pending preference proposal once the report it came from is superseded', async () => {
@@ -263,7 +266,7 @@ describe('DoctorAgentService writes', () => {
       .get('CacheService')
       .setShared(doctorStateCacheKey('global'), { status: 'completed', report: { ...report, runId: 'report-2' } })
 
-    expect(await service.apply({ scope: 'global', runId, proposalId })).toEqual({ status: 'stale' })
+    expect(await service.apply({ key: 'global', runId, proposalId })).toEqual({ status: 'stale' })
     expect(mocks.applyWrite).not.toHaveBeenCalled()
     expect(agentState()).toMatchObject({ proposals: [{ id: proposalId, status: 'rejected' }] })
   })
@@ -277,13 +280,13 @@ describe('DoctorAgentService writes', () => {
       'Disable the proxy'
     )
     const proposalId = (outcome as { proposal: { id: string } }).proposal.id
-    const applied = await service.apply({ scope: 'global', runId, proposalId })
+    const applied = await service.apply({ key: 'global', runId, proposalId })
     const changeId = (applied as { change: { id: string } }).change.id
     application
       .get('CacheService')
       .setShared(doctorStateCacheKey('global'), { status: 'completed', report: { ...report, runId: 'report-2' } })
 
-    expect(await service.undo({ scope: 'global', runId, changeId })).toEqual({ status: 'stale' })
+    expect(await service.undo({ key: 'global', runId, changeId })).toEqual({ status: 'stale' })
     expect(mocks.undoWrite).not.toHaveBeenCalled()
   })
 
@@ -304,8 +307,8 @@ describe('DoctorAgentService writes', () => {
     )
     const proposalId = (outcome as { proposal: { id: string } }).proposal.id
 
-    const first = service.apply({ scope: 'global', runId, proposalId })
-    const second = service.apply({ scope: 'global', runId, proposalId })
+    const first = service.apply({ key: 'global', runId, proposalId })
+    const second = service.apply({ key: 'global', runId, proposalId })
     await wait(10)
     release()
     expect((await first).status).toBe('applied')
@@ -373,5 +376,104 @@ describe('DoctorAgentService writes', () => {
     await expect(
       service.requestWrite('stranger', { kind: 'preference_set', key: 'app.proxy.mode', value: 'none' }, 'x')
     ).rejects.toThrow('not an active doctor analysis')
+  })
+})
+
+describe('DoctorAgentService incidents', () => {
+  const incidentA = { topicId: 'agent-session:user-session', messageId: 'msg-a' }
+  const incidentB = { topicId: 'agent-session:user-session', messageId: 'msg-b' }
+  const stateOf = (incident: typeof incidentA) =>
+    application.get('CacheService').getShared(doctorAgentStateCacheKey(doctorAgentKey('global', incident)))
+
+  beforeEach(() => {
+    mocks.readConversation.mockImplementation(({ messageId }: { messageId: string }) => ({
+      source: 'agent',
+      sessionId: 'user-session',
+      message: {
+        id: messageId,
+        createdAt: '2026-10-09T00:00:00.000Z',
+        status: 'error',
+        data: {
+          parts: [
+            {
+              type: 'data-error',
+              data: {
+                name: 'AI_APICallError',
+                message: 'Unauthorized',
+                statusCode: 401,
+                url: 'https://api.example.com/v1/chat/completions',
+                responseBody: '{"error":"invalid key sk-proj-abcdefghijklmnopqrstuvwxyz123456"}',
+                requestBodyValues: { messages: [{ role: 'user', content: 'private question' }] }
+              }
+            }
+          ]
+        }
+      }
+    }))
+  })
+
+  it('keeps each failed message its own analysis instead of showing another message result', async () => {
+    const service = new DoctorAgentService()
+    mocks.createSession.mockReturnValueOnce({ id: 'session-a' }).mockReturnValueOnce({ id: 'session-b' })
+    const a = await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentA })
+    const b = await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentB })
+    expect(a.status).toBe('started')
+    expect(b.status).toBe('started')
+    expect(stateOf(incidentA)).toMatchObject({ sessionId: 'session-a', incident: incidentA })
+    expect(stateOf(incidentB)).toMatchObject({ sessionId: 'session-b', incident: incidentB })
+    expect(agentState()).toBeUndefined()
+  })
+
+  it('hands the model the failed message error, redacted, without the conversation it carried', async () => {
+    const service = new DoctorAgentService()
+    await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentA })
+    const prompt = (mocks.startRun.mock.calls[0][0] as { userParts: { text: string }[] }).userParts[0].text
+    expect(mocks.readConversation).toHaveBeenCalledWith({ sessionId: 'user-session', messageId: 'msg-a' })
+    expect(prompt).toContain('"statusCode":401')
+    expect(prompt).toContain('https://api.example.com/v1/chat/completions')
+    expect(prompt).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+    expect(prompt).not.toContain('private question')
+  })
+
+  it('still starts when the failed message was deleted', async () => {
+    mocks.readConversation.mockImplementation(() => {
+      throw new Error('not found')
+    })
+    const service = new DoctorAgentService()
+    expect((await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentA })).status).toBe(
+      'started'
+    )
+    const prompt = (mocks.startRun.mock.calls[0][0] as { userParts: { text: string }[] }).userParts[0].text
+    expect(prompt).toContain('no longer exists')
+  })
+
+  it('never interleaves writes from two analyses', async () => {
+    const service = new DoctorAgentService()
+    mocks.createSession.mockReturnValueOnce({ id: 'session-a' }).mockReturnValueOnce({ id: 'session-b' })
+    await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentA })
+    await service.start({ scope: 'global', reportRunId: 'report-1', incident: incidentB })
+    const fix = {
+      kind: 'doctor_fix',
+      request: { scope: 'global', runId: 'report-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 's1' }
+    } as const
+    const order: string[] = []
+    let release!: () => void
+    mocks.applyWrite
+      .mockImplementationOnce(async () => {
+        order.push('a:start')
+        await new Promise<void>((resolve) => (release = resolve))
+        order.push('a:end')
+        return { before: null, after: null, undoable: false }
+      })
+      .mockImplementationOnce(async () => {
+        order.push('b:start')
+        return { before: null, after: null, undoable: false }
+      })
+    const first = service.requestWrite('session-a', fix, 'a')
+    const second = service.requestWrite('session-b', fix, 'b')
+    await wait(10)
+    release()
+    await Promise.all([first, second])
+    expect(order).toEqual(['a:start', 'a:end', 'b:start'])
   })
 })

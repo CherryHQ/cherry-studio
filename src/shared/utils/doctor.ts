@@ -17,6 +17,7 @@ import {
   type DoctorScopeKey,
   type DoctorSubjectRef
 } from '../types/doctor'
+import type { DoctorAgentIncident, DoctorAgentKey } from '../types/doctorAgent'
 
 export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
   return typeof value === 'string' && Object.hasOwn(DOCTOR_CHECK_CATALOG, value)
@@ -31,15 +32,26 @@ export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
     : `agent:${ref.agentId}`
 }
 
-/** Encodes a semantic scope as one collision-safe cache-template segment (`[\w-]+`). */
-export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${string}` {
-  const encoded = Array.from(new TextEncoder().encode(scope), (byte) => byte.toString(16).padStart(2, '0')).join('')
-  return `doctor.state.${encoded}`
+/** Encodes a semantic key as one collision-safe cache-template segment (`[\w-]+`). */
+function cacheSegment(key: string): string {
+  return Array.from(new TextEncoder().encode(key), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-/** Sibling of `doctorStateCacheKey`: the AI analysis of one scope's report. */
-export function doctorAgentStateCacheKey(scope: DoctorScopeKey): `doctor.agent.${string}` {
-  return `doctor.agent.${doctorStateCacheKey(scope).slice('doctor.state.'.length)}`
+export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${string}` {
+  return `doctor.state.${cacheSegment(scope)}`
+}
+
+export function doctorAgentKey(scope: DoctorScopeKey, incident?: DoctorAgentIncident): DoctorAgentKey {
+  return incident ? `${scope}#${incident.messageId}` : scope
+}
+
+export function isDoctorAgentKey(value: unknown): value is DoctorAgentKey {
+  return isDoctorScopeKey(value) || (typeof value === 'string' && value.startsWith('global#'))
+}
+
+/** Sibling of `doctorStateCacheKey`: one AI analysis, of a scope's report or of one failed message. */
+export function doctorAgentStateCacheKey(key: DoctorAgentKey): `doctor.agent.${string}` {
+  return `doctor.agent.${cacheSegment(key)}`
 }
 
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {

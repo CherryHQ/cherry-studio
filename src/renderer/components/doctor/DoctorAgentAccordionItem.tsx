@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { AccordionContent, AccordionItem, AccordionTrigger, Badge } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { StaticMarkdown } from '@renderer/components/markdown'
-import type { DoctorScopeKey } from '@shared/types/doctor'
+import type { DoctorAgentKey } from '@shared/types/doctorAgent'
 import { doctorAgentStateCacheKey } from '@shared/utils/doctor'
 
 /**
@@ -12,16 +12,16 @@ import { doctorAgentStateCacheKey } from '@shared/utils/doctor'
  * Supplementary by design: it never changes the report summary or the check statuses.
  */
 export function DoctorAgentAccordionItem({
-  scope,
+  agentKey,
   reportRunId,
   compact = true
 }: {
-  readonly scope: DoctorScopeKey
+  readonly agentKey: DoctorAgentKey
   readonly reportRunId?: string
   readonly compact?: boolean
 }) {
   const { t } = useTranslation()
-  const state = useSharedCacheValue(doctorAgentStateCacheKey(scope))
+  const state = useSharedCacheValue(doctorAgentStateCacheKey(agentKey))
   if (!state || state.status !== 'completed' || !state.text) return null
   if (reportRunId !== undefined && state.reportRunId !== reportRunId) return null
 

@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "已撤销",
   "settings.doctor.agent.changes": "已应用的改动",
   "settings.doctor.agent.description": "正在结合当前诊断结果与应用运行时状态进行分析。",
+  "settings.doctor.agent.incident_disclosure": "本次分析会读取该会话的消息与运行记录，并发送给你选择的模型。",
   "settings.doctor.agent.messages.applied": "改动已应用。",
   "settings.doctor.agent.messages.apply_failed": "无法应用：{{message}}",
   "settings.doctor.agent.messages.no_model": "尚未配置默认模型，请先在设置中选择一个再分析。",

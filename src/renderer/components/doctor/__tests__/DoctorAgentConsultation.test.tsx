@@ -258,10 +258,25 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeDisabled()
   })
 
+  it('tells the user the conversation is sent to the model only when the analysis reads one', () => {
+    const { rerender } = render(
+      <DoctorAgentConsultation
+        subject={{ kind: 'global' }}
+        incident={{ topicId: 'topic-1', messageId: 'msg-1' }}
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+    expect(screen.getByText('settings.doctor.agent.incident_disclosure')).toBeInTheDocument()
+    rerender(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+    expect(screen.queryByText('settings.doctor.agent.incident_disclosure')).not.toBeInTheDocument()
+  })
+
   it('shows the last analysis instead of the picker when one exists for this report', () => {
     mocks.agentState = {
       status: 'completed',
       runId: 'run-1',
+      scope: 'global',
       reportRunId: 'report-1',
       sessionId: 's',
       modelId: 'deepseek::v3',

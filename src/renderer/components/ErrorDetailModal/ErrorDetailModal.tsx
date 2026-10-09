@@ -39,6 +39,7 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
+import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
@@ -57,6 +58,8 @@ interface ErrorDetailContentProps {
   diagnosisContext?: DiagnosisContext
   diagnosticReport?: DiagnosticReportConfig
   subject?: DoctorSubjectRef
+  /** The failed message this error belongs to; binds the AI consultation to it. */
+  incident?: DoctorAgentIncident
   onOpenDiagnosticReport?: (description: string) => void
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
@@ -468,6 +471,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   localizedErrorMessage,
   diagnosisContext,
   subject,
+  incident,
   diagnosticReport,
   onOpenDiagnosticReport,
   onDoctorNavigate,
@@ -544,6 +548,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             <ErrorDoctorDiagnostics
               key={doctorScopeKey(subject)}
               subject={subject}
+              incident={incident}
               onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
               onReportProblem={onOpenDiagnosticReport}
               onCloseBlockedChange={onDoctorCloseBlockedChange}
@@ -582,6 +587,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       {subject && agentOpen ? (
         <DoctorAgentDialog
           subject={subject}
+          incident={incident}
           open
           onOpenChange={setAgentOpen}
           onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}

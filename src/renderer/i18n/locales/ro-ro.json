@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Anulat",
   "settings.doctor.agent.changes": "Modificări aplicate",
   "settings.doctor.agent.description": "Se analizează constatările curente împreună cu starea de execuție a aplicației.",
+  "settings.doctor.agent.incident_disclosure": "Această analiză citește mesajele și înregistrările de execuție ale acestei conversații și le trimite modelului ales.",
   "settings.doctor.agent.messages.applied": "Modificare aplicată.",
   "settings.doctor.agent.messages.apply_failed": "Nu s-a putut aplica: {{message}}",
   "settings.doctor.agent.messages.no_model": "Nu este configurat un model implicit. Alege unul în Setări înainte de analiză.",

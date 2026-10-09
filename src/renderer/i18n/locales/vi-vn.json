@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Đã hoàn tác",
   "settings.doctor.agent.changes": "Thay đổi đã áp dụng",
   "settings.doctor.agent.description": "Đang phân tích các phát hiện hiện tại cùng với trạng thái thời gian chạy của ứng dụng.",
+  "settings.doctor.agent.incident_disclosure": "Phân tích này đọc tin nhắn và nhật ký thực thi của cuộc trò chuyện này và gửi chúng đến mô hình bạn chọn.",
   "settings.doctor.agent.messages.applied": "Đã áp dụng thay đổi.",
   "settings.doctor.agent.messages.apply_failed": "Không thể áp dụng: {{message}}",
   "settings.doctor.agent.messages.no_model": "Chưa cấu hình mô hình mặc định. Hãy chọn một mô hình trong Cài đặt trước khi phân tích.",

@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "已復原",
   "settings.doctor.agent.changes": "已套用的變更",
   "settings.doctor.agent.description": "正在結合目前診斷結果與應用程式執行階段狀態進行分析。",
+  "settings.doctor.agent.incident_disclosure": "本次分析會讀取此對話的訊息與執行紀錄，並傳送給你選擇的模型。",
   "settings.doctor.agent.messages.applied": "變更已套用。",
   "settings.doctor.agent.messages.apply_failed": "無法套用：{{message}}",
   "settings.doctor.agent.messages.no_model": "尚未設定預設模型，請先在設定中選擇一個再分析。",

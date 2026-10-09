@@ -4286,6 +4286,7 @@
   "settings.doctor.agent.change_status.undone": "Annulé",
   "settings.doctor.agent.changes": "Modifications appliquées",
   "settings.doctor.agent.description": "Analyse des constats actuels avec l'état d'exécution de l'application.",
+  "settings.doctor.agent.incident_disclosure": "Cette analyse lit les messages et les journaux d'exécution de cette conversation et les envoie au modèle que vous choisissez.",
   "settings.doctor.agent.messages.applied": "Modification appliquée.",
   "settings.doctor.agent.messages.apply_failed": "Impossible d'appliquer : {{message}}",
   "settings.doctor.agent.messages.no_model": "Aucun modèle par défaut n'est configuré. Choisissez-en un dans les paramètres avant d'analyser.",

@@ -6,8 +6,8 @@ import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { DoctorScopeKey } from '@shared/types/doctor'
-import type { DoctorAgentState } from '@shared/types/doctorAgent'
-import { doctorAgentStateCacheKey } from '@shared/utils/doctor'
+import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
+import { doctorAgentKey, doctorAgentStateCacheKey } from '@shared/utils/doctor'
 
 const logger = loggerService.withContext('DoctorAgent')
 const IDLE_STATE: DoctorAgentState = { status: 'idle' }
@@ -15,9 +15,18 @@ const IDLE_STATE: DoctorAgentState = { status: 'idle' }
 /** What the panel is waiting on; proposals and changes are keyed by their id. */
 export type DoctorAgentBusy = { kind: 'start' } | { kind: 'cancel' } | { kind: 'apply' | 'undo'; id: string } | null
 
-export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; reportRunId?: string }) {
+export function useDoctorAgent({
+  scope,
+  incident,
+  reportRunId
+}: {
+  scope: DoctorScopeKey
+  incident?: DoctorAgentIncident
+  reportRunId?: string
+}) {
   const { t } = useTranslation()
-  const state = useSharedCacheValue(doctorAgentStateCacheKey(scope)) ?? IDLE_STATE
+  const key = doctorAgentKey(scope, incident)
+  const state = useSharedCacheValue(doctorAgentStateCacheKey(key)) ?? IDLE_STATE
   const [busy, setBusy] = useState<DoctorAgentBusy>(null)
   /** The analysis on screen read a report the user no longer sees; its proposals may not apply. */
   const isStale = state.status !== 'idle' && reportRunId !== undefined && state.reportRunId !== reportRunId
@@ -27,7 +36,7 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
       if (!reportRunId) return
       setBusy({ kind: 'start' })
       try {
-        const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId })
+        const result = await ipcApi.request('diagnostics.doctor.agent.start', { scope, reportRunId, modelId, incident })
         if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
         else if (result.status === 'failed') toast.error(t('settings.doctor.agent.messages.start_failed'))
@@ -38,28 +47,28 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
         setBusy(null)
       }
     },
-    [reportRunId, scope, t]
+    [incident, reportRunId, scope, t]
   )
 
   const cancel = useCallback(async () => {
     if (state.status !== 'running') return
     setBusy({ kind: 'cancel' })
     try {
-      await ipcApi.request('diagnostics.doctor.agent.cancel', { scope, runId: state.runId })
+      await ipcApi.request('diagnostics.doctor.agent.cancel', { key, runId: state.runId })
     } catch (error) {
       logger.error('Failed to cancel the doctor analysis', error as Error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       setBusy(null)
     }
-  }, [scope, state, t])
+  }, [key, state, t])
 
   const apply = useCallback(
     async (proposalId: string) => {
       if (state.status === 'idle') return
       setBusy({ kind: 'apply', id: proposalId })
       try {
-        const result = await ipcApi.request('diagnostics.doctor.agent.apply', { scope, runId: state.runId, proposalId })
+        const result = await ipcApi.request('diagnostics.doctor.agent.apply', { key, runId: state.runId, proposalId })
         if (result.status === 'applied') {
           toast.success(
             t(
@@ -77,7 +86,7 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
         setBusy(null)
       }
     },
-    [scope, state, t]
+    [key, state, t]
   )
 
   const undo = useCallback(
@@ -85,7 +94,7 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
       if (state.status === 'idle') return
       setBusy({ kind: 'undo', id: changeId })
       try {
-        const result = await ipcApi.request('diagnostics.doctor.agent.undo', { scope, runId: state.runId, changeId })
+        const result = await ipcApi.request('diagnostics.doctor.agent.undo', { key, runId: state.runId, changeId })
         if (result.status === 'undone') toast.success(t('settings.doctor.agent.messages.undone'))
         else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else toast.error(t('settings.doctor.agent.messages.undo_failed', { message: result.message }))
@@ -96,7 +105,7 @@ export function useDoctorAgent({ scope, reportRunId }: { scope: DoctorScopeKey; 
         setBusy(null)
       }
     },
-    [scope, state, t]
+    [key, state, t]
   )
 
   return { state, isStale, busy, start, cancel, apply, undo }
