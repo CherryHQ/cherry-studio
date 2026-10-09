@@ -394,6 +394,26 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
+  it('classifies a 503 with a transport-looking message as server', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'fetch failed' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('keeps a provider 503 server classification ahead of feature text', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'MCP error: service unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('classifies an explicit service temporarily unavailable response as server', () => {
+    const result = classifyError(makeError({ message: 'Service temporarily unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('does not classify a bare temporarily unavailable message as server', () => {
+    const result = classifyError(makeError({ message: 'temporarily unavailable' }))
+    expect(result.category).not.toBe('server')
+  })
+
   // Knowledge
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
@@ -428,6 +448,18 @@ describe('classifyError', () => {
   it('classifies mcp connection error', () => {
     const result = classifyError(makeError({ message: 'MCP connection refused' }))
     expect(result.category).toBe('mcp')
+  })
+
+  it('keeps an MCP service-unavailable error navigable to MCP settings', () => {
+    const result = classifyError(makeError({ message: 'MCP error: service unavailable' }))
+    expect(result.category).toBe('mcp')
+    expect(result.navTarget).toBe('/settings/mcp/servers')
+  })
+
+  it('keeps an OCR service-unavailable error eligible for reporting', () => {
+    const result = classifyError(makeError({ message: 'OCR service unavailable' }))
+    expect(result.category).toBe('ocr')
+    expect(result.navTarget).toBeNull()
   })
 
   it('does not match plain "mcp" without qualifier', () => {

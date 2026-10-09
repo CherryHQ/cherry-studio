@@ -91,3 +91,58 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'Some totally unrelated failure' })).toBe('unknown')
   })
 })
+
+describe('classifyErrorCategory server failures', () => {
+  it.each([500, 502, 503, 504, 522, 524, 529])('maps HTTP %i to server', (status) => {
+    expect(classifyErrorCategory({ status })).toBe('server')
+  })
+
+  it.each([
+    'Overloaded',
+    'internal server error',
+    'service unavailable',
+    'Service temporarily unavailable',
+    'Upstream service temporarily unavailable'
+  ])('maps "%s" to server', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('server')
+  })
+
+  it('does not treat a bare temporarily unavailable phrase as an upstream server error', () => {
+    expect(classifyErrorCategory({ text: 'temporarily unavailable' })).not.toBe('server')
+  })
+
+  it('keeps MCP service-unavailable errors in the MCP category', () => {
+    expect(classifyErrorCategory({ text: 'MCP error: service unavailable' })).toBe('mcp')
+  })
+
+  it('keeps OCR service-unavailable errors in the OCR category', () => {
+    expect(classifyErrorCategory({ text: 'OCR service unavailable' })).toBe('ocr')
+  })
+
+  it('does not treat Claude Code spawn failures as upstream server errors', () => {
+    expect(classifyErrorCategory({ text: 'Failed to spawn Claude Code process: Service unavailable' })).not.toBe(
+      'server'
+    )
+    expect(
+      classifyErrorCategory({ text: 'Failed to spawn Claude Code process: Service temporarily unavailable' })
+    ).not.toBe('server')
+  })
+
+  it.each(['Service unavailable', 'Overloaded', 'Internal server error'])(
+    'does not treat a local Claude Code CLI "%s" message as an upstream server error',
+    (text) => {
+      expect(classifyErrorCategory({ text, source: 'claude-code' })).not.toBe('server')
+    }
+  )
+
+  it('keeps an upstream-context Claude Code CLI error as a server failure', () => {
+    expect(classifyErrorCategory({ text: 'Service temporarily unavailable', source: 'claude-code' })).not.toBe('server')
+    expect(classifyErrorCategory({ text: 'API Error: Service temporarily unavailable', source: 'claude-code' })).toBe(
+      'server'
+    )
+  })
+
+  it('does not treat fuzzy upstream compatibility text as server', () => {
+    expect(classifyErrorCategory({ text: 'upstream model compatibility check failed' })).not.toBe('server')
+  })
+})
