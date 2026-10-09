@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0",
   "description": "Portable read-only document preview for Cherry Studio",
   "license": "AGPL-3.0-only",
   "repository": {
