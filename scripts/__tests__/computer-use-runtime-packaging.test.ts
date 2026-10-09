@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -109,4 +110,3 @@ describe('packaged Computer Use runtime', () => {
     ).toThrow(/computer-use-darwin-x64/)
   })
 })
-import { execFileSync } from 'node:child_process'
