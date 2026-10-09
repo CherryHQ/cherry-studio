@@ -229,7 +229,7 @@ describe('app Sidebar', () => {
 
     expect(settings).toHaveTextContent('settings.title')
     expect(help).toHaveTextContent('help.title')
-    expect(settings.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(help.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(help.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(accountRow).toContainElement(update)
     expect(accountRow).not.toContainElement(settings)
@@ -246,6 +246,20 @@ describe('app Sidebar', () => {
     expect(iconHelp).not.toHaveTextContent('help.title')
     expect(within(iconFooter).getByRole('button', { name: 'User' })).toBeVisible()
     expect(within(iconFooter).queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument()
+  })
+
+  it('places help above settings in the compact sidebar footer', () => {
+    mocks.sidebarWidth = 50
+    render(<Sidebar />)
+
+    const footer = screen.getByTestId('sidebar-footer-user')
+    const actions = within(footer)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+    expect(actions.filter((label) => label === 'help.title' || label === 'settings.title')).toEqual([
+      'help.title',
+      'settings.title'
+    ])
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
