@@ -483,6 +483,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
+    // Retained: the turn-level fallback rebinds tracing from input.trace, and must not overwrite
+    // the bridge's refreshed turnId with the constructor's frozen one.
+    this.input.trace = context
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 

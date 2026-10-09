@@ -3532,6 +3532,85 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('rebinds the fallback trace from the refreshed turn context, not the constructor frozen one', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      // Primed with no live turn: the constructor context carries an empty turnId.
+      trace: {
+        topicId: 'agent-session:session-1',
+        traceId: 'a'.repeat(32),
+        rootSpanId: 'b'.repeat(16),
+        sessionId: 'session-1',
+        turnId: '',
+        modelName: 'sonnet'
+      }
+    })
+    // The host refreshes tracing on turn admission; the fallback must rebind from that refresh —
+    // overwriting the bridge with the frozen context would file the fallback spans under no turn.
+    void connection.refreshTraceContext?.({
+      topicId: 'agent-session:session-1',
+      traceId: 'a'.repeat(32),
+      rootSpanId: 'b'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-9',
+      modelName: 'sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    expect(mocks.refreshTraceContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ modelName: 'haiku', turnId: 'turn-9' })
+    )
+    expect(mocks.prepareTrace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ modelName: 'haiku', turnId: 'turn-9' })
+    )
+    void connection.close()
+  })
+
   it('re-materializes the replayed turn when the fallback model resolves a different image capability', async () => {
     mocks.getPreference.mockImplementation((key: string) => {
       if (key === 'chat.retry.enabled') return true
