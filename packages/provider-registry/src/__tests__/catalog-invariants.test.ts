@@ -27,34 +27,7 @@ const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
 const providersRaw = JSON.parse(readFileSync(join(dataDir, 'providers.json'), 'utf8'))
-const models = modelsRaw.models as Array<{
-  id: string
-  name: string
-  contextWindow?: number
-  maxOutputTokens?: number
-  capabilities?: string[]
-  inputModalities?: string[]
-  outputModalities?: string[]
-  ownedBy?: string
-  pricing?: {
-    cacheRead?: { currency: string; perMillionTokens: number }
-    input?: { currency: string; perMillionTokens: number }
-    output?: { currency: string; perMillionTokens: number }
-  }
-  imageGeneration?: {
-    modes?: {
-      generate?: {
-        supports?: {
-          aspectRatio?: { default?: string; options?: string[]; render?: string; type?: string }
-          imageResolution?: { default?: string; options?: string[]; render?: string; type?: string }
-        }
-      }
-    }
-  }
-  reasoning?: {
-    controls?: Array<{ kind: string; values?: string[] }>
-  }
-}>
+const models = ModelListSchema.parse(modelsRaw).models
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
@@ -69,29 +42,6 @@ const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // shapes a creator never publishes: custom SKUs, double-dash vendor wrappers, routers
 const JUNK = /(?:-vip|-ssvip|-cursor|-all|-nx|-gizmo|-mobile)$|--|^duo-chat-|\bauto\b/
-
-const GEMINI_IMAGE_ASPECT_RATIO_OPTIONS = [
-  {
-    modelId: 'gemini-3-1-flash-image',
-    options: [
-      'auto',
-      'ASPECT_1_1',
-      'ASPECT_1_4',
-      'ASPECT_1_8',
-      'ASPECT_2_3',
-      'ASPECT_3_2',
-      'ASPECT_3_4',
-      'ASPECT_4_1',
-      'ASPECT_4_3',
-      'ASPECT_4_5',
-      'ASPECT_5_4',
-      'ASPECT_8_1',
-      'ASPECT_9_16',
-      'ASPECT_16_9',
-      'ASPECT_21_9'
-    ]
-  }
-] as const
 
 describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
@@ -110,26 +60,6 @@ describe('catalog invariants (data/*.json)', () => {
       ownedBy
     })
   })
-
-  it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
-    'keeps smart aspect ratio and explicit resolution controls for $modelId',
-    ({ modelId, options }) => {
-      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
-
-      expect(supports?.aspectRatio).toEqual({
-        default: 'auto',
-        options,
-        render: 'chips',
-        type: 'enum'
-      })
-      expect(supports?.imageResolution).toEqual({
-        default: 'auto',
-        options: ['auto', '1K', '2K', '4K'],
-        render: 'chips',
-        type: 'enum'
-      })
-    }
-  )
 
   // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
   // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
@@ -265,7 +195,7 @@ describe('catalog invariants (data/*.json)', () => {
   })
 
   it('does not encode provider-native web search as a generic model capability', () => {
-    expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
+    expect(models.flatMap((model) => model.capabilities ?? [])).not.toContain('web-search')
   })
 
   // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
@@ -341,15 +271,25 @@ describe('catalog invariants (data/*.json)', () => {
   // doubao-seedream-4-0/4-5 had this; dmxapi's doubao model already declares it
   // correctly as the reference shape).
   it('sequentialImageGeneration is never declared as a switch (must be the string enum)', () => {
-    type Row = { id?: string; modelId?: string; providerId?: string; imageGeneration?: unknown }
-    const allRows: Row[] = [...(modelsRaw.models as Row[]), ...(providerModelsRaw.overrides as Row[])]
+    const allRows = [
+      ...models.map((model) => ({ label: `base/${model.id}`, support: model.imageGeneration })),
+      ...providerModelOverrides.map((override) => ({
+        label: `${override.providerId}/${override.modelId}`,
+        support: override.imageGeneration
+      }))
+    ]
     const offenders: string[] = []
-    for (const row of allRows) {
-      const modes = (row.imageGeneration as { modes?: Record<string, unknown> } | undefined)?.modes ?? {}
-      for (const [modeName, def] of Object.entries(modes)) {
-        const spec = (def as { supports?: Record<string, { type?: string }> }).supports?.sequentialImageGeneration
+    for (const { label, support } of allRows) {
+      if (!support) continue
+      const declarations = [
+        ['base', support],
+        ['withImages', support.withImages],
+        ...Object.entries(support.operations ?? {})
+      ] as const
+      for (const [variant, declaration] of declarations) {
+        const spec = declaration?.supports?.sequentialImageGeneration
         if (spec?.type === 'switch') {
-          offenders.push(`${row.providerId ?? 'base'}/${row.modelId ?? row.id}:${modeName}`)
+          offenders.push(`${label}:${variant}`)
         }
       }
     }

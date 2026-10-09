@@ -77,20 +77,29 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -103,20 +112,29 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -129,26 +147,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -161,26 +188,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -193,26 +229,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -225,20 +270,29 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -251,26 +305,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -283,30 +346,39 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              negativePrompt: {
-                multiline: true,
-                type: 'text'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -319,26 +391,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -351,30 +432,39 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              negativePrompt: {
-                multiline: true,
-                type: 'text'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -387,26 +477,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -418,26 +517,35 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -449,26 +557,35 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -481,26 +598,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: '1:1',
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['DONT_ALLOW', 'ALLOW_ADULT', 'ALLOW_ALL'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -520,39 +646,47 @@ export default defineCreator({
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'auto',
-                options: [
-                  'auto',
-                  'ASPECT_1_1',
-                  'ASPECT_1_4',
-                  'ASPECT_1_8',
-                  'ASPECT_2_3',
-                  'ASPECT_3_2',
-                  'ASPECT_3_4',
-                  'ASPECT_4_1',
-                  'ASPECT_4_3',
-                  'ASPECT_4_5',
-                  'ASPECT_5_4',
-                  'ASPECT_8_1',
-                  'ASPECT_9_16',
-                  'ASPECT_16_9',
-                  'ASPECT_21_9'
-                ],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                default: 'auto',
-                // Intentionally omit low-resolution 512 output from this quality-focused product surface.
-                options: ['auto', '1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            default: 'auto',
+            options: [
+              'auto',
+              '1:1',
+              '1:4',
+              '1:8',
+              '2:3',
+              '3:2',
+              '3:4',
+              '4:1',
+              '4:3',
+              '4:5',
+              '5:4',
+              '8:1',
+              '9:16',
+              '16:9',
+              '21:9'
+            ],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            default: 'auto',
+            options: ['auto', '1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -565,20 +699,29 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -590,25 +733,34 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: {
-                default: 4,
-                max: 4,
-                min: 1,
-                type: 'range'
-              },
-              personGeneration: {
-                options: ['ALLOW_ALL', 'ALLOW_ADULT', 'DONT_ALLOW'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 4,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          personGeneration: {
+            options: ['ALLOW_ALL', 'ALLOW_ADULT', 'DONT_ALLOW'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -620,19 +772,28 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              personGeneration: {
-                options: ['ALLOW_ALL', 'ALLOW_ADULT', 'DONT_ALLOW'],
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          personGeneration: {
+            options: ['ALLOW_ALL', 'ALLOW_ADULT', 'DONT_ALLOW'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -652,20 +813,29 @@ export default defineCreator({
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                options: ['ASPECT_1_1', 'ASPECT_3_4', 'ASPECT_4_3', 'ASPECT_9_16', 'ASPECT_16_9'],
-                render: 'chips',
-                type: 'enum'
-              },
-              imageResolution: {
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          aspectRatio: {
+            options: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+            render: 'chips',
+            type: 'enum'
+          },
+          imageResolution: {
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }

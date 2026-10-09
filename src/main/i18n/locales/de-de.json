@@ -164,7 +164,6 @@
   "paintings.comfyui.workflow_failed": "ComfyUI-Workflow fehlgeschlagen:",
   "paintings.comfyui.workflow_rejected": "ComfyUI hat den Workflow abgelehnt (HTTP {{status}})",
   "paintings.generate_failed": "Fehler beim Generieren des Bildes",
-  "paintings.image_mix_failed": "Fehler beim Mischen der Bilder",
   "selection.name": "Textauswahl-Assistent",
   "settings.mcp.oauth.callback.listen_error": "Der OAuth-Rückruf konnte nicht auf 127.0.0.1:{{port}} empfangen werden ({{reason}}). Prüfen Sie, ob der Port verfügbar ist, und versuchen Sie es erneut.",
   "settings.mcp.oauth.callback.message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",

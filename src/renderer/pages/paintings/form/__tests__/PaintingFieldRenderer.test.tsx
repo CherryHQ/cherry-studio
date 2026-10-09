@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { buildParamsSchema } from '@cherrystudio/provider-registry'
+import { buildParamsSchema, type ImageGenerationSupport } from '@cherrystudio/provider-registry'
 
 import type { SliderConfigItem } from '../baseConfigItem'
 import { PaintingFieldRenderer } from '../PaintingFieldRenderer'
@@ -102,10 +102,26 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
   })
 
   it('displays a numeric string using the same effective value as submit normalization', () => {
-    const support = {
-      modes: {
-        generate: {
-          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        strength: {
+          type: 'range',
+          min: 0,
+          max: 10,
+          default: 4
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     }
@@ -124,10 +140,26 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
   })
 
   it.each([true, false, [], ['4.5']])('drops invalid numeric input %# in both display and submit paths', (value) => {
-    const support = {
-      modes: {
-        generate: {
-          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        strength: {
+          type: 'range',
+          min: 0,
+          max: 10,
+          default: 4
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     }
@@ -175,10 +207,26 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
   })
 
   it('rejects a decimal persisted value for an integer-backed slider', () => {
-    const support = {
-      modes: {
-        generate: {
-          supports: { numImages: { type: 'range' as const, min: 1, max: 10, default: 1 } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 10,
+          default: 1
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     }

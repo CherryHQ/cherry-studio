@@ -1,41 +1,35 @@
+import type { ImageModelV3File } from '@ai-sdk/provider'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import type { ImageTransportDescriptor } from '../imageGenerationModel'
+import type { ImageSizeToken } from '../../../utils/aiSdkNativeBindings'
+import type { NativeImageTarget } from '../imageTransportRegistry'
 
-/**
- * Payload for the async image-generation job. Carries only what the handler
- * needs to (re)build the submit input after a restart — NO secrets and NO raw
- * input-image bytes:
- *
- *   - `uniqueModelId` lets the handler re-resolve the provider/model and read
- *     the apiKey fresh from config on every attempt (never persisted).
- *   - Input images / mask are persisted as FileEntries at enqueue time and
- *     referenced by id, so the JSON payload stays under the 1MB job cap. Their
- *     `job_file_ref` rows keep them alive while the job is queued or running —
- *     the cleanup grace window alone does not cover a job that waits out a
- *     backlog (file-entry-cleanup.md §5.1).
- *   - `providerParams` is `imageProviderOptions[sdkConfig.providerId]` — the
- *     exact bag the in-SDK path hands `transport.submit` (JSON-only; the
- *     plugin-chain callbacks like `onProgress` are already stripped).
- */
+export type ImageJobInput = Extract<ImageModelV3File, { type: 'url' }> | { type: 'file'; fileId: FileEntry['id'] }
+
+/** Prepared protocol and canonical parameters, without credentials or inline image bytes.
+ *  URL inputs keep their protocol representation; local copies are held by job_file_ref. */
 export interface ImageGenerationJobPayload {
   uniqueModelId: UniqueModelId
+  modelId: string
+  connectionKey: string
   prompt?: string
   n: number
-  size?: string
+  /** Pixels or a vendor shorthand; the protocol owns final encoding. */
+  size?: ImageSizeToken
   aspectRatio?: string
   seed?: number
-  inputFileIds?: string[]
-  maskFileId?: string
+  inputImages: ImageJobInput[]
+  mask: ImageJobInput | undefined
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so the handler reaches the right endpoint / response family without
    *  re-resolving the registry. */
-  modelDescriptor?: ImageTransportDescriptor
+  target: NativeImageTarget
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
-  providerParams: Record<string, unknown>
+  providerParams: VendorBag
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */
   cleanupPolicy: CleanupPolicy
 }

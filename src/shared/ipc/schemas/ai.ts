@@ -1,7 +1,8 @@
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
-import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { ImageOperationSchema, imageParamsSchema } from '@cherrystudio/provider-registry'
+import { imageInputSchema } from '@shared/ai/imageInput'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -28,12 +29,7 @@ import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agen
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import {
-  ImageGenerationModeSchema,
-  ModelSchema,
-  ServiceTierSelectionSchema,
-  UniqueModelIdSchema
-} from '@shared/data/types/model'
+import { ModelSchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { FileVersionSchema } from '@shared/types/file'
 
@@ -138,23 +134,27 @@ const aiChatRequestShape = {
 
 const aiImagePayloadSchema = z.strictObject({
   ...aiRequestShape,
-  prompt: z.string(),
   /**
-   * The image-generation mode (which tab). A request property — NOT a param — so
-   * main can derive per-model transport routing (`vendorTransport` → descriptor)
-   * from the registry itself. Defaults to `generate` when absent.
+   * REQUIRED here, unlike the shared shape: the image path routes on model identity —
+   * it picks the delivery adapter (`resolveImageTransport`) and, on the transport
+   * branch, persists the id so a restart-resumed job can rebuild the same transport.
+   * Optional it would mean "no identity ⇒ silently fall back to the SDK adapter", a
+   * branch no caller exercises and every transport provider is broken on.
    */
-  mode: ImageGenerationModeSchema.optional(),
+  uniqueModelId: UniqueModelIdSchema,
+  prompt: z.string(),
+  /** Ordinary generation accepts independent reference images; other operations are explicit. */
+  operation: ImageOperationSchema.optional(),
   /**
    * The canonical param bag, validated + coerced at the IPC boundary by the
    * catalog value schema — the router's `safeParse` yields a typed `ParamValues`
-   * (non-catalog keys stripped). Per-model option/range constraints already ran
-   * in the renderer's `buildParamsSchema`; this is the value-type gate.
+   * (non-catalog keys rejected). Main preparation also enforces the effective
+   * provider-model constraints; a renderer draft is not a validated request.
    */
-  paramValues: imageParamsSchema,
-  /** Attached images / mask are encoded file bytes (data URLs), not form params. */
-  inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional(),
+  paramValues: imageParamsSchema.strict(),
+  /** Attached images / mask are HTTP(S) URLs or complete image data URLs. */
+  inputImages: z.array(imageInputSchema).optional(),
+  mask: imageInputSchema.optional(),
   // Required: the calling business feature decides the cleanup intent for the
   // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
   // It does not reach the job path's input / mask copies: those are transport

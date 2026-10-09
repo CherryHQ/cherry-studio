@@ -1,18 +1,30 @@
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { tabToImageGenerationMode } from '../../utils/paintingProviderMode'
+import { paintingOperation } from '../../utils/paintingProviderMode'
+import { isOptionsConfigItem } from '../baseConfigItem'
 import { imageGenerationToFields } from '../imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../paintingSize'
 
 /** Minimal registry support declaring a single size-bearing field. */
-const supportWith = (key: string, options: string[], def: string) => ({
-  modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
+const supportWith = (
+  key: keyof ImageGenerationSupport['supports'],
+  options: string[],
+  def: string
+): ImageGenerationSupport => ({
+  supports: { [key]: { type: 'enum', options, default: def } },
+  inputs: {
+    images: { min: 0, max: { kind: 'unknown' } },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: { kind: 'unknown' }
+  }
 })
 
 // The same config items the components derive internally, so the resolvers see
 // the fields (including registry defaults) they would at runtime.
-const fieldsFor = (support: unknown) =>
-  imageGenerationToFields(support as never, { mode: tabToImageGenerationMode('generate') })
+const fieldsFor = (support: ImageGenerationSupport | undefined) =>
+  imageGenerationToFields(support, { operation: paintingOperation('generate') })
 
 describe('resolveRatio', () => {
   it('derives the aspect ratio from a stored size', () => {
@@ -21,7 +33,7 @@ describe('resolveRatio', () => {
   })
 
   it('derives the aspect ratio from an aspect-ratio enum', () => {
-    const fields = fieldsFor(supportWith('aspectRatio', ['ASPECT_16_9'], 'ASPECT_16_9'))
+    const fields = fieldsFor(supportWith('aspectRatio', ['16:9'], '16:9'))
     expect(resolveRatio({}, fields)).toBe(16 / 9)
   })
 
@@ -64,9 +76,7 @@ describe('resolveSizeLabel', () => {
   })
 
   it('formats a stored size that is no longer among the field options', () => {
-    // A stale / model-switched size is absent from the current options, so there
-    // is no localized option to adopt — it formats the raw value directly
-    // (exercises the `selected?.label ?? value` fallback).
+    // Model switching must not hide the user's currently selected dimensions.
     const fields = fieldsFor(supportWith('size', ['1024x1024'], '1024x1024'))
     expect(resolveSizeLabel({ size: '2048x2048' }, fields, translate)).toBe('2048×2048')
   })
@@ -94,17 +104,15 @@ describe('resolveSizeLabel', () => {
 })
 
 describe('size option label consistency', () => {
-  // The composer chips (SizeChipsField) and the prompt bar (resolveSizeLabel)
-  // both localize through this same option `labelKey`, so wiring it on every
-  // size-bearing key keeps the two from drifting back to the raw `auto` enum.
-  it.each(['size', 'aspectRatio', 'imageResolution'])(
-    'marks the %s field `auto` option with the shared localization key',
-    (key) => {
-      const [field] = fieldsFor(supportWith(key, ['auto', '1024x1024'], '1024x1024'))
-      const autoOption = (field as { options: { value: string; labelKey?: string }[] }).options.find(
-        (option) => option.value === 'auto'
-      )
-      expect(autoOption?.labelKey).toBe('paintings.image_size_options.auto')
-    }
-  )
+  // Chips and the prompt bar must display the same localized auto choice.
+  it.each([
+    ['size', '1024x1024'],
+    ['aspectRatio', '16:9'],
+    ['imageResolution', '2K']
+  ] as const)('marks the %s field `auto` option with the shared localization key', (key, value) => {
+    const [field] = fieldsFor(supportWith(key, ['auto', value], value))
+    if (!isOptionsConfigItem(field) || !Array.isArray(field.options)) throw new Error('Missing size options')
+    const autoOption = field.options.find((option) => option.value === 'auto')
+    expect(autoOption?.labelKey).toBe('paintings.image_size_options.auto')
+  })
 })

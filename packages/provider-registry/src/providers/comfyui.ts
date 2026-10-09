@@ -32,7 +32,15 @@ export default defineProvider({
       outputModalities: ['image'],
       endpointTypes: ['openai-image-generation'],
       supportsStreaming: false,
-      imageGeneration: { modes: { generate: { supports: { seed: { type: 'text' } } } } }
+      imageGeneration: {
+        supports: { seed: { type: 'text' } },
+        inputs: {
+          prompt: 'optional',
+          images: { min: 0, max: { kind: 'known', value: 0 } },
+          mask: 'unsupported',
+          mediaTypes: { kind: 'unknown' }
+        }
+      }
     }
   },
   metadata: {

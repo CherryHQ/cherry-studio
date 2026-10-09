@@ -1,18 +1,13 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 import { createAihubmixImageModel } from '../../aihubmix/aihubmixImageModel'
 import { runWithResponse } from './captureRequest'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
-/**
- * Inbound (response) boundary for the AiHubMix bespoke branches: V_3 generate
- * parses `data[].url`; the V_1/V_2 shared path also accepts the wrapped
- * `output.b64_json[].bytesBase64` form (→ data: URLs); Doubao Seedream parses
- * `data[].url` / `data[].b64_json` / `data[].base64_json` (→ data: URLs).
- */
+// Contracts: https://docs.aihubmix.com/cn/api/Image-Gen and https://docs.aihubmix.com/cn/api/IdeogramAI.
+// Retrieved 2026-09-09; only documented result shapes are contract fixtures.
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
     prompt: 'a fox',
@@ -20,7 +15,7 @@ function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOption
     size: undefined,
     aspectRatio: undefined,
     seed: undefined,
-    providerOptions: { aihubmix: { mode: 'generate' } },
+    providerOptions: { aihubmix: {} },
     headers: undefined,
     abortSignal: undefined,
     files: undefined,
@@ -36,40 +31,72 @@ const config = {
 }
 
 describe('AiHubMix response boundary (Ideogram branches)', () => {
-  it('V_3 generate → data[].url', async () => {
-    const response = { data: [{ url: 'https://img/v3a.png' }, { url: 'https://img/v3b.png' }] }
-    z.object({ data: z.array(z.object({ url: z.string() })) }).parse(response)
-    const result = await runWithResponse(response, (fetch) =>
-      createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(opts({}))
-    )
-    expect(result.images).toMatchSnapshot()
+  it.each([
+    { data: [{ url: 'https://img/ok.png' }, {}] },
+    { data: [{ url: 'https://img/ok.png' }, { is_image_safe: true }] },
+    { data: [{ url: 'https://img/ok.png' }, { is_image_safe: 'false' }] },
+    { data: [{ url: 'https://img/ok.png' }, { url: 42 }] },
+    { output: { b64_json: [{ bytesBase64: 'AQID' }] } }
+  ])('rejects malformed Ideogram results rather than silently filtering them: %j', async (response) => {
+    await expect(
+      runWithResponse(response, (fetch) =>
+        createAihubmixImageModel('ideogram/V3', {
+          ...config,
+          fetch,
+          binding: { kind: 'ideogram-v3', operation: 'generate' }
+        }).doGenerate(opts({}))
+      )
+    ).rejects.toThrow()
   })
 
-  it('V_3 generate → drops data[] items that carry no usable url', async () => {
-    // AiHubMix is an aggregator gateway and Ideogram can flag an image
-    // (`is_image_safe: false`), so a `data[]` entry may arrive without a `url`.
-    // The V_1/V_2 path in this same file already filters those out; the V_3
-    // branch must too, otherwise `undefined` leaks into `images`.
+  it.each([{}, { data: [] }, { data: [{ url: 'https://img/ok.png' }, {}] }, { data: [{ b64_json: 42 }] }])(
+    'rejects malformed Doubao image results: %j',
+    async (response) => {
+      await expect(
+        runWithResponse(response, (fetch) =>
+          createAihubmixImageModel('doubao-seedream-5.0-lite', {
+            ...config,
+            fetch,
+            binding: { kind: 'doubao' }
+          }).doGenerate(opts({}))
+        )
+      ).rejects.toThrow()
+    }
+  )
+
+  it('ideogram/V3 generate → data[].url', async () => {
+    const response = { data: [{ url: 'https://img/v3a.png' }, { url: 'https://img/v3b.png' }] }
+    const result = await runWithResponse(response, (fetch) =>
+      createAihubmixImageModel('ideogram/V3', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v3', operation: 'generate' }
+      }).doGenerate(opts({}))
+    )
+    expect(result.images).toEqual(['https://img/v3a.png', 'https://img/v3b.png'])
+  })
+
+  // https://developer.ideogram.ai/api-reference/generate-images/generate-v3 — retrieved 2026-09-09.
+  it('omits explicitly moderated Ideogram images, without treating arbitrary missing URLs as moderation', async () => {
     const response = { data: [{ url: 'https://img/ok.png' }, { is_image_safe: false, resolution: '1024x1024' }] }
     const result = await runWithResponse(response, (fetch) =>
-      createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(opts({}))
+      createAihubmixImageModel('ideogram/V3', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v3', operation: 'generate' }
+      }).doGenerate(opts({}))
     )
     expect(result.images).toEqual(['https://img/ok.png'])
-  })
-
-  it('V_2 generate → output.b64_json[].bytesBase64 (wrapped → data: URLs)', async () => {
-    const response = { output: { b64_json: [{ bytesBase64: 'QUJD' }] } }
-    z.object({ output: z.object({ b64_json: z.array(z.object({ bytesBase64: z.string() })) }) }).parse(response)
-    const result = await runWithResponse(response, (fetch) =>
-      createAihubmixImageModel('V_2', { ...config, fetch }).doGenerate(opts({}))
-    )
-    expect(result.images).toMatchSnapshot()
   })
 
   it('doubao-seedream → mixed data[].url + data[].b64_json (→ data: URLs)', async () => {
     const response = { data: [{ url: 'https://img/d1.png' }, { b64_json: 'QUJD' }] }
     const result = await runWithResponse(response, (fetch) =>
-      createAihubmixImageModel('doubao-seedream-5.0-lite', { ...config, fetch }).doGenerate(opts({}))
+      createAihubmixImageModel('doubao-seedream-5.0-lite', {
+        ...config,
+        fetch,
+        binding: { kind: 'doubao' }
+      }).doGenerate(opts({}))
     )
     expect(result.images).toEqual(['https://img/d1.png', 'data:image/png;base64,QUJD'])
   })

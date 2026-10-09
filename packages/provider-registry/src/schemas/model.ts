@@ -16,6 +16,7 @@ import {
 } from './common'
 import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 import { looseArray } from './forwardCompat'
+import { IMAGE_PARAM_CATALOG } from './imageParamCatalog'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -214,26 +215,8 @@ export const ReasoningSupportSchema = z
     }
   })
 
-/**
- * Image-generation support describes what controls a model accepts, in a
- * shape uniform across all models so the painting page can render the
- * right controls without per-vendor branching.
- *
- * `supports` is a flat map of canonical param keys to widget specs — the
- * renderer dispatches by `spec.type`. `size` / `numImages` / `customSize`
- * are no longer top-level fields; they're entries inside `supports` like
- * everything else. `modes` is `Record<Mode, ModeDef>` (always an object,
- * never an array) so single-mode models declare `{ generate: { ... } }`
- * uniformly; multi-mode models with different params per mode (Ideogram
- * V_*) declare each mode's complete `ModeDef` explicitly.
- *
- * Vendor wire transforms (snake_case keys, `'ASPECT_X_Y' → 'X:Y'` strings,
- * `Uint8Array → base64`) live in the AI SDK image-model adapters under
- * `aiCore/provider/custom/`; this schema carries canonical names only.
- * Per-mode transport routing (PPIO endpoint URL + sync/async flag) lives
- * on `ModeDef.vendorTransport` so it travels with the registry data.
- */
-export const ImageGenerationModeSchema = z.enum(['generate', 'edit', 'remix', 'upscale', 'merge'])
+/** Business operations stay independent of image inputs and protocol selection. */
+export const ImageOperationSchema = z.enum(['generate', 'remix', 'upscale'])
 
 const SwitchSpecSchema = z.object({
   type: z.literal('switch'),
@@ -256,8 +239,8 @@ const RangeSpecSchema = z
     min: z.number(),
     max: z.number(),
     default: z.number().optional(),
-    /** Omitted means the numeric input accepts any precision; renderers may
-     *  still choose an interaction step for controls such as sliders. */
+    /** UI interaction increment, not a multiple-of constraint on submitted values.
+     *  The catalog value type and min/max define numeric validity. */
     step: z.number().optional()
   })
   .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
@@ -296,6 +279,22 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
   TextSpecSchema
 ])
 
+const AspectRatioSpecSchema = EnumSpecSchema.extend({
+  options: z.array(IMAGE_PARAM_CATALOG.aspectRatio.schema.unwrap()).min(1),
+  default: IMAGE_PARAM_CATALOG.aspectRatio.schema
+}).refine((spec) => spec.default === undefined || spec.options.includes(spec.default), {
+  path: ['default'],
+  message: 'Aspect ratio default must be a declared option'
+})
+
+function validateAspectRatioSupport(spec: SupportSpec | null | undefined, ctx: z.RefinementCtx): void {
+  if (spec === undefined || spec === null) return
+  const result = AspectRatioSpecSchema.safeParse(spec)
+  if (!result.success) {
+    for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: ['aspectRatio', ...issue.path] })
+  }
+}
+
 const INTEGER_RANGE_PARAM_KEYS = [
   CANONICAL_PARAM_KEY.NUM_IMAGES,
   CANONICAL_PARAM_KEY.MAX_IMAGES,
@@ -304,62 +303,138 @@ const INTEGER_RANGE_PARAM_KEYS = [
   CANONICAL_PARAM_KEY.OUTPUT_COMPRESSION
 ] as const
 
-const ImageSupportsSchema = z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema).transform((supports, ctx) => {
-  const normalized = { ...supports }
-  for (const key of INTEGER_RANGE_PARAM_KEYS) {
-    const spec = supports[key]
-    if (spec === undefined) continue
-    const result = RangeIntSpecSchema.safeParse(spec)
-    if (result.success) {
-      normalized[key] = result.data
-    } else {
-      for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
+export const ImageSupportsSchema = z
+  .partialRecord(CanonicalParamKeySchema, SupportSpecSchema)
+  .superRefine((supports, ctx) => validateAspectRatioSupport(supports.aspectRatio, ctx))
+  .transform((supports, ctx) => {
+    const normalized = { ...supports }
+    for (const key of INTEGER_RANGE_PARAM_KEYS) {
+      const spec = supports[key]
+      if (spec === undefined) continue
+      const result = RangeIntSpecSchema.safeParse(spec)
+      if (result.success) {
+        normalized[key] = result.data
+      } else {
+        for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
+      }
     }
-  }
-  return normalized
+    return normalized
+  })
+
+/** Unknown limits remain explicit rather than claiming an invented maximum. */
+const ImageCountSchema = z.strictObject({
+  min: z.number().int().nonnegative(),
+  max: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('known'), value: z.number().int().nonnegative() }),
+    z.strictObject({ kind: z.literal('unknown') })
+  ])
 })
 
-/**
- * Per-mode model capability declaration. The renderer iterates `supports`
- * and dispatches `specToField` by `spec.type`; no per-vendor logic. `supports`
- * keys are drawn from the closed `CanonicalParamKey` vocabulary (see
- * `CANONICAL_PARAM_KEY` in `enums.ts`) — an unknown key fails to parse, and
- * the same vocabulary types the form's `KEY_LABELS`/`OPTION_LABELS` and
- * `canonicalGenerate`'s `POSITIONAL_RENAME`, so a typo/rename is a compile or
- * parse error rather than a silent raw-key render. Adding a new canonical
- * param: (1) add the member to `CANONICAL_PARAM_KEY`, (2) add a label to
- * `KEY_LABELS` in `imageGenerationToFields`, (3) declare it on models'
- * `supports`.
- *
- * `vendorTransport` carries PPIO-style per-model endpoint routing — the
- * AI SDK adapter for that vendor reads endpoint + isSync off the registry
- * instead of a hand-maintained routing table.
- */
-const ImageModeDefSchema = z.object({
-  supports: ImageSupportsSchema,
-  maxInputImages: z.number().int().positive().optional(),
-  vendorTransport: z
-    .object({
-      endpoint: z.string().regex(/^\/(?!\/)/, 'vendor transport endpoint must be a root-relative path, not a URL'),
-      isSync: z.boolean().optional()
-    })
+const ImageInputsSchema = z.strictObject({
+  images: ImageCountSchema,
+  prompt: z.enum(['required', 'optional']),
+  mask: z.enum(['supported', 'unsupported', 'unknown']),
+  mediaTypes: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('known'), values: z.array(z.string().regex(/^image\//)).min(1) }),
+    z.strictObject({ kind: z.literal('unknown') })
+  ])
+})
+
+export const ImageProtocolSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('sdk') }),
+  z.strictObject({
+    kind: z.literal('custom'),
+    endpoint: z.string().regex(/^\/(?!\/)/, 'image endpoint must be a root-relative path'),
+    isSync: z.boolean()
+  })
+])
+
+export const ImageCapabilitySchema = z
+  .strictObject({
+    supports: ImageSupportsSchema,
+    inputs: ImageInputsSchema,
+    protocol: ImageProtocolSchema.optional()
+  })
+  .superRefine(({ inputs }, ctx) => {
+    if (inputs.images.max.kind === 'known' && inputs.images.min > inputs.images.max.value) {
+      ctx.addIssue({ code: 'custom', path: ['inputs', 'images'], message: 'minimum image count exceeds maximum' })
+    }
+  })
+
+export const ImageCapabilityDeltaSchema = z.strictObject({
+  supports: z
+    .partialRecord(CanonicalParamKeySchema, SupportSpecSchema.nullable())
+    .superRefine((supports, ctx) => validateAspectRatioSupport(supports.aspectRatio, ctx))
     .optional(),
-  /**
-   * When `false`, the generic painting pipeline does NOT enforce a non-empty
-   * `painting.prompt` before submitting. Set on models like DashScope's
-   * `qwen-mt-image` (image-text translation: no prompt, just source/target
-   * languages) or PPIO's image-upscaler / image-eraser / image-remove-bg
-   * variants. Default is `true` (prompt required).
-   */
-  requirePrompt: z.boolean().optional()
+  inputs: ImageInputsSchema.partial().extend({ images: ImageCountSchema.partial().optional() }).optional(),
+  protocol: ImageProtocolSchema.nullable().optional()
 })
 
-export const ImageGenerationSupportSchema = z.object({
-  // `z.partialRecord` because not every mode is declared — single-mode
-  // models only carry `generate`; Ideogram V_* carry generate/remix/upscale
-  // but no edit/merge. Zod's plain `z.record(enum, …)` is exhaustive.
-  modes: z.partialRecord(ImageGenerationModeSchema, ImageModeDefSchema)
+export type ImageCapability = z.infer<typeof ImageCapabilitySchema>
+export type ImageCapabilityDelta = z.infer<typeof ImageCapabilityDeltaSchema>
+
+/** Canonical keys merge; each supplied spec and protocol is a complete replacement. */
+export function applyImageCapabilityDelta(base: ImageCapability, delta: ImageCapabilityDelta): ImageCapability {
+  const supports = { ...base.supports }
+  for (const key of CanonicalParamKeySchema.options) {
+    const spec = delta.supports?.[key]
+    if (spec === null) delete supports[key]
+    else if (spec !== undefined) supports[key] = spec
+  }
+  const protocol = delta.protocol === undefined ? base.protocol : delta.protocol
+  return ImageCapabilitySchema.parse({
+    supports,
+    inputs: { ...base.inputs, ...delta.inputs, images: { ...base.inputs.images, ...delta.inputs?.images } },
+    ...(protocol === null || protocol === undefined ? {} : { protocol })
+  })
+}
+
+export const ImageGenerationOverrideSchema = ImageCapabilityDeltaSchema.extend({
+  withImages: ImageCapabilityDeltaSchema.nullable().optional(),
+  operations: z.partialRecord(ImageOperationSchema, ImageCapabilityDeltaSchema.nullable()).optional()
 })
+
+export const ImageGenerationSupportSchema = z
+  .strictObject({
+    ...ImageCapabilitySchema.shape,
+    withImages: ImageCapabilityDeltaSchema.nullable().optional(),
+    operations: z.partialRecord(ImageOperationSchema, ImageCapabilityDeltaSchema.nullable()).optional()
+  })
+  .superRefine((value, ctx) => {
+    const base = ImageCapabilitySchema.safeParse({
+      supports: value.supports,
+      inputs: value.inputs,
+      protocol: value.protocol
+    })
+    if (!base.success) {
+      for (const issue of base.error.issues) ctx.addIssue({ ...issue })
+      return
+    }
+    let withImages: ImageCapability | undefined
+    if (value.withImages) {
+      try {
+        withImages = applyImageCapabilityDelta(base.data, value.withImages)
+      } catch (error) {
+        if (!(error instanceof z.ZodError)) throw error
+        for (const issue of error.issues) ctx.addIssue({ ...issue, path: ['withImages', ...issue.path] })
+      }
+    }
+    for (const operation of ImageOperationSchema.options) {
+      const delta = value.operations?.[operation]
+      if (delta === null || delta === undefined) continue
+      const bases = operation === 'generate' && withImages ? [base.data, withImages] : [base.data]
+      for (const capability of bases) {
+        try {
+          applyImageCapabilityDelta(capability, delta)
+        } catch (error) {
+          if (!(error instanceof z.ZodError)) throw error
+          for (const issue of error.issues) {
+            ctx.addIssue({ ...issue, path: ['operations', operation, ...issue.path] })
+          }
+        }
+      }
+    }
+  })
 
 // Parameter support configuration
 // Defaults reflect the most common LLM provider capabilities
@@ -543,9 +618,9 @@ export const ModelListSchema = z.object({
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 export type ReasoningSupport = z.infer<typeof ReasoningSupportSchema>
 export type ParameterSupport = z.infer<typeof ParameterSupportSchema>
-export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
+export type ImageOperation = z.infer<typeof ImageOperationSchema>
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
-export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
+export type ImageGenerationOverride = z.infer<typeof ImageGenerationOverrideSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>

@@ -52,6 +52,10 @@ A route noun that diverges from its backing table's concept is drift — fix the
 | PATCH | Partial update | Yes | 200 + updated entity |
 | DELETE | Remove resource | Yes | 204 / void |
 
+PATCH identifies a partial update, not its merge algorithm. Each DTO declares field-level
+replacement, merge, and clear semantics; follow [PATCH and Merge Contract](./best-practice-default-values-and-nullability.md#patch-and-merge-contract)
+for missing keys, `undefined`, `null`, nested values, and the audit checklist.
+
 ## Standard Endpoint Patterns
 
 ```typescript
@@ -575,9 +579,9 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 
 - **Never `.omit(AutoFields)`** — adding an entity field would auto-expose it (overposting risk). Always whitelist via `.pick({...})`.
 - **Always `z.strictObject`** on entity schemas — second line of defense against overposting.
-- **Update derivation depends on Create's defaults**:
-  - `UpdateSchema = CreateSchema.partial()` is safe **only when Create has no `.default()`**.
-  - When Create carries `.default()`, derive Update from the entity directly: `UpdateSchema = EntitySchema.pick(...).partial()` — Zod v4 retains defaults through `.partial()`, and they leak into PATCH bodies otherwise (Zod issues #4799, #5642).
+- **Update derivation requires defaults-free selected fields**:
+  - Whether deriving from Create or Entity, inspect the selected fields **and their nested schemas** for defaults and other value-producing transforms.
+  - `.partial()` neither removes defaults nor makes nested objects partial. Deriving from Entity is not automatically safe; reuse defaults-free field atoms and declare nested patch semantics explicitly.
   - **Preferred**: keep Zod schemas free of `.default()` and own defaults at the DB or service layer. See [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
 - **Zod v4 gotcha:** `.pick()`/`.omit()` strip `.refine()`/`.check()` validators (working as designed, Zod discussion #4706). If entity has cross-field checks, re-attach them after pick via `.refine()` or `.safeExtend()`.
 

@@ -24,11 +24,8 @@ export default defineProvider({
     }
   },
   overrides: [
-    // Ollama's own experimental image-gen models (served through `/api/generate`,
-    // not a separate creator catalog) — vendor-exclusive, so declared standalone
-    // here rather than in `src/creators/`. No `vendorTransport`: the AI SDK
-    // adapter (`src/main/ai/provider/custom/ollama/`) always calls the local
-    // `/api/generate` endpoint directly, it doesn't read registry-declared routing.
+    // Experimental vendor-exclusive models are standalone; Main's Ollama transport owns
+    // the fixed `/api/generate` protocol rather than reading per-model endpoint declarations.
     {
       modelId: 'x/z-image-turbo',
       apiModelId: 'x/z-image-turbo',
@@ -37,18 +34,34 @@ export default defineProvider({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              seed: { type: 'text' },
-              numInferenceSteps: { default: 9, max: 20, min: 1, type: 'range' },
-              size: {
-                default: '1024x1024',
-                options: ['512x512', '768x768', '1024x1024'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          seed: {
+            type: 'text'
+          },
+          numInferenceSteps: {
+            default: 9,
+            max: 20,
+            min: 1,
+            type: 'range'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['512x512', '768x768', '1024x1024'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -61,17 +74,28 @@ export default defineProvider({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              seed: { type: 'text' },
-              size: {
-                default: '1024x1024',
-                options: ['512x512', '768x768', '1024x1024'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['512x512', '768x768', '1024x1024'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }

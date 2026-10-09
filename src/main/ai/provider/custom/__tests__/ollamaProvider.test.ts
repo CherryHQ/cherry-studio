@@ -1,62 +1,49 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const CreateOllamaFn = vi.fn()
-const TransportCtor = vi.fn()
-
-vi.mock('ollama-ai-provider-v2', () => ({
-  createOllama: (settings: unknown) => {
-    CreateOllamaFn(settings)
-    return { languageModel: vi.fn(), embeddingModel: vi.fn() }
-  }
-}))
-
-vi.mock('../ollama/ollamaTransport', () => ({
-  createOllamaTransport: (settings: { baseURL: string; headers?: Record<string, string> }) => {
-    TransportCtor(settings)
-    return { submit: vi.fn() }
-  }
-}))
-
 import { createOllamaWithImageModel } from '../ollama/ollamaProvider'
 
-describe('createOllamaWithImageModel', () => {
-  afterEach(() => {
-    CreateOllamaFn.mockReset()
-    TransportCtor.mockReset()
-  })
+afterEach(() => vi.restoreAllMocks())
 
-  it('preserves the base ollama-ai-provider-v2 chat/embedding models', () => {
-    const provider = createOllamaWithImageModel({ baseURL: 'http://localhost:11434/api' })
-    expect(CreateOllamaFn).toHaveBeenCalledWith({ baseURL: 'http://localhost:11434/api' })
-    expect(typeof provider.languageModel).toBe('function')
-    expect(typeof provider.embeddingModel).toBe('function')
-  })
-
-  it('imageModel returns an ImageGenerationModel with provider="ollama"', () => {
-    const provider = createOllamaWithImageModel({ baseURL: 'http://localhost:11434/api' })
-    expect(provider.imageModel('x/z-image-turbo').provider).toBe('ollama')
-  })
-
-  it('image transport uses the configured baseURL and headers', () => {
-    createOllamaWithImageModel({ baseURL: 'http://localhost:11434/api', headers: { Authorization: 'Bearer t' } })
-    expect(TransportCtor).toHaveBeenCalledWith({
-      baseURL: 'http://localhost:11434/api',
-      headers: { Authorization: 'Bearer t' }
-    })
-  })
-
-  it('image transport falls back to the default local baseURL when omitted', () => {
-    createOllamaWithImageModel({})
-    expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://127.0.0.1:11434/api', headers: undefined })
-  })
-
-  it('forwards the caller-injected fetch (e.g. the proxy-aware customFetch) to the transport', () => {
-    const injectedFetch = vi.fn()
-    createOllamaWithImageModel({ baseURL: 'http://localhost:11434/api', fetch: injectedFetch })
-    expect(TransportCtor).toHaveBeenCalledWith({
-      baseURL: 'http://localhost:11434/api',
-      headers: undefined,
-      fetch: injectedFetch
-    })
-  })
+// Characterization: Ollama's image extension has no stable published API contract; existing endpoint preserved 2026-09-09.
+describe('Ollama image adapter', () => {
+  it.each([undefined, 'http://proxy.example/api'])(
+    'uses the configured proxy fetch, canonical steps, and call headers (%s)',
+    async (baseURL) => {
+      const requests: Request[] = []
+      const globalFetch = vi.spyOn(globalThis, 'fetch')
+      const provider = createOllamaWithImageModel({
+        baseURL,
+        headers: { 'x-provider': 'cherry' },
+        fetch: async (url, init) => {
+          requests.push(new Request(url, init))
+          return Response.json({ image: 'AQID' })
+        }
+      })
+      const result = await provider.imageModel('x/z-image-turbo').doGenerate({
+        prompt: 'a fox',
+        n: 1,
+        size: '512x512',
+        seed: 0,
+        aspectRatio: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: { ollama: { numInferenceSteps: 9 } },
+        headers: { 'x-call': 'once' }
+      })
+      expect(requests[0].url).toBe(`${baseURL ?? 'http://127.0.0.1:11434/api'}/generate`)
+      expect(await requests[0].json()).toEqual({
+        model: 'x/z-image-turbo',
+        prompt: 'a fox',
+        stream: false,
+        width: 512,
+        height: 512,
+        steps: 9,
+        options: { seed: 0 }
+      })
+      expect(requests[0].headers.get('x-provider')).toBe('cherry')
+      expect(requests[0].headers.get('x-call')).toBe('once')
+      expect(result.images).toEqual(['AQID'])
+      expect(globalFetch).not.toHaveBeenCalled()
+    }
+  )
 })

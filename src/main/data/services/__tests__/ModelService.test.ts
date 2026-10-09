@@ -1013,7 +1013,25 @@ describe('ModelService.list', () => {
 describe('ModelService.list — registry enrichment', () => {
   const dbh = setupTestDatabase()
 
-  const imageGenerationMeta = { modes: {} } as any
+  const imageGenerationMeta = {
+    supports: {},
+    inputs: {
+      images: {
+        min: 0,
+        max: {
+          kind: 'unknown'
+        }
+      },
+      prompt: 'required',
+      mask: 'unknown',
+      mediaTypes: {
+        kind: 'unknown'
+      }
+    },
+    operations: {
+      generate: null
+    }
+  } as any
 
   beforeEach(() => {
     // Reset to the default no-op registry hit; tests opt in per model.

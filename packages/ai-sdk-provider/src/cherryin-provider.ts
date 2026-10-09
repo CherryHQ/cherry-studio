@@ -174,12 +174,6 @@ const normalizePersonGeneration = (value: unknown) => {
   }
 }
 
-const normalizeAspectRatio = (value: unknown): `${number}:${number}` | undefined => {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
-}
-
 const normalizeImageSize = (value: unknown) => {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
@@ -200,27 +194,26 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
     const existingGoogle = (providerOptions.google ?? {}) as Record<string, unknown>
     const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, unknown>
 
-    const aspectRatio =
-      options.aspectRatio ??
-      normalizeAspectRatio(options.size) ??
-      normalizeAspectRatio(source.aspectRatio ?? source.aspect_ratio)
+    const aspectRatio = options.aspectRatio
     const personGeneration = normalizePersonGeneration(source.personGeneration ?? source.person_generation)
     const imageSize = normalizeImageSize(
       source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
     )
 
     const googleOptions: Record<string, unknown> = {
-      ...(aspectRatio ? { aspectRatio } : {}),
       ...(personGeneration ? { personGeneration } : {}),
       ...existingGoogle
     }
+    delete googleOptions.aspectRatio
+    if (aspectRatio !== undefined) googleOptions.aspectRatio = aspectRatio
 
-    if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
-      googleOptions.imageConfig = {
-        ...existingImageConfig,
-        ...(aspectRatio ? { aspectRatio } : {}),
-        ...(imageSize ? { imageSize } : {})
-      }
+    if (isGeminiImage) {
+      const imageConfig = { ...existingImageConfig }
+      delete imageConfig.aspectRatio
+      if (aspectRatio !== undefined) imageConfig.aspectRatio = aspectRatio
+      if (imageSize) imageConfig.imageSize = imageSize
+      if (Object.keys(imageConfig).length > 0) googleOptions.imageConfig = imageConfig
+      else delete googleOptions.imageConfig
     }
 
     return model.doGenerate({

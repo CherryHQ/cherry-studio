@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
-import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../utils/customFetch'
+import { customFetch, HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../utils/customFetch'
 import { TRACER_NAME } from './constants'
 
 const logger = loggerService.withContext('httpTraceFetch')
@@ -31,7 +31,7 @@ export interface HttpTraceOptions {
 /** Enable developer HTTP tracing independently of the request modality. */
 export function applyHttpTrace(settings: { fetch?: FetchFunction }, opts: HttpTraceOptions): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, opts)
+  settings.fetch = createHttpTraceFetch(settings.fetch ?? customFetch, opts)
 }
 
 /**

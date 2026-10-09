@@ -1,366 +1,270 @@
+import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
+import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
-
-/**
- * PPIO submit/poll transport.
- *
- * Preserves the legacy painting transport's API host, adaptive
- * 3s(<60s)/10s poll interval, `maxAttempts` 120,
- * `maxTransientRetries` 10, `TASK_STATUS_*` machine, per-model param builders
- * and the synchronous (`isSync`) path.
- */
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../imageTransport'
+import {
+  ADAPTIVE_IMAGE_POLL_POLICY,
+  completedImageTransportSubmission,
+  completedImageTransportTask,
+  type ImageTransportInputSupport,
+  type ImageTransportTaskContext,
+  type ImageTransportTaskState,
+  submittedImageTransportSubmission,
+  type TaskImageGenerationTransport
+} from '../imageTransport'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
+import { fileToDataUrl } from '../transportUtils'
+import { resolvePpioImageProtocol } from './ppioImageBinding'
 
 export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
 
-export class PpioApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number
-  ) {
-    super(message)
-    this.name = 'PpioApiError'
-  }
-}
+const ppioSubmitResultSchema = z.object({ task_id: z.string().min(1) }).passthrough()
+const ppioSyncResultSchema = z
+  .object({
+    images: z
+      .array(
+        z.union([
+          z.string().min(1),
+          z
+            .object({ image_url: z.string().min(1).optional(), url: z.string().min(1).optional() })
+            .transform((image, ctx) => {
+              if (image.image_url) return image.image_url
+              if (image.url) return image.url
+              ctx.addIssue({ code: 'custom', message: 'PPIO image result requires a URL' })
+              return z.NEVER
+            })
+        ])
+      )
+      .min(1)
+  })
+  .passthrough()
+const ppioTaskResultSchema = z
+  .object({
+    task: z
+      .object({
+        status: z.enum(['TASK_STATUS_QUEUED', 'TASK_STATUS_PROCESSING', 'TASK_STATUS_SUCCEED', 'TASK_STATUS_FAILED']),
+        reason: z.string().optional(),
+        progress_percent: z.number().optional()
+      })
+      .passthrough(),
+    images: z.array(z.object({ image_url: z.string().min(1) }).passthrough()).optional()
+  })
+  .passthrough()
 
-/**
- * Terminal failure from the PPIO task lifecycle (status === TASK_STATUS_FAILED).
- * Carries the vendor's `task.reason` verbatim — replaces the prior pattern of
- * `new Error(reason ?? 'Task failed')` + `error.message.includes('Task failed')`
- * substring matching, which misclassified non-empty reasons ("Insufficient
- * credits", "NSFW detected") as transient and silently retried them 10 times.
- */
-export class PpioTaskFailedError extends Error {
-  constructor(reason: string) {
-    super(reason)
-    this.name = 'PpioTaskFailedError'
-  }
-}
+/** The resolved registry descriptor, bound once before submission. */
+export type PpioModelDescriptor = ImageTransportDescriptor
 
-export type PpioTaskStatus =
-  | 'TASK_STATUS_QUEUED'
-  | 'TASK_STATUS_PROCESSING'
-  | 'TASK_STATUS_SUCCEED'
-  | 'TASK_STATUS_FAILED'
-
-export interface PpioTaskResult {
-  task: {
-    task_id: string
-    status: PpioTaskStatus
-    task_type: string
-    reason?: string
-    eta?: number
-    progress_percent?: number
-  }
-  images?: Array<{
-    image_url: string
-    image_url_ttl: string
-    image_type: string
-  }>
-  extra?: {
-    seed?: string
-    has_nsfw_contents?: boolean[]
-  }
-}
-
-export interface PpioSyncResult {
-  images?: Array<string | { image_url?: string; url?: string }>
-}
-
-/**
- * PPIO model descriptor needed by the transport: which endpoint to POST to
- * and whether the model responds synchronously with finished images.
- * `mode` is the canonical PaintingMode ('draw' / 'edit' / 'generate' …);
- * `buildSeedreamParams` branches on `mode === 'edit'`.
- */
-export interface PpioModelDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: string
-}
-
-/**
- * Painting fields forwarded through `providerOptions['ppio']`. Mirrors the
- * `PpioPaintingData` subset the legacy `buildRequestParams` consumed.
- */
-export interface PpioProviderParams {
-  size?: string
-  ppioSeed?: number
-  usePreLlm?: boolean
-  addWatermark?: boolean
-  outputFormat?: string
-  /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
-  onProgress?: (progress: number) => void
-}
+/** Canonical vendor parameters; native fields come from the submit input. */
+export type PpioBag = Pick<VendorBag, 'promptEnhancement' | 'addWatermark' | 'outputFormat'>
 
 export interface PpioTransportSettings {
+  modelDescriptor: PpioModelDescriptor
   apiKey: string
   baseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
 
-class PpioTransport implements ImageGenerationTransport {
-  private apiKey: string
-  private baseURL: string
+class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
+  private readonly apiKey: string
+  private readonly baseURL: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+  private readonly modelDescriptor: PpioModelDescriptor
+  private readonly protocol: NonNullable<ReturnType<typeof resolvePpioImageProtocol>>
+
+  readonly task: TaskImageGenerationTransport<PpioBag>['task'] = {
+    kind: 'supported' as const,
+    pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
+    query: (taskId: string, context: Parameters<PpioTransport['query']>[1]) => this.query(taskId, context),
+    cancel: { kind: 'unsupported' as const }
+  }
 
   constructor(settings: PpioTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_PPIO_BASE_URL
+    this.headers = settings.headers
+    this.fetch = settings.fetch
+    this.modelDescriptor = { ...settings.modelDescriptor }
+    const protocol = resolvePpioImageProtocol(settings.modelDescriptor.endpoint)
+    if (!protocol) throw new Error(`Unsupported PPIO image endpoint: ${settings.modelDescriptor.endpoint}`)
+    this.protocol = protocol
   }
 
-  private async request<T>(
-    endpoint: string,
-    body: Record<string, unknown>,
-    method: 'POST' | 'GET' = 'POST',
-    requestOptions?: { timeout?: number; signal?: AbortSignal }
-  ): Promise<T> {
-    const timeout = requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const externalSignal = requestOptions?.signal
-    const url = `${this.baseURL}${endpoint}`
-    const controller = new AbortController()
-    let externallyAborted = false
-
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-    }, timeout)
-
-    const onExternalAbort = () => {
-      externallyAborted = true
-      controller.abort()
-    }
-
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
-
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
-      },
-      signal: controller.signal
-    }
-
-    if (method === 'POST') {
-      fetchOptions.body = JSON.stringify(body)
-    }
-
-    try {
-      const response = await fetch(url, fetchOptions)
-
-      if (!response.ok) {
-        const errorText = (await response.text().catch(() => '')).slice(0, 500)
-        throw new PpioApiError(`PPIO API error: ${response.status} - ${errorText}`, response.status)
-      }
-
-      const data = await response.json()
-      return data as T
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (externallyAborted) {
-          throw createAbortError('PPIO API request aborted')
-        }
-
-        throw new Error(`PPIO API request timeout after ${timeout / 1000}s`)
-      }
-      throw error
-    } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
-    }
-  }
-
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bagParams = input.providerParams as PpioProviderParams
-    const descriptor = input.modelDescriptor
-    if (!descriptor) {
-      throw new Error(`Unknown model: ${input.modelId}`)
-    }
-
-    // Native AI SDK fields (size / seed) land on `input.*` post-canonicalGenerate
-    // partition, not in the providerOptions bag. Merge them into a unified
-    // view so the per-model builders below can read uniformly. `ppioSeed`
-    // remains PPIO's bespoke wire field name; if the bag carries one
-    // explicitly we keep it, otherwise fall back to `input.seed`.
-    const params: PpioProviderParams = {
-      ...bagParams,
-      size: bagParams.size ?? input.size,
-      ppioSeed: bagParams.ppioSeed ?? input.seed
-    }
-
-    const requestParams = this.buildRequestParams(input, params, descriptor)
+  async submit(input: ImageGenerationSubmitInput<PpioBag>) {
+    const descriptor = this.modelDescriptor
+    const requestParams = this.buildRequestParams(input)
+    const url = `${this.baseURL}${descriptor.endpoint}`
+    const headers = combineImageTransportHeaders(
+      { Authorization: `Bearer ${this.apiKey}` },
+      this.headers,
+      input.headers
+    )
 
     if (descriptor.isSync) {
-      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', {
-        signal: input.signal
+      const result = await withImageTransportRequestTimeout(
+        { url, timeoutMs: DEFAULT_TIMEOUT, signal: input.signal },
+        (signal) =>
+          postJsonToApi({
+            url,
+            headers,
+            body: requestParams,
+            abortSignal: signal,
+            fetch: this.fetch,
+            failedResponseHandler: createImageTransportErrorResponseHandler('PPIO API error'),
+            successfulResponseHandler: createJsonResponseHandler(ppioSyncResultSchema)
+          })
+      )
+      return completedImageTransportSubmission(result.value.images, 'PPIO')
+    }
+
+    const result = await withImageTransportRequestTimeout({ url, timeoutMs: 120_000, signal: input.signal }, (signal) =>
+      postJsonToApi({
+        url,
+        headers,
+        body: requestParams,
+        abortSignal: signal,
+        fetch: this.fetch,
+        failedResponseHandler: createImageTransportErrorResponseHandler('PPIO API error'),
+        successfulResponseHandler: createJsonResponseHandler(ppioSubmitResultSchema)
       })
-      return { imageUrls: this.extractSyncImageUrls(result) }
-    }
-
-    const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams, 'POST', {
-      timeout: 120000,
-      signal: input.signal
-    })
-    return { taskId: result.task_id }
+    )
+    return submittedImageTransportSubmission(result.value.task_id, 'PPIO')
   }
 
-  private buildRequestParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams,
-    descriptor: PpioModelDescriptor
-  ): Record<string, unknown> {
-    const modelId = descriptor.id
-    const params: Record<string, unknown> = {}
+  supportsInput(): ImageTransportInputSupport {
+    const files =
+      this.protocol === 'qwen-edit' || this.protocol === 'seedream-images' || this.protocol === 'seedream-image'
+    return { files, mask: false }
+  }
 
-    if (input.prompt) {
-      params.prompt = input.prompt
-    }
-
-    switch (modelId) {
-      case 'jimeng-txt2img-v3.1':
-      case 'jimeng-txt2img-v3.0':
-        return this.buildJimengParams(input, painting)
-      case 'hunyuan-image-3':
-        return this.buildHunyuanParams(input, painting)
-      case 'qwen-image-txt2img':
-        return this.buildQwenTxt2ImgParams(input, painting)
-      case 'qwen-image-edit':
-      case 'qwen-image-edit-2509':
-        return this.buildQwenEditParams(input, painting)
-      case 'glm-image':
-        return this.buildGlmParams(input, painting)
-      case 'z-image-turbo':
-        return this.buildZImageParams(input, painting)
-      case 'z-image-turbo-lora':
-        return this.buildZImageLoraParams(input, painting)
-      case 'seedream-5.0-lite':
-      case 'seedream-4.5':
-      case 'seedream-4.0':
-        return descriptor.mode === 'edit'
-          ? this.buildSeedreamEditParams(input, painting, modelId)
-          : this.buildSeedreamDrawParams(input, painting)
-      default:
-        return params
+  private buildRequestParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
+    switch (this.protocol) {
+      case 'jimeng':
+        return this.buildJimengParams(input)
+      case 'hunyuan':
+        return this.buildHunyuanParams(input)
+      case 'qwen-generate':
+        return this.buildQwenTxt2ImgParams(input)
+      case 'qwen-edit':
+        return this.buildQwenEditParams(input)
+      case 'glm':
+        return this.buildGlmParams(input)
+      case 'z-image':
+        return this.buildZImageParams(input)
+      case 'z-image-lora':
+        return this.buildZImageLoraParams(input)
+      case 'seedream-images':
+      case 'seedream-image':
+        return input.files?.length ? this.buildSeedreamReferenceParams(input) : this.buildSeedreamParams(input)
     }
   }
 
-  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildJimengParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     const params: Record<string, unknown> = {
       prompt: input.prompt,
-      use_pre_llm: painting.usePreLlm ?? true,
-      seed: painting.ppioSeed ?? -1
+      seed: input.seed
     }
 
-    if (painting.size) {
-      const [width, height] = painting.size.split('x').map(Number)
+    if (input.providerParams.promptEnhancement !== undefined) {
+      params.use_pre_llm = input.providerParams.promptEnhancement
+    }
+
+    if (input.size) {
+      const [width, height] = input.size.split('x').map(Number)
       if (width && height) {
         params.width = width
         params.height = height
       }
     }
 
-    if (painting.addWatermark) {
+    if (input.providerParams.addWatermark !== undefined) {
       params.logo_info = {
-        add_logo: true
+        add_logo: input.providerParams.addWatermark
       }
     }
 
     return params
   }
 
-  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildHunyuanParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size?.replace('x', '*') || '1024*1024',
-      seed: painting.ppioSeed ?? -1,
-      watermark: painting.addWatermark ?? false
+      size: input.size?.replace('x', '*'),
+      seed: input.seed,
+      watermark: input.providerParams.addWatermark
     }
   }
 
-  private buildQwenTxt2ImgParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildQwenTxt2ImgParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size?.replace('x', '*') || '1024*1024',
-      watermark: painting.addWatermark ?? false
+      size: input.size?.replace('x', '*'),
+      watermark: input.providerParams.addWatermark
     }
   }
 
-  private buildQwenEditParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildQwenEditParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     const firstFile = input.files?.[0]
     return {
       prompt: input.prompt,
       image: firstFile ? fileToDataUrl(firstFile) : undefined,
-      seed: painting.ppioSeed ?? -1,
-      output_format: painting.outputFormat || 'jpeg',
-      watermark: painting.addWatermark ?? false
+      seed: input.seed,
+      output_format: input.providerParams.outputFormat,
+      watermark: input.providerParams.addWatermark
     }
   }
 
-  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildGlmParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size || '1280x1280',
+      size: input.size,
       quality: 'hd',
-      watermark_enabled: painting.addWatermark ?? true
+      watermark_enabled: input.providerParams.addWatermark
     }
   }
 
-  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildZImageParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size?.replace('x', '*') || '1024*1024',
-      seed: painting.ppioSeed ?? -1
+      size: input.size?.replace('x', '*'),
+      seed: input.seed
     }
   }
 
-  private buildZImageLoraParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildZImageLoraParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size?.replace('x', '*') || '1024*1024',
-      seed: painting.ppioSeed ?? -1,
+      size: input.size?.replace('x', '*'),
+      seed: input.seed,
       loras: []
     }
   }
 
-  private buildSeedreamDrawParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams
-  ): Record<string, unknown> {
+  private buildSeedreamParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     return {
       prompt: input.prompt,
-      size: painting.size || '2048x2048',
-      watermark: painting.addWatermark ?? true,
+      size: input.size,
+      watermark: input.providerParams.addWatermark,
       sequential_image_generation: 'disabled'
     }
   }
 
-  private buildSeedreamEditParams(
-    input: ImageGenerationSubmitInput,
-    painting: PpioProviderParams,
-    modelId: string
-  ): Record<string, unknown> {
+  private buildSeedreamReferenceParams(input: ImageGenerationSubmitInput<PpioBag>): Record<string, unknown> {
     const firstFile = input.files?.[0]
     const rawImage = firstFile ? fileToDataUrl(firstFile) : ''
-    if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {
+    if (this.protocol === 'seedream-images') {
       return {
         prompt: input.prompt,
-        images: rawImage ? [rawImage] : [],
-        size: painting.size || '2048x2048',
-        watermark: painting.addWatermark ?? true,
+        images: input.files?.map(fileToDataUrl),
+        size: input.size,
+        watermark: input.providerParams.addWatermark,
         sequential_image_generation: 'disabled'
       }
     }
@@ -369,106 +273,45 @@ class PpioTransport implements ImageGenerationTransport {
     return {
       prompt: input.prompt,
       image: base64Image ? [base64Image] : [],
-      size: painting.size || '2048x2048',
-      watermark: painting.addWatermark ?? true,
+      size: input.size,
+      watermark: input.providerParams.addWatermark,
       sequential_image_generation: 'disabled'
     }
   }
 
-  private extractSyncImageUrls(result: PpioSyncResult): string[] | undefined {
-    if (!result.images) return undefined
-
-    return result.images
-      .map((image) => {
-        if (typeof image === 'string') return image
-        return image.image_url ?? image.url
-      })
-      .filter((url): url is string => typeof url === 'string' && url.length > 0)
-  }
-
-  async getTaskResult(taskId: string, timeout: number = 120000, signal?: AbortSignal): Promise<PpioTaskResult> {
+  private async query(
+    taskId: string,
+    context: ImageTransportTaskContext<PpioBag, AbortSignal>
+  ): Promise<ImageTransportTaskState> {
     const endpoint = `/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
-    return this.request<PpioTaskResult>(endpoint, {}, 'GET', { timeout, signal })
-  }
+    const url = `${this.baseURL}${endpoint}`
+    const result = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 10_000, signal: context.signal },
+      (signal) =>
+        getFromApi({
+          url,
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers
+          ),
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('PPIO API error'),
+          successfulResponseHandler: createJsonResponseHandler(ppioTaskResultSchema)
+        })
+    )
 
-  async poll(
-    taskId: string,
-    options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
-  ): Promise<string[]> {
-    const result = await this.pollTaskResult(taskId, options)
-    return (result.images ?? []).map((img) => img.image_url)
-  }
-
-  async pollTaskResult(
-    taskId: string,
-    options?: {
-      interval?: number
-      maxAttempts?: number
-      onProgress?: (progress: number) => void
-      signal?: AbortSignal
+    if (result.value.task.status === 'TASK_STATUS_SUCCEED') {
+      return completedImageTransportTask(
+        (result.value.images ?? []).map((image) => image.image_url),
+        'PPIO task'
+      )
     }
-  ): Promise<PpioTaskResult> {
-    const { interval, maxAttempts = 120, onProgress, signal } = options || {}
-    const maxTransientRetries = 10
-    let attempts = 0
-    let transientRetries = 0
-    const startTime = Date.now()
-
-    while (attempts < maxAttempts) {
-      if (signal?.aborted) {
-        throw createAbortError('Task polling aborted')
-      }
-
-      try {
-        const result = await this.getTaskResult(taskId, 10000, signal)
-        transientRetries = 0
-
-        if (result.task.progress_percent !== undefined && onProgress) {
-          onProgress(result.task.progress_percent)
-        }
-
-        if (result.task.status === 'TASK_STATUS_SUCCEED') {
-          return result
-        }
-
-        if (result.task.status === 'TASK_STATUS_FAILED') {
-          throw new PpioTaskFailedError(result.task.reason || 'Task failed')
-        }
-      } catch (error) {
-        if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
-          throw createAbortError('Task polling aborted')
-        }
-
-        // Terminal classifications — propagate without retrying. A 4xx (bar
-        // 429) poll response won't recover; 5xx / 429 fall through to the
-        // transient handling below (network blips, server hiccups, rate limits).
-        if (error instanceof PpioApiError && isTerminalHttpStatus(error.statusCode)) {
-          throw error
-        }
-
-        if (error instanceof PpioTaskFailedError) {
-          throw error
-        }
-
-        transientRetries++
-
-        if (transientRetries >= maxTransientRetries) {
-          throw error instanceof Error ? error : new Error(String(error))
-        }
-
-        const elapsedTime = Date.now() - startTime
-        const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-        await waitWithSignal(pollDelay, signal)
-        continue
-      }
-
-      const elapsedTime = Date.now() - startTime
-      const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-      await waitWithSignal(pollDelay, signal)
-      attempts++
+    if (result.value.task.status === 'TASK_STATUS_FAILED') {
+      return { kind: 'failed', message: result.value.task.reason || 'Task failed' }
     }
-
-    throw new Error('Task polling timeout')
+    return { kind: 'pending', progress: result.value.task.progress_percent }
   }
 }
 

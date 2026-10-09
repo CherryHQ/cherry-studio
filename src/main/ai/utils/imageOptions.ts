@@ -1,40 +1,57 @@
-import type { ParamValues } from '@cherrystudio/provider-registry'
+import {
+  type CanonicalParamKey,
+  IMAGE_PARAM_CATALOG_KEYS,
+  imageParamsSchema,
+  type ParamValues
+} from '@cherrystudio/provider-registry'
 
-import { nativeBindingFor } from './aiSdkNativeBindings'
+import { nativeBindingFor, type NativeImageParams, type NativeParamKey } from './aiSdkNativeBindings'
+
+/**
+ * The job path's bag: catalog keys not routed natively, derived as the complement of
+ * the native bindings so adding a binding removes the key here in the same edit.
+ * No index signature — reading a wire name off it is a compile error.
+ */
+export type VendorBag = Omit<ParamValues, NativeParamKey>
+
+const vendorParamsSchema = imageParamsSchema.strict()
+
+/** Native image options have one owner; custom adapters accept only canonical vendor fields. */
+export function parseImageVendorParams(value: unknown): VendorBag {
+  const params = vendorParamsSchema.parse(value)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    if (params[key] !== undefined && nativeBindingFor(key)) {
+      throw new Error(`Image parameter '${key}' must use its native SDK option`)
+    }
+  }
+  return params
+}
 
 /** The structured fields + leftover vendor bag split out of a canonical `paramValues` bag. */
 export interface SplitImageParams {
-  /** The binding-mapped structured fields — typed straight from the catalog
-   *  (`ParamValues`), `+ n` (the `numImages → n` rename). No hand-maintained
-   *  param-shape type. */
-  readonly structured: ParamValues & { n?: number }
-  /** Non-binding canonical keys (cfg, addWatermark, modelDescriptor, …). */
-  readonly vendorBag: Record<string, unknown>
+  /** The binding-mapped AI SDK call options (`numImages → n`, automatic ratio omitted). */
+  readonly structured: NativeImageParams
+  /** Non-binding canonical keys (cfg, addWatermark, negativePrompt, …). */
+  readonly vendorBag: VendorBag
 }
 
 /**
- * Partition a canonical `paramValues` bag into the structured fields the AI SDK
- * call consumes (via `AI_SDK_NATIVE_BINDINGS`) vs the leftover vendor bag the
- * WireProfile engine (`buildVendorProviderOptions`) forwards. The inverse of the
- * renderer's old `canonicalGenerate` partition, moved to main after the IPC
- * payload collapse.
- *
- * The `'' | null | undefined` skip mirrors the renderer's old `place()` guard
- * exactly — it is the byte-identical-wire invariant (e.g. an empty-string `size`
- * must NOT survive to `resolveImageRequestSize`).
+ * Partition a canonical bag into the AI SDK call options vs the vendor bag.
+ * Skipping `'' | null | undefined` is the byte-identical-wire invariant.
  */
-export function splitParamValues(paramValues: Record<string, unknown>): SplitImageParams {
+export function splitParamValues(paramValues: ParamValues): SplitImageParams {
   const structured: Record<string, unknown> = {}
   const vendorBag: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(paramValues)) {
     if (value === undefined || value === '' || value === null) continue
-    const binding = nativeBindingFor(key) // numImages → n; aspectRatio normalized once; rest identity
+    // numImages → n; explicit automatic ratio omitted; the rest identity.
+    const binding = nativeBindingFor(key as CanonicalParamKey)
     if (binding) {
-      const mapped = binding.map ? binding.map(value) : value
+      const mapped = binding.map ? binding.map(value as never) : value
       if (mapped !== undefined && mapped !== null && mapped !== '') structured[binding.option] = mapped
     } else {
       vendorBag[key] = value
     }
   }
-  return { structured: structured, vendorBag }
+  return { structured, vendorBag }
 }

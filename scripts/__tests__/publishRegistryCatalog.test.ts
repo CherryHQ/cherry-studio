@@ -57,8 +57,16 @@ const publishOptions = {
 
 describe('publishRegistryCatalog', () => {
   it('keeps v2 catalog updates available when Sonnet 5.5 moves to a new schema stream', async () => {
-    const { destinationDirectory } = makeDirectories()
-    const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
+    const { sourceDirectory, destinationDirectory } = makeDirectories()
+    writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)
+    const catalog = JSON.parse(fs.readFileSync(path.resolve(COMPAT_DIRECTORY, '../data/models.json'), 'utf8'))
+    const sourceModels = {
+      version: catalog.version,
+      models: catalog.models.filter((model: { id: string }) =>
+        ['claude-opus-5-5', 'claude-sonnet-5-5'].includes(model.id)
+      )
+    }
+    fs.writeFileSync(path.join(sourceDirectory, 'models.json'), JSON.stringify(sourceModels))
     fs.mkdirSync(path.join(destinationDirectory, 'v2'))
     fs.writeFileSync(
       path.join(destinationDirectory, 'v2/manifest.json'),
@@ -69,8 +77,8 @@ describe('publishRegistryCatalog', () => {
       ...publishOptions,
       sourceDirectory,
       destinationDirectory,
-      currentVersion: REGISTRY_SCHEMA_VERSION,
-      minAppVersion: REGISTRY_MIN_APP_VERSION,
+      currentVersion: 3,
+      minAppVersion: '2.1.4',
       sourceAppVersion: '2.1.4'
     })
 
@@ -86,7 +94,6 @@ describe('publishRegistryCatalog', () => {
     const { validateCatalogDirectory } = await import(path.join(COMPAT_DIRECTORY, 'v2-validator.mjs'))
     expect(() => validateCatalogDirectory(v2Directory)).not.toThrow()
 
-    const sourceModels = JSON.parse(fs.readFileSync(path.join(sourceDirectory, 'models.json'), 'utf8'))
     const v2Models = JSON.parse(fs.readFileSync(path.join(v2Directory, 'models.json'), 'utf8'))
     expect(v2Models.models).toContainEqual(
       sourceModels.models.find((model: { id: string }) => model.id === 'claude-opus-5-5')
@@ -103,6 +110,44 @@ describe('publishRegistryCatalog', () => {
         reasoning: expect.objectContaining({ wireDialect: 'adaptive-between-tools' })
       })
     )
+  })
+
+  it('publishes the image contract only to v4 without overwriting any older stream', async () => {
+    const { destinationDirectory } = makeDirectories()
+    const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
+    const previousFiles = new Map<string, string>()
+    for (const version of [1, 2, 3]) {
+      const directory = path.join(destinationDirectory, `v${version}`)
+      fs.mkdirSync(directory)
+      for (const file of ['models.json', 'providers.json', 'provider-models.json', 'manifest.json']) {
+        const filePath = path.join(directory, file)
+        const content = `${JSON.stringify({ version: `previous-v${version}`, file, minAppVersion: '2.0.13' })}\n`
+        fs.writeFileSync(filePath, content)
+        previousFiles.set(filePath, content)
+      }
+    }
+
+    const published = await publishRegistryCatalog({
+      ...publishOptions,
+      sourceDirectory,
+      destinationDirectory,
+      currentVersion: REGISTRY_SCHEMA_VERSION,
+      minAppVersion: REGISTRY_MIN_APP_VERSION,
+      sourceAppVersion: '2.1.4'
+    })
+
+    expect(published).toEqual(['v4'])
+    for (const [file, content] of previousFiles) expect(fs.readFileSync(file, 'utf8')).toBe(content)
+    for (const file of ['models.json', 'providers.json', 'provider-models.json']) {
+      expect(fs.readFileSync(path.join(destinationDirectory, 'v4', file), 'utf8')).toBe(
+        fs.readFileSync(path.join(sourceDirectory, file), 'utf8')
+      )
+    }
+    expect(JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v4/manifest.json'), 'utf8'))).toMatchObject({
+      schemaVersion: 4,
+      minAppVersion: '2.1.5',
+      sourceAppVersion: '2.1.4'
+    })
   })
 
   it('keeps a model reaching an older schema by dropping only what it cannot represent', async () => {

@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { MinimaxImageModel } from '../minimax/minimaxImageModel'
 import { createMinimaxProvider } from '../minimax/minimaxProvider'
 
 describe('createMinimaxProvider', () => {
-  it('uses OpenAI-compatible chat + embedding and the MiniMax image model', () => {
+  it('uses OpenAI-compatible chat and embedding models', () => {
     const provider = createMinimaxProvider({
       apiKey: 'sk-test',
       baseURL: 'https://api.minimax.io/v1',
@@ -13,8 +12,6 @@ describe('createMinimaxProvider', () => {
 
     expect(provider.languageModel('MiniMax-M3').provider).toBe('minimax.chat')
     expect(provider.embeddingModel('embedding-model').provider).toBe('minimax.embedding')
-    expect(provider.imageModel('image-01')).toBeInstanceOf(MinimaxImageModel)
-    expect(provider.imageModel('image-01-live')).toBeInstanceOf(MinimaxImageModel)
   })
 
   it('posts the complete text-to-image request and parses URL output', async () => {

@@ -1,77 +1,50 @@
+import { generateImage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import { SiliconImageModel } from '../silicon/SiliconImageModel'
 import { createSiliconProvider } from '../silicon/siliconProvider'
 
 describe('createSiliconProvider', () => {
-  it('uses OpenAI-compatible chat + embedding and bespoke SiliconImageModel for image', () => {
+  // https://api-docs.siliconflow.cn/docs/api/images-generations-post — retrieved 2026-09-09.
+  it.each([
+    ['Qwen/Qwen-Image', [1, 1, 1, 1, 1]],
+    ['Kwai-Kolors/Kolors', [4, 1]]
+  ] as const)('splits %s batches according to its actual per-call limit', async (modelId, counts) => {
+    const requests: Request[] = []
     const provider = createSiliconProvider({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.siliconflow.cn/v1',
-      fetch: vi.fn()
-    })
-
-    expect(provider.languageModel('Qwen/Qwen3-8B').provider).toBe('silicon.chat')
-    expect(provider.embeddingModel('BAAI/bge-m3').provider).toBe('silicon.embedding')
-    expect(provider.imageModel('Qwen/Qwen-Image')).toBeInstanceOf(SiliconImageModel)
-    expect(provider.imageModel('Kwai-Kolors/Kolors')).toBeInstanceOf(SiliconImageModel)
-    expect(provider.imageModel('stable-diffusion-xl')).toBeInstanceOf(SiliconImageModel)
-  })
-
-  it('builds the SiliconFlow body with snake_case + image_size + batch_size and parses images[]', async () => {
-    const imageUrl = 'https://siliconflow.cdn.example/out.png'
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          images: [{ url: imageUrl }],
-          timings: { inference: 0.5 },
-          seed: 42
-        }),
-        { headers: { 'content-type': 'application/json' }, status: 200 }
-      )
-    )
-    const provider = createSiliconProvider({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.siliconflow.cn/v1',
-      fetch
-    })
-    const model = provider.imageModel('Kwai-Kolors/Kolors')
-
-    const result = await model.doGenerate({
-      prompt: 'a fox',
-      n: 2,
-      size: '1024x1024',
-      aspectRatio: undefined,
-      seed: 42,
-      files: undefined,
-      mask: undefined,
-      providerOptions: {
-        silicon: {
-          negative_prompt: 'low quality',
-          num_inference_steps: 25,
-          guidance_scale: 4.5
-        }
+      apiKey: 'key',
+      fetch: async (url, init) => {
+        const request = new Request(url, init)
+        requests.push(request)
+        const body = await request.clone().json()
+        return Response.json({
+          images: Array.from({ length: body.batch_size ?? 1 }, () => ({ url: 'data:image/png;base64,AQID' }))
+        })
       }
     })
+    const result = await generateImage({ model: provider.imageModel(modelId), prompt: 'a fox', n: 5, maxRetries: 0 })
+    expect(await Promise.all(requests.map(async (request) => (await request.json()).batch_size ?? 1))).toEqual(counts)
+    expect(result.images).toHaveLength(5)
+  })
 
-    expect(fetch).toHaveBeenCalledWith(
-      'https://api.siliconflow.cn/v1/images/generations',
-      expect.objectContaining({ method: 'POST' })
-    )
-    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
-    expect(sent).toMatchObject({
-      model: 'Kwai-Kolors/Kolors',
-      prompt: 'a fox',
-      image_size: '1024x1024',
-      batch_size: 2,
-      seed: 42,
-      negative_prompt: 'low quality',
-      num_inference_steps: 25,
-      guidance_scale: 4.5
-    })
-    expect(sent).not.toHaveProperty('n')
-    expect(sent).not.toHaveProperty('size')
-    expect(result.images).toEqual([imageUrl])
+  it.each([
+    ['Qwen/Qwen-Image-Edit', 2],
+    ['Qwen/Qwen-Image-Edit-2509', 4]
+  ] as const)('rejects %s input overflow instead of silently dropping images', async (modelId, count) => {
+    const fetch = vi.fn()
+    const provider = createSiliconProvider({ apiKey: 'key', fetch })
+    await expect(
+      provider.imageModel(modelId).doGenerate({
+        prompt: 'restyle',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        aspectRatio: undefined,
+        mask: undefined,
+        providerOptions: {},
+        files: Array.from({ length: count }, () => ({ type: 'url', url: 'https://image.example/input.png' }))
+      })
+    ).rejects.toThrow('input images')
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('passes Qwen-specific cfg through and attaches input files as image / image2 / image3', async () => {

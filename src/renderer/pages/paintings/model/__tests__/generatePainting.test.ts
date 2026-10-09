@@ -32,6 +32,7 @@ function makeOptions(
     },
     signal,
     modelId: 'gpt-image-1',
+    operation: 'generate',
     prompt: 'a fox',
     paramValues
   }

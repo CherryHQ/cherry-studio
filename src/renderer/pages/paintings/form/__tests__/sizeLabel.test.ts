@@ -2,24 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { deriveChipLabel } from '../sizeLabel'
 
-/**
- * Locks the single-label contract: every chip shows exactly one concise
- * string in its text slot. The visual `RatioThumb` carries the shape;
- * we never render both the ratio AND the pixel dims as a stacked
- * pair (the prior `{ primary, secondary }` shape).
- */
 describe('deriveChipLabel', () => {
-  it('aspect-only enum from supports.aspectRatio → "X:Y"', () => {
-    expect(deriveChipLabel('ASPECT_1_1', 'ASPECT_1_1')).toBe('1:1')
-    expect(deriveChipLabel('ASPECT_3_4', 'ASPECT_3_4')).toBe('3:4')
-    expect(deriveChipLabel('ASPECT_16_9', 'ASPECT_16_9')).toBe('16:9')
-    expect(deriveChipLabel('ASPECT_10_16', 'ASPECT_10_16')).toBe('10:16')
-  })
-
-  it('bare X:Y or X_Y value → "X:Y"', () => {
-    expect(deriveChipLabel('1:1', '1:1')).toBe('1:1')
-    expect(deriveChipLabel('3:2', '3:2')).toBe('3:2')
-    expect(deriveChipLabel('9_16', '9_16')).toBe('9:16')
+  it('displays the selected canonical ratio without reducing or rounding it', () => {
+    expect(deriveChipLabel('Portrait', '10:16')).toBe('10:16')
+    expect(deriveChipLabel('Landscape', '1.5:1')).toBe('1.5:1')
   })
 
   it('pixel-size value → "W×H" (no extra ratio line)', () => {
@@ -42,9 +28,5 @@ describe('deriveChipLabel', () => {
     expect(deriveChipLabel('1K', '1K')).toBe('1K')
     expect(deriveChipLabel('2K', '2K')).toBe('2K')
     expect(deriveChipLabel('4K', '4K')).toBe('4K')
-  })
-
-  it('case-insensitive aspect prefix', () => {
-    expect(deriveChipLabel('aspect_1_1', 'aspect_1_1')).toBe('1:1')
   })
 })

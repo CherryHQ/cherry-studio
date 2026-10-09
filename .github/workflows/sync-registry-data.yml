@@ -14,9 +14,8 @@ name: Sync provider-registry data
 # compatibility range and monotonic workflow revision. Clients only download
 # the model metadata files; provider routing always remains bundled.
 #
-# Every published v{N}/ is refreshed, not just the current one: an older dir gets
-# the catalog down-converted against its own frozen validator, so shipped apps on
-# an older schema keep receiving new models (see scripts/publishRegistryCatalog.js).
+# Compatible streams are refreshed through their frozen validators; v4's image
+# contract is never backfilled into v1/v2/v3 (see scripts/publishRegistryCatalog.js).
 #
 # One-time setup (both required before this is useful):
 #   1. Create the orphan branch, from a clean repo:

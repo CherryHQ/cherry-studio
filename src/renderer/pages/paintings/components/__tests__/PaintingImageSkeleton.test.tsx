@@ -1,3 +1,4 @@
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { render } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,12 +8,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const mockPaintingSkeletonSurface = vi.hoisted(() => vi.fn())
 vi.mock('../PaintingSkeletonSurface', () => ({
-  default: (props: { imageUrl?: string; onRevealReady?: () => void }) => {
-    mockPaintingSkeletonSurface(props)
-    return <div data-testid="painting-skeleton-surface" />
-  }
+  default: () => <div data-testid="painting-skeleton-surface" />
 }))
 
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
@@ -26,8 +23,18 @@ vi.mock('../../hooks/useImageGenerationSupport', () => ({
 const { default: PaintingImageSkeleton } = await import('../PaintingImageSkeleton')
 
 /** Minimal registry support declaring a single size-bearing field. */
-const supportWith = (key: string, options: string[], def: string) => ({
-  modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
+const supportWith = (
+  key: keyof ImageGenerationSupport['supports'],
+  options: string[],
+  def: string
+): ImageGenerationSupport => ({
+  supports: { [key]: { type: 'enum', options, default: def } },
+  inputs: {
+    images: { min: 0, max: { kind: 'unknown' } },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: { kind: 'unknown' }
+  }
 })
 
 const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
@@ -55,7 +62,6 @@ describe('PaintingImageSkeleton', () => {
 
   beforeEach(() => {
     mockUseImageGenerationSupport.mockReset()
-    mockPaintingSkeletonSurface.mockClear()
   })
 
   it('renders the skeleton surface with the status role', () => {
@@ -64,27 +70,6 @@ describe('PaintingImageSkeleton', () => {
     const { getByRole } = render(<PaintingImageSkeleton painting={makePainting()} />)
 
     expect(getByRole('status')).toBeInTheDocument()
-    expect(getByRole('status').firstElementChild).not.toBeNull()
-  })
-
-  it('passes the image url and reveal handoff through to the skeleton surface', () => {
-    mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['1024x1024'], '1024x1024'))
-    const onRevealReady = vi.fn()
-
-    render(
-      <PaintingImageSkeleton
-        imageUrl="file:///tmp/image-1.png"
-        onRevealReady={onRevealReady}
-        painting={makePainting()}
-      />
-    )
-
-    expect(mockPaintingSkeletonSurface).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        imageUrl: 'file:///tmp/image-1.png',
-        onRevealReady
-      })
-    )
   })
 
   it('fills the area when the model declares no size field', () => {

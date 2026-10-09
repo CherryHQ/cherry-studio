@@ -2579,13 +2579,23 @@
           "capabilities": ["image-generation"],
           "endpointTypes": ["openai-image-generation"],
           "imageGeneration": {
-            "modes": {
-              "generate": {
-                "supports": {
-                  "seed": {
-                    "type": "text"
-                  }
-                }
+            "inputs": {
+              "images": {
+                "max": {
+                  "kind": "known",
+                  "value": 0
+                },
+                "min": 0
+              },
+              "mask": "unsupported",
+              "mediaTypes": {
+                "kind": "unknown"
+              },
+              "prompt": "optional"
+            },
+            "supports": {
+              "seed": {
+                "type": "text"
               }
             }
           },
@@ -2688,5 +2698,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a97aae2405a78d18"
+  "version": "8631b842ccd2c5ff"
 }

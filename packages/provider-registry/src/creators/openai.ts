@@ -1,26 +1,6 @@
 import { openaiCompatible } from './_api'
 import { defineCreator } from './types'
 
-const gptImageFullSupports = {
-  background: { options: ['auto', 'transparent', 'opaque'], type: 'enum' as const },
-  moderation: { options: ['auto', 'low'], type: 'enum' as const },
-  numImages: { default: 1, max: 10, min: 1, type: 'range' as const },
-  quality: { options: ['auto', 'low', 'medium', 'high'], type: 'enum' as const },
-  size: {
-    default: '1024x1024',
-    options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-    render: 'chips' as const,
-    type: 'enum' as const
-  }
-}
-
-const gptImageFullImageGeneration = {
-  modes: {
-    edit: { supports: gptImageFullSupports },
-    generate: { supports: gptImageFullSupports }
-  }
-}
-
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
@@ -211,7 +191,47 @@ export default defineCreator({
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
-      imageGeneration: gptImageFullImageGeneration
+      imageGeneration: {
+        supports: {
+          background: {
+            options: ['auto', 'transparent', 'opaque'],
+            type: 'enum'
+          },
+          moderation: {
+            options: ['auto', 'low'],
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 10,
+            min: 1,
+            type: 'range'
+          },
+          quality: {
+            options: ['auto', 'low', 'medium', 'high'],
+            type: 'enum'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        }
+      }
     },
     {
       id: 'dall-e-3',
@@ -221,24 +241,33 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              quality: {
-                options: ['standard', 'hd'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['1024x1024', '1792x1024', '1024x1792'],
-                render: 'chips',
-                type: 'enum'
-              },
-              style: {
-                options: ['vivid', 'natural'],
-                type: 'enum'
-              }
+        supports: {
+          quality: {
+            options: ['standard', 'hd'],
+            type: 'enum'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['1024x1024', '1792x1024', '1024x1792'],
+            render: 'chips',
+            type: 'enum'
+          },
+          style: {
+            options: ['vivid', 'natural'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -250,22 +279,31 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['256x256', '512x512', '1024x1024'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          numImages: {
+            default: 1,
+            max: 10,
+            min: 1,
+            type: 'range'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['256x256', '512x512', '1024x1024'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -278,30 +316,39 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              background: {
-                options: ['auto', 'opaque'],
-                type: 'enum'
-              },
-              numImages: {
-                default: 1,
-                max: 10,
-                min: 1,
-                type: 'range'
-              },
-              quality: {
-                options: ['auto', 'low', 'medium', 'high'],
-                type: 'enum'
-              },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          background: {
+            options: ['auto', 'opaque'],
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 10,
+            min: 1,
+            type: 'range'
+          },
+          quality: {
+            options: ['auto', 'low', 'medium', 'high'],
+            type: 'enum'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -313,7 +360,47 @@ export default defineCreator({
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
-      imageGeneration: gptImageFullImageGeneration
+      imageGeneration: {
+        supports: {
+          background: {
+            options: ['auto', 'transparent', 'opaque'],
+            type: 'enum'
+          },
+          moderation: {
+            options: ['auto', 'low'],
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 10,
+            min: 1,
+            type: 'range'
+          },
+          quality: {
+            options: ['auto', 'low', 'medium', 'high'],
+            type: 'enum'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        }
+      }
     },
     // GPT-5 chat / reasoning SKUs. models.dev over-tags these with `image-generation`
     // + an `image` output modality — GPT-5 emits images only via the Responses

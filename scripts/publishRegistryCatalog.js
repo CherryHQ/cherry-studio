@@ -1,5 +1,5 @@
 /**
- * Stage the catalog into every published schema-version dir of the
+ * Stage the catalog into compatible published schema-version dirs of the
  * `x-files/provider-registry` branch, one manifest each.
  *
  * The current version gets the catalog verbatim. An older version gets it
@@ -87,6 +87,10 @@ async function publishRegistryCatalog({
   const published = []
 
   for (const version of listSchemaVersions(compatDirectory, currentVersion)) {
+    // v4 replaces the image contract; v2/v3 validators silently drop it, so
+    // successful validation cannot authorize backfilling the pre-v4 streams.
+    if (currentVersion >= 4 && version < 4) continue
+
     const { validateCatalogFile } = await import(
       pathToFileURL(path.join(compatDirectory, `v${version}-validator.mjs`)).href
     )

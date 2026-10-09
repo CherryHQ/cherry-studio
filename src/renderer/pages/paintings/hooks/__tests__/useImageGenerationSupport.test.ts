@@ -7,7 +7,25 @@ import { useImageGenerationSupport } from '../useImageGenerationSupport'
 it('revalidates mounted image-generation metadata after a registry snapshot update', () => {
   const refetch = vi.fn().mockResolvedValue(undefined)
   mockUseQuery.mockReturnValue({
-    data: { modes: {} },
+    data: {
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null
+      }
+    },
     isLoading: false,
     isRefreshing: false,
     error: undefined,

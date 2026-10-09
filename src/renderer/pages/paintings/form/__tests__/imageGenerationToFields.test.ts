@@ -12,34 +12,71 @@ function staticOptions(item: BaseConfigItem | undefined): OptionItem[] {
   return item.options
 }
 
-/**
- * Locks the derivation contract under the unified schema: `modes[mode].supports`
- * is a `Record<string, SupportSpec>` where each spec's `type` arm dictates the
- * widget. Cases mirror the 5 archetypes populated in `models.json` so a
- * regression in the dispatcher fails here before reaching the painting page.
- */
 describe('imageGenerationToFields', () => {
   it('emits nothing for undefined or empty descriptors', () => {
     expect(imageGenerationToFields(undefined)).toEqual([])
-    expect(imageGenerationToFields({ modes: {} })).toEqual([])
+    expect(
+      imageGenerationToFields({
+        supports: {},
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        operations: {
+          generate: null
+        }
+      })
+    ).toEqual([])
   })
 
   it('gpt-image-1: size enum (chips) + numImages slider + quality/moderation/background selects', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            size: {
-              type: 'enum',
-              options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-              default: 'auto',
-              render: 'chips'
-            },
-            numImages: { type: 'range', min: 1, max: 10, default: 1 },
-            quality: { type: 'enum', options: ['low', 'medium', 'high', 'auto'] },
-            moderation: { type: 'enum', options: ['low', 'auto'] },
-            background: { type: 'enum', options: ['transparent', 'opaque', 'auto'] }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+          default: 'auto',
+          render: 'chips'
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 10,
+          default: 1
+        },
+        quality: {
+          type: 'enum',
+          options: ['low', 'medium', 'high', 'auto']
+        },
+        moderation: {
+          type: 'enum',
+          options: ['low', 'auto']
+        },
+        background: {
+          type: 'enum',
+          options: ['transparent', 'opaque', 'auto']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -57,15 +94,39 @@ describe('imageGenerationToFields', () => {
 
   it('i18n: semantic enum options carry a labelKey; literal enum options keep the raw value as label', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            quality: { type: 'enum', options: ['standard', 'hd'] },
-            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
-            style: { type: 'enum', options: ['natural', '<photography>'] },
-            function: { type: 'enum', options: ['expand', 'remove_watermark'] },
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['standard', 'hd']
+        },
+        styleType: {
+          type: 'enum',
+          options: ['AUTO', 'REALISTIC']
+        },
+        style: {
+          type: 'enum',
+          options: ['natural', '<photography>']
+        },
+        function: {
+          type: 'enum',
+          options: ['expand', 'remove_watermark']
+        },
+        aspectRatio: {
+          type: 'enum',
+          options: ['1:1', '16:9']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -98,14 +159,37 @@ describe('imageGenerationToFields', () => {
 
   it('imagen-4-ultra: aspectRatio enum + numImages capped at 1 + personGeneration select', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '9:16', '16:9', '3:4', '4:3'], default: '1:1' },
-            numImages: { type: 'range', min: 1, max: 1, default: 1 },
-            seed: { type: 'text' },
-            personGeneration: { type: 'enum', options: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW'] }
+      supports: {
+        aspectRatio: {
+          type: 'enum',
+          options: ['1:1', '9:16', '16:9', '3:4', '4:3'],
+          default: '1:1'
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 1,
+          default: 1
+        },
+        seed: {
+          type: 'text'
+        },
+        personGeneration: {
+          type: 'enum',
+          options: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -120,19 +204,40 @@ describe('imageGenerationToFields', () => {
 
   it('flux-kontext-pro: safetyTolerance range slider with default 6', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            size: {
-              type: 'enum',
-              options: ['1024x1024', '1024x768'],
-              default: '1024x1024',
-              render: 'chips'
-            },
-            numImages: { type: 'range', min: 1, max: 4, default: 1 },
-            seed: { type: 'text' },
-            safetyTolerance: { type: 'range', min: 0, max: 6, default: 6 }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024', '1024x768'],
+          default: '1024x1024',
+          render: 'chips'
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 4,
+          default: 1
+        },
+        seed: {
+          type: 'text'
+        },
+        safetyTolerance: {
+          type: 'range',
+          min: 0,
+          max: 6,
+          default: 6
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -146,15 +251,37 @@ describe('imageGenerationToFields', () => {
 
   it('ideogram-v2a: negativePrompt textarea + seed text + magicPromptOption switch + selects', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            negativePrompt: { type: 'text', multiline: true },
-            seed: { type: 'text' },
-            magicPromptOption: { type: 'switch' },
-            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC', 'ANIME'] },
-            renderingSpeed: { type: 'enum', options: ['TURBO', 'DEFAULT', 'QUALITY'] }
+      supports: {
+        negativePrompt: {
+          type: 'text',
+          multiline: true
+        },
+        seed: {
+          type: 'text'
+        },
+        magicPromptOption: {
+          type: 'switch'
+        },
+        styleType: {
+          type: 'enum',
+          options: ['AUTO', 'REALISTIC', 'ANIME']
+        },
+        renderingSpeed: {
+          type: 'enum',
+          options: ['TURBO', 'DEFAULT', 'QUALITY']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -168,15 +295,42 @@ describe('imageGenerationToFields', () => {
 
   it('flux.1-dev: numInferenceSteps + guidanceScale + promptEnhancement', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            negativePrompt: { type: 'text', multiline: true },
-            seed: { type: 'text' },
-            promptEnhancement: { type: 'switch' },
-            numInferenceSteps: { type: 'range', min: 1, max: 50, default: 25 },
-            guidanceScale: { type: 'range', min: 0, max: 20, default: 4.5, step: 0.1 }
+      supports: {
+        negativePrompt: {
+          type: 'text',
+          multiline: true
+        },
+        seed: {
+          type: 'text'
+        },
+        promptEnhancement: {
+          type: 'switch'
+        },
+        numInferenceSteps: {
+          type: 'range',
+          min: 1,
+          max: 50,
+          default: 25
+        },
+        guidanceScale: {
+          type: 'range',
+          min: 0,
+          max: 20,
+          default: 4.5,
+          step: 0.1
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -196,29 +350,63 @@ describe('imageGenerationToFields', () => {
     // `painting.mode === 'generate'`, so the lookup must fall back to the
     // model's actual mode (edit) instead of rendering nothing.
     const support: ImageGenerationSupport = {
-      modes: {
-        edit: { supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } }
+      supports: {
+        seed: {
+          type: 'text'
+        },
+        addWatermark: {
+          type: 'switch'
+        }
+      },
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
       }
     }
-    const items = imageGenerationToFields(support, { mode: 'generate' })
+    const items = imageGenerationToFields(support, { operation: 'generate' })
     const keys = items.map((i) => i.key)
     expect(keys).toEqual(['seed', 'addWatermark'])
   })
 
   it('size + paired customSize: enum gains custom chip; customSize widget gates on size === custom', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            size: {
-              type: 'enum',
-              options: ['1024x1024', '768x1344'],
-              default: '1024x1024',
-              render: 'chips'
-            },
-            customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' },
-            seed: { type: 'text' }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024', '768x1344'],
+          default: '1024x1024',
+          render: 'chips'
+        },
+        customSize: {
+          type: 'size',
+          minSide: 512,
+          maxSide: 2048,
+          pairedEnumKey: 'size'
+        },
+        seed: {
+          type: 'text'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -233,12 +421,29 @@ describe('imageGenerationToFields', () => {
 
   it('size + paired customSize: reuses an existing custom option with its localized label', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['custom'] },
-            customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['custom']
+        },
+        customSize: {
+          type: 'size',
+          minSide: 512,
+          maxSide: 2048,
+          pairedEnumKey: 'size'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -249,16 +454,25 @@ describe('imageGenerationToFields', () => {
 
   it('size without paired customSize: no custom chip', () => {
     const items = imageGenerationToFields({
-      modes: {
-        generate: {
-          supports: {
-            size: {
-              type: 'enum',
-              options: ['1024x1024'],
-              default: '1024x1024',
-              render: 'chips'
-            }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024'],
+          default: '1024x1024',
+          render: 'chips'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -269,45 +483,100 @@ describe('imageGenerationToFields', () => {
 
   it('per-mode declarations: remix carries imageWeight on top of the shared keys', () => {
     const support: ImageGenerationSupport = {
-      modes: {
-        generate: {
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9', '9:16'], default: '1:1' },
-            negativePrompt: { type: 'text', multiline: true },
-            seed: { type: 'text' },
-            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] }
+      supports: {
+        aspectRatio: {
+          type: 'enum',
+          options: ['1:1', '16:9', '9:16'],
+          default: '1:1'
+        },
+        negativePrompt: {
+          type: 'text',
+          multiline: true
+        },
+        seed: {
+          type: 'text'
+        },
+        styleType: {
+          type: 'enum',
+          options: ['AUTO', 'REALISTIC']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
         },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
         remix: {
           supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9', '9:16'], default: '1:1' },
-            negativePrompt: { type: 'text', multiline: true },
-            seed: { type: 'text' },
-            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
-            imageWeight: { type: 'range', min: 1, max: 100, default: 50 }
+            imageWeight: {
+              type: 'range',
+              min: 1,
+              max: 100,
+              default: 50
+            }
+          },
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required'
           }
         },
         upscale: {
           supports: {
-            resemblance: { type: 'range', min: 1, max: 100, default: 50 },
-            detail: { type: 'range', min: 1, max: 100 }
+            resemblance: {
+              type: 'range',
+              min: 1,
+              max: 100,
+              default: 50
+            },
+            detail: {
+              type: 'range',
+              min: 1,
+              max: 100
+            },
+            aspectRatio: null,
+            negativePrompt: null,
+            seed: null,
+            styleType: null
+          },
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required'
           }
         }
       }
     }
 
-    const generateKeys = imageGenerationToFields(support, { mode: 'generate' }).map((i) => i.key)
+    const generateKeys = imageGenerationToFields(support, { operation: 'generate' }).map((i) => i.key)
     expect(generateKeys).toContain('negativePrompt')
     expect(generateKeys).toContain('styleType')
     expect(generateKeys).not.toContain('imageWeight')
     expect(generateKeys).not.toContain('resemblance')
 
-    const remixKeys = imageGenerationToFields(support, { mode: 'remix' }).map((i) => i.key)
+    const remixKeys = imageGenerationToFields(support, { operation: 'remix' }).map((i) => i.key)
     expect(remixKeys).toContain('imageWeight')
     expect(remixKeys).toContain('styleType')
     expect(remixKeys).not.toContain('resemblance')
 
-    const upscaleKeys = imageGenerationToFields(support, { mode: 'upscale' }).map((i) => i.key)
+    const upscaleKeys = imageGenerationToFields(support, { operation: 'upscale' }).map((i) => i.key)
     expect(upscaleKeys).toContain('resemblance')
     expect(upscaleKeys).toContain('detail')
     expect(upscaleKeys).not.toContain('imageWeight')

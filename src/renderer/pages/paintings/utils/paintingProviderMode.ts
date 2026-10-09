@@ -1,16 +1,8 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageOperation } from '@cherrystudio/provider-registry'
 import type { PaintingMode } from '@shared/data/types/painting'
 
-/**
- * Bridge `PaintingMode` (the dbMode stored on PaintingData) to the canonical
- * registry mode used by `imageGenerationToFields(..., { mode })`. 'draw'
- * aliases to 'generate' for legacy PPIO paintings.
- */
-export function tabToImageGenerationMode(dbMode: PaintingMode): ImageGenerationMode | undefined {
-  if (dbMode === 'generate' || dbMode === 'draw') return 'generate'
-  if (dbMode === 'edit') return 'edit'
-  if (dbMode === 'remix') return 'remix'
-  if (dbMode === 'upscale') return 'upscale'
-  if (dbMode === 'merge') return 'merge'
-  return undefined
+/** Historical edit/merge labels describe inputs; only distinct operations survive into requests. */
+export function paintingOperation(label: PaintingMode): ImageOperation {
+  if (label === 'remix' || label === 'upscale') return label
+  return 'generate'
 }

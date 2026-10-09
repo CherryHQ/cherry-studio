@@ -1266,7 +1266,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         }
       })
-      const model = makeModel({ providerId: 'ppio', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+      const model = makeModel({
+        providerId: 'ppio',
+        apiModelId: 'qwen-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        imageGeneration: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 0,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required',
+            mask: 'unknown',
+            mediaTypes: {
+              kind: 'unknown'
+            }
+          },
+          protocol: {
+            kind: 'custom',
+            endpoint: '/v3/async/qwen-image',
+            isSync: false
+          }
+        }
+      })
 
       const config = await providerToAiSdkConfig(provider, model)
       expect(config.providerId).toBe('ppio')
@@ -1691,6 +1716,31 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'https://responses.aihubmix.example/v1'
       })
     })
+
+    it.each(['ppio', 'dashscope', 'tokenhub'] as const)(
+      'keeps chat configuration usable when an unregistered %s model also advertises images',
+      async (presetProviderId) => {
+        const provider = makeProvider({
+          id: `custom-${presetProviderId}`,
+          presetProviderId,
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+              baseUrl: 'https://custom.example.com/v1',
+              adapterFamily: 'openai-compatible'
+            }
+          }
+        })
+        const model = makeModel({
+          id: `${provider.id}::custom-image`,
+          providerId: provider.id,
+          apiModelId: 'custom-image',
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        expect((await providerToAiSdkConfig(provider, model)).providerId).toBe('openai-compatible')
+      }
+    )
 
     it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {
       const provider = makeProvider({

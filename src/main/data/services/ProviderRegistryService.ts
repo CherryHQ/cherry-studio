@@ -43,6 +43,7 @@ import {
   MODEL_CAPABILITY,
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
+  resolveImageGenerationSupport,
   selectFormatWire,
   stripBedrockDottedVendorPrefix,
   stripBedrockRevision,
@@ -458,7 +459,7 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
     parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
-    imageGeneration: override.imageGeneration
+    imageGeneration: resolveImageGenerationSupport(null, override)
   }
 }
 
@@ -1307,16 +1308,9 @@ class ProviderRegistryService {
   }
 
   /**
-   * Read the painting-page metadata block the registry exposes for a
-   * (provider, model) pair. Drives the generic painting form: providers
-   * opting into `useRegistryForm` derive their field set from this block
-   * instead of a hand-rolled `fields.ts`.
-   *
-   * Resolution order:
-   *  1. Per-(provider, model) `imageGeneration` override from the
-   *     provider-model registry (vendor-exclusive UI).
-   *  2. Model-level `imageGeneration` from `models.json` (per-model UI).
-   *  3. `null` — renderer falls back to the provider's `fields.byTab`.
+   * Read the legacy image declaration using the same whole-block resolver as
+   * ModelService. A null result means capability data is unconfigured, not that
+   * any image operation or protocol is implicitly supported.
    *
    * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
@@ -1325,11 +1319,7 @@ class ProviderRegistryService {
     getDataService('ProviderService').assertAvailable(providerId)
     const { providerModel, presetModel, registryOverride } = this.lookupModel(providerId, modelId)
     if (providerModel) return providerModel.imageGeneration ?? null
-    // Override wins — lets vendor-exclusive overrides declare their own
-    // imageGeneration block without polluting the global models.json.
-    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
-    if (presetModel?.imageGeneration) return presetModel.imageGeneration
-    return null
+    return resolveImageGenerationSupport(presetModel, registryOverride) ?? null
   }
 }
 

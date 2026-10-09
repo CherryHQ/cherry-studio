@@ -2,6 +2,7 @@ import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ImageOperationSchema, resolveImageCapability } from '@cherrystudio/provider-registry'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ComposerSurface from '@renderer/components/composer/ComposerSurface'
@@ -27,7 +28,6 @@ import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
-import { isEditImageModel } from '@shared/utils/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
@@ -37,15 +37,15 @@ import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
+import type { PaintingModelSelection } from '../hooks/usePaintingModelSwitch'
 import type { PaintingData } from '../model/types/paintingData'
-import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { paintingOperation } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
-// Edit-image models render their inputs via the top reference-image tray, not file
-// pills, so the composer manages no tokens then (empty set = no doc token reconcile).
+// The reference-image tray owns image inputs, so it does not reconcile file pills.
 const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
 const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
@@ -140,7 +140,7 @@ export interface PaintingComposerProps {
    */
   onGenerate: (materialize: MaterializeInputs) => void | Promise<void>
   onCancel: () => void
-  onModelSelect: (selection: { providerId: string; modelId: string }) => void
+  onModelSelect: (selection: PaintingModelSelection) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
@@ -148,18 +148,23 @@ export interface PaintingComposerProps {
 /** Bottom-toolbar popover hosting the image-generation parameter list. */
 const PaintingParamsButton: FC<{
   painting: PaintingData
+  hasImages: boolean
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
-}> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
+}> = ({ painting, hasImages, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
-    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
-    [registrySupport, painting.mode]
+    () => imageGenerationToFields(registrySupport, { operation: paintingOperation(painting.mode), hasImages }),
+    [registrySupport, painting.mode, hasImages]
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  const hasIndependentOperations = ImageOperationSchema.options.some(
+    (operation) =>
+      operation !== 'generate' && resolveImageCapability(registrySupport, operation, hasImages).kind === 'supported'
+  )
+  if (configItems.length === 0 && !hasIndependentOperations) return null
 
   return (
     <Popover>
@@ -182,6 +187,7 @@ const PaintingParamsButton: FC<{
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <PaintingSettings
             painting={painting}
+            hasImages={hasImages}
             onConfigChange={onConfigChange}
             onGenerateRandomSeed={onGenerateRandomSeed}
           />
@@ -219,22 +225,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
-  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
-  // image): whether the model takes an image at all. Whether an image is *required* —
-  // the model can only edit, not generate from text — is the one thing modality can't
-  // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
   const support = useImageGenerationSupport(painting.providerId, painting.model)
-  const imageRequired =
-    couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
-  // Gate on the composer's own `files` — the chips the user sees in the image tray.
-  // `painting.inputFiles` is NOT usable here: inputs are materialized at generate time
-  // (usePaintingComposerInputFiles), so during the draft it still holds the *previous*
-  // run's entries. Reading it would leave a freshly-attached image invisible to the gate
-  // (edit-only send stuck disabled forever) and would keep the gate open after the last
-  // chip is removed. `canonicalGenerate` re-checks `EDIT_IMAGE_REQUIRED` on the
-  // materialized entries, so this gate only has to match what the user can see.
   const draftImageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
-  const missingRequiredImage = imageRequired && draftImageCount === 0
+  const resolution = resolveImageCapability(support, paintingOperation(painting.mode), draftImageCount > 0)
+  const inputs = resolution.kind === 'supported' ? resolution.capability.inputs : undefined
+  const imageRequired = inputs !== undefined && inputs.images.min > 0
+  const missingRequiredImage = inputs !== undefined && draftImageCount < inputs.images.min
+  const tooManyImages = inputs?.images.max.kind === 'known' && draftImageCount > inputs.images.max.value
+  const missingPrompt = inputs?.prompt !== 'optional' && text.trim().length === 0
 
   const placeholder = !couldAddImageFile
     ? t('paintings.prompt_placeholder')
@@ -242,10 +240,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
       ? t('paintings.prompt_placeholder_upload_required')
       : t('paintings.prompt_placeholder_upload')
 
-  // `unknown` while the model is still resolving from the async catalog; `accept`
-  // once it resolves to an edit-capable model, `reject` otherwise. Drives the
-  // draft-clear on a model switch (see usePaintingComposerInputFiles CLEAR).
-  const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
+  const inputCapability: InputCapability =
+    !model || resolution.kind === 'unconfigured' ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
 
   const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
@@ -256,8 +252,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     providerId: painting.providerId
   })
 
-  // Edit-image models: images live in the top reference-image tray (reads `files` from
-  // context), so emit no file pills and manage no tokens — `files` stays authoritative.
+  // The reference-image tray reads the same draft that will be materialized on send.
   const tokens = useMemo(
     () => (couldAddImageFile ? EMPTY_TOKENS : files.map(fileToComposerToken)),
     [couldAddImageFile, files]
@@ -285,7 +280,13 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
         placeholder={placeholder}
         sendDisabled={
-          generating || submitting || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage
+          generating ||
+          submitting ||
+          !model ||
+          resolution.kind === 'unsupported' ||
+          missingPrompt ||
+          missingRequiredImage ||
+          tooManyImages
         }
         sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
@@ -313,11 +314,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
                 <PaintingModelSelector
                   hideTitle
                   painting={painting}
-                  onSelect={onModelSelect}
+                  onSelect={(selection) => onModelSelect({ ...selection, hasImages: draftImageCount > 0 })}
                   className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'w-auto max-w-[200px] border border-border-subtle')}
                 />
                 <PaintingParamsButton
                   painting={painting}
+                  hasImages={draftImageCount > 0}
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
@@ -345,15 +347,13 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
         : undefined,
     [models, painting.providerId, painting.model]
   )
-  const couldAddImageFile = model ? isEditImageModel(model) : false
+  const support = useImageGenerationSupport(painting.providerId, painting.model)
+  const resolution = resolveImageCapability(support, paintingOperation(painting.mode), true)
+  const couldAddImageFile = resolution.kind === 'supported'
 
   return (
-    // Key the provider (which owns `files`) by painting id only: a different painting
-    // is a different editing session and must reset + re-seed the draft. A model
-    // switch must NOT remount — that would wipe an in-progress draft — so the
-    // `switchModel` `inputFiles: []` clear is reconciled reactively instead (see
-    // usePaintingComposerInputFiles CLEAR). Keying on the model here used to work only
-    // because the removed writeback kept `painting.inputFiles === files`.
+    // A different painting re-seeds the draft; model switches reconcile capabilities
+    // without remounting and discarding compatible attachments.
     <ComposerToolRuntimeProvider
       key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}

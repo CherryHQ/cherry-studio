@@ -1,6 +1,7 @@
+import type { ImageOperation } from '@cherrystudio/provider-registry'
 import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { controlValue, optionalParamNumber } from '../form/fieldValue'
@@ -8,42 +9,16 @@ import { imageGenerationToFields } from '../form/imageGenerationToFields'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
-/**
- * Diff a painting's form-field state against the model it's about to use.
- * Returns a patch to merge into `painting.params` that:
- *   1. Nulls fields the old model wrote but the new model doesn't accept
- *      (otherwise stale `aspectRatio` / `styleType` / etc. would leak to the
- *      wire on a model that rejects them).
- *   2. Populates the new model's registry-declared defaults (`spec.default`)
- *      for any field the user hasn't set yet — without this, widgets display
- *      a default visually via `item.initialValue` but never commit it to
- *      state, so `canonicalGenerate` reads `undefined` and downstream code
- *      falls back to its own default (e.g. the transport omits `size` and the
- *      vendor applies its own).
- *   3. Resets carry-over values the new model can't accept: enum/select
- *      values absent from the new `options` list, and range/slider values
- *      outside the new `[min, max]` window. Transports forward these
- *      unclamped and a controlled Radix slider won't self-correct, so a
- *      stale pick would otherwise reach the vendor verbatim.
- *
- * Apply alongside `{ model: newModelId }` in `usePaintingModelSwitch` so
- * post-switch state contains exactly the fields the new model accepts AND
- * the visible defaults match what the wire will actually receive.
- *
- * Returns `{}` when the new model has no registry block (custom or
- * user-named models without an `imageGeneration` entry) — no info, no
- * patch. Cross-provider switches go through `createPaintingData`, which
- * starts from a clean slate; this helper handles the same-provider case
- * (including the first model selection, where `oldModelId` is undefined).
- */
+/** Remove inapplicable draft values and initialize the new model's visible defaults. */
 export async function computeModelFieldReset(input: {
   providerId: string
   oldModelId: string | undefined
   newModelId: string
-  mode: ImageGenerationMode | undefined
+  operation: ImageOperation | undefined
+  hasImages?: boolean
   currentValues?: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
+  const { providerId, oldModelId, newModelId, operation, hasImages = false, currentValues = {} } = input
   if (oldModelId && oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
@@ -54,26 +29,22 @@ export async function computeModelFieldReset(input: {
       return result ?? undefined
     } catch (error) {
       logger.warn('Failed to prefetch image-generation-support', { providerId, modelId, error })
-      return undefined
+      throw error
     }
   }
 
-  const [oldSupport, newSupport] = await Promise.all([
-    oldModelId ? fetchSupport(oldModelId) : Promise.resolve(undefined),
-    fetchSupport(newModelId)
-  ])
+  const newSupport = await fetchSupport(newModelId)
+  const newItems = newSupport ? imageGenerationToFields(newSupport, { operation, hasImages }) : []
+  return computeImageFieldReset(newItems, currentValues)
+}
 
-  const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
-  const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
-  if (newItems.length === 0) return {}
-
+/** Reconcile a draft when its model, operation or applicable input fields change. */
+export function computeImageFieldReset(newItems: BaseConfigItem[], currentValues: Record<string, unknown>) {
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
     for (const item of items) {
       if (item.key) keys.add(item.key)
-      // `customSize` widget aliases multiple persisted fields under one
-      // BaseConfigItem (zhipu cogview). Collect each so the reset doesn't
-      // half-clear the trio.
+      // Custom dimensions share one widget but must be cleared together.
       if (item.type === 'customSize') {
         keys.add(item.widthKey)
         keys.add(item.heightKey)
@@ -83,11 +54,10 @@ export async function computeModelFieldReset(input: {
     return keys
   }
 
-  const oldKeys = collectKeys(oldItems)
   const newKeys = collectKeys(newItems)
 
   const patch: Record<string, unknown> = {}
-  for (const key of oldKeys) {
+  for (const key of Object.keys(currentValues)) {
     if (!newKeys.has(key)) patch[key] = undefined
   }
 
@@ -98,16 +68,13 @@ export async function computeModelFieldReset(input: {
     const currentValue = currentValues[item.key]
     const isMissing = currentValue === undefined || currentValue === null || currentValue === ''
 
-    // Field the user never set: seed the new model's registry default so the
-    // widget's visible default matches the wire. Default-less field stays unset.
+    // Materialize visible defaults so display and submission agree.
     if (isMissing) {
       if (item.initialValue !== undefined) patch[item.key] = item.initialValue
       continue
     }
 
-    // Field carried a value over from the previous model. Validate it against
-    // the new model's constraints; reset to the new default (or `undefined`
-    // when there's none) whenever it no longer fits.
+    // Preserve explicit values only while they satisfy the new constraints.
     const options = isOptionsConfigItem(item)
       ? typeof item.options === 'function'
         ? item.options(item, currentValues)
@@ -126,5 +93,14 @@ export async function computeModelFieldReset(input: {
     }
   }
 
+  const nextValues = { ...currentValues, ...patch }
+  for (const item of newItems) {
+    if (!item.condition || item.condition(nextValues)) continue
+    patch[item.key] = undefined
+    if (item.type === 'customSize') {
+      patch[item.widthKey] = undefined
+      patch[item.heightKey] = undefined
+    }
+  }
   return patch
 }

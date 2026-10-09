@@ -1,4 +1,4 @@
-import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
+import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { fixedSamplingParameterSupport } from './parameterSupports'
@@ -53,41 +53,6 @@ const webExtractorModelPrefixes = [
   'qwen3-5-flash',
   'qwen-flash'
 ]
-
-/** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
-const wanxT2iSupports: ImageModeDef['supports'] = {
-  addWatermark: { default: false, type: 'switch' },
-  negativePrompt: { multiline: true, type: 'text' },
-  numImages: { default: 1, max: 4, min: 1, type: 'range' },
-  promptExtend: { default: true, type: 'switch' },
-  seed: { type: 'text' },
-  size: {
-    default: '1024x1024',
-    options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
-    render: 'chips',
-    type: 'enum'
-  }
-}
-
-/** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
-const qwenImage3Mode: ImageModeDef = {
-  supports: {
-    addWatermark: { default: false, type: 'switch' },
-    negativePrompt: { multiline: true, type: 'text' },
-    numImages: { default: 1, max: 6, min: 1, type: 'range' },
-    promptExtend: { default: true, type: 'switch' },
-    seed: { type: 'text' },
-    size: {
-      default: 'auto',
-      options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
-      render: 'chips',
-      type: 'enum'
-    }
-  },
-  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
-}
-
-const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
 const qwenChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
@@ -405,49 +370,196 @@ export default defineProvider({
     {
       apiModelId: 'qwen-image',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1328x1328',
-                options: ['1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1328x1328',
+            options: ['1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/text2image/image-synthesis',
+          isSync: false
         }
       },
       modelId: 'qwen-image'
     },
     {
       apiModelId: 'qwen-image-3.0',
-      imageGeneration: qwenImage3ImageGeneration,
+      imageGeneration: {
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 6,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: 'auto',
+            options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+          isSync: true
+        }
+      },
       modelId: 'qwen-image-3-0'
     },
     {
       apiModelId: 'qwen-image-3.0-pro',
-      imageGeneration: qwenImage3ImageGeneration,
+      imageGeneration: {
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 6,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: 'auto',
+            options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+          isSync: true
+        }
+      },
       modelId: 'qwen-image-3-0-pro'
     },
     {
       apiModelId: 'qwen-image-edit',
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          seed: {
+            type: 'text'
+          },
+          outputFormat: null
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+          isSync: true
         }
       },
       modelId: 'qwen-image-edit'
@@ -456,19 +568,35 @@ export default defineProvider({
       apiModelId: 'qwen-mt-image',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          edit: {
-            requirePrompt: false,
-            supports: {
-              sourceLang: {
-                default: 'auto',
-                options: ['auto', 'zh', 'en', 'ja', 'ko', 'fr', 'es', 'ru', 'de'],
-                type: 'enum'
-              },
-              targetLang: { default: 'en', options: ['en', 'zh', 'ja', 'ko', 'fr', 'es', 'ru', 'de'], type: 'enum' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+        supports: {
+          sourceLang: {
+            default: 'auto',
+            options: ['auto', 'zh', 'en', 'ja', 'ko', 'fr', 'es', 'ru', 'de'],
+            type: 'enum'
+          },
+          targetLang: {
+            default: 'en',
+            options: ['en', 'zh', 'ja', 'ko', 'fr', 'es', 'ru', 'de'],
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'optional',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['image'],
@@ -481,23 +609,52 @@ export default defineProvider({
       apiModelId: 'wan2.5-i2i-preview',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1280x1280',
-                options: ['1280x1280', '1024x1024', '1664x928', '928x1664'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1280x1280',
+            options: ['1280x1280', '1024x1024', '1664x928', '928x1664'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text', 'image'],
@@ -509,19 +666,56 @@ export default defineProvider({
     {
       apiModelId: 'wan2.6-image',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              enableInterleave: { default: true, type: 'switch' },
-              imageResolution: { default: '1K', options: ['1K', '2K'], render: 'chips', type: 'enum' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image-generation/generation' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          enableInterleave: {
+            default: true,
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '1K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image-generation/generation',
+          isSync: false
         }
       },
       modelId: 'wan2-6-image'
@@ -529,17 +723,48 @@ export default defineProvider({
     {
       apiModelId: 'wan2.7-image',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              imageResolution: { default: '2K', options: ['1K', '2K'], render: 'chips', type: 'enum' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              seed: { type: 'text' },
-              thinkingMode: { default: true, type: 'switch' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image-generation/generation' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          thinkingMode: {
+            default: true,
+            type: 'switch'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image-generation/generation',
+          isSync: false
         }
       },
       modelId: 'wan2-7-image'
@@ -547,17 +772,48 @@ export default defineProvider({
     {
       apiModelId: 'wan2.7-image-pro',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              imageResolution: { default: '2K', options: ['1K', '2K', '4K'], render: 'chips', type: 'enum' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              seed: { type: 'text' },
-              thinkingMode: { default: true, type: 'switch' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image-generation/generation' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          thinkingMode: {
+            default: true,
+            type: 'switch'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image-generation/generation',
+          isSync: false
         }
       },
       modelId: 'wan2-7-image-pro'
@@ -566,39 +822,72 @@ export default defineProvider({
       apiModelId: 'wanx-v1',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              refMode: { default: 'repaint', options: ['repaint', 'refonly'], type: 'enum' },
-              refStrength: { default: 0.5, max: 1, min: 0, step: 0.05, type: 'range' },
-              seed: { type: 'text' },
-              size: {
-                default: '1024x1024',
-                options: ['1024x1024', '720x1280', '1280x720', '768x1152'],
-                render: 'chips',
-                type: 'enum'
-              },
-              style: {
-                default: '<auto>',
-                options: [
-                  '<auto>',
-                  '<photography>',
-                  '<portrait>',
-                  '<3d cartoon>',
-                  '<anime>',
-                  '<oil painting>',
-                  '<watercolor>',
-                  '<sketch>',
-                  '<chinese painting>',
-                  '<flat illustration>'
-                ],
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+        supports: {
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          refMode: {
+            default: 'repaint',
+            options: ['repaint', 'refonly'],
+            type: 'enum'
+          },
+          refStrength: {
+            default: 0.5,
+            max: 1,
+            min: 0,
+            step: 0.05,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['1024x1024', '720x1280', '1280x720', '768x1152'],
+            render: 'chips',
+            type: 'enum'
+          },
+          style: {
+            default: '<auto>',
+            options: [
+              '<auto>',
+              '<photography>',
+              '<portrait>',
+              '<3d cartoon>',
+              '<anime>',
+              '<oil painting>',
+              '<watercolor>',
+              '<sketch>',
+              '<chinese painting>',
+              '<flat illustration>'
+            ],
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/text2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text', 'image'],
@@ -611,11 +900,52 @@ export default defineProvider({
       apiModelId: 'wanx2.0-t2i-turbo',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: wanxT2iSupports,
-            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/text2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text'],
@@ -628,38 +958,100 @@ export default defineProvider({
       apiModelId: 'wanx2.1-imageedit',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              bottomScale: { default: 1, max: 2, min: 1, step: 0.05, type: 'range' },
-              function: {
-                default: 'stylization_all',
-                options: [
-                  'stylization_all',
-                  'stylization_local',
-                  'description_edit',
-                  'description_edit_with_mask',
-                  'remove_watermark',
-                  'expand',
-                  'super_resolution',
-                  'colorization',
-                  'doodle',
-                  'control_cartoon_feature'
-                ],
-                type: 'enum'
-              },
-              isSketch: { default: false, type: 'switch' },
-              leftScale: { default: 1, max: 2, min: 1, step: 0.05, type: 'range' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              rightScale: { default: 1, max: 2, min: 1, step: 0.05, type: 'range' },
-              seed: { type: 'text' },
-              strength: { default: 0.5, max: 1, min: 0, step: 0.05, type: 'range' },
-              topScale: { default: 1, max: 2, min: 1, step: 0.05, type: 'range' },
-              upscaleFactor: { default: 2, max: 4, min: 1, step: 1, type: 'range' }
-            },
-            vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          bottomScale: {
+            default: 1,
+            max: 2,
+            min: 1,
+            step: 0.05,
+            type: 'range'
+          },
+          function: {
+            default: 'stylization_all',
+            options: [
+              'stylization_all',
+              'stylization_local',
+              'description_edit',
+              'description_edit_with_mask',
+              'remove_watermark',
+              'expand',
+              'super_resolution',
+              'colorization',
+              'doodle',
+              'control_cartoon_feature'
+            ],
+            type: 'enum'
+          },
+          isSketch: {
+            default: false,
+            type: 'switch'
+          },
+          leftScale: {
+            default: 1,
+            max: 2,
+            min: 1,
+            step: 0.05,
+            type: 'range'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          rightScale: {
+            default: 1,
+            max: 2,
+            min: 1,
+            step: 0.05,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          strength: {
+            default: 0.5,
+            max: 1,
+            min: 0,
+            step: 0.05,
+            type: 'range'
+          },
+          topScale: {
+            default: 1,
+            max: 2,
+            min: 1,
+            step: 0.05,
+            type: 'range'
+          },
+          upscaleFactor: {
+            default: 2,
+            max: 4,
+            min: 1,
+            step: 1,
+            type: 'range'
           }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/image2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text', 'image'],
@@ -672,11 +1064,52 @@ export default defineProvider({
       apiModelId: 'wanx2.1-t2i-plus',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: wanxT2iSupports,
-            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/text2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text'],
@@ -689,11 +1122,52 @@ export default defineProvider({
       apiModelId: 'wanx2.1-t2i-turbo',
       capabilities: { force: ['image-generation'] },
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: wanxT2iSupports,
-            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+        supports: {
+          addWatermark: {
+            default: false,
+            type: 'switch'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 4,
+            min: 1,
+            type: 'range'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1024x1024',
+            options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/api/v1/services/aigc/text2image/image-synthesis',
+          isSync: false
         }
       },
       inputModalities: ['text'],

@@ -1,11 +1,14 @@
-import type {
-  AiUsageCaptureContext,
-  AiUsageCredentialReceipt,
-  MessageRef,
-  SourceSnapshot
+import type { RuntimeProviderCallEvent, RuntimeProviderCallHandler } from '@cherrystudio/ai-core'
+import {
+  type AiUsageCaptureContext,
+  type AiUsageCredentialReceipt,
+  aiUsageRecordService,
+  type MessageRef,
+  type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
-import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
+import type { Currency, Model, RuntimeModelPricing } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 export interface CreateAiUsageCaptureContextInput {
   providerId: string
@@ -20,6 +23,52 @@ export interface CreateAiUsageCaptureContextInput {
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
   capturedAt?: string
+}
+
+export function createModelUsageCaptureContext(input: {
+  provider: Provider
+  model: Model
+  sdkModelId: string
+  credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
+  source?: SourceSnapshot | null
+  messageRef?: MessageRef | null
+}): AiUsageCaptureContext {
+  return createAiUsageCaptureContext({
+    providerId: input.provider.id,
+    providerName: input.provider.name,
+    modelId: input.sdkModelId,
+    modelName: input.model.name,
+    pricing: input.model.pricing,
+    trustProviderReportedCost: input.provider.reportsActualCost,
+    reportedCostCurrency: input.provider.reportedCostCurrency,
+    credentialReceipt: input.credentialReceipt,
+    source: input.source,
+    messageRef: input.messageRef
+  })
+}
+
+export function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
+  return (event: RuntimeProviderCallEvent) => {
+    aiUsageRecordService.recordInvocation({
+      requestId: event.requestId,
+      context,
+      modality: event.modality,
+      ...(event.modality === 'embedding' && event.usage
+        ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
+        : event.modality === 'image' && event.usage
+          ? {
+              usage: {
+                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
+                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
+                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
+              }
+            }
+          : {}),
+      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
+      metrics: event.metrics,
+      completedAt: event.completedAt
+    })
+  }
 }
 
 function deepFreeze<T>(value: T): Readonly<T> {

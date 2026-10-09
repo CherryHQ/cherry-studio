@@ -2,6 +2,7 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './modelscopeTransport'
@@ -30,13 +31,15 @@ export interface ModelscopeProvider extends ProviderV3 {
 /**
  * Build the ModelScope submit/poll image transport from provider settings.
  * Shared by the provider factory and the image-generation job's transport
- * registry (`resolveImageTransport`) so the job handler can rebuild the same
- * transport after a restart from the re-resolved provider settings.
+ * registry (`resolveImageTransport`) so both paths use the same re-resolved
+ * provider settings.
  */
-export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport {
+export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createModelscopeTransport({
     apiKey: settings.apiKey ?? '',
-    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL
+    baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 
@@ -69,8 +72,6 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       fetch: customFetch
     })
 
-  const transport = buildModelscopeTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -82,7 +83,11 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: MODELSCOPE_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, {
+      provider: MODELSCOPE_PROVIDER_NAME,
+      modelDescriptor: undefined,
+      transport: buildModelscopeTransport({ ...settings, apiKey: resolveApiKey() })
+    })
 
   return provider
 }

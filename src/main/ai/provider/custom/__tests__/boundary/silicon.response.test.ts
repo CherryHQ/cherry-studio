@@ -1,53 +1,46 @@
-import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
-import * as z from 'zod'
 
-import { SiliconImageModel } from '../../silicon/SiliconImageModel'
-import { runWithResponse } from './captureRequest'
+import { createSiliconTransport } from '../../silicon/siliconTransport'
 
-/** Inbound (response) boundary for SiliconFlow — `images|data[].url|b64_json`. */
-function opts(): ImageModelV3CallOptions {
-  return {
-    prompt: 'a fox',
-    n: 1,
-    size: undefined,
-    aspectRatio: undefined,
-    seed: undefined,
-    providerOptions: {},
-    headers: undefined,
-    abortSignal: undefined,
-    files: undefined,
-    mask: undefined
-  }
+const input = {
+  modelId: 'Qwen/Qwen-Image',
+  prompt: 'a fox',
+  n: 1,
+  size: undefined,
+  seed: undefined,
+  files: undefined,
+  mask: undefined,
+  providerParams: {}
 }
 
-const config = {
-  provider: 'silicon.image',
-  url: ({ path }: { path: string }) => `https://api.siliconflow.cn/v1${path}`,
-  headers: () => ({ Authorization: 'Bearer sk' })
-}
-
-const responseSchema = z.object({
-  images: z.array(z.object({ url: z.string().optional(), b64_json: z.string().optional() })).optional(),
-  data: z.array(z.object({ url: z.string().optional(), b64_json: z.string().optional() })).optional()
-})
-
+// https://api-docs.siliconflow.cn/docs/api/images-generations-post — retrieved 2026-09-09.
 describe('SiliconFlow response boundary', () => {
-  it('images[].url → images', async () => {
-    const response = { images: [{ url: 'https://img/s.png' }] }
-    responseSchema.parse(response)
-    const result = await runWithResponse(response, (fetch) =>
-      new SiliconImageModel('Qwen/Qwen-Image', { ...config, fetch }).doGenerate(opts())
-    )
-    expect(result.images).toMatchSnapshot()
+  function transport(body: unknown) {
+    return createSiliconTransport({
+      url: ({ path }) => `https://api.siliconflow.cn/v1${path}`,
+      headers: () => ({}),
+      fetch: async () => Response.json(body)
+    })
+  }
+
+  it('returns every documented images[].url result', async () => {
+    const urls = ['https://images.example/one.png', 'https://images.example/two.png']
+    expect(await transport({ images: urls.map((url) => ({ url })) }).submit(input)).toEqual({
+      kind: 'completed',
+      imageUrls: urls
+    })
   })
 
-  it('data[].url → images', async () => {
-    const response = { data: [{ url: 'https://img/d.png' }] }
-    responseSchema.parse(response)
-    const result = await runWithResponse(response, (fetch) =>
-      new SiliconImageModel('Qwen/Qwen-Image', { ...config, fetch }).doGenerate(opts())
-    )
-    expect(result.images).toMatchSnapshot()
+  it.each([
+    {},
+    { data: [{ url: 'https://images.example/wrong-field.png' }] },
+    { images: [{ b64_json: 'AQID' }] },
+    { images: [] },
+    { images: [{}] },
+    { images: [{ url: '' }] },
+    { images: [{ url: 42 }] },
+    { images: [{ url: 'https://images.example/valid.png' }, {}] }
+  ])('rejects malformed results without silently retaining a valid subset: %j', async (body) => {
+    await expect(transport(body).submit(input)).rejects.toThrow()
   })
 })

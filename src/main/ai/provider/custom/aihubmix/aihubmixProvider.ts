@@ -20,6 +20,8 @@ import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
+import { combineImageTransportHeaders } from '../imageTransportHttp'
+import { type AihubmixImageBinding, resolveAihubmixImageBinding } from './aihubmixImageBinding'
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
@@ -29,6 +31,8 @@ export interface AihubmixProviderSettings {
   apiKey?: string
   baseURL?: string
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
+  /** Chat-only providers need no image binding; Main binds one before image execution. */
+  imageBinding?: AihubmixImageBinding
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -150,8 +154,24 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  provider.imageModel = (modelId: string) =>
-    createAihubmixImageModel(modelId, { baseURL: chatBaseURL, resolveApiKey, headers: authHeaders, fetch: customFetch })
+  provider.imageModel = (modelId: string) => {
+    const resolution = options.imageBinding
+      ? { kind: 'bound' as const, binding: options.imageBinding }
+      : resolveAihubmixImageBinding(modelId, 'generate', undefined)
+    if (resolution.kind === 'unavailable') throw new Error(resolution.message)
+    const isGoogle = resolution.binding.kind === 'google-imagen' || resolution.binding.kind === 'google-gemini'
+    return createAihubmixImageModel(modelId, {
+      baseURL: isGoogle ? geminiBaseURL : baseURL,
+      resolveApiKey,
+      headers: () =>
+        combineImageTransportHeaders(
+          { Authorization: `Bearer ${resolveApiKey()}`, ...APP_CODE_HEADER },
+          options.headers
+        ),
+      fetch: customFetch,
+      binding: resolution.binding
+    })
+  }
 
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {

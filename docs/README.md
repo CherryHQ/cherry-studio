@@ -35,6 +35,7 @@
 | [Chat Attachments](./references/ai/chat-attachments.md) | Per-attachment routing to native file parts or capped extracted text, with read_file paging for truncated overflow |
 | [Core Architecture](./references/ai/core-architecture.md) | End-to-end chat turn flow from renderer IPC transport through AiStreamManager and Agent loop to persistence |
 | [Execution Overlay](./references/ai/execution-overlay.md) | Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots |
+| [Image Generation Contract](./references/ai/image-generation-contract.md) | Image capability, request preparation, execution and delivery contracts for the staged generation refactor |
 | [Image-Generation Parameterized Architecture](./references/ai/image-generation-parameters.md) | Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile |
 | [IPC Transport](./references/ai/ipc-transport.md) | IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |

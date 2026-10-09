@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type ImageGenerationSupport } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -807,9 +807,26 @@ describe('ProviderRegistryService', () => {
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
-      const block = {
-        modes: {
-          generate: { supports: { size: { type: 'enum' as const, options: ['1024x1024'], render: 'chips' as const } } }
+      const block: ImageGenerationSupport = {
+        supports: {
+          size: {
+            type: 'enum',
+            options: ['1024x1024'],
+            render: 'chips'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
         }
       }
       mockReadModels.mockReturnValue({
@@ -833,7 +850,22 @@ describe('ProviderRegistryService', () => {
     })
 
     it('getImageGenerationSupport resolves a custom provider through its persisted presetProviderId', async () => {
-      const block = { modes: { generate: { supports: {} } } }
+      const block: ImageGenerationSupport = {
+        supports: {},
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        }
+      }
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'image-model', name: 'Image Model', imageGeneration: block }]
@@ -888,7 +920,15 @@ describe('ProviderRegistryService', () => {
             id: 'qwen-image',
             name: 'Qwen Image',
             capabilities: ['image-generation'],
-            imageGeneration: { modes: ['generate'] }
+            imageGeneration: {
+              supports: {},
+              inputs: {
+                images: { min: 0, max: { kind: 'unknown' } },
+                prompt: 'required',
+                mask: 'unknown',
+                mediaTypes: { kind: 'unknown' }
+              }
+            }
           },
           {
             id: 'text-model',
@@ -896,7 +936,7 @@ describe('ProviderRegistryService', () => {
             capabilities: ['function-call']
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -987,7 +1027,22 @@ describe('ProviderRegistryService', () => {
             name: 'Z-Image Turbo',
             capabilities: { force: ['image-generation'] },
             outputModalities: ['image'],
-            imageGeneration: { modes: { generate: { supports: {} } } }
+            imageGeneration: {
+              supports: {},
+              inputs: {
+                images: {
+                  min: 0,
+                  max: {
+                    kind: 'unknown'
+                  }
+                },
+                prompt: 'required',
+                mask: 'unknown',
+                mediaTypes: {
+                  kind: 'unknown'
+                }
+              }
+            }
           },
           {
             providerId: 'ollama',
@@ -995,7 +1050,22 @@ describe('ProviderRegistryService', () => {
             apiModelId: 'x/no-capability',
             name: 'No Capability',
             outputModalities: ['image'],
-            imageGeneration: { modes: { generate: { supports: {} } } }
+            imageGeneration: {
+              supports: {},
+              inputs: {
+                images: {
+                  min: 0,
+                  max: {
+                    kind: 'unknown'
+                  }
+                },
+                prompt: 'required',
+                mask: 'unknown',
+                mediaTypes: {
+                  kind: 'unknown'
+                }
+              }
+            }
           }
         ]
       })

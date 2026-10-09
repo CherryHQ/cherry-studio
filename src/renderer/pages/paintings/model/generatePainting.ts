@@ -1,6 +1,6 @@
+import type { ImageOperation, ParamValues } from '@cherrystudio/provider-registry'
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'
@@ -24,15 +24,14 @@ export interface GeneratePaintingOptions {
   readonly modelId: string
   /** User-entered prompt; pass `''` when the model allows empty prompts. */
   readonly prompt: string
-  /** Resolved image-generation mode — lets main derive per-model transport
-   *  routing from the registry instead of the renderer injecting it. */
-  readonly mode?: ImageGenerationMode
+  /** Business operation, independent of input images. */
+  readonly operation: ImageOperation
   /**
    * Canonical param bag (registry param keys → coerced values; blanks dropped,
    * customSize composed into `size`). main partitions it (`splitParamValues`)
    * and maps it onto each vendor's wire shape — no per-vendor logic here.
    */
-  readonly paramValues: Record<string, unknown>
+  readonly paramValues: ParamValues
   /** Attached input images, already encoded as `data:` URL strings. */
   readonly inputImages?: string[]
 }
@@ -53,7 +52,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
         payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
-          ...(opts.mode && { mode: opts.mode }),
+          operation: opts.operation,
           paramValues: opts.paramValues,
           // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
           cleanupPolicy: 'delete_when_unreferenced',

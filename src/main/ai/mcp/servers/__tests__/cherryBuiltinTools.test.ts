@@ -638,12 +638,28 @@ describe('cherry-tools builtin tools', () => {
 
   it('advertises provider-accurate generate_image params from the configured model', async () => {
     const support = {
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
-            numImages: { type: 'range', min: 1, max: 3 }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024', '1792x1024']
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 3
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     } satisfies ImageGenerationSupport
@@ -657,14 +673,29 @@ describe('cherry-tools builtin tools', () => {
 
     expect(schema.properties.size.enum).toEqual(['1024x1024', '1792x1024'])
     expect(schema.properties.numImages.maximum).toBe(3)
-    expect(schema.properties.image_ids).toBeUndefined()
+    expect(schema.properties.image_ids).toBeDefined()
   })
 
-  it('resolves image ids and calls the edit mode with edit-specific params', async () => {
+  it('resolves references independently of the ordinary generation operation', async () => {
     const support = {
-      modes: {
-        generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
-        edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['low', 'high']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
       }
     } satisfies ImageGenerationSupport
     getPreference.mockReturnValue('openai::gpt-image-1')
@@ -682,7 +713,7 @@ describe('cherry-tools builtin tools', () => {
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
-        mode: 'edit',
+        operation: 'generate',
         inputImages: ['data:image/png;base64,AAAA'],
         paramValues: { quality: 'high' }
       })

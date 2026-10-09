@@ -1,3 +1,4 @@
+import { isAbortError } from '@ai-sdk/provider-utils'
 import { net } from 'electron'
 import { fileTypeFromBuffer } from 'file-type'
 
@@ -103,13 +104,21 @@ async function resolveTrustedImageMime(buffer: Buffer, response: Response, url: 
 
 /**
  * Download an image URL via Electron's net.fetch (respects system proxy) and
- * return base64-encoded data. Returns null on failure.
+ * return base64-encoded data. Returns null on failure; cancellation throws AbortError.
  */
-export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
+export async function downloadImageAsBase64(
+  url: string,
+  {
+    fetch = net.fetch,
+    signal
+  }: { fetch?: (url: string, init?: RequestInit) => Promise<Response>; signal?: AbortSignal } = {}
+): Promise<ImageAttachment | null> {
   try {
+    signal?.throwIfAborted()
     // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
     const safeUrl = sanitizeRemoteUrl(url)
-    const response = await net.fetch(safeUrl)
+    const response = await fetch(safeUrl, { signal })
+    signal?.throwIfAborted()
     if (!response.ok) {
       logger.warn('Failed to download image', { url, status: response.status })
       return null
@@ -122,12 +131,14 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
+    signal?.throwIfAborted()
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
       logger.warn('Image too large after download', { url, size: buffer.length })
       return null
     }
 
     const mediaType = await resolveTrustedImageMime(buffer, response, safeUrl)
+    signal?.throwIfAborted()
     if (!mediaType) {
       logger.warn('Downloaded image response has no trustworthy image format', { url })
       return null
@@ -135,6 +146,7 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
 
     return { data: buffer.toString('base64'), media_type: mediaType }
   } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw new DOMException('Image download aborted', 'AbortError')
     logger.warn('Failed to fetch image', {
       url,
       error: error instanceof Error ? error.message : String(error)

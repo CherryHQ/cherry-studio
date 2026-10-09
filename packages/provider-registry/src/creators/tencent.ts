@@ -84,19 +84,35 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                type: 'enum',
-                options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
-                default: '1:1',
-                render: 'chips'
-              },
-              negativePrompt: { type: 'text', multiline: true },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
+        supports: {
+          aspectRatio: {
+            type: 'enum',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+            default: '1:1',
+            render: 'chips'
+          },
+          negativePrompt: {
+            type: 'text',
+            multiline: true
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -108,18 +124,31 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                type: 'enum',
-                options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
-                default: '1:1',
-                render: 'chips'
-              },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
+        supports: {
+          aspectRatio: {
+            type: 'enum',
+            options: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+            default: '1:1',
+            render: 'chips'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }

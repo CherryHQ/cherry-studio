@@ -2,11 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createOvmsTransport } from '../ovms/ovmsTransport'
 
-/**
- * Covers the relocated OVMS single-shot request (no `/v1`, no auth header),
- * response parsing (b64_json → data: URL else url), abort and the sync-only
- * transport shape. Mirrors the bespoke `providers/ovms/generate.ts`.
- */
+// Body/response: https://docs.openvino.ai/2026/model-server/ovms_docs_rest_api_image_generation.html, retrieved 2026-09-09.
+// The unversioned endpoint remains a compatibility characterization; the documented /v3 upgrade is separate.
 describe('OvmsTransport', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -21,71 +18,13 @@ describe('OvmsTransport', () => {
     mask: undefined
   } as const
 
-  it('posts a no-auth JSON body to the non-/v1 generations endpoint', async () => {
+  it('does not materialize size, steps, or seed when the prepared request leaves them unset', async () => {
     const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [{ url: 'http://local/a.png' }] }), { status: 200 }))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ data: [{ b64_json: 'QUJD' }] }))
 
-    const result = await transport.submit({
-      ...baseInput,
-      modelId: 'sd',
-      prompt: 'a cat',
-      size: '768x768',
-      // Production shape: native seed via `input.seed`; steps via the WireProfile
-      // diffusion profile's snake_case `num_inference_steps` in the bag.
-      seed: 7,
-      providerParams: { model: 'sd', num_inference_steps: 8 }
-    })
+    await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: {} })
 
-    const call = fetchMock.mock.calls[0]
-    expect(call[0]).toBe('http://localhost:8000/images/generations')
-    const init = call[1] as RequestInit
-    expect(Object.keys(init.headers as Record<string, string>)).toEqual(['Content-Type'])
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
-    expect(JSON.parse(init.body as string)).toEqual({
-      model: 'sd',
-      prompt: 'a cat',
-      size: '768x768',
-      num_inference_steps: 8,
-      rng_seed: 7
-    })
-    expect(result).toEqual({ imageUrls: ['http://local/a.png'] })
-  })
-
-  it('defaults size/steps/seed when absent', async () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
-      size: '512x512',
-      num_inference_steps: 4,
-      rng_seed: 0
-    })
-  })
-
-  it('parses b64_json into data: URLs (preferred over url)', async () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }, { url: 'http://local/x.png' }] }), { status: 200 })
-    )
-
-    const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-    expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD'] })
-  })
-
-  it('falls back to url entries when no b64_json present', async () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ url: 'http://local/y.png' }] }), { status: 200 })
-    )
-
-    const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-    expect(result).toEqual({ imageUrls: ['http://local/y.png'] })
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({ model: 'sd', prompt: 'p' })
   })
 
   it('throws the remote error message on a non-ok response', async () => {
@@ -94,9 +33,9 @@ describe('OvmsTransport', () => {
       new Response(JSON.stringify({ error: { message: 'bad model' } }), { status: 500 })
     )
 
-    await expect(
-      transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-    ).rejects.toThrow('bad model')
+    await expect(transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: {} })).rejects.toThrow(
+      'bad model'
+    )
   })
 
   it('forwards the abort signal to fetch', async () => {
@@ -116,17 +55,12 @@ describe('OvmsTransport', () => {
       ...baseInput,
       modelId: 'sd',
       prompt: 'p',
-      providerParams: { model: 'sd' },
+      providerParams: {},
       signal: controller.signal
     })
     controller.abort()
 
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
-  })
-
-  it('does not expose polling for the single-shot path', () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    expect('poll' in transport).toBe(false)
   })
 })

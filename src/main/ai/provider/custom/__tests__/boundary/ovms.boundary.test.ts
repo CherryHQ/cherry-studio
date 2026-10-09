@@ -1,48 +1,44 @@
 import { describe, expect, it } from 'vitest'
-import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
-import { createOvmsTransport } from '../../ovms/ovmsTransport'
-import { captureImageRequest } from './captureRequest'
+import { createOvmsProvider } from '../../ovms/ovmsProvider'
 
-/**
- * OVMS request boundary — a single local, no-auth `/images/generations` shape
- * (note: no `/v1`). size / steps / seed fall back to defaults when absent.
- */
-const base = {
-  n: 1,
-  size: undefined,
-  seed: undefined,
-  files: undefined,
-  mask: undefined,
-  providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
-
-const bodySchema = z.strictObject({
-  model: z.string(),
-  prompt: z.string(),
-  size: z.string(),
-  num_inference_steps: z.number().int().positive(),
-  rng_seed: z.number().int()
-})
-
-describe('OVMS request boundary', () => {
-  const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-
-  it('local /images/generations (no /v1, no auth)', async () => {
-    const req = await captureImageRequest(transport, {
-      ...base,
-      modelId: 'OpenVINO/stable-diffusion-v1-5',
+// Fields: https://docs.openvino.ai/2026/model-server/ovms_docs_rest_api_image_generation.html — retrieved 2026-09-09.
+// The unversioned path is deliberately retained; this test does not validate the newer /v3 endpoint.
+describe('OVMS canonical SDK boundary', () => {
+  it('delivers native size/zero seed and canonical steps using the injected fetch and request headers', async () => {
+    const requests: Request[] = []
+    const provider = createOvmsProvider({
+      baseURL: 'http://localhost:8000/v3',
+      imageBaseURL: 'http://image.example',
+      apiKey: 'unused',
+      headers: { 'x-provider': 'cherry' },
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ data: [{ b64_json: 'AQID' }] })
+      }
+    })
+    const result = await provider.imageModel('OpenVINO/stable-diffusion-v1-5').doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size: '768x768',
+      seed: 0,
+      aspectRatio: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: { ovms: { numInferenceSteps: 8 } },
+      headers: { 'x-call': 'once' }
+    })
+    expect(requests[0].url).toBe('http://image.example/images/generations')
+    expect(await requests[0].json()).toEqual({
+      model: 'OpenVINO/stable-diffusion-v1-5',
       prompt: 'a fox',
       size: '768x768',
-      seed: 123,
-      // OVMS is in-SDK: the WireProfile diffusion profile delivers the snake_case
-      // wire body, so the bag carries `num_inference_steps` (not the camelCase twin).
-      providerParams: { num_inference_steps: 8 }
+      num_inference_steps: 8,
+      rng_seed: 0
     })
-
-    expect(req.url).toBe('http://localhost:8000/images/generations')
-    bodySchema.parse(req.body)
-    expect(req.body).toMatchSnapshot()
+    expect(requests[0].headers.get('authorization')).toBeNull()
+    expect(requests[0].headers.get('x-provider')).toBe('cherry')
+    expect(requests[0].headers.get('x-call')).toBe('once')
+    expect(result.images).toEqual(['data:image/png;base64,AQID'])
   })
 })

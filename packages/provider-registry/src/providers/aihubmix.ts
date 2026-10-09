@@ -74,15 +74,40 @@ export default defineProvider({
       modelId: 'flux-2-pro',
       apiModelId: 'flux-2-pro',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: { options: ['16:9', '1:1', '4:3'], default: '16:9', render: 'chips', type: 'enum' },
-              safetyTolerance: { min: 0, max: 5, default: 2, type: 'range' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/bfl/flux-2-pro/predictions' }
+        supports: {
+          aspectRatio: {
+            options: ['16:9', '1:1', '4:3'],
+            default: '16:9',
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            min: 0,
+            max: 5,
+            default: 2,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/bfl/flux-2-pro/predictions',
+          isSync: false
         }
       }
     },
@@ -90,15 +115,40 @@ export default defineProvider({
       modelId: 'flux-2-flex',
       apiModelId: 'flux-2-flex',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: { options: ['16:9', '1:1', '4:3'], default: '16:9', render: 'chips', type: 'enum' },
-              safetyTolerance: { min: 0, max: 5, default: 2, type: 'range' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/bfl/flux-2-flex/predictions' }
+        supports: {
+          aspectRatio: {
+            options: ['16:9', '1:1', '4:3'],
+            default: '16:9',
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            min: 0,
+            max: 5,
+            default: 2,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/bfl/flux-2-flex/predictions',
+          isSync: false
         }
       }
     },
@@ -106,21 +156,43 @@ export default defineProvider({
       modelId: 'qwen-image',
       apiModelId: 'qwen-image',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              size: {
-                options: ['1024x1024', '768x1024', '1024x768', '512x1024', '1024x576', '576x1024'],
-                default: '1024x1024',
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { min: 1, max: 10, default: 1, type: 'range' },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image/predictions' }
+        supports: {
+          size: {
+            options: ['1024x1024', '768x1024', '1024x768', '512x1024', '1024x576', '576x1024'],
+            default: '1024x1024',
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: {
+            min: 1,
+            max: 10,
+            default: 1,
+            type: 'range'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/qianfan/qwen-image/predictions',
+          isSync: false
         }
       }
     },
@@ -129,20 +201,38 @@ export default defineProvider({
       apiModelId: 'qwen-image-edit',
       inputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              size: {
-                options: ['1024x1024', '768x1024', '1024x768', '512x1024', '1024x576', '576x1024'],
-                default: '1024x1024',
-                render: 'chips',
-                type: 'enum'
-              },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions' }
+        supports: {
+          size: {
+            options: ['1024x1024', '768x1024', '1024x768', '512x1024', '1024x576', '576x1024'],
+            default: '1024x1024',
+            render: 'chips',
+            type: 'enum'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          outputFormat: null
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+          isSync: false
         }
       }
     },
@@ -150,20 +240,44 @@ export default defineProvider({
       modelId: 'doubao-seedream-4-0',
       apiModelId: 'doubao-seedream-4-0',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              // The catalog types this key as a string (matching dmxapi's own doubao
-              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
-              // `switch` here renders a boolean control that gets coerced away before
-              // the request, so the feature silently no-ops.
-              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/doubao/doubao-seedream-4-0/predictions' }
+        supports: {
+          size: {
+            options: ['1K', '2K', '4K'],
+            default: '2K',
+            render: 'chips',
+            type: 'enum'
+          },
+          sequentialImageGeneration: {
+            default: 'disabled',
+            options: ['auto', 'disabled'],
+            type: 'enum'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          imageResolution: null,
+          maxImages: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/doubao/doubao-seedream-4-0/predictions',
+          isSync: false
         }
       }
     },
@@ -171,20 +285,44 @@ export default defineProvider({
       modelId: 'doubao-seedream-4-5',
       apiModelId: 'doubao-seedream-4-5',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              // The catalog types this key as a string (matching dmxapi's own doubao
-              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
-              // `switch` here renders a boolean control that gets coerced away before
-              // the request, so the feature silently no-ops.
-              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/doubao/doubao-seedream-4-5/predictions' }
+        supports: {
+          size: {
+            options: ['1K', '2K', '4K'],
+            default: '2K',
+            render: 'chips',
+            type: 'enum'
+          },
+          sequentialImageGeneration: {
+            default: 'disabled',
+            options: ['auto', 'disabled'],
+            type: 'enum'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          imageResolution: null,
+          maxImages: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/doubao/doubao-seedream-4-5/predictions',
+          isSync: false
         }
       }
     },
@@ -192,11 +330,33 @@ export default defineProvider({
       modelId: 'imagen-4-0-ultra-generate-001',
       apiModelId: 'imagen-4.0-ultra-generate-001',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: { numImages: { min: 1, max: 4, default: 1, type: 'range' } },
-            vendorTransport: { endpoint: '/v1/models/google/imagen-4.0-ultra-generate-001/predictions' }
+        supports: {
+          numImages: {
+            min: 1,
+            max: 4,
+            default: 1,
+            type: 'range'
+          },
+          aspectRatio: null,
+          personGeneration: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/google/imagen-4.0-ultra-generate-001/predictions',
+          isSync: false
         }
       }
     },
@@ -204,11 +364,33 @@ export default defineProvider({
       modelId: 'imagen-4-0-generate-001',
       apiModelId: 'imagen-4.0-generate-001',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: { numImages: { min: 1, max: 4, default: 1, type: 'range' } },
-            vendorTransport: { endpoint: '/v1/models/google/imagen-4.0-generate-001/predictions' }
+        supports: {
+          numImages: {
+            min: 1,
+            max: 4,
+            default: 1,
+            type: 'range'
+          },
+          aspectRatio: null,
+          personGeneration: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/google/imagen-4.0-generate-001/predictions',
+          isSync: false
         }
       }
     },
@@ -216,11 +398,33 @@ export default defineProvider({
       modelId: 'imagen-4-0-fast-generate-001',
       apiModelId: 'imagen-4.0-fast-generate-001',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: { numImages: { min: 1, max: 4, default: 1, type: 'range' } },
-            vendorTransport: { endpoint: '/v1/models/google/imagen-4.0-fast-generate-001/predictions' }
+        supports: {
+          numImages: {
+            min: 1,
+            max: 4,
+            default: 1,
+            type: 'range'
+          },
+          aspectRatio: null,
+          personGeneration: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/google/imagen-4.0-fast-generate-001/predictions',
+          isSync: false
         }
       }
     },
@@ -229,11 +433,31 @@ export default defineProvider({
       name: 'Imagen 3.0',
       apiModelId: 'imagen-3.0-generate-002',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: { numImages: { min: 1, max: 4, default: 1, type: 'range' } },
-            vendorTransport: { endpoint: '/v1/models/google/imagen-3.0-generate-002/predictions' }
+        supports: {
+          numImages: {
+            min: 1,
+            max: 4,
+            default: 1,
+            type: 'range'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/google/imagen-3.0-generate-002/predictions',
+          isSync: false
         }
       }
     },
@@ -241,20 +465,47 @@ export default defineProvider({
       modelId: 'ideogram-v3',
       apiModelId: 'ideogram/V3',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              renderingSpeed: { options: ['DEFAULT', 'TURBO', 'QUALITY'], default: 'DEFAULT', type: 'enum' },
-              aspectRatio: {
-                options: ['1:1', '16:9', '9:16', '3:2', '2:3', '4:3', '3:4'],
-                default: '1:1',
-                render: 'chips',
-                type: 'enum'
-              },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/ideogram/V3/predictions' }
+        supports: {
+          renderingSpeed: {
+            options: ['DEFAULT', 'TURBO', 'QUALITY'],
+            default: 'DEFAULT',
+            type: 'enum'
+          },
+          aspectRatio: {
+            options: ['1:1', '16:9', '9:16', '3:2', '2:3', '4:3', '3:4'],
+            default: '1:1',
+            render: 'chips',
+            type: 'enum'
+          },
+          seed: {
+            type: 'text'
+          },
+          magicPromptOption: null,
+          negativePrompt: null,
+          numImages: null,
+          styleType: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/ideogram/V3/predictions',
+          isSync: false
+        },
+        operations: {
+          remix: null,
+          upscale: null
         }
       }
     },
@@ -265,15 +516,37 @@ export default defineProvider({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              numImages: { min: 1, max: 4, default: 1, type: 'range' },
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/models/qianfan/irag-1.0/predictions' }
+        supports: {
+          numImages: {
+            min: 1,
+            max: 4,
+            default: 1,
+            type: 'range'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/qianfan/irag-1.0/predictions',
+          isSync: false
         }
       }
     },
@@ -284,11 +557,28 @@ export default defineProvider({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: { seed: { type: 'text' } },
-            vendorTransport: { endpoint: '/v1/models/qianfan/ernie-irag-edit/predictions' }
+        supports: {
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/models/qianfan/ernie-irag-edit/predictions',
+          isSync: false
         }
       }
     }

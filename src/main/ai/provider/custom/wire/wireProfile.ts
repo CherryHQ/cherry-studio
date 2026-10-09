@@ -14,9 +14,10 @@ import type { JSONValue } from 'ai'
  * {@link WireRegistration} (`dualOpenAI` / `passthrough`) + the adapter
  * (`buildVendorProviderOptions`).
  */
+import { IMAGE_PARAM_CATALOG } from '@cherrystudio/provider-registry'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
-import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
+import type { AppProviderId, KnownAppProviderId } from '../../../types'
 
 /**
  * An EXPLICIT-OVERRIDE rule for a param whose wire treatment isn't the plain
@@ -67,16 +68,6 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   forward: ['quality', 'background', 'moderation', 'style']
 }
 
-/**
- * aihubmix aggregator. Reproduces the `aihubmix` emitter: the OpenAI image body
- * PLUS `seed` (aihubmix's backends — Doubao Seedream / Qwen-Image / FLUX / iRAG /
- * Ideogram — mostly accept `seed`, unlike OpenAI's own model). Dual-keyed under
- * `openai` + `aihubmix` by the registry.
- */
-export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
-  forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), 'seed']
-}
-
 /** OpenRouter's native `/images` JSON body. `n`/`size`/`seed`/`aspectRatio` are
  * supplied by the AI SDK's typed image options; these are the remaining model-
  * advertised fields that must ride under `providerOptions.openrouter`. */
@@ -94,27 +85,53 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
   }
 }
 
-/**
- * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
- * Reproduces the `dashscope` emitter: the mapped sampling fields under the
- * `dashscope` key, over a `passthrough` of the vendor bag the submit/poll
- * transport reads (`modelDescriptor`, `sourceLang`/`targetLang`, …) — without it,
- * `dashscopeTransport.submit` throws "Missing modelDescriptor". Mapped fields win
- * over bag entries of the same name. The async transport runs on the job system;
- * this bag is what it receives as `providerParams`.
- */
-export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
-  forward: ['negativePrompt', 'seed', 'style']
+function openRouterWireProfile(modelId: string): WireProfile {
+  switch (modelId) {
+    case 'black-forest-labs/flux.2-flex':
+    case 'black-forest-labs/flux.2-pro': {
+      const providerSlug = modelId === 'black-forest-labs/flux.2-flex' ? 'black-forest-labs/us-3' : 'black-forest-labs'
+      return {
+        ...OPENROUTER_WIRE_PROFILE,
+        fields: {
+          ...OPENROUTER_WIRE_PROFILE.fields,
+          safetyTolerance: {
+            contribute: (value) => ({
+              provider: {
+                options: {
+                  [providerSlug]: { safety_tolerance: IMAGE_PARAM_CATALOG.safetyTolerance.schema.unwrap().parse(value) }
+                }
+              }
+            })
+          }
+        }
+      }
+    }
+    case 'openai/gpt-image-1':
+    case 'openai/gpt-image-1-mini':
+      return {
+        ...OPENROUTER_WIRE_PROFILE,
+        fields: {
+          ...OPENROUTER_WIRE_PROFILE.fields,
+          moderation: {
+            contribute: (value) => ({
+              provider: {
+                options: { openai: { moderation: IMAGE_PARAM_CATALOG.moderation.schema.unwrap().parse(value) } }
+              }
+            })
+          }
+        }
+      }
+    default:
+      return OPENROUTER_WIRE_PROFILE
+  }
 }
 
 /**
  * Doubao (Volcengine Ark) via `@ai-sdk/bytedance`. That package's option schema is
  * camelCase and does the vendor naming itself (`outputFormat` → `output_format`,
  * `maxImages` → `sequential_image_generation_options.max_images`), so this profile only
- * renames the two canonical keys whose Ark option name differs. Everything else rides
- * verbatim via `passthrough` — which is also what keeps `sequentialImageGeneration:
- * 'auto'` alive: {@link buildImageRequest}'s `skipValue` treats `'auto'` as "unset",
- * but for Ark it is the value that ENABLES group images.
+ * renames the two canonical keys whose Ark option name differs. Other SDK options,
+ * including `sequentialImageGeneration: 'auto'`, ride verbatim via `passthrough`.
  */
 export const DOUBAO_WIRE_PROFILE: WireProfile = {
   fields: {
@@ -123,22 +140,22 @@ export const DOUBAO_WIRE_PROFILE: WireProfile = {
   }
 }
 
-/** `aspectRatio` (normalized) → google `imageConfig.aspectRatio`. Shared by the
- *  google family and the dmxapi gateway's google-routed block; an invalid value
- *  contributes nothing, so the deep-merge leaves no `imageConfig.aspectRatio`. */
+/** Google consumes canonical ratios; only explicit `auto` omits the field. */
 const aspectRatioImageConfigRule: WireRule = {
   contribute: (v): Record<string, JSONValue> => {
-    const normalized = normalizeAspectRatio(String(v))
-    return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
+    const aspectRatio = IMAGE_PARAM_CATALOG.aspectRatio.schema.unwrap().parse(v)
+    return aspectRatio === 'auto' ? {} : { imageConfig: { aspectRatio } }
   }
 }
 
 /** `imageResolution` (1K/2K/4K — a vendor-bag field, NOT the native `size`) →
  *  google `imageConfig.imageSize`. Gemini image models expose `imageResolution`;
  *  `@ai-sdk/google` reads it as `providerOptions.<key>.imageConfig.imageSize`.
- *  Shared by the google / google-vertex family and the dmxapi google-routed block. */
+ *  Shared by the google / google-vertex family and the dmxapi google-routed block.
+ *  Google has no `auto` wire value; that selection leaves sizing to the model. */
 const imageResolutionImageConfigRule: WireRule = {
-  contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+  contribute: (v): Record<string, JSONValue> =>
+    typeof v === 'string' && v !== 'auto' ? { imageConfig: { imageSize: v } } : {}
 }
 
 /**
@@ -146,7 +163,7 @@ const imageResolutionImageConfigRule: WireRule = {
  * Reproduces the `google` emitter: a flat lowercased `personGeneration` (the
  * registry stores it uppercase like `@google/genai`'s `ALLOW_ALL`, but
  * `@ai-sdk/google`'s option schema validates lowercase) + an `imageConfig` block
- * assembled from `aspectRatio` (normalized) and `size` via `contribute`.
+ * assembled from the canonical `aspectRatio` and `size` via `contribute`.
  * Gemini-image reads `providerOptions.google.imageConfig`; Imagen reads the
  * top-level `aspectRatio` (which still flows via the native binding into
  * imageParams), so emitting it here is required for the former, harmless for the
@@ -159,42 +176,7 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
     // Gemini image models expose `imageResolution` (1K/2K/4K); Imagen/legacy expose
     // `size`. Both land in `imageConfig.imageSize`. (A model exposes one or the other.)
     imageResolution: imageResolutionImageConfigRule,
-    size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
-  }
-}
-
-/**
- * dmxapi multi-backend gateway. The factory routes models to native adapters
- * (gemini-image/imagen → google, gpt-image/dall-e → openai, custom → bespoke
- * transport, else openai-compat), so the emitter dual-keys across two provider
- * keys: a snake_case body under `dmxapi` (primary profile) and a `google`
- * `imageConfig` block (the `also` profile) so gemini-image picks up the form's
- * `aspectRatio` + `imageResolution` (1K/2K/4K — no top-level AI SDK field).
- */
-export const DMXAPI_WIRE_PROFILE: WireProfile = {
-  forward: ['negativePrompt', 'seed', 'quality']
-}
-
-/** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
- *  field, not `size`) into `imageConfig`. Delivered under the `google` key via
- *  the registration's `also`. */
-export const DMXAPI_GOOGLE_PROFILE: WireProfile = {
-  fields: {
-    aspectRatio: aspectRatioImageConfigRule,
-    imageResolution: imageResolutionImageConfigRule
-  }
-}
-
-/**
- * Ollama's own experimental image-gen models (`x/z-image-turbo`,
- * `x/flux2-klein`, served through `/api/generate`). Only `numInferenceSteps`
- * needs a rule — its wire name is `steps`, not the catalog's auto snake_case
- * `num_inference_steps` — since `size`/`seed` reach `ollamaTransport` via the
- * native AI SDK call options (`input.size`/`input.seed`), never this profile.
- */
-export const OLLAMA_WIRE_PROFILE: WireProfile = {
-  fields: {
-    numInferenceSteps: { to: 'steps' }
+    size: imageResolutionImageConfigRule
   }
 }
 
@@ -210,15 +192,16 @@ export const MINIMAX_WIRE_PROFILE: WireProfile = {
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
-  /** Delivery-key override for the primary body (default: the provider id). The
-   *  Vertex image adapter registers as `google-vertex`, but `@ai-sdk/google-vertex`
-   *  reads `providerOptions.vertex` — so its body must ride under `vertex`, not the id. */
-  readonly key?: string
   /** Dual-key the body under `openai` AND the provider id (OpenAI image family). */
   readonly dualOpenAI?: boolean
-  /** Forward vendor-bag fields the profile doesn't map (diffusion family) — the
-   *  legacy `jsonBagFields` merge, profile-mapped fields winning on collision. */
-  readonly passthrough?: boolean
+  /** Forward vendor-bag fields the profile doesn't map — the legacy
+   *  `jsonBagFields` merge, profile-mapped fields winning on collision.
+   *  `true` forwards the raw canonical camelCase keys (custom SDK models —
+   *  cherryin / aihubmix / dashscope — read the bag under those names);
+   *  `'wire'` additionally renames catalog keys to their vendor wire spelling
+   *  (`wireName`: `imageResolution → size`, `addWatermark → watermark`, …) for
+   *  bodies that go on the HTTP wire as-is (the openai-compatible fallback). */
+  readonly passthrough?: boolean | 'wire'
   /** Additional bodies delivered under sibling provider keys (the dmxapi gateway
    *  routes a `google.imageConfig` block to the google adapter). Each is built
    *  from the same `paramValues` and emitted only when non-empty. */
@@ -226,13 +209,29 @@ export interface WireRegistration {
 }
 
 /**
+ * Registration for concrete providers riding the generic `openai-compatible`
+ * SDK path (zhipu / tokenhub / …). Same diffusion profile, but the passthrough
+ * applies the catalog's `wireName` renames: this body IS the HTTP request body
+ * (`OpenAICompatibleImageModel` spreads `providerOptions[name]` into it
+ * verbatim), so the vendor spelling — `watermark`, `size` — must be used, not
+ * the canonical camelCase. A provider on this path needing a bespoke body shape
+ * gets routed to its own provider id instead (config.ts builders — doubao is the
+ * precedent), which gives it its own {@link WIRE_REGISTRY} row.
+ */
+export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
+  profile: DIFFUSION_WIRE_PROFILE,
+  passthrough: 'wire'
+}
+
+/**
  * AI SDK provider id → its engine registration, declaring the provider's bespoke
  * delivery (dual-keying / passthrough / sibling keys). Providers absent from this
- * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
- * migrated provider with bespoke delivery; the plain diffusion family needs no row.
+ * map use model-aware resolution or {@link DEFAULT_DIFFUSION_REGISTRATION}.
+ * The plain diffusion family needs no row.
+ *
+ * Keyed by {@link KnownAppProviderId}: a row for an unregistered id is dead config.
  */
-export const WIRE_REGISTRY: Record<string, WireRegistration> = {
-  openrouter: { profile: OPENROUTER_WIRE_PROFILE },
+export const WIRE_REGISTRY = {
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -244,29 +243,30 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   // The provider resolver upgrades cherryin's default chat endpoint to this variant
   // (provider/config.ts), so 'cherryin-chat' — not 'cherryin' — is the id AiService
-  // actually looks up for the common image-generation path. But the wrapper above
-  // reads providerOptions['cherryin'] (its own fixed internal key, independent of
-  // our providerId variant), so deliver under 'cherryin' here too — mirroring
-  // google-vertex → vertex below.
-  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true },
+  // actually looks up for the common image-generation path. The delivery key stays
+  // `cherryin` (the wrapper's own fixed namespace) via `resolveProviderOptionsKey`.
+  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
-  // Vertex reuses the google body but delivers under `vertex` (the key the
-  // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
-  'google-vertex': { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' },
-  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
-  // `@ai-sdk/bytedance` reads `providerOptions.bytedance` — its own fixed key, independent
-  // of our `doubao` provider id — so the body is re-keyed, mirroring google-vertex → vertex.
-  doubao: { profile: DOUBAO_WIRE_PROFILE, key: 'bytedance', passthrough: true },
-  // passthrough: forward the vendor bag (imageResolution / addWatermark /
-  // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
-  // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
-  // `openai` mirror stays clean (mapped fields only).
-  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
-  ollama: { profile: OLLAMA_WIRE_PROFILE },
-  minimax: { profile: MINIMAX_WIRE_PROFILE }
-}
+  // Vertex reuses the google body; `resolveProviderOptionsKey` delivers it under `vertex`.
+  'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
+  ppio: { profile: {}, passthrough: true },
+  dashscope: { profile: {}, passthrough: true },
+  tokenhub: { profile: {}, passthrough: true },
+  modelscope: { profile: {}, passthrough: true },
+  doubao: { profile: DOUBAO_WIRE_PROFILE, passthrough: true },
+  aihubmix: { profile: {}, passthrough: true },
+  dmxapi: { profile: {}, passthrough: true },
+  ollama: { profile: {}, passthrough: true },
+  ovms: { profile: {}, passthrough: true },
+  silicon: { profile: {}, passthrough: true },
+  minimax: { profile: MINIMAX_WIRE_PROFILE },
+  // The generic adapter every provider without an `adapterFamily` collapses onto.
+  // Its body IS the HTTP body (`OpenAICompatibleImageModel` spreads
+  // `providerOptions[name]` verbatim), so its passthrough is wire-named — see
+  // OPENAI_COMPAT_FALLBACK_REGISTRATION below.
+  'openai-compatible': OPENAI_COMPAT_FALLBACK_REGISTRATION
+} as const satisfies Partial<Record<KnownAppProviderId, WireRegistration>>
 
 /**
  * Fallback for any provider not in {@link WIRE_REGISTRY} and not on the legacy
@@ -276,4 +276,11 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
 export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
   profile: DIFFUSION_WIRE_PROFILE,
   passthrough: true
+}
+
+/** Resolve wire placement from the SDK provider and the exact API model ID. */
+export function resolveWireRegistration(sdkProviderId: AppProviderId, modelId: string): WireRegistration {
+  if (sdkProviderId === 'openrouter') return { profile: openRouterWireProfile(modelId) }
+  // The caller's id is open, the table's keys are closed — widen for the lookup only.
+  return (WIRE_REGISTRY as Partial<Record<string, WireRegistration>>)[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

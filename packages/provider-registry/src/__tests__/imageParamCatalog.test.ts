@@ -39,14 +39,37 @@ describe('imageParamsSchema (catalog-only IPC boundary schema)', () => {
 
 describe('buildParamsSchema', () => {
   const support = {
-    modes: {
-      generate: {
-        supports: {
-          seed: { type: 'text' },
-          numImages: { type: 'range', min: 1, max: 4 },
-          size: { type: 'enum', options: ['1024x1024', '768x1344'] },
-          customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' }
+    supports: {
+      seed: {
+        type: 'text'
+      },
+      numImages: {
+        type: 'range',
+        min: 1,
+        max: 4
+      },
+      size: {
+        type: 'enum',
+        options: ['1024x1024', '768x1344']
+      },
+      customSize: {
+        type: 'size',
+        minSide: 512,
+        maxSide: 2048,
+        pairedEnumKey: 'size'
+      }
+    },
+    inputs: {
+      images: {
+        min: 0,
+        max: {
+          kind: 'unknown'
         }
+      },
+      prompt: 'required',
+      mask: 'unknown',
+      mediaTypes: {
+        kind: 'unknown'
       }
     }
   } as unknown as ImageGenerationSupport
@@ -112,7 +135,26 @@ describe('buildParamsSchema', () => {
     // schema (`imageParamsSchema`, no `.catch`), rejecting the whole submit. Now every
     // catalog key is base-coerced first, then the model's constraints overlay.
     const onlyNumImages = {
-      modes: { generate: { supports: { numImages: { type: 'range', min: 1, max: 4 } } } }
+      supports: {
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 4
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     } as unknown as ImageGenerationSupport
     const s = buildParamsSchema(onlyNumImages, 'generate')
 

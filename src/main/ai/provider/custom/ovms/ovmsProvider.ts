@@ -57,7 +57,9 @@ export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsPro
     })
 
   const transport = createOvmsTransport({
-    baseURL: settings.imageBaseURL || DEFAULT_OVMS_BASE_URL
+    baseURL: settings.imageBaseURL || DEFAULT_OVMS_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 
   const provider = (modelId: string) => createChatModel(modelId)
@@ -71,7 +73,7 @@ export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsPro
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: OVMS_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { modelDescriptor: undefined, provider: OVMS_PROVIDER_NAME, transport })
 
   return provider
 }

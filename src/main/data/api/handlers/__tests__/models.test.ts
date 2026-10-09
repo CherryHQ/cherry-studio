@@ -10,6 +10,7 @@ import {
   MODELS_DELETE_MAX_IDS,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
@@ -506,13 +507,18 @@ describe('/providers/:providerId/models:resolve', () => {
 
 describe('/providers/:providerId/models/:modelId*/image-generation-support', () => {
   it('forwards (providerId, modelId) to the registry service and returns the block', async () => {
-    const block = {
-      modes: ['generate'],
-      sizes: ['1024x1024'],
-      sizeMode: 'pixel',
-      defaultSize: '1024x1024',
-      batch: { min: 1, max: 4, default: 1 },
-      supports: { seed: true }
+    const block: ImageGenerationSupport = {
+      supports: {
+        size: { type: 'enum', options: ['1024x1024'], default: '1024x1024' },
+        numImages: { type: 'range', min: 1, max: 4, default: 1 },
+        seed: { type: 'text' }
+      },
+      inputs: {
+        images: { min: 0, max: { kind: 'unknown' } },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: { kind: 'unknown' }
+      }
     }
     getImageGenerationSupportMock.mockReturnValueOnce(block)
 

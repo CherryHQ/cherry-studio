@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { mergeMeta, parseOrEntry, parseOrImageGeneration } from '../upstream'
+import google from '../../src/creators/google'
+import openai from '../../src/creators/openai'
+import { buildImageRequestParamsSchema } from '../../src/utils/buildImageRequestParamsSchema'
+import { resolveImageCapability, resolveImageGenerationSupport } from '../../src/utils/imageCapabilities'
+import { mergeMeta, parseOrImageGeneration } from '../upstream'
 
 describe('mergeMeta', () => {
   it('does not widen an earlier reasoning vocabulary with later source values', () => {
@@ -47,142 +51,74 @@ describe('mergeMeta', () => {
   })
 })
 
-describe('parseOrEntry', () => {
-  it('parses dedicated OpenRouter image-model entries with parameter descriptors', () => {
-    expect(
-      parseOrEntry({
-        name: 'Sourceful: Riverflow V2.5 Fast',
-        architecture: {
-          input_modalities: ['text', 'image'],
-          output_modalities: ['image']
-        },
-        supported_parameters: {
-          resolution: { type: 'enum', values: ['1K', '2K', '4K'] },
-          seed: { type: 'boolean' }
-        }
-      })
-    ).toEqual({
-      name: 'Sourceful: Riverflow V2.5 Fast',
-      capabilities: ['image-recognition', 'image-generation'],
-      inputModalities: ['text', 'image'],
-      outputModalities: ['image']
-    })
-  })
-})
-
-describe('parseOrImageGeneration', () => {
-  it('maps OpenRouter descriptors to canonical controls and enables edit for input references', () => {
-    expect(
-      parseOrImageGeneration({
-        supported_parameters: {
-          resolution: { type: 'enum', values: ['1K', '2K'] },
-          aspect_ratio: { type: 'enum', values: ['1:1', '16:9'] },
-          n: { type: 'range', min: 1, max: 10 },
-          output_compression: { type: 'range', min: 0, max: 100 },
-          output_format: { type: 'enum', values: ['png', 'webp'] },
-          seed: { type: 'boolean' },
-          input_references: { type: 'range', min: 0, max: 16 }
-        }
-      })
-    ).toEqual({
-      modes: {
-        generate: {
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
-            numImages: { type: 'range', min: 1, max: 10, step: 1 },
-            outputCompression: { type: 'range', min: 0, max: 100, step: 1 },
-            outputFormat: { type: 'enum', options: ['png', 'webp'] },
-            resolution: { type: 'enum', options: ['1K', '2K'] },
-            seed: { type: 'text' }
-          }
-        },
-        edit: {
-          maxInputImages: 16,
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
-            numImages: { type: 'range', min: 1, max: 10, step: 1 },
-            outputCompression: { type: 'range', min: 0, max: 100, step: 1 },
-            outputFormat: { type: 'enum', options: ['png', 'webp'] },
-            resolution: { type: 'enum', options: ['1K', '2K'] },
-            seed: { type: 'text' }
-          }
-        }
+describe('OpenRouter discovery overrides', () => {
+  // https://openrouter.ai/api/v1/images/models — supported_parameters snapshots retrieved 2026-10-08.
+  // https://openrouter.ai/docs/guides/overview/multimodal/image-generation — resolution is a top-level /images field.
+  it.each([
+    ['gemini-2-5-flash-image', []],
+    ['gemini-3-1-flash-image', ['512', '1K', '2K', '4K']],
+    ['gemini-3-1-flash-image-preview', ['512', '1K', '2K', '4K']],
+    ['gemini-3-pro-image', ['1K', '2K', '4K']],
+    ['gemini-3-pro-image-preview', ['1K', '2K', '4K']]
+  ] as const)('does not inherit native imageResolution for %s', (modelId, values) => {
+    const base = google.models?.find((model) => model.id === modelId)
+    if (!base?.imageGeneration) throw new Error(`Missing creator fixture ${modelId}`)
+    const imageGeneration = parseOrImageGeneration(
+      { supported_parameters: values.length ? { resolution: { type: 'enum', values } } : {} },
+      base.imageGeneration
+    )
+    if (!imageGeneration) throw new Error('Image discovery must produce an override')
+    const support = resolveImageGenerationSupport(base, { imageGeneration })
+    for (const hasImages of [false, true]) {
+      const result = resolveImageCapability(support, 'generate', hasImages)
+      if (result.kind !== 'supported') throw new Error('Missing generated capability')
+      const schema = buildImageRequestParamsSchema(result.capability)
+      expect(schema.safeParse({ imageResolution: '2K' }).success).toBe(false)
+      for (const resolution of ['auto', '512', '1K', '2K', '4K']) {
+        expect(schema.safeParse({ resolution }).success).toBe(values.some((value) => value === resolution))
       }
-    })
+    }
   })
 
-  it('preserves each model input-reference maximum', () => {
-    expect(
-      parseOrImageGeneration({
-        supported_parameters: {
-          input_references: { type: 'range', min: 0, max: 1 }
-        }
-      })
-    ).toEqual({
-      modes: {
-        generate: { supports: {} },
-        edit: { supports: {}, maxInputImages: 1 }
-      }
-    })
+  // https://openrouter.ai/docs/guides/overview/multimodal/image-generation — retrieved 2026-10-08.
+  // https://openrouter.ai/api/v1/images/models/openai/gpt-image-1/endpoints — retrieved 2026-10-08.
+  it('does not interpret omission from standard discovery as removal of size or vendor options', () => {
+    const base = openai.models?.find((model) => model.id === 'gpt-image-1')
+    if (!base?.imageGeneration) throw new Error('Missing GPT creator fixture')
+    const imageGeneration = parseOrImageGeneration(
+      { supported_parameters: { quality: { type: 'enum', values: ['auto', 'low', 'medium', 'high'] } } },
+      base.imageGeneration
+    )
+    if (!imageGeneration) throw new Error('Image discovery must produce an override')
+    const support = resolveImageGenerationSupport(base, { imageGeneration })
+    if (!support) throw new Error('Missing GPT capability')
+    expect(buildImageRequestParamsSchema(support).safeParse({ size: '1024x1024', moderation: 'low' }).success).toBe(
+      true
+    )
   })
 
-  it('does not advertise edit when input references are unavailable', () => {
-    expect(
-      parseOrImageGeneration({
-        supported_parameters: {
-          quality: { type: 'enum', values: ['auto', 'high'] },
-          input_references: { type: 'range', min: 0, max: 0 }
-        }
-      })
-    ).toEqual({
-      modes: { generate: { supports: { quality: { type: 'enum', options: ['auto', 'high'] } } } }
-    })
-  })
-
-  it('drops orphaned output compression that OpenRouter would reject without jpeg/webp format', () => {
-    expect(
-      parseOrImageGeneration({
-        supported_parameters: {
-          quality: { type: 'enum', values: ['auto', 'high'] },
-          output_compression: { type: 'range', min: 0, max: 100 }
-        }
-      })
-    ).toEqual({
-      modes: { generate: { supports: { quality: { type: 'enum', options: ['auto', 'high'] } } } }
-    })
-  })
-
-  it('removes transparent background when a model only supports JPEG output', () => {
-    expect(
-      parseOrImageGeneration({
+  // https://openrouter.ai/docs/guides/overview/multimodal/image-generation — retrieved 2026-10-08.
+  it('requires a usable output format before advertising lossy compression or transparent output', () => {
+    const orphan = parseOrImageGeneration(
+      { supported_parameters: { output_compression: { type: 'range', min: 0, max: 100 } } },
+      undefined
+    )
+    expect(orphan?.supports).not.toHaveProperty('outputCompression')
+    const jpeg = parseOrImageGeneration(
+      {
         supported_parameters: {
           background: { type: 'enum', values: ['auto', 'transparent', 'opaque'] },
           output_format: { type: 'enum', values: ['jpeg'] },
-          input_references: { type: 'range', min: 0, max: 4 }
+          output_compression: { type: 'range', min: 0, max: 100 }
         }
-      })
-    ).toEqual({
-      modes: {
-        generate: {
-          supports: {
-            background: { type: 'enum', options: ['auto', 'opaque'] },
-            outputFormat: { type: 'enum', options: ['jpeg'] }
-          }
-        },
-        edit: {
-          maxInputImages: 4,
-          supports: {
-            background: { type: 'enum', options: ['auto', 'opaque'] },
-            outputFormat: { type: 'enum', options: ['jpeg'] }
-          }
-        }
-      }
-    })
-  })
-
-  it('keeps an empty generate mode for image models that advertise no optional parameters', () => {
-    expect(parseOrImageGeneration({ supported_parameters: {} })).toEqual({
-      modes: { generate: { supports: {} } }
-    })
+      },
+      undefined
+    )
+    const support = resolveImageGenerationSupport(null, jpeg ? { imageGeneration: jpeg } : null)
+    if (!support) throw new Error('Missing standalone image capability')
+    const schema = buildImageRequestParamsSchema(support)
+    expect(schema.safeParse({ background: 'transparent', outputFormat: 'jpeg' }).success).toBe(false)
+    expect(schema.safeParse({ background: 'opaque', outputFormat: 'jpeg', outputCompression: 50 }).success).toBe(true)
+    expect(schema.safeParse({ outputCompression: 101 }).success).toBe(false)
   })
 })

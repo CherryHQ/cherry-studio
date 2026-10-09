@@ -62,4 +62,6 @@ Run `pnpm --filter @cherrystudio/provider-registry compat:check` to verify the c
 Runtime-semantic additions that older applications cannot execute must also raise
 `REGISTRY_MIN_APP_VERSION`; Zod compatibility only protects the JSON shape. Put such additions in a
 new schema-version stream instead of raising the floor of an existing stream. The publisher keeps
-older streams on their published minimum versions and continues sending compatible catalog updates.
+older streams on their published minimum versions and sends compatible catalog updates only within
+the same contract generation. The v4 image contract is not backfilled into v1/v2/v3; their existing
+directories remain untouched.

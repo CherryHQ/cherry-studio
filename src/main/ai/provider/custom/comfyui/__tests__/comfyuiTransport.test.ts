@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { APICallError } from '@ai-sdk/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -145,8 +146,8 @@ describe('ComfyuiTransport', () => {
       })
       .catch((e) => e)
 
-    expect(error).toBeInstanceOf(PaintingGenerateError)
-    expect((error as PaintingGenerateError).code).toBe('REMOTE_ERROR')
+    expect(error).toBeInstanceOf(APICallError)
+    expect(error.statusCode).toBe(400)
     // The body the server sent is the message; nothing waited on the phone-home.
     expect(String((error as Error).message)).toContain('workflow rejected')
     expect(posts.map((post) => post.url)).toContain('http://localhost:8188/queue')
@@ -202,7 +203,7 @@ describe('ComfyuiTransport', () => {
 
   it('routes every request through the configured fetch and headers', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(init?.headers).toMatchObject({ 'X-Test': '1' })
+      expect(new Headers(init?.headers).get('x-test')).toBe('1')
       const url = String(input)
       if (url.includes('/object_info')) return respond(objectInfo)
       if (url.includes('/userdata/')) return respond(workflow)

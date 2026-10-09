@@ -1,8 +1,4 @@
-import type { ImageModeDef } from '../schemas/model'
 import { openaiCompatible } from './types'
-
-/** PPIO exposes the Seedream line with one identical definition for both edit and generate. */
-const editAndGenerate = (mode: ImageModeDef) => ({ edit: mode, generate: mode })
 
 export default openaiCompatible({
   id: 'ppio',
@@ -126,19 +122,34 @@ export default openaiCompatible({
     {
       modelId: 'glm-image',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                default: '1280x1280',
-                options: ['1280x1280', '1568x1056', '1056x1568', '1472x1088', '1088x1472', '1728x960', '960x1728'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/glm-image' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          size: {
+            default: '1280x1280',
+            options: ['1280x1280', '1568x1056', '1056x1568', '1472x1088', '1088x1472', '1728x960', '960x1728'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/glm-image',
+          isSync: false
         }
       }
     },
@@ -201,15 +212,35 @@ export default openaiCompatible({
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              outputFormat: { options: ['jpeg', 'png', 'webp'], type: 'enum' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v3/async/qwen-image-edit-2509' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          outputFormat: {
+            options: ['jpeg', 'png', 'webp'],
+            type: 'enum'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/qwen-image-edit-2509',
+          isSync: false
         }
       },
       modelId: 'qwen-image-edit'
@@ -366,52 +397,103 @@ export default openaiCompatible({
     },
     {
       imageGeneration: {
-        modes: editAndGenerate({
-          supports: {
-            addWatermark: { type: 'switch' },
-            size: {
-              default: '2048x2048',
-              options: ['1K', '2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-              render: 'chips',
-              type: 'enum'
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          size: {
+            default: '2048x2048',
+            options: ['1K', '2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
           },
-          vendorTransport: { endpoint: '/v3/seedream-4.0', isSync: true }
-        })
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/seedream-4.0',
+          isSync: true
+        }
       },
       modelId: 'seedream-4-0'
     },
     {
       imageGeneration: {
-        modes: editAndGenerate({
-          supports: {
-            addWatermark: { type: 'switch' },
-            size: {
-              default: '2048x2048',
-              options: ['2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-              render: 'chips',
-              type: 'enum'
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          size: {
+            default: '2048x2048',
+            options: ['2K', '4K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
           },
-          vendorTransport: { endpoint: '/v3/seedream-4.5', isSync: true }
-        })
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/seedream-4.5',
+          isSync: true
+        }
       },
       modelId: 'seedream-4-5'
     },
     {
       imageGeneration: {
-        modes: editAndGenerate({
-          supports: {
-            addWatermark: { type: 'switch' },
-            size: {
-              default: '2048x2048',
-              options: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
-              render: 'chips',
-              type: 'enum'
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          size: {
+            default: '2048x2048',
+            options: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
           },
-          vendorTransport: { endpoint: '/v3/seedream-5.0-lite', isSync: true }
-        })
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/seedream-5.0-lite',
+          isSync: true
+        }
       },
       modelId: 'seedream-5-0-lite'
     },
@@ -422,21 +504,40 @@ export default openaiCompatible({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              promptEnhancement: { type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1328x1328',
-                options: ['1328x1328', '1472x1104', '1584x1056', '1664x936', '2016x864', '2048x2048'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/jimeng-txt2img-v3.1' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          promptEnhancement: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1328x1328',
+            options: ['1328x1328', '1472x1104', '1584x1056', '1664x936', '2016x864', '2048x2048'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/jimeng-txt2img-v3.1',
+          isSync: false
         }
       }
     },
@@ -447,21 +548,40 @@ export default openaiCompatible({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              promptEnhancement: { type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1328x1328',
-                options: ['1328x1328', '1472x1104', '1584x1056', '1664x936', '2016x864', '2048x2048'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/jimeng-txt2img-v3.0' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          promptEnhancement: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: '1328x1328',
+            options: ['1328x1328', '1472x1104', '1584x1056', '1664x936', '2016x864', '2048x2048'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/jimeng-txt2img-v3.0',
+          isSync: false
         }
       }
     },
@@ -472,19 +592,36 @@ export default openaiCompatible({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/hunyuan-image-3' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/hunyuan-image-3',
+          isSync: false
         }
       }
     },
@@ -492,18 +629,34 @@ export default openaiCompatible({
       modelId: 'qwen-image',
       apiModelId: 'qwen-image-txt2img',
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: { type: 'switch' },
-              size: {
-                options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/qwen-image-txt2img' }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          size: {
+            options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
+            render: 'chips',
+            type: 'enum'
+          },
+          numImages: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/qwen-image-txt2img',
+          isSync: false
         }
       }
     },
@@ -514,18 +667,33 @@ export default openaiCompatible({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              seed: { type: 'text' },
-              size: {
-                options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/z-image-turbo' }
+        supports: {
+          seed: {
+            type: 'text'
+          },
+          size: {
+            options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/z-image-turbo',
+          isSync: false
         }
       }
     },
@@ -536,18 +704,33 @@ export default openaiCompatible({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              seed: { type: 'text' },
-              size: {
-                options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
-            vendorTransport: { endpoint: '/v3/async/z-image-turbo-lora' }
+        supports: {
+          seed: {
+            type: 'text'
+          },
+          size: {
+            options: ['1024x1024', '1024x1536', '1536x1024', '1536x1536', '768x1024', '1024x768'],
+            render: 'chips',
+            type: 'enum'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v3/async/z-image-turbo-lora',
+          isSync: false
         }
       }
     }

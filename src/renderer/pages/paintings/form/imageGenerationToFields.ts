@@ -1,9 +1,5 @@
-import type {
-  CanonicalParamKey,
-  ImageGenerationMode,
-  ImageGenerationSupport,
-  SupportSpec
-} from '@shared/data/types/model'
+import { type ImageOperation, resolveImageCapability } from '@cherrystudio/provider-registry'
+import type { CanonicalParamKey, ImageGenerationSupport, SupportSpec } from '@shared/data/types/model'
 
 import type { BaseConfigItem, CustomSizeConfigItem, OptionItem, SliderConfigItem } from '../form/baseConfigItem'
 
@@ -237,33 +233,14 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
   }
 }
 
-/**
- * Generic registry → form-fields dispatcher. Iterates the
- * `modes[mode].supports` map and turns each entry into the matching
- * `BaseConfigItem`. No per-vendor knowledge; no per-key handlers; no
- * hardcoded canonical-key list. Adding a new param: declare it on the
- * model in registry data with the right `SupportSpec`, optionally add an
- * i18n label entry to `KEY_LABELS` above.
- *
- * `mode` defaults to `'generate'` when the support carries that mode
- * (which it always does for image-gen-capable models in v2 data).
- */
+/** Project the selected effective capability into form controls. */
 export function imageGenerationToFields(
   support: ImageGenerationSupport | undefined,
-  opts?: { mode?: ImageGenerationMode }
+  opts: { operation?: ImageOperation; hasImages?: boolean } = {}
 ): BaseConfigItem[] {
-  const allModes = support?.modes
-  if (!allModes) return []
-  const requested = opts?.mode ?? 'generate'
-  // Edit-only / upscale-only / remix-only models declare a single non-generate
-  // mode (e.g. PPIO `qwen-image-edit` → only `modes.edit`). When the requested
-  // mode is absent from the model's declared modes, render whatever the model
-  // does declare — every painting provider has at most one UI tab now, so
-  // falling back to the model's first declared mode is what the user expects
-  // to see.
-  const fallbackKey = Object.keys(allModes)[0] as ImageGenerationMode | undefined
-  const supports = allModes[requested]?.supports ?? (fallbackKey ? allModes[fallbackKey]?.supports : undefined)
-  if (!supports) return []
+  const resolution = resolveImageCapability(support, opts.operation ?? 'generate', opts.hasImages ?? false)
+  if (resolution.kind !== 'supported') return []
+  const { supports } = resolution.capability
   const items: BaseConfigItem[] = []
   for (const [key, spec] of Object.entries(supports)) {
     const item = specToField(key, spec, supports)

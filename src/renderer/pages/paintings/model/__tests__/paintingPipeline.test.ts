@@ -1,98 +1,138 @@
+import { mockPrefetch, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  ImageGenerationOverrideSchema,
+  ImageGenerationSupportSchema,
+  resolveImageGenerationSupport
+} from '@cherrystudio/provider-registry'
+import type { FileEntry } from '@shared/data/types/file'
+
+import models from '../../../../../../packages/provider-registry/data/models.json'
+import catalog from '../../../../../../packages/provider-registry/data/provider-models.json'
 import { paintingGenerate } from '../paintingPipeline'
 import type { GenerateInput } from '../types/generateInput'
-import type { PaintingData } from '../types/paintingData'
 
-// paintingGenerate is glue: prefetch the model's image-generation support, resolve
-// the effective mode + requirePrompt, and hand them to canonicalGenerate. Mock both
-// edges to assert the handoff (the real prefetch/canonicalGenerate are covered
-// elsewhere).
-const prefetchMock = vi.fn()
-vi.mock('@data/hooks/useDataApi', () => ({
-  prefetch: (...args: unknown[]) => prefetchMock(...args)
-}))
+const { request } = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 
-const canonicalGenerateMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => [])
-vi.mock('../canonicalGenerate', () => ({
-  canonicalGenerate: (...args: unknown[]) => canonicalGenerateMock(...args)
-}))
-
-function makeInput(overrides: Partial<PaintingData> = {}): GenerateInput {
-  const painting: PaintingData = {
-    id: 'p1',
-    providerId: 'aihubmix',
-    mode: 'edit',
-    model: 'qwen-image-edit',
-    prompt: 'a fox',
-    files: [],
-    params: {},
-    ...overrides
-  }
+function input(): GenerateInput {
   return {
-    painting,
+    painting: {
+      id: 'p1',
+      providerId: 'tokenhub',
+      mode: 'generate',
+      model: 'hy-image-v3',
+      prompt: 'a fox',
+      params: {},
+      files: [],
+      inputFiles: [{ id: 'reference', ext: 'png' }] as FileEntry[]
+    },
     provider: {
-      id: 'aihubmix',
-      name: 'AiHubMix',
+      id: 'tokenhub',
+      name: 'TokenHub',
       apiHost: 'https://example.com',
       isEnabled: true,
-      getApiKey: async () => 'api-key'
+      getApiKey: async () => 'unused'
     },
     tab: 'default',
     abortController: new AbortController()
   }
 }
 
-const SUPPORT_KEY = '/providers/:providerId/models/:modelId*/image-generation-support'
-
-describe('paintingGenerate', () => {
+describe('painting capability to IPC', () => {
   beforeEach(() => {
-    prefetchMock.mockReset()
-    canonicalGenerateMock.mockClear()
-  })
-
-  it('prefetches support and threads support + effective mode + requirePrompt into canonicalGenerate', async () => {
-    const support = {
-      modes: {
-        edit: { requirePrompt: false, supports: { seed: { type: 'text' } }, vendorTransport: { endpoint: '/e' } }
-      }
-    }
-    prefetchMock.mockResolvedValue(support)
-
-    const input = makeInput({ mode: 'edit', model: 'qwen-image-edit' })
-    await paintingGenerate(input)
-
-    expect(prefetchMock).toHaveBeenCalledWith(SUPPORT_KEY, {
-      params: { providerId: 'aihubmix', modelId: 'qwen-image-edit' }
+    MockUseDataApiUtils.resetMocks()
+    request.mockReset()
+    request.mockResolvedValue({
+      files: [{ id: 'result', name: 'fox', ext: 'png', origin: 'internal', size: 3, createdAt: 0 }]
     })
-    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, { requirePrompt: false, support, mode: 'edit' })
+    window.api.file.binaryImage = vi.fn().mockResolvedValue({ data: [1, 2, 3], mime: 'image/png' })
+    window.api.file.getPhysicalPath = vi.fn().mockResolvedValue('/output/result.png')
   })
 
-  it('falls back to the first declared mode when the tab mode is unsupported', async () => {
-    // painting.mode 'edit' → canonicalMode 'edit', but the model only declares 'generate'.
-    const support = { modes: { generate: { requirePrompt: true, supports: {} } } }
-    prefetchMock.mockResolvedValue(support)
+  function seedSupport(support: unknown) {
+    mockPrefetch.mockResolvedValueOnce(ImageGenerationSupportSchema.parse(support))
+  }
 
-    const input = makeInput({ mode: 'edit', model: 'qwen-image' })
-    await paintingGenerate(input)
-
-    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, { requirePrompt: true, support, mode: 'generate' })
+  it('delivers TokenHub reference generation without an edit mode or a lost input', async () => {
+    const row = catalog.overrides.find((row) => row.providerId === 'tokenhub' && row.apiModelId === 'hy-image-v3')
+    if (!row) throw new Error('Missing TokenHub hy-image-v3 fixture')
+    const base = models.models.find((model) => model.id === row.modelId)
+    seedSupport(
+      resolveImageGenerationSupport(
+        { imageGeneration: ImageGenerationSupportSchema.optional().parse(base?.imageGeneration) },
+        { imageGeneration: ImageGenerationOverrideSchema.optional().parse(row.imageGeneration) }
+      )
+    )
+    const result = await paintingGenerate(input())
+    expect(result).toMatchObject([{ id: 'result', path: '/output/result.png' }])
+    expect(request).toHaveBeenCalledWith(
+      'ai.image.generate',
+      expect.objectContaining({
+        payload: expect.objectContaining({ operation: 'generate', inputImages: ['data:image/png;base64,AQID'] })
+      })
+    )
+    expect(request.mock.calls[0][1].payload).not.toHaveProperty('mode')
   })
 
-  it('passes no options when the model has no id (skips the prefetch handoff)', async () => {
-    const input = makeInput({ model: undefined })
-    await paintingGenerate(input)
-
-    expect(prefetchMock).not.toHaveBeenCalled()
-    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, undefined)
+  it('rejects a missing reference on an image-only model before file IO and IPC', async () => {
+    seedSupport({
+      supports: {},
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
+    })
+    const requestInput = input()
+    requestInput.painting.inputFiles = []
+    await expect(paintingGenerate(requestInput)).rejects.toMatchObject({ code: 'EDIT_IMAGE_REQUIRED' })
+    expect(window.api.file.binaryImage).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
   })
 
-  it('still generates (no options) when the support prefetch fails', async () => {
-    prefetchMock.mockRejectedValue(new Error('offline'))
-
-    const input = makeInput({ mode: 'edit', model: 'qwen-image-edit' })
-    await paintingGenerate(input)
-
-    expect(canonicalGenerateMock).toHaveBeenCalledWith(input, undefined)
+  it('does not silently substitute an upscale-only operation for generate', async () => {
+    seedSupport({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null,
+        upscale: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'optional'
+          }
+        }
+      }
+    })
+    await expect(paintingGenerate(input())).rejects.toMatchObject({ code: 'OPERATION_FAILED' })
+    expect(request).not.toHaveBeenCalled()
   })
 })

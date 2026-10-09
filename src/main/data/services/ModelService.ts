@@ -12,7 +12,7 @@ import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { inferReasoningOwnedBy, resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -741,7 +741,7 @@ class ModelService {
             serviceTierControl
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
-          const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
+          const imageGeneration = resolveImageGenerationSupport(presetModel, registryOverride)
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
@@ -762,7 +762,7 @@ class ModelService {
         if (providerModel) {
           return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
         }
-        const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        const imageGeneration = resolveImageGenerationSupport(presetModel, registryOverride)
         const registryModel = presetModel
           ? mergePresetModel(
               presetModel,

@@ -49,8 +49,19 @@ export function normalizeImageParamNumber(value: unknown): unknown {
 
 const optString = z.string().optional()
 const optBool = z.boolean().optional()
-const optNumber = z.preprocess(normalizeImageParamNumber, z.number().finite().optional())
-const optInt = z.preprocess(normalizeImageParamNumber, z.number().finite().int().optional())
+const optNumber = z.number().optional()
+const optInt = z.number().int().optional()
+const aspectRatioSchema = z.union([
+  z
+    .templateLiteral([z.number(), ':', z.number()])
+    .refine(
+      (value) =>
+        /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(value) &&
+        value.split(':').every((side) => Number.isFinite(Number(side)) && Number(side) > 0),
+      'Expected a positive width:height ratio'
+    ),
+  z.literal('auto')
+])
 
 /**
  * Catalog. Plain object literal + `as const satisfies` so per-key schema types
@@ -58,7 +69,7 @@ const optInt = z.preprocess(normalizeImageParamNumber, z.number().finite().int()
  */
 export const IMAGE_PARAM_CATALOG = {
   addWatermark: { schema: optBool, wire: 'watermark' },
-  aspectRatio: { schema: optString },
+  aspectRatio: { schema: aspectRatioSchema.optional() },
   background: { schema: optString },
   bottomScale: { schema: optNumber },
   cfg: { schema: optNumber },
@@ -103,34 +114,36 @@ export const IMAGE_PARAM_CATALOG = {
   upscaleFactor: { schema: optNumber }
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
-/** Parse one dynamic form value through its canonical catalog schema. */
-export function parseImageParamValue(key: string, value: unknown): unknown {
-  const entry = (IMAGE_PARAM_CATALOG as Record<string, ImageParamCatalogEntry>)[key]
-  if (!entry) return undefined
-  const parsed = entry.schema.safeParse(value)
-  return parsed.success ? parsed.data : undefined
-}
-
 /** Static value type of a canonical param, derived from its catalog schema. */
 export type ParamValue<K extends CanonicalParamKey> = z.infer<(typeof IMAGE_PARAM_CATALOG)[K]['schema']>
 
 /** Validated param bag: a partial map of canonical key → its typed value. */
 export type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> }
 
+function formInputSchema<S extends z.ZodOptional<z.ZodType>>(schema: S) {
+  return schema.unwrap() instanceof z.ZodNumber ? z.preprocess(normalizeImageParamNumber, schema) : schema
+}
+
 /**
- * Catalog value schema — every canonical key's value schema as a single typed
- * `z.object` whose `z.infer` is exactly {@link ParamValues}. The one `as` is on
- * the dynamic `Object.fromEntries` SHAPE (provably the catalog keys → their
- * schemas); the output type then flows without a cast. Consumers (the
- * `ai.image.generate` IPC payload) use this to validate + coerce the bag with zod
- * AT THE BOUNDARY — non-catalog keys are stripped, per-model option/range
- * constraints stay in the renderer's `buildParamsSchema`.
+ * Boundary schema for canonical values, additionally accepting numeric strings
+ * from form controls. The mapped shape assertion preserves each catalog key's
+ * output type through Object.fromEntries; per-model constraints are applied by
+ * buildImageRequestParamsSchema after this representation normalization.
  */
 export const imageParamsSchema = z.object(
-  Object.fromEntries(Object.entries(IMAGE_PARAM_CATALOG).map(([key, entry]) => [key, entry.schema])) as {
-    [K in CanonicalParamKey]: (typeof IMAGE_PARAM_CATALOG)[K]['schema']
+  Object.fromEntries(
+    Object.entries(IMAGE_PARAM_CATALOG).map(([key, entry]) => [key, formInputSchema(entry.schema)])
+  ) as {
+    [K in CanonicalParamKey]: ReturnType<typeof formInputSchema<(typeof IMAGE_PARAM_CATALOG)[K]['schema']>>
   }
 )
+
+/** Parse one dynamic form value through its normalized catalog schema. */
+export function parseImageParamValue(key: string, value: unknown): unknown {
+  if (!Object.hasOwn(imageParamsSchema.shape, key)) return undefined
+  const parsed = imageParamsSchema.shape[key as CanonicalParamKey].safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
 
 /** The catalog entry for `key`. */
 export function paramCatalogEntry(key: CanonicalParamKey): ImageParamCatalogEntry {

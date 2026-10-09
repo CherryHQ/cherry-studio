@@ -12,43 +12,27 @@ import {
 } from 'ai'
 
 import { application } from '@application'
-import {
-  type AiPlugin,
-  embedMany as aiCoreEmbedMany,
-  generateImage as aiCoreGenerateImage,
-  rerank as aiCoreRerank,
-  type RuntimeProviderCallEvent,
-  type RuntimeProviderCallHandler
-} from '@cherrystudio/ai-core'
+import { type AiPlugin, embedMany as aiCoreEmbedMany, rerank as aiCoreRerank } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import type { ImageOperation } from '@cherrystudio/provider-registry'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
-import {
-  type AiUsageCaptureContext,
-  aiUsageRecordService,
-  type MessageRef,
-  type SourceSnapshot
-} from '@data/services/AiUsageRecordService'
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
-import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
+import type { ListedModels } from '@shared/data/types/model'
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -65,12 +49,7 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
-import { resolveProviderAiSdkConfig } from './provider/config'
-import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
-import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
-import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
-import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
+import { imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
@@ -97,10 +76,14 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
-import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
-import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
+import { executeImageRequest, probeImageRequest } from './utils/executeImageRequest'
+import { prepareImageExecution, prepareImageProbe } from './utils/prepareImageRequest'
 import { routeToEndpoint } from './utils/provider'
-import { createAiUsageCaptureContext } from './utils/usageCapture'
+import {
+  createAiUsageCaptureContext,
+  createModelUsageCaptureContext,
+  createProviderCallHandler
+} from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
 
@@ -114,13 +97,6 @@ const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 
-/** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
-const PROBE_INPUT_IMAGE_DATA_URL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
-const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/png;base64,'.length)
-
-/** Edit-only probes pick the first mode the model declares, in painting-tab preference order. */
-const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
 
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
@@ -182,52 +158,6 @@ function resolveTextRetryPolicy(
     return configured
   }
   return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
-}
-
-function createCaptureContext(input: {
-  provider: Provider
-  model: Model
-  sdkModelId: string
-  credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
-  source?: SourceSnapshot | null
-  messageRef?: MessageRef | null
-}): AiUsageCaptureContext {
-  return createAiUsageCaptureContext({
-    providerId: input.provider.id,
-    providerName: input.provider.name,
-    modelId: input.sdkModelId,
-    modelName: input.model.name,
-    pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.reportsActualCost,
-    reportedCostCurrency: input.provider.reportedCostCurrency,
-    credentialReceipt: input.credentialReceipt,
-    source: input.source,
-    messageRef: input.messageRef
-  })
-}
-
-function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
-  return (event: RuntimeProviderCallEvent) => {
-    aiUsageRecordService.recordInvocation({
-      requestId: event.requestId,
-      context,
-      modality: event.modality,
-      ...(event.modality === 'embedding' && event.usage
-        ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
-        : event.modality === 'image' && event.usage
-          ? {
-              usage: {
-                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
-                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
-                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
-              }
-            }
-          : {}),
-      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
-      metrics: event.metrics,
-      completedAt: event.completedAt
-    })
-  }
 }
 
 /**
@@ -299,13 +229,12 @@ function toMcpSamplingStopReason(result: Pick<AiGenerateResult, 'finishReason' |
 /** Image generation request. */
 export interface AiImageRequest extends AiRequest {
   prompt: string
-  /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
+  /** Input images, independent of the business operation. */
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
-  /** Image-generation mode (which tab). main derives per-model transport routing
-   *  (`vendorTransport` → descriptor) from the registry using this. */
-  mode?: ImageGenerationMode
+  /** Omitted means ordinary generation, with or without reference images. */
+  operation?: ImageOperation
   /**
    * Canonical param bag — already a strict, coerced `ParamValues` (the
    * `ai.image.generate` IPC validated it via the catalog `imageParamsSchema`).
@@ -318,7 +247,7 @@ export interface AiImageRequest extends AiRequest {
    * infrastructure — the calling business feature decides the policy
    * (file-entry-cleanup.md §4.1). It deliberately does NOT reach the job path's
    * input / mask copies: those are transport scratch owned by the job, not a
-   * caller-visible artifact (see `imageInputEntryParams`).
+   * caller-visible artifact.
    */
   cleanupPolicy: CleanupPolicy
 }
@@ -326,38 +255,6 @@ export interface AiImageRequest extends AiRequest {
 /** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
   files: FileEntry[]
-}
-
-/**
- * Map a painting input-image / mask string to FileManager create params. Preserves
- * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
- * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
- * become downloaded url entries. Either way the handler later reads the bytes by id.
- *
- * The policy is fixed here, NOT taken from the request: these copies are job-transport
- * scratch (they exist only to keep bytes out of the size-capped payload and to survive a
- * restart), never a caller-visible artifact. Their lifetime is already modelled by
- * `job_file_ref` — pruning the job row cascades the ref and releases them. Letting the
- * caller's output policy through would leak one copy per job forever whenever it is
- * `'manual'`: nothing else deletes them (`findCleanupCandidates` skips manual entries and
- * the orphan sweep only reports them).
- */
-export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
-  return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
-    : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
-}
-
-/**
- * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
- * server pick the size", so it's omitted. An absent size is also omitted — the
- * provider/server applies its own default. (A blanket client-forced
- * `1024x1024` was wrong for vendors like Doubao that only accept `1K`/`2K`/`4K`
- * and reject a pixel size; models that want a concrete default declare it on
- * their registry `size` param instead.)
- */
-function resolveImageRequestSize(size: string | undefined): string | undefined {
-  return size === 'auto' ? undefined : size
 }
 
 /** Embedding request. */
@@ -602,7 +499,7 @@ export class AiService extends BaseService {
       nativeFileSupport,
       fileAttachments
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
-    const usageContext = createCaptureContext({
+    const usageContext = createModelUsageCaptureContext({
       provider,
       model,
       sdkModelId: sdkConfig.modelId,
@@ -693,7 +590,7 @@ export class AiService extends BaseService {
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
-              createCaptureContext({
+              createModelUsageCaptureContext({
                 provider,
                 model,
                 sdkModelId,
@@ -804,7 +701,7 @@ export class AiService extends BaseService {
       hookParts,
       nativeFileSupport
     } = await this.buildAgentParamsFor(parameterRequest, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
-    const usageContext = createCaptureContext({
+    const usageContext = createModelUsageCaptureContext({
       provider,
       model,
       sdkModelId: sdkConfig.modelId,
@@ -854,7 +751,7 @@ export class AiService extends BaseService {
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
-              createCaptureContext({
+              createModelUsageCaptureContext({
                 provider,
                 model,
                 sdkModelId,
@@ -969,238 +866,8 @@ export class AiService extends BaseService {
 
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
-    const signal = request.requestOptions?.signal
-
     const { provider, model, assistant } = this.getProviderAndModel(request)
-    const source = sourceSnapshotForAssistant(assistant)
-
-    // `request.paramValues` is already a strict, coerced `ParamValues` — the
-    // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
-    // the boundary (no main-side re-parse / cast). Split it into the structured
-    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
-    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
-    // WireProfile engine forwards.
-    const params = request.paramValues
-    const { structured, vendorBag } = splitParamValues(params)
-    const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
-
-    // Async custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Decide this before `resolveTransportFor` selects a serving key:
-    // the job handler is the single selection owner for this path. A transport
-    // builds its own request envelope per model, so it receives the canonical
-    // camelCase `vendorBag` directly (native n/size/seed travel via the job
-    // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
-    // not `provider.id`: a user-added instance carries a UUID id and would fall
-    // through to the direct image model, which never passes `modelDescriptor`.
-    const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
-    }
-
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
-    const promptParam = inputImages
-      ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
-      : request.prompt
-
-    // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
-    // canonical bag to each provider's wire — a registered profile for the
-    // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
-    // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
-
-    // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
-    // native binding's `map` (in `splitParamValues`).
-    const requestSize = resolveImageRequestSize(structured.size)
-
-    // Only the genuine AI SDK `ImageModelV3CallOptions` image params (n/size/seed/
-    // aspectRatio). The vendor knobs (negativePrompt/quality/numInferenceSteps/…)
-    // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
-    // (the WireProfile engine), which the image models read; passing them here is
-    // dropped by `generateImage`, so they're omitted.
-    const imageParams = {
-      model: sdkConfig.modelId,
-      prompt: promptParam,
-      n: structured.n ?? 1,
-      maxRetries: request.requestOptions?.maxRetries ?? 0,
-      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
-      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
-      ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
-      ...(signal ? { abortSignal: signal } : {}),
-      experimental_download: async (downloads) => {
-        return Promise.all(
-          downloads.map(async ({ url }) => {
-            if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
-            if (signal?.aborted) return null
-            if (!downloaded) return null
-            return {
-              data: Buffer.from(downloaded.data, 'base64'),
-              mediaType: downloaded.media_type
-            }
-          })
-        )
-      }
-    }
-
-    const imageUsageContext = createCaptureContext({
-      provider,
-      model,
-      sdkModelId: sdkConfig.modelId,
-      credentialReceipt,
-      source,
-      messageRef: null
-    })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
-
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
-      }
-
-      filteredCount += 1
-    }
-
-    if (filteredCount > 0) {
-      logger.warn('Filtered invalid generated images', {
-        uniqueModelId: request.uniqueModelId,
-        providerId: sdkConfig.providerId,
-        modelId: sdkConfig.modelId,
-        filteredCount
-      })
-    }
-    const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
-      )
-    )
-
-    return { files }
-  }
-
-  /**
-   * Run an async custom-provider image generation through the job system. The
-   * handler owns submit/poll/download/persist; here we enqueue, bridge the
-   * existing IPC abort signal to job cancellation, and await the terminal
-   * snapshot. Input images / mask are persisted as FileEntries up front and
-   * referenced by id so the payload stays small.
-   *
-   * The `await handle.finished` below is the job's ONLY consumer — which is why
-   * the handler declares `recovery: 'abandon'`: a job resumed after a restart
-   * would have nobody to hand its result to. See the handler's doc comment for
-   * what it would take to make results restart-durable.
-   */
-  private async generateImageViaJob(
-    request: AsInProcess<AiImageRequest>,
-    structured: SplitImageParams['structured'],
-    providerParams: Record<string, unknown>,
-    signal: AbortSignal | undefined,
-    source: SourceSnapshot | undefined
-  ): Promise<AiImageResult> {
-    const uniqueModelId = request.uniqueModelId
-    if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
-
-    const fileManager = application.get('FileManager')
-    const jobManager = application.get('JobManager')
-
-    const createdEntryIds: string[] = []
-    const persistInputImage = async (value: string): Promise<string> => {
-      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
-      createdEntryIds.push(entry.id)
-      return entry.id
-    }
-
-    let handle: JobHandle
-    try {
-      // allSettled (not all) so every create resolves before we decide: a partial
-      // failure still leaves `createdEntryIds` complete for the catch to clean up.
-      const settled = await Promise.allSettled((request.inputImages ?? []).map(persistInputImage))
-      const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
-      if (rejected) throw rejected.reason
-      const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
-      const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
-      const requestSize = resolveImageRequestSize(structured.size)
-
-      // Per-model transport routing, derived from the registry (main hosts it) —
-      // NOT laundered through paramValues. Carried in the payload so the handler
-      // reaches the right endpoint / response family without re-resolving it.
-      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-      const mode = request.mode ?? 'generate'
-      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
-      const vendorTransport = support?.modes?.[mode]?.vendorTransport
-      const modelDescriptor = vendorTransport?.endpoint
-        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
-        : undefined
-
-      const payload: ImageGenerationJobPayload = {
-        uniqueModelId,
-        prompt: request.prompt,
-        n: structured.n ?? 1,
-        ...(requestSize !== undefined && { size: requestSize }),
-        ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
-        seed: structured.seed,
-        ...(inputFileIds && { inputFileIds }),
-        ...(maskFileId && { maskFileId }),
-        ...(modelDescriptor && { modelDescriptor }),
-        ...(source && { source }),
-        providerParams,
-        cleanupPolicy: request.cleanupPolicy
-      }
-      // Image generation owns the resource contract for its scratch inputs:
-      // their ids live in `job.input` JSON, which the file cleanup anti-join
-      // cannot see. Persist the job and its file refs in one transaction so a
-      // queued/running job never observes an input reclaimed as unreferenced.
-      handle = application.get('DbService').withWriteTx((tx) => {
-        const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
-        jobService.addFileRefsTx(tx, [
-          ...(inputFileIds ?? []).map((fileEntryId) => ({
-            fileEntryId,
-            sourceId: jobHandle.id,
-            role: 'input' as const
-          })),
-          ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
-        ])
-        return jobHandle
-      })
-    } catch (error) {
-      // Setup failed before the job owns the payload — clean up what we created.
-      await deleteImageInputEntries(createdEntryIds)
-      throw error
-    }
-
-    // Reuse the existing IPC AbortController (ai.image.abort): when it fires,
-    // cancel the job (which aborts the handler + remote task).
-    const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
-    if (signal?.aborted) onAbort()
-    else signal?.addEventListener('abort', onAbort, { once: true })
-
-    let snapshot: JobSnapshot
-    try {
-      snapshot = await handle.finished
-    } finally {
-      signal?.removeEventListener('abort', onAbort)
-    }
-
-    if (snapshot.status === 'completed') {
-      const output = snapshot.output as ImageGenerationJobOutput | null
-      return { files: output?.files ?? [] }
-    }
-    if (snapshot.status === 'cancelled') {
-      throw new DOMException('Image generation aborted', 'AbortError')
-    }
-    // `||` not `??`: a job can fail with an empty-string error message (a vendor that
-    // returns a non-OK response with no body), which would otherwise surface as a
-    // message-less `Error` the renderer can't show.
-    throw new Error(snapshot.error?.message || 'Image generation failed')
+    return executeImageRequest(prepareImageExecution(request, provider, model), sourceSnapshotForAssistant(assistant))
   }
 
   // ── Embedding ──
@@ -1210,7 +877,7 @@ export class AiService extends BaseService {
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
-    const usageContext = createCaptureContext({
+    const usageContext = createModelUsageCaptureContext({
       provider,
       model,
       sdkModelId: sdkConfig.modelId,
@@ -1244,7 +911,7 @@ export class AiService extends BaseService {
     const signal = request.requestOptions?.signal
 
     const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
-    const usageContext = createCaptureContext({
+    const usageContext = createModelUsageCaptureContext({
       provider,
       model,
       sdkModelId: sdkConfig.modelId,
@@ -1414,79 +1081,7 @@ export class AiService extends BaseService {
       } else if (!options?.chatOnly && isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
         probe = this.embedMany({ ...probeRequest, values: ['test'] })
       } else if (!options?.chatOnly && isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
-        // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
-        // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
-        // `generate` mode: the bare default leaves the job path without a transport
-        // descriptor, failing before any provider request. Probe their first declared
-        // mode with a tiny inline PNG and the mode's registry defaults instead — the
-        // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
-        // that main never materializes on its own.
-        const imageSupport = providerRegistryService.getImageGenerationSupport(
-          provider.id,
-          model.apiModelId ?? model.id
-        )
-        const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
-        const probeMode: ImageGenerationMode = editOnly
-          ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
-          : 'generate'
-        const probeSupports = imageSupport?.modes?.[probeMode]?.supports
-        const probeParams: ParamValues = {}
-        for (const [key, spec] of Object.entries(probeSupports ?? {})) {
-          if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
-            probeParams[key] = spec.default
-          }
-        }
-        const transportProviderId = provider.presetProviderId ?? provider.id
-        if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-          // Transport models run their submit/poll loop on the job system, whose
-          // handler re-selects a serving key — dropping the health check's
-          // `apiKeyOverride` and possibly probing a different rotated credential
-          // than the one being reported. A check needs no restart survival, so
-          // probe inline: one submit (accepted = credential + endpoint + model OK)
-          // with the caller's key, no job row, no result download.
-          const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
-          probe = (async () => {
-            const { config } = await resolveProviderAiSdkConfig(provider, model, {
-              apiKeyOverride: request.apiKeyOverride
-            })
-            const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-            const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
-            if (!transport) {
-              throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
-            }
-            const { taskId } = await transport.submit({
-              modelId: wireModelId,
-              prompt: 'a red circle',
-              n: 1,
-              size: undefined,
-              seed: undefined,
-              files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
-              mask: undefined,
-              modelDescriptor: vendorTransport
-                ? {
-                    id: wireModelId,
-                    endpoint: vendorTransport.endpoint,
-                    isSync: vendorTransport.isSync,
-                    mode: probeMode
-                  }
-                : undefined,
-              providerParams: probeParams,
-              signal
-            })
-            // A successful submission proves connectivity; cancel to avoid a full probe generation.
-            if (taskId && transport.cancel) {
-              await transport.cancel(taskId).catch(() => undefined)
-            }
-          })()
-        } else {
-          probe = this.generateImage({
-            ...probeRequest,
-            prompt: 'a red circle',
-            ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-            paramValues: probeParams,
-            cleanupPolicy: 'delete_when_unreferenced'
-          })
-        }
+        probe = Promise.resolve().then(() => probeImageRequest(prepareImageProbe(probeRequest, provider, model)))
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.

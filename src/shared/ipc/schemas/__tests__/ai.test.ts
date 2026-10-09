@@ -34,6 +34,31 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
     expect(genImage.safeParse(input('openai::gpt-image')).success).toBe(true)
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
   })
+
+  it.each([
+    { mode: 'edit' },
+    { operation: 'edit' },
+    { operation: 'merge' },
+    { paramValues: { unsupportedWireName: 3 } },
+    { inputImages: ['/tmp/reference.png'] },
+    { inputImages: ['file:///tmp/reference.png'] },
+    { inputImages: ['data:text/plain;base64,YQ=='] },
+    { inputImages: ['data:image/png;base64,'] },
+    { inputImages: ['data:image/png;base64,data:image/png;base64,YQ=='] }
+  ])('rejects invalid image input at the IPC boundary %#', (invalid) => {
+    expect(
+      genImage.safeParse({
+        requestId: 'invalid-image',
+        payload: {
+          uniqueModelId: 'openai::gpt-image-1',
+          prompt: 'a fox',
+          paramValues: {},
+          cleanupPolicy: 'delete_when_unreferenced',
+          ...invalid
+        }
+      }).success
+    ).toBe(false)
+  })
 })
 
 describe('ai.stream.open IPC schema', () => {

@@ -164,7 +164,6 @@
   "paintings.comfyui.workflow_failed": "ComfyUI 工作流程執行失敗：",
   "paintings.comfyui.workflow_rejected": "ComfyUI 拒絕了該工作流程（HTTP {{status}}）",
   "paintings.generate_failed": "無法產生圖片",
-  "paintings.image_mix_failed": "無法混合圖片",
   "selection.name": "選取文字助理",
   "settings.mcp.oauth.callback.listen_error": "無法在 127.0.0.1:{{port}} 監聽 OAuth 回呼（{{reason}}）。請檢查連接埠是否可用後重試。",
   "settings.mcp.oauth.callback.message": "關閉此頁面後即可回到 Cherry Studio",

@@ -10,7 +10,7 @@ sources:
 
 Standards for placing default values across the data stack and judging column nullability.
 Read this when designing a new SQLite table, defining a Zod entity schema, or reviewing PRs
-that introduce defaults at any layer.
+that introduce defaults, partial updates, or object merges at any layer.
 
 ## Problem
 
@@ -92,19 +92,144 @@ its own default (or NULL for nullable columns). Don't restate values the DB alre
 
 ### R5. Update schema must derive from a defaults-free source
 
-`UpdateSchema = CreateSchema.partial()` is **only safe when Create has no `.default()`
-calls**. Because Zod v4 retains `.default()` through `.partial()`, deriving Update from a
-Create that carries defaults causes PATCH bodies to materialize those defaults, which the
-service then writes to the row.
+`UpdateSchema = SourceSchema.pick(...).partial()` is safe from default leakage **only
+when the selected fields, including their nested schemas, are defaults-free**. This applies
+whether the source is Create or Entity. Zod v4 applies defaults inside optional fields;
+`.partial()` does not remove them or make nested objects partial.
 
-When Create has defaults — or whenever in doubt — derive Update directly from the entity:
+Reuse defaults-free field atoms and the mutable-field whitelist:
 
 ```ts
-// ✅ Always safe
+// Safe from default leakage only if the selected field schemas are defaults-free.
 export const UpdateXxxSchema = XxxSchema.pick(XXX_MUTABLE_FIELDS).partial()
 ```
 
+Check `.default()`, `.prefault()`, preprocessing, and transforms throughout the selected
+shape. A PATCH parser must not synthesize omitted updates or use `.catch()` to turn an
+invalid supplied value into an omitted update. Filtering parsed keys against the raw body
+is not a replacement for fixing the schema: a top-level filter cannot repair nested defaults.
+
 This dovetails with [API Design Guidelines § Rule C](./api-design-guidelines.md#c-derive-dtos-via-pick-whitelist-with-field-atoms-and-zstrictobject).
+
+## PATCH and Merge Contract
+
+These rules govern new or deliberately revised update contracts. Existing differences
+must be audited and migrated with their callers; this section does **not** authorize a
+global cleanup function or silently change an existing deletion convention.
+
+### P1. Separate state, changes, and resolved values
+
+An entity describes state; a PATCH describes instructions for changing that state; a
+resolved configuration includes inherited values. They are not interchangeable objects.
+`DataApiService.patch()` selects a method and transports a body — it does not choose a
+merge algorithm. Neither the name `PATCH` nor `Partial<T>` implies JSON Merge Patch.
+
+The owning DTO must declare each mutable field's update granularity: scalar assignment,
+whole-value replacement, first-level merge, recursive merge, or explicit collection
+operations. Reuse the owning field schemas; do not create a second handwritten vocabulary.
+
+### P2. Define presence before choosing an operator
+
+The following applies to **members of a patch object**. Inside a whole replacement value,
+omitted members belong to the new value; they do not inherit members from the old one.
+
+| Input | Contract for new partial-update DTOs |
+|---|---|
+| Key absent | No instruction: preserve stored state, including whether an override exists. |
+| Own key with `undefined` | For an optional patch member, no instruction. Normalize to absence at the owning boundary before applying the patch; never interpret it as deletion. A required replacement member still needs a valid value. |
+| `null` | Only accepted with a named field meaning: store domain NULL, remove an override, or another explicitly declared state. These meanings are not interchangeable. |
+| `false`, `0`, `''` | Preserve if valid for that field; never use truthiness to decide whether to update. |
+| `[]` | Clear a replacement collection; perform no operations for an explicitly declared operation list. Never infer which from the array alone. |
+| `{}` | Determined by the field's algorithm. It can replace an object with an empty one or leave an existing object unchanged under a merge. |
+
+Normalize only at declared patch locations, after identifying allowed fields. Do not
+recursively strip all empty values, discard unknown keys to make validation pass, or
+round-trip through JSON to "clean" a request. Known object shapes reject unknown fields;
+an intentionally open extension map must declare its value and reserved-key policy.
+The canonical patch passed to merge logic has no `undefined` members at those locations.
+
+Use a named clear/reset operation when `null` is already a meaningful stored value and
+cannot also unambiguously express removal. Do not add such an operation to fields that
+do not need it. `value == null` is not a deletion test: it also matches `undefined`.
+
+**Existing exception:** `UpdateAgentDto.configuration` explicitly uses an own
+`undefined` value to delete a first-level key. Its schema and service currently preserve
+that distinction. Keep it until a dedicated caller-and-service migration establishes a
+replacement contract; applying generic undefined filtering would break reset behavior.
+
+### P3. Merge according to the domain, not the object's depth
+
+- Choose replacement for an indivisible value, and partial merge only where members
+  can be updated independently. A nested object is not evidence that it needs deep merge.
+- Arrays replace as a unit unless the DTO explicitly defines operations using stable
+  item identity. Generic array concatenation or index-wise deep merge is not PATCH policy.
+- If claiming RFC 7396, follow its JSON semantics: object members merge recursively,
+  `null` members delete, and arrays/scalars replace. JSON has no `undefined` value.
+  An empty object patch on a non-object target produces an object, not a universal no-op.
+- Evaluate affected cross-field invariants against the resulting state, not just the
+  supplied fragment. Do not silently repair unrelated stored data during an update;
+  invalid legacy state requires an explicit migration or rejection policy.
+
+### P4. Apply changes once, against authoritative stored state
+
+The producer sends the intended changed fields, not a spread of a cached entity or
+resolved configuration. Whole-value replacement is allowed only when that is the actual
+operation; if stale replacement can overwrite another writer, define conflict handling.
+
+The boundary validates shape and presence without creating defaults. The owning service
+applies the patch to current **stored** values, validates affected invariants, and persists
+the result. Internal service callers must obey the same contract as handler callers.
+Do not merge into a preset-expanded read model and persist inherited values as overrides.
+Equality to today's default alone does not prove the user's intention was to inherit.
+
+Use synchronous `withWriteTx` for read-then-write and related multi-table changes; a single
+column assignment can use one atomic statement. Follow [Write Serialization](./database-patterns.md#write-serialization-dbservicewithwritetx).
+Audit actual interleaving opportunities rather than assuming every synchronous read
+outside a transaction is a race. Define empty-patch, missing-resource, timestamp, and
+post-commit notification behavior; an empty change must not accidentally reset data.
+
+Drizzle's omission of `undefined` in `.set()` concerns **column assignments**, not members
+inside a supplied JSON-column value. `{ settings: { ...old, ...patch } }` can overwrite a
+nested member with `undefined`; ignoring undefined columns does not preserve that member.
+
+### P5. Preserve meaning across the actual transport
+
+Trace caller → schema → adapter → handler → service → storage. Electron IPC uses
+Structured Clone, not a JSON stringify/parse round-trip. Do not assume an own undefined
+key disappears in transit. Conversely, JSON cannot encode an undefined deletion marker.
+If an operation crosses JSON, persistence, or replay boundaries, prove that its meaning
+survives those boundaries; serializing the final state is different from serializing a patch.
+
+### Audit and verification requirements
+
+For each update chain, record the producer and writer locations plus this contract:
+
+| Audit item | Required evidence |
+|---|---|
+| Allowed fields and presence | Raw and parsed forms for absent, own undefined, null, invalid, and unknown members; include nested patch locations. |
+| Update granularity | Per-field replacement/merge/collection rule, clear/reset representation, and reserved-key ownership. |
+| Defaults and inheritance | Where defaults originate; whether the write uses raw stored state or a resolved snapshot. |
+| Persistence | Resulting row/JSON/relations, affected invariants, transaction scope, and failure atomicity. |
+| Other consumers | Renderer and internal writers, real transport encoding, replay/retry behavior, and observable no-op behavior. |
+
+Tests must start with meaningful non-default stored values and assert the promised final
+state, including untouched siblings and explicit clears. Cover invalid input with no
+partial writes, empty objects/arrays, and the actual serialization boundary in use.
+Use the repository's [database test setup](../testing/database-testing.md), not mocked
+Drizzle chains. A merge function test alone cannot prove that a caller sends a patch.
+
+For each implemented correction, demonstrate a failing regression test or a targeted
+mutation (for example, introduce an unintended default or replace a merge with a spread),
+then restore it. Expected values come from the domain contract or producer-owned fixtures,
+not from copying current implementation output. External protocol assertions cite their
+source and retrieval date. Static inspection is not runtime verification.
+
+Protocol/library references, retrieved **2026-09-14**:
+
+- [RFC 7396 §2](https://www.rfc-editor.org/rfc/rfc7396.html#section-2) — JSON Merge Patch algorithm.
+- [Zod 4 migration guide](https://zod.dev/v4/changelog#defaults-applied-within-optional-fields) — defaults inside optional fields.
+- [Drizzle update](https://orm.drizzle.team/docs/update) — undefined column assignments versus null.
+- [Electron ipcRenderer.invoke](https://www.electronjs.org/docs/latest/api/ipc-renderer#ipcrendererinvokechannel-args) — Structured Clone transport.
 
 ## Decision Matrix 1: Should this column be NULL or NOT NULL?
 
@@ -250,11 +375,15 @@ create(dto: CreateAssistantDto): Assistant {
 
 update(id: string, dto: UpdateAssistantDto): Assistant {
   const row = this.db.update(assistantTable)
-    .set(dto)                                            // Drizzle skips undefined — PATCH-correct
+    .set(dto)                                            // Column assignments; no nested merge implied.
     .where(eq(assistantTable.id, id)).returning().get()
   return rowToAssistant(row)
 }
 ```
+
+The update sketch shows non-empty column assignments only. A production method also
+handles empty changes and missing rows; JSON partial updates need the field-specific
+semantics in [PATCH and Merge Contract](#patch-and-merge-contract).
 
 ```ts
 // ─── Row → Entity ─────────────────────────────────────────────
@@ -276,7 +405,7 @@ function rowToAssistant(row: typeof assistantTable.$inferSelect): Assistant {
 |---|---|---|
 | Column nullable + `rowToEntity` does `row.x ?? someDefault` | Read path masks NULL state; future schema changes drift silently between layers | Make column `NOT NULL` with DB DEFAULT (R1, R3) |
 | Same default value defined in DB DEFAULT, Zod `.default()`, and `rowToEntity` `??` | Three places must stay in sync; any change forgets one | Pick one source of truth (R2) |
-| `UpdateSchema = CreateSchema.partial()` with `.default()` on Create fields | Zod v4 preserves defaults through `.partial()`; PATCH bodies materialize them and overwrite row state | Derive Update from entity directly (R5) |
+| `UpdateSchema = SourceSchema.partial()` with defaults on selected fields | Zod v4 preserves defaults through `.partial()`; PATCH bodies materialize them and overwrite row state | Derive from defaults-free field schemas, including nested members (R5) |
 | `.default(DEFAULT_X_SETTINGS)` on Zod entity / Create schema | Defaults bleed into every derived schema; non-handler callers bypass it; renderer typings split into z.input / z.output | Move default to service `??` (Decision Matrix 2) |
 | `rowToEntity` running `?? '🌟'` to mask NULL | The product wants every row to have an icon — express it in the column constraint plus the **default-fill stage**, not the mapper | `text().notNull()` + service `dto.emoji ?? '🌟'` (product-chosen value belongs in service — see [§ DB defaults are near-permanent](#db-defaults-are-near-permanent)) |
 | Service `create()` passes every field, including ones the DB has DEFAULTs for | Restates DB knowledge in app code; drift risk if defaults change in only one place | Omit fields the DB / `$defaultFn` already handles (R4) |

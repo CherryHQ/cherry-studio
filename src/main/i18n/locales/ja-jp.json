@@ -164,7 +164,6 @@
   "paintings.comfyui.workflow_failed": "ComfyUI ワークフローの実行に失敗しました:",
   "paintings.comfyui.workflow_rejected": "ComfyUI がワークフローを拒否しました（HTTP {{status}}）",
   "paintings.generate_failed": "画像の生成に失敗しました",
-  "paintings.image_mix_failed": "画像の混合に失敗しました",
   "selection.name": "テキスト選択ツール",
   "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}} で OAuth コールバックを待ち受けできませんでした（{{reason}}）。ポートが使用可能か確認してから、もう一度お試しください。",
   "settings.mcp.oauth.callback.message": "このページを閉じてCherry Studioに戻ることができます",

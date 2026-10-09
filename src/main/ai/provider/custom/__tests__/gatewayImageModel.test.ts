@@ -2,6 +2,7 @@ import type { ImageModelV3CallOptions, LanguageModelV3 } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { splitParamValues } from '../../../utils/imageOptions'
+import { resolveProviderOptionsKey } from '../../endpoint'
 import { buildVendorProviderOptions } from '../wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION } from '../wire/wireProfile'
 
@@ -38,7 +39,12 @@ const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn<(...args: any[]) 
 
 const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
   const { vendorBag } = splitParamValues(paramValues)
-  return buildVendorProviderOptions('gateway', paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
+  return buildVendorProviderOptions(
+    resolveProviderOptionsKey('gateway'),
+    paramValues,
+    DEFAULT_DIFFUSION_REGISTRATION,
+    vendorBag
+  )
 }
 
 describe('isGatewayGeminiImageModel', () => {
@@ -70,20 +76,6 @@ describe('createGatewayGeminiImageModel', () => {
     const sent = doGenerate.mock.calls[0][0]
     expect(sent.providerOptions.google.responseModalities).toEqual(['IMAGE'])
     expect(sent.prompt).toEqual([{ role: 'user', content: [{ type: 'text', text: 'a fox' }] }])
-  })
-
-  it('maps aspectRatio onto google.imageConfig', async () => {
-    const doGenerate = vi.fn().mockResolvedValue({
-      content: [{ type: 'file', mediaType: 'image/png', data: 'IMG' }],
-      finishReason: 'stop',
-      usage: {},
-      response: { headers: {} }
-    })
-    const model = createGatewayGeminiImageModel(fakeLanguageModel(doGenerate), 'gemini-2.5-flash-image')
-
-    await model.doGenerate(callOptions({ aspectRatio: '16:9' }))
-
-    expect(doGenerate.mock.calls[0][0].providerOptions.google.imageConfig).toEqual({ aspectRatio: '16:9' })
   })
 
   it('moves the inherited Gateway resolution into google.imageConfig without dropping routing options', async () => {

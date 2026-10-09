@@ -1,21 +1,12 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 import { createAihubmixImageModel } from '../../aihubmix/aihubmixImageModel'
 import { captureWithFetch } from './captureRequest'
 
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
-/**
- * AiHubMix image-model boundary — the bespoke branches (NOT the gpt-image /
- * dall-e OpenAI-compat delegate or the Google delegate, which forward to AI SDK
- * adapters covered elsewhere). V_3 posts FormData to `/ideogram/v1/ideogram-v3/*`;
- * V_1/V_2 post an `{ image_request }` JSON to `/ideogram/aihubmix_image_*`; Doubao
- * Seedream posts its own JSON to `/v1/images/generations` with an explicit
- * `response_format`. numImages comes from `options.n`, aspectRatio from
- * `options.aspectRatio`.
- */
+// Ideogram request fields: https://docs.aihubmix.com/cn/api/IdeogramAI — retrieved 2026-10-08.
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
     prompt: 'a fox',
@@ -39,18 +30,21 @@ const config = {
 }
 
 describe('AiHubMix image-model boundary (Ideogram branches)', () => {
-  it('V_3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
+  it('ideogram/V3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('V_3', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('ideogram/V3', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v3', operation: 'generate' }
+      }).doGenerate(
         opts({
           n: 2,
           aspectRatio: '16:9',
+          seed: 0,
           providerOptions: {
             aihubmix: {
-              mode: 'generate',
               renderingSpeed: 'TURBO',
               styleType: 'GENERAL',
-              seed: '42',
               negativePrompt: 'blur',
               magicPromptOption: true
             }
@@ -59,31 +53,45 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       )
     )
     expect(req.url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/generate')
-    // FormData → flat record of string fields
-    z.strictObject({
-      prompt: z.string(),
-      rendering_speed: z.string(),
-      num_images: z.string(),
-      aspect_ratio: z.string(),
-      style_type: z.string(),
-      seed: z.string(),
-      negative_prompt: z.string(),
-      magic_prompt: z.string()
-    }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+    expect(req.body).toEqual({
+      prompt: 'a fox',
+      rendering_speed: 'TURBO',
+      num_images: '2',
+      aspect_ratio: '16x9',
+      style_type: 'GENERAL',
+      seed: '0',
+      negative_prompt: 'blur',
+      magic_prompt: 'ON'
+    })
   })
 
-  it('V_2 generate → { image_request } JSON to /ideogram/aihubmix_image_generate', async () => {
+  // V1 has no style_type: https://developer.ideogram.ai/v1/api-reference/legacy-endpoints/generate — retrieved 2026-10-08.
+  it('V_1 encodes a canonical ratio without requiring V2-only options', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('V_2', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('V_1', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v1-v2', operation: 'generate' }
+      }).doGenerate(opts({ aspectRatio: '16:9' }))
+    )
+    expect(req.body).toMatchObject({ image_request: { model: 'V_1', aspect_ratio: 'ASPECT_16_9' } })
+    expect(req.body).not.toHaveProperty('image_request.style_type')
+  })
+
+  it('V_2 encodes the canonical ratio alongside its supported options', async () => {
+    const req = await captureWithFetch((fetch) =>
+      createAihubmixImageModel('V_2', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v1-v2', operation: 'generate' }
+      }).doGenerate(
         opts({
           n: 3,
-          aspectRatio: '1:1',
+          aspectRatio: '16:9',
+          seed: 0,
           providerOptions: {
             aihubmix: {
-              mode: 'generate',
               styleType: 'REALISTIC',
-              seed: '7',
               negativePrompt: 'noise',
               magicPromptOption: false
             }
@@ -91,25 +99,28 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
         })
       )
     )
-    expect(req.url).toBe('https://aihubmix.com/ideogram/aihubmix_image_generate')
-    z.strictObject({
-      image_request: z.strictObject({
-        prompt: z.string(),
-        model: z.string(),
-        aspect_ratio: z.string(),
-        num_images: z.number().int().positive(),
-        style_type: z.string(),
-        seed: z.number().int(),
-        negative_prompt: z.string(),
-        magic_prompt_option: z.string()
-      })
-    }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+    expect(req.url).toBe('https://aihubmix.com/ideogram/generate')
+    expect(req.body).toEqual({
+      image_request: {
+        prompt: 'a fox',
+        model: 'V_2',
+        aspect_ratio: 'ASPECT_16_9',
+        num_images: 3,
+        style_type: 'REALISTIC',
+        seed: 0,
+        negative_prompt: 'noise',
+        magic_prompt_option: 'OFF'
+      }
+    })
   })
 
   it('doubao-seedream → JSON to /v1/images/generations with response_format + sequential', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('doubao-seedream-5.0-lite', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('doubao-seedream-5.0-lite', {
+        ...config,
+        fetch,
+        binding: { kind: 'doubao' }
+      }).doGenerate(
         opts({
           n: 3,
           seed: 42,
@@ -139,4 +150,23 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       sequential_image_generation_options: { max_images: 4 }
     })
   })
+})
+
+// Google ImageConfig: https://ai.google.dev/api/generate-content#ImageConfig — retrieved 2026-10-08.
+it('does not infer an AiHubMix Google ratio from the size field', async () => {
+  const req = await captureWithFetch((fetch) =>
+    createAihubmixImageModel('gemini-3-pro-image-preview', {
+      ...config,
+      fetch,
+      binding: { kind: 'google-gemini' }
+    }).doGenerate(
+      opts({
+        // @ts-expect-error The app's size bag may contain a ratio-looking string; it must not become a ratio.
+        size: '16:9',
+        providerOptions: { aihubmix: { imageResolution: '2K' } }
+      })
+    )
+  )
+  expect(req.body).toMatchObject({ generationConfig: { imageConfig: { imageSize: '2K' } } })
+  expect(req.body).not.toHaveProperty('generationConfig.imageConfig.aspectRatio')
 })

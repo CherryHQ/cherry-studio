@@ -2,7 +2,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import type { AppProviderSettingsMap } from '../types'
+import type { AppProviderSettingsMap, ProviderOptionsKey } from '../types'
 import { resolveProviderAiSdkConfig } from './config'
 import type { ServingCredentialReceipt } from './credential'
 import { type ResolvedEndpoint, resolveProviderOptionsKey, resolveWireModelId } from './endpoint'
@@ -10,14 +10,16 @@ import { type ResolvedEndpoint, resolveProviderOptionsKey, resolveWireModelId } 
 export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 /** Provider config plus the wire model id and providerOptions namespace a call needs. */
-export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
-  readonly providerId: T
-  readonly providerOptionsKey: string
-  readonly providerSettings: AppProviderSettingsMap[T]
-  readonly modelId: string
-  /** See `ProviderConfig.conversationHeader`. */
-  readonly conversationHeader?: string
-}
+export type SdkConfig<T extends AppProviderKey = AppProviderKey> = T extends AppProviderKey
+  ? {
+      readonly providerId: T
+      readonly providerOptionsKey: ProviderOptionsKey
+      readonly providerSettings: AppProviderSettingsMap[T]
+      readonly modelId: string
+      /** See `ProviderConfig.conversationHeader`. */
+      readonly conversationHeader?: string
+    }
+  : never
 
 /**
  * Resolve everything the AI SDK needs to address one (provider, model) pair.

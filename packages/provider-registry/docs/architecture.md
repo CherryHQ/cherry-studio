@@ -21,7 +21,7 @@ Reasoning controls have an additional model-capability/request-encoding boundary
                                    buildProviderModels
 ```
 
-The pipeline never reads its own previous output — the JSON is a function of `src/**` plus the upstream catalogs (models.dev / OpenRouter, read **live**). It is deterministic for fixed inputs, but since upstream is live, regenerating on different days can absorb upstream metadata/pricing drift. The catalog is kept honest not by byte-reproducibility but by the [no-hand-edit guard](#the-no-hand-edit-guard).
+The pipeline never reads its own previous output — the JSON is a function of `src/**` plus the upstream catalogs (models.dev / OpenRouter, read **live**). It is deterministic for fixed inputs, but since upstream is live, regenerating on different days can absorb upstream metadata/pricing drift. Review that drift separately from a scoped schema migration; the image-capability v2 migration does not add upstream models or refresh non-image metadata. This scope does not introduce a permanent catalog-freeze mechanism. The catalog is kept honest not by byte-reproducibility but by the [no-hand-edit guard](#the-no-hand-edit-guard).
 
 ## The three output files
 
@@ -81,21 +81,77 @@ A provider declares how to connect + what it serves. Fields:
 - **`prefixHit(id, p)`** — a `-` or a digit ends the prefix word, so `qwen` claims `qwen-max` and `qwen3-30b`. This is why generic prefixes over-claim.
 - **`crossVendorHost`** — a host listing (e.g. amazon-bedrock) re-lists *other* creators' models as `[region.]vendor.model` arns. Most canonicalize fine; the exception is a vendor with **bare** bedrock ids (`deepseek.r1` → `r1`) that would fold over the real model — those are skipped so the real creator supplies them.
 
-## Image generation (Design B)
+## Image generation (v2)
 
-> **Creator owns metadata; provider owns parameter support.**
+Here v2 names the image-capability design revision, not the registry publication
+version. This contract is published in registry v4, requiring application 2.1.5.
 
-`imageGeneration` has two parts that live in different places:
+The [schema](../src/schemas/model.ts) separates business operation, inputs,
+parameter support and protocol. `generate` accepts zero or more images according
+to its input constraints; image-only models declare a positive minimum.
+`remix` and `upscale` are separate operations only when declared. Image presence
+does not invent an `edit` operation, and multiple images do not invent `merge`.
 
-| part | what | where |
-| --- | --- | --- |
-| `supports` | the param vocabulary (aspectRatio, size, seed, renderingSpeed, …) | **creator** (model-level) — the provider-agnostic DEFAULT |
-| `vendorTransport` | endpoint routing (`/v3/async/…`, `/v1/models/…/predictions`) | **provider** override — differs per provider |
+| Declaration | Responsibility |
+| --- | --- |
+| Base `supports` | Canonical parameter keys and their complete `SupportSpec` constraints |
+| Base `inputs` | Image count, prompt requirement, mask and media-type facts; unknown facts remain explicit |
+| `protocol` | `sdk`, or `custom` with a root-relative endpoint and required `isSync`; provider-specific bindings belong on the provider |
+| `withImages` | Differences for ordinary generation with image input |
+| `operations` | Differences for explicitly declared business operations |
 
-The runtime **replaces** `imageGeneration` wholesale — it does **not** deep-merge (`getImageGenerationSupport`: `override.imageGeneration ?? model.imageGeneration`). Consequences:
+Creators supply the provider-agnostic base. Providers supply differences through
+`ImageGenerationOverrideSchema`, not another complete copy of the base.
+[`resolveImageGenerationSupport`](../src/utils/imageCapabilities.ts) merges only
+`imageGeneration`; unrelated provider configuration retains its own contract.
 
-- A model-level block must **never** carry a provider-specific `vendorTransport`, or every non-overriding provider inherits the wrong endpoint.
-- A provider that needs a custom endpoint carries the **full** block (its own `supports` + `vendorTransport`), since it supersedes the model-level default entirely.
+### Override rules
+
+- Omitted fields inherit. `supports` merges by canonical key, but a supplied
+  `SupportSpec` replaces the entire spec, including its options/default/range.
+  Arrays replace, never append.
+- `inputs` merges by field, including `images.min` and `images.max`. Discriminated
+  values such as `max` and `mediaTypes` replace as a whole.
+- A supplied `protocol` replaces the complete binding; endpoint and sync behavior
+  cannot be inherited independently from different protocols.
+- `withImages` and each operation difference merge by the same field rules.
+  A standalone provider model without a base must supply enough information to
+  form a complete valid capability, including all required `inputs`.
+
+| Explicit `null` | Meaning |
+| --- | --- |
+| `supports[key]` | Remove that inherited parameter |
+| `protocol` | Remove the inherited protocol declaration; this neither selects an SDK nor guarantees an executable target |
+| `withImages` | Clear the inherited image-input difference; input permission still comes from `inputs.images` |
+| `operations[operation]` | Disable that operation; the entire `operations` object cannot be `null` |
+
+### Effective capability
+
+After the provider-model merge, `resolveImageCapability(support, operation,
+hasImages)` starts with the base capability. Only `generate` with images applies
+`withImages`, then the requested operation difference applies last. `remix` and
+`upscale` do not apply `withImages`.
+
+An omitted `generate` entry uses the base; omitted `remix` or `upscale` entries
+are unsupported. An empty difference (`{}`) explicitly declares an operation
+without additional changes. Missing support is `unconfigured`, not an empty
+capability claiming support. Main resolves execution separately; see the
+[current parameter pipeline](../../../docs/references/ai/image-generation-parameters.md).
+
+The schema validates each difference and the combined `withImages` →
+`operations.generate` path in runtime order. Catalog generation and the frozen v4
+validator also resolve creator/provider pairs, rejecting invalid merged input
+constraints before writing or publishing a catalog. Neither step changes the
+declared capabilities or folds resolved overrides into the emitted JSON.
+
+The registry schema version is 4 and its first compatible application version is
+2.1.5. The published v1/v2/v3 baselines remain byte-for-byte unchanged; the new v4
+baseline freezes this contract, including canonical aspect ratios and capability
+composition. See the [compatibility procedure](../compat/README.md). The current
+application remains 2.1.4; remote v4 adoption requires the manifest's compatible
+release range starting at 2.1.5. The publisher leaves v1/v2/v3 directories untouched
+because their tolerant validators cannot prove the new image contract compatible.
+The v4 cache path is separate from earlier streams, with no legacy-shape fallback.
 
 ## The no-hand-edit guard
 
@@ -106,7 +162,7 @@ The runtime **replaces** `imageGeneration` wholesale — it does **not** deep-me
 This is deliberately cheap (no regeneration, no committed snapshots): it catches the one thing that matters — **editing the generated artifact directly** — without needing a deterministic build. Its limits, by design:
 
 - A *combined* edit slips through (changing a `.ts` **and** also hand-tweaking the JSON inconsistently) — code review catches that.
-- A data change must always ride with a source change; there's no standalone "refresh upstream only" commit (upstream drift is absorbed whenever you regenerate during a source edit).
+- A data change must always ride with a source change. Live upstream drift during regeneration still needs a scope review; a schema-only task does not authorize a catalog refresh.
 
 Source **correctness** (as opposed to "the JSON matches the source") is covered separately: zod schema validation at generation time, the catalog-invariant tests (`src/__tests__/catalog-invariants.test.ts`), and PR review of the human-readable `.ts`.
 

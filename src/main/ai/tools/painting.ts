@@ -15,24 +15,27 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import { omit } from 'es-toolkit'
 import * as z from 'zod'
 
 import { application } from '@application'
-import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import {
+  buildImageRequestParamsSchema,
+  type EffectiveImageCapability,
+  IMAGE_PARAM_CATALOG_KEYS,
+  imageParamsSchema,
+  type ParamValues,
+  resolveImageCapability
+} from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import {
-  type ImageGenerationMode,
-  type ImageGenerationSupport,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { type ImageGenerationSupport, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
+import { buildGenerateImageToolSchema, type GenerateImageToolInput } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
@@ -68,11 +71,11 @@ export const PAINTING_ERROR_NOTE = 'Image generation failed (provider error); re
 export const PAINTING_MODEL_NOT_CONFIGURED_NOTE =
   'No painting model is configured. Tell the user to pick one in Settings > Default Model; do not retry — it cannot succeed until then.'
 
-export const PAINTING_EDIT_NOT_SUPPORTED_NOTE =
-  "The configured painting model can't edit images. Tell the user to choose an edit-capable painting model; do not retry with this model."
-
 export const PAINTING_GENERATE_NOT_SUPPORTED_NOTE =
-  "The configured painting model can't generate a new image without input images. Ask for image references or tell the user to choose a generation-capable painting model."
+  'The configured painting model cannot perform this generation request. Check its required image inputs or choose a model that supports ordinary image generation.'
+
+export const PAINTING_INVALID_REQUEST_NOTE =
+  'The image request does not match the configured model constraints. Correct the prompt, image count or parameters before retrying.'
 
 export const PAINTING_INPUT_IMAGE_ERROR_NOTE =
   'One or more image references could not be read as images. Ask the user for valid generated-image FileEntry ids.'
@@ -119,45 +122,32 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   }
 }
 
-function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
-  return input.image_ids && input.image_ids.length > 0 ? 'edit' : 'generate'
-}
-
 function extractParamValues(
   input: GenerateImageToolInput,
-  support: ImageGenerationSupport | null,
-  mode: ImageGenerationMode
+  capability: EffectiveImageCapability | undefined
 ): ParamValues {
-  const supports = support?.modes[mode]?.supports
-  if (!supports) return {}
-
-  const candidate: Record<string, unknown> = {}
-  for (const key of Object.keys(supports)) {
-    const value = input[key as keyof GenerateImageToolInput]
-    if (value !== undefined && value !== null && value !== '') candidate[key] = value
+  const params = omit(input, ['prompt', 'image_ids'])
+  if (capability === undefined) return imageParamsSchema.strict().parse(params)
+  for (const key of IMAGE_PARAM_CATALOG_KEYS) {
+    const spec = capability.supports[key]
+    if (spec?.type !== 'size' || !spec.pairedEnumKey) continue
+    const value = params[key]
+    if (value === undefined) continue
+    const pairedKey = IMAGE_PARAM_CATALOG_KEYS.find((candidate) => candidate === spec.pairedEnumKey)
+    if (pairedKey === undefined) throw new Error(`Unknown size-pair parameter: ${spec.pairedEnumKey}`)
+    const selected = params[pairedKey]
+    if (selected !== undefined && selected !== 'custom' && selected !== value) {
+      throw new Error(`Conflicting values for ${pairedKey} and ${key}`)
+    }
+    params[pairedKey] = value
+    delete params[key]
   }
-
-  const parsed = buildParamsSchema(support, mode).parse(candidate)
-  const regularEntries = Object.entries(supports).flatMap(([key, spec]) => {
-    const value = parsed[key]
-    if (value === undefined || (spec.type === 'size' && spec.pairedEnumKey)) return []
-    return [[key, value]]
-  })
-  const pairedSizeEntries = Object.entries(supports).flatMap(([key, spec]) => {
-    const value = parsed[key]
-    if (value === undefined || spec.type !== 'size' || !spec.pairedEnumKey) return []
-    return [[spec.pairedEnumKey, value]]
-  })
-  return Object.fromEntries([...regularEntries, ...pairedSizeEntries])
+  return buildImageRequestParamsSchema(capability).parse(params)
 }
 
-async function resolveInputImages(
-  imageIds: readonly string[],
-  support: ConfiguredPaintingModel['support']
-): Promise<string[]> {
-  const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
+async function resolveInputImages(imageIds: readonly string[]): Promise<string[]> {
   return Promise.all(
-    ids.map(async (id) => {
+    imageIds.map(async (id) => {
       const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
       if (!mime.startsWith('image/')) throw new Error(`FileEntry ${id} is not an image`)
       return `data:${mime};base64,${content}`
@@ -173,15 +163,26 @@ export async function generateImageFromPrompt(
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
   const { uniqueModelId, support } = configuredModel
-  const mode = resolveMode(input)
-  if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
-    return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+  const resolution = resolveImageCapability(support ?? undefined, 'generate', Boolean(input.image_ids?.length))
+  if (resolution.kind === 'unsupported') return { error: PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+  if (resolution.kind === 'supported' && (input.image_ids?.length ?? 0) < resolution.capability.inputs.images.min) {
+    return { error: PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+  }
+  const validated = buildGenerateImageToolSchema(support).safeParse(input)
+  if (!validated.success) return { error: PAINTING_INVALID_REQUEST_NOTE }
+
+  let paramValues: ParamValues
+  try {
+    paramValues = extractParamValues(input, resolution.kind === 'supported' ? resolution.capability : undefined)
+  } catch (error) {
+    logger.warn('Invalid generate_image parameters', { error })
+    return { error: PAINTING_INVALID_REQUEST_NOTE }
   }
 
   let inputImages: string[] | undefined
-  if (mode === 'edit') {
+  if (input.image_ids?.length) {
     try {
-      inputImages = await resolveInputImages(input.image_ids ?? [], support)
+      inputImages = await resolveInputImages(input.image_ids)
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Failed to resolve generate_image input images', { error })
@@ -193,9 +194,9 @@ export async function generateImageFromPrompt(
     const { files } = await application.get('AiService').generateImage({
       uniqueModelId,
       prompt: input.prompt,
-      mode,
+      operation: 'generate',
       ...(inputImages && { inputImages }),
-      paramValues: extractParamValues(input, support, mode),
+      paramValues,
       // `manual` (confirmed no ref backing): this builtin tool's output only lives
       // in the tool-call part's text result — it is never emitted as a `file` part,
       // so `extractChatMessageFileEntryIds` skips it and none of the *_file_ref

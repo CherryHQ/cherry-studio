@@ -1,82 +1,74 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
-import * as z from 'zod'
 
-import { SiliconImageModel } from '../../silicon/SiliconImageModel'
-import { captureWithFetch } from './captureRequest'
+import { createSiliconProvider } from '../../silicon/siliconProvider'
 
-/**
- * SiliconFlow image-model boundary — a direct OpenAI-flavored
- * `/v1/images/generations` POST. Native size→`image_size`, n>1→`batch_size`,
- * snake_case extras from the `silicon` bag, and up to three input images as
- * `image`/`image2`/`image3` data URLs.
- */
-function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
-  return {
-    prompt: 'a fox',
-    n: 1,
-    size: undefined,
-    aspectRatio: undefined,
-    seed: undefined,
-    providerOptions: {},
-    headers: undefined,
-    abortSignal: undefined,
-    files: undefined,
-    mask: undefined,
-    ...partial
-  }
-}
+const options = {
+  prompt: 'a fox',
+  n: 1,
+  size: undefined,
+  aspectRatio: undefined,
+  seed: undefined,
+  providerOptions: {},
+  files: undefined,
+  mask: undefined
+} satisfies ImageModelV3CallOptions
 
-const config = {
-  provider: 'silicon.image',
-  url: ({ path }: { path: string }) => `https://api.siliconflow.cn/v1${path}`,
-  headers: () => ({ Authorization: 'Bearer sk' })
-}
-
-const url = 'https://api.siliconflow.cn/v1/images/generations'
-
-describe('SiliconFlow image-model boundary', () => {
-  it('text2image: image_size + seed + snake_case extras', async () => {
-    const req = await captureWithFetch((fetch) =>
-      new SiliconImageModel('Qwen/Qwen-Image', { ...config, fetch }).doGenerate(
-        opts({
-          size: '1024x1024',
-          seed: 7,
-          providerOptions: { silicon: { negative_prompt: 'blur', num_inference_steps: 20, guidance_scale: 7.5 } }
-        })
-      )
-    )
-    expect(req.url).toBe(url)
-    z.strictObject({
-      model: z.string(),
-      prompt: z.string(),
-      image_size: z.string(),
-      seed: z.number().int(),
-      negative_prompt: z.string(),
-      num_inference_steps: z.number(),
-      guidance_scale: z.number()
-    }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+// https://api-docs.siliconflow.cn/docs/api/images-generations-post — retrieved 2026-09-09.
+describe('SiliconFlow image boundary', () => {
+  it('delivers Kolors canonical sampling parameters without camelCase wire duplicates', async () => {
+    const requests: Request[] = []
+    const provider = createSiliconProvider({
+      apiKey: 'key',
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ images: [{ url: 'https://image.example/out.png' }] })
+      }
+    })
+    const result = await provider.imageModel('Kwai-Kolors/Kolors').doGenerate({
+      ...options,
+      size: '1024x1024',
+      seed: 0,
+      providerOptions: { silicon: { negativePrompt: 'blur', numInferenceSteps: 20, guidanceScale: 7.5 } }
+    })
+    expect(requests[0].url).toBe('https://api.siliconflow.cn/v1/images/generations')
+    expect(await requests[0].json()).toEqual({
+      model: 'Kwai-Kolors/Kolors',
+      prompt: 'a fox',
+      image_size: '1024x1024',
+      seed: 0,
+      negative_prompt: 'blur',
+      num_inference_steps: 20,
+      guidance_scale: 7.5
+    })
+    expect(result.images).toEqual(['https://image.example/out.png'])
   })
 
-  it('edit: input files inlined as image/image2 data URLs', async () => {
-    const req = await captureWithFetch((fetch) =>
-      new SiliconImageModel('Qwen/Qwen-Image-Edit-2509', { ...config, fetch }).doGenerate(
-        opts({
-          files: [
-            { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) },
-            { mediaType: 'image/jpeg', data: new Uint8Array([4, 5, 6]) }
-          ] as ImageModelV3CallOptions['files']
-        })
-      )
-    )
-    expect(req.url).toBe(url)
-    z.strictObject({
-      model: z.string(),
-      prompt: z.string(),
-      image: z.string(),
-      image2: z.string()
-    }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+  it('preserves each Qwen edit input representation and returns a mask warning', async () => {
+    const requests: Request[] = []
+    const provider = createSiliconProvider({
+      apiKey: 'key',
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ images: [{ url: 'https://image.example/out.png' }] })
+      }
+    })
+    const result = await provider.imageModel('Qwen/Qwen-Image-Edit-2509').doGenerate({
+      ...options,
+      files: [
+        { type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) },
+        { type: 'file', mediaType: 'image/png', data: 'data:image/png;base64,BAUG' },
+        { type: 'url', url: 'https://image.example/reference.png' }
+      ],
+      mask: { type: 'file', mediaType: 'image/png', data: new Uint8Array([0]) }
+    })
+    expect(await requests[0].json()).toEqual({
+      model: 'Qwen/Qwen-Image-Edit-2509',
+      prompt: 'a fox',
+      image: 'data:image/png;base64,AQID',
+      image2: 'data:image/png;base64,BAUG',
+      image3: 'https://image.example/reference.png'
+    })
+    expect(result.warnings).toContainEqual({ type: 'unsupported', feature: 'mask' })
   })
 })

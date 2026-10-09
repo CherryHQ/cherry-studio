@@ -375,22 +375,31 @@
       "family": "qwen",
       "id": "qwen-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "numImages": {
-                "default": 1,
-                "max": 1,
-                "min": 1,
-                "type": "range"
-              },
-              "size": {
-                "default": "1664x928",
-                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "numImages": {
+            "default": 1,
+            "max": 1,
+            "min": 1,
+            "type": "range"
+          },
+          "size": {
+            "default": "1664x928",
+            "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -424,52 +433,38 @@
       "family": "qwen",
       "id": "qwen-image-3-0",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 6,
-                "min": 1,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "auto",
-                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 6,
-                "min": 1,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "auto",
-                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 6,
+            "min": 1,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "size": {
+            "default": "auto",
+            "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -484,52 +479,38 @@
       "family": "qwen",
       "id": "qwen-image-3-0-pro",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 6,
-                "min": 1,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "auto",
-                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 6,
-                "min": 1,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "auto",
-                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 6,
+            "min": 1,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "size": {
+            "default": "auto",
+            "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -553,20 +534,29 @@
       "family": "qwen",
       "id": "qwen-image-edit",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "outputFormat": {
-                "options": ["jpeg", "png", "webp"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 1
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "outputFormat": {
+            "options": ["jpeg", "png", "webp"],
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -3445,30 +3435,39 @@
       "capabilities": ["image-generation"],
       "id": "wan2-6-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "1K",
-                "options": ["1K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "promptExtend": {
-                "default": true,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "1K",
+            "options": ["1K", "2K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "promptExtend": {
+            "default": true,
+            "type": "switch"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -3481,30 +3480,39 @@
       "capabilities": ["image-generation"],
       "id": "wan2-6-t2i",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "1K",
-                "options": ["1K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "promptExtend": {
-                "default": true,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "1K",
+            "options": ["1K", "2K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "promptExtend": {
+            "default": true,
+            "type": "switch"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -3518,26 +3526,35 @@
       "capabilities": ["image-generation"],
       "id": "wan2-7-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "1K",
-                "options": ["1K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "thinkingMode": {
-                "default": true,
-                "type": "switch"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "1K",
+            "options": ["1K", "2K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "thinkingMode": {
+            "default": true,
+            "type": "switch"
           }
         }
       },
@@ -3551,26 +3568,35 @@
       "capabilities": ["image-generation"],
       "id": "wan2-7-image-pro",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "2K",
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "thinkingMode": {
-                "default": true,
-                "type": "switch"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "2K",
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "thinkingMode": {
+            "default": true,
+            "type": "switch"
           }
         }
       },
@@ -5471,33 +5497,34 @@
       "family": "flux",
       "id": "flux-2-flex",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": [
-                  "ASPECT_1_1",
-                  "ASPECT_4_3",
-                  "ASPECT_3_4",
-                  "ASPECT_16_9",
-                  "ASPECT_9_16",
-                  "ASPECT_21_9",
-                  "ASPECT_9_21"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "safetyTolerance": {
-                "default": 2,
-                "max": 6,
-                "min": 0,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "safetyTolerance": {
+            "default": 2,
+            "max": 5,
+            "min": 0,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -5558,33 +5585,34 @@
       "family": "flux",
       "id": "flux-2-pro",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": [
-                  "ASPECT_1_1",
-                  "ASPECT_4_3",
-                  "ASPECT_3_4",
-                  "ASPECT_16_9",
-                  "ASPECT_9_16",
-                  "ASPECT_21_9",
-                  "ASPECT_9_21"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "safetyTolerance": {
-                "default": 2,
-                "max": 6,
-                "min": 0,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "safetyTolerance": {
+            "default": 2,
+            "max": 5,
+            "min": 0,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -5649,33 +5677,34 @@
       "family": "flux",
       "id": "flux-kontext-max",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": [
-                  "ASPECT_1_1",
-                  "ASPECT_4_3",
-                  "ASPECT_3_4",
-                  "ASPECT_16_9",
-                  "ASPECT_9_16",
-                  "ASPECT_21_9",
-                  "ASPECT_9_21"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "safetyTolerance": {
-                "default": 2,
-                "max": 6,
-                "min": 0,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 1
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "safetyTolerance": {
+            "default": 2,
+            "max": 6,
+            "min": 0,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -5691,33 +5720,34 @@
       "family": "flux",
       "id": "flux-kontext-pro",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": [
-                  "ASPECT_1_1",
-                  "ASPECT_4_3",
-                  "ASPECT_3_4",
-                  "ASPECT_16_9",
-                  "ASPECT_9_16",
-                  "ASPECT_21_9",
-                  "ASPECT_9_21"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "safetyTolerance": {
-                "default": 2,
-                "max": 6,
-                "min": 0,
-                "type": "range"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 1
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "9:21"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "safetyTolerance": {
+            "default": 2,
+            "max": 6,
+            "min": 0,
+            "type": "range"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -6490,31 +6520,40 @@
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-4-0",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "maxInputImages": 14,
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "2K",
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "maxImages": {
-                "default": 15,
-                "max": 15,
-                "min": 1,
-                "type": "range"
-              },
-              "sequentialImageGeneration": {
-                "default": "disabled",
-                "options": ["disabled", "auto"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "known",
+              "value": 14
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "2K",
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "maxImages": {
+            "default": 15,
+            "max": 15,
+            "min": 1,
+            "type": "range"
+          },
+          "sequentialImageGeneration": {
+            "default": "disabled",
+            "options": ["disabled", "auto"],
+            "type": "enum"
           }
         }
       },
@@ -6528,31 +6567,40 @@
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-4-5",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "maxInputImages": 14,
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "2K",
-                "options": ["2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "maxImages": {
-                "default": 15,
-                "max": 15,
-                "min": 1,
-                "type": "range"
-              },
-              "sequentialImageGeneration": {
-                "default": "disabled",
-                "options": ["disabled", "auto"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "known",
+              "value": 14
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "2K",
+            "options": ["2K", "4K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "maxImages": {
+            "default": 15,
+            "max": 15,
+            "min": 1,
+            "type": "range"
+          },
+          "sequentialImageGeneration": {
+            "default": "disabled",
+            "options": ["disabled", "auto"],
+            "type": "enum"
           }
         }
       },
@@ -6566,36 +6614,45 @@
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-5-0-lite",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "maxInputImages": 14,
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "2K",
-                "options": ["2K", "3K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "maxImages": {
-                "default": 15,
-                "max": 15,
-                "min": 1,
-                "type": "range"
-              },
-              "outputFormat": {
-                "default": "jpeg",
-                "options": ["jpeg", "png"],
-                "type": "enum"
-              },
-              "sequentialImageGeneration": {
-                "default": "disabled",
-                "options": ["disabled", "auto"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "known",
+              "value": 14
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "2K",
+            "options": ["2K", "3K", "4K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "maxImages": {
+            "default": 15,
+            "max": 15,
+            "min": 1,
+            "type": "range"
+          },
+          "outputFormat": {
+            "default": "jpeg",
+            "options": ["jpeg", "png"],
+            "type": "enum"
+          },
+          "sequentialImageGeneration": {
+            "default": "disabled",
+            "options": ["disabled", "auto"],
+            "type": "enum"
           }
         }
       },
@@ -6609,25 +6666,34 @@
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-5-0-pro",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "maxInputImages": 10,
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "imageResolution": {
-                "default": "2K",
-                "options": ["1K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "outputFormat": {
-                "default": "jpeg",
-                "options": ["jpeg", "png"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "known",
+              "value": 10
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "imageResolution": {
+            "default": "2K",
+            "options": ["1K", "2K"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "outputFormat": {
+            "default": "jpeg",
+            "options": ["jpeg", "png"],
+            "type": "enum"
           }
         }
       },
@@ -8199,20 +8265,29 @@
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -8259,20 +8334,29 @@
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image-preview",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -8582,38 +8666,47 @@
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "auto",
-                "options": [
-                  "auto",
-                  "ASPECT_1_1",
-                  "ASPECT_1_4",
-                  "ASPECT_1_8",
-                  "ASPECT_2_3",
-                  "ASPECT_3_2",
-                  "ASPECT_3_4",
-                  "ASPECT_4_1",
-                  "ASPECT_4_3",
-                  "ASPECT_4_5",
-                  "ASPECT_5_4",
-                  "ASPECT_8_1",
-                  "ASPECT_9_16",
-                  "ASPECT_16_9",
-                  "ASPECT_21_9"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "default": "auto",
-                "options": ["auto", "1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "auto",
+            "options": [
+              "auto",
+              "1:1",
+              "1:4",
+              "1:8",
+              "2:3",
+              "3:2",
+              "3:4",
+              "4:1",
+              "4:3",
+              "4:5",
+              "5:4",
+              "8:1",
+              "9:16",
+              "16:9",
+              "21:9"
+            ],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "default": "auto",
+            "options": ["auto", "1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -8663,20 +8756,29 @@
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-image-preview",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -9499,20 +9601,29 @@
       "family": "gemini",
       "id": "gemini-3-pro-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -9562,20 +9673,29 @@
       "family": "gemini-pro",
       "id": "gemini-3-pro-image-preview",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "imageResolution": {
-                "options": ["1K", "2K", "4K"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "imageResolution": {
+            "options": ["1K", "2K", "4K"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -10088,30 +10208,39 @@
       "family": "imagen",
       "id": "imagen-3",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10126,30 +10255,39 @@
       "family": "imagen",
       "id": "imagen-3-fast",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10164,26 +10302,35 @@
       "family": "imagen",
       "id": "imagen-4",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10197,26 +10344,35 @@
       "capabilities": ["image-generation"],
       "id": "imagen-4-0",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10231,26 +10387,35 @@
       "family": "imagen",
       "id": "imagen-4-0-fast-generate-001",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10264,26 +10429,35 @@
       "capabilities": ["image-generation"],
       "id": "imagen-4-0-fast-generate-preview-06-06",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10298,26 +10472,35 @@
       "family": "imagen",
       "id": "imagen-4-0-generate-001",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10331,25 +10514,34 @@
       "capabilities": ["image-generation"],
       "id": "imagen-4-0-generate-preview-06-06",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 4,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 4,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"],
+            "type": "enum"
           }
         }
       },
@@ -10364,26 +10556,35 @@
       "family": "imagen",
       "id": "imagen-4-0-ultra",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10398,26 +10599,35 @@
       "family": "imagen",
       "id": "imagen-4-0-ultra-generate-001",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10431,19 +10641,28 @@
       "capabilities": ["image-generation"],
       "id": "imagen-4-0-ultra-generate-preview-06-06",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "personGeneration": {
-                "options": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "personGeneration": {
+            "options": ["ALLOW_ALL", "ALLOW_ADULT", "DONT_ALLOW"],
+            "type": "enum"
           }
         }
       },
@@ -10458,26 +10677,35 @@
       "family": "imagen",
       "id": "imagen-4-fast",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10492,26 +10720,35 @@
       "family": "imagen",
       "id": "imagen-4-ultra",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "default": "ASPECT_1_1",
-                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "personGeneration": {
-                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "personGeneration": {
+            "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"],
+            "type": "enum"
           }
         }
       },
@@ -10653,134 +10890,111 @@
       "capabilities": ["image-generation"],
       "id": "ideogram-v3",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "aspectRatio": {
-                "options": [
-                  "1:1",
-                  "1:2",
-                  "1:3",
-                  "2:3",
-                  "3:4",
-                  "4:5",
-                  "9:16",
-                  "10:16",
-                  "2:1",
-                  "3:1",
-                  "3:2",
-                  "4:3",
-                  "5:4",
-                  "16:9",
-                  "16:10"
-                ],
-                "render": "chips",
-                "type": "enum"
-              },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
-              "renderingSpeed": {
-                "default": "DEFAULT",
-                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "styleType": {
-                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "FICTION"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "operations": {
           "remix": {
-            "supports": {
-              "aspectRatio": {
-                "options": [
-                  "1:1",
-                  "1:2",
-                  "1:3",
-                  "2:3",
-                  "3:4",
-                  "4:5",
-                  "9:16",
-                  "10:16",
-                  "2:1",
-                  "3:1",
-                  "3:2",
-                  "4:3",
-                  "5:4",
-                  "16:9",
-                  "16:10"
-                ],
-                "render": "chips",
-                "type": "enum"
+            "inputs": {
+              "images": {
+                "max": {
+                  "kind": "unknown"
+                },
+                "min": 1
               },
+              "prompt": "required"
+            },
+            "supports": {
               "imageWeight": {
                 "max": 100,
                 "min": 1,
                 "type": "range"
-              },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
-              "renderingSpeed": {
-                "default": "DEFAULT",
-                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "styleType": {
-                "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "FICTION"],
-                "type": "enum"
               }
             }
           },
           "upscale": {
+            "inputs": {
+              "images": {
+                "max": {
+                  "kind": "unknown"
+                },
+                "min": 1
+              },
+              "prompt": "required"
+            },
             "supports": {
+              "aspectRatio": null,
               "detail": {
                 "max": 100,
                 "min": 1,
                 "type": "range"
               },
-              "magicPromptOption": {
-                "type": "switch"
-              },
-              "numImages": {
-                "max": 8,
-                "min": 1,
-                "type": "range"
-              },
+              "negativePrompt": null,
+              "renderingSpeed": null,
               "resemblance": {
                 "max": 100,
                 "min": 1,
                 "type": "range"
               },
-              "seed": {
-                "type": "text"
-              }
+              "styleType": null
             }
+          }
+        },
+        "supports": {
+          "aspectRatio": {
+            "options": [
+              "1:1",
+              "1:2",
+              "1:3",
+              "2:3",
+              "3:4",
+              "4:5",
+              "9:16",
+              "10:16",
+              "2:1",
+              "3:1",
+              "3:2",
+              "4:3",
+              "5:4",
+              "16:9",
+              "16:10"
+            ],
+            "render": "chips",
+            "type": "enum"
+          },
+          "magicPromptOption": {
+            "type": "switch"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "max": 8,
+            "min": 1,
+            "type": "range"
+          },
+          "renderingSpeed": {
+            "default": "DEFAULT",
+            "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "styleType": {
+            "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "FICTION"],
+            "type": "enum"
           }
         }
       },
@@ -10794,89 +11008,74 @@
       "capabilities": ["image-generation"],
       "id": "ideogram-v4",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "renderingSpeed": {
-                "default": "DEFAULT",
-                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "2048x2048",
-                "options": [
-                  "2048x2048",
-                  "1440x2880",
-                  "2880x1440",
-                  "1664x2496",
-                  "2496x1664",
-                  "1792x2240",
-                  "2240x1792",
-                  "1440x2560",
-                  "2560x1440",
-                  "1600x2560",
-                  "2560x1600",
-                  "1728x2304",
-                  "2304x1728",
-                  "1296x3168",
-                  "3168x1296",
-                  "1152x2944",
-                  "2944x1152",
-                  "1248x3328",
-                  "3328x1248",
-                  "1280x3072",
-                  "3072x1280",
-                  "1024x3072",
-                  "3072x1024"
-                ],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "operations": {
           "remix": {
+            "inputs": {
+              "images": {
+                "max": {
+                  "kind": "unknown"
+                },
+                "min": 1
+              },
+              "prompt": "required"
+            },
             "supports": {
               "imageWeight": {
                 "max": 100,
                 "min": 1,
                 "type": "range"
-              },
-              "renderingSpeed": {
-                "default": "DEFAULT",
-                "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "2048x2048",
-                "options": [
-                  "2048x2048",
-                  "1440x2880",
-                  "2880x1440",
-                  "1664x2496",
-                  "2496x1664",
-                  "1792x2240",
-                  "2240x1792",
-                  "1440x2560",
-                  "2560x1440",
-                  "1600x2560",
-                  "2560x1600",
-                  "1728x2304",
-                  "2304x1728",
-                  "1296x3168",
-                  "3168x1296",
-                  "1152x2944",
-                  "2944x1152",
-                  "1248x3328",
-                  "3328x1248",
-                  "1280x3072",
-                  "3072x1280",
-                  "1024x3072",
-                  "3072x1024"
-                ],
-                "render": "chips",
-                "type": "enum"
               }
             }
+          }
+        },
+        "supports": {
+          "renderingSpeed": {
+            "default": "DEFAULT",
+            "options": ["FLASH", "TURBO", "DEFAULT", "QUALITY"],
+            "type": "enum"
+          },
+          "size": {
+            "default": "2048x2048",
+            "options": [
+              "2048x2048",
+              "1440x2880",
+              "2880x1440",
+              "1664x2496",
+              "2496x1664",
+              "1792x2240",
+              "2240x1792",
+              "1440x2560",
+              "2560x1440",
+              "1600x2560",
+              "2560x1600",
+              "1728x2304",
+              "2304x1728",
+              "1296x3168",
+              "3168x1296",
+              "1152x2944",
+              "2944x1152",
+              "1248x3328",
+              "3328x1248",
+              "1280x3072",
+              "3072x1280",
+              "1024x3072",
+              "3072x1024"
+            ],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -11394,45 +11593,54 @@
       "family": "Kolors",
       "id": "kolors",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "guidanceScale": {
-                "default": 4.5,
-                "max": 20,
-                "min": 1,
-                "step": 0.1,
-                "type": "range"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 4,
-                "min": 1,
-                "type": "range"
-              },
-              "numInferenceSteps": {
-                "default": 25,
-                "max": 50,
-                "min": 1,
-                "type": "range"
-              },
-              "promptEnhancement": {
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["1024x1024", "1280x960", "960x1280", "768x1024", "1024x768"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "guidanceScale": {
+            "default": 4.5,
+            "max": 20,
+            "min": 1,
+            "step": 0.1,
+            "type": "range"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 4,
+            "min": 1,
+            "type": "range"
+          },
+          "numInferenceSteps": {
+            "default": 25,
+            "max": 50,
+            "min": 1,
+            "type": "range"
+          },
+          "promptEnhancement": {
+            "type": "switch"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["1024x1024", "1280x960", "960x1280", "768x1024", "1024x768"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -12264,88 +12472,56 @@
       "capabilities": ["image-generation"],
       "id": "image-01",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "addWatermark": {
-                "default": false,
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "customSize": {
-                "maxSide": 2048,
-                "minSide": 512,
-                "pairedEnumKey": "size",
-                "type": "size"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 9,
-                "min": 1,
-                "type": "range"
-              },
-              "outputFormat": {
-                "default": "url",
-                "options": ["url", "base64"],
-                "type": "enum"
-              },
-              "promptEnhancement": {
-                "default": false,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "options": ["custom"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "default": false,
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "customSize": {
-                "maxSide": 2048,
-                "minSide": 512,
-                "pairedEnumKey": "size",
-                "type": "size"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 9,
-                "min": 1,
-                "type": "range"
-              },
-              "outputFormat": {
-                "default": "url",
-                "options": ["url", "base64"],
-                "type": "enum"
-              },
-              "promptEnhancement": {
-                "default": false,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "options": ["custom"],
-                "type": "enum"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "default": false,
+            "type": "switch"
+          },
+          "aspectRatio": {
+            "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "customSize": {
+            "maxSide": 2048,
+            "minSide": 512,
+            "pairedEnumKey": "size",
+            "type": "size"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 9,
+            "min": 1,
+            "type": "range"
+          },
+          "outputFormat": {
+            "default": "url",
+            "options": ["url", "base64"],
+            "type": "enum"
+          },
+          "promptEnhancement": {
+            "default": false,
+            "type": "switch"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "size": {
+            "options": ["custom"],
+            "type": "enum"
           }
         }
       },
@@ -12359,68 +12535,46 @@
       "capabilities": ["image-generation"],
       "id": "image-01-live",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "addWatermark": {
-                "default": false,
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 9,
-                "min": 1,
-                "type": "range"
-              },
-              "outputFormat": {
-                "default": "url",
-                "options": ["url", "base64"],
-                "type": "enum"
-              },
-              "promptEnhancement": {
-                "default": false,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "default": false,
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 9,
-                "min": 1,
-                "type": "range"
-              },
-              "outputFormat": {
-                "default": "url",
-                "options": ["url", "base64"],
-                "type": "enum"
-              },
-              "promptEnhancement": {
-                "default": false,
-                "type": "switch"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "default": false,
+            "type": "switch"
+          },
+          "aspectRatio": {
+            "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 9,
+            "min": 1,
+            "type": "range"
+          },
+          "outputFormat": {
+            "default": "url",
+            "options": ["url", "base64"],
+            "type": "enum"
+          },
+          "promptEnhancement": {
+            "default": false,
+            "type": "switch"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -15667,22 +15821,31 @@
       "capabilities": ["image-generation"],
       "id": "dall-e-2",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["256x256", "512x512", "1024x1024"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "numImages": {
+            "default": 1,
+            "max": 10,
+            "min": 1,
+            "type": "range"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["256x256", "512x512", "1024x1024"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -15697,24 +15860,33 @@
       "family": "dall-e",
       "id": "dall-e-3",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "quality": {
-                "options": ["standard", "hd"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["1024x1024", "1792x1024", "1024x1792"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "style": {
-                "options": ["vivid", "natural"],
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "quality": {
+            "options": ["standard", "hd"],
+            "type": "enum"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["1024x1024", "1792x1024", "1024x1792"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "style": {
+            "options": ["vivid", "natural"],
+            "type": "enum"
           }
         }
       },
@@ -17472,62 +17644,43 @@
       "family": "gpt-image",
       "id": "gpt-image-1",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "background": {
+            "options": ["auto", "transparent", "opaque"],
+            "type": "enum"
+          },
+          "moderation": {
+            "options": ["auto", "low"],
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 10,
+            "min": 1,
+            "type": "range"
+          },
+          "quality": {
+            "options": ["auto", "low", "medium", "high"],
+            "type": "enum"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -17580,62 +17733,43 @@
       "family": "gpt-image",
       "id": "gpt-image-1-mini",
       "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
           },
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "background": {
+            "options": ["auto", "transparent", "opaque"],
+            "type": "enum"
+          },
+          "moderation": {
+            "options": ["auto", "low"],
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 10,
+            "min": 1,
+            "type": "range"
+          },
+          "quality": {
+            "options": ["auto", "low", "medium", "high"],
+            "type": "enum"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -17664,30 +17798,39 @@
       "family": "gpt-image",
       "id": "gpt-image-2",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "opaque"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "background": {
+            "options": ["auto", "opaque"],
+            "type": "enum"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 10,
+            "min": 1,
+            "type": "range"
+          },
+          "quality": {
+            "options": ["auto", "low", "medium", "high"],
+            "type": "enum"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -19176,22 +19319,31 @@
       "capabilities": ["image-generation"],
       "id": "hy-image-lite",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -19205,26 +19357,35 @@
       "capabilities": ["image-generation"],
       "id": "hy-image-v3-0",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "seed": {
-                "type": "text"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "aspectRatio": {
+            "default": "1:1",
+            "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
+            "render": "chips",
+            "type": "enum"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "seed": {
+            "type": "text"
           }
         }
       },
@@ -21570,39 +21731,48 @@
       "capabilities": ["image-generation"],
       "id": "cogview-4",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "customSize": {
-                "maxSide": 2048,
-                "minSide": 512,
-                "pairedEnumKey": "size",
-                "type": "size"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 1,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["standard", "hd"],
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "customSize": {
+            "maxSide": 2048,
+            "minSide": 512,
+            "pairedEnumKey": "size",
+            "type": "size"
+          },
+          "negativePrompt": {
+            "multiline": true,
+            "type": "text"
+          },
+          "numImages": {
+            "default": 1,
+            "max": 1,
+            "min": 1,
+            "type": "range"
+          },
+          "quality": {
+            "options": ["standard", "hd"],
+            "type": "enum"
+          },
+          "seed": {
+            "type": "text"
+          },
+          "size": {
+            "default": "1024x1024",
+            "options": ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -22533,19 +22703,28 @@
       "capabilities": ["image-generation"],
       "id": "glm-image",
       "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "size": {
-                "default": "1280x1280",
-                "options": ["1280x1280", "1568x1056", "1056x1568", "1472x1088", "1088x1472", "1728x960", "960x1728"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
+        "inputs": {
+          "images": {
+            "max": {
+              "kind": "unknown"
+            },
+            "min": 0
+          },
+          "mask": "unknown",
+          "mediaTypes": {
+            "kind": "unknown"
+          },
+          "prompt": "required"
+        },
+        "supports": {
+          "addWatermark": {
+            "type": "switch"
+          },
+          "size": {
+            "default": "1280x1280",
+            "options": ["1280x1280", "1568x1056", "1056x1568", "1472x1088", "1088x1472", "1728x960", "960x1728"],
+            "render": "chips",
+            "type": "enum"
           }
         }
       },
@@ -22608,5 +22787,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "463bf245f0915754"
+  "version": "4612bb81c4435c8c"
 }

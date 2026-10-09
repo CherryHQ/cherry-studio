@@ -33,11 +33,7 @@ export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): C
     throw new Error(t('paintings.comfyui.not_served', { surface }))
   }
 
-  const transport = createComfyuiTransport({
-    baseURL: settings.imageBaseURL || settings.baseURL || DEFAULT_COMFYUI_BASE_URL,
-    headers: settings.headers,
-    fetch: settings.fetch
-  })
+  const transport = buildComfyuiTransport(settings)
 
   // The factories are typed by the interface rather than cast into it: a
   // `never`-returning body satisfies both model types, so the contract stays
@@ -46,8 +42,17 @@ export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): C
     specificationVersion: 'v3',
     languageModel: () => unsupported('chat completions'),
     embeddingModel: () => unsupported('embeddings'),
-    imageModel: (modelId: string) => createImageGenerationModel(modelId, { provider: COMFYUI_PROVIDER_NAME, transport })
+    imageModel: (modelId: string) =>
+      createImageGenerationModel(modelId, { provider: COMFYUI_PROVIDER_NAME, transport, modelDescriptor: undefined })
   }
 
   return provider
+}
+
+export function buildComfyuiTransport(settings: ComfyuiProviderSettings) {
+  return createComfyuiTransport({
+    baseURL: settings.imageBaseURL || settings.baseURL || DEFAULT_COMFYUI_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
+  })
 }

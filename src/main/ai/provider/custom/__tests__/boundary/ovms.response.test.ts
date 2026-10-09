@@ -1,39 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { createOvmsTransport } from '../../ovms/ovmsTransport'
-import { submitWithResponse } from './captureRequest'
 
-/** Inbound (response) boundary for OVMS — OpenAI-flat `data[].b64_json|url`. */
-const base = {
+const input = {
+  modelId: 'OpenVINO/stable-diffusion-v1-5',
+  prompt: 'a fox',
   n: 1,
   size: undefined,
   seed: undefined,
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+}
 
-const responseSchema = z.object({
-  data: z.array(z.object({ url: z.string().optional(), b64_json: z.string().optional() }))
-})
-
+// https://docs.openvino.ai/2026/model-server/ovms_docs_rest_api_image_generation.html — retrieved 2026-09-09.
 describe('OVMS response boundary', () => {
-  const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-  const input = { ...base, modelId: 'OpenVINO/stable-diffusion-v1-5', prompt: 'a fox' } as ImageGenerationSubmitInput
-
-  it('data[].b64_json → data: URLs', async () => {
-    const response = { data: [{ b64_json: 'QUJD' }] }
-    responseSchema.parse(response)
-    const result = await submitWithResponse(transport, input, response)
-    expect(result.imageUrls).toMatchSnapshot()
+  it('returns every documented base64 image', async () => {
+    const transport = createOvmsTransport({
+      fetch: async () => Response.json({ data: [{ b64_json: 'AQID' }, { b64_json: 'BAUG' }] })
+    })
+    expect(await transport.submit(input)).toEqual({
+      kind: 'completed',
+      imageUrls: ['data:image/png;base64,AQID', 'data:image/png;base64,BAUG']
+    })
   })
 
-  it('data[].url → urls', async () => {
-    const response = { data: [{ url: 'https://img/o.png' }] }
-    responseSchema.parse(response)
-    const result = await submitWithResponse(transport, input, response)
-    expect(result.imageUrls).toMatchSnapshot()
+  it.each([
+    {},
+    { data: [] },
+    { data: [{}] },
+    { data: [{ b64_json: '' }] },
+    { data: [{ b64_json: 42 }] },
+    { data: [{ url: 'https://images.example/not-supported.png' }] },
+    { data: [{ b64_json: 'AQID' }, {}] }
+  ])('rejects missing or malformed image results: %j', async (body) => {
+    const transport = createOvmsTransport({ fetch: async () => Response.json(body) })
+    await expect(transport.submit(input)).rejects.toThrow()
   })
 })

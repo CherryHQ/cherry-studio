@@ -1,82 +1,147 @@
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
-import type { ImageGenerationSupport } from '@shared/data/types/model'
-
 import {
-  buildGenerateImageToolSchema,
-  editInputImageLimit,
-  generateImageInputSchema,
-  limitGenerateImageInputIds
-} from '../generateImageTool'
+  buildImageRequestParamsSchema,
+  buildParamsSchema,
+  resolveImageCapability,
+  resolveImageGenerationSupport
+} from '@cherrystudio/provider-registry'
+import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
+
+import { buildGenerateImageToolSchema, generateImageInputSchema } from '../generateImageTool'
+
+function registrySupport(providerId: string, apiModelId: string) {
+  const registry = readProviderModelRegistry(
+    resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
+  )
+  const row = registry.overrides.find((entry) => entry.providerId === providerId && entry.apiModelId === apiModelId)
+  if (!row) throw new Error('Missing producer fixture')
+  const models = readModelRegistry(resolve(process.cwd(), 'packages/provider-registry/data/models.json'))
+  const support = resolveImageGenerationSupport(models.models.find((model) => model.id === row.modelId) ?? null, row)
+  if (!support) throw new Error('Missing capability')
+  return support
+}
 
 describe('generate_image input contract', () => {
-  it('keeps the fallback schema object-only and prompt-required', () => {
-    const json = z.toJSONSchema(generateImageInputSchema) as { required?: unknown }
+  it.each([true, false, [], [42], '42'])('does not coerce a non-number Tool seed into a valid request: %j', (seed) => {
+    const schema = buildGenerateImageToolSchema(registrySupport('tokenhub', 'hy-image-v3'))
+    expect(schema.safeParse({ prompt: 'a fox', seed }).success).toBe(false)
+  })
 
-    expect(Array.isArray(json.required)).toBe(true)
-    expect(json.required).toEqual(['prompt'])
+  // https://help.aliyun.com/zh/model-studio/text-to-image-api-reference; retrieved 2026-10-08.
+  it('uses the declared numeric range, not the control step, at both request boundaries', () => {
+    const support = registrySupport('dashscope', 'wanx-v1')
+    const resolved = resolveImageCapability(support, 'generate', false)
+    if (resolved.kind !== 'supported') throw new Error('Missing capability')
+    const tool = buildGenerateImageToolSchema(support)
+    const main = buildImageRequestParamsSchema(resolved.capability)
+    const draft = buildParamsSchema(support)
+    for (const params of [{ refStrength: 0.53 }, { seed: 0 }]) {
+      expect(tool.parse({ prompt: 'a fox', ...params })).toMatchObject(params)
+      expect(main.parse(params)).toStrictEqual(params)
+      expect(draft.parse(params)).toMatchObject(params)
+    }
+    for (const refStrength of [-0.01, 1.01, true, []]) {
+      expect(tool.safeParse({ prompt: 'a fox', refStrength }).success).toBe(false)
+      expect(main.safeParse({ refStrength }).success).toBe(false)
+      expect(draft.parse({ refStrength }).refStrength).toBeUndefined()
+    }
+    const json = z.toJSONSchema(tool, { io: 'input' })
+    expect(json.properties?.refStrength).toMatchObject({ type: 'number', minimum: 0, maximum: 1 })
+    expect(json.properties?.refStrength).not.toHaveProperty('multipleOf')
+    expect(json.properties?.seed).toMatchObject({ type: 'integer' })
+    expect(tool.safeParse({ prompt: 'a fox', seed: 0.5 }).success).toBe(false)
+    expect(main.safeParse({ seed: 0.5 }).success).toBe(false)
+    expect(tool.parse({ prompt: 'a fox' })).not.toHaveProperty('refStrength')
+    expect(main.parse({})).not.toHaveProperty('refStrength')
+  })
+  it('keeps the unconfigured tool prompt-required and rejects undeclared parameters', () => {
     expect(generateImageInputSchema.safeParse({ prompt: 'a cat' }).success).toBe(true)
-    expect(generateImageInputSchema.safeParse({ prompt: 'a cat', n: 2 }).success).toBe(false)
+    expect(generateImageInputSchema.safeParse({ prompt: '', n: 2 }).success).toBe(false)
+    expect(z.toJSONSchema(generateImageInputSchema).type).toBe('object')
   })
 
-  it('derives provider-accurate optional generation params', () => {
-    const support = {
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
-            numImages: { type: 'range', min: 1, max: 3 }
+  // https://cloud.tencent.com/document/product/1823/135745 (retrieved 2026-09-09).
+  it('exposes optional references on ordinary TokenHub generation and enforces its input limit', () => {
+    const registry = readProviderModelRegistry(
+      resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
+    )
+    const row = registry.overrides.find(
+      (entry) => entry.providerId === 'tokenhub' && entry.apiModelId === 'hy-image-v3'
+    )
+    if (!row?.imageGeneration) throw new Error('TokenHub producer fixture missing')
+    const models = readModelRegistry(resolve(process.cwd(), 'packages/provider-registry/data/models.json'))
+    const base = models.models.find((model) => model.id === row.modelId)
+    const support = resolveImageGenerationSupport(base ?? null, row)
+    const schema = buildGenerateImageToolSchema(support)
+    expect(schema.safeParse({ prompt: 'a cat' }).success).toBe(true)
+    expect(schema.safeParse({ prompt: 'a cat', image_ids: ['one', 'two', 'three'] }).success).toBe(true)
+    expect(schema.safeParse({ prompt: 'a cat', image_ids: ['one', 'two', 'three', 'four'] }).success).toBe(false)
+  })
+
+  it('does not union input-specific parameters into the ordinary tool subset', () => {
+    const schema = buildGenerateImageToolSchema({
+      supports: {
+        seed: {
+          type: 'range',
+          min: 0,
+          max: 10
+        },
+        size: {
+          type: 'text'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      withImages: {
+        supports: {
+          strength: {
+            type: 'range',
+            min: 0,
+            max: 1
+          },
+          size: null
         }
       }
-    } satisfies ImageGenerationSupport
-    const inputSchema = buildGenerateImageToolSchema(support)
-    const json = z.toJSONSchema(inputSchema) as { required?: string[]; properties?: Record<string, unknown> }
-
-    expect(json.required).toEqual(['prompt'])
-    expect(json.properties).not.toHaveProperty('image_ids')
-    expect(inputSchema.safeParse({ prompt: 'a cat', size: '1792x1024', numImages: 2 }).success).toBe(true)
-    expect(inputSchema.safeParse({ prompt: 'a cat', size: '2048x2048' }).success).toBe(false)
+    })
+    expect(schema.safeParse({ prompt: 'edit', image_ids: ['f1'], seed: 0 }).success).toBe(true)
+    expect(schema.safeParse({ prompt: 'edit', image_ids: ['f1'], size: '1024x1024' }).success).toBe(false)
+    expect(schema.safeParse({ prompt: 'draw', strength: 0.5 }).success).toBe(false)
   })
 
-  it('limits edit references independently from the maxImages output parameter', () => {
-    const support = {
-      modes: {
-        generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
-        edit: {
-          supports: {
-            maxImages: { type: 'range', min: 1, max: 4 },
-            quality: { type: 'enum', options: ['low', 'high'] }
+  it('requires images and permits an empty prompt only when the capability declares it', () => {
+    const schema = buildGenerateImageToolSchema({
+      supports: {},
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'known',
+            value: 1
           }
+        },
+        prompt: 'optional',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
-    } satisfies ImageGenerationSupport
-    const inputSchema = buildGenerateImageToolSchema(support)
-
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1'], quality: 'high' }).success).toBe(true)
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1', 'f2'], quality: 'high' }).success).toBe(false)
-  })
-
-  it('lifts the edit reference cap to the model-declared maxInputImages', () => {
-    const support = {
-      modes: {
-        edit: {
-          maxInputImages: 3,
-          supports: { quality: { type: 'enum', options: ['low', 'high'] } }
-        }
-      }
-    } satisfies ImageGenerationSupport
-    const inputSchema = buildGenerateImageToolSchema(support)
-
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1', 'f2', 'f3'] }).success).toBe(true)
-    expect(inputSchema.safeParse({ prompt: 'edit', image_ids: ['f1', 'f2', 'f3', 'f4'] }).success).toBe(false)
-    expect(editInputImageLimit(support)).toBe(3)
-  })
-
-  it('truncates input ids to the effective edit limit', () => {
-    expect(editInputImageLimit(null)).toBe(1)
-    expect(limitGenerateImageInputIds(['a', 'b', 'c'], 2)).toEqual(['a', 'b'])
-    expect(limitGenerateImageInputIds(['a'], 3)).toEqual(['a'])
+    })
+    expect(schema.safeParse({ prompt: '', image_ids: ['f1'] }).success).toBe(true)
+    expect(schema.safeParse({ prompt: '' }).success).toBe(false)
   })
 })

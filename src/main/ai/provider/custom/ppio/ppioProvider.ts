@@ -2,13 +2,16 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
-import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './ppioTransport'
+import { createPpioTransport, DEFAULT_PPIO_BASE_URL, type PpioModelDescriptor } from './ppioTransport'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
 
 export interface PpioProviderSettings {
+  /** Chat-only configurations need no binding; imageModel requires the prepared descriptor. */
+  imageBinding?: PpioModelDescriptor
   apiKey?: string
   /** Chat / embedding endpoint (e.g. `https://api.ppinfra.com/v3/openai`). */
   baseURL?: string
@@ -30,13 +33,19 @@ export interface PpioProvider extends ProviderV3 {
 /**
  * Build the PPIO submit/poll image transport from provider settings. Shared by
  * the provider factory (`createPpioProvider`) and the image-generation job's
- * transport registry (`resolveImageTransport`), so the job handler can rebuild
- * the same transport after a restart from the re-resolved provider settings.
+ * transport registry (`resolveImageTransport`), so both paths use the same
+ * re-resolved provider settings.
  */
-export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport {
+export function buildPpioTransport(
+  settings: PpioProviderSettings,
+  modelDescriptor: PpioModelDescriptor
+): ImageGenerationTransport<VendorBag> {
   return createPpioTransport({
+    modelDescriptor,
     apiKey: settings.apiKey ?? '',
-    baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL
+    baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 
@@ -44,8 +53,8 @@ export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerat
  * Unified PPIO provider — chat, embedding, and image off one `ProviderV3`,
  * mirroring `newapi-provider.ts`. Chat/embedding go through the OpenAI-
  * compatible SDK aimed at `settings.baseURL`; the image model keeps its
- * bespoke submit/poll behavior via `createImageGenerationModel + createPpioTransport`
- * aimed at `settings.imageBaseURL` (defaults to `DEFAULT_PPIO_BASE_URL`).
+ * bespoke submit/poll behavior via `createPpioTransport`, aimed at
+ * `settings.imageBaseURL` (defaults to `DEFAULT_PPIO_BASE_URL`).
  */
 export function createPpioProvider(settings: PpioProviderSettings = {}): PpioProvider {
   const { baseURL, fetch: customFetch } = settings
@@ -73,8 +82,6 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       fetch: customFetch
     })
 
-  const transport = buildPpioTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -85,8 +92,17 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: PPIO_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string) => {
+    const descriptor = settings.imageBinding
+    if (!descriptor || descriptor.id !== modelId) {
+      throw new Error(`PPIO imageModel requires its prepared model binding`)
+    }
+    return createImageGenerationModel(modelId, {
+      provider: PPIO_PROVIDER_NAME,
+      modelDescriptor: descriptor,
+      transport: buildPpioTransport({ ...settings, apiKey: resolveApiKey() }, descriptor)
+    })
+  }
 
   return provider
 }

@@ -18,6 +18,8 @@ import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/mode
 
 import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import type * as EndpointModule from '../../../provider/endpoint'
+import { resolveProviderOptionsKey } from '../../../provider/endpoint'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
@@ -61,7 +63,8 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
-vi.mock('@main/ai/provider/endpoint', () => ({
+vi.mock('@main/ai/provider/endpoint', async (importOriginal) => ({
+  ...(await importOriginal<typeof EndpointModule>()),
   resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
 }))
 
@@ -1131,7 +1134,12 @@ function inLoopScope(contextWindow: number): RequestScope {
     registry: new ToolRegistry(),
     mcpToolIds: new Set(),
     capabilities: undefined,
-    sdkConfig: { providerId: 'openai', providerOptionsKey: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    sdkConfig: {
+      providerId: 'openai',
+      providerOptionsKey: resolveProviderOptionsKey('openai'),
+      providerSettings: {},
+      modelId: 'gpt-4o'
+    },
     endpointType: 'openai-chat-completions',
     aiSdkProviderId: 'openai',
     reasoningProfile: { format: 'none', wire: { disabled: true } },

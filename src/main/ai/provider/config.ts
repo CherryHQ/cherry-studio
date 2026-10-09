@@ -17,7 +17,7 @@ import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ImageOperationSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -56,6 +56,8 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
+import { imageTransportDescriptorFor } from './custom/imageTransport'
+import { type NativeImageTarget, resolveNativeImageTarget } from './custom/imageTransportRegistry'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
@@ -85,6 +87,8 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
+  nativeImageTarget?: NativeImageTarget
+  imageProviderId?: 'aihubmix' | 'dmxapi'
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -205,6 +209,12 @@ export async function resolveProviderAiSdkConfig(
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
+  const hasDeclaredImageTransport = hasDeclaredImageProtocol(model)
+  const nativeImageRoute = resolveNativeImageTarget(
+    provider.presetProviderId ?? provider.id,
+    model.apiModelId ?? model.id,
+    undefined
+  )
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -253,7 +263,10 @@ export async function resolveProviderAiSdkConfig(
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
     {
-      match: (p, id) => matchesPreset(p, SystemProviderIds.dashscope) && id === 'openai-compatible',
+      match: (p, id) =>
+        matchesPreset(p, SystemProviderIds.dashscope) &&
+        id === 'openai-compatible' &&
+        (!isGenerateImageModel(model) || hasDeclaredImageTransport),
       build: withSelectedApiKey(buildDashScopeConfig)
     },
     // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
@@ -346,6 +359,7 @@ export async function resolveProviderAiSdkConfig(
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
+        (hasDeclaredImageTransport || nativeImageRoute.kind !== 'unavailable') &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
       build: withSelectedApiKey((ctx) => ({
         // Non-null by the match above.
@@ -387,7 +401,27 @@ export async function resolveProviderAiSdkConfig(
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
   let resolved: ResolvedProviderConfigBuild
-  if (builder) {
+  if (options?.nativeImageTarget?.providerId === 'comfyui') {
+    resolved = await withoutCredential(buildComfyuiConfig)(ctx)
+  } else if (options?.nativeImageTarget) {
+    const target = options.nativeImageTarget
+    resolved = await withSelectedApiKey((ctx) => {
+      if (target.providerId === 'dashscope') return buildDashScopeConfig(ctx)
+      if (target.providerId === 'dmxapi') return buildDmxapiConfig(ctx)
+      return {
+        providerId: target.providerId,
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      }
+    })(ctx)
+  } else if (options?.imageProviderId) {
+    resolved = await withSelectedApiKey(options.imageProviderId === 'dmxapi' ? buildDmxapiConfig : buildAiHubMixConfig)(
+      ctx
+    )
+  } else if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     resolved = await withSelectedApiKey(buildGenericProviderConfig)(ctx)
@@ -396,6 +430,19 @@ export async function resolveProviderAiSdkConfig(
   }
 
   const { config } = resolved
+  const imageTarget = options?.nativeImageTarget
+  if (imageTarget?.providerId === 'ppio' && config.providerId === 'ppio') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'dashscope' && config.providerId === 'dashscope') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'tokenhub' && config.providerId === 'tokenhub') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'dmxapi' && config.providerId === 'dmxapi') {
+    config.providerSettings.imageBinding = { kind: 'custom', binding: imageTarget.binding }
+  }
   // Default every provider to the proxy-aware net.fetch base so the app proxy
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
@@ -747,9 +794,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
-
-  return {
-    providerId: ctx.aiSdkProviderId,
+  const config = {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
@@ -758,6 +803,17 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
       geminiBaseURL,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
+  }
+
+  switch (ctx.aiSdkProviderId) {
+    case 'cherryin':
+      return { providerId: 'cherryin', ...config }
+    case 'cherryin-chat':
+      return { providerId: 'cherryin-chat', ...config }
+    case 'openai-compatible':
+      return buildOpenAICompatibleConfig(ctx)
+    default:
+      throw new Error(`CherryIn config resolved with unsupported provider id: ${ctx.aiSdkProviderId}`)
   }
 }
 
@@ -857,11 +913,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
+  // The registered extension selected this provider id and owns the corresponding settings factory.
   return {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
-  }
+  } as ProviderConfig
 }
 
 /**
@@ -907,6 +964,15 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
+}
+
+function hasDeclaredImageProtocol(model: Pick<Model, 'id' | 'apiModelId' | 'imageGeneration'>): boolean {
+  const modelId = model.apiModelId ?? model.id
+  return ImageOperationSchema.options.some((operation) =>
+    [false, true].some(
+      (hasImages) => imageTransportDescriptorFor(modelId, operation, model.imageGeneration, hasImages) !== undefined
+    )
+  )
 }
 
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {

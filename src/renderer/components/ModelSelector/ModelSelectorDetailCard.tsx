@@ -3,6 +3,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ImageOperationSchema, resolveImageCapability } from '@cherrystudio/provider-registry'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
@@ -108,7 +109,9 @@ function formatReasoningEfforts(values: readonly string[] | undefined, t: TFunct
 }
 
 function formatImageGenerationModes(model: Model, t: TFunction): string | undefined {
-  const modes = Object.keys(model.imageGeneration?.modes ?? {})
+  const modes = ImageOperationSchema.options.filter(
+    (operation) => resolveImageCapability(model.imageGeneration, operation, false).kind === 'supported'
+  )
   return compactList(modes.map((mode) => t(IMAGE_MODE_LABEL_KEYS[mode] ?? mode)))
 }
 

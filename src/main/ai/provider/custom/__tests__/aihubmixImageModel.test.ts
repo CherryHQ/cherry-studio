@@ -1,44 +1,17 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const innerDoGenerate = vi.fn()
-const InnerCtor = vi.fn()
+import type { ImageOperation } from '@shared/data/types/model'
 
-vi.mock('@ai-sdk/openai-compatible', () => ({
-  OpenAICompatibleImageModel: class {
-    constructor(modelId: string, config: unknown) {
-      InnerCtor(modelId, config)
-    }
-    doGenerate(options: unknown) {
-      return innerDoGenerate(options)
-    }
-  }
-}))
+import { resolveAihubmixImageBinding } from '../aihubmix/aihubmixImageBinding'
+import { createAihubmix } from '../aihubmix/aihubmixProvider'
 
-vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII='
+const file = { type: 'file' as const, mediaType: 'image/png', data: PNG }
+afterEach(() => vi.unstubAllGlobals())
 
-import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
-
-/**
- * Covers the relocated AiHubMix special branches (Google native image models,
- * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
- * abort, error handling, and the byte-identical default delegate to the inner
- * `OpenAICompatibleImageModel`.
- */
-describe('AihubmixImageModel', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    innerDoGenerate.mockReset()
-    InnerCtor.mockReset()
-  })
-
-  const baseURL = 'https://aihubmix.com/v1'
-  const resolveApiKey = () => 'sk-test'
-  const headers = () => ({ Authorization: 'Bearer sk-test', 'APP-Code': 'MLTG2087' })
-
-  const make = (modelId: string) => createAihubmixImageModel(modelId, { baseURL, resolveApiKey, headers })
-
-  const callOptions = (overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions => ({
+function options(overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3CallOptions {
+  return {
     prompt: 'a fox',
     n: 1,
     size: undefined,
@@ -46,310 +19,201 @@ describe('AihubmixImageModel', () => {
     seed: undefined,
     files: undefined,
     mask: undefined,
-    providerOptions: { aihubmix: {} },
+    providerOptions: {},
+    headers: undefined,
+    abortSignal: undefined,
     ...overrides
+  }
+}
+
+function model(
+  modelId: string,
+  operation: ImageOperation,
+  response: unknown = { data: [{ url: 'https://images.example/output.png' }] }
+) {
+  const binding = resolveAihubmixImageBinding(modelId, operation, undefined)
+  if (binding.kind === 'unavailable') throw new Error(binding.message)
+  const requests: Request[] = []
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+    requests.push(new Request(input, init))
+    return Response.json(response)
+  })
+  return {
+    requests,
+    fetch,
+    image: createAihubmix({
+      baseURL: 'https://aihubmix.com/v1',
+      apiKey: 'sk-test',
+      fetch,
+      imageBinding: binding.binding
+    }).imageModel(modelId)
+  }
+}
+
+// Wire contracts: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-09-09).
+describe('bound AiHubMix image models', () => {
+  // https://docs.aihubmix.com/cn/api/Image-Gen — Doubao integer seed/max_images bounds, retrieved 2026-09-09.
+  it.each([-2, 2147483648, 0.5])('rejects invalid Doubao seed %s before HTTP instead of omitting it', async (seed) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await expect(image.doGenerate(options({ seed }))).rejects.toThrow()
+    expect(requests).toHaveLength(0)
   })
 
-  const okJson = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
-
-  it('exposes a v3 ImageModel spec', () => {
-    const model = make('gpt-image-1')
-    expect(model.specificationVersion).toBe('v3')
-    expect(model.provider).toBe('aihubmix.image')
-    expect(model.modelId).toBe('gpt-image-1')
-    expect(model.maxImagesPerCall).toBe(10)
+  it.each([0, 16, 0.5])('rejects invalid Doubao maxImages %s before HTTP instead of omitting it', async (maxImages) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await expect(
+      image.doGenerate(options({ providerOptions: { aihubmix: { sequentialImageGeneration: 'auto', maxImages } } }))
+    ).rejects.toThrow()
+    expect(requests).toHaveLength(0)
   })
 
-  describe('Google native image models', () => {
-    it('routes Gemini image models through @ai-sdk/google and normalizes image config', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        okJson({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  { inlineData: { mimeType: 'image/png', data: 'AAA' } },
-                  { inlineData: { mimeType: 'image/png', data: 'BBB' } }
-                ]
-              }
-            }
-          ]
-        })
-      )
-      vi.stubGlobal('fetch', fetchMock)
-
-      const model = make('gemini-3-pro-image-preview')
-      const result = await model.doGenerate(
-        callOptions({
-          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } }
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent')
-      expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('sk-test')
-      const body = JSON.parse(init.body as string)
-      expect(body.generationConfig.responseModalities).toEqual(['IMAGE'])
-      expect(body.generationConfig.imageConfig).toMatchObject({ aspectRatio: '16:9', imageSize: '2K' })
-      expect(result.images).toEqual(['AAA', 'BBB'])
-    })
-
-    it('routes Imagen models through @ai-sdk/google predict and normalizes personGeneration', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await make('imagen-4.0-generate-preview-06-06').doGenerate(
-        callOptions({
-          size: '16:9' as never,
-          providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } }
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/imagen-4.0-generate-preview-06-06:predict')
-      const body = JSON.parse(init.body as string)
-      expect(body.parameters).toMatchObject({
-        aspectRatio: '16:9',
-        personGeneration: 'allow_adult',
-        sampleCount: 1
-      })
-      expect(result.images).toEqual(['IMG'])
-    })
+  it.each([-1, 0, 2147483647])('preserves valid Doubao seed %s and explicit false', async (seed) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await image.doGenerate(options({ seed, providerOptions: { aihubmix: { addWatermark: false } } }))
+    expect(await requests[0].json()).toMatchObject({ seed, watermark: false })
   })
 
-  describe('Ideogram V_3', () => {
-    it('generate → FormData to /ideogram/v1/ideogram-v3/generate with Api-Key', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/a.png' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await make('V_3').doGenerate(
-        callOptions({
-          n: 2,
-          providerOptions: {
-            aihubmix: {
-              mode: 'generate',
-              aspectRatio: 'ASPECT_16_9',
-              renderingSpeed: 'TURBO',
-              styleType: 'AUTO',
-              seed: '42',
-              negativePrompt: 'blur',
-              magicPromptOption: true
-            }
-          }
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/generate')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
-      const form = init.body as FormData
-      expect(form).toBeInstanceOf(FormData)
-      expect(form.get('prompt')).toBe('a fox')
-      expect(form.get('rendering_speed')).toBe('TURBO')
-      expect(form.get('num_images')).toBe('2')
-      expect(form.get('aspect_ratio')).toBe('16x9')
-      expect(form.get('style_type')).toBe('AUTO')
-      expect(form.get('seed')).toBe('42')
-      expect(form.get('negative_prompt')).toBe('blur')
-      expect(form.get('magic_prompt')).toBe('ON')
-      expect(result.images).toEqual(['https://img/a.png'])
+  it.each([
+    ['V_2', 'image_file'],
+    ['ideogram/V3', 'image']
+  ] as const)('converts a remote reference into the %s multipart input', async (modelId, field) => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Unexpected global fetch')))
+    const { image, requests, fetch } = model(modelId, 'remix')
+    const downloads: Request[] = []
+    fetch.mockImplementation(async (url, init) => {
+      const request = new Request(url, init)
+      if (request.method === 'GET') {
+        downloads.push(request)
+        return new Response(Buffer.from(PNG, 'base64'), { headers: { 'content-type': 'image/png' } })
+      }
+      requests.push(request)
+      return Response.json({ data: [{ url: 'https://images.example/output.png' }] })
     })
-
-    it('remix → FormData with image_weight + image blob to /ideogram/v1/ideogram-v3/remix', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/r.png' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await make('V_3').doGenerate(
-        callOptions({
-          providerOptions: {
-            aihubmix: {
-              mode: 'remix',
-              imageWeight: 55,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([1, 2]), name: 'src.png' }]
-            }
-          } as any
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/remix')
-      const form = init.body as FormData
-      expect(form.get('image_weight')).toBe('55')
-      expect(form.get('image')).toBeInstanceOf(Blob)
-      expect(result.images).toEqual(['https://img/r.png'])
-    })
-
-    it('upscale → image_request JSON + image_file blob to /ideogram/aihubmix_image_upscale', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/u.png' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      await make('V_3').doGenerate(
-        callOptions({
-          prompt: '',
-          providerOptions: {
-            aihubmix: {
-              mode: 'upscale',
-              resemblance: 60,
-              detail: 80,
-              numImages: 1,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([9]), name: 'in.png' }]
-            }
-          } as any
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_upscale')
-      const form = init.body as FormData
-      const imageRequest = JSON.parse(form.get('image_request') as string)
-      expect(imageRequest).toMatchObject({ resemblance: 60, detail: 80, num_images: 1, magic_prompt_option: 'OFF' })
-      expect(form.get('image_file')).toBeInstanceOf(Blob)
-    })
+    await image.doGenerate(options({ files: [{ type: 'url', url: 'https://images.example/reference.png' }] }))
+    const input = (await requests[0].formData()).get(field)
+    if (!(input instanceof File)) throw new Error('Missing downloaded reference')
+    expect(Buffer.from(await input.arrayBuffer()).toString('base64')).toBe(PNG)
+    expect(downloads).toHaveLength(1)
+    expect(downloads[0].url).toBe('https://images.example/reference.png')
+    expect(downloads[0].headers.get('Authorization')).toBeNull()
+    expect(downloads[0].headers.get('Api-Key')).toBeNull()
   })
 
-  describe('Ideogram V_1/V_2', () => {
-    it('generate → JSON {image_request} to /ideogram/aihubmix_image_generate', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/v1.png' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await make('V_2').doGenerate(
-        callOptions({
-          n: 3,
-          providerOptions: {
-            aihubmix: {
-              mode: 'generate',
-              aspectRatio: 'ASPECT_1_1',
-              styleType: 'REALISTIC',
-              seed: '7',
-              negativePrompt: 'noise',
-              magicPromptOption: false
-            }
-          }
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_generate')
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
-      const body = JSON.parse(init.body as string)
-      expect(body.image_request).toMatchObject({
-        prompt: 'a fox',
-        model: 'V_2',
-        aspect_ratio: 'ASPECT_1_1',
-        num_images: 3,
-        style_type: 'REALISTIC',
-        seed: 7,
-        negative_prompt: 'noise',
-        magic_prompt_option: 'OFF'
-      })
-      expect(result.images).toEqual(['https://img/v1.png'])
-    })
-
-    it('remix → FormData (image_request JSON + image_file) to /ideogram/aihubmix_image_remix', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ b64_json: 'QUJD' }] }))
-      vi.stubGlobal('fetch', fetchMock)
-
-      const result = await make('V_2').doGenerate(
-        callOptions({
-          providerOptions: {
-            aihubmix: {
-              mode: 'remix',
-              imageWeight: 30,
-              imageFiles: [{ mediaType: 'image/jpeg', data: new Uint8Array([3]), name: 'r.jpg' }]
-            }
-          } as any
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_remix')
-      const form = init.body as FormData
-      const imageRequest = JSON.parse(form.get('image_request') as string)
-      expect(imageRequest.image_weight).toBe(30)
-      expect(form.get('image_file')).toBeInstanceOf(Blob)
-      expect(result.images).toEqual(['data:image/png;base64,QUJD'])
-    })
-  })
-
-  describe('response parsing', () => {
-    it('parses data.output.b64_json[].bytesBase64', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(okJson({ output: { b64_json: [{ bytesBase64: 'OUT1' }, { bytesBase64: 'OUT2' }] } }))
-      )
-      const result = await make('V_2').doGenerate(callOptions())
-      expect(result.images).toEqual(['data:image/png;base64,OUT1', 'data:image/png;base64,OUT2'])
-    })
-
-    it('parses data.data[].b64_json into data: URLs', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [{ b64_json: 'QkJC' }] })))
-      const result = await make('V_2').doGenerate(callOptions())
-      expect(result.images).toEqual(['data:image/png;base64,QkJC'])
-    })
-
-    it('parses data.data[].url verbatim', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/x.png' }] })))
-      const result = await make('V_2').doGenerate(callOptions())
-      expect(result.images).toEqual(['https://img/x.png'])
-    })
-  })
-
-  it('throws a REMOTE_ERROR via readErrorMessage on a non-ok response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: 'bad request' } }), { status: 400 }))
-    )
-    await expect(make('V_2').doGenerate(callOptions())).rejects.toMatchObject({
-      code: 'REMOTE_ERROR',
-      message: 'bad request'
-    })
-  })
-
-  it('forwards the abort signal to fetch', async () => {
-    const controller = new AbortController()
-    const fetchMock = vi.fn().mockImplementation((_url, init) => {
-      return new Promise((_resolve, reject) => {
-        ;(init?.signal as AbortSignal)?.addEventListener('abort', () => {
-          const e = new Error('aborted')
-          e.name = 'AbortError'
-          reject(e)
-        })
-      })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const promise = make('V_2').doGenerate(callOptions({ abortSignal: controller.signal }))
-    controller.abort()
-
-    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
-    expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
-  })
-
-  describe('default branch delegates byte-identically to the inner OpenAICompatibleImageModel', () => {
-    for (const id of ['gpt-image-1', 'gpt-image-2', 'FLUX.1-Kontext-pro', 'some-unknown-model']) {
-      it(`delegates ${id} forwarding the options to the inner model and returns its result unchanged`, async () => {
-        const innerResult = { images: ['data:image/png;base64,DELEGATED'], warnings: [], response: {} }
-        innerDoGenerate.mockResolvedValue(innerResult)
-
-        const options = callOptions({ providerOptions: { aihubmix: { mode: 'generate', quality: 'high' } } })
-        const result = await make(id).doGenerate(options)
-
-        expect(InnerCtor).toHaveBeenCalledWith(id, expect.objectContaining({ provider: 'aihubmix.image', headers }))
-        const ctorConfig = InnerCtor.mock.calls[0][1] as { url: (a: { path: string }) => string }
-        expect(ctorConfig.url({ path: '/images/generations' })).toBe('https://aihubmix.com/v1/images/generations')
-        // The default branch snake-cases the aihubmix bag before delegating, so
-        // the inner model receives an equivalent (not reference-identical)
-        // options object; the bag here has no rename-able keys, so it deep-equals.
-        expect(innerDoGenerate).toHaveBeenCalledWith(options)
-        expect(result).toBe(innerResult)
+  it.each(['V_1', 'V_2', 'V_2_TURBO'] as const)(
+    'sends the actual %s model ID and leaves omitted switches absent',
+    async (modelId) => {
+      const { image, requests } = model(modelId, 'generate')
+      await image.doGenerate(options({ seed: 0 }))
+      expect(requests[0].url).toBe('https://aihubmix.com/ideogram/generate')
+      expect(await requests[0].json()).toEqual({
+        image_request: { prompt: 'a fox', model: modelId, num_images: 1, seed: 0 }
       })
     }
+  )
 
-    it('does NOT delegate non-default ids (V_2) to the inner model', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [] })))
-      await make('V_2').doGenerate(callOptions())
-      expect(innerDoGenerate).not.toHaveBeenCalled()
+  it.each([
+    ['V_1', 'remix', '/ideogram/remix', 'image_file'],
+    ['V_2', 'remix', '/ideogram/remix', 'image_file'],
+    ['V_2', 'upscale', '/ideogram/upscale', 'image_file'],
+    ['ideogram/V3', 'remix', '/ideogram/v1/ideogram-v3/remix', 'image'],
+    ['ideogram/V3', 'upscale', '/ideogram/upscale', 'image_file']
+  ] as const)('preserves the input file for %s %s', async (modelId, operation, path, field) => {
+    const { image, requests } = model(modelId, operation)
+    await image.doGenerate(
+      options({ files: [file], seed: 0, providerOptions: { aihubmix: { magicPromptOption: false, imageWeight: 20 } } })
+    )
+    expect(requests[0].url).toBe(`https://aihubmix.com${path}`)
+    expect(requests[0].headers.get('content-type')).toMatch(/^multipart\/form-data; boundary=/)
+    expect(requests[0].headers.get('Api-Key')).toBe('sk-test')
+    const body = await requests[0].formData()
+    const input = body.get(field)
+    if (!(input instanceof File)) throw new Error('Missing multipart reference')
+    expect(Buffer.from(await input.arrayBuffer()).toString('base64')).toBe(PNG)
+    if (field === 'image') {
+      expect(body.get('seed')).toBe('0')
+      expect(body.get('magic_prompt')).toBe('OFF')
+      expect(body.get('image_weight')).toBe('20')
+    } else {
+      expect(JSON.parse(String(body.get('image_request')))).toMatchObject({ seed: 0, magic_prompt_option: 'OFF' })
+    }
+  })
+
+  it('does not infer a different protocol from a provider-options mode', async () => {
+    const { image, requests } = model('gpt-image-1', 'generate')
+    await expect(image.doGenerate(options({ providerOptions: { aihubmix: { mode: 'remix' } } }))).rejects.toThrow()
+    expect(requests).toHaveLength(0)
+  })
+
+  it('reports an unsupported mask while executing the bound transport', async () => {
+    const { image } = model('V_2', 'generate')
+    const result = await image.doGenerate(options({ mask: file }))
+    expect(result.warnings).toContainEqual({ type: 'unsupported', feature: 'mask' })
+  })
+
+  it('requires a real reference for a bound remix', async () => {
+    const { image, requests } = model('V_2', 'remix')
+    await expect(image.doGenerate(options())).rejects.toMatchObject({
+      name: 'PaintingGenerateError',
+      code: 'IMAGE_RETRY_REQUIRED'
+    })
+    expect(requests).toHaveLength(0)
+  })
+
+  // SDK wire contract: https://ai.google.dev/gemini-api/docs/image-generation (retrieved 2026-09-09).
+  it('preserves Google delegation and its canonical image options', async () => {
+    const { image, requests } = model('gemini-3-pro-image-preview', 'generate', {
+      candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] } }]
+    })
+    const result = await image.doGenerate(
+      options({ aspectRatio: '16:9', providerOptions: { aihubmix: { imageResolution: '2K' } } })
+    )
+    expect(requests[0].url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent')
+    expect(await requests[0].json()).toMatchObject({
+      generationConfig: { imageConfig: { aspectRatio: '16:9', imageSize: '2K' } }
+    })
+    expect(result.images).toEqual([PNG])
+  })
+
+  it('preserves Imagen person-generation options', async () => {
+    const { image, requests } = model('imagen-4.0-generate-001', 'generate', {
+      predictions: [{ bytesBase64Encoded: PNG }]
+    })
+    const result = await image.doGenerate(
+      options({ aspectRatio: '1:1', providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } } })
+    )
+    expect(await requests[0].json()).toMatchObject({
+      parameters: { sampleCount: 1, personGeneration: 'allow_adult', aspectRatio: '1:1' }
+    })
+    expect(result.images).toEqual([PNG])
+  })
+
+  it('preserves provider and call headers on a custom request', async () => {
+    const { image, requests } = model('ideogram/V3', 'generate')
+    await image.doGenerate(options({ headers: { 'X-Image-Call': 'one' } }))
+    expect(requests[0].headers.get('Authorization')).toBe('Bearer sk-test')
+    expect(requests[0].headers.get('APP-Code')).toBe('MLTG2087')
+    expect(requests[0].headers.get('X-Image-Call')).toBe('one')
+  })
+
+  it('propagates caller cancellation through the shared runtime', async () => {
+    const { image, fetch } = model('V_2', 'generate')
+    const controller = new AbortController()
+    fetch.mockImplementation(async (_input, init) => {
+      controller.abort()
+      init?.signal?.throwIfAborted()
+      throw new Error('Expected the transport request to carry the signal')
+    })
+    await expect(image.doGenerate(options({ abortSignal: controller.signal }))).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+  })
+
+  it('preserves structured vendor failure messages', async () => {
+    const { image, fetch } = model('V_2', 'generate')
+    fetch.mockResolvedValue(Response.json({ message: 'account balance exhausted' }, { status: 403 }))
+    await expect(image.doGenerate(options())).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: 'account balance exhausted'
     })
   })
 })

@@ -3,8 +3,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
-import { readErrorMessage } from '../readErrorMessage'
-import { createAbortError } from '../transportUtils'
+import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
 /**
  * The HTTP rules every ComfyUI caller shares: what a caller may override, how a
@@ -90,11 +89,15 @@ export async function requestJson<T>(
         // failure, so the cancellation is checked before the message is reported;
         // a read cut short by this request's deadline leaves a structured
         // `REMOTE_ERROR` behind, which `withDeadline` replaces with the timeout.
-        const message = await readErrorMessage(response, fallback)
+        const { value: error } = await createImageTransportErrorResponseHandler(fallback)({
+          response,
+          url,
+          requestBodyValues: undefined
+        })
         if (signal?.aborted) {
-          throw createAbortError('Request aborted')
+          throw new DOMException('Request aborted', 'AbortError')
         }
-        throw createPaintingGenerateError('REMOTE_ERROR', { message })
+        throw createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
       }
       return (await response.json()) as T
     }

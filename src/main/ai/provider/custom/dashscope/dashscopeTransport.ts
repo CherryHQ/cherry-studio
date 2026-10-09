@@ -1,55 +1,37 @@
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import {
+  createJsonResponseHandler,
+  type FetchFunction,
+  getFromApi,
+  postJsonToApi,
+  postToApi
+} from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
+import * as z from 'zod'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
-} from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
-
-/**
- * Aliyun DashScope (Bailian) async image-generation transport.
- *
- * Models served via DashScope's native `/api/v1/services/aigc/*` HTTP API:
- *   - text2image/image-synthesis (qwen-image / wanx t2i family — Family C)
- *   - multimodal-generation/generation (z-image / qwen-image-edit — Family A, sync)
- *   - image-generation/generation (wan v2 chat-shape async — Family B)
- *   - image2image/image-synthesis (wan2.5 i2i, qwen-mt-image, wanx imageedit — Family D)
- *
- * `modes[mode].vendorTransport.{endpoint,isSync}` carries the per-model routing
- * hint; the transport branches body shape by `descriptor.id` (per-model dispatch
- * mirrors `ppio.ts`). Async submits set `X-DashScope-Async: enable` and return
- * `{ taskId }`; the shared poll loop GETs `/api/v1/tasks/{taskId}` and extracts
- * image URLs from a family-specific response shape recorded at submit time.
- *
- * DashScope has no public task-cancel endpoint — on abort we stop polling; the
- * server-side task continues but its result is discarded.
- */
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../imageTransport'
+import {
+  ADAPTIVE_IMAGE_POLL_POLICY,
+  completedImageTransportSubmission,
+  completedImageTransportTask,
+  type ImageTransportInputSupport,
+  type ImageTransportTaskContext,
+  type ImageTransportTaskState,
+  submittedImageTransportSubmission,
+  type TaskImageGenerationTransport
+} from '../imageTransport'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
+import { fileToDataUrl } from '../transportUtils'
+import { resolveDashScopeImageProtocol } from './dashscopeImageBinding'
 
 export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://dashscope.aliyuncs.com'
 
-export class DashScopeApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number
-  ) {
-    super(message)
-    this.name = 'DashScopeApiError'
-  }
-}
-
-export class DashScopeTaskFailedError extends Error {
-  constructor(reason: string) {
-    super(reason)
-    this.name = 'DashScopeTaskFailedError'
-  }
-}
-
-export type DashScopeTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'UNKNOWN'
-
 interface DashScopeTaskOutput {
   task_id?: string
-  task_status: DashScopeTaskStatus
+  task_status?: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED'
   message?: string
   code?: string
   results?: Array<{ url?: string; image_url?: string }>
@@ -57,60 +39,81 @@ interface DashScopeTaskOutput {
   image_url?: string
 }
 
-export interface DashScopeTaskResult {
-  output: DashScopeTaskOutput
-  request_id?: string
-  usage?: Record<string, unknown>
-}
+/** The resolved registry descriptor, bound once before submission. */
+export type DashScopeModelDescriptor = ImageTransportDescriptor
 
-/**
- * Per-model descriptor injected by `paintingPipeline.ts` from the registry's
- * `modes[mode].vendorTransport`. `id` is the wire model id; `endpoint` is the
- * full path under `imageBaseURL`. `isSync` toggles the `X-DashScope-Async`
- * header and the sync-vs-task-polling control flow.
- */
-export interface DashScopeModelDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: string
-}
-
-export interface DashScopeProviderParams {
-  /** Canonical camelCase params (the transport receives the vendorBag directly;
-   *  native `seed` comes from `input.seed`, routing from `input.modelDescriptor`). */
-  negativePrompt?: string
-  style?: string
-  promptExtend?: boolean
-  addWatermark?: boolean
-  thinkingMode?: boolean
-  /** wan2.6-image mode toggle: true = text+image mixed output (default for
-   *  Cherry's generate tab — no input image required); false = edit mode
-   *  (1–4 input images required). Maps to `parameters.enable_interleave`. */
-  enableInterleave?: boolean
-  /** wan v2 1K / 2K / 4K resolution enum — maps to `parameters.size`. */
-  imageResolution?: string
-  /** wanx-v1 reference-image controls. */
-  refStrength?: number
-  refMode?: string
-  /** qwen-mt-image (Family D2) translation directions. */
-  sourceLang?: string
-  targetLang?: string
-  /** wanx2.1-imageedit (Family D3) function-driven edit controls. */
-  function?: string
-  strength?: number
-  upscaleFactor?: number
-  topScale?: number
-  bottomScale?: number
-  leftScale?: number
-  rightScale?: number
-  isSketch?: boolean
-}
+/** Canonical vendor parameters; native fields come from the submit input. */
+export type DashScopeProviderParams = Pick<
+  VendorBag,
+  | 'negativePrompt'
+  | 'style'
+  | 'promptExtend'
+  | 'addWatermark'
+  | 'thinkingMode'
+  | 'enableInterleave'
+  | 'imageResolution'
+  | 'refStrength'
+  | 'refMode'
+  | 'sourceLang'
+  | 'targetLang'
+  | 'function'
+  | 'strength'
+  | 'upscaleFactor'
+  | 'topScale'
+  | 'bottomScale'
+  | 'leftScale'
+  | 'rightScale'
+  | 'isSketch'
+>
 
 export interface DashScopeTransportSettings {
+  modelDescriptor: DashScopeModelDescriptor
   apiKey: string
   imageBaseURL?: string
+  headers?: Record<string, string | undefined>
+  fetch?: FetchFunction
 }
+
+const dashScopeOutputSchema = z
+  .object({
+    task_id: z.string().min(1).optional(),
+    task_status: z.enum(['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELED']).optional(),
+    message: z.string().optional(),
+    code: z.string().optional(),
+    results: z
+      .array(z.object({ url: z.string().min(1).optional(), image_url: z.string().min(1).optional() }).passthrough())
+      .optional(),
+    choices: z
+      .array(
+        z
+          .object({
+            message: z
+              .object({
+                content: z
+                  .array(z.object({ image: z.string().min(1).optional(), text: z.string().optional() }).passthrough())
+                  .optional()
+              })
+              .passthrough()
+              .optional()
+          })
+          .passthrough()
+      )
+      .optional(),
+    image_url: z.string().min(1).optional()
+  })
+  .passthrough()
+
+const dashScopeAsyncSubmitSchema = z
+  .object({ output: dashScopeOutputSchema.extend({ task_id: z.string().min(1) }) })
+  .passthrough()
+const dashScopeSyncSubmitSchema = z.object({ output: dashScopeOutputSchema }).passthrough()
+const dashScopeTaskResultSchema = z
+  .object({
+    output: dashScopeOutputSchema.extend({
+      task_status: z.enum(['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELED'])
+    })
+  })
+  .passthrough()
 
 type ResponseFamily = 'choices' | 'results' | 'image_url'
 
@@ -146,7 +149,7 @@ function extractImageUrls(output: DashScopeTaskOutput, family: ResponseFamily): 
  * form is `WIDTHxHEIGHT`. Returns `undefined` for the `'auto'` sentinel and
  * empty / mismatched input so callers can omit the field entirely.
  */
-function toDashScopeSize(size: ImageGenerationSubmitInput['size']): string | undefined {
+function toDashScopeSize(size: ImageGenerationSubmitInput<DashScopeProviderParams>['size']): string | undefined {
   if (!size) return undefined
   const value = String(size)
   if (value === 'auto') return undefined
@@ -160,7 +163,10 @@ function toDashScopeSize(size: ImageGenerationSubmitInput['size']): string | und
  * `imageResolution` registry enum; everything else uses `WIDTH*HEIGHT`
  * converted from the canonical `WIDTHxHEIGHT` form.
  */
-function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): string | undefined {
+function resolveSizeParameter(
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  bag: DashScopeProviderParams
+): string | undefined {
   if (typeof bag.imageResolution === 'string' && bag.imageResolution) {
     return bag.imageResolution
   }
@@ -171,7 +177,10 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
  * Family C — flat `input.prompt` body for text2image/image-synthesis
  * (qwen-image / qwen-image-plus / wanx2.x-t2i-* / wanx-v1).
  */
-function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
+function buildText2ImageBody(
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  bag: DashScopeProviderParams
+): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -201,7 +210,10 @@ function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopePr
  * `prompt: { text, images }` → `options.files`). DashScope accepts both
  * `https?:` URLs and `data:` base64 URLs in `content[].image`.
  */
-function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
+function buildChatLikeBody(
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  bag: DashScopeProviderParams
+): Record<string, unknown> {
   const content: Array<{ text?: string; image?: string }> = []
   if (input.prompt) content.push({ text: input.prompt })
   for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
@@ -229,7 +241,10 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
  * user attaches an image, it goes on `input.ref_image`; `style` /
  * `ref_strength` / `ref_mode` live on `parameters.*`.
  */
-function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
+function buildWanxV1Body(
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  bag: DashScopeProviderParams
+): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -256,7 +271,10 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
  * Family D1 — wan2.5-i2i-preview's image2image body. `input.images` is an
  * array (up to 3 per docs); the canonical `input.files` carries them.
  */
-function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
+function buildWan25I2IBody(
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  bag: DashScopeProviderParams
+): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
   if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
@@ -282,10 +300,10 @@ function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
 /**
  * Family D2 — qwen-mt-image translates text rendered in an input image. No
  * prompt; `input.image_url` + `source_lang` + `target_lang` are the only
- * required fields (pipeline must thread `requirePrompt: false`).
+ * required fields (`inputs.prompt: 'optional'` in the registry capability).
  */
 function buildQwenMtImageBody(
-  input: ImageGenerationSubmitInput,
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
   bag: DashScopeProviderParams
 ): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
@@ -304,7 +322,7 @@ function buildQwenMtImageBody(
  * the irrelevant ones per its documented behavior.
  */
 function buildWanxImageEditBody(
-  input: ImageGenerationSubmitInput,
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
   bag: DashScopeProviderParams
 ): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
@@ -334,221 +352,166 @@ function buildWanxImageEditBody(
 }
 
 function buildRequestBody(
-  input: ImageGenerationSubmitInput,
-  descriptor: DashScopeModelDescriptor
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>,
+  protocol: NonNullable<ReturnType<typeof resolveDashScopeImageProtocol>>
 ): Record<string, unknown> {
-  const bag = (input.providerParams ?? {}) as DashScopeProviderParams
-  switch (descriptor.id) {
-    case 'z-image-turbo':
-    case 'qwen-image-3.0':
-    case 'qwen-image-3.0-pro':
-    case 'qwen-image-edit':
-    case 'qwen-image-edit-plus':
-    case 'wan2.6-image':
-    case 'wan2.7-image':
-    case 'wan2.7-image-pro':
+  const bag = input.providerParams
+  switch (protocol) {
+    case 'chat':
       return buildChatLikeBody(input, bag)
-    case 'qwen-image':
-    case 'qwen-image-plus':
-    case 'wanx2.1-t2i-turbo':
-    case 'wanx2.1-t2i-plus':
-    case 'wanx2.0-t2i-turbo':
+    case 'text':
       return buildText2ImageBody(input, bag)
-    case 'wanx-v1':
+    case 'reference':
       return buildWanxV1Body(input, bag)
-    case 'wan2.5-i2i-preview':
+    case 'images':
       return buildWan25I2IBody(input, bag)
-    case 'qwen-mt-image':
+    case 'translation':
       return buildQwenMtImageBody(input, bag)
-    case 'wanx2.1-imageedit':
+    case 'edit':
       return buildWanxImageEditBody(input, bag)
-    default:
-      throw new Error(`Unsupported DashScope image model: ${descriptor.id}`)
   }
 }
 
-class DashScopeTransport implements ImageGenerationTransport {
-  private apiKey: string
-  private baseURL: string
-  private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
+class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProviderParams> {
+  private readonly apiKey: string
+  private readonly baseURL: string
+  private readonly headers: Record<string, string | undefined> | undefined
+  private readonly fetch: FetchFunction | undefined
+
+  private readonly modelDescriptor: DashScopeModelDescriptor
+  private readonly protocol: NonNullable<ReturnType<typeof resolveDashScopeImageProtocol>>
+
+  readonly task: TaskImageGenerationTransport<DashScopeProviderParams>['task'] = {
+    kind: 'supported' as const,
+    pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
+    query: (taskId: string, context: Parameters<DashScopeTransport['query']>[1]) => this.query(taskId, context),
+    cancel: {
+      kind: 'supported' as const,
+      cancelRemote: (taskId: string, context: Parameters<DashScopeTransport['cancelRemote']>[1]) =>
+        this.cancelRemote(taskId, context)
+    }
+  }
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+    this.headers = settings.headers
+    this.fetch = settings.fetch
+    this.modelDescriptor = { ...settings.modelDescriptor }
+    const protocol = resolveDashScopeImageProtocol(settings.modelDescriptor.id)
+    if (!protocol) throw new Error(`Unsupported DashScope image model: ${settings.modelDescriptor.id}`)
+    this.protocol = protocol
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const descriptor = input.modelDescriptor
-    if (!descriptor) {
-      throw new Error(`Missing modelDescriptor for DashScope model: ${input.modelId}`)
-    }
+  supportsInput(): ImageTransportInputSupport {
+    return { files: this.protocol !== 'text', mask: this.protocol === 'edit' }
+  }
 
-    const body = buildRequestBody(input, descriptor)
-    const extraHeaders: Record<string, string> = descriptor.isSync ? {} : { 'X-DashScope-Async': 'enable' }
-
-    const response = await this.request<DashScopeTaskResult>(descriptor.endpoint, 'POST', body, {
-      timeout: 120000,
-      signal: input.signal,
-      extraHeaders
-    })
+  async submit(input: ImageGenerationSubmitInput<DashScopeProviderParams>) {
+    const descriptor = this.modelDescriptor
+    const body = buildRequestBody({ ...input, modelId: descriptor.id }, this.protocol)
+    const url = `${this.baseURL}${descriptor.endpoint}`
+    const response = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 120_000, signal: input.signal },
+      (signal) =>
+        postJsonToApi({
+          url,
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            input.headers,
+            descriptor.isSync ? undefined : { 'X-DashScope-Async': 'enable' }
+          ),
+          body,
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('DashScope API error'),
+          successfulResponseHandler: createJsonResponseHandler(
+            descriptor.isSync ? dashScopeSyncSubmitSchema : dashScopeAsyncSubmitSchema
+          )
+        })
+    )
 
     if (descriptor.isSync) {
-      return { imageUrls: extractImageUrls(response.output, responseFamilyFor(descriptor)) }
+      return completedImageTransportSubmission(
+        extractImageUrls(response.value.output, responseFamilyFor(descriptor)),
+        'DashScope'
+      )
     }
 
-    const taskId = response.output.task_id
-    if (!taskId) {
-      throw new DashScopeApiError('DashScope async submit returned no task_id', 0)
-    }
-    this.pendingDescriptors.set(taskId, descriptor)
-    return { taskId }
+    const taskId = response.value.output.task_id
+    if (!taskId) throw new Error('DashScope async submit returned no task_id')
+    return submittedImageTransportSubmission(taskId, 'DashScope')
   }
 
-  async poll(
+  private async query(
     taskId: string,
-    options: {
-      signal?: AbortSignal
-      onProgress?: (progress: number) => void
-      modelDescriptor?: ImageTransportDescriptor
+    context: ImageTransportTaskContext<DashScopeProviderParams, AbortSignal>
+  ): Promise<ImageTransportTaskState> {
+    const descriptor = context.modelDescriptor
+    if (!descriptor) {
+      throw new Error('DashScope task query requires a persisted modelDescriptor')
     }
-  ): Promise<string[]> {
-    // On a cross-restart resume the in-memory descriptor is gone (the transport is
-    // rebuilt without the submit-time `pendingDescriptors` entry); fall back to the
-    // descriptor persisted in the job input so the response family is still
-    // resolved correctly instead of defaulting to `results`.
-    const descriptor = this.pendingDescriptors.get(taskId) ?? options.modelDescriptor
-    try {
-      const result = await this.pollTaskResult(taskId, options)
-      const family = descriptor ? responseFamilyFor(descriptor) : 'results'
-      return extractImageUrls(result.output, family)
-    } finally {
-      this.pendingDescriptors.delete(taskId)
+
+    const url = `${this.baseURL}/api/v1/tasks/${encodeURIComponent(taskId)}`
+    const result = await withImageTransportRequestTimeout(
+      { url, timeoutMs: 10_000, signal: context.signal },
+      (signal) =>
+        getFromApi({
+          url,
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers
+          ),
+          abortSignal: signal,
+          fetch: this.fetch,
+          failedResponseHandler: createImageTransportErrorResponseHandler('DashScope API error'),
+          successfulResponseHandler: createJsonResponseHandler(dashScopeTaskResultSchema)
+        })
+    )
+
+    const status = result.value.output.task_status
+    if (status === 'SUCCEEDED') {
+      return completedImageTransportTask(
+        extractImageUrls(result.value.output, responseFamilyFor(descriptor)),
+        'DashScope task'
+      )
     }
+    if (status === 'FAILED' || status === 'CANCELED') {
+      return {
+        kind: 'failed',
+        message: result.value.output.message || `DashScope task ${status.toLowerCase()}`
+      }
+    }
+    return { kind: 'pending' }
   }
 
   /**
-   * DashScope has no public task-cancel endpoint, so cancellation is local
-   * only: drop the pending descriptor. The image-model adapter invokes this on
-   * abort, including the abort-after-submit-before-poll window where `poll()`'s
-   * `finally` never runs — without it that descriptor would leak for the
-   * lifetime of the (reused) transport.
+   * Official contract: POST /api/v1/tasks/{task_id}/cancel; only a PENDING
+   * task can be cancelled. Retrieved 2026-07-27:
+   * https://help.aliyun.com/en/model-studio/manage-asynchronous-tasks
    */
-  async cancel(taskId: string): Promise<void> {
-    this.pendingDescriptors.delete(taskId)
-  }
-
-  private async pollTaskResult(
+  private async cancelRemote(
     taskId: string,
-    options: {
-      interval?: number
-      maxAttempts?: number
-      onProgress?: (progress: number) => void
-      signal?: AbortSignal
-    }
-  ): Promise<DashScopeTaskResult> {
-    const { interval, maxAttempts = 120, signal } = options
-    const maxTransientRetries = 10
-    let attempts = 0
-    let transientRetries = 0
-    const startTime = Date.now()
-
-    while (attempts < maxAttempts) {
-      if (signal?.aborted) throw createAbortError('Task polling aborted')
-
-      try {
-        const result = await this.request<DashScopeTaskResult>(
-          `/api/v1/tasks/${encodeURIComponent(taskId)}`,
-          'GET',
-          undefined,
-          { timeout: 10000, signal }
-        )
-        transientRetries = 0
-        const status = result.output.task_status
-        if (status === 'SUCCEEDED') return result
-        if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
-          throw new DashScopeTaskFailedError(result.output.message || `DashScope task ${status.toLowerCase()}`)
-        }
-      } catch (error) {
-        if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
-          throw createAbortError('Task polling aborted')
-        }
-        // A terminal vendor failure or a 4xx (bar 429) poll response ends the
-        // loop; 5xx / 429 fall through to transient retry.
-        if (error instanceof DashScopeTaskFailedError) throw error
-        if (error instanceof DashScopeApiError && isTerminalHttpStatus(error.statusCode)) throw error
-
-        transientRetries++
-        if (transientRetries >= maxTransientRetries) {
-          throw error instanceof Error ? error : new Error(String(error))
-        }
-        const elapsedTime = Date.now() - startTime
-        const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-        await waitWithSignal(pollDelay, signal)
-        continue
-      }
-
-      const elapsedTime = Date.now() - startTime
-      const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
-      await waitWithSignal(pollDelay, signal)
-      attempts++
-    }
-
-    throw new Error('Task polling timeout')
-  }
-
-  private async request<T>(
-    path: string,
-    method: 'POST' | 'GET',
-    body: Record<string, unknown> | undefined,
-    options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
-  ): Promise<T> {
-    const timeout = options.timeout ?? DEFAULT_TIMEOUT
-    const externalSignal = options.signal
-    const controller = new AbortController()
-    let externallyAborted = false
-
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-    const onExternalAbort = () => {
-      externallyAborted = true
-      controller.abort()
-    }
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
-
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        ...(method === 'POST' && { 'Content-Type': 'application/json' }),
-        ...options.extraHeaders
-      },
-      signal: controller.signal
-    }
-    if (method === 'POST' && body !== undefined) {
-      fetchOptions.body = JSON.stringify(body)
-    }
-
-    try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
-      if (!response.ok) {
-        const errorText = (await response.text().catch(() => '')).slice(0, 500)
-        throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)
-      }
-      return (await response.json()) as T
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        if (externallyAborted) throw createAbortError('DashScope API request aborted')
-        throw new Error(`DashScope API request timeout after ${timeout / 1000}s`)
-      }
-      throw error
-    } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
-    }
+    context: ImageTransportTaskContext<DashScopeProviderParams, undefined>
+  ): Promise<void> {
+    const url = `${this.baseURL}/api/v1/tasks/${encodeURIComponent(taskId)}/cancel`
+    await withImageTransportRequestTimeout({ url, timeoutMs: 10_000 }, (signal) =>
+      postToApi({
+        url,
+        headers: combineImageTransportHeaders(
+          { Authorization: `Bearer ${this.apiKey}` },
+          this.headers,
+          context.headers
+        ),
+        body: { content: '', values: {} },
+        abortSignal: signal,
+        fetch: this.fetch,
+        failedResponseHandler: createImageTransportErrorResponseHandler('DashScope API error'),
+        successfulResponseHandler: async () => ({ value: undefined })
+      })
+    )
   }
 }
 
