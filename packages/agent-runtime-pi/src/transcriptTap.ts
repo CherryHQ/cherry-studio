@@ -53,8 +53,9 @@ const customMessageEntry = (
  */
 export class TranscriptTap {
   private cursor: number
+  /** The replayed transcript and every entry emitted since. */
+  private readonly all: TranscriptEntry[]
   private readonly known: Set<string>
-  private head: string | undefined
   private baseTools: Set<string> | undefined
   private activatedTools: string[]
   /** Why the host summarizer failed during the running compaction. */
@@ -67,9 +68,15 @@ export class TranscriptTap {
     private readonly listener: Listener
   ) {
     this.cursor = replayed.piEntryCount
-    this.known = new Set(replayed.transcript.map((entry) => entry.id))
-    this.head = replayed.transcript.at(-1)?.id
+    this.all = [...replayed.transcript]
+    this.known = new Set(this.all.map((entry) => entry.id))
     this.activatedTools = replayed.activatedTools
+  }
+
+  /** The session's whole transcript so far, including entries not emitted yet. */
+  entries(): readonly TranscriptEntry[] {
+    this.flush()
+    return this.all
   }
 
   /** The tools the session declares before any activation; loadout entries record the rest. */
@@ -99,7 +106,7 @@ export class TranscriptTap {
       }
       case 'agent_settled':
         this.flush()
-        this.listener({ type: 'turn-complete', headEntryId: this.head, aborted: event.aborted })
+        this.listener({ type: 'turn-complete', headEntryId: this.all.at(-1)?.id, aborted: event.aborted })
         return
       default:
         this.flush()
@@ -117,8 +124,8 @@ export class TranscriptTap {
       if (!entry) continue
       entries.push(plainJson(entry))
       this.known.add(entry.id)
-      this.head = entry.id
     }
+    this.all.push(...entries)
     if (entries.length > 0) this.listener({ type: 'transcript-append', entries })
     return entries
   }
@@ -196,7 +203,10 @@ export class TranscriptTap {
     return { id: entryId, timestamp, kind: 'state', type: TOOL_LOADOUT_STATE, data: { activated } }
   }
 
-  /** Pi may keep from an entry the transcript leaves out; those carry no context, so the next kept entry is equivalent. */
+  /**
+   * Pi may keep from an entry the transcript leaves out. Such entries carry no context, so keeping
+   * from the next transcript entry is equivalent.
+   */
   private firstKeptId(entry: CompactionEntry): string {
     if (this.known.has(entry.firstKeptEntryId)) return entry.firstKeptEntryId
     const path = this.sessionManager.getBranch(entry.id)
