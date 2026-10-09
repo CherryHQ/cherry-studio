@@ -46,7 +46,7 @@ describe('isVisibleAgentSessionPart', () => {
         input: {}
       } as never)
     ).toBe(true)
-    // MCP-resolved tools always render the generic MCP card.
+    // A dynamic call with no classification signal at all falls back to the generic MCP card.
     expect(
       isVisibleAgentSessionPart({
         type: 'dynamic-tool',
@@ -73,6 +73,84 @@ describe('isVisibleAgentSessionPart', () => {
         input: {}
       } as never)
     ).toBe(false)
+  })
+
+  it('renders dynamic MCP tools but not cardless dynamic provider tools', () => {
+    // Every provider-executed runtime emits its native calls as dynamic parts
+    // (`dynamic: true` + `providerExecuted: true` + `cherry.tool.type`), so the
+    // provider/native and MCP shapes must be told apart exactly like the renderer.
+    const claudeCodeNative = (toolName: string, toolType = 'provider') =>
+      ({
+        type: 'dynamic-tool',
+        toolCallId: `t-${toolName}`,
+        toolName,
+        state: 'output-available',
+        input: {},
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'claude-agent', tool: { type: toolType, name: toolName } }
+        }
+      }) as never
+    // Native tools with a card (chooseTool's agent-tool names) stay visible.
+    expect(isVisibleAgentSessionPart(claudeCodeNative('Bash'))).toBe(true)
+    expect(isVisibleAgentSessionPart(claudeCodeNative('ExitPlanMode'))).toBe(true)
+    // EnterPlanMode has no card in chooseTool: a turn of only it is a no-response turn.
+    expect(isVisibleAgentSessionPart(claudeCodeNative('EnterPlanMode'))).toBe(false)
+    // The approval re-emission path drops providerMetadata but keeps providerExecuted.
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'dynamic-tool',
+        toolCallId: 't-approval-plan',
+        toolName: 'EnterPlanMode',
+        state: 'output-available',
+        input: {},
+        providerExecuted: true
+      } as never)
+    ).toBe(false)
+    // Dynamic MCP calls keep the generic MCP card, with or without cherry metadata.
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'dynamic-tool',
+        toolCallId: 't-mcp-meta',
+        toolName: 'mcp__cherry-tools__web_fetch',
+        state: 'output-available',
+        input: {},
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'claude-agent', tool: { type: 'mcp', serverId: 'cherry-tools' } }
+        }
+      } as never)
+    ).toBe(true)
+    expect(
+      isVisibleAgentSessionPart({
+        type: 'dynamic-tool',
+        toolCallId: 't-mcp-bare',
+        toolName: 'mcp__exa__search',
+        state: 'output-available',
+        input: {},
+        providerExecuted: true
+      } as never)
+    ).toBe(true)
+  })
+
+  it('maps dynamic runtime tool names onto their card names before judging them', () => {
+    // pi/dsh natives carry lower-case runtime names; chooseTool only knows the shared
+    // agent-tool name they normalize onto (renderer getCanonicalToolName).
+    const runtimeNative = (toolName: string, transport: string) =>
+      ({
+        type: 'dynamic-tool',
+        toolCallId: `t-${transport}-${toolName}`,
+        toolName,
+        state: 'output-available',
+        input: {},
+        providerExecuted: true,
+        callProviderMetadata: { cherry: { transport, tool: { type: 'builtin', name: toolName } } }
+      }) as never
+    expect(isVisibleAgentSessionPart(runtimeNative('read', 'pi-agent'))).toBe(true)
+    expect(isVisibleAgentSessionPart(runtimeNative('todo_write', 'dsh-agent'))).toBe(true)
+    expect(isVisibleAgentSessionPart(runtimeNative('codemode', 'pi-agent'))).toBe(true)
+    // A dsh native without a card mapping (chooseTool returns null for it) renders nothing.
+    expect(isVisibleAgentSessionPart(runtimeNative('get_goal', 'dsh-agent'))).toBe(false)
   })
 
   it('drops file parts the renderer cannot render, keeps resolvable ones', () => {
