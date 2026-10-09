@@ -154,6 +154,18 @@ export const ANTHROPIC_CACHE_TTL_OPTIONS = ['5m', '1h'] as const
 const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
+// Subscription quota settings
+export const ProviderSubscriptionMethodSchema = z.enum(['auto', 'http', 'cli'])
+export type ProviderSubscriptionMethod = z.infer<typeof ProviderSubscriptionMethodSchema>
+
+export const ProviderSubscriptionConfigSchema = z.object({
+  enabled: z.boolean(),
+  method: ProviderSubscriptionMethodSchema.optional(),
+  cliCommand: z.string().optional(),
+  httpUrl: z.string().optional()
+})
+export type ProviderSubscriptionConfig = z.infer<typeof ProviderSubscriptionConfigSchema>
+
 export const ProviderSettingsSchema = z.object({
   streamOptions: z
     .object({
@@ -189,7 +201,10 @@ export const ProviderSettingsSchema = z.object({
   // GitHub Copilot auth state (stored here because v2 Provider has no isAuthed column)
   isAuthed: z.boolean().optional(),
   oauthUsername: z.string().optional(),
-  oauthAvatar: z.string().optional()
+  oauthAvatar: z.string().optional(),
+
+  // Subscription plan quota monitoring
+  subscription: ProviderSubscriptionConfigSchema.optional()
 })
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>

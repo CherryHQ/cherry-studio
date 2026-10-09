@@ -24,6 +24,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { SubscriptionQuotaMonitor } from './SubscriptionQuotaMonitor'
 import {
   type BoundedTimeRange,
   CHART_TYPE_KEYS,
@@ -521,6 +522,8 @@ function UsageSettings() {
             </UsagePanel>
           )}
         </UsageSection>
+
+        <SubscriptionQuotaMonitor />
 
         <UsageSection className={cn(!hasUsage && 'hidden')}>
           <UsageSectionHeader>

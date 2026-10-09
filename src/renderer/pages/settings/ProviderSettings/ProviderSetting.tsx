@@ -13,6 +13,7 @@ import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
 import { ModelList, ModelListHealthProvider } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
+import { ProviderSubscriptionSection } from './SubscriptionSettings/ProviderSubscriptionSection'
 
 const ProviderApiSetupDialog = lazy(() => import('./ConnectionSettings/ProviderApiSetupDialog'))
 
@@ -55,6 +56,7 @@ function ProviderSettingSections({
             onOpenApiSetup={() => openApiSetup('api-key')}
             onContinueApiSetup={() => openApiSetup('models')}
           />
+          <ProviderSubscriptionSection providerId={providerId} />
           <div className="flex shrink-0 flex-col">
             <ModelList
               scrollElement={scrollElement}
