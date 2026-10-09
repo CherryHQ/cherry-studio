@@ -132,6 +132,23 @@ the same once the host stores the running turn and rebuilds. `query` is a keywor
 words first, 5 per page), `range: [from, to]` lists entries in order (20 per page) and `expand: [N]`
 returns full text. `scope: 'all'` is the same as `'lineage'`: edits drop the turns after them.
 
+## Extensions
+
+Factories the host passes in `extensionFactories`. Tools are `model-only` (never callable from
+codemode scripts, so every call stays its own tool part) and use the names Cherry's renderer already
+handles.
+
+- **`createTodoExtension()`** – `todo_write` with dsh's schema: `{ todos: { content, status }[] }`,
+  status `pending | in_progress | completed`, no other item fields. Every call carries the whole list
+  and replaces the previous one; content is trimmed and must be non-empty and unique, and at most one
+  todo may be `in_progress`. Invalid lists come back as error results. `details` is
+  `{ todos, counts }`. The extension keeps no state: the latest list is the last successful
+  `todo_write` on the transcript's active path, so it follows forks and edits and the model sees it in
+  the rebuilt history.
+
+The host's approval layer may auto-allow `todo_write` (it only changes the session's list).
+`TODO_TOOL_NAME` holds the name.
+
 ## Known gaps
 
 - `vcc_recall` has no regex search, `mode: 'touched'` (files worked on) or `#N:path` file

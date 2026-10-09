@@ -17,6 +17,13 @@ export {
   createAgentRuntimeSession
 } from './session'
 export {
+  createTodoExtension,
+  TODO_TOOL_NAME,
+  type TodoItem,
+  type TodoStatus,
+  type TodoWriteDetails
+} from './todoExtension'
+export {
   STATE_TYPE_PREFIX,
   TOOL_LOADOUT_STATE,
   type TranscriptCompactionEntry,
