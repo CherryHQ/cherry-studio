@@ -885,8 +885,7 @@ export class BinaryManager extends BaseService {
 
     const destDir = path.join(binDir, tree.dir)
     const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-    const executablesPresent = tree.executables.every((relative) => fs.existsSync(path.join(destDir, relative)))
-    if (executablesPresent && bundledVersion === installedVersion) return
+    if (bundledVersion === installedVersion && (await this.bundledTreeIsComplete(sourceDir, destDir))) return
 
     const stagingDir = path.join(binDir, `${tree.dir}.tmp-${process.pid}`)
     const retiredDir = path.join(binDir, `${tree.dir}.retired-${process.pid}`)
@@ -895,11 +894,18 @@ export class BinaryManager extends BaseService {
     for (const relative of tree.executables) {
       await fsp.chmod(path.join(stagingDir, relative), 0o755)
     }
+    let retired = false
     if (fs.existsSync(destDir)) {
       fs.rmSync(retiredDir, { recursive: true, force: true })
       await fsp.rename(destDir, retiredDir)
+      retired = true
     }
-    await fsp.rename(stagingDir, destDir)
+    try {
+      await fsp.rename(stagingDir, destDir)
+    } catch (error) {
+      if (retired) await fsp.rename(retiredDir, destDir)
+      throw error
+    }
     fs.rmSync(retiredDir, { recursive: true, force: true })
     await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
     logger.info(`Extracted bundled ${tool.name}`, { binDir: destDir, version: bundledVersion })
@@ -919,6 +925,18 @@ export class BinaryManager extends BaseService {
       await fsp.copyFile(source, tmp)
       await fsp.rename(tmp, dest)
     }
+  }
+
+  private async bundledTreeIsComplete(sourceDir: string, destDir: string): Promise<boolean> {
+    if (!fs.existsSync(destDir)) return false
+    const entries = await fsp.readdir(sourceDir, { withFileTypes: true })
+    for (const entry of entries) {
+      const source = path.join(sourceDir, entry.name)
+      const dest = path.join(destDir, entry.name)
+      if (!fs.existsSync(dest)) return false
+      if (entry.isDirectory() && !(await this.bundledTreeIsComplete(source, dest))) return false
+    }
+    return true
   }
 
   private readVersionMarker(filePath: string): string | null {
