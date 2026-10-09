@@ -223,6 +223,101 @@ describe('Pi/DSH connection fallback', () => {
     expect(fallback.close).toHaveBeenCalled()
   })
 
+  it('does not report the session closed while the replacement teardown is still running', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    let releaseReplacementClose!: () => void
+    fallback.close.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReplacementClose = resolve
+        })
+    )
+
+    let closed = false
+    const closing = wrapper.close().then(() => {
+      closed = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseConnect()
+    await vi.waitFor(() => expect(fallback.close).toHaveBeenCalled())
+
+    // The Stop raced the rebuild into discard(): the replacement's own shutdown (DSH cancellation,
+    // client and bridge teardown) is still running, so resolving here would release the host's
+    // closing barrier and let a new connection start mid-cleanup.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(closed).toBe(false)
+
+    releaseReplacementClose()
+    await closing
+    // The teardown ran once inside discard(); close() must join it, not duplicate it.
+    expect(fallback.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebuilds the fallback on the refreshed trace context, not the constructor frozen one', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      {
+        sessionId: 's1',
+        agentId: 'a1',
+        modelId: 'primary::model',
+        trace: {
+          topicId: 'agent-session:s1',
+          traceId: 'trace-1',
+          rootSpanId: 'root-1',
+          sessionId: 's1',
+          turnId: '',
+          modelName: 'primary-model'
+        }
+      } as never,
+      primary as unknown as AgentRuntimeConnection
+    )
+    // Idle priming built the wrapper with no live turn; the host refreshes tracing on turn
+    // admission, and the fallback must inherit that refresh — replaying the frozen context would
+    // file the fallback spans under an empty turnId.
+    void wrapper.refreshTraceContext({
+      topicId: 'agent-session:s1',
+      traceId: 'trace-1',
+      rootSpanId: 'root-1',
+      sessionId: 's1',
+      turnId: 'turn-9',
+      modelName: 'primary-model'
+    })
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trace: expect.objectContaining({ turnId: 'turn-9', modelName: 'model' })
+      })
+    )
+    await wrapper.close()
+  })
+
   it('tears down the rebuilt connection when the session closes during its slow replay submission', async () => {
     const primary = fakeConnection('primary capture')
     const fallback = fakeConnection('fallback capture')

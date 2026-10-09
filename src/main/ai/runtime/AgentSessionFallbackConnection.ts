@@ -10,6 +10,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
   AgentSessionRuntimeDriver
 } from './types'
@@ -129,6 +130,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private pendingConnection?: AgentRuntimeConnection
   /** Settles when an in-flight rebuild connect does, so close() cannot outrun a rebuild it cannot see. */
   private pendingConnect?: Promise<void>
+  /** Teardown of a replacement discard() is closing; close() joins it so the host's closing barrier
+   *  releases only after the replacement's own shutdown settles. */
+  private pendingTeardown?: Promise<void>
+  private trace?: AgentRuntimeTraceContext
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -138,6 +143,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     this.current = connection
     this.currentModelId = input.modelId
     this.resumeToken = input.resumeToken
+    this.trace = input.trace
     void this.pump()
   }
 
@@ -166,6 +172,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   }
 
   refreshTraceContext(context: Parameters<NonNullable<AgentRuntimeConnection['refreshTraceContext']>>[0]) {
+    // Retained: a fallback rebuild re-reads this, and replaying the constructor's frozen context
+    // would re-attribute the fallback turn to an earlier or empty turnId.
+    this.trace = context
     return this.current.refreshTraceContext?.(context)
   }
 
@@ -198,7 +207,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     await this.pendingConnect
     const pending = this.pendingConnection
     this.pendingConnection = undefined
-    await Promise.all([this.current.close(), closeQuietly(pending)])
+    // A discard() raced by this close is still tearing its replacement down; joining that teardown
+    // keeps the host's closing barrier up until the replacement's shutdown settles.
+    await Promise.all([this.current.close(), closeQuietly(pending), this.pendingTeardown])
     this.queue.close()
   }
 
@@ -206,7 +217,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private async discard(connection: AgentRuntimeConnection): Promise<void> {
     if (this.pendingConnection !== connection) return
     this.pendingConnection = undefined
-    await closeQuietly(connection)
+    // Retain the teardown for close(): a close that raced the connect wakes on the very microtask
+    // this discard clears `pendingConnection` on, and must still join the replacement's shutdown.
+    const teardown = closeQuietly(connection)
+    this.pendingTeardown ??= teardown
+    await teardown
   }
 
   private async pump(): Promise<void> {
@@ -265,11 +280,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
           ...this.input,
           modelId: fallbackModelId,
           resumeToken: this.resumeToken,
-          // The fallback connection's spans must name the model that will actually run, not the
-          // primary whose trace container it inherits.
-          ...(this.input.trace
-            ? { trace: { ...this.input.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } }
-            : {})
+          // The fallback connection's spans must name the model that will actually run, while keeping
+          // the container ids of the latest refreshed context — the turnId the host is tracing.
+          ...(this.trace ? { trace: { ...this.trace, modelName: parseUniqueModelId(fallbackModelId).modelId } } : {})
         })
       } finally {
         // Publish the rebuild before close() stops waiting on it, or a close that raced the connect
