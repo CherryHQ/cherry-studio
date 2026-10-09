@@ -5,7 +5,8 @@
  *     provider, audio/video→model + endpoint capable) → left in place and
  *     materialized as the real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
- *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
+ *     `extractDocumentText`, image via OCR, audio/video via media analysis,
+ *     binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
@@ -134,7 +135,13 @@ async function extractNonNativeText(
   signal?: AbortSignal
 ): Promise<string> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-    return `This model can't process the attached ${fileType} file "${handle}".`
+    try {
+      return await application.get('MediaAnalysisService').analyzeToCompactText({ kind: 'entry', entryId }, signal)
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
+      return `Could not analyze the attached ${fileType} file "${handle}".`
+    }
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
     const extracted = await extractDocumentText(entryId, { signal })

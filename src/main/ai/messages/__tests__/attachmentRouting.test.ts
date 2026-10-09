@@ -8,13 +8,18 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getByIdMock, ocrMock } = vi.hoisted(() => ({
+const { getByIdMock, mediaAnalysisMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+  mediaAnalysisMock: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
+    get: (name: string) => {
+      if (name === 'FileProcessingService') return { ocrImage: ocrMock }
+      if (name === 'MediaAnalysisService') return { analyzeToCompactText: mediaAnalysisMock }
+      return { getById: getByIdMock }
+    }
   }
 }))
 
@@ -111,6 +116,7 @@ describe('prepareChatMessages — routing', () => {
 
     expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: `media.${ext}`, mediaType })])
     expect(resolveMock).toHaveBeenCalledOnce()
+    expect(mediaAnalysisMock).not.toHaveBeenCalled()
     expect(extractMock).not.toHaveBeenCalled()
   })
 
@@ -222,13 +228,49 @@ describe('prepareChatMessages — routing', () => {
   it.each([
     ['audio', 'mp3', 'audio/mpeg'],
     ['video', 'mp4', 'video/mp4']
-  ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
+  ] as const)('analyzes a managed %s part the endpoint cannot process', async (_kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
+    mediaAnalysisMock.mockResolvedValueOnce('# Media analysis\n[0:00] compact result')
 
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
 
-    expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
+    expect(textOf(out.parts)[0]).toBe(`Attached file "media.${ext}":\n# Media analysis\n[0:00] compact result`)
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
     expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['probe failed', 'unusable_media_analysis'])(
+    'degrades a non-native video to a clear note when media analysis fails: %s',
+    async (message) => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+      mediaAnalysisMock.mockRejectedValueOnce(new Error(message))
+
+      const [out] = await run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)
+
+      expect(textOf(out.parts)[0]).toBe(
+        'Attached file "media.mp4":\nCould not analyze the attached video file "media.mp4".'
+      )
+      expect(resolveMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rethrows cancellation from media analysis', async () => {
+    const controller = new AbortController()
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new DOMException('Aborted', 'AbortError')
+    })
+
+    const messages = [userMessage([fileWithEntry('e1', 'media.mp4', 'video/mp4')])] as UIMessage[]
+    await expect(
+      prepareChatMessages(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: NONE,
+        isToolCapable: true,
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
