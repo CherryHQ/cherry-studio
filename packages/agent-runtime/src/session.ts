@@ -28,12 +28,18 @@ export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   requestOptions: TRequestOptions
   sideChannel?: ModelCallSideChannel
   model: AgentRuntimeModel
-  /** Working directory for Pi's built-in tools and the `<cwd>` prompt section. Nothing is loaded from it. */
+  /** Working directory for Pi's built-in tools and the `<cwd>` prompt section. */
   cwd: string
-  /** Pi's agent directory. Nothing is loaded from it; it only keeps Pi off its `~/.pi/agent` default. */
+  /** Pi's agent directory; keeps Pi off its `~/.pi/agent` default. Only context files are ever read from it. */
   agentDir: string
-  /** Replaces Pi's default prompt. Pi still appends a `<cwd>` section. */
-  systemPrompt: string
+  /** Replaces Pi's default prompt; Pi's own prompt when omitted. Pi still appends a `<cwd>` section. */
+  systemPrompt?: string
+  /** Added after the system prompt. */
+  appendSystemPrompt?: string[]
+  /** Load `AGENTS.md` / `CLAUDE.md` from `cwd`, its ancestors and `agentDir` (a user-chosen, trusted workspace). */
+  contextFiles?: boolean
+  /** Skill directories the host enables; loaded although skill discovery stays off. */
+  skillPaths?: string[]
   /** Conversation so far, oldest first; the session lives only in memory. */
   history?: Message[]
   tools?: ToolDefinition[]
@@ -51,7 +57,10 @@ export interface AgentRuntimeSession {
   dispose(): Promise<void>
 }
 
-/** Builds a Pi agent session entirely in memory: no credentials, settings, resources or session files from disk. */
+/**
+ * Builds a Pi agent session in memory: no credentials, settings, extensions or session files from disk.
+ * Workspace context files and skills load only when the host opts in.
+ */
 export async function createAgentRuntimeSession<TRequestOptions>(
   options: AgentRuntimeSessionOptions<TRequestOptions>
 ): Promise<AgentRuntimeSession> {
@@ -84,10 +93,12 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,
-    noContextFiles: true,
+    noContextFiles: !options.contextFiles,
+    additionalSkillPaths: options.skillPaths,
     extensionFactories: options.extensionFactories,
+    // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
-    appendSystemPromptOverride: () => []
+    appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
   })
   await resourceLoader.reload()
 
