@@ -1,15 +1,17 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'cn' as 'cn' | 'global',
+  openSettingsTab: vi.fn(),
+  setTheme: vi.fn(),
+  themeMode: 'system' as 'light' | 'dark' | 'system',
   ipcRequest: vi.fn(
     async (route: string): Promise<unknown> =>
       route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
@@ -22,9 +24,14 @@ type PopoverContextValue = {
   onOpenChange?: (open: boolean) => void
 }
 
+type DialogContextValue = {
+  onOpenChange?: (open: boolean) => void
+}
+
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactType
   const PopoverContext = React.createContext<PopoverContextValue>({ open: false })
+  const DialogContext = React.createContext<DialogContextValue>({})
 
   return {
     Avatar: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
@@ -40,30 +47,88 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
-    Center: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <div data-testid="center" {...props}>
-        {children}
-      </div>
-    ),
     ColFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="col-flex" {...props}>
         {children}
       </div>
     ),
-    Dialog: ({ children, open }: { children?: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) =>
-      open ? <div data-testid="dialog">{children}</div> : null,
+    ConfirmDialog: ({
+      cancelText,
+      confirmLoading,
+      confirmText,
+      content,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }: {
+      cancelText?: string
+      confirmLoading?: boolean
+      confirmText?: string
+      content?: ReactNode
+      description?: ReactNode
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+      title?: ReactNode
+    }) =>
+      open ? (
+        <div role="dialog" aria-label={String(title)}>
+          <h2>{title}</h2>
+          {description}
+          {content}
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            aria-busy={confirmLoading || undefined}
+            disabled={confirmLoading}
+            onClick={async () => {
+              await onConfirm?.()
+              onOpenChange?.(false)
+            }}>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
+    Dialog: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) =>
+      open ? (
+        <DialogContext value={{ onOpenChange }}>
+          <div data-testid="dialog">{children}</div>
+        </DialogContext>
+      ) : null,
     DialogContent: ({
       children,
       closeOnOverlayClick,
+      onEscapeKeyDown,
       ...props
     }: {
       children?: ReactNode
       closeOnOverlayClick?: boolean
+      onEscapeKeyDown?: (event: KeyboardEvent) => void
       [key: string]: unknown
     }) => {
+      const context = React.use(DialogContext)
       void closeOnOverlayClick
       return (
-        <div data-testid="dialog-content" {...props}>
+        <div
+          data-testid="dialog-content"
+          onKeyDownCapture={(event) => {
+            if (event.key !== 'Escape') return
+            onEscapeKeyDown?.(event.nativeEvent)
+            if (!event.nativeEvent.defaultPrevented) context.onOpenChange?.(false)
+          }}
+          {...props}>
           {children}
         </div>
       )
@@ -128,7 +193,32 @@ vi.mock('@cherrystudio/ui', () => {
       <div data-testid="row-flex" {...props}>
         {children}
       </div>
-    )
+    ),
+    SegmentedControl: ({
+      options,
+      value,
+      onValueChange,
+      ...props
+    }: {
+      options: Array<{ value: string; label: ReactNode }>
+      value?: string
+      onValueChange?: (value: string) => void
+      [key: string]: unknown
+    }) => (
+      <div role="radiogroup" {...props}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            onClick={() => onValueChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
+    Tooltip: ({ children }: { children?: ReactNode; content?: ReactNode }) => children
   }
 })
 
@@ -146,14 +236,12 @@ vi.mock('@renderer/utils/appEdition', () => ({
   getAppEdition: () => mocks.appEdition
 }))
 
-vi.mock('@renderer/utils/naming', () => ({
-  isEmoji: (value: string) => value === '🙂'
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
 }))
 
-// Canvas isn't available in jsdom; stub the renderer normalize step to fixed bytes.
-vi.mock('@renderer/utils/image', async (importOriginal) => ({
-  ...(await importOriginal<typeof ImageUtils>()),
-  prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ settedTheme: mocks.themeMode, setTheme: mocks.setTheme })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -162,7 +250,18 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { displayName?: string }) => {
+      if (key === 'settings.appearance.title') return 'Appearance'
+      if (key === 'settings.provider.cherry_cloud.title') return 'Localized Cherry Cloud'
+      if (key === 'settings.provider.cherry_cloud.logout_confirm_title') return 'Log out?'
+      if (key === 'settings.provider.cherry_cloud.logout_confirm_account') {
+        return `Signed in as ${options?.displayName}`
+      }
+      if (key === 'settings.provider.cherry_cloud.logout_confirm_description') {
+        return "You'll need to sign in again to keep using Cherry Cloud."
+      }
+      return key
+    }
   })
 }))
 
@@ -170,8 +269,12 @@ import { PopupHost } from '@renderer/components/PopupHost'
 
 import UserPopup from '../UserPopup'
 
-function showUserPopup() {
-  render(<PopupHost />)
+function showUserPopup(onKeyDown?: ReactType.KeyboardEventHandler<HTMLDivElement>) {
+  render(
+    <div onKeyDown={onKeyDown}>
+      <PopupHost />
+    </div>
+  )
 
   // show() adds an entry to the popup store and synchronously notifies PopupHost;
   // wrap it so the resulting useSyncExternalStore re-render runs inside act().
@@ -185,6 +288,7 @@ describe('UserPopup', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     mocks.appEdition = 'cn'
+    mocks.themeMode = 'system'
     mocks.statusListener = null
     mocks.ipcRequest.mockImplementation(async (route: string) =>
       route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
@@ -215,95 +319,55 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('lets a space be typed inside the name and stores the name without surrounding whitespace', async () => {
+  it('opens personal information settings from the identity avatar or name', async () => {
     const user = userEvent.setup()
-    MockUsePreferenceUtils.setPreferenceValue('app.user.name', '')
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
-    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
-    await user.type(input, 'John Doe ')
+    const identity = await screen.findByRole('button', { name: 'settings.general.user_name.label' })
+    expect(within(identity).getByTestId('avatar-image')).toBeVisible()
+    expect(within(identity).getByText('Yinsen')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'settings.general.user_name.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.avatar' })).not.toBeInTheDocument()
 
-    expect(input).toHaveValue('John Doe ')
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('John Doe')
+    await user.click(within(identity).getByTestId('avatar-image'))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/usage')
+    await waitFor(() => expect(screen.queryByTestId('dialog')).not.toBeInTheDocument())
   })
 
-  it('follows the stored name until the draft is typed', async () => {
+  it('opens settings and closes the account popup from the Settings row', async () => {
     const user = userEvent.setup()
-    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Before')
-    showUserPopup()
-    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
-    expect(input).toHaveValue('Before')
-
-    // The mocked hook has no subscription, so re-render through an unrelated interaction.
-    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'After')
-    fireEvent.click(await screen.findByTestId('popover-trigger'))
-    expect(input).toHaveValue('After')
-
-    await user.type(input, ' X')
-
-    expect(input).toHaveValue('After X')
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('After X')
-  })
-
-  it('only customizes avatar picker popover width and padding', async () => {
     showUserPopup()
 
-    fireEvent.click(await screen.findByTestId('popover-trigger'))
-
-    const popoverContent = screen.getByTestId('popover-content')
-
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
+    const settings = await screen.findByRole('button', { name: 'common.settings' })
+    expect(settings.parentElement).toHaveClass('gap-0.5', 'pt-1')
+    expect(settings.parentElement).not.toHaveClass('mt-0.5')
+    expect(screen.getByRole('button', { name: 'settings.general.user_name.label' }).parentElement).toHaveClass('pb-1')
+    expect(settings.parentElement?.parentElement).toHaveClass('w-56', 'p-1.5')
+    expect(screen.getByRole('button', { name: 'settings.general.user_name.label' })).not.toHaveClass(
+      'hover:bg-transparent'
     )
+
+    await user.click(settings)
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    await waitFor(() => expect(screen.queryByTestId('dialog')).not.toBeInTheDocument())
   })
 
-  it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {
+  it('changes the existing theme from the account popup appearance control', async () => {
+    const user = userEvent.setup()
     showUserPopup()
 
-    // Open the avatar popover to reveal the upload control + hidden file input.
-    const trigger = await screen.findByTestId('popover-trigger')
-    fireEvent.click(trigger)
+    const themeControl = await screen.findByRole('radiogroup', { name: 'Appearance' })
+    expect(within(themeControl).getByRole('radio', { name: 'settings.theme.system' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
 
-    // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
-    const file = Object.assign(new File(['webp'], 'a.webp', { type: 'image/webp' }), {
-      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
-    })
-    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
-    expect(input.accept.split(/,\s*/)).toContain('image/webp')
-    fireEvent.change(input, { target: { files: [file] } })
+    await user.click(within(themeControl).getByRole('radio', { name: 'settings.theme.dark' }))
 
-    await waitFor(() => {
-      expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', {
-        kind: 'image',
-        data: expect.any(Uint8Array)
-      })
-    })
-  })
-
-  it('rejects an oversize avatar at pick time without calling profile.set_avatar', async () => {
-    showUserPopup()
-
-    const trigger = await screen.findByTestId('popover-trigger')
-    fireEvent.click(trigger)
-
-    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
-      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
-    })
-    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 })
-    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
-    fireEvent.change(input, { target: { files: [file] } })
-
-    await waitFor(() => {
-      expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
-        'profile.set_avatar',
-        expect.objectContaining({ kind: 'image' })
-      )
-    })
+    expect(mocks.setTheme).toHaveBeenCalledWith('dark')
   })
 
   it('starts and cancels Cherry Studio browser authorization', async () => {
@@ -317,30 +381,101 @@ describe('UserPopup', () => {
     showUserPopup()
 
     const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
+    expect(loginButton).toHaveClass('w-full')
+    expect(loginButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
+    const appearance = screen.getByRole('radiogroup', { name: 'Appearance' })
+    expect(appearance.compareDocumentPosition(loginButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await user.click(loginButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.start')
-    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.signing_in' })).toHaveAttribute(
-      'aria-busy',
-      'true'
-    )
+    expect(screen.getByRole('status')).toHaveTextContent('settings.provider.cherry_cloud.signing_in')
+    const cancelButton = screen.getByRole('button', { name: 'common.cancel' })
+    expect(cancelButton).toBeEnabled()
+    expect(cancelButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
 
-    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await user.click(cancelButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
   })
 
-  it('hides the Cherry Cloud login action in the global edition', async () => {
+  it('keeps identity in the header and renders the localized Cherry Cloud subtitle', async () => {
+    showUserPopup()
+
+    expect(await screen.findByText('Localized Cherry Cloud')).toBeVisible()
+    expect(screen.queryByText('Cherry Cloud')).not.toBeInTheDocument()
+    const nameButton = screen.getByRole('button', { name: 'settings.general.user_name.label' })
+    const loginButton = screen.getByRole('button', { name: 'settings.provider.cherry_cloud.login' })
+    expect(nameButton).not.toHaveTextContent('settings.general.user_name.label')
+    expect(loginButton).toHaveClass('w-full', 'min-h-7')
+    expect(loginButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
+    expect(
+      screen.getByRole('radiogroup', { name: 'Appearance' }).compareDocumentPosition(loginButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('shows the signed-in account when browser authorization completes', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
+      return undefined
+    })
+    showUserPopup()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' }))
+    act(() => mocks.statusListener?.({ phase: 'signed-in', displayName: '189****1942' }))
+
+    expect(screen.getByText('Yinsen')).toBeVisible()
+    expect(await screen.findByRole('status')).toHaveTextContent(/^189\*\*\*\*1942$/)
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.logout' })).toBeEnabled()
+    expect(screen.queryByText('Localized Cherry Cloud')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the Cherry Cloud login action below appearance in the global edition', async () => {
     mocks.appEdition = 'global'
     showUserPopup()
 
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.status.get'))
 
-    expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
+    const loginButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })
+    expect(loginButton).toBeVisible()
+    expect(
+      screen.getByRole('radiogroup', { name: 'Appearance' }).compareDocumentPosition(loginButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
-  it('revokes the current Cherry Cloud session and returns to the login action', async () => {
+  it('keeps the Cherry Cloud session when logout confirmation is cancelled', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-in', displayName: 'Sora' }
+      return undefined
+    })
+    showUserPopup()
+
+    const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
+    expect(screen.getByRole('status')).toHaveTextContent(/^Sora$/)
+    // The persistent row stays neutral; destructive styling is reserved for the confirmation action.
+    expect(logoutButton).not.toHaveClass('text-destructive')
+    await user.click(logoutButton)
+
+    const confirmDialog = screen.getByRole('dialog', { name: 'Log out?' })
+    expect(confirmDialog).toHaveTextContent('Signed in as Sora')
+    expect(confirmDialog).toHaveTextContent("You'll need to sign in again to keep using Cherry Cloud.")
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('cherry_cloud.session.revoke')
+    await user.click(within(confirmDialog).getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Log out?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/^Sora$/)
+    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.logout' })).toBeEnabled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('cherry_cloud.session.revoke')
+  })
+
+  it('revokes the current Cherry Cloud session only after logout is confirmed', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-in', displayName: 'Sora' }
@@ -349,11 +484,10 @@ describe('UserPopup', () => {
     })
     showUserPopup()
 
-    const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
-    expect(screen.getByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
-    expect(logoutButton).toHaveAttribute('variant', 'outline')
-    await user.click(logoutButton)
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' }))
+    const confirmDialog = screen.getByRole('dialog', { name: 'Log out?' })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('cherry_cloud.session.revoke')
+    await user.click(within(confirmDialog).getByRole('button', { name: 'settings.provider.cherry_cloud.logout' }))
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
@@ -372,7 +506,9 @@ describe('UserPopup', () => {
     showUserPopup()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('error.http.503')
-    await userEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    const retryButton = screen.getByRole('button', { name: 'common.retry' })
+    expect(retryButton.parentElement).toBe(screen.getByRole('button', { name: 'common.settings' }).parentElement)
+    await userEvent.click(retryButton)
 
     expect(await screen.findByRole('status')).toHaveTextContent('Sora')
     expect(statusAttempts).toBe(2)
