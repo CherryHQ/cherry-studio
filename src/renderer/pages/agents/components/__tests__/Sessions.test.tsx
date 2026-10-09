@@ -3750,6 +3750,9 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(screen.queryByRole('menuitem', { name: 'Delete all sessions' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('menuitem', { name: /Delete Permanently|common.delete_permanently/ })
+    ).not.toBeInTheDocument()
     const deleteAgentMenuItem = screen
       .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')

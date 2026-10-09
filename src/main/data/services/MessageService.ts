@@ -603,7 +603,6 @@ export class MessageService {
     // Build maps for tree processing
     const messagesById = new Map<string, Message>()
     const childrenMap = new Map<string, string[]>()
-    const depthMap = new Map<string, number>()
 
     for (const row of treeRows) {
       const message = rowToMessage(row)
@@ -612,7 +611,6 @@ export class MessageService {
       // tree node / sibling group has a null parent; the canvas skips edges to the
       // (unrendered) virtual root.
       messagesById.set(message.id, message)
-      depthMap.set(message.id, row.treeDepth)
 
       const parentId = message.parentId || 'root'
       if (!childrenMap.has(parentId)) {
@@ -1588,7 +1586,7 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: input.data,
+          data: { ...input.data, modelSelection: row.data?.modelSelection },
           status: input.status,
           stats: stats ?? null
         })
@@ -1637,6 +1635,7 @@ export class MessageService {
       }
       const data: MessageData = {
         parts: [],
+        ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)

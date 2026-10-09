@@ -777,6 +777,44 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
   })
 
+  it('keeps teardown completion observable after a slow cleanup and waits for actual process exit', async () => {
+    vi.useFakeTimers()
+    try {
+      const cleanup = createDeferred<IteratorResult<void>>()
+      const exited = createDeferred<void>()
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, close: vi.fn(), return: () => cleanup.promise }
+      mocks.consumeWarmQuery.mockResolvedValue({
+        warmQuery: { query: () => query },
+        processDiagnostics: { reference: 'slow-close', exited: exited.promise }
+      })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      let state = 'pending'
+      const closing = connection.closeForEdit!().then(
+        () => {
+          state = 'closed'
+        },
+        () => {
+          state = 'failed'
+        }
+      )
+      await vi.advanceTimersByTimeAsync(20_001)
+      expect(state).toBe('pending')
+      cleanup.resolve({ value: undefined, done: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(state).toBe('pending')
+      exited.resolve()
+      await closing
+      expect(state).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -2260,6 +2298,97 @@ describe('ClaudeCodeRuntimeDriver', () => {
       {
         type: 'context-usage',
         usage: { categories: [], totalTokens: 1000, maxTokens: 200_000, percentage: 0.5, model: 'sonnet-sdk' }
+      }
+    ])
+    await connection.close()
+  })
+
+  it.each([
+    { name: 'uncached', usage: { input_tokens: 12_345 }, totalTokens: 12_345, percentage: 6.1725 },
+    {
+      name: 'cache reads only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8192, cache_creation_input_tokens: 0 },
+      totalTokens: 8192,
+      percentage: 4.096
+    },
+    {
+      name: 'cache writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 4096 },
+      totalTokens: 4096,
+      percentage: 2.048
+    },
+    {
+      name: 'cache reads and writes only',
+      usage: { input_tokens: 0, cache_read_input_tokens: 8000, cache_creation_input_tokens: 4000 },
+      totalTokens: 12_000,
+      percentage: 6
+    }
+  ])('emits trailing message_delta context usage ($name)', async ({ usage, totalTokens, percentage }) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'anthropic::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // Bridge gateways report real input tokens only on the trailing delta (message_start is still 0).
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_start',
+        message: { id: 'req-1', model: 'sonnet-sdk', usage: { input_tokens: 0, output_tokens: 1 } }
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { ...usage, output_tokens: 5 }
+      }
+    })
+    // Subagent lanes must not move the session ring.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: 'tool-1',
+      event: { type: 'message_delta', delta: {}, usage: { input_tokens: 50_000, output_tokens: 1 } }
+    })
+    // Sparse direct-Anthropic deltas must not replace a complete input reading.
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: {
+        type: 'message_delta',
+        delta: {},
+        usage: { input_tokens: null, output_tokens: 1, cache_read_input_tokens: 500 } as any
+      }
+    })
+    queryQueue.push({
+      type: 'stream_event',
+      parent_tool_use_id: null,
+      event: { type: 'message_delta', delta: {}, usage: { output_tokens: 2, cache_read_input_tokens: 500 } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'delta-usage-result',
+      usage: { ...usage, output_tokens: 5 }
+    })
+
+    const seen: any[] = []
+    while (!seen.some((event) => event?.type === 'turn-complete')) {
+      seen.push((await events.next()).value)
+    }
+    expect(seen.filter((event) => event?.type === 'context-usage')).toEqual([
+      {
+        type: 'context-usage',
+        usage: { categories: [], totalTokens, maxTokens: 200_000, percentage, model: 'sonnet-sdk' }
       }
     ])
     await connection.close()

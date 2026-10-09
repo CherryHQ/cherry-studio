@@ -1,11 +1,8 @@
 import crypto from 'crypto'
 
 import { application } from '@application'
-import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 
-import { hashPairedDeviceToken } from '../pairedDeviceToken'
-
-/** Timing-safe string comparison; also used by the pairing-code exchange. */
+/** Timing-safe string comparison. */
 export const isValidToken = (token: string, apiKey: string): boolean => {
   const tokenBuf = Buffer.from(token, 'utf8')
   const keyBuf = Buffer.from(apiKey, 'utf8')
@@ -16,23 +13,6 @@ export const isValidToken = (token: string, apiKey: string): boolean => {
 }
 
 export type AuthFailure = { status: 401 | 403; error: string }
-
-const authorizePairedDeviceToken = (token: string | undefined): AuthFailure | undefined => {
-  const normalizedToken = token?.trim()
-  if (!normalizedToken) {
-    return { status: 401, error: 'Unauthorized: missing credentials' }
-  }
-
-  if (apiGatewayPairedDeviceService.hasTokenHash(hashPairedDeviceToken(normalizedToken))) {
-    return undefined
-  }
-
-  return { status: 403, error: 'Forbidden' }
-}
-
-/** Authenticate a paired mobile device without granting the desktop gateway key access to device-only routes. */
-export const authorizePairedDeviceRequest = (bearerToken: string | undefined): AuthFailure | undefined =>
-  authorizePairedDeviceToken(bearerToken)
 
 /**
  * Validate the credentials presented to the protected API routes. Three dialects

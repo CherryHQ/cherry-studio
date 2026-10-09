@@ -10,9 +10,22 @@ import { Node, Project } from 'ts-morph'
 
 const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const MAIN_DIR = path.join(__dirname, '../src/main')
+const FILE_PREVIEW_DIR = path.join(__dirname, '../packages/file-preview/src')
+const SOURCE_DIRECTORIES = { renderer: RENDERER_DIR, main: MAIN_DIR, 'file-preview': FILE_PREVIEW_DIR }
+type FindingSource = keyof typeof SOURCE_DIRECTORIES
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
 const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts', '*prompts*.ts']
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// `*` matches any run of characters and everything else is literal, so `*.d.ts`
+// only matches declaration files. The previous `pattern.replace('*', '.*')`
+// conversion left the dots unescaped and the result unanchored, which made
+// `*.d.ts` match any name containing `d<any>ts`.
+const compileGlob = (pattern: string): RegExp => new RegExp(`^${pattern.split('*').map(escapeRegExp).join('.*')}$`)
+
+const IGNORED_FILE_PATTERNS = IGNORED_FILES.map(compileGlob)
 
 // 'content' is handled specially - only checked for specific components
 const UI_ATTRIBUTES = [
@@ -39,7 +52,7 @@ interface Finding {
   line: number
   content: string
   type: 'chinese' | 'english'
-  source: 'renderer' | 'main'
+  source: FindingSource
   nodeType: string
 }
 
@@ -68,7 +81,7 @@ function createFinding(
   node: Node,
   sourceFile: SourceFile,
   type: 'chinese' | 'english',
-  source: 'renderer' | 'main',
+  source: FindingSource,
   nodeType: string
 ): Finding {
   return {
@@ -217,7 +230,7 @@ class HardcodedStringDetector {
     })
   }
 
-  scanFile(filePath: string, source: 'renderer' | 'main'): Finding[] {
+  scanFile(filePath: string, source: FindingSource): Finding[] {
     const findings: Finding[] = []
 
     try {
@@ -233,7 +246,7 @@ class HardcodedStringDetector {
     return findings
   }
 
-  private checkNode(node: Node, sourceFile: SourceFile, source: 'renderer' | 'main', findings: Finding[]): void {
+  private checkNode(node: Node, sourceFile: SourceFile, source: FindingSource, findings: Finding[]): void {
     if (shouldSkipNode(node)) return
 
     if (Node.isJsxText(node)) {
@@ -280,7 +293,7 @@ class HardcodedStringDetector {
           if (!isNonUIString(value)) {
             if (hasCJK(value)) {
               findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxAttribute'))
-            } else if (source === 'renderer' && hasEnglishUIText(value)) {
+            } else if (source !== 'main' && hasEnglishUIText(value)) {
               findings.push(createFinding(node, sourceFile, 'english', source, 'JsxAttribute'))
             }
           }
@@ -334,19 +347,14 @@ function shouldSkipFile(filePath: string, baseDir: string): boolean {
   }
 
   const fileName = path.basename(filePath)
-  if (
-    IGNORED_FILES.some((pattern) => {
-      const regex = new RegExp(pattern.replace('*', '.*'))
-      return regex.test(fileName)
-    })
-  ) {
+  if (IGNORED_FILE_PATTERNS.some((regex) => regex.test(fileName))) {
     return true
   }
 
   return false
 }
 
-function scanDirectory(dir: string, source: 'renderer' | 'main', detector: HardcodedStringDetector): Finding[] {
+function scanDirectory(dir: string, source: FindingSource, detector: HardcodedStringDetector): Finding[] {
   const findings: Finding[] = []
 
   if (!fs.existsSync(dir)) {
@@ -363,7 +371,7 @@ function scanDirectory(dir: string, source: 'renderer' | 'main', detector: Hardc
         findings.push(...scanDirectory(fullPath, source, detector))
       }
     } else if (entry.isFile() && EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
-      if (!shouldSkipFile(fullPath, source === 'renderer' ? RENDERER_DIR : MAIN_DIR)) {
+      if (!shouldSkipFile(fullPath, SOURCE_DIRECTORIES[source])) {
         findings.push(...detector.scanFile(fullPath, source))
       }
     }
@@ -379,6 +387,7 @@ function formatFindings(findings: Finding[]): string {
 
   const rendererFindings = findings.filter((f) => f.source === 'renderer')
   const mainFindings = findings.filter((f) => f.source === 'main')
+  const filePreviewFindings = findings.filter((f) => f.source === 'file-preview')
   const chineseFindings = findings.filter((f) => f.type === 'chinese')
   const englishFindings = findings.filter((f) => f.type === 'english')
 
@@ -426,10 +435,21 @@ function formatFindings(findings: Finding[]): string {
     }
   }
 
+  if (filePreviewFindings.length > 0) {
+    output += '\n📦 File Preview Package:\n'
+    output += '-'.repeat(50) + '\n'
+    for (const finding of filePreviewFindings) {
+      const relativePath = path.relative(FILE_PREVIEW_DIR, finding.file)
+      output += `\n📍 ${relativePath}:${finding.line} [${finding.nodeType}, ${finding.type}]\n`
+      output += `   ${finding.content}\n`
+    }
+  }
+
   output += '\n' + '='.repeat(50) + '\n'
   output += `Total: ${findings.length} potential issues found\n`
   output += `  - Renderer: ${rendererFindings.length} (Chinese: ${rendererFindings.filter((f) => f.type === 'chinese').length}, English: ${rendererFindings.filter((f) => f.type === 'english').length})\n`
   output += `  - Main: ${mainFindings.length} (Chinese: ${mainFindings.length})\n`
+  output += `  - File preview: ${filePreviewFindings.length}\n`
   output += `  - Total Chinese: ${chineseFindings.length}\n`
   output += `  - Total English: ${englishFindings.length}\n`
 
@@ -443,7 +463,8 @@ export function main(): void {
 
   const rendererFindings = scanDirectory(RENDERER_DIR, 'renderer', detector)
   const mainFindings = scanDirectory(MAIN_DIR, 'main', detector)
-  const findings = [...rendererFindings, ...mainFindings]
+  const filePreviewFindings = scanDirectory(FILE_PREVIEW_DIR, 'file-preview', detector)
+  const findings = [...rendererFindings, ...mainFindings, ...filePreviewFindings]
 
   const output = formatFindings(findings)
   console.log(output)

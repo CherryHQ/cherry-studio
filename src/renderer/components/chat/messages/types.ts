@@ -4,7 +4,7 @@ import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Citation, MessageUiState } from '@renderer/types/message'
-import type { MessageExportView } from '@renderer/types/messageExport'
+import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
@@ -249,6 +249,7 @@ export interface AnchorMessage {
 }
 
 export interface MessageRenderConfig {
+  subagentListTitle?: string
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle
@@ -380,6 +381,7 @@ export interface MessageListActions {
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>
@@ -417,9 +419,15 @@ export interface MessageListActions {
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  exportSelectedMessages?: (
+    messageIds: readonly string[] | undefined,
+    target: MessageExportTarget
+  ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
+  canEditMessage?: (message: MessageListItem) => boolean
+  editLabel?: string
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (

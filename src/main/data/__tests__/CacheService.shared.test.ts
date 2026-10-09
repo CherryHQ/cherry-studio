@@ -58,18 +58,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Override electron BrowserWindow with a test-controllable mock.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return {
-    ...actual,
-    BrowserWindow: fakeBrowserWindow
-  }
-})
-
 // JobManager's live keys — the standing consumer of TTL'd main-owned entries.
 const STATE_KEY = 'jobs.state.job-1' as const
 const PROGRESS_KEY = 'jobs.progress.job-1' as const
@@ -102,7 +90,8 @@ describe('CacheService shared-tier TTL sync', () => {
 
     const { BrowserWindow } = (await import('electron')) as any
     send = vi.fn()
-    BrowserWindow.getAllWindows.mockReturnValue([{ isDestroyed: () => false, id: 99, webContents: { send } }])
+    BrowserWindow.getAllWindows = vi.fn(() => [{ isDestroyed: () => false, id: 99, webContents: { send } }])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()

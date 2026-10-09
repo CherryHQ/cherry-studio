@@ -1,8 +1,7 @@
 import { defineProvider } from './types'
 
-// api-docs.deepseek.com/zh-cn/guides/thinking_mode documents one effort table for V4 Flash and V4
-// Pro ("deepseek-v4-flash 与 deepseek-v4-pro 一致"). `xhigh` remains a compatibility input alias,
-// but is not advertised by the model metadata and is sent as the supported top-level `max` value.
+// https://api-docs.deepseek.com/guides/thinking_mode lists the supported effort levels.
+// Keep xhigh as a compatibility input, translated to the supported max value.
 const v4EffortMap = {
   minimal: 'low' as const,
   low: 'low' as const,
@@ -11,9 +10,9 @@ const v4EffortMap = {
 }
 
 const v4FlashPeakPricing = {
-  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.014 },
-  input: { currency: 'USD' as const, perMillionTokens: 0.44 },
-  output: { currency: 'USD' as const, perMillionTokens: 1.32 }
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.006 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.3 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.2 }
 }
 
 const v4ProPeakPricing = {
@@ -88,47 +87,21 @@ export default defineProvider({
     {
       id: 'web-search',
       modelScope: 'model-dependent',
-      modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
+      modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-pro'],
       endpointTypes: ['openai-responses']
     }
   ],
   metadata: {
     website: {
       apiKey: 'https://platform.deepseek.com/api_keys',
-      docs: 'https://platform.deepseek.com/api-docs/',
-      models: 'https://platform.deepseek.com/api-docs/',
+      docs: 'https://api-docs.deepseek.com/',
+      models: 'https://api-docs.deepseek.com/',
       official: 'https://deepseek.com/'
     }
   },
-  // The Anthropic-compatible endpoint serves the V4 flash/pro SKUs only, and silently maps any other
-  // model name onto v4-flash — so it is pinned on those and withheld from chat/reasoner. It
-  // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
-    { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
-    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
     {
       modelId: 'deepseek-flash',
-      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
-      pricing: v4FlashPeakPricing,
-      reasoningContracts: {
-        'openai-chat-completions': { wire: v4ChatEffortWire },
-        'openai-responses': { wire: v4ResponsesEffortWire }
-      }
-    },
-    {
-      modelId: 'deepseek-v4-flash',
-      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
-      // Use the hosted V4 cap from DeepSeek's Pi example; the API reference disagrees.
-      // https://api-docs.deepseek.com/quick_start/agent_integrations/pi_mono/
-      limits: { maxOutputTokens: 384000 },
-      pricing: v4FlashPeakPricing,
-      reasoningContracts: {
-        'openai-chat-completions': { wire: v4ChatEffortWire },
-        'openai-responses': { wire: v4ResponsesEffortWire }
-      }
-    },
-    {
-      modelId: 'deepseek-v4-flash-vision-exp',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
       pricing: v4FlashPeakPricing,
       reasoningContracts: {

@@ -62,7 +62,7 @@ function extFromFilename(filename: string | null | undefined): string | null {
   return lastSegment.slice(dot + 1)
 }
 
-function filenameFromContentDisposition(contentDisposition: string | null): string | null {
+export function filenameFromContentDisposition(contentDisposition: string | null): string | null {
   if (!contentDisposition) return null
 
   const encodedMatch = /(?:^|;)\s*filename\*=([^;]+)/i.exec(contentDisposition)
