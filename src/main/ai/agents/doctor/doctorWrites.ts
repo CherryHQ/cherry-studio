@@ -16,7 +16,7 @@ import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenc
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import { doctorFixMeta } from '@shared/utils/doctor'
-import { isSensitiveKey, redactDeep, redactSecretText } from '@shared/utils/redaction'
+import { isSensitiveKey, redactDeep, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 /** Entities whose PATCH handlers already whitelist mutable fields and never accept credentials. */
 const DATA_API_PATCH_PATHS: readonly RegExp[] = [
@@ -68,10 +68,15 @@ export function parsePreferenceWrite(
   return { key, value: parsed.data }
 }
 
-/** Key-name redaction plus in-value secrets (URL userinfo, bearer tokens) that key names never reveal. */
+/** In-value secrets key names never reveal: `key=value`, URL userinfo, bearer tokens, bare `sk-…` shapes. */
+export function redactTextForModel(text: string): string {
+  return redactSecretTokens(redactSecretText(text))
+}
+
+/** Key-name redaction plus `redactTextForModel` on every string. */
 export function redactForModel(value: unknown): unknown {
   const walk = (val: unknown): unknown => {
-    if (typeof val === 'string') return redactSecretText(val)
+    if (typeof val === 'string') return redactTextForModel(val)
     if (Array.isArray(val)) return val.map(walk)
     if (typeof val === 'object' && val !== null) {
       return Object.fromEntries(Object.entries(val).map(([key, item]) => [key, walk(item)]))
@@ -86,7 +91,7 @@ export function isDataApiPatchPath(path: string): boolean {
 }
 
 function containsSecretMaterial(value: unknown): boolean {
-  if (typeof value === 'string') return redactSecretText(value) !== value
+  if (typeof value === 'string') return redactTextForModel(value) !== value
   if (Array.isArray(value)) return value.some(containsSecretMaterial)
   if (typeof value !== 'object' || value === null) return false
   return Object.entries(value).some(([key, item]) => isSensitiveKey(key) || containsSecretMaterial(item))
@@ -138,7 +143,7 @@ export async function queryDataApi(input: DataApiQuery): Promise<DataApiResult> 
 export function assertNoSecretFields(body: Record<string, unknown>): void {
   const walk = (value: unknown, trail: string[]): void => {
     if (typeof value === 'string') {
-      if (redactSecretText(value) !== value) {
+      if (redactTextForModel(value) !== value) {
         throw new Error(
           `Refusing to write credential value at "${trail.join('.')}"; ask the user to enter it in Settings`
         )

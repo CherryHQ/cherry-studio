@@ -14,7 +14,6 @@ import { isBlockedSourceFile } from '@main/ai/mcp/servers/assistant'
 import { isSameOrInside } from '@main/utils/file'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import { isDoctorFixRequest } from '@shared/utils/doctor'
-import { redactSecretText } from '@shared/utils/redaction'
 
 import {
   assertNoSecretFields,
@@ -23,7 +22,8 @@ import {
   parsePreferenceWrite,
   PREFERENCE_WRITE_ALLOWLIST,
   queryDataApi,
-  redactForModel
+  redactForModel,
+  redactTextForModel
 } from './doctorWrites'
 
 export interface DoctorToolContext {
@@ -381,7 +381,7 @@ const READ_FILE_TOOL: DoctorTool = {
       fs.readSync(opened.handle, buffer, 0, buffer.length, start)
       assertOpenedPathIsStillReadable(resolved, fs.fstatSync(opened.handle))
       const tail = buffer.toString('utf-8').split('\n').slice(-lines).join('\n')
-      return json({ path: resolved, size: opened.stat.size, truncated: start > 0, text: redactSecretText(tail) })
+      return json({ path: resolved, size: opened.stat.size, truncated: start > 0, text: redactTextForModel(tail) })
     } finally {
       fs.closeSync(opened.handle)
     }

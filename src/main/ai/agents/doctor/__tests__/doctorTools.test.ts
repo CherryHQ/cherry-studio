@@ -278,7 +278,10 @@ describe('doctor server binding', () => {
 describe('doctor read_file tool', () => {
   it('tails a log with secrets redacted and lists directories', async () => {
     fs.mkdirSync(path.join(userData, 'logs'), { recursive: true })
-    const lines = Array.from({ length: 300 }, (_, i) => `line ${i} Authorization: Bearer tok-${i}`)
+    const lines = Array.from(
+      { length: 300 },
+      (_, i) => `line ${i} Authorization: Bearer tok-${i} body {"error":"bad key sk-proj-abcdefghijklmnopqrstu${i}"}`
+    )
     fs.writeFileSync(path.join(userData, 'logs', 'main.log'), lines.join('\n'))
     const client = await connect()
     const tail = await client.callTool({ name: 'read_file', arguments: { path: 'logs/main.log', lines: 5 } })
@@ -286,6 +289,7 @@ describe('doctor read_file tool', () => {
     expect(body.text.split('\n')).toHaveLength(5)
     expect(body.text).toContain('line 299')
     expect(body.text).not.toContain('tok-299')
+    expect(body.text).not.toContain('sk-proj-abcdefghijklmnopqrstu299')
 
     const listing = await client.callTool({ name: 'read_file', arguments: { path: 'logs' } })
     if (process.platform === 'linux') {
