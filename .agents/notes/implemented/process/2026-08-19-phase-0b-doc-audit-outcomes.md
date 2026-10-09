@@ -7,7 +7,7 @@ English | [中文](2026-08-19-phase-0b-doc-audit-outcomes.zh.md)
 ## Problem
 
 The Phase 0b audit found two places where the implementation needed to depart
-from the [original docs-governance proposal](../../proposed/process/2026-08-18-docs-governance-and-spec-workflow.md).
+from the [docs-governance decision](./2026-08-18-docs-governance-and-spec-workflow.md).
 The proposed Chat adapter and UI conventions described APIs and ownership
 boundaries that never landed. The proposal also required every existing
 domain-prefixed filename to be renamed, but the completed tree still has 24
@@ -28,7 +28,7 @@ documents use the shortest unambiguous name within their domain and avoid a
 redundant domain prefix.
 
 This note supersedes only those two Phase 0b decisions. The remaining governance
-proposal still defines the target tree, frontmatter, gates, Agent Notes, and
+decision still defines the target tree, frontmatter, gates, Agent Notes, and
 later rollout phases.
 
 ## Alternatives considered
@@ -47,3 +47,7 @@ later rollout phases.
 - Existing reference links remain stable through Phase 0b.
 - The 24 legacy prefixed basenames are accepted; the no-redundant-prefix rule
   applies when a document is newly created or renamed.
+
+## Verification
+
+- Regression — `pnpm docs:check`: the closed domain tree, frontmatter sources, links, and generated index remain consistent with the audited corpus.

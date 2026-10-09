@@ -24,6 +24,13 @@ repos:
         files: '\.(json|yml|yaml|css|html)$'
         pass_filenames: true
 
+      - id: bilingual-pairing-staged
+        name: Bilingual pairing (staged content)
+        language: system
+        entry: pnpm docs:check-pairing --cached
+        files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/i18n/)'
+        pass_filenames: true
+
       - id: post-checkout-install
         name: pnpm install after checkout
         language: system

@@ -25,6 +25,22 @@ The following alternatives were considered:
 
 Links to places where the discussion took place: <!-- optional: slack, other GH issue, mailinglist, ... -->
 
+### Agent Note / Spec
+
+<!-- Link the note and Spec PR, or write `N/A — <reason>` for a local/mechanical change. -->
+
+Agent Note:
+
+Spec PR:
+
+Acceptance criteria:
+
+### Verification
+
+<!-- List only evidence actually run. Map Spec work to AC IDs; use Regression/N/A for direct fixes or process changes. -->
+
+-
+
 ### Breaking changes
 
 <!-- optional -->
