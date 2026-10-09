@@ -1774,6 +1774,7 @@
   "knowledge.data_source.status.embedding": "埋め込み",
   "knowledge.data_source.status.error": "エラー",
   "knowledge.data_source.status.pending": "待機中",
+  "knowledge.data_source.status.reading": "ドキュメント読み込み中",
   "knowledge.data_source.status.ready": "準備完了",
   "knowledge.data_source.table.aria_label": "データソース",
   "knowledge.data_source.table.columns.actions": "アクション",

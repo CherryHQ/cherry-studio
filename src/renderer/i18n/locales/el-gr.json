@@ -1774,6 +1774,7 @@
   "knowledge.data_source.status.embedding": "Ενσωμάτωση",
   "knowledge.data_source.status.error": "Σφάλμα",
   "knowledge.data_source.status.pending": "Αναμονή",
+  "knowledge.data_source.status.reading": "Ανάγνωση εγγράφου",
   "knowledge.data_source.status.ready": "Έτοιμος",
   "knowledge.data_source.table.aria_label": "Πηγές δεδομένων",
   "knowledge.data_source.table.columns.actions": "Ενέργειες",
