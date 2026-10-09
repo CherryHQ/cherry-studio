@@ -5896,5 +5896,6 @@
   "xlsx_preview.formula_not_evaluated": "Formül değerlendirilemedi",
   "xlsx_preview.sheet_tabs_label": "Sayfalar",
   "xlsx_preview.too_large.description": "{{size}} dosya boyutu, {{limit}} önizleme sınırını aşıyor.",
-  "xlsx_preview.too_large.title": "Dosya önizlenemeyecek kadar büyük"
+  "xlsx_preview.too_large.title": "Dosya önizlenemeyecek kadar büyük",
+  "provider.tokendos": "TokenDos"
 }

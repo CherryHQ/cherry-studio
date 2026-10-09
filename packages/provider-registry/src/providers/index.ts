@@ -120,7 +120,6 @@ export const PROVIDERS: Provider[] = [
   p_modelscope,
   p_xirang,
   p_tokenhub,
-  p_tokendos,
   p_baidu_cloud,
   p_gpustack,
   p_voyageai,
@@ -133,5 +132,6 @@ export const PROVIDERS: Provider[] = [
   p_comfyui,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_tokendos
 ]

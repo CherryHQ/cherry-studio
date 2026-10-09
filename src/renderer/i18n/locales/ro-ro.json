@@ -5896,5 +5896,6 @@
   "xlsx_preview.formula_not_evaluated": "Formula nu a putut fi evaluată",
   "xlsx_preview.sheet_tabs_label": "Foi",
   "xlsx_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
-  "xlsx_preview.too_large.title": "Fișier prea mare pentru previzualizare"
+  "xlsx_preview.too_large.title": "Fișier prea mare pentru previzualizare",
+  "provider.tokendos": "TokenDos"
 }

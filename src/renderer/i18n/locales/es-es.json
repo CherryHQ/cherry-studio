@@ -5896,5 +5896,6 @@
   "xlsx_preview.formula_not_evaluated": "No se pudo evaluar la fórmula",
   "xlsx_preview.sheet_tabs_label": "Hojas",
   "xlsx_preview.too_large.description": "El tamaño del archivo {{size}} supera el límite de vista previa de {{limit}}.",
-  "xlsx_preview.too_large.title": "El archivo es demasiado grande para previsualizarlo"
+  "xlsx_preview.too_large.title": "El archivo es demasiado grande para previsualizarlo",
+  "provider.tokendos": "TokenDos"
 }

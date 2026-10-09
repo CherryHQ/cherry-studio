@@ -5896,5 +5896,6 @@
   "xlsx_preview.formula_not_evaluated": "Formula couldn't be evaluated",
   "xlsx_preview.sheet_tabs_label": "Sheets",
   "xlsx_preview.too_large.description": "File size {{size}} exceeds the {{limit}} preview limit.",
-  "xlsx_preview.too_large.title": "File too large to preview"
+  "xlsx_preview.too_large.title": "File too large to preview",
+  "provider.tokendos": "TokenDos"
 }
