@@ -226,6 +226,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.109': 73104fb31762e68f006fef075ad1a4b57e622f2f45039246f233886f6a92412c
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
+  '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@earendil-works/pi-ai@1.0.0': 60a3c2c6f6015f6d1ecdd8d60160523e4226b5384c87ab864f1f74ed03ce7894
   '@elysia/node@1.4.6': ceae4c188748b0ccfb825739bdbbe02486930f53b0fb1068e21de26527488ad2
   '@napi-rs/system-ocr@1.2.0': 72d651f33c307945c636ea0a25b97b48018cab99b440ca02d8ea2dac222033d0
@@ -241,7 +242,7 @@ patchedDependencies:
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
   dingtalk-stream@2.1.7-beta.1: b81b5999ab52fb82bc76c6c7599eb74137cf8c6304b84aa5e8d3c3c562049172
-  docx-preview@0.3.7: e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5
+  docx-preview@0.3.7: d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
@@ -455,9 +456,6 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.126
         version: 3.0.126(zod@4.4.3)
-      '@aiden0z/pptx-renderer':
-        specifier: 1.2.2
-        version: 1.2.2(pdfjs-dist@5.4.296)
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
@@ -485,6 +483,9 @@ importers:
       '@cherrystudio/extension-table-plus':
         specifier: workspace:^
         version: link:packages/extension-table-plus
+      '@cherrystudio/file-preview':
+        specifier: workspace:*
+        version: link:packages/file-preview
       '@cherrystudio/openai':
         specifier: 6.15.0
         version: 6.15.0(ws@8.21.3)(zod@4.4.3)
@@ -971,9 +972,6 @@ importers:
       docx:
         specifier: ^9.0.2
         version: 9.5.1
-      docx-preview:
-        specifier: 0.3.7
-        version: 0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5)
       dompurify:
         specifier: ^3.2.6
         version: 3.3.1
@@ -1055,15 +1053,9 @@ importers:
       eslint-plugin-unused-imports:
         specifier: ^4.1.4
         version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
       fast-diff:
         specifier: ^1.3.0
         version: 1.3.0
-      fast-formula-parser:
-        specifier: ^1.0.19
-        version: 1.0.19
       fast-xml-parser:
         specifier: '>=5.10.1'
         version: 5.10.1
@@ -1196,9 +1188,6 @@ importers:
       npx-scope-finder:
         specifier: ^1.2.0
         version: 1.3.0
-      numfmt:
-        specifier: ^3.2.6
-        version: 3.2.6
       og-crd:
         specifier: ^0.0.2
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1724,6 +1713,91 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
+  packages/file-preview:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.3(react@19.2.3)
+      zod:
+        specifier: ^4.1.5
+        version: 4.4.3
+    devDependencies:
+      '@aiden0z/pptx-renderer':
+        specifier: 1.2.2
+        version: 1.2.2(patch_hash=cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329)(pdfjs-dist@5.4.296)
+      '@cherrystudio/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tailwindcss/vite':
+        specifier: ^4.3.3
+        version: 4.3.3(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-virtual':
+        specifier: ^3.13.24
+        version: 3.13.24(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      docx-preview:
+        specifier: 0.3.7
+        version: 0.3.7(patch_hash=d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f)
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
+      fast-formula-parser:
+        specifier: ^1.0.19
+        version: 1.0.19
+      fast-xml-parser:
+        specifier: '>=5.10.1'
+        version: 5.10.1
+      i18next:
+        specifier: ^23.11.5
+        version: 23.16.8
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
+      lucide-react:
+        specifier: ^0.545.0
+        version: 0.545.0(react@19.2.3)
+      numfmt:
+        specifier: ^3.2.6
+        version: 3.2.6
+      pdfjs-dist:
+        specifier: 5.4.296
+        version: 5.4.296
+      postcss:
+        specifier: 8.5.6
+        version: 8.5.6
+      react-error-boundary:
+        specifier: ^6.0.0
+        version: 6.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-i18next:
+        specifier: ^14.1.2
+        version: 14.1.3(i18next@23.16.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      rolldown-plugin-dts:
+        specifier: 0.27.14
+        version: 0.27.14(oxc-resolver@11.21.2)(rolldown@1.2.6)(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
+      tw-animate-css:
+        specifier: ^1.3.8
+        version: 1.4.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/provider-registry:
     dependencies:
@@ -15677,7 +15751,7 @@ snapshots:
       '@aiany/sqlite-vec-windows-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-windows-x64': 0.1.10-alpha.4.aiany.2
 
-  '@aiden0z/pptx-renderer@1.2.2(pdfjs-dist@5.4.296)':
+  '@aiden0z/pptx-renderer@1.2.2(patch_hash=cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329)(pdfjs-dist@5.4.296)':
     dependencies:
       echarts: 6.1.0
       jszip: 3.10.1
@@ -24158,7 +24232,7 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
-  docx-preview@0.3.7(patch_hash=e208f8530bcfadc27794b50237188e2810a0d34c75b4d37c21c6195947fa0bc5):
+  docx-preview@0.3.7(patch_hash=d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f):
     dependencies:
       jszip: 3.10.1
 

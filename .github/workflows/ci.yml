@@ -193,9 +193,9 @@ jobs:
       - name: Check locale synchronization
         run: |
           pnpm i18n:sync
-          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then
+          if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales)" ]; then
             echo "::error::Translations are out of sync."
-            git --no-pager diff -- src/renderer/i18n src/main/i18n
+            git --no-pager diff -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales
             exit 1
           fi
       - run: pnpm check --group i18n

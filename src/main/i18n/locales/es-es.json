@@ -1,5 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Asesor integrado de Cherry Studio. Diagnostica problemas, guía las operaciones, recopila preguntas frecuentes, envía errores o solicitudes de funciones y busca o crea habilidades",
+  "agent.builtin.cherry_doctor.description": "Analista integrado del diagnóstico del sistema. Lee el informe de diagnóstico y el estado en tiempo de ejecución, explica la causa raíz y propone correcciones acotadas",
   "agent.builtin.cherry_support.description": "Agente de soporte oficial de Cherry Studio para configuración, diagnóstico, preguntas frecuentes y comentarios",
   "agent.session.fork.execution_not_inherited": "La ejecución no se heredó en esta bifurcación de la sesión.",
   "agent.session.new": "Nueva tarea",
