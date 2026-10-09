@@ -64,7 +64,7 @@ describe('packaged Computer Use runtime', () => {
     const runtime = path.join(resources, 'computer-use')
     const executable =
       platform === 'darwin'
-        ? 'Open Computer Use.app/Contents/MacOS/OpenComputerUse'
+        ? 'Cherry Computer Use.app/Contents/MacOS/OpenComputerUse'
         : platform === 'win32'
           ? 'open-computer-use.exe'
           : 'open-computer-use'
@@ -72,7 +72,7 @@ describe('packaged Computer Use runtime', () => {
     expect(readFileSync(path.join(runtime, 'LICENSE'), 'utf8')).toBe('runtime license')
     expect(readFileSync(path.join(runtime, 'THIRD_PARTY_NOTICES.md'), 'utf8')).toBe('runtime notices')
     if (platform === 'darwin')
-      expect(readFileSync(path.join(runtime, 'Open Computer Use.app/Contents/Info.plist'), 'utf8')).toBe(
+      expect(readFileSync(path.join(runtime, 'Cherry Computer Use.app/Contents/Info.plist'), 'utf8')).toBe(
         'bundle identity'
       )
     expect(existsSync(path.join(root, '.context'))).toBe(false)
@@ -81,9 +81,9 @@ describe('packaged Computer Use runtime', () => {
   it('runs the installation in the production afterPack hook', async () => {
     const { resources, context } = fixture()
     await afterPack(context)
-    expect(existsSync(path.join(resources, 'computer-use/Open Computer Use.app/Contents/MacOS/OpenComputerUse'))).toBe(
-      true
-    )
+    expect(
+      existsSync(path.join(resources, 'computer-use/Cherry Computer Use.app/Contents/MacOS/OpenComputerUse'))
+    ).toBe(true)
   })
 
   it('rejects a platform package from a different SDK version', () => {

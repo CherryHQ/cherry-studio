@@ -35,8 +35,7 @@ function installComputerUseRuntime(context) {
 
   const destination = path.join(context.packager.getResourcesDir(context.appOutDir), 'computer-use')
   fs.mkdirSync(destination, { recursive: true })
-  // Keep the host pathRegistry contract; the bundle's signed identity remains unchanged.
-  fs.cpSync(source, path.join(destination, platform === 'darwin' ? 'Open Computer Use.app' : name), {
+  fs.cpSync(source, path.join(destination, name), {
     recursive: true,
     verbatimSymlinks: true
   })

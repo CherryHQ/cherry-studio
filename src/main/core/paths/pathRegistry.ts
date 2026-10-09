@@ -112,7 +112,7 @@ export function buildPathRegistry() {
       ? path.join(
           appExtraResources,
           'computer-use',
-          isMac ? 'Open Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
+          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
         )
       : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
 
