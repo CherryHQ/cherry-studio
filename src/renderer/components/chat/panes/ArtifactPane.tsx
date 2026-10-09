@@ -45,10 +45,10 @@ import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
+import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
-import { getDocumentConversionFormats } from '@shared/types/documentConversion'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {

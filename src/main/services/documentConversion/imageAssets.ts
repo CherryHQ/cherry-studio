@@ -105,7 +105,8 @@ export async function normalizeDocumentImage(bytes: Buffer, signal?: AbortSignal
     const dom = new JSDOM(bytes.toString(), { contentType: 'image/svg+xml' })
     try {
       const svg: Element = dom.window.document.documentElement
-      const unsafe = Array.from(svg.querySelectorAll('*')).some(
+      const elements = [svg, ...Array.from(svg.querySelectorAll('*'))]
+      const unsafe = elements.some(
         (element) =>
           ['script', 'foreignObject'].includes(element.localName) ||
           Array.from(element.attributes).some(
@@ -113,7 +114,19 @@ export async function normalizeDocumentImage(bytes: Buffer, signal?: AbortSignal
               /^on/i.test(attribute.name) || (attribute.localName === 'href' && !attribute.value.startsWith('#'))
           )
       )
-      if (unsafe || /url\(\s*['"]?(?!#)/i.test(svg.outerHTML) || /<!DOCTYPE|<!ENTITY/i.test(bytes.toString())) {
+      const externalUrl = elements
+        .flatMap((element) => [
+          ...Array.from(element.attributes, (attribute) => attribute.value),
+          ...(element.localName === 'style' ? [element.textContent ?? ''] : [])
+        ])
+        .some((value) =>
+          /url\s*\(/i.test(
+            value.replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi, (match, double, single, bare) =>
+              (double ?? single ?? bare).trim().startsWith('#') ? '' : match
+            )
+          )
+        )
+      if (unsafe || externalUrl || /<!DOCTYPE|<!ENTITY/i.test(bytes.toString())) {
         throw new DocumentConversionError(
           exportErrorCodes.INVALID_IMAGE,
           'SVG images must contain only static shapes and local fragment references.',

@@ -13,7 +13,7 @@ import { readDocument, type DocumentSource } from './readDocument'
 import { documentToHtml, documentToMarkdown, flattenDocumentBlocks } from './serializeDocument'
 import { convertXlsx } from './xlsx'
 
-export interface ConvertDocumentInput extends DocumentSource {
+export interface ConvertDocumentInput extends Omit<DocumentSource, 'relaxedTables'> {
   format: DocumentFormat
   title?: string
   outputName?: string
@@ -24,10 +24,6 @@ export interface ConvertedDocument {
   assets: Map<string, Buffer>
   warnings: string[]
   resourceDirectory?: string
-}
-
-export async function convertDocument(input: ConvertDocumentInput, signal?: AbortSignal): Promise<Buffer> {
-  return (await convertDocumentBundle(input, signal)).bytes
 }
 
 export async function convertDocumentBundle(

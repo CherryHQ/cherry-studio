@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { normalizeToolOutputResponse } from '@renderer/utils/message/toolOutput'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildToolResponseFromPart } from '../../toolResponse'
@@ -21,6 +22,14 @@ const output = {
 }
 
 describe('converted document artifact cards', () => {
+  it('does not promote a failed receipt to an artifact after deferred output resolution', () => {
+    const failedOutput = { ...output, isError: true }
+    const response = buildToolResponseFromPart(conversionPart('output-available', failedOutput))!
+    const resolvedResponse = { ...response, response: normalizeToolOutputResponse(failedOutput) }
+    expect(isReportArtifactsToolResponse(resolvedResponse)).toBe(false)
+    expect(getReportArtifactsViewModel([resolvedResponse])).toBeNull()
+  })
+
   it.each(['tool_call', 'mcp__cherry-tools__convert_to_document'])(
     'shows successful Pi %s conversions without a second tool call',
     (toolName) => {

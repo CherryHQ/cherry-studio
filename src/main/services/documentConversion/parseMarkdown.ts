@@ -2,7 +2,7 @@ import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 
 import { exportErrorCodes } from '@shared/ipc/errors/export'
-import type { DocumentBlock, DocumentTextRun } from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentCell, DocumentTextRun } from '@shared/types/documentModel'
 
 import { DocumentConversionError } from './DocumentConversionError'
 export type { DocumentBlock } from '@shared/types/documentModel'
@@ -159,7 +159,9 @@ export function parseMarkdown(
       index += 2
     } else if (token.type === 'table_open') {
       const rows: string[][] = []
+      const cells: DocumentCell[][] = []
       let row: string[] = []
+      let cellRow: DocumentCell[] = []
       if (token.map && validateTables) {
         const sourceRows = lines
           .slice(token.map[0], token.map[1])
@@ -182,14 +184,21 @@ export function parseMarkdown(
         }
       }
       while (++index < tokens.length && tokens[index].type !== 'table_close') {
-        if (tokens[index].type === 'tr_open') row = []
+        if (tokens[index].type === 'tr_open') {
+          row = []
+          cellRow = []
+        }
         if (tokens[index].type === 'inline') {
           row.push(inlineText(tokens[index].children ?? [], interpretSafeHtml))
+          cellRow.push({ runs: inlineRuns(tokens[index].children ?? [], interpretSafeHtml) })
           addImages(tokens[index])
         }
-        if (tokens[index].type === 'tr_close') rows.push(row)
+        if (tokens[index].type === 'tr_close') {
+          rows.push(row)
+          cells.push(cellRow)
+        }
       }
-      blocks.push({ type: 'table', title, rows })
+      blocks.push({ type: 'table', title, rows, cells })
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
       listDepth++
       lists.push({

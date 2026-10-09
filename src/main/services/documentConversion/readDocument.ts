@@ -5,8 +5,9 @@ import type { Block, Document, Inline } from '@firecrawl/anydoc'
 
 import { createPdfParser } from '@main/utils/pdf'
 import { exportErrorCodes } from '@shared/ipc/errors/export'
-import { getDocumentSourceFormat, DOCUMENT_MARKDOWN_MAX_BYTES } from '@shared/types/documentConversion'
+import { DOCUMENT_MARKDOWN_MAX_BYTES } from '@shared/types/documentConversion'
 import type { DocumentBlock, DocumentCell, DocumentModel, DocumentTextRun } from '@shared/types/documentModel'
+import { getDocumentSourceFormat } from '@shared/utils/documentConversion'
 
 import { DocumentConversionError } from './DocumentConversionError'
 import { prepareStaticHtml, renderStaticHtml } from './html'

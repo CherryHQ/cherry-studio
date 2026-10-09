@@ -9,7 +9,7 @@ import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { printService } from '../../PrintService'
-import { convertDocument } from '../convertDocument'
+import { convertDocumentBundle } from '../convertDocument'
 import { convertDocx } from '../docx'
 import { prepareStaticHtml } from '../html'
 
@@ -31,7 +31,7 @@ describe('document conversion', () => {
       '## Technical notes\n\n```ts\nconst revenue = 210\n```',
       '## Conclusion\n\n季度报告'
     ].join('\n\n')
-    const zip = await JSZip.loadAsync(await convertDocument({ markdown, format: 'pptx' }))
+    const zip = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format: 'pptx' })).bytes)
     const slides = zip.file(/^ppt\/slides\/slide\d+\.xml$/)
     expect(slides).toHaveLength(5)
     const contents = await Promise.all(slides.map((slide) => slide.async('string')))
@@ -48,7 +48,7 @@ describe('document conversion', () => {
       .toBuffer()
     const source = `data:image/png;base64,${image.toString('base64')}`
     const markdown = `## Picture ![heading](${source})\n\n${'Long text '.repeat(500)}\n\n| Image |\n| --- |\n| ![cell](${source}) |`
-    const zip = await JSZip.loadAsync(await convertDocument({ markdown, format: 'pptx' }))
+    const zip = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format: 'pptx' })).bytes)
     const slides = await Promise.all(zip.file(/^ppt\/slides\/slide\d+\.xml$/).map((slide) => slide.async('string')))
     expect(slides.length).toBeGreaterThan(2)
     expect(slides.join('')).toContain('descr="heading"')
@@ -60,7 +60,7 @@ describe('document conversion', () => {
     const name = `${'a'.repeat(30)}'tail`
     const markdown = `## ${name}\n\n${table}\n\n## ${name}\n\n${table}\n\n## History\n\n${table}`
     const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(Uint8Array.from(await convertDocument({ markdown, format: 'xlsx' })).buffer)
+    await workbook.xlsx.load(Uint8Array.from((await convertDocumentBundle({ markdown, format: 'xlsx' })).bytes).buffer)
     expect(workbook.worksheets).toHaveLength(3)
     expect(new Set(workbook.worksheets.map(({ name }) => name.toLowerCase())).size).toBe(3)
     for (const sheet of workbook.worksheets) {
@@ -75,29 +75,33 @@ describe('document conversion', () => {
   it('preserves plain text when a spreadsheet has no tables', async () => {
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(
-      Uint8Array.from(await convertDocument({ markdown: '# Report\n\nQuarterly text', format: 'xlsx' })).buffer
+      Uint8Array.from((await convertDocumentBundle({ markdown: '# Report\n\nQuarterly text', format: 'xlsx' })).bytes)
+        .buffer
     )
     expect(workbook.worksheets[0].getCell('A2').value).toBe('Quarterly text')
   })
 
   it('validates malformed tables without rejecting valid nested Markdown tables', async () => {
     await expect(
-      convertDocument({ markdown: '| A | B |\n| --- | --- |\n| 1 | 2 | 3 |', format: 'xlsx' })
+      convertDocumentBundle({ markdown: '| A | B |\n| --- | --- |\n| 1 | 2 | 3 |', format: 'xlsx' })
     ).rejects.toMatchObject({ code: 'INVALID_TABLE', preview: expect.stringContaining('| 1 | 2 | 3 |') })
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(
-      Uint8Array.from(await convertDocument({ markdown: '- | A | B |\n  | --- | --- |\n  | 1 | 2 |', format: 'xlsx' }))
-        .buffer
+      Uint8Array.from(
+        (await convertDocumentBundle({ markdown: '- | A | B |\n  | --- | --- |\n  | 1 | 2 |', format: 'xlsx' })).bytes
+      ).buffer
     )
     expect(workbook.worksheets[0].getCell('B2').value).toBe('2')
   })
 
   it('keeps the existing DOCX heading, formatting and permissive table behavior', async () => {
     const zip = await JSZip.loadAsync(
-      await convertDocument({
-        markdown: '# Report\n\n**bold** and `code`\n\n| A | B |\n| --- | --- |\n| 1 | 2 | 3 |',
-        format: 'docx'
-      })
+      (
+        await convertDocumentBundle({
+          markdown: '# Report\n\n**bold** and `code`\n\n| A | B |\n| --- | --- |\n| 1 | 2 | 3 |',
+          format: 'docx'
+        })
+      ).bytes
     )
     const xml = await zip.file('word/document.xml')!.async('string')
     expect(xml).toContain('w:val="Heading1"')
@@ -115,7 +119,7 @@ describe('document conversion', () => {
     ).toString('base64')}`
     const toPdf = vi.spyOn(printService, 'toDocumentPdfBuffer').mockResolvedValue(Buffer.from('%PDF'))
     const markdown = `# Report\n\n![image](${source})`
-    await convertDocument({ markdown, format: 'pdf' })
+    await convertDocumentBundle({ markdown, format: 'pdf' })
     const payload = toPdf.mock.calls[0][0]
     expect(payload.markdown).toBe(markdown)
     expect(payload.images[source]).toMatch(/^data:image\/png;base64,/)
@@ -134,9 +138,9 @@ describe('document conversion', () => {
     const source = pathToFileURL(imagePath).href
     const markdown = `# Report\n\n![Inline chart](${source})\n\n![Reference chart][chart]\n\n[chart]: ${source}`
 
-    await expect(convertDocument({ markdown, format })).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
+    await expect(convertDocumentBundle({ markdown, format })).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
     if (format === 'pptx') {
-      const zip = await JSZip.loadAsync(await convertDocument({ markdown, format, assetRoot: root }))
+      const zip = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format, assetRoot: root })).bytes)
       const slides = await Promise.all(zip.file(/^ppt\/slides\/slide\d+\.xml$/).map((slide) => slide.async('string')))
       expect(slides.join('')).toContain('descr="Inline chart"')
       expect(slides.join('')).toContain('descr="Reference chart"')
@@ -150,7 +154,7 @@ describe('document conversion', () => {
       })
     } else {
       const toPdf = vi.spyOn(printService, 'toDocumentPdfBuffer').mockResolvedValue(Buffer.from('%PDF'))
-      await convertDocument({ markdown, format, sourcePath: path.join(root, 'report.md') })
+      await convertDocumentBundle({ markdown, format, sourcePath: path.join(root, 'report.md') })
       const payload = toPdf.mock.calls[0][0]
       expect(payload.markdown).toBe(markdown)
       expect(payload.images[source]).toMatch(/^data:image\/png;base64,/)
@@ -178,7 +182,7 @@ describe('document conversion', () => {
       pathToFileURL(path.join(root, 'linked/private.png')).href
     ]) {
       await expect(
-        convertDocument({ markdown: `| Image |\n| --- |\n| ![secret](${source}) |`, format, assetRoot: root })
+        convertDocumentBundle({ markdown: `| Image |\n| --- |\n| ![secret](${source}) |`, format, assetRoot: root })
       ).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
     }
   })
@@ -197,8 +201,8 @@ describe('document conversion', () => {
       sourcePath: path.join(root, 'reports/report.md')
     }
 
-    await expect(convertDocument(input)).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
-    const zip = await JSZip.loadAsync(await convertDocument({ ...input, assetRoot: root }))
+    await expect(convertDocumentBundle(input)).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
+    const zip = await JSZip.loadAsync((await convertDocumentBundle({ ...input, assetRoot: root })).bytes)
     const exportedImage = zip.file(/^ppt\/media\/.*\.png$/)[0]
     expect(exportedImage).toBeDefined()
     expect(await sharp(await exportedImage.async('nodebuffer')).metadata()).toMatchObject({ width: 3, height: 2 })
@@ -206,15 +210,15 @@ describe('document conversion', () => {
 
   it('preserves ordered list start numbers through editable Office and HTML output', async () => {
     const markdown = '3. Step three\n4. Step four'
-    const docx = await convertDocument({ markdown, format: 'docx' })
+    const docx = (await convertDocumentBundle({ markdown, format: 'docx' })).bytes
     const word = await JSZip.loadAsync(docx)
     expect(await word.file('word/numbering.xml')!.async('string')).toContain('<w:start w:val="3"/>')
     expect(
-      (await convertDocument({ filePath: 'numbered.docx', sourceBytes: docx, format: 'md' })).toString()
+      (await convertDocumentBundle({ filePath: 'numbered.docx', sourceBytes: docx, format: 'md' })).bytes.toString()
     ).toContain('3. Step three')
-    const html = (await convertDocument({ markdown, format: 'html' })).toString()
+    const html = (await convertDocumentBundle({ markdown, format: 'html' })).bytes.toString()
     expect(html).toContain('<ol start="3">')
-    const slides = await JSZip.loadAsync(await convertDocument({ markdown, format: 'pptx' }))
+    const slides = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format: 'pptx' })).bytes)
     expect(await slides.file('ppt/slides/slide1.xml')!.async('string')).toContain('startAt="3"')
   })
 
@@ -231,7 +235,9 @@ describe('document conversion', () => {
       new Map(),
       'Table links'
     )
-    const markdown = (await convertDocument({ filePath: 'links.docx', sourceBytes: source, format: 'md' })).toString()
+    const markdown = (
+      await convertDocumentBundle({ filePath: 'links.docx', sourceBytes: source, format: 'md' })
+    ).bytes.toString()
     expect(markdown).toContain('[Docs](https://example.org/docs)')
     expect(markdown).toContain('| Reference |')
   })
@@ -256,7 +262,7 @@ describe('document conversion', () => {
   it('rejects remote images without making a network request', async () => {
     const fetchImage = vi.spyOn(globalThis, 'fetch')
     await expect(
-      convertDocument({ markdown: '![Remote](https://example.invalid/private.png)', format: 'docx' })
+      convertDocumentBundle({ markdown: '![Remote](https://example.invalid/private.png)', format: 'docx' })
     ).rejects.toMatchObject({ code: 'INVALID_IMAGE' })
     expect(fetchImage).not.toHaveBeenCalled()
   })
@@ -264,7 +270,7 @@ describe('document conversion', () => {
   it('converts PDF underline markup to plain heading text', async () => {
     const source = path.join(import.meta.dirname, 'fixtures/underlined-heading.pdf')
     const xml = await (
-      await JSZip.loadAsync(await convertDocument({ filePath: source, format: 'docx' }))
+      await JSZip.loadAsync((await convertDocumentBundle({ filePath: source, format: 'docx' })).bytes)
     )
       .file('word/document.xml')!
       .async('string')
@@ -272,7 +278,7 @@ describe('document conversion', () => {
     expect(xml).not.toContain('&lt;u&gt;')
     expect(xml).not.toContain('<u>')
     expect(xml).toContain('<w:u')
-    const markdown = (await convertDocument({ filePath: source, format: 'md' })).toString()
+    const markdown = (await convertDocumentBundle({ filePath: source, format: 'md' })).bytes.toString()
     expect(markdown).toContain('# Card source 15659')
     expect(markdown).not.toContain('<u>')
   })
@@ -280,10 +286,14 @@ describe('document conversion', () => {
   it('rejects cancellation and oversized documents before producing a file', async () => {
     const controller = new AbortController()
     controller.abort()
-    await expect(convertDocument({ markdown: '# report', format: 'pptx' }, controller.signal)).rejects.toMatchObject({
+    await expect(
+      convertDocumentBundle({ markdown: '# report', format: 'pptx' }, controller.signal)
+    ).rejects.toMatchObject({
       name: 'AbortError'
     })
-    await expect(convertDocument({ markdown: 'x'.repeat(2 * 1024 * 1024 + 1), format: 'xlsx' })).rejects.toMatchObject({
+    await expect(
+      convertDocumentBundle({ markdown: 'x'.repeat(2 * 1024 * 1024 + 1), format: 'xlsx' })
+    ).rejects.toMatchObject({
       code: 'DOCUMENT_TOO_LARGE'
     })
   })

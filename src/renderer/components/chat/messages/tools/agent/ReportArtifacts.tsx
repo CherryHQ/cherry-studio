@@ -9,11 +9,11 @@ import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@rendere
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { exportDocument, getDocumentExportLabel, getDocumentWarningLabel } from '@renderer/services/documentExport'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { getConvertedDocumentArtifacts } from '@shared/ai/documentConversionTool'
-import { getDocumentConversionFormats } from '@shared/types/documentConversion'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 

@@ -397,7 +397,7 @@ export class ExportService {
     }
   }
 
-  async toWordBuffer(markdown: string): Promise<Buffer> {
+  private async toWordBuffer(markdown: string): Promise<Buffer> {
     const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
     const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
     const doc = new docx.Document({

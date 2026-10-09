@@ -24,15 +24,3 @@ export const documentArtifactSchema = z.object({
 export type DocumentArtifact = z.infer<typeof documentArtifactSchema>
 
 export const documentFormats = documentFormatSchema.options
-
-export function getDocumentSourceFormat(filename: string): DocumentFormat | undefined {
-  const extension = filename.split('.').at(-1)?.toLowerCase()
-  if (extension === 'markdown') return 'md'
-  if (extension === 'htm') return 'html'
-  return documentFormats.find((format) => format === extension)
-}
-
-export function getDocumentConversionFormats(filename: string): DocumentFormat[] {
-  const source = getDocumentSourceFormat(filename)
-  return source ? documentFormats.filter((format) => format !== source) : []
-}

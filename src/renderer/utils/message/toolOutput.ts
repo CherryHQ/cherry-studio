@@ -1,12 +1,4 @@
-/**
- * Tool-result payload unwrapping — the wire shape a completed tool part carries.
- *
- * MCP results arrive inside a `{ content, metadata }` envelope; AI-SDK builtin
- * results do not. Both the tool renderer and the citation resolver need the
- * payload with that envelope removed, and the resolver is reached from `utils/`
- * (export and copy resolve citations too), which may not import `components/`.
- * So the unwrapping lives here rather than beside the renderer.
- */
+/** Unwrap application payloads while preserving MCP result/error envelopes for every consumer. */
 
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
@@ -46,7 +38,7 @@ export function extractOutputMetadata(output: unknown): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
+    const response = isMcpContentArray(output.content) || output.isError === true ? output : output.content
     return { response, metadata: normalizedMeta }
   }
 
