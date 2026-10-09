@@ -2658,6 +2658,108 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
+    it('does not close another flow seed part when an orphan end arrives during a live continuation', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      for (const toolCallId of ['task-a', 'task-b']) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: 'Agent',
+            input: { prompt: `Run ${toolCallId}` }
+          }
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-a',
+              state: 'input-available',
+              input: { prompt: 'Run task-a' }
+            },
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-b',
+              state: 'input-available',
+              input: { prompt: 'Run task-b' }
+            },
+            {
+              type: 'reasoning',
+              text: 'B is thinking',
+              state: 'streaming',
+              providerMetadata: { cherry: { parentToolCallId: 'task-b' } }
+            }
+          ]
+        }
+      })
+      entry.persistedFlowMessageIds?.add('assistant-1')
+      for (const chunk of [
+        {
+          type: 'reasoning-start',
+          id: 'live-b-reasoning',
+          providerMetadata: { cherry: { parentToolCallId: 'task-b' } }
+        },
+        { type: 'reasoning-delta', id: 'live-b-reasoning', delta: ' more' }
+      ]) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-b',
+          chunk
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-a',
+        chunk: { type: 'reasoning-end', id: 'ghost-a-reasoning' }
+      })
+
+      const accumulator = entry.backgroundFlowAccumulators?.get('assistant-1')
+      expect(accumulator?.closedSeedIndexes?.size ?? 0).toBe(0)
+      const seedReasoning = (accumulator?.latest?.parts ?? []).find(
+        (part: { type?: string; text?: string; state?: string }) =>
+          part.type === 'reasoning' && part.text === 'B is thinking'
+      )
+      expect(seedReasoning?.state).toBe('streaming')
+      expect(accumulator?.openParts?.has('reasoning:live-b-reasoning')).toBe(true)
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-b',
+        chunk: { type: 'reasoning-end', id: 'live-b-reasoning' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'reasoning',
+              text: expect.stringContaining('B is thinking'),
+              state: 'done'
+            })
+          ])
+        )
+      })
+    })
+
     it('keeps the complete parent anchor when a poisoned detached flow rebuilds', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

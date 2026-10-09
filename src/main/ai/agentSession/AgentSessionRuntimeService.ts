@@ -237,8 +237,8 @@ type BackgroundFlowAccumulator = {
   closed: boolean
   /** Kind:id pairs already started in this stream, so orphan deltas can synthesize their start. */
   openParts: Set<string>
-  /** Tool calls already started in this stream, so orphan input deltas can synthesize their start. */
-  openTools: Map<string, { toolName: string; dynamic?: boolean }>
+  /** Tool call ids already started in this stream (orphan input deltas are dropped until then). */
+  openToolCallIds: Set<string>
   /** Seed indexes closed by orphan ends, reapplied after each snapshot so later chunks cannot reopen them. */
   closedSeedIndexes?: Set<number>
   /** Bounds poisoned-stream warnings to one per accumulator. */
@@ -333,6 +333,23 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   isAlive(): boolean {
     return true
   }
+}
+
+function getPartParentToolCallId(part: CherryMessagePart): string | undefined {
+  const direct = (part as { parentToolUseId?: unknown }).parentToolUseId
+  if (typeof direct === 'string' && direct) return direct
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
+    const metadata = (part as Record<string, unknown>)[field]
+    if (typeof metadata !== 'object' || metadata === null) continue
+    for (const namespace of ['claude-code', 'cherry'] as const) {
+      const entry = (metadata as Record<string, unknown>)[namespace]
+      if (typeof entry !== 'object' || entry === null) continue
+      const parentId =
+        (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
+      if (typeof parentId === 'string' && parentId) return parentId
+    }
+  }
+  return undefined
 }
 
 @Injectable('AgentSessionRuntimeService')
@@ -2091,7 +2108,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
     accumulator.openParts ??= new Set()
-    accumulator.openTools ??= new Map()
+    accumulator.openToolCallIds ??= new Set()
     if (accumulator.closed) {
       if (entry.backgroundFlowFlush) {
         if (!accumulator.errorLogged) {
@@ -2144,7 +2161,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!accumulator.openParts.has(key)) {
           // The start raced persistence: the seed still holds this part as streaming.
           // Close it in place (the orphan end itself is spent) and converge the overlay.
-          if (this.completeSeedStreamingPart(accumulator, kind)) this.publishBackgroundFlowSnapshot(entry, accumulator)
+          if (this.completeSeedStreamingPart(accumulator, kind, rootToolCallId))
+            this.publishBackgroundFlowSnapshot(entry, accumulator)
           break
         }
         accumulator.openParts.delete(key)
@@ -2152,11 +2170,11 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'tool-input-start':
-        accumulator.openTools.set(chunk.toolCallId, { toolName: chunk.toolName, dynamic: chunk.dynamic })
+        accumulator.openToolCallIds.add(chunk.toolCallId)
         queue.push(chunk)
         break
       case 'tool-input-delta': {
-        if (!accumulator.openTools.has(chunk.toolCallId)) {
+        if (!accumulator.openToolCallIds.has(chunk.toolCallId)) {
           // Start raced persistence: drop suffix deltas until `tool-input-available`.
           break
         }
@@ -2211,16 +2229,27 @@ export class AgentSessionRuntimeService extends BaseService {
     this.retireBackgroundFlowAccumulator(entry, accumulator)
   }
 
-  private completeSeedStreamingPart(accumulator: BackgroundFlowAccumulator, kind: 'text' | 'reasoning'): boolean {
+  private completeSeedStreamingPart(
+    accumulator: BackgroundFlowAccumulator,
+    kind: 'text' | 'reasoning',
+    rootToolCallId: string
+  ): boolean {
     const parts = accumulator.latest?.parts
     if (!parts) return false
-    // Id-less seed parts are ambiguous; close in place only for a single streaming match.
-    const matches = parts.filter(
+    const streaming = parts.filter(
       (part): part is Extract<CherryMessagePart, { type: 'text' | 'reasoning' }> =>
         part.type === kind && part.state === 'streaming'
     )
-    if (matches.length !== 1) return false
-    const match = matches[0]
+    const owned = streaming.filter((part) => getPartParentToolCallId(part) === rootToolCallId)
+    let match: (typeof streaming)[number] | undefined
+    if (owned.length === 1) {
+      match = owned[0]
+    } else if (owned.length === 0) {
+      // Id-less seed parts: close only when no sibling flow owns a streaming part of this kind.
+      const unowned = streaming.filter((part) => !getPartParentToolCallId(part))
+      if (unowned.length === 1 && streaming.length === 1) match = unowned[0]
+    }
+    if (!match) return false
     const index = parts.indexOf(match)
     parts[index] = { ...match, state: 'done' as const }
     accumulator.closedSeedIndexes ??= new Set()
@@ -2292,7 +2321,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // can recover from it and the flush still persists it when every chunk was dropped.
       latest: structuredClone(seed),
       openParts: new Set(),
-      openTools: new Map()
+      openToolCallIds: new Set()
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
