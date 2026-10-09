@@ -493,6 +493,7 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => undefined,
   FilePreview: (props: {
     filePath: string
     refreshKey: number

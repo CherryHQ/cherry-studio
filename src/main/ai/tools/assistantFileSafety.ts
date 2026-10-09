@@ -220,7 +220,7 @@ function runUnlinkOwnedPathChild(
   })
 }
 
-async function bestEffortUnlinkOwnedPath(
+export async function bestEffortUnlinkOwnedPath(
   target: AbsoluteFilePath,
   expected: Pick<BigIntStats, 'dev' | 'ino'>,
   operation: string

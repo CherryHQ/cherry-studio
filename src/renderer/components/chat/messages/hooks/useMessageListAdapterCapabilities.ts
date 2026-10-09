@@ -22,6 +22,7 @@ import { useMessageUiStateCache } from './useMessageUiStateCache'
 interface UseMessageListAdapterCapabilitiesOptions {
   topicId: string
   topicName: string
+  workspacePath?: string
   exportToObsidian: ExportMessagesToObsidian
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -41,6 +42,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
 export function useMessageListAdapterCapabilities({
   topicId,
   topicName,
+  workspacePath,
   exportToObsidian,
   messages,
   partsByMessageId,
@@ -53,7 +55,7 @@ export function useMessageListAdapterCapabilities({
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName, exportToObsidian })
+  const exportActions = useMessageExportActions({ topicName, workspacePath, exportToObsidian })
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
