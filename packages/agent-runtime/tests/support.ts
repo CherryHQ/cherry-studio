@@ -10,15 +10,18 @@ import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
 import {
+  type AgentRuntimeEvent,
   type AgentRuntimeModel,
   type AgentRuntimeSessionOptions,
   createAgentRuntimeSession,
   type ModelCallPort,
-  type ModelCallRequest
+  type ModelCallRequest,
+  type TranscriptEntry
 } from '../src'
 
 export const MODEL: AgentRuntimeModel = {
   provider: 'cherry',
+  key: 'cherry::bridged-model',
   id: 'bridged-model',
   name: 'Bridged model',
   reasoning: true,
@@ -109,6 +112,17 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
   })
   onTestFinished(() => runtime.dispose())
   return runtime
+}
+
+/** A host fake: keeps every emitted entry as storage would (JSON round trip) and every event. */
+export function hostStore() {
+  const entries: TranscriptEntry[] = []
+  const events: AgentRuntimeEvent[] = []
+  const onEvent = (event: AgentRuntimeEvent) => {
+    events.push(event)
+    if (event.type === 'transcript-append') entries.push(...plain(event.entries))
+  }
+  return { entries, events, onEvent }
 }
 
 export function lastAssistant(session: AgentSession): AssistantMessage {

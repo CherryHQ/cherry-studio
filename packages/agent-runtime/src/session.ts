@@ -1,4 +1,4 @@
-import { InMemoryCredentialStore, type Message } from '@earendil-works/pi-ai'
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
   type AgentSession,
   createAgentSession,
@@ -13,10 +13,18 @@ import {
 
 import { type AiSdkModelSpec, createAiSdkProvider } from './aiSdkProvider'
 import type { ModelCallPort, ModelCallSideChannel } from './ports'
+import { rebuildSessionEntries } from './rebuild'
+import type { TranscriptEntry } from './transcript'
+import { type AgentRuntimeEvent, TranscriptTap } from './transcriptTap'
 
 export type AgentRuntimeModel = AiSdkModelSpec & {
-  /** Pi provider id. Seeded assistant messages replay their signatures only when `provider`/`model` match. */
+  /** Pi provider id. */
   provider: string
+  /**
+   * Stable host identity of the model (e.g. Cherry's unique model id), stored on assistant entries.
+   * A stored reply replays its reasoning and signatures only to a model with the same key.
+   */
+  key: string
 }
 
 /** Pi settings the host may set. Retry is always off: retries belong to the host's AI SDK layer. */
@@ -40,8 +48,15 @@ export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   contextFiles?: boolean
   /** Skill directories the host enables; loaded although skill discovery stays off. */
   skillPaths?: string[]
-  /** Conversation so far, oldest first; the session lives only in memory. */
-  history?: Message[]
+  /** Pi session id; keep it stable per host session, it is also the prompt-cache routing key. Random when omitted. */
+  sessionId?: string
+  /**
+   * The host session so far: the full active path, oldest first, uncompacted. The session lives only
+   * in memory. An invalid transcript throws a `TranscriptError` before anything is created.
+   */
+  transcript?: readonly TranscriptEntry[]
+  /** New transcript entries and turn events, in order. Runs inline with Pi's events and must not throw. */
+  onEvent?: (event: AgentRuntimeEvent) => void
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
@@ -65,7 +80,10 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   options: AgentRuntimeSessionOptions<TRequestOptions>
 ): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
-  const { provider, ...modelSpec } = options.model
+  const { provider, key, ...modelSpec } = options.model
+  const transcriptModel = { key, provider, id: modelSpec.id }
+  const transcript = options.transcript ?? []
+  const rebuilt = rebuildSessionEntries(transcript, transcriptModel)
 
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
@@ -102,8 +120,11 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   })
   await resourceLoader.reload()
 
-  const sessionManager = SessionManager.inMemory(cwd)
-  for (const message of options.history ?? []) sessionManager.appendMessage(message)
+  const sessionManager = SessionManager.inMemory(
+    cwd,
+    options.sessionId === undefined ? undefined : { id: options.sessionId },
+    rebuilt.entries
+  )
 
   const { session } = await createAgentSession({
     cwd,
@@ -119,7 +140,18 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
+  const tap = new TranscriptTap(
+    sessionManager,
+    transcriptModel,
+    { transcript, piEntryCount: rebuilt.entries.length, activatedTools: rebuilt.activatedTools },
+    options.onEvent ?? (() => {})
+  )
+  session.subscribe((event) => tap.handle(event))
+  // State entries are in the session before extensions bind, so `session_start` sees them.
   await session.bindExtensions({})
+  const baseTools = session.getActiveToolNames()
+  tap.setBaseTools(baseTools)
+  if (rebuilt.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...rebuilt.activatedTools])
 
   return {
     session,
