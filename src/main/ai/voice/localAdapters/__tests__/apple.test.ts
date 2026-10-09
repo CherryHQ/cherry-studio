@@ -31,7 +31,43 @@ vi.mock('@application', async () => {
 })
 
 let directory: string
+let expectedTranscriptionInput: Uint8Array
 const wav = Buffer.from('UklGRiYAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQIAAAAAAA==', 'base64')
+
+function wavWithUInt16(offset: number, value: number): Buffer {
+  const changed = Buffer.from(wav)
+  changed.writeUInt16LE(value, offset)
+  return changed
+}
+
+function wavWithUInt32(offset: number, value: number): Buffer {
+  const changed = Buffer.from(wav)
+  changed.writeUInt32LE(value, offset)
+  return changed
+}
+
+function wavWithTag(offset: number, value: string): Buffer {
+  const changed = Buffer.from(wav)
+  changed.write(value, offset, 'ascii')
+  return changed
+}
+
+function wavWithEmptyData(): Buffer {
+  const changed = Buffer.from(wav.subarray(0, 44))
+  changed.writeUInt32LE(changed.length - 8, 4)
+  changed.writeUInt32LE(0, 40)
+  return changed
+}
+
+function wavWithOddMetadataChunk(): Buffer {
+  const chunk = Buffer.alloc(10)
+  chunk.write('JUNK', 0, 'ascii')
+  chunk.writeUInt32LE(1, 4)
+  chunk[8] = 0x2a
+  const changed = Buffer.concat([wav.subarray(0, 36), chunk, wav.subarray(36)])
+  changed.writeUInt32LE(changed.length - 8, 4)
+  return changed
+}
 const capabilities = {
   operation: 'capabilities',
   result: {
@@ -46,6 +82,7 @@ const capabilities = {
 beforeEach(async () => {
   mockMainLoggerService.warn.mockClear()
   directory = await mkdtemp(join(tmpdir(), 'apple-adapter-'))
+  expectedTranscriptionInput = wav
   vi.stubGlobal(
     'process',
     Object.defineProperties(Object.create(process), {
@@ -74,7 +111,7 @@ beforeEach(async () => {
       }
     }
     if (request.operation === 'transcribe') {
-      expect(await readFile(request.inputPath)).toEqual(wav)
+      expect(await readFile(request.inputPath)).toEqual(expectedTranscriptionInput)
       return { operation: 'transcribe', result: { locale: 'en_US', text: 'private transcript' } }
     }
     return { operation: 'install_asr_assets', result: { status: 'installed', locale: 'en_US' } }
@@ -182,10 +219,85 @@ describe('local Apple adapters', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
-  it('rejects WAV-only input despite an installed Apple asset', async () => {
+  it.each([
+    ['canonical header', wav],
+    ['odd-sized metadata chunk', wavWithOddMetadataChunk()]
+  ])('accepts WAV with a %s without invoking the WebM decoder', async (_description, audio) => {
+    expectedTranscriptionInput = audio
+    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+      audio,
+      mediaType: 'audio/wav'
+    })
+    expect(result.text).toBe('private transcript')
+    expect(result.durationInSeconds).toBe(1 / 16000)
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it.each([
+    ['non-PCM encoding', wavWithUInt16(20, 3)],
+    ['stereo channels', wavWithUInt16(22, 2)],
+    ['non-16 kHz sample rate', wavWithUInt32(24, 48000)],
+    ['inconsistent byte rate', wavWithUInt32(28, 64000)],
+    ['inconsistent block alignment', wavWithUInt16(32, 4)],
+    ['non-16-bit samples', wavWithUInt16(34, 24)],
+    ['truncated header', wav.subarray(0, 30)],
+    ['inconsistent RIFF size', wavWithUInt32(4, wav.length - 9)],
+    ['out-of-bounds fmt chunk', wavWithUInt32(16, wav.length)],
+    ['out-of-bounds data chunk', wavWithUInt32(40, 4)],
+    ['missing fmt chunk', wavWithTag(12, 'JUNK')],
+    ['missing data chunk', wavWithTag(36, 'JUNK')],
+    ['empty data chunk', wavWithEmptyData()],
+    ['data not aligned to a sample', wavWithUInt32(40, 1)]
+  ])('rejects canonical WAV with %s', async (_description, audio) => {
     await expect(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
+      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('aborts native WAV transcription and removes the scratch input', async () => {
+    const controller = new AbortController()
+    mocks.nativeRequest.mockImplementation(async (request, options) => {
+      if (request.operation === 'capabilities') return capabilities
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(options.signal.reason))
+      })
+    })
+    const outcome = Promise.resolve(
+      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+        audio: wav,
+        mediaType: 'audio/wav',
+        abortSignal: controller.signal
+      })
+    ).catch((error: unknown) => error)
+    await vi.waitFor(() =>
+      expect(mocks.nativeRequest.mock.calls.some(([request]) => request.operation === 'transcribe')).toBe(true)
+    )
+    controller.abort()
+    expect(await outcome).toMatchObject({ reason: 'aborted' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('sanitizes native WAV failures and removes the scratch input', async () => {
+    const failure = new SystemSpeechError('transcription_failed')
+    failure.message = '/private/recording.wav private transcript canary'
+    mocks.nativeRequest.mockImplementation(async (request) => {
+      if (request.operation === 'capabilities') return capabilities
+      throw failure
+    })
+    const error = await Promise.resolve(
+      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
+    ).catch((error: unknown) => error)
+    expect(error).toMatchObject({ reason: 'operation_failed', message: 'operation_failed' })
+    expect((error as Error).cause).toBeUndefined()
+    expect(mockMainLoggerService.warn.mock.calls).toEqual([
+      ['Apple voice operation failed', { stage: 'native', code: 'transcription_failed' }]
+    ])
+    expect(mocks.decode).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
   })
 
