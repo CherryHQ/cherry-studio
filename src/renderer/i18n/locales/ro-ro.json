@@ -1775,6 +1775,7 @@
   "knowledge.data_source.status.embedding": "Embedding",
   "knowledge.data_source.status.error": "Eroare",
   "knowledge.data_source.status.pending": "Așteptare",
+  "knowledge.data_source.status.reading": "Se citește documentul",
   "knowledge.data_source.status.ready": "Gata",
   "knowledge.data_source.table.aria_label": "Surse de date",
   "knowledge.data_source.table.columns.actions": "Acțiuni",

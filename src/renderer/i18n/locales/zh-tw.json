@@ -1775,6 +1775,7 @@
   "knowledge.data_source.status.embedding": "嵌入中",
   "knowledge.data_source.status.error": "錯誤",
   "knowledge.data_source.status.pending": "等待中",
+  "knowledge.data_source.status.reading": "讀取文件中",
   "knowledge.data_source.status.ready": "就緒",
   "knowledge.data_source.table.aria_label": "資料來源清單",
   "knowledge.data_source.table.columns.actions": "操作",

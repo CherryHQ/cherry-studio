@@ -1775,6 +1775,7 @@
   "knowledge.data_source.status.embedding": "Nhúng",
   "knowledge.data_source.status.error": "Lỗi",
   "knowledge.data_source.status.pending": "Đang chờ",
+  "knowledge.data_source.status.reading": "Đang đọc tài liệu",
   "knowledge.data_source.status.ready": "Sẵn sàng",
   "knowledge.data_source.table.aria_label": "Nguồn dữ liệu",
   "knowledge.data_source.table.columns.actions": "Hành động",

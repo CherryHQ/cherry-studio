@@ -366,6 +366,10 @@ export type SharedCacheSchema = {
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
+  // File-processing progress for a knowledge item, main -> all windows. The check job
+  // mirrors the linked file-processing job's progress here every poll round so the row can
+  // show a percentage during the 'processing' wait; absence means no progress was reported.
+  'knowledge.item.file_processing_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -406,7 +410,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'channel.status.${channelId}': null,
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
-  'knowledge.item.directory_copy_progress.${itemId}': null
+  'knowledge.item.directory_copy_progress.${itemId}': null,
+  'knowledge.item.file_processing_progress.${itemId}': null
 }
 
 /**

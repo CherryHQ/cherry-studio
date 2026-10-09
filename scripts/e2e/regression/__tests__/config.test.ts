@@ -1,4 +1,7 @@
-import { getSensitiveConfigValues, loadTestConfig } from '../config'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+
+import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from '../config'
 
 describe('regression test configuration', () => {
   const validEnv = {
@@ -39,12 +42,40 @@ describe('regression test configuration', () => {
     expect(config.customProvider.apiKey).toBe('provider-secret')
     expect(config.customEmbeddingProvider.apiKey).toBe('embedding-secret')
     expect(config.cherryIn.password).toBe('account-secret')
-    expect(getSensitiveConfigValues(config)).toEqual([
+    expect(getSensitiveConfigValues(validEnv)).toEqual([
       'provider-secret',
       'embedding-secret',
       'automation@example.test',
       'account-secret'
     ])
+  })
+
+  it('collects available secrets for failure evidence without requiring external providers', () => {
+    expect(getSensitiveConfigValues({})).toEqual([])
+    expect(
+      getSensitiveConfigValues({
+        CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ' provider-secret ',
+        CHERRY_TEST_CHERRYIN_PASSWORD: '   '
+      })
+    ).toEqual(['provider-secret'])
+  })
+
+  it('allows the local mock task to pass preflight without external credentials', () => {
+    const environment = { ...process.env }
+    for (const name of REQUIRED_CONFIG) delete environment[name]
+    const result = spawnSync(
+      process.execPath,
+      [
+        createRequire(import.meta.url).resolve('tsx/cli'),
+        'scripts/e2e/regression/cli.ts',
+        'preflight',
+        '--task',
+        'chat-stream-failure'
+      ],
+      { env: environment, encoding: 'utf8', timeout: 20_000 }
+    )
+    expect(result.stderr).toBe('')
+    expect(result.status).toBe(0)
   })
 
   it('fails before application launch when any required value is blank', () => {
