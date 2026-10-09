@@ -75,6 +75,61 @@ beforeEach(() => {
 })
 
 describe('desktop control ownership and user stop', () => {
+  it('restores permission queries after a service restart without reviving stopped tasks', async () => {
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new ComputerUseService()
+    await service._doInit()
+    const task = service.createTask('owner', 'Conversation')
+    await service.openApp(task, 'app')
+    await service._doStop()
+    await service._doInit()
+    try {
+      await expect(service.getPermissionStatus()).resolves.toEqual({ permissions: [] })
+      await expect(service.listApps(task)).rejects.toMatchObject({ code: 'TASK_CLOSED' })
+      await expect(service.listApps(service.createTask('owner', 'Conversation'))).rejects.toMatchObject({
+        code: 'USER_STOPPED'
+      })
+      service.allowControl('owner')
+      await expect(service.listApps(service.createTask('owner', 'Conversation'))).resolves.toMatchObject({
+        apps: [{ id: 'app', name: 'Editor' }]
+      })
+    } finally {
+      await service._doStop()
+      await service._doDestroy()
+    }
+  })
+
+  it('delivers control state changes to existing and new subscribers after a service restart', async () => {
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new ComputerUseService()
+    await service._doInit()
+    await service.openApp(service.createTask('owner', 'Conversation'), 'app')
+    let existingView = service.getControls()
+    const existing = service.onControlsChanged(() => {
+      existingView = service.getControls()
+    })
+    await service._doStop()
+    await service._doInit()
+    let newView = service.getControls()
+    const added = service.onControlsChanged(() => {
+      newView = service.getControls()
+    })
+    try {
+      expect(existingView).toMatchObject([{ ownerId: 'owner', status: 'stopped' }])
+      expect(newView).toMatchObject([{ ownerId: 'owner', status: 'stopped' }])
+      service.allowControl('owner')
+      expect(existingView).toEqual([])
+      expect(newView).toEqual([])
+    } finally {
+      existing.dispose()
+      added.dispose()
+      await service._doStop()
+      await service._doDestroy()
+    }
+  })
+
   it('keeps an application owned across observations and clicks, sharing one runtime per task', async () => {
     const native = backend()
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)

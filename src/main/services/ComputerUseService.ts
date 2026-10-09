@@ -79,7 +79,7 @@ export class ComputerUseControlError extends Error {
 @ServicePhase(Phase.WhenReady)
 export class ComputerUseService extends BaseService {
   private readonly permissionMutex = new Mutex()
-  private readonly shutdown = new AbortController()
+  private shutdown = new AbortController()
   private readonly tasks = new Map<string, ControlTask>()
   private readonly owners = new Map<string, ControlOwner>()
   private readonly appOwners = new Map<string, ControlTask>()
@@ -87,7 +87,7 @@ export class ComputerUseService extends BaseService {
   readonly onControlsChanged = this.changed.event
 
   protected onInit(): void {
-    this.registerDisposable(this.changed)
+    this.shutdown = new AbortController()
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('app.computer_use.agent_control.enabled', (enabled) => {
         if (!enabled) void this.stopAll()
@@ -366,6 +366,10 @@ export class ComputerUseService extends BaseService {
   protected async onStop(): Promise<void> {
     this.shutdown.abort()
     await Promise.all([this.permissionMutex.waitForUnlock(), this.stopAll()])
+  }
+
+  protected onDestroy(): void {
+    this.changed.dispose()
   }
 
   private withPermissionSession(
