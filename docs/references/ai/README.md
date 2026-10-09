@@ -20,6 +20,7 @@ renderer-side transport that connects to them.
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `ai.stream.open` IpcApi route → context provider → AiStreamManager → runtime → broadcast / persist |
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
 | [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi, and DSH drivers |
+| [Local Agent Runtime](./local-agent-runtime.md) | Installed CLI discovery, ACP and native connections, model ownership, and compatibility |
 | [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
 | [Remote Agent API Design](./remote-agent-access.md) | Target network and package APIs: device-level authorization, complete incremental events, receipts, and weak-network recovery |

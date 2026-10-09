@@ -89,7 +89,7 @@ interface PiProviderInjectionBase {
   api: PiApi
   /** Config for `pi.registerProvider(providerName, config)`. `apiKey` is the placeholder. */
   providerConfig: ProviderConfig & { models?: PiChatModelConfig[] }
-  /** The real Cherry API key — inject via `AuthStorage.setRuntimeApiKey`, never into the config. */
+  /** The real Cherry API key — inject via `ModelRuntime.setRuntimeApiKey`, never into the config. */
   apiKey: string
   /** The pi model id to select for the session (Cherry's `apiModelId`). */
   modelId: string

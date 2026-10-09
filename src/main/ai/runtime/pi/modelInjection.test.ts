@@ -369,7 +369,9 @@ describe('buildPiProviderInjection', () => {
     await runtime.setRuntimeApiKey('p', injection.apiKey)
     const registry = new ModelRegistry(runtime)
     registry.registerProvider('p', injection.providerConfig)
-    const auth = await registry.getApiKeyAndHeaders(registry.find('p', injection.modelId)!)
+    const resolvedModel = registry.find('p', injection.modelId)
+    if (!resolvedModel) throw new Error('Injected model was not registered')
+    const auth = await registry.getApiKeyAndHeaders(resolvedModel)
 
     expect(auth).toMatchObject({
       ok: true,
@@ -630,7 +632,9 @@ describe('OpenCode Pi session headers', () => {
     await runtime.setRuntimeApiKey(provider.id, injection.apiKey)
     const registry = new ModelRegistry(runtime)
     registry.registerProvider(provider.id, injection.providerConfig)
-    const auth = await registry.getApiKeyAndHeaders(registry.find(provider.id, injection.modelId)!)
+    const resolvedModel = registry.find(provider.id, injection.modelId)
+    if (!resolvedModel) throw new Error('Injected model was not registered')
+    const auth = await registry.getApiKeyAndHeaders(resolvedModel)
 
     expect(auth).toMatchObject({
       ok: true,

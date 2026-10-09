@@ -69,6 +69,8 @@ import { isAssistantActivityTransition, isConversationActivityRole } from './uti
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
+export type ExpectedAgent = string | { id: string; updatedAt: string; model: string | null; type: string }
+
 const logger = loggerService.withContext('AgentSessionMessageService')
 const SQLITE_INARRAY_CHUNK = 500
 // A ranked tool search runs synchronously on Main. Cap evidence scanning at 20 pages per requested
@@ -1184,10 +1186,7 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(
-    params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
-  ): AgentSessionMessageEntity[] {
+  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgent?: ExpectedAgent): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
       .get('DbService')
       .withWriteTx((tx) => this.saveMessagesWithActivityTx(tx, params, expectedAgent))
@@ -1205,7 +1204,7 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgent
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
@@ -1213,7 +1212,7 @@ export class AgentSessionMessageService {
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: ExpectedAgent
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
@@ -1977,11 +1976,7 @@ export class AgentSessionMessageService {
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */
-  private assertExpectedAgentTx(
-    db: DbOrTx,
-    sessionId: string,
-    expectedAgent: string | { id: string; updatedAt: string; model: string; type: string } | undefined
-  ): void {
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgent: ExpectedAgent | undefined): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
     const [session] = db

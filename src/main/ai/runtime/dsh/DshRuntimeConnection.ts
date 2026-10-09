@@ -39,6 +39,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { isUniqueModelId } from '@shared/data/types/model'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -175,10 +176,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
   constructor(
-    private readonly input: AgentRuntimeConnectInput,
+    input: AgentRuntimeConnectInput,
     private readonly onClosed: () => void = () => undefined
   ) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
     // Constructor-body creation: parameter properties are not yet assigned while

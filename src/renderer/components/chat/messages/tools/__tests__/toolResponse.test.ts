@@ -5,6 +5,18 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { buildToolResponseFromPart } from '../toolResponse'
 
 describe('toolResponse adapter', () => {
+  it('preserves ACP tool identity and details instead of classifying native tools as MCP', () => {
+    const input = { localAcpTool: { title: 'Edit example', kind: 'edit', locations: [{ path: '/example', line: 2 }] } }
+    const response = buildToolResponseFromPart({
+      type: 'dynamic-tool',
+      toolCallId: 'acp-edit',
+      toolName: 'ACP: Edit example',
+      state: 'input-available',
+      input
+    })
+    expect(response).toMatchObject({ tool: { name: 'ACP: Edit example', type: 'provider' }, arguments: input })
+  })
+
   it('maps structured dynamic-tool output metadata to MCP tool fields', () => {
     const part = {
       type: 'dynamic-tool',

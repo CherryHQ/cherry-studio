@@ -62,7 +62,7 @@ export const ComposerToolRuntimeProvider = ({ children, initialState, actions }:
 interface ComposerToolRuntimeBootstrapProps {
   scope: ComposerToolScope
   assistant?: Assistant
-  model: Model
+  model?: Model
   session?: ToolContext['session']
 }
 

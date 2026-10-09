@@ -264,6 +264,9 @@ importers:
 
   .:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^1.5.0
+        version: 1.5.0(zod@4.4.3)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
@@ -369,6 +372,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
+      read-cmd-shim:
+        specifier: ^6.0.0
+        version: 6.0.0
       registry-js:
         specifier: 1.16.1
         version: 1.16.1
@@ -396,6 +402,9 @@ importers:
       turndown:
         specifier: 7.2.0
         version: 7.2.0
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
       which:
         specifier: 6.0.1
         version: 6.0.1
@@ -862,6 +871,9 @@ importers:
       '@types/turndown':
         specifier: ^5.0.5
         version: 5.0.6
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       '@types/unist':
         specifier: 3.0.3
         version: 3.0.3
@@ -2393,6 +2405,11 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@agentclientprotocol/sdk@1.5.0':
+    resolution: {integrity: sha512-524jwbB2iYWA+kWWyv9fhKbhU89dH/lu9u5EXwVNmfYzopV8BujCDxByBDZhxRUkB7RWIJzISCnwivdDk+bdVg==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@ai-sdk/amazon-bedrock@4.0.96':
     resolution: {integrity: sha512-Mc4Ias2jRMD1jOB6xWtKNPdhECeuCZyIlbr9EAGfBnyBt++sS13ziZh9qv9TdyMCAZJ7xoQcpbchoRJcKwPdpA==}
@@ -9183,6 +9200,9 @@ packages:
   '@types/stream-json@1.7.8':
     resolution: {integrity: sha512-MU1OB1eFLcYWd1LjwKXrxdoPtXSRzRmAnnxs4Js/ayB5O/NvHraWwuOaqMWIebpYwM6khFlsJOHEhI9xK/ab4Q==}
 
+  '@types/through@0.0.33':
+    resolution: {integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==}
+
   '@types/tinycolor2@1.4.6':
     resolution: {integrity: sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw==}
 
@@ -9194,6 +9214,9 @@ packages:
 
   '@types/turndown@5.0.6':
     resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
+
+  '@types/unbzip2-stream@1.4.3':
+    resolution: {integrity: sha512-D8X5uuJRISqc8YtwL8jNW2FpPdUOCYXbfD6zNROCTbVXK9nawucxh10tVXE3MPjnHdRA1LvB0zDxVya/lBsnYw==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -15088,6 +15111,10 @@ packages:
     resolution: {integrity: sha512-BNg9EN3DD3GsDXX7Aa8O4p92sryjkmzYYgmgTAc6CA4uGLEDzFfxOxugu21akOxpcXHiEgsYkC6nPsQvLLLmEg==}
     hasBin: true
 
+  read-cmd-shim@6.0.0:
+    resolution: {integrity: sha512-1zM5HuOfagXCBWMN83fuFI/x+T/UhZ7k+KIzhrHXcQoeX5+7gmaDYjELQHmmzIodumBHeByBJT4QYS7ufAgs7A==}
+    engines: {node: ^20.17.0 || >=22.9.0}
+
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
 
@@ -16992,6 +17019,10 @@ packages:
 snapshots:
 
   '@adobe/css-tools@4.4.4': {}
+
+  '@agentclientprotocol/sdk@1.5.0(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@ai-sdk/amazon-bedrock@4.0.96(zod@4.4.3)':
     dependencies:
@@ -24384,6 +24415,10 @@ snapshots:
       '@types/node': 24.10.4
       '@types/stream-chain': 2.1.0
 
+  '@types/through@0.0.33':
+    dependencies:
+      '@types/node': 24.10.4
+
   '@types/tinycolor2@1.4.6': {}
 
   '@types/triple-beam@1.3.5': {}
@@ -24392,6 +24427,10 @@ snapshots:
     optional: true
 
   '@types/turndown@5.0.6': {}
+
+  '@types/unbzip2-stream@1.4.3':
+    dependencies:
+      '@types/through': 0.0.33
 
   '@types/unist@2.0.11': {}
 
@@ -31424,6 +31463,8 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
+
+  read-cmd-shim@6.0.0: {}
 
   readable-stream@2.3.8:
     dependencies:

@@ -10,6 +10,8 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
+import { isUniqueModelId } from '@shared/data/types/model'
+
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
@@ -355,7 +357,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
+  constructor(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
     this.resumeToken = input.resumeToken
   }
 
@@ -1377,7 +1383,8 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new ClaudeCodeRuntimeConnection(input).start()
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    return new ClaudeCodeRuntimeConnection({ ...input, modelId: input.modelId }).start()
   }
 
   onSessionIdle(sessionId: string): void {

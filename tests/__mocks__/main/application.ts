@@ -90,7 +90,11 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  CodeCliService: { openTerminal: vi.fn(async () => ({ success: true })) },
+  LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
+  AgentSessionRuntimeService: { closeLocalAgentForUninstall: vi.fn(async () => true) },
+  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) }
 } as const
 
 /** Type for per-service overrides */

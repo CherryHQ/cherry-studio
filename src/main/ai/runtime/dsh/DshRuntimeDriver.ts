@@ -8,6 +8,7 @@ import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
@@ -90,6 +91,7 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
     const connection = new DshRuntimeConnection(input, () => {
       if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
     })

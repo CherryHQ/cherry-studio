@@ -7,6 +7,7 @@ import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSes
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type {
@@ -71,7 +72,8 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new PiRuntimeConnection(input).start()
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    return new PiRuntimeConnection({ ...input, modelId: input.modelId }).start()
   }
 
   /**
