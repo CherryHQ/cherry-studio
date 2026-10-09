@@ -66,7 +66,6 @@ describe('validation selection', () => {
     'post-release',
     'prepare-release',
     'preview-release',
-    'publish-release',
     'release'
   ])('runs script contracts for release-workflow-only changes: %s', (name) => {
     expect(createPlan([`.github/workflows/${name}.yml`]).projects).toContain('scripts')
