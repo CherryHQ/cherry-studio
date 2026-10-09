@@ -48,7 +48,7 @@ are not cancelled. Pull requests targeting a parent stack branch also run CI.
 Repository, lint, typecheck, and i18n groups run independently. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
 own job. macOS/Windows retain the platform-gated test inventory (now including the
-DSH bridge); platform selection is deliberately conservative whenever main is selected.
+DSH bridge and system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and

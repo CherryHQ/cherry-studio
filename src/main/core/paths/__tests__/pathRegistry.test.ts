@@ -1,15 +1,18 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false,
+    get isPackaged() {
+      return packagedState.value
+    },
     setAppLogsPath: vi.fn()
   }
 }))
@@ -29,7 +32,31 @@ beforeEach(() => {
   getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
 })
 
+afterEach(() => {
+  packagedState.value = false
+  vi.unstubAllGlobals()
+})
+
 describe('buildPathRegistry', () => {
+  it.each([
+    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
+    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'x64', true, '/mock/resources/system-speech/cherry-system-speech']
+  ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: platform },
+        arch: { value: arch },
+        resourcesPath: { value: '/mock/resources' }
+      })
+    )
+    packagedState.value = packaged
+    expect(buildPathRegistry()['feature.voice.helper_file']).toBe(path.normalize(expected))
+    expect(shouldAutoEnsure('feature.voice.helper_file')).toBe(false)
+  })
+
   it('keeps the database and restore journal together under userData Data', () => {
     const registry = buildPathRegistry()
     const dataRoot = path.join('/mock/userData', 'Data')

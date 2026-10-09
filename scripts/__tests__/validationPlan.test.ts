@@ -37,6 +37,7 @@ describe('validation selection', () => {
     ['packages/dsh-bridge/src/link.ts', ['dsh-bridge', 'main']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
+    ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
@@ -44,6 +45,21 @@ describe('validation selection', () => {
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
   })
+  it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
+    const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
+    expect(plan.tasks).toContain('types-system-speech')
+    expect(plan.tasks).toContain('types-node')
+    expect(plan.projects).not.toContain('renderer')
+    expect(selectedGroups(plan).platform).toBe(true)
+  })
+  it.each(['pnpm-lock.yaml', 'src/shared/types/voice.ts'])(
+    'keeps system speech tests and typechecks in shared or full validation: %s',
+    (file) => {
+      const plan = createPlan([file])
+      expect(plan.projects).toContain('system-speech')
+      expect(plan.tasks).toContain('types-system-speech')
+    }
+  )
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
@@ -136,6 +152,43 @@ describe('working tree changes', () => {
 
 // A docs-only plan must never start compilers, native rebuilds, lint fixes, or tests.
 describe('validation execution', () => {
+  it.each(['types', 'packages', 'platform'])(
+    'builds workspace exports before system speech validation in the %s group',
+    (group) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
+      directories.push(cwd)
+      const log = join(cwd, 'commands.jsonl')
+      const pnpm = join(cwd, 'pnpm.cjs')
+      writeFileSync(
+        pnpm,
+        `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+      )
+      const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', group], {
+        env: {
+          ...process.env,
+          npm_execpath: pnpm,
+          COMMAND_LOG: log,
+          VALIDATION_PLAN: JSON.stringify(createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts']))
+        },
+        encoding: 'utf8'
+      })
+      expect(result.status, result.stderr).toBe(0)
+      const commands: string[][] = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      expect(commands[0]).toEqual(['run', 'postinstall'])
+      if (group === 'types') {
+        expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
+      } else {
+        const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
+        expect(test).toContain('system-speech')
+        if (group === 'platform')
+          expect(test).toContain('packages/system-speech/tests/SystemSpeechNativeClient.test.ts')
+      }
+    }
+  )
+
   it('executes only planned read-only tasks and propagates command failures', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-run-'))
     directories.push(cwd)

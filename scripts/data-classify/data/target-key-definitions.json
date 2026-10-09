@@ -111,6 +111,62 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.voice.recognition.model_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact local ASR model selection; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.recognition.language",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Recognition language; empty is omitted at the Voice call boundary"
+    },
+    {
+      "targetKey": "feature.voice.speech.model_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact local TTS model selection; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.speech.voice_id",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Exact installed system voice identifier; empty means no explicit selection"
+    },
+    {
+      "targetKey": "feature.voice.speech.speed",
+      "type": "number",
+      "defaultValue": 1,
+      "status": "classified",
+      "description": "Speech rate multiplier constrained by the Voice request contract"
+    },
+    {
+      "targetKey": "feature.voice.speech.language",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Speech language; empty is omitted at the Voice call boundary"
+    },
+    {
+      "targetKey": "feature.voice.auto_read.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable global automatic reading of eligible assistant output"
+    },
+    {
+      "targetKey": "feature.voice.auto_read.disclosure_confirmed",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether the user confirmed the automatic reading disclosure"
+    },
+    {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
       "defaultValue": true,

@@ -12,7 +12,8 @@ export const testProjects = [
   'ai-sdk-provider',
   'dsh-bridge',
   'remote-protocol',
-  'remote-transport'
+  'remote-transport',
+  'system-speech'
 ]
 
 export const checkTasks = {
@@ -28,6 +29,7 @@ export const checkTasks = {
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
+  'types-system-speech': { group: 'types', args: ['--filter', '@cherrystudio/system-speech', 'typecheck'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
   'i18n-hardcoded': { group: 'i18n', args: ['i18n:hardcoded:strict'] }
@@ -45,6 +47,7 @@ const consumers = {
   'dsh-bridge': ['dsh-bridge', 'main', 'preload'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
+  'system-speech': ['system-speech', 'main', 'preload'],
   scripts: ['scripts']
 }
 
@@ -123,6 +126,7 @@ export function createPlan(files, fullReason) {
     if (affected.includes('aiCore')) add('types-aicore', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
+    if (affected.includes('system-speech')) add('types-system-speech', file)
     if (scope === 'main' || scope === 'shared') add('migrations', file)
     for (const task of ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']) add(task, file)
   }

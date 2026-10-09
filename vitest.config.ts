@@ -163,6 +163,14 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'system-speech',
+          environment: 'node',
+          include: ['packages/system-speech/tests/**/*.test.ts']
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,
