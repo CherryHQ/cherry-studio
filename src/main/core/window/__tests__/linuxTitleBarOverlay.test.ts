@@ -18,7 +18,7 @@ function createWindow() {
 
 function emitThemeUpdated() {
   for (const [event, listener] of vi.mocked(nativeTheme.on).mock.calls) {
-    if (event === 'updated') (listener as () => void)()
+    if (event === 'updated') listener()
   }
 }
 
@@ -41,7 +41,8 @@ describe('syncLinuxTitleBarOverlayWithTheme', () => {
 
     ;(nativeTheme as { shouldUseDarkColors: boolean }).shouldUseDarkColors = dark
     emitThemeUpdated()
-    const { color, symbolColor } = win.setTitleBarOverlay.mock.calls.at(-1)?.[0]
+    const { calls } = win.setTitleBarOverlay.mock
+    const { color, symbolColor } = calls[calls.length - 1][0]
 
     const [r, g, b, a] = color.match(/[\d.]+/g).map(Number)
     const glyph = parseInt(symbolColor.slice(1, 3), 16)
