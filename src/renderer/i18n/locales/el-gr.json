@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Προηγούμενη καρτέλα",
   "settings.shortcuts.print": "Εκτύπωση",
   "settings.shortcuts.quick_assistant": "Συντομεύστε επιχειρηματικά",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Δεν ήταν δυνατή η καταχώριση αυτής της συντόμευσης σε αυτή τη συνεδρία Wayland. Δοκιμάστε μια συνεδρία Xorg.",
   "settings.shortcuts.rename_topic": "Μετονομασία θέματος",
   "settings.shortcuts.reset": "Επαναφορά",
   "settings.shortcuts.reset_defaults_confirm": "Θέλετε να επαναφέρετε όλα τα συντομού πλήκτρα στις προεπιλεγμένες τιμές;",

@@ -31,16 +31,10 @@ import type {
   LanTransferConnectPayload,
   LanTransferState
 } from '@shared/types/lanTransfer'
-import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
+import type { ShortcutRegistrationConflictPayload } from '@shared/types/shortcut'
 import type { CommandId } from '@shared/utils/command'
 
 import { ipcApi } from './ipc'
-
-type ShortcutRegistrationConflictPayload = {
-  key: ShortcutPreferenceKey
-  accelerator?: string
-  hasConflict: boolean
-}
 
 // Custom APIs for renderer
 const api = {

@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Vorheriger Tab",
   "settings.shortcuts.print": "Drucken",
   "settings.shortcuts.quick_assistant": "Schnellassistent",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Diese Tastenkombination konnte in dieser Wayland-Sitzung nicht registriert werden. Versuchen Sie eine Xorg-Sitzung.",
   "settings.shortcuts.rename_topic": "Thema umbenennen",
   "settings.shortcuts.reset": "Zurücksetzen",
   "settings.shortcuts.reset_defaults_confirm": "Alle Shortcuts wirklich zurücksetzen?",

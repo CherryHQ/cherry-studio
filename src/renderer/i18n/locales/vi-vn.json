@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Tab trước",
   "settings.shortcuts.print": "In",
   "settings.shortcuts.quick_assistant": "Trợ lý nhanh",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Không thể đăng ký phím tắt này trong phiên Wayland hiện tại. Hãy thử phiên Xorg.",
   "settings.shortcuts.rename_topic": "Đổi tên chủ đề",
   "settings.shortcuts.reset": "Đặt lại",
   "settings.shortcuts.reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",

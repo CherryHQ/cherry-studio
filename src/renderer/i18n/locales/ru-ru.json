@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Предыдущая вкладка",
   "settings.shortcuts.print": "Печать",
   "settings.shortcuts.quick_assistant": "Быстрый помощник",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Не удалось зарегистрировать это сочетание клавиш в сеансе Wayland. Попробуйте сеанс Xorg.",
   "settings.shortcuts.rename_topic": "Переименовать топик",
   "settings.shortcuts.reset": "Сброс",
   "settings.shortcuts.reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",

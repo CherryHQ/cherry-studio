@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Önceki Sekme",
   "settings.shortcuts.print": "Yazdır",
   "settings.shortcuts.quick_assistant": "Hızlı Asistan",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Bu kısayol bu Wayland oturumunda kaydedilemedi. Bir Xorg oturumu deneyin.",
   "settings.shortcuts.rename_topic": "Konuşmayı Yeniden Adlandır",
   "settings.shortcuts.reset": "Sıfırla",
   "settings.shortcuts.reset_defaults_confirm": "Tüm kısayolları sıfırlamak istediğinizden emin misiniz?",

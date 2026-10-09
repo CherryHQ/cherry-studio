@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Onglet précédent",
   "settings.shortcuts.print": "Imprimer",
   "settings.shortcuts.quick_assistant": "Assistant rapide",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Ce raccourci n'a pas pu être enregistré dans cette session Wayland. Essayez une session Xorg.",
   "settings.shortcuts.rename_topic": "Renommer le sujet",
   "settings.shortcuts.reset": "Réinitialiser",
   "settings.shortcuts.reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",

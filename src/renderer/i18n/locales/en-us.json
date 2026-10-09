@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Previous Tab",
   "settings.shortcuts.print": "Print",
   "settings.shortcuts.quick_assistant": "Quick Assistant",
+  "settings.shortcuts.registration_failed_in_wayland_session": "This shortcut could not be registered in this Wayland session. Try an Xorg session.",
   "settings.shortcuts.rename_topic": "Rename Conversation",
   "settings.shortcuts.reset": "Reset",
   "settings.shortcuts.reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",

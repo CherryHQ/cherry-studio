@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Aba anterior",
   "settings.shortcuts.print": "Imprimir",
   "settings.shortcuts.quick_assistant": "Atalho de assistente",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Não foi possível registar este atalho nesta sessão Wayland. Experimente uma sessão Xorg.",
   "settings.shortcuts.rename_topic": "Renomear tópico",
   "settings.shortcuts.reset": "Redefinir",
   "settings.shortcuts.reset_defaults_confirm": "Tem a certeza de que pretende redefinir todos os atalhos?",

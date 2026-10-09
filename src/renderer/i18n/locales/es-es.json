@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Pestaña anterior",
   "settings.shortcuts.print": "Imprimir",
   "settings.shortcuts.quick_assistant": "Asistente rápido",
+  "settings.shortcuts.registration_failed_in_wayland_session": "No se pudo registrar este atajo en esta sesión de Wayland. Prueba con una sesión de Xorg.",
   "settings.shortcuts.rename_topic": "Renombrar tema",
   "settings.shortcuts.reset": "Restablecer",
   "settings.shortcuts.reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",

@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "Fila anterioară",
   "settings.shortcuts.print": "Tipărire",
   "settings.shortcuts.quick_assistant": "Asistent rapid",
+  "settings.shortcuts.registration_failed_in_wayland_session": "Această comandă rapidă nu a putut fi înregistrată în această sesiune Wayland. Încercați o sesiune Xorg.",
   "settings.shortcuts.rename_topic": "Redenumește subiectul",
   "settings.shortcuts.reset": "Resetare",
   "settings.shortcuts.reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",

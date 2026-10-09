@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "上一个标签页",
   "settings.shortcuts.print": "打印",
   "settings.shortcuts.quick_assistant": "快捷助手",
+  "settings.shortcuts.registration_failed_in_wayland_session": "此快捷键无法在当前 Wayland 会话中注册。请尝试切换到 Xorg 会话。",
   "settings.shortcuts.rename_topic": "重命名对话",
   "settings.shortcuts.reset": "重置",
   "settings.shortcuts.reset_defaults_confirm": "确定要重置所有快捷键吗？",

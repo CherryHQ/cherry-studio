@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "前のタブ",
   "settings.shortcuts.print": "印刷",
   "settings.shortcuts.quick_assistant": "クイックアシスタント",
+  "settings.shortcuts.registration_failed_in_wayland_session": "この Wayland セッションではショートカットを登録できませんでした。Xorg セッションをお試しください。",
   "settings.shortcuts.rename_topic": "トピックの名前を変更",
   "settings.shortcuts.reset": "リセット",
   "settings.shortcuts.reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",

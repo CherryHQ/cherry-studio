@@ -5435,6 +5435,7 @@
   "settings.shortcuts.prev_tab": "上一個分頁",
   "settings.shortcuts.print": "列印",
   "settings.shortcuts.quick_assistant": "快速助理",
+  "settings.shortcuts.registration_failed_in_wayland_session": "此快捷鍵無法在目前的 Wayland 工作階段中註冊。請嘗試切換至 Xorg 工作階段。",
   "settings.shortcuts.rename_topic": "重新命名對話",
   "settings.shortcuts.reset": "重設",
   "settings.shortcuts.reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
