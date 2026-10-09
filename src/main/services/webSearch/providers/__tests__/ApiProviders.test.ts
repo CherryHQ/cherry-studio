@@ -52,6 +52,7 @@ import { JinaProvider } from '../api/JinaProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
+import { SerpKiteProvider } from '../api/SerpKiteProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
@@ -414,6 +415,52 @@ describe('main web search API providers', () => {
           sourceInput: 'latest web research',
           title: 'Serply Title',
           url: 'https://serply.example/result'
+        }
+      ]
+    })
+  })
+
+  it('matches the SerpKite search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('serpkite-response.json')))
+
+    const provider = createProviderDriver(
+      SerpKiteProvider,
+      createProvider({
+        id: 'serpkite',
+        name: 'SerpKite',
+        apiKeys: ['serpkite-key'],
+        apiHost: 'https://api.serpkite.com'
+      })
+    )
+
+    const abortController = new AbortController()
+    const result = await provider.searchKeywords('latest web research', runtimeConfig, {
+      signal: abortController.signal
+    })
+
+    expect(fetchMock.mock.lastCall?.[1]?.signal).toBe(abortController.signal)
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: null,
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer serpkite-key',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'GET',
+      url: 'https://api.serpkite.com/v1/search?q=latest+web+research&num=4'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['latest web research'],
+      providerId: 'serpkite',
+      query: 'latest web research',
+      results: [
+        {
+          content: 'SerpKite Snippet',
+          sourceInput: 'latest web research',
+          title: 'SerpKite Title',
+          url: 'https://serpkite.example/result'
         }
       ]
     })
