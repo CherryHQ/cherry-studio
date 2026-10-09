@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { AppUpdateButton } from '@renderer/components/layout/AppUpdateButton'
 import { HelpMenu } from '@renderer/components/layout/HelpMenu'
 import { UserAvatar } from '@renderer/components/Sidebar'
 import UserPopup from '@renderer/components/UserPopup'
@@ -128,6 +129,7 @@ export function MinimalSidebarFooter() {
             <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" ring={false} />
             <span className="truncate text-sm">{name}</span>
           </Button>
+          <AppUpdateButton className="size-[30px] rounded-md [&_svg]:size-4" tooltipPlacement="top" />
           <Tooltip content={t('settings.title')} placement="top" delay={800}>
             <Button
               variant="ghost"
