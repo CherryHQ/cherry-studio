@@ -41,3 +41,12 @@ export type { AgentCheckpointDescriptor, AgentCheckpointPage } from './agent/che
 export { encodeAgentCommand } from './agent/commands'
 export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agent/reducer'
 export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
+
+export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'
+export type {
+  AgentUploadMetadata,
+  AgentUploadReference,
+  AgentUploadState,
+  AgentUploadWrite,
+  AgentUploadResume
+} from './agent/uploads'

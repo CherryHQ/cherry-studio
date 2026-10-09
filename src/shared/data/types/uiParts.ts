@@ -216,6 +216,8 @@ export interface CherryFileMeta {
    * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
+  /** Verified remote original; the file URL may point to its Agent workspace copy. */
+  remoteAttachment?: { sha256: string; byteLength: number }
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
@@ -311,6 +313,9 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
+  remoteAttachment: z
+    .object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), byteLength: z.number().int().nonnegative() })
+    .optional(),
   fileTokenSourceId: z.string().optional(),
   composerFileKind: z.literal('pasted-text').optional()
 })

@@ -9,6 +9,7 @@ import {
   type RemoteAuthorization,
   type RemoteCapability
 } from '@cherrystudio/remote-protocol'
+import { agentUploadLimits } from '@cherrystudio/remote-protocol/agent'
 import { configurationMethods } from '@cherrystudio/remote-protocol/configuration'
 import { RemoteRpcError, RemoteRpcServer, type SecureChannel } from '@cherrystudio/remote-transport'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
@@ -45,7 +46,10 @@ export class RemoteConnection {
     // The reply is queued on the write chain in a microtask; setImmediate runs after it, keeping events behind the response.
     registerAgentMethods(
       this.rpc,
-      { requireAgent: () => this.requireCapability('agent'), afterReply: (fn) => setImmediate(fn) },
+      {
+        requireAgent: () => ({ ...this.requireCapability('agent'), peerIdentity: this.channel.remoteIdentity }),
+        afterReply: (fn) => setImmediate(fn)
+      },
       hub,
       this.subscriptions
     )
@@ -60,8 +64,16 @@ export class RemoteConnection {
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
+        agentUploadsVersion: 1,
         connectionEndpointsVersion: 1,
-        limits: remoteLimits,
+        limits: {
+          ...remoteLimits,
+          agentUploadFileBytes: agentUploadLimits.fileBytes,
+          agentUploadMessageBytes: agentUploadLimits.messageBytes,
+          agentUploadFiles: agentUploadLimits.files,
+          agentUploadChunkBytes: agentUploadLimits.chunkBytes,
+          agentUploadWindow: agentUploadLimits.window
+        },
         heartbeatMs: remoteLimits.heartbeatMs
       }
     })

@@ -41,7 +41,7 @@ Deviations from the design doc, kept deliberately small:
   attached through `addListener` replay. Remote sends pass the listener at run start.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
-- Files are exposed as `data` parts with metadata only.
+- Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
@@ -106,3 +106,25 @@ Cancellation checks the expected execution inside the stream manager's dispatch 
 An identical pending pairing claim can be retried by the same proven device key; changed
 claim contents or another key still conflict. Settings reads pending claims on entry and
 ignores responses superseded by later pairing events or a stopped LAN listener.
+
+## Attachment ownership
+
+`RemoteUploads` owns durable staging under `feature.remote_access.uploads`. File data is synced
+before the atomically replaced checkpoint is acknowledged. Recovery truncates uncommitted tails;
+a shorter file fails verification. Shutdown drains active work and retains resumable records.
+Each upload is serialized independently, with one writer epoch and bounded quotas.
+
+A verified upload becomes a managed FileManager original when its send command is admitted.
+`prepareAgentAttachmentWorkspace` copies it into the session workspace under
+`.cherry-studio/attachments/<sessionId>/<fileEntryId>/`. Runtime file paths target that working
+copy; persisted file metadata retains the original entry ID and SHA-256 for mobile readback.
+Rejected preparation removes newly created workspace files. Unreferenced managed originals use
+FileManager's orphan grace period. Accepted working copies remain workspace-owned.
+
+Command deduplication precedes staging lookup, so receipt replay survives staging expiration.
+File pages require session/message/revision identity; callers cannot choose arbitrary paths or
+managed entry IDs. The phone reads bytes only when opening an attachment.
+
+Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
+`RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
+This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.

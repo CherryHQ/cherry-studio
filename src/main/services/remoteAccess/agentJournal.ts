@@ -22,6 +22,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { prepareAgentAttachmentWorkspace } from '@main/ai/runtime/agentAttachmentWorkspace'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -40,6 +41,7 @@ import {
   utf8
 } from './agentQueries'
 import { toMessageUsage } from './agentUsage'
+import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
@@ -253,24 +255,31 @@ export class SessionJournal {
     text: string,
     expectedAgentId: string,
     onPersist: (tx: DbOrTx, reservation: { executionId: string; messageId: string; userMessageId: string }) => void,
-    beforePersist?: () => void
+    beforePersist?: () => void,
+    attachments: CherryMessagePart[] = []
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
-    const userParts: CherryMessagePart[] = [{ type: 'text', text }]
+    const prepared = await prepareAgentAttachmentWorkspace(getSession(this.sessionId), [
+      ...(text.trim() ? [{ type: 'text' as const, text }] : []),
+      ...attachments
+    ])
+    let persisted = false
     this.starting += 1
     try {
       const result = await startAgentSessionRun({
         sessionId: this.sessionId,
-        userParts,
+        userParts: prepared.parts,
         listeners: [listener],
         requireIdle: { expectedAgentId },
         beforePersist,
-        onPersist: (tx, messages) =>
+        onPersist: (tx, messages) => {
           onPersist(tx, {
             executionId: listener.executionId,
             messageId: messages.assistantMessageId,
             userMessageId: messages.userMessageId
           })
+          persisted = true
+        }
       })
       if (result.mode !== 'started') {
         listener.current = false
@@ -280,6 +289,7 @@ export class SessionJournal {
       if (listener.current) this.ensureExecution(listener.executionId)
       return { started: true, executionId: listener.executionId }
     } finally {
+      if (!persisted) await prepared.release().catch((error) => logger.warn('Unsent attachment cleanup failed', error))
       this.starting -= 1
       this.lastUsedAt = Date.now()
     }
@@ -875,6 +885,7 @@ class RemoteAgentListener implements StreamListener {
 
 /** Shared journals: one per session regardless of how many devices subscribe. */
 export class RemoteAgentHub {
+  readonly uploads = new RemoteUploads()
   private readonly journals = new Map<string, SessionJournal>()
 
   publishSession(sessionId: string): void {
@@ -910,6 +921,7 @@ export class RemoteAgentHub {
   }
 
   sweep(): void {
+    this.uploads.sweep()
     for (const journal of this.journals.values()) {
       if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
         journal.dispose()
@@ -930,6 +942,7 @@ export class RemoteAgentHub {
   }
 
   dispose(): void {
+    void this.uploads.dispose().catch((error) => logger.warn('Upload shutdown cleanup failed', error))
     for (const journal of this.journals.values()) journal.dispose()
     this.journals.clear()
   }

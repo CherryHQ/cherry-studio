@@ -14,6 +14,15 @@ import {
   partSchema,
   sessionSchema
 } from './resources'
+import {
+  uploadMetadataSchema,
+  uploadReferenceSchema,
+  uploadReferencesSchema,
+  uploadStateSchema,
+  uploadResumeSchema,
+  uploadWriteSchema,
+  uploadWriterSchema
+} from './uploads'
 
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,
@@ -89,8 +98,21 @@ export const agentMethods = {
       sha256: digest
     })
   ),
+  'agent.uploads.prepare': method(uploadMetadataSchema, uploadStateSchema),
+  'agent.uploads.get': method(uploadReferenceSchema, uploadStateSchema),
+  'agent.uploads.resume': method(uploadResumeSchema, uploadStateSchema),
+  'agent.uploads.write': method(uploadWriteSchema, uploadStateSchema),
+  'agent.uploads.complete': method(uploadWriterSchema, uploadStateSchema),
+  'agent.uploads.cancel': method(uploadReferenceSchema, z.looseObject({ cancelled: z.literal(true) })),
   'agent.messages.send': method(
-    z.strictObject({ ...command, text: unicodeText.min(1).max(32_768), expectedIdleRevision: decimal }),
+    z
+      .strictObject({
+        ...command,
+        text: unicodeText.max(32_768),
+        expectedIdleRevision: decimal,
+        attachments: uploadReferencesSchema.optional()
+      })
+      .refine((input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length)),
     commandReceiptSchema
   ),
   'agent.executions.cancel': method(

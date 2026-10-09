@@ -1286,7 +1286,9 @@ async function extractAttachmentPaths(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     try {
       let resolved: AbsoluteFilePath
-      if (fileEntryId) {
+      if (readCherryMeta(part)?.remoteAttachment && part.url?.startsWith('file://')) {
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
+      } else if (fileEntryId) {
         resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
       } else if (part.url?.startsWith('file://')) {
         resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))

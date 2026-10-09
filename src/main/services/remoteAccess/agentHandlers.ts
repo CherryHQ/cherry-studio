@@ -34,16 +34,18 @@ import {
   listWorkspaces,
   pageOf,
   readPersistedContent,
+  readPersistedFileContent,
   sha256,
   sliceContent,
   toSessionSummary
 } from './agentQueries'
 import type { AgentSubscriptions } from './agentSubscriptions'
+import type { UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
 
 export interface AgentAccess {
-  requireAgent(): { deviceId: string; grantId: string }
+  requireAgent(): UploadOwner
   /** Runs after the pending reply has been queued to the wire, so activation never leaks events ahead of its response. */
   afterReply(fn: () => void): void
 }
@@ -173,38 +175,54 @@ export function registerAgentMethods(
   on('agent.parts.list', ({ sessionId, messageId, messageRevision, cursor, limit }) =>
     listParts(sessionId, messageId, messageRevision, cursor, limit)
   )
-  on('agent.content.read', ({ sessionId, contentId, revision, offset, maxBytes }) => {
+  on('agent.content.read', async ({ sessionId, contentId, revision, offset, maxBytes }) => {
     getSession(sessionId)
     const bytes =
       hub.journal(sessionId).pins.get(`${contentId}:${revision}`) ??
       subscriptions.readContent(sessionId, contentId, revision) ??
       readPersistedContent(sessionId, contentId, revision)
+    const file = !bytes?.length
+      ? await readPersistedFileContent({ sessionId, contentId, revision, offset, maxBytes })
+      : undefined
+    if (file) {
+      access.requireAgent()
+      return file
+    }
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
+  on('agent.uploads.prepare', (params, auth) => hub.uploads.prepare(auth, params))
+  on('agent.uploads.get', ({ uploadId }, auth) => hub.uploads.get(auth, uploadId))
+  on('agent.uploads.resume', (params, auth) => hub.uploads.resume(auth, params))
+  on('agent.uploads.write', (params, auth) => hub.uploads.write(auth, params))
+  on('agent.uploads.complete', (params, auth) => hub.uploads.complete(auth, params))
+  on('agent.uploads.cancel', ({ uploadId }, auth) => hub.uploads.cancel(auth, uploadId))
   on('agent.messages.send', (params, auth) => {
-    const summary = summaryOf(params.sessionId)
-    return command(auth, 'agent.messages.send', params, params.sessionId, async () => {
-      const started = await hub.journal(params.sessionId).startRun(
-        params.text,
-        summary.agentId,
-        (tx, reservation) =>
-          remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation),
-        () => {
-          if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
-            throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
-        }
-      )
-      if (!started.started)
-        return {
-          status: 'rejected',
-          error:
-            started.reason === 'busy'
-              ? { reason: 'CONFLICT', message: 'Session is busy' }
-              : { reason: 'NOT_FOUND', message: 'Session is not available' }
-        }
-      return { status: 'applied', executionId: started.executionId }
-    })
+    return command(auth, 'agent.messages.send', params, params.sessionId, () =>
+      hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
+        const started = await hub.journal(params.sessionId).startRun(
+          params.text,
+          summaryOf(params.sessionId).agentId,
+          (tx, reservation) =>
+            remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation),
+          () => {
+            access.requireAgent()
+            if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
+              throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
+          },
+          attachments
+        )
+        if (!started.started)
+          return {
+            status: 'rejected',
+            error:
+              started.reason === 'busy'
+                ? { reason: 'CONFLICT', message: 'Session is busy' }
+                : { reason: 'NOT_FOUND', message: 'Session is not available' }
+          }
+        return { status: 'applied', executionId: started.executionId }
+      })
+    )
   })
   on('agent.executions.cancel', (params, auth) => {
     getSession(params.sessionId)

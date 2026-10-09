@@ -35,7 +35,7 @@ const transportLog: ChannelOptions['logger'] = {
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
+@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService', 'FileManager'])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
   private readonly advertisement = new RemoteAdvertisement((status) => {
@@ -81,6 +81,11 @@ export class RemoteAccessService extends BaseService {
       this.hub.dispose()
       for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
     })
+  }
+
+  protected async onStop(): Promise<void> {
+    this.closeIngress()
+    await this.hub.uploads.dispose()
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
@@ -197,13 +202,20 @@ export class RemoteAccessService extends BaseService {
     entry.remote = remote
     let windowStart = Date.now()
     let count = 0
+    let uploadCount = 0
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
       if (Date.now() - windowStart >= 1000) {
         windowStart = Date.now()
         count = 0
+        uploadCount = 0
       }
-      if (++count > 64) throw new Error('Remote request rate exceeded')
+      const upload =
+        input !== null &&
+        typeof input === 'object' &&
+        'method' in input &&
+        (input.method === 'agent.uploads.write' || input.method === 'agent.content.read')
+      if (upload ? ++uploadCount > 512 : ++count > 64) throw new Error('Remote request rate exceeded')
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {

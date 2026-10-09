@@ -73,3 +73,21 @@ The optional public model summary (`modelId`, `providerId`, `name`) is shared by
 and Agent catalog entries. A message records its producing model; the catalog records current
 configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
 or requires the receiving device to have the model installed.
+
+## Resumable Agent attachments
+
+`connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/write/complete/cancel.
+Upload identity is scoped to device and Agent grant, independent of sockets and sessions.
+A durable `committedOffset` is the only resume position. `resume` uses an idempotent resume ID
+and expected writer epoch; old writers cannot advance a replaced upload. Each bounded chunk
+has a SHA-256 digest. Completion verifies the full-file digest before exposing a ready reference.
+
+Limits: 1 GiB/file, 2 GiB/message, eight files, 24 KiB chunks and an eight-request window.
+Staging expires after 24 hours idle or seven days total, with 4 GiB/device and 8 GiB/global
+reservations. Upload permission and expiry are rechecked independently of message receipts.
+Send accepts text, files, or both. Clients freeze the upload references in the durable send
+command before submission and query that command's receipt after uncertain outcomes.
+They must never replace expired upload references inside an already submitted command.
+
+Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
+Content pages are read under the current Agent grant and checked against the complete digest.
