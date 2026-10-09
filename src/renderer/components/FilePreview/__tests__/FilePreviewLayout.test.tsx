@@ -2,8 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { FilePreviewLayout } from '../FilePreviewLayout'
-import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
 
 afterEach(cleanup)
 

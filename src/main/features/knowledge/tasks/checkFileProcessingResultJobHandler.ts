@@ -31,6 +31,14 @@ const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
   'file-processing.background-local',
   'file-processing.remote-poll'
 ])
+// Mirrored progress outlives the 5s poll cadence (see FILE_PROCESSING_CHECK_DELAY_MS) but
+// self-collects if polling ever stops without a terminal round deleting it first.
+// Single writer: only the check chain writes this key, so no epoch guard is needed.
+const FILE_PROCESSING_PROGRESS_TTL_MS = 60_000
+
+function fileProcessingProgressCacheKey(itemId: string): `knowledge.item.file_processing_progress.${string}` {
+  return `knowledge.item.file_processing_progress.${itemId}`
+}
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -151,6 +159,9 @@ export function createCheckFileProcessingResultJobHandler(
       if (!canContinue) {
         return
       }
+      // Blank the mirrored percentage now — the row keeps showing 'processing' until its next
+      // poll observes the indexing job's 'reading' flip, and a lingering number would be stale.
+      application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
       reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     },
 
@@ -160,6 +171,9 @@ export function createCheckFileProcessingResultJobHandler(
         logger,
         'Failed to flip knowledge file-processing check target to failed in onSettled'
       )
+      if (event.status !== 'completed') {
+        application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(event.input.itemId))
+      }
     }
   }
 }
@@ -169,12 +183,18 @@ function reportWaitingProgress(
   fileProcessingJobId: string,
   pollRound: number
 ): void {
-  const childProgress = application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
+  const cacheService = application.get('CacheService')
+  const childProgress = cacheService.getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
   if (!childProgress) {
     reportKnowledgeProgress(ctx, 0, { stage: 'waiting', pollRound })
     return
   }
 
+  cacheService.setShared(
+    fileProcessingProgressCacheKey(ctx.input.itemId),
+    childProgress.progress,
+    FILE_PROCESSING_PROGRESS_TTL_MS
+  )
   reportKnowledgeProgress(ctx, childProgress.progress, {
     stage: 'waiting',
     pollRound,
@@ -220,6 +240,9 @@ function markItemFailed(itemId: string, error: string): void {
     }
     return
   }
+  // A failed item can be reindexed into a fresh chain that restarts at 0 — a
+  // lingering percentage from this run would read as the new run's progress.
+  application.get('CacheService').deleteShared(fileProcessingProgressCacheKey(itemId))
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 

@@ -3570,6 +3570,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-haiku-5-5",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-opus-4-1",
       "providerId": "claude-code"
     },
@@ -41082,5 +41086,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "bd1ff301f4521d11"
+  "version": "b5d75fe20ff361b6"
 }

@@ -1,5 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills",
+  "agent.builtin.cherry_doctor.description": "内置系统诊断分析员。读取诊断报告和运行时状态，解释根因并提出有限范围的修复",
   "agent.builtin.cherry_support.description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交",
   "agent.session.dsh.bun_unavailable": "DSH 无法启动，因为内置运行时不可用。请重新安装 Cherry Studio 后重试。",
   "agent.session.dsh.bun_unavailable_dev": "DSH 无法启动，因为内置运行时不可用。请在开发仓库中运行 pnpm download:binaries 后重试。",
