@@ -789,6 +789,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
         const tapped = selectionAtPointer(e.clientX, e.clientY, false)
         if (!tapped) return
         applySelection(tapped)
+        suppressClickRef.current = true
         commitSelection(tapped)
         return
       }
@@ -866,9 +867,6 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     <div
       ref={scrollElCallback}
       data-testid="xlsx-grid-scroll"
-      style={
-        options?.bottomInset === 'content' ? { paddingBottom: 'var(--file-preview-bottom-inset, 0px)' } : undefined
-      }
       data-picker={pickerActive ? 'true' : undefined}
       className={cn('relative h-full w-full overflow-auto bg-background', pickerActive && 'cursor-cell')}
       onScroll={handleScroll}

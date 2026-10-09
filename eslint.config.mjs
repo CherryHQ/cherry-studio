@@ -97,8 +97,14 @@ const BAN_MCP_SDK_V1 = {
 
 // File preview is a portable package: host-app modules are off-limits to its source.
 const FILE_PREVIEW_HOST_IMPORTS = [
+  '@renderer',
   '@renderer/**',
+  '@shared',
   '@shared/**',
+  '@data',
+  '@data/**',
+  '@test-mocks',
+  '@test-mocks/**',
   '@logger',
   'electron',
   '**/src/renderer/**',
@@ -1054,7 +1060,6 @@ export default defineConfig([
   },
   {
     files: ['packages/file-preview/src/**/*.{ts,tsx}'],
-    ignores: ['packages/file-preview/src/**/__tests__/**'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

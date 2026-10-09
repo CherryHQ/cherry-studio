@@ -224,11 +224,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Unlike the block producers, the xlsx grid holds a selection whether or not capture is on — a cell clicked
   to read a value stays selected. Capture therefore arms empty: the commit that switches capture on reports
   nothing, so a browsing selection never becomes a pick the user did not make, and every selection after it
-  reports as usual, including re-picking the same range. Arming resets only when capture is switched off, so
-  a host must keep the callback's identity steady while capture stays on (the artifact pane passes a state
-  setter).
-- The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
-  conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
+  reports as usual, including re-picking the same range. Arming resets only when capture is switched off.
+  The shared `Preview` stabilizes callbacks internally, so inline host callbacks do not repeat selection
+  notifications on rerender; callback presence still controls capture.
+- The desktop adapter converts the package's structural selection into a `SelectionReference` using the
+  file path and metadata. What to do with a reference (show an action, inject it into a conversation) is the
+  embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
@@ -274,17 +275,25 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
-  metadata version.
+  metadata version. Size/mtime consistency checks apply to DOCX, PPTX, XLSX and images as
+  well as PDF. A file changed after metadata was read fails the session; refresh to read new metadata.
 - Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, images 64 MiB.
   PDF keeps a 16 MiB assembled-range cap, not a whole-file size cap, and delegates its external
   fallback to the host.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
-  opens. Abort signals cancel byte reads; synchronous parsing cannot be interrupted.
+  opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
+  or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
+  Synchronous parsing cannot be interrupted.
 - Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
   opened document changes. Do not request metadata again inside a format plugin.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
-- Log read failures through `loggerService`, and expose enough diagnostic detail in the error state to make failures actionable.
+- The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`
+  values for error reporting. Terminal failures emit one diagnostic; `onError` is a state notification,
+  not a second logging channel. Expected size limits are warnings. Keep raw diagnostics out of UI copy.
+- Images load as whole-document bytes through IPC and a Blob URL, with a 64 MiB limit; they no
+  longer load directly from a file URL. Oversized images have the same explicit external-open action
+  as Office documents. Unsupported formats also open externally only after a user click.
 - Cancel, disconnect, or destroy file reads, workers, listeners, and third-party instances when the component unmounts, `filePath` changes, or `refreshKey` changes.
 
 ## UI and Copy

@@ -11,7 +11,7 @@
   "file_preview.pdf.outline.title": "目次",
   "file_preview.pdf.page_number": "ページ番号",
   "file_preview.pdf.too_large.description": "この PDF の一部は大きすぎるため、アプリ内で安全にプレビューできません。",
-  "file_preview.pdf.too_large.title": "ファイルが大きすぎます",
+  "file_preview.pdf.too_large.title": "この PDF をプレビューできません",
   "file_preview.too_large.action": "デフォルトのアプリで開く",
   "file_preview.too_large.description": "ファイルサイズ {{size}} はプレビュー上限の {{limit}} を超えています。",
   "file_preview.too_large.title": "ファイルが大きすぎてプレビューできません",

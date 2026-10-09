@@ -11,7 +11,7 @@
   "file_preview.pdf.outline.title": "Πίνακας περιεχομένων",
   "file_preview.pdf.page_number": "Αριθμός σελίδας",
   "file_preview.pdf.too_large.description": "Μέρος αυτού του PDF είναι πολύ μεγάλο για ασφαλή προεπισκόπηση στην εφαρμογή.",
-  "file_preview.pdf.too_large.title": "Το αρχείο είναι πολύ μεγάλο",
+  "file_preview.pdf.too_large.title": "Δεν είναι δυνατή η προεπισκόπηση αυτού του PDF",
   "file_preview.too_large.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.too_large.description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
   "file_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση",

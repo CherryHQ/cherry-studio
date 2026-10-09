@@ -17,7 +17,7 @@ import { EmptyState } from '@cherrystudio/ui'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
 import { assertZipLimits } from '../../officeZipPreflight'
-import { usePreviewHost, usePreviewLogger } from '../../previewContext'
+import { usePreviewHost } from '../../previewContext'
 import { createPreviewSelection } from '../../selection'
 import { PreviewError, readPreviewDocument } from '../../source'
 import { attachTouchPinch } from '../../touchPinch'
@@ -65,7 +65,6 @@ export default function WordFilePreview({
   document: previewDocument,
   onSelection
 }: FilePreviewPluginProps) {
-  const logger = usePreviewLogger('WordFilePreview')
   const { options, failDocument } = usePreviewHost()
   const { t } = useTranslation()
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
@@ -74,6 +73,13 @@ export default function WordFilePreview({
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
   const fitScrollTopRef = useRef<number | null>(null)
+  const committedZoomRef = useRef(DOCX_PREVIEW_DEFAULT_ZOOM)
+  const pinchAnchorRef = useRef<{
+    zoom: number
+    x: number
+    y: number
+    origin: [number, number]
+  } | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
@@ -84,6 +90,18 @@ export default function WordFilePreview({
   const [normalizeSymbolBullets] = useState(() => options?.docx?.normalizeSymbolBullets === true)
   const fitWidth = options?.docx?.initialZoom === 'fit-width'
   const minZoom = fitWidth ? Math.min(DOCX_PREVIEW_MIN_ZOOM, fitZoom) : DOCX_PREVIEW_MIN_ZOOM
+
+  useLayoutEffect(() => {
+    committedZoomRef.current = zoom
+    const anchor = pinchAnchorRef.current
+    pinchAnchorRef.current = null
+    const container = containerRef.current
+    const body = bodyRef.current
+    if (!anchor || !container || !body) return
+    const rect = body.getBoundingClientRect()
+    container.scrollLeft += rect.left + anchor.x * zoom - anchor.origin[0]
+    container.scrollTop += rect.top + anchor.y * zoom - anchor.origin[1]
+  }, [zoom])
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -170,6 +188,7 @@ export default function WordFilePreview({
     setFitZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
     setManualZoom(false)
     fitScrollTopRef.current = null
+    pinchAnchorRef.current = null
 
     const stagingHost = document.createElement('div')
     const stagingBody = document.createElement('div')
@@ -219,7 +238,6 @@ export default function WordFilePreview({
       } catch (loadError) {
         if (!isCurrent()) return
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
-        logger.error(`Failed to load DOCX preview: ${sourceId}`, normalized)
         failDocument?.(normalized)
         setError(normalized)
       } finally {
@@ -235,7 +253,7 @@ export default function WordFilePreview({
       styleContainer.innerHTML = ''
       stagingHost.remove()
     }
-  }, [sourceId, focusContainer, previewDocument, logger, failDocument, docxClassName, normalizeSymbolBullets])
+  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName, normalizeSymbolBullets])
 
   useEffect(() => {
     const scrollRoot = containerRef.current
@@ -305,9 +323,27 @@ export default function WordFilePreview({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    return attachTouchPinch(container, (scaleFactor) => {
+    return attachTouchPinch(container, (scaleFactor, origin) => {
+      const body = bodyRef.current
+      if (!body) return
+      const currentZoom = committedZoomRef.current
+      const nextZoom = clamp(
+        (pinchAnchorRef.current?.zoom ?? currentZoom) * scaleFactor,
+        minZoom,
+        DOCX_PREVIEW_MAX_ZOOM
+      )
+      const rect = body.getBoundingClientRect()
+      pinchAnchorRef.current =
+        nextZoom === currentZoom
+          ? null
+          : {
+              zoom: nextZoom,
+              x: (origin[0] - rect.left) / currentZoom,
+              y: (origin[1] - rect.top) / currentZoom,
+              origin
+            }
       setManualZoom(true)
-      setZoom((value) => clamp(value * scaleFactor, minZoom, DOCX_PREVIEW_MAX_ZOOM))
+      setZoom(nextZoom)
     })
   }, [minZoom])
 

@@ -47,11 +47,10 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       try {
         const raw = await readPreviewDocument(document, XLSX_PREVIEW_MAX_SIZE_BYTES, controller.signal)
         if (cancelled || requestId !== requestIdRef.current) return
-        bytes = raw.buffer
+        bytes = raw.slice().buffer
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error(`Failed to read file: ${fileName}`, normalized)
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
         return
@@ -63,7 +62,6 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error('Failed to create xlsx parser worker', normalized)
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
         return
@@ -88,7 +86,6 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
           }
           setState({ status: 'ready', model: event.data.model })
         } else {
-          logger.error(`Failed to parse xlsx file: ${event.data.message}`)
           failDocument?.(new Error(event.data.message))
           setState({ status: 'error', message: event.data.message })
         }
@@ -97,11 +94,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         if (cancelled || requestId !== requestIdRef.current) return
         worker.terminate()
         if (workerRef.current === worker) workerRef.current = null
-        logger.error(
-          'xlsx parser worker crashed',
-          event.error instanceof Error ? event.error : new Error(event.message)
-        )
-        failDocument?.(new Error(event.message))
+        failDocument?.(event.error instanceof Error ? event.error : new Error(event.message))
         setState({ status: 'error', message: event.message })
       }
 
@@ -113,7 +106,6 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         if (workerRef.current === worker) workerRef.current = null
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
-        logger.error('Failed to start xlsx parser worker', normalized)
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
       }

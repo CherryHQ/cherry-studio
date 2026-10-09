@@ -43,24 +43,22 @@ export default function ElectronFilePreview({
   const onDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => {
       const contextualLogger = loggerService.withContext(diagnostic.context)
-      contextualLogger[diagnostic.level](diagnostic.message, { detail: diagnostic.detail })
+      contextualLogger[diagnostic.level](
+        diagnostic.message,
+        diagnostic.detail instanceof Error ? diagnostic.detail : { detail: diagnostic.detail }
+      )
       if (diagnostic.code === 'navigation_error') {
         toast.error(t('file_preview.pdf.navigation_error'))
       }
     },
     [t]
   )
-  const onRequestOpen = useCallback(
-    (reason: 'unsupported' | 'too_large') => {
-      void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {
-        logger.error('Failed to open preview file externally', error instanceof Error ? error : { error })
-        toast.error(
-          t(reason === 'too_large' ? 'file_preview.pdf.too_large.open_error' : 'file_preview.unsupported.open_error')
-        )
-      })
-    },
-    [filePath, t]
-  )
+  const onRequestOpen = useCallback(() => {
+    void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {
+      logger.error('Failed to open preview file externally', error instanceof Error ? error : { error })
+      toast.error(t('file_preview.open_error'))
+    })
+  }, [filePath, t])
 
   return (
     <Preview
@@ -71,7 +69,6 @@ export default function ElectronFilePreview({
       onSelection={onSelectionReference ? onSelection : undefined}
       onDiagnostic={onDiagnostic}
       onRequestOpen={onRequestOpen}
-      onError={(error) => logger.error('Failed to open file preview', error)}
     />
   )
 }

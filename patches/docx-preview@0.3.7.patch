@@ -1,13 +1,15 @@
 diff --git a/dist/docx-preview.js b/dist/docx-preview.js
 --- a/dist/docx-preview.js
 +++ b/dist/docx-preview.js
-@@ -1,3 +1,20 @@
+@@ -1,3 +1,22 @@
 +/*
-+ * Cherry Studio patch — paragraph identity for selection anchors.
++ * Cherry Studio patch — paragraph identity and opt-in symbol bullet normalization.
 + *
 + * Adds `data-para-id` (w14:paraId), `data-docx-part` and `data-docx-index`
 + * to rendered <p> elements so the DOCX preview can map a DOM selection back to
 + * an OOXML paragraph ordinal.
++ * `normalizeSymbolBullets` maps known Symbol/Wingdings bullets to Unicode
++ * without a legacy font override; unknown symbols and numbered lists stay unchanged.
 + *
 + * INVARIANT 1 — numbering scope: `docxIndex` counts ONLY direct w:body-level
 + * w:p children of the part being parsed. Paragraphs inside w:tbl and inside
@@ -22,7 +24,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
  /*
   * @license
   * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
-@@ -794,7 +811,7 @@
+@@ -794,7 +813,7 @@
          }
          parseXml(root) {
              this.rootElement = this.createRootElement();
@@ -31,7 +33,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
          }
      }
      class HeaderPart extends BaseHeaderFooterPart {
-@@ -1413,7 +1430,7 @@
+@@ -1413,7 +1432,7 @@
                  const node = new elemClass();
                  node.id = globalXmlParser.attr(el, "id");
                  node.noteType = globalXmlParser.attr(el, "type");
@@ -40,7 +42,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
                  result.push(node);
              }
              return result;
-@@ -1426,7 +1443,7 @@
+@@ -1426,7 +1445,7 @@
                  item.author = globalXmlParser.attr(el, "author");
                  item.initials = globalXmlParser.attr(el, "initials");
                  item.date = globalXmlParser.attr(el, "date");
@@ -49,7 +51,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
                  result.push(item);
              }
              return result;
-@@ -1437,7 +1454,7 @@
+@@ -1437,7 +1456,7 @@
              var sectPr = globalXmlParser.element(xbody, "sectPr");
              return {
                  type: DomType.Document,
@@ -58,7 +60,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
                  props: sectPr ? parseSectionProperties(sectPr, globalXmlParser) : {},
                  cssStyle: background ? this.parseBackground(background) : {},
              };
-@@ -1450,13 +1467,24 @@
+@@ -1450,13 +1469,24 @@
              }
              return result;
          }
@@ -87,7 +89,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
                      case "altChunk":
                          children.push(this.parseAltChunk(elem));
                          break;
-@@ -1766,6 +1794,10 @@
+@@ -1766,6 +1796,10 @@
          }
          parseParagraph(node) {
              var result = { type: DomType.Paragraph, children: [] };
@@ -98,7 +100,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
              for (let el of globalXmlParser.elements(node)) {
                  switch (el.localName) {
                      case "pPr":
-@@ -3266,10 +3298,23 @@
+@@ -3266,10 +3300,23 @@
                          });
                      }
                      resetCounters.push(counterReset);
@@ -124,7 +126,7 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
                      });
                  }
                  else {
-@@ -3459,6 +3504,13 @@
+@@ -3459,6 +3506,13 @@
              if (numbering) {
                  result.classList.add(this.numberingClass(numbering.id, numbering.level));
              }
@@ -141,13 +143,15 @@ diff --git a/dist/docx-preview.js b/dist/docx-preview.js
 diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
 --- a/dist/docx-preview.mjs
 +++ b/dist/docx-preview.mjs
-@@ -1,3 +1,20 @@
+@@ -1,3 +1,22 @@
 +/*
-+ * Cherry Studio patch — paragraph identity for selection anchors.
++ * Cherry Studio patch — paragraph identity and opt-in symbol bullet normalization.
 + *
 + * Adds `data-para-id` (w14:paraId), `data-docx-part` and `data-docx-index`
 + * to rendered <p> elements so the DOCX preview can map a DOM selection back to
 + * an OOXML paragraph ordinal.
++ * `normalizeSymbolBullets` maps known Symbol/Wingdings bullets to Unicode
++ * without a legacy font override; unknown symbols and numbered lists stay unchanged.
 + *
 + * INVARIANT 1 — numbering scope: `docxIndex` counts ONLY direct w:body-level
 + * w:p children of the part being parsed. Paragraphs inside w:tbl and inside
@@ -162,7 +166,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
  /*
   * @license
   * docx-preview <https://github.com/VolodymyrBaydalka/docxjs>
-@@ -790,7 +807,7 @@
+@@ -790,7 +809,7 @@
      }
      parseXml(root) {
          this.rootElement = this.createRootElement();
@@ -171,7 +175,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
      }
  }
  class HeaderPart extends BaseHeaderFooterPart {
-@@ -1409,7 +1426,7 @@
+@@ -1409,7 +1428,7 @@
              const node = new elemClass();
              node.id = globalXmlParser.attr(el, "id");
              node.noteType = globalXmlParser.attr(el, "type");
@@ -180,7 +184,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
              result.push(node);
          }
          return result;
-@@ -1422,7 +1439,7 @@
+@@ -1422,7 +1441,7 @@
              item.author = globalXmlParser.attr(el, "author");
              item.initials = globalXmlParser.attr(el, "initials");
              item.date = globalXmlParser.attr(el, "date");
@@ -189,7 +193,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
              result.push(item);
          }
          return result;
-@@ -1433,7 +1450,7 @@
+@@ -1433,7 +1452,7 @@
          var sectPr = globalXmlParser.element(xbody, "sectPr");
          return {
              type: DomType.Document,
@@ -198,7 +202,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
              props: sectPr ? parseSectionProperties(sectPr, globalXmlParser) : {},
              cssStyle: background ? this.parseBackground(background) : {},
          };
-@@ -1446,13 +1463,24 @@
+@@ -1446,13 +1465,24 @@
          }
          return result;
      }
@@ -227,7 +231,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
                  case "altChunk":
                      children.push(this.parseAltChunk(elem));
                      break;
-@@ -1762,6 +1790,10 @@
+@@ -1762,6 +1792,10 @@
      }
      parseParagraph(node) {
          var result = { type: DomType.Paragraph, children: [] };
@@ -238,7 +242,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
          for (let el of globalXmlParser.elements(node)) {
              switch (el.localName) {
                  case "pPr":
-@@ -3262,10 +3294,23 @@
+@@ -3262,10 +3296,23 @@
                      });
                  }
                  resetCounters.push(counterReset);
@@ -264,7 +268,7 @@ diff --git a/dist/docx-preview.mjs b/dist/docx-preview.mjs
                  });
              }
              else {
-@@ -3455,6 +3500,13 @@
+@@ -3455,6 +3502,13 @@
          if (numbering) {
              result.classList.add(this.numberingClass(numbering.id, numbering.level));
          }

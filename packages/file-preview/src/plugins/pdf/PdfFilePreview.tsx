@@ -28,6 +28,9 @@ const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
+// PDFViewer in pdf.js 5.4.296 clamps to these bounds but does not export them.
+const PDF_MIN_SCALE = 0.1
+const PDF_MAX_SCALE = 10
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
 type PdfJsLinkService = InstanceType<typeof PDFLinkService>
@@ -81,17 +84,6 @@ function detachDocument(viewer: PdfJsViewer): void {
   ;(viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void)(null)
 }
 
-function destroyLoadingTask(
-  loadingTask: PDFDocumentLoadingTask,
-  sourceId: string,
-  logger: ReturnType<typeof usePreviewLogger>
-): void {
-  void loadingTask.destroy().catch((error: unknown) => {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    logger.error(`Failed to destroy PDF loading task: ${sourceId}`, normalized)
-  })
-}
-
 function PdfPreviewTooLarge() {
   const { t } = useTranslation()
 
@@ -127,7 +119,7 @@ export default function PdfFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PdfFilePreview')
-  const { resources, options, failDocument } = usePreviewHost()
+  const { root: previewRoot, resources, options, failDocument } = usePreviewHost()
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -358,11 +350,10 @@ export default function PdfFilePreview({
     const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateBackground)
     observer?.observe(target, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
     // Hosts may theme the preview root itself (a `dark` class or token overrides) instead of the page.
-    const previewRoot = rootRef.current?.closest('.file-preview-root')
     if (previewRoot) observer?.observe(previewRoot, { attributes: true, attributeFilter: ['class', 'style'] })
 
     return () => observer?.disconnect()
-  }, [updateBackground])
+  }, [previewRoot, updateBackground])
 
   useEffect(() => {
     let cancelled = false
@@ -371,34 +362,42 @@ export default function PdfFilePreview({
     let rangeTransport: PdfFileRangeTransport | null = null
     let workerPort: Worker | null = null
     let worker: PDFWorker | null = null
+    let disposing = false
+
+    const dispose = () => {
+      if (disposing) return
+      disposing = true
+      rangeTransport?.abort()
+      const task = loadingTask
+      loadingTask = null
+      void (async () => {
+        try {
+          // pdf.js needs a live worker to acknowledge termination before clearing its fonts.
+          await task?.destroy()
+        } catch (error) {
+          logger.error(`Failed to destroy PDF loading task: ${sourceId}`, error)
+        } finally {
+          worker?.destroy()
+          workerPort?.terminate()
+        }
+      })()
+    }
 
     const failLoad = (error: unknown) => {
       if (cancelled || failed) return
       failed = true
-      rangeTransport?.abort()
-      if (loadingTask) {
-        destroyLoadingTask(loadingTask, sourceId, logger)
-        loadingTask = null
-      }
-      worker?.destroy()
-      workerPort?.terminate()
+      dispose()
       const normalized = error instanceof Error ? error : new Error(String(error))
       failDocument?.(
-        normalized instanceof PdfRangeTooLargeError ? new PreviewError('too_large', normalized.message) : normalized
+        normalized instanceof PdfRangeTooLargeError
+          ? new PreviewError('too_large', normalized.message, { cause: normalized })
+          : normalized
       )
       if (normalized instanceof PdfRangeTooLargeError) {
-        logger.warn('PDF preview exceeded the safe assembled range limit', {
-          begin: normalized.begin,
-          end: normalized.end,
-          sourceId,
-          maxRangeLength: normalized.maxRangeLength,
-          rangeLength: normalized.rangeLength
-        })
         setDocumentProxy(null)
         setStatus('too_large')
         return
       }
-      logger.error(`Failed to load PDF preview: ${sourceId}`, normalized)
       setDocumentProxy(null)
       setStatus('error')
     }
@@ -450,14 +449,7 @@ export default function PdfFilePreview({
 
     return () => {
       cancelled = true
-      rangeTransport?.abort()
-      rangeTransport = null
-      worker?.destroy()
-      workerPort?.terminate()
-      if (loadingTask) {
-        destroyLoadingTask(loadingTask, sourceId, logger)
-        loadingTask = null
-      }
+      dispose()
     }
   }, [sourceId, previewDocument, resources, failDocument, logger])
 
@@ -512,7 +504,6 @@ export default function PdfFilePreview({
     } catch (error) {
       viewerAbortController.abort()
       const normalized = error instanceof Error ? error : new Error(String(error))
-      logger.error(`Failed to initialize PDF preview: ${sourceId}`, normalized)
       failDocument?.(normalized)
       setStatus('error')
       return
@@ -581,30 +572,49 @@ export default function PdfFilePreview({
       window.cancelAnimationFrame(pinchWheelAnimationFrame)
       pinchWheelAnimationFrame = null
     }
+    const scaleOrigin = ([clientX, clientY]: [number, number]): [number, number] => {
+      const rect = container.getBoundingClientRect()
+      return [clientX - rect.left + container.offsetLeft, clientY - rect.top + container.offsetTop]
+    }
     const handleWheelZoom = (event: WheelEvent) => {
       if ((!event.ctrlKey && !event.metaKey) || event.deltaY === 0) return
 
       event.preventDefault()
       pinchWheelDelta += normalizePinchWheelDelta(event)
-      pinchWheelOrigin = [event.clientX, event.clientY]
+      pinchWheelOrigin = scaleOrigin([event.clientX, event.clientY])
       schedulePinchWheelReset()
       schedulePinchWheelAnimationFrame()
     }
     let touchPinchFactor = 1
     let touchPinchOrigin: [number, number] = [0, 0]
     let touchPinchFrame: number | null = null
-    // Coalesce a gesture's steps per frame; drawingDelay CSS-scales pages until the fingers settle.
-    const detachTouchPinch = attachTouchPinch(container, (scaleFactor, origin) => {
-      touchPinchFactor *= scaleFactor
-      touchPinchOrigin = origin
-      if (touchPinchFrame !== null) return
-      touchPinchFrame = window.requestAnimationFrame(() => {
-        touchPinchFrame = null
-        const factor = touchPinchFactor
-        touchPinchFactor = 1
-        pdfViewer.updateScale({ ...zoomOptions, origin: touchPinchOrigin, scaleFactor: factor })
+    const applyTouchPinch = () => {
+      touchPinchFrame = null
+      const targetScale = clamp(pdfViewer.currentScale * touchPinchFactor, PDF_MIN_SCALE, PDF_MAX_SCALE)
+      pdfViewer.updateScale({
+        ...zoomOptions,
+        origin: touchPinchOrigin,
+        scaleFactor: targetScale / pdfViewer.currentScale
       })
-    })
+      touchPinchFactor = targetScale / pdfViewer.currentScale
+    }
+    const endTouchPinch = () => {
+      if (touchPinchFrame !== null) {
+        window.cancelAnimationFrame(touchPinchFrame)
+        applyTouchPinch()
+      }
+      touchPinchFactor = 1
+    }
+    // Coalesce a gesture's steps per frame; drawingDelay CSS-scales pages until the fingers settle.
+    const detachTouchPinch = attachTouchPinch(
+      container,
+      (scaleFactor, origin) => {
+        touchPinchFactor *= scaleFactor
+        touchPinchOrigin = scaleOrigin(origin)
+        if (touchPinchFrame === null) touchPinchFrame = window.requestAnimationFrame(applyTouchPinch)
+      },
+      endTouchPinch
+    )
     const handleKeyboardZoom = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
 
@@ -647,7 +657,6 @@ export default function PdfFilePreview({
         .catch((error: unknown) => {
           if (pdfViewerRef.current !== pdfViewer) return
           const normalized = error instanceof Error ? error : new Error(String(error))
-          logger.error(`Failed to initialize PDF preview: ${sourceId}`, normalized)
           failDocument?.(normalized)
           setStatus('error')
           setDocumentProxy(null)
@@ -662,7 +671,6 @@ export default function PdfFilePreview({
       container.addEventListener('pointerdown', focusContainer)
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error(String(error))
-      logger.error(`Failed to initialize PDF preview: ${sourceId}`, normalized)
       failDocument?.(normalized)
       setStatus('error')
       setDocumentProxy(null)

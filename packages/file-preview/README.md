@@ -25,32 +25,72 @@ its reader must reject version changes, short reads and reads after close. Close
 be idempotent. Range offsets and lengths are safe integers within the document size.
 DOCX, PPTX, XLSX and images request the whole document as one `[0, size)` range, so
 a host can serve it with a single read; PDF requests partial ranges.
-Signals cancel reads; synchronous engine parsing is not interruptible.
+Readers should honor abort signals where their transport supports cancellation. The
+package discards a read result after cancellation; it cannot stop host I/O that has
+already started or interrupt synchronous engine parsing. Returned byte views remain
+host-owned: the package does not mutate or detach them. XLSX copies the requested
+bytes before transferring its own buffer to the parsing worker.
+
+`refreshKey` is an optional number. Changing it closes the current document and opens
+a fresh session, including after a failure. `header` accepts host-owned navigation
+and file-identity content for the fixed top row; the format toolbar shares that row.
+Without a header, format controls render above the document. Give `source` and
+`resources` stable references so layout, locale and theme updates retain the session.
 
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
 pick is cleared. Anchors use worksheet A1 ranges, body paragraph ordinals, PDF pages
 and PPTX slides. The host owns held selections across refreshes and file switches.
 `revision` is opaque to the package and only distinguishes document versions. Hosts
 map selections back to their own file identity; the package never parses it.
+Excerpts use NFC normalization, collapse the shared JavaScript/Python whitespace set
+to single spaces, and trim both ends. They are limited to 2000 UTF-16 code units,
+without splitting a surrogate pair; an empty normalized excerpt produces `null`.
+Callback references are stabilized inside `Preview`, so inline callbacks do not
+reopen documents or repeat a selection notification merely because the host rendered.
 
 Recognized `source.mediaType` values take precedence over the filename extension;
 missing or unrecognized media types fall back to the extension. `supportsPreview`
 and `canSelectPreview` accept the same optional media type as their second argument.
 
-`onDiagnostic` routes engine warnings and errors to the host logger. `onRequestOpen`
-delegates unsupported formats and size-limit fallbacks to the host. DOCX/PPTX above
-25 MiB and XLSX above 20 MiB show the size limit and an external-open button when
-the host provides this callback; PDF offers the same action for its range limit.
+`onDiagnostic` is the logging channel for engine warnings and errors. A terminal
+failure emits one diagnostic and calls `onError` once for that session; `onError`
+notifies host state and should not log the same error again. Expected `too_large`
+failures are warnings. Non-terminal problems, such as a failed PPTX slide or PDF
+outline navigation, emit diagnostics while the rest of the document remains usable.
+
+`onError` receives a `PreviewError` with a stable `code` and an optional underlying
+`cause`. Error messages are diagnostic details, not localized UI copy.
+
+| Code | Meaning |
+| --- | --- |
+| `invalid_range` | Invalid document size, offset or read length |
+| `short_read` | The reader returned fewer or more bytes than requested |
+| `source_changed` | The host detected a revision change during reading |
+| `closed` | A read was attempted after the host document closed |
+| `too_large` | A preview source or PDF range exceeded its safety limit |
+| `load_error` | Opening, parsing or rendering failed for another reason |
+
+`onRequestOpen` delegates external opening to the host only after the user activates
+an open button. Its reason is `unsupported` for unrecognized formats or `too_large`
+for size-limit fallbacks; rendering or refreshing an unsupported source never opens
+another application automatically. DOCX/PPTX above 25 MiB, XLSX above 20 MiB and
+images above 64 MiB show their limits. PDF has a 16 MiB assembled-range cap, without
+a whole-document size limit. These states offer an external-open button when the
+host supplies the callback.
 `resources.baseUrl` optionally overrides the bundled worker/font/CMap directory;
 include a trailing slash. Relative URLs resolve against the host page.
 `readPdfResource` takes precedence over resource URLs for PDF fonts and CMaps,
 including font substitution. Electron provides it for file-scheme pages.
 PDF workers belong to individual previews and never change pdf.js global options.
+Cleanup awaits the pdf.js loading task's destruction before terminating its worker,
+allowing document fonts to be released. There is no forced teardown timeout: an
+already-unresponsive worker can leave that destruction promise pending.
 Translations use an independent i18next instance with resources for all 13 desktop
 languages; other locales fall back to English.
 
-`FilePreviewLayout`, `FilePreviewToolbar`, `FilePreviewToolbarButton` and the toolbar
-portal provider/host let desktop-only formats share the same chrome.
+`FilePreviewLayout.Shell` owns the shared header and toolbar placement.
+`FilePreviewLayout`, `FilePreviewToolbar` and its portal provider/host are also used
+by desktop-only formats; `FilePreviewToolbarButton` is available for icon commands.
 The registry is static; formats cannot be registered at runtime.
 
 For a bundled web application, copy the package's `dist/assets/` directory to a
@@ -63,8 +103,11 @@ const resources = { baseUrl: '/preview-assets/' }
 <Preview source={source} resources={resources} locale="zh-cn" />
 ```
 
-Keep the workers, `cmaps/` and `standard_fonts/` together. Serve them from the same
-origin as the application, or configure the server's cross-origin permissions.
+Keep the workers, `cmaps/` and `standard_fonts/` together. Worker entry URLs must be
+same-origin with the application; CORS permission alone does not allow a cross-origin
+`new Worker()` entry. A cross-origin asset host needs a same-origin worker entry or
+a host-provided `createWorker`. Font and CMap requests separately require the server's
+cross-origin permissions when loaded from another origin.
 When no base URL is provided, the bundler handles the native worker URLs; hosts
 must still deploy the PDF resource directories or provide `readPdfResource`.
 
@@ -78,14 +121,20 @@ import pdfWorker from '@cherrystudio/file-preview/assets/pdf.worker.js?raw'
 import xlsxWorker from '@cherrystudio/file-preview/assets/xlsx.worker.js?raw'
 
 const workerSources = { pdf: pdfWorker, xlsx: xlsxWorker }
+const workerUrls: Partial<Record<'pdf' | 'xlsx', string>> = {}
 const resources = {
-  createWorker: (kind: 'pdf' | 'xlsx') =>
-    new Worker(URL.createObjectURL(new Blob([workerSources[kind]], { type: 'text/javascript' })), {
-      type: 'module'
-    }),
+  createWorker: (kind: 'pdf' | 'xlsx') => {
+    workerUrls[kind] ??= URL.createObjectURL(new Blob([workerSources[kind]], { type: 'text/javascript' }))
+    return new Worker(workerUrls[kind], { type: 'module' })
+  },
   readPdfResource: (kind: 'cmap' | 'standard_font', name: string) => bridge.readPdfResource(kind, name)
 }
 ```
+
+Cache one object URL per worker kind for the host resource lifetime. After all previews
+using these resources have unmounted and the host disposes this resource set, release
+the URLs with `for (const url of Object.values(workerUrls)) URL.revokeObjectURL(url)`.
+Terminating an individual worker does not revoke its object URL.
 
 `createWorker` takes precedence over `baseUrl` for both workers. Each worker file is
 self-contained. Give inline HTML a base URL, such as react-native-webview's
@@ -131,9 +180,11 @@ needed for DOCX. `normalizeSymbolBullets` is read when opening the document: it 
 known single-character Symbol/Wingdings bullet markers to Unicode and removes their
 legacy font override. Other fonts, unknown symbols and numbered lists are preserved.
 
-`bottomInset: 'content'` places `--file-preview-bottom-inset` inside the PDF, DOCX,
-PPTX and XLSX scroll containers, in unscaled host CSS pixels. It does not reserve a
-fixed strip outside those viewports. Other formats retain their existing inset behavior.
+`bottomInset: 'content'` adds trailing space inside PDF, DOCX and PPTX document scroll
+containers, in unscaled host CSS pixels. Both PDF outline layouts receive trailing
+scroll space too. XLSX is the fixed-control exception: its sheet tabs, status and zoom
+controls reserve the inset below the whole footer so host overlays cannot cover them.
+The grid does not add a second inset. Other formats retain their existing inset behavior.
 `opaqueHeaders` composites the muted XLSX header color over an opaque version of
 `--background`, including the frozen corner, so cells cannot show through alpha colors.
 
@@ -143,8 +194,9 @@ next document open or explicit refresh; it does not reparse an open document.
 
 ## Styling
 
-`className` and `style` apply to the preview root. Add `dark` for the dark theme, and
-set these custom properties to retheme it. Root overrides win over the packaged values.
+`className` and `style` apply to the preview's single theme root. Internal frames inherit
+its tokens. Add `dark` for the dark theme, and set these custom properties to retheme it.
+Root overrides win over the packaged values, and PDF observes this same root for theme changes.
 
 | Property | Used for |
 | --- | --- |
@@ -153,7 +205,7 @@ set these custom properties to retheme it. Root overrides win over the packaged 
 | `--muted`, `--muted-foreground` | Secondary surfaces, icons and labels |
 | `--border`, `--border-subtle`, `--ring` | Dividers, outlines and focus rings |
 | `--file-preview-toolbar-button-size` | Toolbar button size, default `1.75rem` |
-| `--file-preview-bottom-inset` | Bottom space; use `options.bottomInset: 'content'` for trailing document scroll space |
+| `--file-preview-bottom-inset` | Bottom space; content mode adds document scroll space or protects the fixed XLSX footer |
 
 ## Building
 
@@ -167,5 +219,4 @@ The library build uses Vite to process native worker URLs and Tailwind CSS, plus
 `rolldown-plugin-dts` for declaration bundles. Every third-party library except `zod`
 is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
-and scopes selectors to `.file-preview-root`. Build and runtime verification must
-be requested explicitly in this workspace.
+and scopes selectors to `.file-preview-root`.

@@ -54,21 +54,24 @@ describe('image file preview plugin', () => {
     expect(image).toHaveAttribute('src', 'blob:preview-test')
   })
 
-  it('infers the SVG MIME type when the host supplies an empty media type', async () => {
-    render(
-      <ImageFilePreview
-        sourceId="logo"
-        fileName="logo.svg"
-        mediaType=""
-        document={previewTestDocument(128, 1, mocks.read, 0)}
-      />
-    )
+  it.each(['', 'application/octet-stream', ' IMAGE/SVG+XML; charset=utf-8 '])(
+    'uses an SVG MIME type when the host supplies %j',
+    async (mediaType) => {
+      render(
+        <ImageFilePreview
+          sourceId="logo"
+          fileName="logo.svg"
+          mediaType={mediaType}
+          document={previewTestDocument(128, 1, mocks.read, 0)}
+        />
+      )
 
-    const image = await screen.findByAltText('logo.svg', undefined, { timeout: 5000 })
+      const image = await screen.findByAltText('logo.svg', undefined, { timeout: 5000 })
 
-    expect(image).toHaveAttribute('src', 'blob:preview-test')
-    expect(mocks.createUrl.mock.lastCall?.[0]).toMatchObject({ type: 'image/svg+xml' })
-  })
+      expect(image).toHaveAttribute('src', 'blob:preview-test')
+      expect(mocks.createUrl.mock.lastCall?.[0]).toMatchObject({ type: 'image/svg+xml' })
+    }
+  )
 
   it('shows loading feedback until the image loads', async () => {
     render(<FilePreview filePath={'/tmp/photos/example.webp'} />)

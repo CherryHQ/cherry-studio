@@ -14,7 +14,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "paths": {
-      "@cherrystudio/ui": ["../ui/src/index.ts"],
+      "@cherrystudio/ui": ["./src/bundledUi.ts"],
       "@cherrystudio/ui/*": ["../ui/src/*"]
     }
   },

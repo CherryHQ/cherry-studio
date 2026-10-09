@@ -11,7 +11,7 @@
   "file_preview.pdf.outline.title": "Índice",
   "file_preview.pdf.page_number": "Número de página",
   "file_preview.pdf.too_large.description": "Parte de este PDF es demasiado grande para previsualizarla de forma segura en la aplicación.",
-  "file_preview.pdf.too_large.title": "El archivo es demasiado grande",
+  "file_preview.pdf.too_large.title": "No se puede previsualizar este PDF",
   "file_preview.too_large.action": "Abrir con la aplicación predeterminada",
   "file_preview.too_large.description": "El tamaño del archivo {{size}} supera el límite de vista previa de {{limit}}.",
   "file_preview.too_large.title": "El archivo es demasiado grande para previsualizarlo",

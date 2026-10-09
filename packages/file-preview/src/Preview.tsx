@@ -18,9 +18,8 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { resolvePreviewPlugin } from './filePreviewRegistry'
-import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { createPreviewI18n } from './i18n'
-import { PreviewHostContext } from './previewContext'
+import { PreviewHostContext, usePreviewHost } from './previewContext'
 import type { PreviewSelection } from './selection'
 import { assertPreviewRange, type PreviewDocument, PreviewError, type PreviewSource } from './source'
 import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
@@ -43,6 +42,8 @@ export interface PreviewProps {
 
 function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
   const { t } = useTranslation()
+  const { onRequestOpen } = usePreviewHost()
+  const canOpen = kind === 'unsupported' && onRequestOpen !== undefined
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
@@ -58,6 +59,8 @@ function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
             description={t(
               kind === 'unsupported' ? 'file_preview.unsupported.description' : 'file_preview.load_error.description'
             )}
+            actionLabel={canOpen ? t('file_preview.unsupported.action') : undefined}
+            onAction={canOpen ? () => onRequestOpen('unsupported') : undefined}
             className="h-full"
           />
         )}
@@ -96,14 +99,28 @@ function PreviewSession({
   } | null>(null)
   const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
   const closeRef = useRef<(() => void) | undefined>(undefined)
-  const callbacks = useRef({ onDiagnostic, onError, onRequestOpen })
-  callbacks.current = { onDiagnostic, onError, onRequestOpen }
+  const hasFailedRef = useRef(false)
+  const callbacks = useRef({ onSelection, onDiagnostic, onError, onRequestOpen })
+  callbacks.current = { onSelection, onDiagnostic, onError, onRequestOpen }
   const failDocument = useCallback((error: unknown) => {
+    if (hasFailedRef.current) return
+    hasFailedRef.current = true
     closeRef.current?.()
-    callbacks.current.onError?.(
+    const normalized =
       error instanceof PreviewError ? error : new PreviewError('load_error', 'Failed to load preview', { cause: error })
-    )
+    callbacks.current.onDiagnostic?.({
+      level: normalized.code === 'too_large' ? 'warn' : 'error',
+      code: normalized.code,
+      context: 'Preview',
+      message: normalized.message,
+      detail: normalized
+    })
+    callbacks.current.onError?.(normalized)
   }, [])
+  const reportSelection = useCallback(
+    (selection: PreviewSelection | null) => callbacks.current.onSelection?.(selection),
+    []
+  )
   const reportDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => callbacks.current.onDiagnostic?.(diagnostic),
     []
@@ -115,13 +132,14 @@ function PreviewSession({
   const hasOpenAction = onRequestOpen !== undefined
   const host = useMemo(
     () => ({
+      root,
       resources,
       options,
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
       failDocument
     }),
-    [resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
+    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
   )
   const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
   const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
@@ -129,10 +147,8 @@ function PreviewSession({
   useEffect(() => {
     setSession(null)
     setFailure(null)
-    if (!plugin) {
-      callbacks.current.onRequestOpen?.('unsupported')
-      return
-    }
+    hasFailedRef.current = false
+    if (!plugin) return
     const controller = new AbortController()
     let opened: PreviewDocument | null = null
     let closed = false
@@ -162,11 +178,7 @@ function PreviewSession({
         close()
         if (controller.signal.aborted) return
         setFailure({ source, refreshKey })
-        callbacks.current.onError?.(
-          error instanceof PreviewError
-            ? error
-            : new PreviewError('load_error', 'Failed to open preview source', { cause: error })
-        )
+        failDocument(error)
       }
     })()
     return () => {
@@ -174,7 +186,7 @@ function PreviewSession({
       close()
       if (closeRef.current === close) closeRef.current = undefined
     }
-  }, [source, refreshKey, plugin])
+  }, [source, refreshKey, plugin, failDocument])
 
   const ready = session?.source === source && session.refreshKey === refreshKey ? session : null
   const failed = failure?.source === source && failure.refreshKey === refreshKey
@@ -189,10 +201,7 @@ function PreviewSession({
       key={`${source.id}:${refreshKey}:${ready.document.revision}`}
       resetKeys={[ready.document]}
       fallback={<PreviewState kind="error" />}
-      onError={(error) => {
-        failDocument(error)
-        reportDiagnostic({ level: 'error', context: 'Preview', message: 'Failed to render preview', detail: error })
-      }}>
+      onError={failDocument}>
       <Suspense fallback={<PreviewState kind="loading" />}>
         <Plugin
           key={`${source.id}:${refreshKey}:${ready.document.revision}`}
@@ -200,7 +209,7 @@ function PreviewSession({
           fileName={source.name}
           mediaType={source.mediaType}
           document={ready.document}
-          onSelection={onSelection}
+          onSelection={onSelection ? reportSelection : undefined}
         />
       </Suspense>
     </ErrorBoundary>
@@ -210,30 +219,12 @@ function PreviewSession({
     <div
       ref={setRoot}
       data-file-preview-root=""
-      className={cn(
-        'file-preview-root h-full min-h-0 w-full',
-        options?.pdf?.outlineLayout === 'overlay' && 'relative',
-        className
-      )}
+      className={cn('file-preview-root relative h-full min-h-0 w-full', className)}
       style={style}>
       <PortalContainerProvider container={root}>
         <DialogPortalContainerProvider container={root}>
           <PreviewHostContext value={host}>
-            {header === undefined ? (
-              content
-            ) : (
-              <FilePreviewToolbarPortalProvider>
-                <FilePreviewLayout.Frame>
-                  <div
-                    data-testid="file-preview-header"
-                    className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
-                    <FilePreviewToolbarPortalHost />
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-hidden">{content}</div>
-                </FilePreviewLayout.Frame>
-              </FilePreviewToolbarPortalProvider>
-            )}
+            <FilePreviewLayout.Shell header={header}>{content}</FilePreviewLayout.Shell>
           </PreviewHostContext>
         </DialogPortalContainerProvider>
       </PortalContainerProvider>

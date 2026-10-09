@@ -11,7 +11,7 @@
   "file_preview.pdf.outline.title": "Inhaltsverzeichnis",
   "file_preview.pdf.page_number": "Seitenzahl",
   "file_preview.pdf.too_large.description": "Ein Teil dieser PDF-Datei ist zu groß, um sicher in der App angezeigt zu werden.",
-  "file_preview.pdf.too_large.title": "Die Datei ist zu groß",
+  "file_preview.pdf.too_large.title": "Diese PDF kann nicht in der Vorschau angezeigt werden",
   "file_preview.too_large.action": "Mit Standard-App öffnen",
   "file_preview.too_large.description": "Die Dateigröße {{size}} überschreitet das Vorschaulimit von {{limit}}.",
   "file_preview.too_large.title": "Datei zu groß für die Vorschau",

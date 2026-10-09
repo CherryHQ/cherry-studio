@@ -3,8 +3,6 @@ import { buildTextIndex, materializeSlideNodes } from '@aiden0z/pptx-renderer'
 
 const SLIDE_INDEX_ATTRIBUTE = 'data-slide-index'
 
-// Reuses PowerPointFilePreview's context: this module is its excerpt helper, not an independent unit.
-
 export interface PptxSelectionAnchorResult {
   anchor: { format: 'pptx'; slide: number }
 }

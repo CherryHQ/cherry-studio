@@ -79,12 +79,16 @@ export default defineConfig({
       },
       {
         extends: true,
-        plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
-        resolve: { alias: rendererConfig.resolve.alias },
+        resolve: {
+          alias: [
+            { find: /^@cherrystudio\/ui$/, replacement: resolve('packages/file-preview/src/bundledUi.ts') },
+            { find: '@cherrystudio/ui', replacement: resolve('packages/ui/src') }
+          ]
+        },
         test: {
           name: 'file-preview',
           environment: 'jsdom',
-          setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
+          setupFiles: ['@vitest/web-worker', 'tests/file-preview.setup.ts'],
           include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
         }
       },

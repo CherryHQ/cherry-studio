@@ -589,7 +589,7 @@ describe('XlsxGrid — range selection', () => {
     )
   })
 
-  it('selects a touch press on release, since it could still have become a scroll', () => {
+  it('commits a touch tap once even when the browser follows pointerup with click', () => {
     showHeaderRange()
     const onSelectCell = vi.fn()
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
@@ -599,6 +599,7 @@ describe('XlsxGrid — range selection', () => {
     fireEvent.pointerDown(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
     expect(onSelectCell).not.toHaveBeenCalled()
     fireEvent.pointerUp(scroll, pointerAt(IN_B3.x, IN_B3.y, touch))
+    fireEvent.click(screen.getByRole('gridcell', { name: '1,250.00' }))
 
     expect(onSelectCell).toHaveBeenCalledTimes(1)
     expect(onSelectCell).toHaveBeenLastCalledWith<[SelectedCellInfo]>(

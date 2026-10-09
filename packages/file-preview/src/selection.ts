@@ -7,7 +7,7 @@ export interface PreviewSelection {
   excerpt: string
 }
 
-// Keep this class identical to office_patch_copy.py; JS and Python disagree on \s.
+// Keep this class identical to resources/skills/office-transform/scripts/office/docx.py; JS and Python disagree on \s.
 const SELECTION_WHITESPACE =
   // oxlint-disable-next-line no-control-regex
   /[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\u001c-\u001f]+/g

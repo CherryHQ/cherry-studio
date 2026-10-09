@@ -5,18 +5,26 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
-import { usePreviewHost, usePreviewLogger } from '../../previewContext'
-import { readPreviewDocument } from '../../source'
+import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
+import { usePreviewHost } from '../../previewContext'
+import { PreviewError, readPreviewDocument } from '../../source'
 import type { FilePreviewPluginProps } from '../../types'
+import { imageFilePreviewPlugin } from './imageFilePreviewPlugin'
 import { ImageFilePreviewToolbar } from './ImageFilePreviewToolbar'
 
+const IMAGE_PREVIEW_MAX_SIZE_BYTES = 64 * 1024 * 1024
+const IMAGE_MEDIA_TYPE_BY_EXTENSION: Record<string, string> = {
+  svg: 'image/svg+xml',
+  jpg: 'image/jpeg',
+  ico: 'image/x-icon'
+}
+
 export default function ImageFilePreview({ sourceId, fileName, document, mediaType }: FilePreviewPluginProps) {
-  const logger = usePreviewLogger('ImageFilePreview')
   const { t } = useTranslation()
   const { failDocument } = usePreviewHost()
   const [url, setUrl] = useState<string | null>(null)
   const objectUrlRef = useRef<string | null>(null)
-  const [status, setStatus] = useState<'error' | 'loading' | 'ready'>('loading')
+  const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
   const transformControls = useImagePreviewTransform()
   const releaseImageUrl = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
@@ -36,27 +44,38 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
     const controller = new AbortController()
     setStatus('loading')
     setUrl(null)
-    void readPreviewDocument(document, 64 * 1024 * 1024, controller.signal)
+    void readPreviewDocument(document, IMAGE_PREVIEW_MAX_SIZE_BYTES, controller.signal)
       .then((bytes) => {
         if (controller.signal.aborted) return
         const extension = fileName.split('.').at(-1)?.toLowerCase()
+        const normalizedMediaType = mediaType?.split(';', 1)[0].trim().toLowerCase()
         const mime =
-          mediaType?.trim() ||
-          (extension === 'svg' ? 'image/svg+xml' : extension === 'jpg' ? 'image/jpeg' : `image/${extension}`)
+          normalizedMediaType && imageFilePreviewPlugin.mediaTypes.includes(normalizedMediaType)
+            ? normalizedMediaType
+            : (IMAGE_MEDIA_TYPE_BY_EXTENSION[extension ?? ''] ?? `image/${extension}`)
         objectUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: mime }))
         setUrl(objectUrlRef.current)
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        logger.error(`Failed to load image preview: ${sourceId}`, error)
         failDocument?.(error)
-        setStatus('error')
+        setStatus(error instanceof PreviewError && error.code === 'too_large' ? 'too_large' : 'error')
       })
     return () => {
       controller.abort()
       releaseImageUrl()
     }
-  }, [document, fileName, mediaType, sourceId, logger, failDocument, releaseImageUrl])
+  }, [document, fileName, mediaType, failDocument, releaseImageUrl])
+
+  if (status === 'too_large') {
+    return (
+      <FilePreviewLayout.Frame>
+        <FilePreviewLayout.Content>
+          <FilePreviewTooLarge sizeBytes={document.size} limitBytes={IMAGE_PREVIEW_MAX_SIZE_BYTES} />
+        </FilePreviewLayout.Content>
+      </FilePreviewLayout.Frame>
+    )
+  }
 
   if (status === 'error') {
     return (
@@ -97,7 +116,6 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
               onLoad={() => setStatus('ready')}
               onError={() => {
                 const error = new Error(`Failed to load image preview: ${sourceId}`)
-                logger.error(`Failed to load image preview: ${sourceId}`, error)
                 failDocument?.(error)
                 releaseImageUrl()
                 setUrl(null)

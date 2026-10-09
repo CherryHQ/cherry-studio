@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+import type { PreviewDocument } from '../../../source'
 import { createMockWorkbookModel } from '../mockModel'
 import type { XlsxParseRequest, XlsxParseResponse } from '../renderModel'
 import { useXlsxWorkbook, XLSX_PREVIEW_MAX_SIZE_BYTES } from '../useXlsxWorkbook'
@@ -10,9 +11,9 @@ class FakeXlsxWorker {
   onmessage: ((event: { data: XlsxParseResponse }) => void) | null = null
   onerror: ((event: { message: string; error?: unknown }) => void) | null = null
   terminate = vi.fn()
-  postMessage = vi.fn((request: XlsxParseRequest) => {
+  postMessage = vi.fn((request: XlsxParseRequest, transfer: Transferable[]) => {
     if (mocks.postMessageError) throw mocks.postMessageError
-    mocks.requests.push(request)
+    mocks.requests.push(structuredClone(request, { transfer }))
   })
 
   constructor() {
@@ -148,7 +149,6 @@ describe('useXlsxWorkbook', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: error.message }))
     expect(lastWorker().terminate).toHaveBeenCalledTimes(1)
     expect(mocks.requests).toHaveLength(0)
-    expect(mocks.logger.error).toHaveBeenCalledWith('Failed to start xlsx parser worker', error)
   })
 
   it('discards responses whose id does not match the latest request', async () => {
@@ -230,8 +230,6 @@ describe('useXlsxWorkbook', () => {
 
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'not an xlsx' }))
     expect(lastWorker().terminate).toHaveBeenCalledTimes(1)
-    // The raw technical message is logged at the failure site so the UI can show a generic translated description.
-    expect(mocks.logger.error).toHaveBeenCalledWith('Failed to parse xlsx file: not an xlsx')
   })
 
   it('maps a file read failure to the error state without creating a worker', async () => {
@@ -242,6 +240,27 @@ describe('useXlsxWorkbook', () => {
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'ENOENT: gone' }))
     expect(mocks.workers).toHaveLength(0)
   })
+
+  it.each([false, true])(
+    'preserves the host cache and transfers only the document bytes (subarray: %s)',
+    async (subarray) => {
+      const cached = new Uint8Array(subarray ? [99, 1, 2, 3, 4, 88] : [1, 2, 3, 4])
+      const bytes = subarray ? cached.subarray(1, 5) : cached
+      const opened: PreviewDocument = {
+        size: 4,
+        revision: 'v1',
+        readRange: async () => bytes,
+        close: async () => {}
+      }
+      const { unmount } = renderHook(() => useXlsxWorkbook(opened, 'cached.xlsx'))
+
+      await waitFor(() => expect(mocks.requests).toHaveLength(1))
+      expect(Array.from(new Uint8Array(mocks.requests[0].data))).toEqual([1, 2, 3, 4])
+      expect(Array.from(await opened.readRange(0, 4))).toEqual([1, 2, 3, 4])
+      expect(Array.from(cached)).toEqual(subarray ? [99, 1, 2, 3, 4, 88] : [1, 2, 3, 4])
+      unmount()
+    }
+  )
 
   it('terminates the worker on unmount', async () => {
     const { unmount } = renderHook(() => useXlsxWorkbook(previewTestDocument(4, 1, mocks.fsRead, 0), 'book.xlsx'))

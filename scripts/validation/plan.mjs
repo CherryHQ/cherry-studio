@@ -41,7 +41,7 @@ const consumers = {
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
-  ui: ['ui', 'renderer'],
+  ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
@@ -63,6 +63,7 @@ function scopeFor(file) {
   if (file.startsWith('src/preload/')) return 'preload'
   if (file.startsWith('migrations/')) return 'main'
   if (file.startsWith('tests/e2e/') || /^playwright.*\.config\.ts$/.test(file)) return 'e2e'
+  if (file === 'tests/file-preview.setup.ts') return 'file-preview'
   if (
     file.startsWith('tests/helpers/') ||
     file.startsWith('tests/__mocks__/main/') ||

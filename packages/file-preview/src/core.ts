@@ -1,7 +1,5 @@
 export { DocumentAnchorSchema, SELECTION_EXCERPT_MAX_LENGTH } from './documentAnchor'
 export type { DocumentAnchor } from './documentAnchor'
-export { assertZipLimits } from './officeZipPreflight'
-export { createPreviewSelection, normalizeSelectionText } from './selection'
 export type { PreviewSelection } from './selection'
-export { assertPreviewRange, PreviewError, readPreviewDocument, readPreviewRange } from './source'
+export { assertPreviewRange, PreviewError } from './source'
 export type { PreviewDocument, PreviewErrorCode, PreviewSource } from './source'

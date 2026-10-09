@@ -170,10 +170,6 @@ beforeEach(() => {
   mocks.slideError = null
   // Only a group node would reach the text index, and this deck has none.
   mocks.buildTextIndex.mockReturnValue([])
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: { fs: { read: mocks.fsRead } }
-  })
 })
 
 afterEach(cleanup)
@@ -405,17 +401,21 @@ describe('PowerPointFilePreview', () => {
     expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ code: 'load_error' }))
   })
 
-  it('reports lazy slide failures to the host and shows the error state', async () => {
+  it('keeps the deck readable and navigable when one lazy slide fails', async () => {
     const error = new Error('Failed to parse PPTX XML')
     mocks.slideError = error
 
     renderWithCapture()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
-    expect(mocks.failDocument).toHaveBeenCalledWith(error)
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.failDocument).not.toHaveBeenCalled()
+    expect(mocks.logger.error).toHaveBeenCalledWith(`Failed to render PPTX preview slide 1: ${filePath}`, error)
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
   })
 
-  it('contains read failures inside the preview and logs the cause', async () => {
+  it('contains read failures inside the preview and reports the cause to the host', async () => {
     const error = new Error('corrupt pptx')
     mocks.fsRead.mockRejectedValueOnce(error)
 
@@ -429,7 +429,7 @@ describe('PowerPointFilePreview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
-    expect(mocks.logger.error).toHaveBeenCalledWith(`Failed to load PPTX preview: ${filePath}`, error)
+    expect(mocks.failDocument).toHaveBeenCalledWith(error)
   })
 
   it('rebuilds and destroys the viewer when refreshKey changes', async () => {

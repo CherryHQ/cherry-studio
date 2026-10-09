@@ -224,13 +224,7 @@ export default function PowerPointFilePreview({
           onSlideError: (index, slideError) => {
             if (cancelled) return
             const normalized = slideError instanceof Error ? slideError : new Error(String(slideError))
-            logger.error('Failed to render PPTX preview slide', {
-              sourceId,
-              slide: index + 1,
-              error: normalized.message
-            })
-            failDocument?.(normalized)
-            setError(normalized)
+            logger.error(`Failed to render PPTX preview slide ${index + 1}: ${sourceId}`, normalized)
           },
           onNodeError: (nodeId, nodeError) => {
             logger.warn('Failed to render PPTX preview node', {
@@ -264,7 +258,6 @@ export default function PowerPointFilePreview({
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
-        logger.error(`Failed to load PPTX preview: ${sourceId}`, normalized)
         failDocument?.(normalized)
         setError(normalized)
       } finally {

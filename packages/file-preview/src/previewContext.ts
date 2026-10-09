@@ -3,6 +3,7 @@ import { createContext, use, useMemo } from 'react'
 import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
 
 export interface PreviewHost {
+  root?: HTMLElement | null
   resources?: PreviewResources
   options?: PreviewOptions
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void

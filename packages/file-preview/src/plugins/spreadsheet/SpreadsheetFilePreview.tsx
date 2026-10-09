@@ -7,7 +7,7 @@ import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { SELECTION_EXCERPT_MAX_LENGTH } from '../../documentAnchor'
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { FilePreviewTooLarge } from '../../FilePreviewTooLarge'
-import { usePreviewLogger } from '../../previewContext'
+import { usePreviewHost, usePreviewLogger } from '../../previewContext'
 import { createPreviewSelection, normalizeSelectionText } from '../../selection'
 import type { FilePreviewPluginProps } from '../../types'
 import type { ChartRenderer } from './charts/ChartRenderer'
@@ -105,6 +105,7 @@ export default function SpreadsheetFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('SpreadsheetFilePreview')
+  const { options } = usePreviewHost()
   const { t } = useTranslation()
   const state = useXlsxWorkbook(previewDocument, fileName)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -148,7 +149,6 @@ export default function SpreadsheetFilePreview({
   }, [selectedCell, activeSheet, sourceId, previewDocument.revision])
 
   // Capture arms empty so switching it on never turns a browsing selection into a pick the user never made.
-  // The host's side of this (a steady callback identity) is in the FilePreview README, Selection References.
   const captureArmedRef = useRef(false)
   useEffect(() => {
     if (!onSelection) {
@@ -228,7 +228,7 @@ export default function SpreadsheetFilePreview({
       </div>
     )
   } else if (state.status === 'error') {
-    // state.message carries raw technical detail from the worker and is logged by useXlsxWorkbook.
+    // Preview reports the technical failure; this surface keeps its translated explanation.
     content = (
       <EmptyState
         icon={AlertCircle}
@@ -274,7 +274,14 @@ export default function SpreadsheetFilePreview({
           />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1">
+        <div
+          data-testid="xlsx-preview-footer"
+          className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1"
+          style={
+            options?.bottomInset === 'content'
+              ? { paddingBottom: 'calc(0.25rem + var(--file-preview-bottom-inset, 0px))' }
+              : undefined
+          }>
           <Tabs value={activeSheet.name} onValueChange={setActiveSheetName} variant="line" className="min-w-0 shrink">
             <TabsList aria-label={t('xlsx_preview.sheet_tabs_label')} className="min-w-0 gap-1 overflow-x-auto">
               {sheets.map((sheet) => (

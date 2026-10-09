@@ -1,16 +1,19 @@
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 import { dispatchTouch } from '../../../__tests__/touchEvents'
+import { PreviewHostContext } from '../../../previewContext'
 import type { PreviewDocument } from '../../../source'
 import type { PreviewOptions } from '../../../types'
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
 
 const mocks = vi.hoisted(() => ({
+  diagnostic: vi.fn(),
+  failDocument: vi.fn(),
+  initialScale: 1,
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
   getDocument: vi.fn(),
@@ -159,7 +162,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
 
     set currentScaleValue(value: string) {
       mocks.pdfViewerScaleValues.push(value)
-      this.scale = Number.isFinite(Number(value)) ? Number(value) : 1
+      this.scale = Number.isFinite(Number(value)) ? Number(value) : mocks.initialScale
       this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
     }
 
@@ -179,7 +182,8 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
       mocks.pdfViewerUpdateScale(options)
       const scaleFactor = (options as { scaleFactor?: number } | undefined)?.scaleFactor
       if (typeof scaleFactor === 'number') {
-        this.scale *= scaleFactor
+        // Match the engine boundary: pdf.js accepts scales at one-percent precision.
+        this.scale = Math.min(10, Math.max(0.1, Math.round(this.scale * scaleFactor * 100) / 100))
         this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
       }
     }
@@ -202,10 +206,6 @@ const resources: { readPdfResource: typeof mocks.readResource; createWorker?: (k
   readPdfResource: mocks.readResource
 }
 let previewOptions: PreviewOptions | undefined
-vi.mock('../../../previewContext', () => ({
-  usePreviewLogger: () => mockRendererLoggerService,
-  usePreviewHost: () => ({ resources, options: previewOptions, onRequestOpen: mocks.requestOpen })
-}))
 
 const filePath = '/tmp/workspace/paper.pdf'
 let initialDataTheme: string | null
@@ -218,7 +218,21 @@ function renderPreview(refreshKey = 0, size = 1024, onSelectionReference?: (refe
       fileName="paper.pdf"
       document={previewTestDocument(size, 1, mocks.unusedRead, refreshKey)}
       onSelection={onSelectionReference as never}
-    />
+    />,
+    {
+      wrapper: ({ children }) => (
+        <PreviewHostContext
+          value={{
+            resources,
+            options: previewOptions,
+            onDiagnostic: mocks.diagnostic,
+            failDocument: mocks.failDocument,
+            onRequestOpen: mocks.requestOpen
+          }}>
+          {children}
+        </PreviewHostContext>
+      )
+    }
   )
 }
 
@@ -460,10 +474,12 @@ describe('PdfFilePreview', () => {
 
   beforeEach(() => {
     previewOptions = undefined
-    vi.spyOn(globalThis, 'Worker').mockImplementation(
+    mocks.initialScale = 1
+    vi.stubGlobal(
+      'Worker',
       class {
         terminate = vi.fn()
-      } as unknown as typeof Worker
+      }
     )
     vi.clearAllMocks()
     mocks.pdfViewerPageNumbers.length = 0
@@ -493,6 +509,7 @@ describe('PdfFilePreview', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     if (initialDataTheme === null) {
       document.documentElement.removeAttribute('data-theme')
     } else {
@@ -564,7 +581,7 @@ describe('PdfFilePreview', () => {
     act(() => animationFrame?.(0))
 
     expect(mocks.pdfViewerUpdateScale).toHaveBeenCalledWith({
-      origin: [24, 36],
+      origin: [14, 16],
       scaleFactor: expect.any(Number)
     })
   })
@@ -580,6 +597,8 @@ describe('PdfFilePreview', () => {
     const zoomBefore = screen.getByTestId('pdf-preview-zoom-value').textContent
 
     const container = screen.getByTestId('pdfjs-viewer-container')
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue(DOMRect.fromRect({ x: 40, y: 50 }))
+    Object.defineProperties(container, { offsetLeft: { value: 8 }, offsetTop: { value: 12 } })
     dispatchTouch(container, 'touchstart', [
       [100, 100],
       [200, 100]
@@ -593,10 +612,144 @@ describe('PdfFilePreview', () => {
     expect(pinch.defaultPrevented).toBe(true)
     expect(mocks.pdfViewerUpdateScale).toHaveBeenLastCalledWith({
       drawingDelay: 400,
-      origin: [150, 100],
+      origin: [118, 62],
       scaleFactor: 2
     })
     expect(screen.getByTestId('pdf-preview-zoom-value').textContent).not.toBe(zoomBefore)
+  })
+
+  it('accumulates slow pinch steps without carrying rounding residue into another gesture', async () => {
+    mocks.initialScale = 0.43
+    let animationFrame: FrameRequestCallback | undefined
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrame = callback
+      return 1
+    })
+    renderPreview()
+    const zoom = await screen.findByTestId('pdf-preview-zoom-value')
+    await waitFor(() => expect(zoom).toHaveTextContent('43%'))
+    const container = screen.getByRole('region', { name: 'paper.pdf' })
+    const move = (span: number) => {
+      dispatchTouch(container, 'touchmove', [
+        [0, 0],
+        [span, 0]
+      ])
+      act(() => animationFrame?.(0))
+    }
+
+    dispatchTouch(container, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    move(100.6)
+    expect(zoom).toHaveTextContent('43%')
+    move(101.2)
+    expect(zoom).toHaveTextContent('44%')
+    dispatchTouch(container, 'touchend', [])
+
+    dispatchTouch(container, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    move(100.8)
+    expect(zoom).toHaveTextContent('44%')
+    dispatchTouch(container, 'touchcancel', [])
+    dispatchTouch(container, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    move(100.8)
+    expect(zoom).toHaveTextContent('44%')
+  })
+
+  it.each([
+    { initialScale: 0.1, outwardSpan: 96, inwardSpan: 101.76, initialLabel: '10%', finalLabel: '11%' },
+    { initialScale: 10, outwardSpan: 100.04, inwardSpan: 99.979976, initialLabel: '1000%', finalLabel: '999%' }
+  ])(
+    'discards even a small overshoot at zoom $initialScale before reversing the pinch',
+    async ({ initialScale, outwardSpan, inwardSpan, initialLabel, finalLabel }) => {
+      mocks.initialScale = initialScale
+      let animationFrame: FrameRequestCallback | undefined
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        animationFrame = callback
+        return 1
+      })
+      renderPreview()
+      const zoom = await screen.findByTestId('pdf-preview-zoom-value')
+      await waitFor(() => expect(zoom).toHaveTextContent(initialLabel))
+      const container = screen.getByRole('region', { name: 'paper.pdf' })
+
+      dispatchTouch(container, 'touchstart', [
+        [0, 0],
+        [100, 0]
+      ])
+      dispatchTouch(container, 'touchmove', [
+        [0, 0],
+        [outwardSpan, 0]
+      ])
+      act(() => animationFrame?.(0))
+      expect(zoom).toHaveTextContent(initialLabel)
+
+      dispatchTouch(container, 'touchmove', [
+        [0, 0],
+        [inwardSpan, 0]
+      ])
+      act(() => animationFrame?.(0))
+      expect(zoom).toHaveTextContent(finalLabel)
+    }
+  )
+
+  it.each(['unmount', 'read failure'] as const)(
+    'keeps the worker alive until document cleanup completes on %s',
+    async (reason) => {
+      const hostWorker = { terminate: vi.fn() } as unknown as Worker
+      resources.createWorker = () => hostWorker
+      let releaseDocument = () => {}
+      mocks.loadingTaskDestroy.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseDocument = resolve
+          })
+      )
+      try {
+        const view = renderPreview()
+        await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+        if (reason === 'unmount') view.unmount()
+        else act(() => mocks.rangeTransportInstances[0].fail(new Error('read failed')))
+
+        expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
+        expect(hostWorker.terminate).not.toHaveBeenCalled()
+        expect(mocks.workerDestroy).not.toHaveBeenCalled()
+        await act(async () => {
+          releaseDocument()
+          await flushPdfEffects()
+        })
+        expect(hostWorker.terminate).toHaveBeenCalledOnce()
+        expect(mocks.workerDestroy).toHaveBeenCalledOnce()
+        view.unmount()
+        await act(flushPdfEffects)
+        expect(hostWorker.terminate).toHaveBeenCalledOnce()
+      } finally {
+        delete resources.createWorker
+      }
+    }
+  )
+
+  it('releases the worker and reports the cause when document cleanup rejects', async () => {
+    const hostWorker = { terminate: vi.fn() } as unknown as Worker
+    resources.createWorker = () => hostWorker
+    const error = new Error('cleanup failed')
+    mocks.loadingTaskDestroy.mockRejectedValueOnce(error)
+    try {
+      const view = renderPreview()
+      await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+      view.unmount()
+      await act(flushPdfEffects)
+      expect(hostWorker.terminate).toHaveBeenCalledOnce()
+      expect(mocks.diagnostic).toHaveBeenCalledWith(expect.objectContaining({ level: 'error', detail: error }))
+    } finally {
+      delete resources.createWorker
+    }
   })
 
   it('runs pdf.js on the worker the host creates', async () => {
@@ -619,6 +772,7 @@ describe('PdfFilePreview', () => {
       expect(await new options.StandardFontDataFactory().fetch({ filename: 'FoxitSerif.pfb' })).toBe(font)
       expect(mocks.readResource).toHaveBeenCalledWith('standard_font', 'FoxitSerif.pfb')
       view.unmount()
+      await act(flushPdfEffects)
       expect(hostWorker.terminate).toHaveBeenCalled()
     } finally {
       delete resources.createWorker
@@ -710,6 +864,26 @@ describe('PdfFilePreview', () => {
     expect(await screen.findByText('file_preview.pdf.outline.empty')).toBeInTheDocument()
   })
 
+  it.each(['panel', 'overlay'] as const)(
+    'reserves trailing scroll space for the %s outline in content inset mode',
+    async (outlineLayout) => {
+      previewOptions = { bottomInset: 'content', pdf: { outlineLayout } }
+      mocks.pdfDocument.getOutline.mockResolvedValueOnce([
+        { title: 'Last section', dest: 'last', url: null, items: [] }
+      ])
+      renderPreview()
+      const user = userEvent.setup()
+      await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+      await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
+      const outline = await screen.findByRole('navigation', { name: 'file_preview.pdf.outline.title' })
+      // The documented content inset must be inside the outline's scrollable area.
+      expect(outline.lastElementChild).toHaveStyle({
+        paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))'
+      })
+      expect(screen.getByRole('button', { name: 'Last section' })).toBeVisible()
+    }
+  )
+
   it('preserves PDF colors while updating the page background when the app theme changes', async () => {
     renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
@@ -728,8 +902,21 @@ describe('PdfFilePreview', () => {
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledTimes(1)
   })
 
+  it('reports viewer construction failure once through the terminal error channel', async () => {
+    const error = new Error('viewer initialization failed')
+    mocks.pdfViewerConstructor.mockImplementationOnce(() => {
+      throw error
+    })
+
+    renderPreview()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.failDocument).toHaveBeenCalledExactlyOnceWith(error)
+    expect(mocks.diagnostic).not.toHaveBeenCalled()
+    expect(screen.queryByText(error.message)).not.toBeInTheDocument()
+  })
+
   it('shows a localized generic error without exposing parser details', async () => {
-    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.getDocument.mockReturnValueOnce({
       destroy: mocks.loadingTaskDestroy,
       promise: Promise.reject(new Error('sensitive parser details'))
@@ -741,10 +928,7 @@ describe('PdfFilePreview', () => {
     expect(screen.getByRole('heading', { name: 'file_preview.load_error.title' })).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
     expect(screen.queryByText('sensitive parser details')).not.toBeInTheDocument()
-    expect(loggerError).toHaveBeenCalledWith(
-      `Failed to load PDF preview: ${filePath}`,
-      expect.objectContaining({ message: 'sensitive parser details' })
-    )
+    expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ message: 'sensitive parser details' }))
   })
 
   it('loads PDFs above the former size limit through the range transport', async () => {
@@ -757,7 +941,6 @@ describe('PdfFilePreview', () => {
   })
 
   it('surfaces range transport failures after document loading starts', async () => {
-    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     renderPreview()
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
 
@@ -765,15 +948,11 @@ describe('PdfFilePreview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
-    expect(loggerError).toHaveBeenCalledWith(
-      `Failed to load PDF preview: ${filePath}`,
-      expect.objectContaining({ message: 'range read failed' })
-    )
+    expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ message: 'range read failed' }))
   })
 
   it('offers the default app when a PDF range exceeds the safe assembled limit', async () => {
     const user = userEvent.setup()
-    const loggerWarn = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     renderPreview()
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
 
@@ -783,15 +962,7 @@ describe('PdfFilePreview', () => {
     expect(alert).toHaveTextContent('file_preview.pdf.too_large.title')
     expect(alert).toHaveTextContent('file_preview.pdf.too_large.description')
     expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'PDF preview exceeded the safe assembled range limit',
-      expect.objectContaining({
-        begin: 1024 * 1024,
-        end: 19 * 1024 * 1024,
-        sourceId: filePath,
-        rangeLength: 18 * 1024 * 1024
-      })
-    )
+    expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ code: 'too_large' }))
 
     await user.click(screen.getByRole('button', { name: 'file_preview.too_large.action' }))
 
@@ -815,30 +986,30 @@ describe('PdfFilePreview', () => {
     expect(firstTransport.abort).toHaveBeenCalled()
   })
 
-  it('destroys loading, document, viewer, event, timer, and animation resources on unmount', async () => {
+  it('stops intercepting viewer input after unmount', async () => {
     const { unmount } = renderPreview()
-    await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(mocks.pdfDocument))
-
-    const container = screen.getByTestId('pdfjs-viewer-container')
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const container = screen.getByRole('region', { name: 'paper.pdf' })
     const { abortSignal } = mocks.pdfViewerConstructor.mock.calls[0][0] as { abortSignal: AbortSignal }
-    const removeEventListener = vi.spyOn(container, 'removeEventListener')
-    const clearTimeout = vi.spyOn(window, 'clearTimeout')
-    const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame')
-    container.dispatchEvent(new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -10 }))
 
     unmount()
     await act(flushPdfEffects)
 
-    expect(mocks.loadingTaskDestroy).toHaveBeenCalled()
-    expect(mocks.rangeTransportInstances[0].abort).toHaveBeenCalled()
+    const wheel = new WheelEvent('wheel', { cancelable: true, ctrlKey: true, deltaY: -10 })
+    const keyboard = new KeyboardEvent('keydown', { cancelable: true, ctrlKey: true, key: '+' })
+    container.dispatchEvent(wheel)
+    container.dispatchEvent(keyboard)
+    dispatchTouch(container, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    const pinch = dispatchTouch(container, 'touchmove', [
+      [0, 0],
+      [200, 0]
+    ])
+    expect(wheel.defaultPrevented).toBe(false)
+    expect(keyboard.defaultPrevented).toBe(false)
+    expect(pinch.defaultPrevented).toBe(false)
     expect(abortSignal.aborted).toBe(true)
-    expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(null)
-    expect(mocks.pdfViewerCleanup).toHaveBeenCalled()
-    expect(mocks.eventBusOff).toHaveBeenCalledTimes(4)
-    expect(removeEventListener).toHaveBeenCalledWith('wheel', expect.any(Function))
-    expect(removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function))
-    expect(removeEventListener).toHaveBeenCalledWith('pointerdown', expect.any(Function))
-    expect(clearTimeout).toHaveBeenCalled()
-    expect(cancelAnimationFrame).toHaveBeenCalled()
   })
 })

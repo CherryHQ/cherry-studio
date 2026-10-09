@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => {
   return {
     createValidDocxBytes,
     fsRead: vi.fn(),
-    logger: { error: vi.fn(), warn: vi.fn() },
+    failDocument: vi.fn(),
     renderAsync: vi.fn(),
     MockIntersectionObserver
   }
@@ -39,8 +39,7 @@ vi.mock('docx-preview', () => ({
 }))
 
 vi.mock('../../../previewContext', () => ({
-  usePreviewLogger: () => mocks.logger,
-  usePreviewHost: () => ({})
+  usePreviewHost: () => ({ failDocument: mocks.failDocument })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -75,10 +74,6 @@ beforeEach(() => {
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: { fs: { read: mocks.fsRead } }
-  })
   HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
 })
@@ -86,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('WordFilePreview', () => {
@@ -326,6 +322,50 @@ describe('WordFilePreview', () => {
     expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('200%')
   })
 
+  it('keeps the same long-document content beneath the fingers when centered pages zoom and reach the limit', async () => {
+    renderWithCapture()
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    const content = screen.getByTestId('docx-preview-content')
+    region.scrollTop = 10000
+    // jsdom has no layout; provide the geometry of a centered 1000px document in a 1200px viewport.
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(() => {
+      const scale = Number(content.style.zoom)
+      return DOMRect.fromRect({
+        x: 50 + Math.max(0, (1200 - 1000 * scale) / 2) - region.scrollLeft,
+        y: 70 - region.scrollTop,
+        width: 1000 * scale,
+        height: 30000 * scale
+      })
+    })
+    const contentUnderFingers = () => {
+      const rect = content.getBoundingClientRect()
+      const scale = Number(content.style.zoom)
+      return [(950 - rect.left) / scale, (270 - rect.top) / scale]
+    }
+    expect(contentUnderFingers()).toEqual([800, 10200])
+    dispatchTouch(region, 'touchstart', [
+      [900, 270],
+      [1000, 270]
+    ])
+    act(() => {
+      dispatchTouch(region, 'touchmove', [
+        [850, 270],
+        [1050, 270]
+      ])
+    })
+    expect(content).toHaveAttribute('data-zoom', '2')
+    expect(contentUnderFingers()).toEqual([800, 10200])
+    act(() => {
+      dispatchTouch(region, 'touchmove', [
+        [550, 270],
+        [1350, 270]
+      ])
+    })
+    expect(content).toHaveAttribute('data-zoom', '2')
+    expect(contentUnderFingers()).toEqual([800, 10200])
+  })
+
   it('sanitizes unsafe hyperlinks rendered by docx-preview', async () => {
     mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
       body.innerHTML =
@@ -346,7 +386,7 @@ describe('WordFilePreview', () => {
     expect(screen.getByText('safe')).toHaveAttribute('href', 'https://example.com')
   })
 
-  it('contains read failures inside the preview and logs the cause', async () => {
+  it('contains read failures inside the preview and reports the cause to the host', async () => {
     const error = new Error('corrupt docx')
     mocks.fsRead.mockRejectedValueOnce(error)
 
@@ -360,7 +400,7 @@ describe('WordFilePreview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
-    expect(mocks.logger.error).toHaveBeenCalledWith(`Failed to load DOCX preview: ${filePath}`, error)
+    expect(mocks.failDocument).toHaveBeenCalledWith(error)
   })
 
   it('reloads the file when refreshKey changes', async () => {

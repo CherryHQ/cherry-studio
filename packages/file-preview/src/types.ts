@@ -20,7 +20,7 @@ export interface PreviewResources {
 
 /** Optional host policies. Omitted options preserve the desktop preview's layout and rendering. */
 export interface PreviewOptions {
-  /** Reserve viewport space (default), or append the inset inside document scrolling content. */
+  /** Reserve viewport space (default), or append the inset inside document scrolling content; XLSX reserves it below its fixed footer. */
   bottomInset?: 'viewport' | 'content'
   pdf?: {
     /** Defaults to the existing sidebar. Overlay mode does not shrink the page viewport. */

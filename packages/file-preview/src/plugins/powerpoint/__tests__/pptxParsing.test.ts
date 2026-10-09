@@ -41,4 +41,18 @@ describe('PPTX XML parsing', () => {
 
     expect(() => buildPresentation(files, { lazySlides: true })).toThrow('Failed to parse PPTX XML')
   })
+
+  it.each(['chart', 'slide relationships'])(
+    'preserves readable slide text when optional %s XML is malformed',
+    async (part) => {
+      const files = await createPresentationFiles()
+      if (part === 'chart') files.charts.set('ppt/charts/chart1.xml', '<chart><unclosed>')
+      else files.slideRels.set('ppt/slides/_rels/slide1.xml.rels', '<Relationships><unclosed>')
+
+      const presentation = buildPresentation(files, { lazySlides: true })
+
+      expect(presentation.slides).toHaveLength(1)
+      expect(buildTextIndex(presentation).map((entry) => entry.text)).toContain('BOM slide')
+    }
+  )
 })

@@ -8,6 +8,7 @@ export interface PreviewSource {
 export interface PreviewDocument {
   size: number
   revision: string
+  /** Returned bytes remain owned by the host; consumers must copy before transferring their buffer. */
   readRange(offset: number, length: number, signal?: AbortSignal): Promise<Uint8Array>
   close(): Promise<void>
 }

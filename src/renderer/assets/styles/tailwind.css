@@ -40,7 +40,7 @@
 
 /* Let the Electron window surface control the document background. */
 @layer app {
-  .file-preview-root {
+  [data-ui~='file-preview.view'] {
     --file-preview-bottom-inset: var(--chat-composer-inset, 0px);
   }
 
