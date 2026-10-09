@@ -358,20 +358,29 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
+  it('disables Claude Code ToolSearch when the connection model requires upfront tools', async () => {
     // The settings builder force-enables ToolSearch for every agent; the route must undo that for
-    // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
+    // Kimi models because their API requires applications to implement search themselves.
     mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-for-coding', contextWindow: 262_144 })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+    expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'false' })
   })
 
-  it('keeps ENABLE_TOOL_SEARCH for models that accept dynamically-loaded tools', async () => {
+  it('disables Claude Code ToolSearch for Kimi K3 despite dynamic declaration support', async () => {
     mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
     mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'kimi-k3', contextWindow: 262_144 })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'false' })
+  })
+
+  it('keeps ENABLE_TOOL_SEARCH for a Claude model', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet-4-5', contextWindow: 262_144 })
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -391,7 +400,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
-    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+    expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'false' })
   })
 
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
