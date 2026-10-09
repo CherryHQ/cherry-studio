@@ -9,7 +9,7 @@
  *
  * See plan D2: pi speaks a fixed set of wire protocols via
  * `pi.registerProvider({ api })`; providers whose Cherry endpoint has no pi
- * equivalent are unsupported for pi agents.
+ * equivalent use Cherry's local Gateway when its chat route is available.
  */
 
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
@@ -17,6 +17,7 @@ import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTranspor
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
@@ -105,7 +106,7 @@ function resolveEndpointType(provider: Provider, model: Model): EndpointType | u
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
   // Login-based providers hold no plain app-side API key. An external-CLI login
   // (`claude-code`) reuses a CLI's own stored session and cannot be injected, so
-  // it stays unsupported like Bedrock/Vertex above. App-managed OAuth providers
+  // its native mapping is unavailable, like Bedrock/Vertex above. App-managed OAuth providers
   // (`grok-cli`/`openai-codex`), however, have a pi transport adapter that
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
@@ -117,5 +118,5 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
 
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
-  return resolvePiApi(provider, model) !== undefined
+  return resolvePiApi(provider, model) !== undefined || isGatewayRoutableModel(model)
 }

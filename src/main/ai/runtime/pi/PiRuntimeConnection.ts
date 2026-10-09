@@ -23,7 +23,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
@@ -46,6 +46,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -63,6 +64,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -231,7 +233,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (usesPiGateway(discoverySnapshot.provider)) {
+    if (usesPiGateway(discoverySnapshot.provider, discoverySnapshot.model)) {
       await resolveInjection(discoverySnapshot)
     }
     await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
@@ -1005,6 +1007,13 @@ function normalizeDisabledTools(
   snapshot: PiConnectionSnapshot
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
+  const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
+  for (const tool of listBuiltinToolPolicies({ mountedServers: new Set(Object.values(CHERRY_MCP_SERVER)) })) {
+    const legacyId = legacyDisabledToolId(tool.serverName, tool.toolName)
+    if (!disabled.has(legacyId)) continue
+    disabled.add(buildPiMcpToolName(tool.serverName, tool.toolName))
+    unresolved.delete(legacyId)
+  }
   const catalog = application.get('McpCatalogService')
   for (const server of snapshot.mcpServerSnapshots.values()) {
     if (!server) continue
@@ -1012,14 +1021,18 @@ function normalizeDisabledTools(
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)
+      const legacyId = legacyDisabledToolId(server.name, tool.name)
       if (
+        disabled.has(legacyId) ||
         disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
         disabled.has(`mcp__${server.id}__${tool.name}`)
       ) {
         disabled.add(buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name)))
+        unresolved.delete(legacyId)
       }
     }
   }
+  assertLegacyDisabledToolsResolved(unresolved)
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
   return disabled
 }

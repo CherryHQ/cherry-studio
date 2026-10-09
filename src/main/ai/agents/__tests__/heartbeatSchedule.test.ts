@@ -524,16 +524,6 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${row.id}`)).toBe(true)
   })
 
-  it('skips runtimes without heartbeat capability', async () => {
-    seedAgent(AGENT_ID, {}, 'dsh')
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
-    await expect(readFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
   it('returns skipped-missing-agent without throwing', async () => {
     await expect(syncHeartbeatSchedule('missing-agent')).resolves.toBe('skipped-missing-agent')
   })
@@ -859,22 +849,6 @@ describe('heartbeatSchedule', () => {
     expect(healed).toBe('updated')
     expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(true)
     rmSync(outside, { recursive: true, force: true })
-  })
-
-  it('pauses a previously-armed row when the runtime loses the heartbeat capability', async () => {
-    seedAgent(AGENT_ID)
-    await syncHeartbeatSchedule(AGENT_ID)
-    const [row] = heartbeatRows(AGENT_ID)
-    expect(row.enabled).toBe(true)
-
-    // The agent's type is migrated to a runtime without heartbeat support
-    // (or the capability is revoked) while a schedule row exists.
-    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
   })
 
   it('keeps archived heartbeat schedules during explicit sync and ownership reconciliation', async () => {
@@ -1205,39 +1179,6 @@ describe('heartbeatSchedule', () => {
     // (The breaker's own pause disposed the timer; sync must not revive it.)
     expect(spy).not.toHaveBeenCalled()
     spy.mockRestore()
-  })
-
-  it('keeps the circuit-breaker marker when a capability gate pauses the row', async () => {
-    // Only the user's toggle-off resets a breaker stop; a capability-gated
-    // pause (runtime lost heartbeat support) must preserve the marker, or
-    // restoring the capability would silently re-arm a stopped schedule.
-    seedAgent(AGENT_ID)
-    const { id } = jobManager.registerJobSchedule({
-      type: 'agent.task',
-      name: `heartbeat_${AGENT_ID}`,
-      trigger: { kind: 'interval', ms: 3_600_000 },
-      jobInputTemplate: {
-        agentId: AGENT_ID,
-        prompt: '__heartbeat__',
-        timeoutMinutes: 2,
-        workspace: { type: 'system' },
-        reuseRevision: 0
-      },
-      catchUpPolicy: { kind: 'skip-missed' }
-    })
-    dbh.db
-      .update(jobScheduleTable)
-      .set({ metadata: { circuitBreakerPaused: true } })
-      .where(eq(jobScheduleTable.id, id))
-      .run()
-    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID)
-
-    expect(outcome).toBe('skipped-capability')
-    const row = jobScheduleService.getById(id)
-    expect(row?.enabled).toBe(false)
-    expect(row?.metadata).toMatchObject({ circuitBreakerPaused: true })
   })
 
   it('resets a circuit-breaker pause through the heartbeat toggle off/on', async () => {

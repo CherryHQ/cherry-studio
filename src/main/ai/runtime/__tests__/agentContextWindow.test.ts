@@ -11,7 +11,7 @@ describe('resolveAgentContextWindow', () => {
     expect(resolveAgentContextWindow(modelWith(128_000))).toBe(128_000)
   })
 
-  // A non-positive or non-finite window would make pi/dsh compact immediately or never.
+  // A non-positive or non-finite window would make Pi compact immediately or never.
   it.each([undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, '200000'])(
     'falls back to the default for %p',
     (contextWindow) => {

@@ -1710,6 +1710,25 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('keeps old MCP restrictions until the user explicitly removes them, preserving file restrictions', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...PI_AGENT, disabledTools: ['read', 'legacy-dsh:mcp__unknown__tool'] }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole('tab', { name: 'MCP' }))
+    expect(screen.getByText('mcp__unknown__tool')).toBeVisible()
+    expect(updateAgentMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.config.tools.legacy_restrictions.remove' }))
+    await waitFor(() => expect(screen.queryByText('mcp__unknown__tool')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ disabledTools: ['read'] }) })
+    )
+  })
+
   it('lets users enable Code Mode when its legacy tool was disabled', async () => {
     const user = userEvent.setup()
     render(<AgentEditDialog open resource={{ ...PI_AGENT, disabledTools: ['tool_exec'] }} onOpenChange={vi.fn()} />)

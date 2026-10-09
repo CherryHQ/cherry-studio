@@ -79,12 +79,12 @@ describe('resolvePiApi', () => {
     )
   })
 
-  it('is false for an unmapped provider', () => {
+  it('accepts an unmapped chat provider through the local gateway', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'ollama-chat',
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama' } }
     })
-    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
+    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
   })
 
   it('accepts a model whose context window is unknown', () => {
@@ -110,7 +110,7 @@ describe('resolvePiApi', () => {
     expect(resolvePiApi(provider, makeModel({ apiModelId: 'claude-sonnet-4' }))).toBe('anthropic-messages')
   })
 
-  it('rejects an external-CLI provider (claude-code) even on a pi-speakable endpoint', () => {
+  it('requires gateway routing for an external-CLI provider', () => {
     const provider = makeProvider({
       id: 'claude-code',
       authMethods: ['external-cli'],
@@ -118,7 +118,7 @@ describe('resolvePiApi', () => {
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
     })
     expect(resolvePiApi(provider, makeModel({}))).toBeUndefined()
-    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
+    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
   })
 
   it.each([

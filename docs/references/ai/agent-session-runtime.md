@@ -11,12 +11,10 @@ sources:
   - src/shared/ai/piBuiltinTools.ts
   - patches/@sting8k__pi-vcc@0.8.1.patch
   - scripts/piVccBundle.ts
-  - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
-  - packages/dsh-bridge/src/plugin.ts
 ---
 
 # Agent Session Runtime
@@ -33,7 +31,7 @@ The boundary is:
 - `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
 - `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
 
-The built-in drivers are Claude Code, Pi, and DeepSeek Harness (DSH). Their
+The built-in drivers are Claude Code and Pi. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
@@ -104,10 +102,10 @@ Runtime adapters own only native mechanics:
 
 | Runtime-neutral Cherry policy | Runtime-specific carrier |
 |---|---|
-| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides, and DSH composes base plus append into its generated persona. |
-| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`; DSH places it in composition persona text. |
-| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files; DSH enables bounded workspace context. Physical placement differs while semantic precedence stays common. |
-| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`; DSH writes `skillDirs` into the generated composition. |
+| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
+| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
+| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files. Physical placement differs while semantic precedence stays common. |
+| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
 
@@ -174,13 +172,11 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 A receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `pendingTurns` until terminal persistence releases runtime ownership.
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
-(`AutonomousTurnOrigin`: a dsh goal round with its round number, or Claude Code
-waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+(`AutonomousTurnOrigin`: Claude Code waking after background work). `startReceiveOnlyTurn` publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
 status like the api-retry state, not conversation content — so the transcript can
 label a turn that has no user message above it while the session is open.
-If a user turn is live when the runtime starts its own — even an admitted one, since
-dsh runs a queued goal round ahead of a prompt it has already accepted — the user turn
+If a user turn is live when the runtime starts its own — even an admitted one when runtime-owned work takes precedence — the user turn
 is deferred: its stream is suspended, the receive-only turn takes the connection, and
 the user turn is relaunched afterwards with its admission preserved (no re-send).
 Content the runtime produces for the deferred turn before its stream reopens is
@@ -495,12 +491,9 @@ to restore files.
 ## Native user-data SQLite guard
 
 `userDataSqliteGuard.ts` is the single policy source that protects Cherry Studio's SQLite files
-across Claude Code, Pi, and DSH. Native structured write tools cannot bypass it through a permission
+across Claude Code and Pi. Native structured write tools cannot bypass it through a permission
 mode: Claude calls it from the common `PreToolUse` guard table, Pi calls it in the shared native and
-code-mode authorizer before Full Access handling, and DSH asks Main over the authenticated bridge
-before local approval or bypass policy. DSH root agents and delegated subagents use the same check;
-an unavailable bridge or invalid cwd fails closed. This does not add to or change DSH's existing
-sandbox configuration.
+code-mode authorizer before Full Access handling.
 
 The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
 Existing symlink and hard-link aliases to those files are protected by canonical path and file
@@ -844,44 +837,31 @@ policy and disabled-tool lookups. A stored `tool_exec` disable applies to
 MCP tool results retain their structured payloads and Cherry citation metadata.
 Closing a connection emits `session_shutdown` before disposing the SDK session.
 
-## DSH driver boundary
+## Retired Agent runtime migration
 
-`DshRuntimeDriver` launches the bundled DeepSeek Harness through
-`@deepseek-ai/dsh-sdk-client`. `DshRuntimeConnection` generates a
-session-specific composition under the centralized DSH paths, injects the
-resolved provider/model configuration, and connects the harness process to a
-local `DshBridgeServer`.
+Existing DSH agents are converted to Pi by `RetiredAgentRuntimeSeeder`, including archived
+agents. IDs, models, workspaces, message content, and resource links are preserved. Plan
+permissions become `default`; equivalent disabled file/shell tools keep their restrictions.
+Legacy MCP restrictions are mapped against the actual tool catalog before Pi starts; an
+unresolved restriction blocks startup and asks the user to reconfigure tool access.
+CodeMate's separately installed DeepSeek Harness tool is unchanged.
 
-The bridge is the Cherry capability boundary. It projects Cherry-owned and
-selected MCP tools into DSH names, applies live disabled-tool and permission
-policy, routes approval requests through the shared registry, and forwards
-subagent/background-flow events into the host event model. DSH-native built-ins
-remain described by the shared `dshBuiltinTools` catalog; the driver does not
-reuse the AI SDK `ToolRegistry`.
+The seeder records each affected session in `app_state` and leaves native tokens intact.
+Fork recovery retires already-published retired-runtime journals without deleting their files.
+After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
+persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+Tools appear as historical text and are never executed during import. Attachments retain
+managed file paths. Native DSH goals and child-process state are not carried over.
 
-The generated composition receives the common Agent prompt, bounded workspace
-context, managed skill directories, and a generation-specific bridge socket and
-token. Connection materialization snapshots provider/model/tool facts before
-and after startup and fails closed if they change. Resume tokens are validated
-before use and remain opaque to `AgentSessionRuntimeService`.
+A failed import retains its progress marker and original message metadata. Startup continues
+for other sessions; validation, connection, editing, and forking retry the import before
+using that session. No failed conversion silently starts an empty context. The original DSH
+files remain untouched. Restoring an older backup repeats the same conversion.
 
-`DshStreamAdapter` maps session events, usage, retries, compaction, plan-mode,
-and terminal reasons into `AgentRuntimeEvent`s. DSH child-session lifecycle is
-coordinated separately so nested content is either attached to the current host
-turn or persisted as background flow without corrupting the main transcript.
-
-### Approval feedback and Full Access shell validation
-
-When an approval is rejected with a reason, the bridge injects that feedback into
-the current Agent turn so the harness can respond to it. Agent tool calls without
-a verified workspace directory are denied.
-
-In Full Access mode, the bridge removes `sandbox_permissions` and `justification`
-from the native `bash` and `pwsh` tool schemas. A runtime guard also rejects calls
-that still supply either field, before executing the command, and tells the Agent
-to retry using its current permissions. This validation does not terminate the
-conversation or add a general retry limit. No setup is required; repeated invalid
-requests can be corrected by removing those fields or stopping the run.
+Pi retains direct transport for supported models. Other gateway-routable chat models use
+the existing local Gateway's OpenAI-compatible route, preserving model identity, consent,
+credential invalidation, and provider-owned usage capture.
 
 ## Internal Agent continuation normalization
 
@@ -996,8 +976,6 @@ Focused tests:
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
 - `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
-- `src/main/ai/runtime/dsh/DshRuntimeDriver.test.ts`
-- `src/main/ai/runtime/dsh/__tests__/DshRuntimeConnection.trace.test.ts`
 
 Cross-Session delivery acceptance tests additionally pin these crash and security boundaries:
 

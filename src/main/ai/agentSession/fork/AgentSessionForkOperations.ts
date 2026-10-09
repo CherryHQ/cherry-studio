@@ -12,12 +12,14 @@ import { AgentSessionForkSourceError, agentSessionForkService } from '@data/serv
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 
+import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
 import { type AgentSessionForkResources, readForkResources, writeForkResources, removeForkResources } from './resources'
@@ -91,6 +93,7 @@ export class AgentSessionForkOperations {
     closeSource: () => Promise<void>,
     persist: (tx: DbOrTx, nativeSessionId: string) => T
   ): Promise<T> {
+    await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
     const source = database.withWriteTx((tx) =>
       agentSessionMessageService.readEditSnapshotTx(tx, sessionId, target.messageId)
@@ -176,7 +179,12 @@ export class AgentSessionForkOperations {
     for (const resources of await readForkResources()) {
       if ([...this.pending.values()].some((operation) => operation.operationId === resources.operationId)) continue
       if ([...this.edits.values()].some((operation) => operation.operationId === resources.operationId)) continue
-      if (this.hasPublishedResources(resources)) continue
+      if (this.hasPublishedResources(resources)) {
+        // Retire the journal before migration replaces its durable native token.
+        if (getRetiredAgentSessionMigration(application.get('DbService').getDb(), resources.targetSessionId))
+          await removeForkResources(resources.operationId)
+        continue
+      }
       try {
         await this.cleanup(resources)
       } catch (error) {
@@ -192,6 +200,7 @@ export class AgentSessionForkOperations {
     signal: AbortSignal
   ): Promise<string> {
     signal.throwIfAborted()
+    await ensureRetiredSessionHistory(sourceSessionId)
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
     const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)

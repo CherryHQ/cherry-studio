@@ -10,7 +10,6 @@ export const testProjects = [
   'provider-registry',
   'scripts',
   'ai-sdk-provider',
-  'dsh-bridge',
   'remote-protocol',
   'remote-transport'
 ]
@@ -42,7 +41,6 @@ const consumers = {
   ui: ['ui', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
-  'dsh-bridge': ['dsh-bridge', 'main', 'preload'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
   scripts: ['scripts']

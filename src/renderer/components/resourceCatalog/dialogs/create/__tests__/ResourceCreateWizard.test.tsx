@@ -91,6 +91,7 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill pi basic
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -98,14 +99,6 @@ vi.mock('../steps/BasicInfoStep', async () => {
               form.setValue('modelId', null)
             }}>
             switch to pi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('agentType', 'dsh')
-              form.setValue('modelId', null)
-            }}>
-            switch to dsh
           </button>
         </>
       )
@@ -379,7 +372,7 @@ describe('ResourceCreateWizard', () => {
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
-  it.each(['pi', 'dsh'] as const)(
+  it.each(['pi'] as const)(
     'reselects a compatible default model after switching an agent to the %s runtime',
     async (agentType) => {
       const user = userEvent.setup()

@@ -34,7 +34,6 @@ describe('validation selection', () => {
   })
   it.each([
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
-    ['packages/dsh-bridge/src/link.ts', ['dsh-bridge', 'main']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
     ['packages/ui/src/button.tsx', ['ui', 'renderer']],

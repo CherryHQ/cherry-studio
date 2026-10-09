@@ -6,7 +6,6 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { createClaudeCodeRuntimeDriver } from './claudeCode'
-import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
@@ -100,5 +99,4 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
-  runtimeDriverRegistry.register(new DshRuntimeDriver())
 }

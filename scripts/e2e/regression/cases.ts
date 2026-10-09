@@ -110,13 +110,6 @@ export const REGRESSION_CASES = [
     task: 'pi-runtime'
   },
   {
-    id: 'A-05',
-    capabilities: ['desktopAutomation'],
-    phase: '10-agent-runtimes',
-    title: 'DeepSeek Harness Runtime',
-    task: 'deepseek-harness-runtime'
-  },
-  {
     id: 'A-01',
     capabilities: ['desktopAutomation'],
     phase: '10-agent-runtimes',

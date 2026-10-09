@@ -146,16 +146,16 @@ describe('BasicInfoStep', () => {
     expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
   })
 
-  it('still displays the runtime summary for an existing DeepSeek Harness agent', () => {
+  it('still displays the runtime summary for an existing Pi agent', () => {
     function ExistingAgentRuntime() {
       const { t } = useTranslation()
-      return <AgentRuntimeSummary value="dsh" t={t} />
+      return <AgentRuntimeSummary value="pi" t={t} />
     }
 
     render(<ExistingAgentRuntime />)
 
-    expect(screen.getByText('library.config.agent.field.runtime.option.dsh')).toBeVisible()
-    expect(screen.getByText('library.config.agent.field.runtime.option_description.dsh')).toBeVisible()
+    expect(screen.getByText('library.config.agent.field.runtime.option.pi')).toBeVisible()
+    expect(screen.getByText('library.config.agent.field.runtime.option_description.pi')).toBeVisible()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 

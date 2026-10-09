@@ -19,10 +19,6 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
-  '@deepseek-ai/node-addon-system-darwin-arm64',
-  '@deepseek-ai/node-addon-system-darwin-x64',
-  '@deepseek-ai/node-addon-system-linux-arm64',
-  '@deepseek-ai/node-addon-system-linux-x64',
   // anydoc converts binary office documents to markdown for the knowledge base.
   // It ships no win32-arm64 build and no wasm fallback, so existing formats use
   // their legacy readers there while newly supported .ppt fails visibly.
