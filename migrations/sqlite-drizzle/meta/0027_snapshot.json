@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dc7a89b3-8663-4daa-b7f6-c1e517176aa9",
+  "id": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
   "prevId": "ba5e70d9-757c-413b-85b9-073af609895f",
   "tables": {
     "agent": {
@@ -3700,8 +3700,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'a0'"
+          "autoincrement": false
         },
         "group_id": {
           "name": "group_id",

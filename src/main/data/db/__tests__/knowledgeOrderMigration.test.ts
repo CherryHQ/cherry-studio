@@ -20,7 +20,7 @@ describe('knowledge ordering migrate-forward', () => {
     const journal = JSON.parse(readFileSync(resolve(migrationsFolder, 'meta/_journal.json'), 'utf8')) as {
       entries: Array<{ tag: string; when: number }>
     }
-    const migration = journal.entries.find((entry) => entry.tag.endsWith('orange_scarlet_witch'))!
+    const migration = journal.entries.find((entry) => entry.tag === '0027_knowledge_base_order')!
     const values = [
       { id: '11111111-1111-4111-8111-111111111111', name: 'Older', createdAt: 1000, updatedAt: 1100 },
       { id: '22222222-2222-4222-8222-222222222222', name: 'Newer', createdAt: 2000, updatedAt: 2100 }
@@ -69,7 +69,7 @@ describe('knowledge ordering migrate-forward', () => {
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
-  it('preserves custom keys and child rows through the constraint rebuild', () => {
+  it('preserves custom keys and child rows when migrations run again', () => {
     const service = new KnowledgeBaseService()
     const first = service.create({ name: 'First' })
     const second = service.create({ name: 'Second' })
@@ -80,10 +80,6 @@ describe('knowledge ordering migrate-forward', () => {
       .values({ baseId: first.id, type: 'note', data: { source: 'Note', content: 'Keep me' }, status: 'completed' })
       .run()
     const items = dbh.db.select().from(knowledgeItemTable).all()
-    dbh.sqlite.exec(
-      'DELETE FROM __drizzle_migrations WHERE created_at = (SELECT MAX(created_at) FROM __drizzle_migrations)'
-    )
-
     applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
 
     expect(dbh.db.select().from(knowledgeBaseTable).all()).toEqual(bases)

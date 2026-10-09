@@ -47,7 +47,7 @@ CREATE TABLE `__new_knowledge_base` (
       )
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_base`("id", "name", "order_key", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "chunk_strategy", "chunk_separator", "threshold", "document_count", "created_at", "updated_at") SELECT "id", "name", "order_key", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "chunk_strategy", "chunk_separator", "threshold", "document_count", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_base`("id", "name", "order_key", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "chunk_strategy", "chunk_separator", "threshold", "document_count", "created_at", "updated_at") SELECT "id", "name", 'a0', "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "chunk_strategy", "chunk_separator", "threshold", "document_count", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
 DROP TABLE `knowledge_base`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_base` RENAME TO `knowledge_base`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
