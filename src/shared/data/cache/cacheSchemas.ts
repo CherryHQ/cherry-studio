@@ -297,7 +297,8 @@ export type SharedCacheSchema = {
   'doctor.state.${scope}': CacheValueTypes.CacheDoctorState
   'doctor.agent.${scope}': CacheValueTypes.CacheDoctorAgentState
   'network.online': boolean
-  // Runtime-only opt-out shared across windows; resets when the app exits.
+  // Runtime-only opt-outs shared across windows; reset when the app exits.
+  'agent.agent_switch_confirmation.skipped': boolean
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.closing.${sessionId}': boolean
@@ -369,6 +370,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'doctor.state.${scope}': { status: 'idle' },
   'doctor.agent.${scope}': { status: 'idle' },
   'network.online': true,
+  'agent.agent_switch_confirmation.skipped': false,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
   'agent.session.closing.${sessionId}': false,
