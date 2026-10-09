@@ -46,29 +46,30 @@ async function outputBudget(context: Context) {
 
 describe('pi-ai compaction output budget', () => {
   it('ignores assistant usage older than an inserted compaction summary', async () => {
-    const context: Context = {
+    const withStaleUsage = (staleTokens: number): Context => ({
       systemPrompt: 'system',
       messages: [
         { role: 'user', content: 'summary', timestamp: 200 },
-        createAssistant(100, 9_500),
+        createAssistant(100, staleTokens),
         { role: 'user', content: 'x'.repeat(4_000), timestamp: 300 }
       ]
-    }
+    })
 
-    expect(await outputBudget(context)).toBe(4_899)
+    expect(await outputBudget(withStaleUsage(9_500))).toBe(await outputBudget(withStaleUsage(100)))
   })
 
   it('uses assistant usage again after a post-compaction response', async () => {
-    const context: Context = {
+    const withFreshUsage = (freshTokens: number): Context => ({
       messages: [
         { role: 'user', content: 'summary', timestamp: 200 },
         createAssistant(100, 9_500),
         { role: 'user', content: 'new prompt', timestamp: 300 },
-        createAssistant(400, 2_000),
+        createAssistant(400, freshTokens),
         { role: 'user', content: 'tail', timestamp: 500 }
       ]
-    }
+    })
 
-    expect(await outputBudget(context)).toBe(3_903)
+    const budget = await outputBudget(withFreshUsage(2_000))
+    expect(await outputBudget(withFreshUsage(3_000))).toBe(budget! - 1_000)
   })
 })

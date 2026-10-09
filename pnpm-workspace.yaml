@@ -113,7 +113,7 @@ patchedDependencies:
   # Preserve main's ultra reasoning support until the adapter accepts that level upstream.
   "@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2": patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch
   "@earendil-works/pi-ai@0.87.1": patches/@earendil-works__pi-ai@0.87.1.patch
-  "@earendil-works/pi-ai@1.0.0": patches/@earendil-works__pi-ai@1.0.0.patch
+  "@earendil-works/pi-ai@1.1.0": patches/@earendil-works__pi-ai@1.1.0.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
