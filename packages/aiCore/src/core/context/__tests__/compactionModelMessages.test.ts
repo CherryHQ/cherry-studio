@@ -5,10 +5,11 @@ import type {
   LanguageModelV3GenerateResult
 } from '@ai-sdk/provider'
 import type { ModelMessage } from 'ai'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { compactModelMessages } from '../compaction'
 import { planCompaction } from '../durableCompaction'
+import { summarizeModelMessages } from '../middleware'
 import { fromModelMessages } from '../modelMessageAdapter'
 
 /** Minimal V3 model whose summarization call returns a fixed string. A V3 model
@@ -95,6 +96,49 @@ describe('planCompaction over ModelMessage input (via fromModelMessages)', () =>
 })
 
 describe('compactModelMessages', () => {
+  it.each(['compact', 'summarize'] as const)('cancels a pending %s provider request', async (operation) => {
+    const controller = new AbortController()
+    const reason = new DOMException('Stopped by user', 'AbortError')
+    let started = false
+    let providerCancelled = false
+    let release!: () => void
+    const model = createSummarizerModel()
+    const generate = model.doGenerate
+    model.doGenerate = async (options) => {
+      started = true
+      await new Promise<void>((resolve, reject) => {
+        release = resolve
+        options.abortSignal?.addEventListener(
+          'abort',
+          () => {
+            providerCancelled = true
+            reject(options.abortSignal?.reason)
+          },
+          { once: true }
+        )
+      })
+      return generate(options)
+    }
+    const options = { keepRecentTurns: 1, abortSignal: controller.signal }
+    const pending = (
+      operation === 'compact'
+        ? compactModelMessages(plainTurns(4), model, options)
+        : summarizeModelMessages(plainTurns(4), model, options)
+    ).then(
+      () => ({ error: undefined }),
+      (error) => ({ error })
+    )
+    try {
+      await vi.waitFor(() => expect(started).toBe(true))
+      controller.abort(reason)
+      await vi.waitFor(() => expect(providerCancelled).toBe(true))
+      expect(await pending).toEqual({ error: reason })
+    } finally {
+      release?.()
+      await pending
+    }
+  })
+
   it('returns [...system, summary, ...toKeep] with a wrapped user summary', async () => {
     const messages = plainTurns(4) // system + 8 messages
     const result = await compactModelMessages(messages, createSummarizerModel('Hello'), {
