@@ -1,3 +1,4 @@
+import type { AssistantCatalogPreset, AssistantCatalogTab } from '@renderer/types/assistantCatalog'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -5,28 +6,7 @@ import { useBundledCatalog } from './useBundledCatalog'
 
 export const ASSISTANT_CATALOG_MY_TAB = '__mine__'
 
-interface AssistantCatalogModel {
-  id?: string
-  provider?: string
-  name?: string
-  group?: string
-}
-
-export interface AssistantCatalogPreset {
-  id: string
-  name: string
-  prompt?: string
-  description?: string
-  emoji?: string
-  group?: string[]
-  defaultModel?: AssistantCatalogModel
-}
-
-export interface AssistantCatalogTab {
-  id: string
-  label: string
-  count: number
-}
+export type { AssistantCatalogPreset, AssistantCatalogTab } from '@renderer/types/assistantCatalog'
 
 const ORDERED_GROUP_ALIASES = [
   ['精选', 'Featured'],

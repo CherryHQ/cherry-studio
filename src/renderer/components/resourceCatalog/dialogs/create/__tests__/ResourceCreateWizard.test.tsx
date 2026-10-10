@@ -46,7 +46,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
     modelHook.agentModelFilter(agentType, model, provider),
-  useAgentModelDisabled: () => () => false
+  useAgentModelDisabled: () => ({ isModelDisabled: () => false, isLoading: false })
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
