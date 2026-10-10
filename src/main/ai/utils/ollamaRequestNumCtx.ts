@@ -4,11 +4,13 @@ import os from 'node:os'
 import { application } from '@application'
 import {
   OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
+  resolveEffectiveRequestContextWindow,
   resolveOllamaNumCtx,
   type ResolveOllamaNumCtxInput
 } from '@shared/ai/ollamaNumCtx'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { getBaseUrl } from './provider'
 
@@ -59,4 +61,44 @@ export function resolveOllamaRequestNumCtx(
     sessionCap: readSessionCap(model)
   }
   return { ...input, numCtx: resolveOllamaNumCtx(input) }
+}
+
+export function resolveModelRequestContextWindow(
+  model: Model,
+  provider?: Provider,
+  preferredEndpoint?: EndpointType | null
+): number | undefined {
+  if (provider?.id !== SystemProviderIds.ollama) {
+    return model.contextWindow
+  }
+  const resolution = resolveOllamaRequestNumCtx(model, provider, preferredEndpoint)
+  if (!resolution) return model.contextWindow
+  return resolveEffectiveRequestContextWindow(model.contextWindow, resolution.numCtx)
+}
+
+export function readOllamaWireNumCtx(providerOptions: Record<string, unknown>): number | undefined {
+  const ollama = providerOptions.ollama
+  if (!ollama || typeof ollama !== 'object' || Array.isArray(ollama)) return undefined
+  const options = (ollama as Record<string, unknown>).options
+  if (!options || typeof options !== 'object' || Array.isArray(options)) return undefined
+  const numCtx = (options as Record<string, unknown>).num_ctx
+  return typeof numCtx === 'number' && Number.isFinite(numCtx) ? numCtx : undefined
+}
+
+export function writeOllamaWireNumCtx(
+  providerOptions: Record<string, Record<string, unknown>>,
+  numCtx: number
+): Record<string, Record<string, unknown>> {
+  const ollama = providerOptions.ollama ?? {}
+  const options =
+    ollama.options && typeof ollama.options === 'object' && !Array.isArray(ollama.options)
+      ? (ollama.options as Record<string, unknown>)
+      : {}
+  return {
+    ...providerOptions,
+    ollama: {
+      ...ollama,
+      options: { ...options, num_ctx: numCtx }
+    }
+  }
 }

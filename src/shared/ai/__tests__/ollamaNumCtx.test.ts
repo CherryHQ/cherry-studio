@@ -4,9 +4,20 @@ import {
   enrichOllamaContextAllocationSerializedError,
   isOllamaKvCacheAllocationError,
   resolveOllamaNumCtx,
+  resolveEffectiveRequestContextWindow,
   roundDownOllamaNumCtx,
   suggestReducedOllamaNumCtx
 } from '../ollamaNumCtx'
+
+describe('resolveEffectiveRequestContextWindow', () => {
+  it('uses the capped request window when it is below the catalog window', () => {
+    expect(resolveEffectiveRequestContextWindow(131_072, 32_768)).toBe(32_768)
+  })
+
+  it('keeps the catalog window when no request cap applies', () => {
+    expect(resolveEffectiveRequestContextWindow(131_072, undefined)).toBe(131_072)
+  })
+})
 
 describe('resolveOllamaNumCtx', () => {
   it('keeps the trained window when memory can support it', () => {

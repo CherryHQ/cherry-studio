@@ -70,6 +70,20 @@ export function suggestReducedOllamaNumCtx(currentNumCtx: number): number {
   return Math.max(OLLAMA_MIN_NUM_CTX, halved)
 }
 
+/** Budget compaction and context middleware against the window this request actually uses. */
+export function resolveEffectiveRequestContextWindow(
+  catalogContextWindow: number | undefined,
+  requestNumCtx: number | undefined
+): number | undefined {
+  if (requestNumCtx != null && Number.isFinite(requestNumCtx) && requestNumCtx > 0) {
+    if (catalogContextWindow != null && Number.isFinite(catalogContextWindow) && catalogContextWindow > 0) {
+      return Math.min(catalogContextWindow, requestNumCtx)
+    }
+    return requestNumCtx
+  }
+  return catalogContextWindow
+}
+
 const OLLAMA_ALLOCATION_ERROR_PATTERN =
   /\b(?:failed to allocate|cannot allocate|out of memory|oom|cuda out of memory|not enough memory).*(?:kv\s*cache|kvcache)|(?:kv\s*cache|kvcache).*(?:failed|allocate|out of memory|oom|not enough memory)\b/i
 

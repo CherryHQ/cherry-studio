@@ -95,8 +95,8 @@ describe('ErrorBlock', () => {
     mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
     mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
     const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
-    const regenerateMessage = vi.fn().mockResolvedValue(undefined)
-    mocks.actions = { removeMessageErrorPart, regenerateMessage }
+    const regenerateMessageUsingModel = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { removeMessageErrorPart, regenerateMessageUsingModel }
 
     const uniqueModelId = createUniqueModelId('ollama', 'qwen3:32b')
 
@@ -120,8 +120,9 @@ describe('ErrorBlock', () => {
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
-    await waitFor(() => expect(removeMessageErrorPart).toHaveBeenCalled())
-    expect(regenerateMessage).toHaveBeenCalledWith('message-1')
+    await waitFor(() => expect(regenerateMessageUsingModel).toHaveBeenCalled())
+    expect(regenerateMessageUsingModel).toHaveBeenCalledWith('message-1', uniqueModelId)
+    expect(removeMessageErrorPart).not.toHaveBeenCalled()
     expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
       uniqueModelId,
       numCtxCap: 32_768
@@ -134,8 +135,8 @@ describe('ErrorBlock', () => {
     mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
     mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
     const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
-    const regenerateMessage = vi.fn().mockRejectedValue(new Error('stream busy'))
-    mocks.actions = { removeMessageErrorPart, regenerateMessage }
+    const regenerateMessageUsingModel = vi.fn().mockRejectedValue(new Error('stream busy'))
+    mocks.actions = { removeMessageErrorPart, regenerateMessageUsingModel }
 
     render(
       <ErrorBlock
@@ -157,7 +158,7 @@ describe('ErrorBlock', () => {
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
-    await waitFor(() => expect(regenerateMessage).toHaveBeenCalled())
+    await waitFor(() => expect(regenerateMessageUsingModel).toHaveBeenCalled())
     expect(removeMessageErrorPart).not.toHaveBeenCalled()
   })
 
