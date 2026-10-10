@@ -10,6 +10,7 @@ import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import type * as AgentUtils from '@renderer/utils/agent'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
@@ -89,7 +90,8 @@ vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => 
   deleteConversationOwnerPopup: conversationOwnerPopupMocks
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
+  Badge: (await import('@cherrystudio/ui/components/primitives/badge')).Badge,
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
@@ -467,7 +469,8 @@ vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
 }))
 
-vi.mock('@renderer/utils/agent', () => ({
+vi.mock('@renderer/utils/agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentUtils>()),
   getAgentAvatarFromConfiguration: () => 'A'
 }))
 

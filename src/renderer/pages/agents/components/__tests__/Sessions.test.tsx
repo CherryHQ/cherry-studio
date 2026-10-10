@@ -608,6 +608,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add task',
         'agent.add.title': 'Add Agent',
+        'agent.runtime_mode.label': `Agent runtime mode: ${options?.mode}`,
         'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
@@ -1468,6 +1469,27 @@ describe('Sessions', () => {
         params: { workspaceId: 'ws-empty' }
       })
     )
+  })
+
+  it.each([true, false])('describes the agent runtime without reading the avatar (collapsed: %s)', (collapsed) => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: collapsed ? ['session:agent:agent-a'] : []
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', type: 'pi', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '🧪' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({ sessions: [createSession({ id: 'session-a', agentId: 'agent-a' })] })
+
+    render(<SessionsForTest />)
+
+    const header = screen.getByRole('button', { name: 'Alpha agent' })
+    expect(groupChevron(header)).toHaveAttribute('aria-expanded', String(!collapsed))
+    expect(header).toHaveAccessibleName('Alpha agent')
+    expect(header).toHaveAccessibleDescription('Agent runtime mode: Pi')
   })
 
   it('renders agent groups in agent display mode', () => {
