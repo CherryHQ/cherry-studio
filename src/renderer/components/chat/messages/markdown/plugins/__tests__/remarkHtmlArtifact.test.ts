@@ -143,6 +143,56 @@ Still generating`)
     })
   })
 
+  // Paired container boundaries wrapping Markdown must stay raw HTML (#21456): CommonMark
+  // splits `<details>…</summary>` / `</details>` into two top-level html nodes around the
+  // body, and converting each into an artifact iframe shatters the disclosure (a white summary
+  // bar, the body outside, and a blank iframe for the closing tag).
+  it('keeps paired container boundaries raw so Markdown stays inside the element', () => {
+    const source = `Before
+
+<details>
+<summary>Answer (click to expand)</summary>
+
+**Quick check:** hidden while closed.
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'paragraph', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html' })
+    expect((tree.children[1] as { value: string }).value).toContain('<details>')
+    expect(tree.children[3]).toMatchObject({ type: 'html', value: '</details>' })
+  })
+
+  it('still processes Markdown inside paired containers', () => {
+    const source = `<details>
+<summary>Math</summary>
+
+$$
+y = 1
+$$
+
+</details>`
+    const tree = parse(source, true)
+
+    // The body stays on the Markdown path (downstream math/KaTeX plugins re-process it);
+    // only the boundary nodes are exempt from artifact conversion.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'paragraph', 'html'])
+    const body = tree.children[1] as { children: Array<{ value?: string }> }
+    expect(body.children.map((child) => child.value ?? '').join('')).toContain('y = 1')
+  })
+
+  it('keeps unpaired fragments on the artifact preview path', () => {
+    const tree = parse(`<details>
+<summary>Streaming</summary>
+
+Body text`)
+
+    expect(tree.children[0]).toMatchObject({ type: 'code', lang: 'html' })
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],
