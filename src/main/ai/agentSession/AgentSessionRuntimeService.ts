@@ -670,26 +670,38 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   getActiveUsageContext(sessionId: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
+    if (!entry) return undefined
     const reservation =
-      entry?.runtimeState.execution.kind === 'turn'
+      entry.runtimeState.execution.kind === 'turn'
         ? entry.runtimeState.execution.reservation
-        : entry?.runtimeState.execution.kind === 'steer-transition'
+        : entry.runtimeState.execution.kind === 'steer-transition'
           ? entry.runtimeState.execution.reservation
           : undefined
     if (reservation) {
       return {
         agentSessionId: sessionId,
         assistantMessageId: reservation.assistantMessageId,
-        source: sourceSnapshotFromMessageSnapshot(reservation.messageSnapshot)
+        source: sourceSnapshotFromMessageSnapshot(reservation.messageSnapshot) ?? this.agentUsageSource(entry)
       }
     }
 
-    const turn = entry ? this.liveTurn(entry) : undefined
+    const turn = this.liveTurn(entry)
     if (!turn) return undefined
     return {
       agentSessionId: sessionId,
       assistantMessageId: turn.assistantMessageId,
-      source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot)
+      source: sourceSnapshotFromMessageSnapshot(turn.messageSnapshot) ?? this.agentUsageSource(entry)
+    }
+  }
+
+  private agentUsageSource(entry: AgentSessionRuntimeEntry): SourceSnapshot {
+    const agent = agentService.getAgent(entry.agentId)
+    return {
+      type: 'agent',
+      id: entry.agentId,
+      name: agent?.name ?? null,
+      // Mirror the author snapshot's default avatar when the agent exists.
+      icon: agent ? agent.configuration?.avatar?.trim() || '🤖' : null
     }
   }
 
@@ -2010,7 +2022,8 @@ export class AgentSessionRuntimeService extends BaseService {
         modelName: frozenModel?.modelName ?? invocation.model,
         pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
         credentialReceipt: capture.credentialReceipt,
-        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
+        source:
+          sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source ?? this.agentUsageSource(entry),
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
       }),
       modality: 'language',
