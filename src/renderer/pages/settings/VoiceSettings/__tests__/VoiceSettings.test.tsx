@@ -1,4 +1,4 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
@@ -42,6 +42,10 @@ const voice = vi.hoisted(() => {
     dictationDiscard: vi.fn(),
     speechStart: vi.fn(),
     speechStop: vi.fn(),
+    funAsrDownload: vi.fn(),
+    funAsrCancel: vi.fn(),
+    funAsrRemove: vi.fn(),
+    funAsrModel: { status: 'not_downloaded', percent: 0, isStatusResolved: true } as any,
     targetManager: undefined as VoiceTargetManager | undefined
   }
 })
@@ -85,6 +89,15 @@ vi.mock('@renderer/services/voice', async () => ({
   get voiceTargetManager() {
     return voice.targetManager
   }
+}))
+
+vi.mock('@renderer/hooks/useFunAsrModel', () => ({
+  useFunAsrModel: () => ({
+    ...voice.funAsrModel,
+    download: voice.funAsrDownload,
+    cancel: voice.funAsrCancel,
+    remove: voice.funAsrRemove
+  })
 }))
 
 const confirm = vi.hoisted(() => vi.fn())
@@ -150,6 +163,10 @@ describe('VoiceSettings', () => {
     voice.dictationDiscard.mockResolvedValue(undefined)
     voice.speechStart.mockResolvedValue({ status: 'started' })
     voice.speechStop.mockResolvedValue(undefined)
+    voice.funAsrDownload.mockResolvedValue(true)
+    voice.funAsrCancel.mockResolvedValue(undefined)
+    voice.funAsrRemove.mockResolvedValue({ removed: true })
+    voice.funAsrModel = { status: 'not_downloaded', percent: 0, isStatusResolved: true }
     voice.dictation = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
     voice.speech = { phase: 'idle', progress: { completed: 0, total: 0 } }
     confirm.mockReset()
@@ -562,13 +579,148 @@ describe('VoiceSettings', () => {
     expect(preview).toBeEnabled()
   })
 
-  it('never offers a download for the unverified FunASR license', async () => {
+  it('downloads FunASR from Voice settings without reserving a Voice session', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
-    voice.getModelStatus.mockResolvedValue({ status: 'failed', reason: 'license_unverified' })
     render(<VoiceSettings />)
 
-    expect(await screen.findByText(/license/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument()
+    expect(await screen.findByText(/about 1 gb/i)).toHaveTextContent(/processed locally/i)
+    expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/funaudiollm.*modelscope/i)
+    expect(screen.getByText(/about 1 gb/i)).toHaveTextContent(/apache-2\.0/i)
+    expect(screen.getByLabelText(/recognition language/i)).toBeDisabled()
+    expect(screen.getByLabelText(/recognition language/i)).toHaveTextContent(/auto/i)
+    expect(voice.funAsrDownload).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: /download model/i }))
+    await waitFor(() => expect(voice.funAsrDownload).toHaveBeenCalledOnce())
+    expect(voice.install).not.toHaveBeenCalled()
+    expect(voice.dictationStartScoped).not.toHaveBeenCalled()
+  })
+
+  it('does not rewrite the configured language when FunASR is only the recommended default', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.language', 'en-US')
+    voice.listModels.mockResolvedValue({ models, defaultAsrModelId: FUNASR_MODEL_ID })
+    render(<VoiceSettings />)
+
+    const language = await screen.findByLabelText(/recognition language/i)
+    await waitFor(() => expect(language).toBeDisabled())
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('en-US')
+  })
+
+  it('clears an explicit language when the user explicitly selects FunASR', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID,
+      'feature.voice.recognition.language': 'en-US'
+    })
+    render(<VoiceSettings />)
+
+    await user.click(screen.getByRole('combobox', { name: /recognition model/i }))
+    await user.click(await screen.findByRole('option', { name: 'FunASR Nano' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('')
+    )
+    const recognitionUpdates = MockUsePreference.useMultiplePreferences.mock.calls.flatMap(([keys], index) =>
+      keys.modelId === 'feature.voice.recognition.model_id'
+        ? MockUsePreference.useMultiplePreferences.mock.results[index].value[1].mock.calls.map(([updates]) => updates)
+        : []
+    )
+    expect(recognitionUpdates).toContainEqual({ modelId: FUNASR_MODEL_ID, language: '' })
+  })
+
+  it('does not offer a FunASR lifecycle action until the model status is resolved', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'not_downloaded', percent: 0, isStatusResolved: false }
+    const view = render(<VoiceSettings />)
+
+    expect(await screen.findByText(/about 1 gb/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /download model|retry download|cancel download|remove model/i })
+    ).toBeNull()
+
+    voice.funAsrModel = { status: 'not_downloaded', percent: 0, isStatusResolved: true }
+    view.rerender(<VoiceSettings />)
+
+    expect(await screen.findByRole('button', { name: /download model/i })).toBeEnabled()
+  })
+
+  it('keeps the FunASR lifecycle action focused and leaves Cancel enabled while download is pending', async () => {
+    const user = userEvent.setup()
+    const download = deferred<boolean>()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrDownload.mockReturnValue(download.promise)
+    const view = render(<VoiceSettings />)
+
+    const downloadButton = await screen.findByRole('button', { name: /download model/i })
+    await user.click(downloadButton)
+    expect(downloadButton).toHaveFocus()
+
+    voice.funAsrModel = { status: 'downloading', percent: 15, isStatusResolved: true }
+    view.rerender(<VoiceSettings />)
+
+    const cancelButton = screen.getByRole('button', { name: /cancel download/i })
+    expect(cancelButton).toBeEnabled()
+    expect(cancelButton).toHaveFocus()
+
+    await act(async () => {
+      download.resolve(true)
+      await download.promise
+    })
+    voice.funAsrModel = { status: 'ready', percent: 100, isStatusResolved: true }
+    view.rerender(<VoiceSettings />)
+
+    const removeButton = screen.getByRole('button', { name: /remove model/i })
+    expect(removeButton).toHaveFocus()
+    await user.click(removeButton)
+
+    voice.funAsrModel = { status: 'not_downloaded', percent: 0, isStatusResolved: true }
+    view.rerender(<VoiceSettings />)
+
+    expect(screen.getByRole('button', { name: /download model/i })).toHaveFocus()
+  })
+
+  it('offers a stable retry after a failed FunASR download', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'error', percent: 0, isStatusResolved: true }
+    render(<VoiceSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /retry download/i }))
+    expect(voice.funAsrDownload).toHaveBeenCalledOnce()
+  })
+
+  it('shows the stable download error when an explicit FunASR download fails', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrDownload.mockRejectedValue(new Error('private download details'))
+    render(<VoiceSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /download model/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/model download failed/i)
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/private download details/i)
+  })
+
+  it('does not offer a FunASR download on an unsupported native platform', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'unsupported', percent: 0, isStatusResolved: true }
+    render(<VoiceSettings />)
+
+    expect(await screen.findByText(/not supported on this system/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /download model|retry download/i })).not.toBeInTheDocument()
+  })
+
+  it('shows FunASR progress and offers cancel or removal for the current lifecycle state', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'downloading', percent: 42, isStatusResolved: true }
+    const view = render(<VoiceSettings />)
+
+    expect(await screen.findByText(/42%/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /cancel download/i }))
+    expect(voice.funAsrCancel).toHaveBeenCalledOnce()
+
+    voice.funAsrModel = { status: 'ready', percent: 100, isStatusResolved: true }
+    view.rerender(<VoiceSettings />)
+    fireEvent.click(await screen.findByRole('button', { name: /remove model/i }))
+    expect(voice.funAsrRemove).toHaveBeenCalledOnce()
   })
 
   it('routes manual ASR and exact-voice TTS tests through the controllers', async () => {
@@ -654,7 +806,7 @@ describe('VoiceSettings', () => {
     const recordingTest = within(document.getElementById('setting-voice-recognition-test')!)
     const playbackTest = within(document.getElementById('setting-voice-speech-test')!)
     expect(await recordingTest.findByRole('alert')).toHaveTextContent(/no speech was detected/i)
-    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/operation failed/i)
+    expect(await playbackTest.findByRole('alert')).toHaveTextContent(/timed out/i)
     expect(screen.getAllByRole('alert')).toHaveLength(2)
   })
 
@@ -905,10 +1057,11 @@ describe('VoiceSettings', () => {
     expect(screen.getByRole('button', { name: /record test/i })).toBeDisabled()
   })
 
-  it('waits for microphone status before allowing an explicit test when OS preflight is unknown', async () => {
+  it('waits for microphone status then permits a ready FunASR test when OS preflight is unknown', async () => {
     const user = userEvent.setup()
     const microphone = deferred<'unknown'>()
-    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    voice.funAsrModel = { status: 'ready', percent: 100, isStatusResolved: true }
     voice.microphone.mockReturnValue(microphone.promise)
     render(<VoiceSettings />)
 

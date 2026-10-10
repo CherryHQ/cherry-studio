@@ -1,4 +1,4 @@
-import { Copy, Download, Mic, Play, Square } from 'lucide-react'
+import { Copy, Download, Mic, Play, Square, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,6 +23,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useFunAsrModel } from '@renderer/hooks/useFunAsrModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { popup } from '@renderer/services/popup'
 import {
@@ -54,6 +55,8 @@ interface StatusState {
   reason?: VoiceErrorReason
 }
 
+type FunAsrAction = 'download' | 'cancel' | 'remove'
+
 interface QueriedRecognitionStatus {
   modelId: LocalTranscriptionModelId
   language: string
@@ -74,6 +77,10 @@ interface VoiceSelectOption {
 }
 
 const EMPTY_VALUE = '__unconfigured__'
+const RECOGNITION_PREFERENCE_KEYS = {
+  modelId: 'feature.voice.recognition.model_id',
+  language: 'feature.voice.recognition.language'
+} as const
 const SPEECH_PREFERENCE_KEYS = {
   voiceId: 'feature.voice.speech.voice_id',
   language: 'feature.voice.speech.language'
@@ -96,14 +103,28 @@ const DICTATION_PHASE_LABEL_KEYS: Record<Exclude<DictationPhase, 'idle'>, string
 
 function statusKey(status: StatusState): string {
   if (status.status === 'installing') return 'settings.voice.status.installing'
-  if (status.reason === 'license_unverified') return 'settings.voice.status.license_unverified'
-  if (status.reason === 'asset_required') return 'settings.voice.status.asset_required'
-  if (status.reason === 'voice_unavailable') return 'settings.voice.status.voice_unavailable'
+  if (
+    status.reason &&
+    [
+      'asset_required',
+      'download_failed',
+      'model_load_failed',
+      'model_required',
+      'voice_unavailable',
+      'worker_crashed'
+    ].includes(status.reason)
+  )
+    return `settings.voice.status.${status.reason}`
   return `settings.voice.status.${status.status}`
 }
 
 function errorKey(error: boolean | string): string {
-  return error === 'no_speech' ? 'settings.voice.status.no_speech' : 'settings.voice.status.operation_failed'
+  if (
+    typeof error === 'string' &&
+    ['download_failed', 'model_load_failed', 'no_speech', 'worker_crashed', 'timeout'].includes(error)
+  )
+    return `settings.voice.status.${error}`
+  return 'settings.voice.status.operation_failed'
 }
 
 function optionalValue(value: string | null | undefined): string | undefined {
@@ -130,11 +151,27 @@ function transcriptionModelId(value: string | null | undefined): LocalTranscript
   return value === APPLE_ASR_MODEL_ID || value === FUNASR_MODEL_ID ? value : undefined
 }
 
+function funAsrStatusState(model: Pick<ReturnType<typeof useFunAsrModel>, 'isStatusResolved' | 'status'>): StatusState {
+  if (!model.isStatusResolved) return { status: 'unconfigured' }
+  switch (model.status) {
+    case 'not_downloaded':
+      return { status: 'not_installed', reason: 'model_required' }
+    case 'downloading':
+      return { status: 'installing', reason: 'model_required' }
+    case 'ready':
+      return { status: 'ready' }
+    case 'error':
+      return { status: 'failed', reason: 'download_failed' }
+    case 'unsupported':
+      return { status: 'unsupported', reason: 'unsupported' }
+  }
+}
+
 function VoiceSettings() {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
-  const [recognitionModel, setRecognitionModel] = usePreference('feature.voice.recognition.model_id')
-  const [recognitionLanguage, setRecognitionLanguage] = usePreference('feature.voice.recognition.language')
+  const [recognitionPreferences, setRecognitionPreferences] = useMultiplePreferences(RECOGNITION_PREFERENCE_KEYS)
+  const { language: recognitionLanguage, modelId: recognitionModel } = recognitionPreferences
   const [speechModel, setSpeechModel] = usePreference('feature.voice.speech.model_id')
   const [speechPreferences, setSpeechPreferences] = useMultiplePreferences(SPEECH_PREFERENCE_KEYS)
   const { voiceId: speechVoice, language: speechLanguage } = speechPreferences
@@ -151,6 +188,7 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot,
     speechPlaybackService.getSnapshot
   )
+  const funAsrModel = useFunAsrModel()
   const [models, setModels] = useState<readonly LocalVoiceModelFacts[]>([])
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
@@ -160,7 +198,8 @@ function VoiceSettings() {
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>()
   const [installing, setInstalling] = useState(false)
-  const [actionFailed, setActionFailed] = useState(false)
+  const [pendingFunAsrAction, setPendingFunAsrAction] = useState<FunAsrAction>()
+  const [actionFailed, setActionFailed] = useState<boolean | VoiceErrorReason>(false)
   const [previewFailure, setPreviewFailure] = useState<{ snapshot: SpeechPlaybackSnapshot; reason: VoiceErrorReason }>()
   const [transcript, setTranscript] = useState('')
   const [previewText, setPreviewText] = useState('')
@@ -270,10 +309,22 @@ function VoiceSettings() {
       ? { status: 'unsupported', reason: 'unsupported' }
       : !effectiveRecognitionModel
         ? { status: 'unconfigured' }
-        : queriedRecognitionStatus?.modelId === effectiveRecognitionModel &&
-            queriedRecognitionStatus.language === effectiveRecognitionLanguage
-          ? queriedRecognitionStatus.result
-          : { status: 'unconfigured' }
+        : funAsrSelected
+          ? funAsrStatusState(funAsrModel)
+          : queriedRecognitionStatus?.modelId === effectiveRecognitionModel &&
+              queriedRecognitionStatus.language === effectiveRecognitionLanguage
+            ? queriedRecognitionStatus.result
+            : { status: 'unconfigured' }
+  const funAsrAction: FunAsrAction | undefined =
+    !funAsrSelected || !funAsrModel.isStatusResolved
+      ? undefined
+      : funAsrModel.status === 'not_downloaded' || funAsrModel.status === 'error'
+        ? 'download'
+        : funAsrModel.status === 'downloading'
+          ? 'cancel'
+          : funAsrModel.status === 'ready'
+            ? 'remove'
+            : undefined
   const configuredSpeechModel =
     speechModel === APPLE_TTS_MODEL_ID || speechModel === WINDOWS_TTS_MODEL_ID ? speechModel : undefined
   const configuredSpeechLanguage = languageValue(speechLanguage)
@@ -289,7 +340,12 @@ function VoiceSettings() {
         : { status: 'unconfigured' }
 
   useEffect(() => {
-    if ((hasConfiguredRecognitionModel && !configuredRecognitionModel) || !effectiveRecognitionModel) return
+    if (
+      (hasConfiguredRecognitionModel && !configuredRecognitionModel) ||
+      !effectiveRecognitionModel ||
+      effectiveRecognitionModel === FUNASR_MODEL_ID
+    )
+      return
     let current = true
     const query = { modelId: effectiveRecognitionModel, language: effectiveRecognitionLanguage }
     void voiceService
@@ -435,6 +491,22 @@ function VoiceSettings() {
     }
   }
 
+  const runFunAsrAction = async (
+    actionName: FunAsrAction,
+    action: () => Promise<unknown>,
+    failureReason: VoiceErrorReason
+  ) => {
+    setPendingFunAsrAction(actionName)
+    setActionFailed(false)
+    try {
+      await action()
+    } catch {
+      setActionFailed(failureReason)
+    } finally {
+      setPendingFunAsrAction((current) => (current === actionName ? undefined : current))
+    }
+  }
+
   const toggleDictation = () => {
     setActionFailed(false)
     if (dictationRecording) {
@@ -508,10 +580,23 @@ function VoiceSettings() {
         <SettingTitle>{t('settings.voice.recognition.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
+          <div>
+            <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
+            {funAsrSelected ? (
+              <SettingDescription className="mt-1">{t('settings.voice.model.funasr_details')}</SettingDescription>
+            ) : null}
+          </div>
           <Select
             value={recognitionModel || EMPTY_VALUE}
-            onValueChange={(value) => savePreference(() => setRecognitionModel(value === EMPTY_VALUE ? '' : value))}>
+            onValueChange={(value) =>
+              savePreference(async () => {
+                const modelId = value === EMPTY_VALUE ? '' : value
+                await setRecognitionPreferences({
+                  modelId,
+                  ...(modelId === FUNASR_MODEL_ID && { language: '' })
+                })
+              })
+            }>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.model')}>
               <SelectValue placeholder={t('settings.voice.unconfigured')} />
             </SelectTrigger>
@@ -531,7 +616,9 @@ function VoiceSettings() {
           <Select
             value={funAsrSelected ? 'auto' : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)}
             disabled={funAsrSelected || effectiveRecognitionModel !== APPLE_ASR_MODEL_ID || !asrLocales || installing}
-            onValueChange={(value) => savePreference(() => setRecognitionLanguage(value === EMPTY_VALUE ? '' : value))}>
+            onValueChange={(value) =>
+              savePreference(() => setRecognitionPreferences({ language: value === EMPTY_VALUE ? '' : value }))
+            }>
             <SelectTrigger className="w-64" aria-label={t('settings.voice.recognition.language')}>
               <SelectValue placeholder={t('common.select')} />
             </SelectTrigger>
@@ -552,12 +639,49 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-status" className="scroll-mt-6">
           <div>
             <SettingRowTitle>{t('settings.voice.status.label')}</SettingRowTitle>
-            <SettingDescription className="mt-1">{t(statusKey(recognitionStatus))}</SettingDescription>
+            <SettingDescription className="mt-1">
+              {funAsrSelected && funAsrModel.status === 'downloading'
+                ? t('settings.voice.status.downloading_percent', { percent: funAsrModel.percent })
+                : t(statusKey(recognitionStatus))}
+            </SettingDescription>
           </div>
           {canInstallApple ? (
             <Button disabled={installing} onClick={() => void installAppleAsset()}>
               <Download className="size-4" />
               {t('settings.voice.action.install')}
+            </Button>
+          ) : null}
+          {funAsrAction ? (
+            <Button
+              variant={funAsrAction === 'download' ? undefined : 'outline'}
+              disabled={
+                pendingFunAsrAction !== undefined && !(pendingFunAsrAction === 'download' && funAsrAction === 'cancel')
+              }
+              onClick={() => {
+                if (funAsrAction === 'download') {
+                  void runFunAsrAction('download', funAsrModel.download, 'download_failed')
+                } else if (funAsrAction === 'cancel') {
+                  void runFunAsrAction('cancel', funAsrModel.cancel, 'operation_failed')
+                } else {
+                  void runFunAsrAction('remove', funAsrModel.remove, 'operation_failed')
+                }
+              }}>
+              {funAsrAction === 'cancel' ? (
+                <X className="size-4" />
+              ) : funAsrAction === 'remove' ? (
+                <Trash2 className="size-4" />
+              ) : (
+                <Download className="size-4" />
+              )}
+              {t(
+                funAsrAction === 'cancel'
+                  ? 'settings.voice.action.cancel_download'
+                  : funAsrAction === 'remove'
+                    ? 'settings.voice.action.remove_model'
+                    : funAsrModel.status === 'error'
+                      ? 'settings.voice.action.retry_download'
+                      : 'settings.voice.action.download_model'
+              )}
             </Button>
           ) : null}
         </SettingRow>

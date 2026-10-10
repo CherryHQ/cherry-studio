@@ -19,12 +19,12 @@ const { extractMock, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
   extractMock: vi.fn(),
   FIXTURE_ARTIFACT: {
     id: 'onnxruntime-node' as const,
-    packageName: 'onnxruntime-node',
     version: '1.25.1',
-    tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
     installDirKey: 'feature.onnxruntime.binary' as const,
     platforms: {
       'linux-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
         tarballPrefix: 'package/bin/napi-v6/linux/x64/',
         installSubdir: 'napi-v6/linux/x64',
         entryFile: 'onnxruntime_binding.node',

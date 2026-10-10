@@ -18,6 +18,7 @@ import {
   getAppleVoiceStatus,
   listAppleVoices
 } from './localAdapters/apple'
+import { createFunAsrTranscriptionModel, getFunAsrStatus } from './localAdapters/funasr'
 import { createWindowsSpeechModel, getWindowsVoiceStatus, listWindowsVoices } from './localAdapters/windows'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
@@ -40,7 +41,7 @@ export function createLocalTranscriptionModel(
   options: TranscriptionOptions
 ): TranscriptionModelV3 {
   if (modelId === FUNASR_MODEL_ID) {
-    throw new VoiceRuntimeError('license_unverified')
+    return createFunAsrTranscriptionModel(options)
   }
   if (modelId !== APPLE_ASR_MODEL_ID) throw new VoiceRuntimeError('unsupported')
   return createAppleTranscriptionModel(options)
@@ -53,7 +54,7 @@ export async function getLocalVoiceStatus(
 ): Promise<LocalVoiceStatus> {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
   if (modelId === WINDOWS_TTS_MODEL_ID) return getWindowsVoiceStatus(options, signal)
-  if (modelId === FUNASR_MODEL_ID) return { status: 'failed', reason: 'license_unverified' }
+  if (modelId === FUNASR_MODEL_ID) return getFunAsrStatus(signal)
   if (modelId !== APPLE_ASR_MODEL_ID && modelId !== APPLE_TTS_MODEL_ID) throw new VoiceRuntimeError('unsupported')
   return getAppleVoiceStatus(modelId, options, signal)
 }
