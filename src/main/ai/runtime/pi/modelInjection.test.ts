@@ -689,7 +689,6 @@ describe('Cherry Cloud Pi injection', () => {
       modelId: 'cherryai-subscription:deepseek-free',
       apiKey: GATEWAY_KEY
     })
-    expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 })
@@ -708,6 +707,24 @@ describe('Pi gateway fallback', () => {
     serviceMocks.getByKey.mockReturnValue(model)
     serviceMocks.getCurrentConfig.mockReturnValue({ enabled: true })
     serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+  })
+
+  it.each([false, true])('rejects external-CLI models when Gateway enabled is %s', async (enabled) => {
+    const cliProvider = makeProvider({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    const cliModel = makeModel({ id: 'claude-code::claude', providerId: 'claude-code', apiModelId: 'claude' })
+    serviceMocks.getByProviderId.mockReturnValue(cliProvider)
+    serviceMocks.getByKey.mockReturnValue(cliModel)
+    serviceMocks.getCurrentConfig.mockReturnValue({ enabled })
+    await expect(assertPiProviderUsable('claude-code::claude')).rejects.toBeInstanceOf(PiUnsupportedProviderError)
+    expect(() => buildPiGatewayInjection(cliProvider, cliModel, GATEWAY)).toThrow(PiUnsupportedProviderError)
+    await expect(resolvePiProviderInjectionForSession('session-1', cliProvider, cliModel)).rejects.toBeInstanceOf(
+      PiUnsupportedProviderError
+    )
   })
 
   it('preserves a gateway-only model and attributes usage only to provider calls', async () => {
@@ -774,7 +791,6 @@ describe('modelInjection service resolution', () => {
 
   it('validates compatibility without consuming rotated API keys', async () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
-    expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 

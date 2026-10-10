@@ -18,7 +18,7 @@ import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
  * Login-based providers Cherry can still drive through pi via a per-request
@@ -118,5 +118,10 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
 
 /** Whether a pi agent can use this provider+model. Used for renderer filtering. */
 export function isPiCompatibleModel(provider: Provider, model: Model): boolean {
-  return resolvePiApi(provider, model) !== undefined || isGatewayRoutableModel(model)
+  return resolvePiApi(provider, model) !== undefined || isPiGatewayCompatibleModel(provider, model)
+}
+
+/** Whether Cherry's Gateway can execute this Pi provider/model route. */
+export function isPiGatewayCompatibleModel(provider: Provider, model: Model): boolean {
+  return !isExternalCliProvider(provider) && isGatewayRoutableModel(model)
 }

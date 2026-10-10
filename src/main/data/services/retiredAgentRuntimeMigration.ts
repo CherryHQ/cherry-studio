@@ -31,9 +31,11 @@ export function queueRetiredAgentRuntimeMigration(db: DbType): void {
         const disabledTools = [
           ...new Set(
             agent.disabledTools.flatMap((name) => {
-              if (PI_FILE_SHELL_TOOLS.has(name) || name === BROWSER_TOOL_GROUP) return [name]
-              if (name === 'read_image') return ['read']
-              if (name === 'pwsh') return ['bash']
+              if (name === BROWSER_TOOL_GROUP) return [name]
+              const nativeName = name.toLowerCase()
+              if (PI_FILE_SHELL_TOOLS.has(nativeName)) return [nativeName]
+              if (nativeName === 'read_image') return ['read']
+              if (nativeName === 'pwsh') return ['bash']
               return name.startsWith('mcp__') ? [`${LEGACY_DSH_TOOL_PREFIX}${name}`] : []
             })
           )

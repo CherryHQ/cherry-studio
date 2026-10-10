@@ -267,6 +267,22 @@ describe('retired DSH session migration', () => {
     ])
   })
 
+  it('preserves mixed-case native restrictions and case-sensitive MCP identities under bypass permissions', () => {
+    dbh.db
+      .update(agentTable)
+      .set({
+        configuration: { permission_mode: 'bypassPermissions' },
+        disabledTools: ['Bash', 'Write', 'READ', 'Edit', 'Read_Image', 'PwSh', 'mcp__Server__Tool']
+      })
+      .where(eq(agentTable.id, 'legacy'))
+      .run()
+    seeder.run(dbh.db)
+    expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy')).get()).toMatchObject({
+      configuration: { permission_mode: 'bypassPermissions' },
+      disabledTools: ['bash', 'write', 'read', 'edit', 'legacy-dsh:mcp__Server__Tool']
+    })
+  })
+
   it.each([false, true])('preserves queued turn boundaries when the later turn completed: %s', async (completed) => {
     dbh.db
       .update(agentSessionMessageTable)

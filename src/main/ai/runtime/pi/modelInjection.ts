@@ -18,7 +18,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -33,7 +33,7 @@ import {
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getRawModelId, isGatewayRoutableModel } from '@shared/utils/model'
+import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
@@ -253,7 +253,7 @@ export function buildPiGatewayInjection(
     isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
       ? undefined
       : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
-  if (!isGatewayRoutableModel(model)) throw new PiUnsupportedProviderError(provider.id)
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
@@ -351,6 +351,7 @@ export async function resolvePiProviderInjectionForSession(
     return injection
   }
 
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gateway = await resolveApiGatewayRuntime(sessionId)
   return buildPiGatewayInjection(provider, model, gateway)
 }
@@ -366,7 +367,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   const model = modelService.getByKey(providerId, modelId)
 
   if (usesPiGateway(provider, model)) {
-    if (!isGatewayRoutableModel(model)) throw new PiUnsupportedProviderError(providerId)
+    if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(providerId)
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
