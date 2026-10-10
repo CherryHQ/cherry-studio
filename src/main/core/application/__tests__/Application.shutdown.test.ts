@@ -30,9 +30,9 @@ vi.unmock('@application')
 /**
  * Reset the Application singleton between cases.
  *
- * `Application` has no reset API and `isShuttingDown` is one-way: once true,
- * `shutdown()` early-returns forever, so a second scenario would silently not
- * run at all. The private static is cleared directly — same escape hatch the
+ * `Application` has no reset API and memoizes shutdown for the process lifetime,
+ * so a second scenario would silently reuse the first result.
+ * The private static is cleared directly — same escape hatch the
  * lifecycle tests use for `manager['container']`.
  */
 function resetApplication(): void {
@@ -384,4 +384,88 @@ describe('Application shutdown', () => {
     await vi.runAllTimersAsync()
     expect(outcomes).toEqual(['relaunch', 'exit'])
   })
+
+  it.each([10_000, SHUTDOWN_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS + 5_000])(
+    'does not renew the shutdown deadline when relaunch arrives after %i ms',
+    async (delay) => {
+      const outcomes: string[] = []
+      const container = ServiceContainer.getInstance()
+      const stuckCount = Math.ceil((SHUTDOWN_TIMEOUT_MS + 10_000) / SERVICE_STOP_TIMEOUT_MS)
+      for (let i = 0; i < stuckCount; i++) {
+        const StuckService = class extends BaseService {
+          protected override onStop() {
+            return neverSettles()
+          }
+        }
+        Injectable(`DeadlineStuck${i}Service`)(StuckService)
+        container.register(StuckService)
+      }
+      const application = Application.getInstance()
+      application['setupQuitHandlers']()
+      await application.getLifecycleManager().startPhase(Phase.WhenReady)
+      Object.assign(app, { isPackaged: true, relaunch: () => outcomes.push('relaunch') })
+      appExit.mockImplementation(() => outcomes.push('exit'))
+
+      const shutdown = application.shutdown()
+      await vi.advanceTimersByTimeAsync(delay)
+      application.relaunch()
+      await vi.advanceTimersByTimeAsync(Math.max(0, SHUTDOWN_TIMEOUT_MS - delay))
+
+      expect(outcomes).toEqual(['relaunch', 'exit'])
+      await vi.runAllTimersAsync()
+      await shutdown
+      expect(outcomes).toEqual(['relaunch', 'exit'])
+    }
+  )
+
+  it.each(['SIGINT', 'SIGTERM', 'will-quit'] as const)(
+    'preserves a relaunch accepted during %s shutdown and exits only once',
+    async (trigger) => {
+      const release = Promise.withResolvers<void>()
+      const stopping = Promise.withResolvers<void>()
+      let destroyed = false
+      const outcomes: unknown[] = []
+
+      @Injectable('ExitOwnerService')
+      class ExitOwnerService extends BaseService {
+        protected override async onStop() {
+          stopping.resolve()
+          await release.promise
+        }
+        protected override onDestroy() {
+          destroyed = true
+        }
+      }
+
+      const application = Application.getInstance()
+      ServiceContainer.getInstance().register(ExitOwnerService)
+      await application.getLifecycleManager().startPhase(Phase.WhenReady)
+      application['setupQuitHandlers']()
+      const signalOn = vi.spyOn(process, 'on').mockReturnValue(process)
+      application['setupSignalHandlers']()
+      const signal = signalOn.mock.calls.find(([event]) => event === trigger)?.[1] as () => void
+      signalOn.mockRestore()
+      Object.assign(app, {
+        isPackaged: true,
+        relaunch: (options: unknown) => outcomes.push({ restart: options, destroyed })
+      })
+      appExit.mockImplementation((code) => outcomes.push({ exit: code, destroyed }))
+
+      if (trigger === 'will-quit') {
+        const willQuit = appOn.mock.calls.find(([event]) => event === trigger)?.[1] as QuitListener
+        willQuit({ preventDefault: () => {} })
+      } else {
+        signal()
+      }
+      await stopping.promise
+      application.relaunch({ args: ['--resume'] })
+      release.resolve()
+      await vi.runAllTimersAsync()
+
+      expect(outcomes).toEqual([
+        { restart: { args: ['--resume'] }, destroyed: true },
+        { exit: 0, destroyed: true }
+      ])
+    }
+  )
 })

@@ -39,9 +39,12 @@ export class Application {
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
-  private isShuttingDown = false
   private shutdownPromise: Promise<void> | undefined
+  private shutdownDeadline = 0
+  private exitRequested = false
+  private hasExited = false
   private isRelaunching = false
+  private relaunchOptions: Electron.RelaunchOptions | undefined
   private quitHandlersRegistered = false
   private _isQuitting = false
   private quitPreventionHolds = new Map<string, string>()
@@ -253,11 +256,14 @@ export class Application {
    * first line to read when diagnosing one.
    */
   public shutdown(): Promise<void> {
-    return (this.shutdownPromise ??= this.performShutdown())
+    if (!this.shutdownPromise) {
+      this.shutdownDeadline = performance.now() + SHUTDOWN_TIMEOUT_MS
+      this.shutdownPromise = this.performShutdown()
+    }
+    return this.shutdownPromise
   }
 
   private async performShutdown(): Promise<void> {
-    this.isShuttingDown = true
     this._isQuitting = true
     logger.info('Shutting down...')
 
@@ -433,29 +439,41 @@ export class Application {
       options.args = options.args || []
     }
 
-    const exitForRelaunch = () => {
-      if (canRelaunch) app.relaunch(options)
-      app.exit(0)
-    }
+    this.relaunchOptions = options
     // Preboot has no lifecycle resources and must not continue startup after a restart request.
     if (!this.quitHandlersRegistered) {
-      exitForRelaunch()
+      this.finishExit()
       return
     }
 
-    let timer: ReturnType<typeof setTimeout>
-    const timeout = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        logger.warn('Shutdown timed out before relaunch')
-        resolve()
-      }, SHUTDOWN_TIMEOUT_MS)
-    })
-    void Promise.race([this.shutdown(), timeout])
-      .catch((error) => logger.error('Error during shutdown before relaunch:', error as Error))
+    this.shutdownAndExit()
+  }
+
+  private shutdownAndExit(): void {
+    if (this.exitRequested) return
+    this.exitRequested = true
+    const shutdown = this.shutdown()
+    const remaining = Math.max(0, this.shutdownDeadline - performance.now())
+    // A timer bounds asynchronous cleanup only; it cannot preempt blocking native code.
+    const timer = setTimeout(() => this.finishExit(true), remaining)
+    void shutdown
+      .catch((error) => logger.error('Error during shutdown:', error as Error))
       .finally(() => {
         clearTimeout(timer)
-        exitForRelaunch()
+        this.finishExit()
       })
+  }
+
+  private finishExit(timedOut = false): void {
+    if (this.hasExited) return
+    this.hasExited = true
+    if (timedOut) logger.warn('Forced exit after shutdown timeout')
+    if (this.isRelaunching && !isDev && app.isPackaged) app.relaunch(this.relaunchOptions)
+    if (timedOut && !this.isRelaunching) {
+      process.exit(1)
+    } else {
+      app.exit(0)
+    }
   }
 
   /**
@@ -464,40 +482,8 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
-    // Last resort, not the working mechanism. Starvation is handled one level
-    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
-    // only catches the case where enough services burn their whole ceiling to
-    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
-    // every timer here it is powerless against a synchronously blocking
-    // `onStop()`, which never yields the event loop for it to fire on.
-    const forceExit = (): void => {
-      logger.warn('Forced exit after shutdown timeout')
-      process.exit(1)
-    }
-
-    process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
-      try {
-        await this.shutdown()
-      } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
-      } finally {
-        clearTimeout(timer)
-        app.exit(0)
-      }
-    })
-
-    process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
-      try {
-        await this.shutdown()
-      } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
-      } finally {
-        clearTimeout(timer)
-        app.exit(0)
-      }
-    })
+    process.on('SIGINT', () => this.shutdownAndExit())
+    process.on('SIGTERM', () => this.shutdownAndExit())
   }
 
   /**
@@ -521,26 +507,8 @@ export class Application {
 
     // will-quit: all windows closed, perform actual cleanup
     app.on('will-quit', (event) => {
-      if (this.isRelaunching) {
-        event.preventDefault()
-        return
-      }
-      if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
-
       event.preventDefault()
-
-      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
-      const timer = setTimeout(() => {
-        logger.warn('Forced exit after shutdown timeout (will-quit)')
-        process.exit(1)
-      }, SHUTDOWN_TIMEOUT_MS)
-
-      this.shutdown()
-        .catch((err) => logger.error('Error during shutdown:', err as Error))
-        .finally(() => {
-          clearTimeout(timer)
-          app.exit(0)
-        })
+      this.shutdownAndExit()
     })
   }
 
