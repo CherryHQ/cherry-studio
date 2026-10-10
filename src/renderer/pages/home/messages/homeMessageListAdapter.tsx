@@ -54,6 +54,7 @@ import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -527,9 +528,17 @@ export function useHomeMessageListProviderValue({
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
 
+        // Dismiss, not delete: removing the part would leave an error-status message
+        // with no error evidence, which the terminal fallback immediately "repairs"
+        // with a synthetic part the user also cannot dismiss. The tombstone keeps the
+        // evidence while display hides it.
         await requireChatWrite('removeMessageErrorPart').editMessage(
           messageId,
-          persistedParts.filter((_, index) => index !== resolved.index)
+          persistedParts.map((part, index) =>
+            index === resolved.index
+              ? withCherryMeta(resolved.part as Extract<CherryMessagePart, { type: 'data-error' }>, { dismissed: true })
+              : part
+          )
         )
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)

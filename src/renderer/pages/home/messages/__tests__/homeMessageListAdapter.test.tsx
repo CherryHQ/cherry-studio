@@ -996,6 +996,50 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(persistedPartsLists.length).toBeGreaterThan(0)
   })
 
+  it('dismisses the error part instead of deleting it, so the fallback cannot resynthesize it', async () => {
+    // Deleting the last data-error part leaves an error-status message with no error
+    // evidence; the terminal fallback immediately "repairs" that with a synthetic
+    // 'No response' part whose own close button is hidden. Dismissal must keep the
+    // part (with the message's error status) and only mark it hidden.
+    const errorPart = {
+      type: 'data-error',
+      data: { name: 'Error', message: 'boom', stack: null }
+    } as CherryMessagePart
+    const textPart = { type: 'text', text: 'partial reply' } as CherryMessagePart
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: [errorPart, textPart] } })
+    vi.mocked(resolvePartFromParts).mockReturnValue({ index: 0, messageId: 'assistant-error', part: errorPart })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[
+          {
+            id: 'assistant-error',
+            role: 'assistant',
+            parts: [errorPart, textPart],
+            metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+          }
+        ]}
+        partsByMessageId={{ 'assistant-error': [errorPart, textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'assistant-error', partId: 'assistant-error-part-0' })
+
+    expect(chatWriteMock.editMessage).toHaveBeenCalledTimes(1)
+    const [, editedParts] = vi.mocked(chatWriteMock.editMessage).mock.calls[0]
+    expect(editedParts).toHaveLength(2)
+    expect(editedParts[0]).toMatchObject({
+      type: 'data-error',
+      providerMetadata: { cherry: { dismissed: true } }
+    })
+    expect(editedParts[1]).toBe(textPart)
+  })
+
   it('shows an error when saving code block edits through chat write fails', async () => {
     const textPart = {
       type: 'text',
