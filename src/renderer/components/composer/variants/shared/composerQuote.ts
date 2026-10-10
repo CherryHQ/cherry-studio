@@ -1,0 +1,43 @@
+import type { RefObject } from 'react'
+import { useEffect, useEffectEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { useComposerLayerActive } from '../../ComposerContext'
+import type { ComposerDraftToken } from '../../tokens'
+
+export const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
+  id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+  kind: 'quote',
+  label,
+  description: selectedText,
+  promptText: formatQuoteTokenPromptText(selectedText)
+})
+
+interface QuoteInsertionActions {
+  insertToken: (token: ComposerDraftToken) => void
+}
+
+/**
+ * Subscribes to the main-process quote IPC and inserts the quoted text as a quote token via
+ * the composer's imperative actions ref. The insertion runs through `useEffectEvent` so the
+ * IPC listener stays stable across renders while this composer layer is active.
+ */
+export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actionsRef: RefObject<T>): void {
+  const { t } = useTranslation()
+  const layerActive = useComposerLayerActive()
+
+  const insertQuote = useEffectEvent((selectedText: string) => {
+    if (!selectedText) return
+    actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
+  })
+
+  useEffect(() => {
+    if (!layerActive) return
+    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
+      insertQuote(selectedText)
+    })
+  }, [insertQuote, layerActive])
+}

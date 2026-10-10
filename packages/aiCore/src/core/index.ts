@@ -1,0 +1,10 @@
+/**
+ * Core 模块导出
+ * 内部核心功能，供其他模块使用，不直接面向最终调用者
+ */
+// 模型类型
+export type { ModelConfig as ModelConfigType } from './models/types'
+
+// 执行管理
+export { createExecutor, createOpenAICompatibleExecutor } from './runtime'
+export type { RuntimeConfig } from './runtime/types'

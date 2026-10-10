@@ -1,0 +1,215 @@
+/**
+ * IPC handler registration tests for Phase 2 File channels.
+ *
+ * Verifies that the remaining legacy entry channels are registered on
+ * `ipcMain.handle`, while renderer-facing permanent deletion stays exclusively
+ * on the protected IpcApi routes.
+ */
+
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { ipcMain } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
+import { IpcChannel } from '@shared/IpcChannel'
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+const { FileManager } = await import('../FileManager')
+const { danglingCache } = await import('../danglingCache')
+
+describe('FileManager v2 IPC handler registration', () => {
+  const dbh = setupTestDatabase()
+  let tmp: string
+  let internalRoot: string
+  let fm: InstanceType<typeof FileManager>
+
+  beforeEach(async () => {
+    MockMainDbServiceUtils.setDb(dbh.db)
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-ipc-v2-'))
+    internalRoot = path.join(tmp, 'files-internal')
+    await mkdir(internalRoot, { recursive: true })
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.files.data') {
+        return filename ? path.join(internalRoot, filename) : internalRoot
+      }
+      if (key === 'feature.files.intakes') {
+        return path.join(tmp, 'intakes', filename ?? '')
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+    BaseService.resetInstances()
+    danglingCache.clear()
+    vi.mocked(ipcMain.handle).mockClear()
+    fm = new FileManager()
+    // `onInit` is `protected` (lifecycle contract); bracket access is the
+    // canonical test-only escape hatch to drive the init sequence without
+    // requiring a public wrapper just for tests.
+    await (fm as unknown as { onInit(): Promise<void> }).onInit()
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('does not register files-page dangling handlers on legacy File_* channels', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).not.toContain('file:getDanglingState')
+    expect(registeredChannels).not.toContain('file:batchGetDanglingStates')
+  })
+
+  it('registers File:createInternalEntry IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_CreateInternalEntry)
+  })
+
+  it('registers File:ensureExternalEntry IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_EnsureExternalEntry)
+  })
+
+  it('registers File:getPhysicalPath IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_GetPhysicalPath)
+  })
+
+  it('createInternalEntry handler creates a file from bytes and returns a FileEntry', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    expect(handler).toBeDefined()
+
+    const params = {
+      source: 'bytes' as const,
+      data: new Uint8Array([104, 101, 108, 108, 111]),
+      name: 'hello',
+      ext: 'txt',
+      cleanupPolicy: 'manual' as const
+    }
+    const result = await handler!({} as never, params)
+
+    expect(result.origin).toBe('internal')
+    expect(result.name).toBe('hello')
+    expect(result.ext).toBe('txt')
+    expect(result.size).toBe(5)
+  })
+
+  it('ensureExternalEntry handler upserts an external entry', async () => {
+    const extFile = path.join(tmp, 'external.pdf')
+    await writeFile(extFile, '%PDF-1.4')
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_EnsureExternalEntry)?.[1]
+    expect(handler).toBeDefined()
+
+    const result = await handler!({} as never, { externalPath: extFile, cleanupPolicy: 'manual' })
+    expect(result.origin).toBe('external')
+    expect(result.externalPath).toBe(extFile)
+    expect(result.name).toBe('external')
+    expect(result.ext).toBe('pdf')
+
+    // Idempotent — second call returns the same entry
+    const result2 = await handler!({} as never, { externalPath: extFile, cleanupPolicy: 'manual' })
+    expect(result2.id).toBe(result.id)
+  })
+
+  it('createInternalEntry rejects unsafe bytes.name at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    // path separator
+    await expect(
+      handler!({} as never, {
+        source: 'bytes' as const,
+        data: new Uint8Array([1]),
+        name: '../etc/passwd',
+        ext: 'txt',
+        cleanupPolicy: 'manual'
+      })
+    ).rejects.toThrow()
+    // null byte
+    await expect(
+      handler!({} as never, {
+        source: 'bytes' as const,
+        data: new Uint8Array([1]),
+        name: 'a\0b',
+        ext: 'txt',
+        cleanupPolicy: 'manual'
+      })
+    ).rejects.toThrow()
+    // whitespace-only
+    await expect(
+      handler!({} as never, {
+        source: 'bytes' as const,
+        data: new Uint8Array([1]),
+        name: '   ',
+        ext: 'txt',
+        cleanupPolicy: 'manual'
+      })
+    ).rejects.toThrow()
+  })
+
+  it('createInternalEntry rejects malformed url at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    await expect(
+      handler!({} as never, { source: 'url' as const, url: 'not-a-url', cleanupPolicy: 'manual' })
+    ).rejects.toThrow()
+  })
+
+  it('createInternalEntry rejects renderer-supplied contentHash at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    await expect(
+      handler!({} as never, {
+        source: 'bytes' as const,
+        data: new Uint8Array([1]),
+        name: 'payload',
+        ext: 'bin',
+        contentHash: 'xxh3-64:deadbeefdeadbeef'
+      })
+    ).rejects.toThrow()
+  })
+
+  it('createInternalEntry rejects relative path source at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    await expect(
+      handler!({} as never, { source: 'path' as const, path: 'relative/file.txt', cleanupPolicy: 'manual' })
+    ).rejects.toThrow()
+  })
+
+  it('ensureExternalEntry rejects relative externalPath at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_EnsureExternalEntry)?.[1]
+    await expect(handler!({} as never, { externalPath: 'relative.pdf', cleanupPolicy: 'manual' })).rejects.toThrow()
+  })
+
+  it('getPhysicalPath handler returns the filesystem path for an internal entry', async () => {
+    // First create an entry so we have a valid id
+    const createHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    const entry = await createHandler!({} as never, {
+      source: 'bytes' as const,
+      data: new Uint8Array([1, 2, 3]),
+      name: 'data',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
+
+    const getPathHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_GetPhysicalPath)?.[1]
+    expect(getPathHandler).toBeDefined()
+
+    const physicalPath = await getPathHandler!({} as never, { id: entry.id })
+    expect(physicalPath).toContain(entry.id)
+    expect(physicalPath).toContain('bin')
+  })
+
+  it('does not register the legacy permanent-delete IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).not.toContain('file:permanentDelete')
+  })
+})

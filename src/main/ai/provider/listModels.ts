@@ -1,0 +1,1135 @@
+/**
+ * Model listing service for Main process (v2 types).
+ *
+ * Uses Strategy Registry pattern: first matching fetcher wins.
+ * All HTTP calls use @ai-sdk/provider-utils for consistent error handling.
+ *
+ * Every request runs through {@link modelListFetch} — the same Chromium network stack
+ * chat uses — so TLS trust and proxy settings cannot diverge between listing models
+ * and talking to them.
+ */
+
+import {
+  createJsonErrorResponseHandler,
+  createJsonResponseHandler,
+  type FetchFunction,
+  getFromApi as aiSdkGetFromApi,
+  postJsonToApi,
+  zodSchema
+} from '@ai-sdk/provider-utils'
+import * as z from 'zod'
+
+import { loggerService } from '@logger'
+import { providerService } from '@main/data/services/ProviderService'
+import { copilotService } from '@main/services/CopilotService'
+import { mergeHeaders } from '@main/utils/http'
+import type { EndpointType, ListedModels, Model } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  endpointImpliedCapability,
+  MODALITY,
+  MODEL_CAPABILITY
+} from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
+import {
+  isAIGatewayProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
+
+import { customFetch } from '../utils/customFetch'
+import {
+  defaultHeaders,
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials
+} from '../utils/provider'
+import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { listWorkflows } from './custom/comfyui/comfyuiWorkflowDiscovery'
+import { partitionListableWorkflows } from './custom/comfyui/comfyuiWorkflows'
+import {
+  createVertexModelListRequest,
+  DEFAULT_VERTEX_MODEL_PUBLISHERS,
+  getVertexModelId,
+  getVertexModelPublisher,
+  isSupportedVertexPublisherModel
+} from './listModels/vertex'
+import {
+  AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
+  CopilotModelsResponseSchema,
+  GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
+  NewApiModelsResponseSchema,
+  OllamaShowResponseSchema,
+  OllamaTagsResponseSchema,
+  OmlxModelStatusResponseSchema,
+  OpenAIModelsResponseSchema,
+  OVMSConfigResponseSchema,
+  TogetherModelsResponseSchema,
+  TokenDanceModelsResponseSchema,
+  VercelGatewayModelsResponseSchema,
+  VertexPublisherModelsResponseSchema
+} from './listModelsSchemas'
+import { isVertexMaasModelId } from './vertex'
+
+const logger = loggerService.withContext('ModelListService')
+
+/**
+ * Provider `fetch` for model listing: Electron `net.fetch` (Chromium) rather than Node's
+ * global fetch.
+ *
+ * Node only trusts its own bundled CA store, while Chromium trusts the OS one and honors
+ * the session proxy — so an intercepting corporate root CA that is installed system-wide
+ * (and therefore fine for chat, which already goes through `customFetch`) made *listing*
+ * fail with a certificate error. Sharing the stack keeps both paths agreeing on trust,
+ * proxy and error vocabulary (Chromium `net::ERR_CERT_*`, which `classifyErrorCategory`
+ * maps to the proxy/SSL diagnosis).
+ *
+ * `cache: 'no-store'` because Chromium's HTTP cache would otherwise serve a stale
+ * `/models` response on a second pull, resurrecting deleted models.
+ */
+const modelListFetch: FetchFunction = (input, init) => customFetch(input, { ...init, cache: 'no-store' })
+
+// ── Types ──
+
+type ModelFetcher = {
+  match: (provider: Provider) => boolean
+  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<ListedModels>
+}
+
+/** A listing in which the provider held nothing back — what most fetchers return. */
+function listing(models: Partial<Model>[]): ListedModels {
+  return { models }
+}
+
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
+
+function handleOptionalModelListFailure<T>(
+  error: unknown,
+  options: { throwOnError?: boolean } | undefined,
+  context: Record<string, string>
+): { data: T[] } {
+  if (options?.throwOnError) {
+    throw error
+  }
+
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
+  logger.warn('Optional model list endpoint failed; continuing with primary models', {
+    ...context,
+    errorType: getErrorType(error)
+  })
+  return { data: [] }
+}
+
+function warnSkippedOpenAIModelEntries(
+  providerId: string,
+  ...responses: Array<{ data: unknown[]; skippedModelCount?: number }>
+): void {
+  const skippedModelCount = responses.reduce((total, response) => total + (response.skippedModelCount ?? 0), 0)
+  if (skippedModelCount > 0) {
+    logger.warn('Skipped malformed OpenAI-compatible model entries', { providerId, skippedModelCount })
+  }
+}
+
+// ── API Layer ──
+
+const ApiErrorSchema = z.object({
+  error: z
+    .object({
+      message: z.string().optional(),
+      code: z.string().optional()
+    })
+    .optional(),
+  message: z.string().optional()
+})
+
+type ApiError = z.infer<typeof ApiErrorSchema>
+type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
+
+async function getFromApi<T>({
+  url,
+  headers,
+  responseSchema,
+  abortSignal
+}: {
+  url: string
+  headers?: Record<string, string>
+  responseSchema: z.ZodType<T>
+  abortSignal?: AbortSignal
+}): Promise<T> {
+  const { value } = await aiSdkGetFromApi({
+    url,
+    headers,
+    successfulResponseHandler: createJsonResponseHandler(zodSchema(responseSchema)),
+    failedResponseHandler: createJsonErrorResponseHandler({
+      errorSchema: zodSchema(ApiErrorSchema),
+      errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+    }),
+    abortSignal,
+    fetch: modelListFetch
+  })
+
+  return value
+}
+
+/** Build default headers with rotated API key */
+
+function defaultGroup(modelId: string, providerId: string): string {
+  return deriveModelGroupName(modelId) ?? providerId
+}
+
+/** Build a partial v2 Model from API response. `apiModelId` carries `#`/`?`
+ * verbatim (it is the provider's own handle), so `id` strips them. */
+function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+  const safeModelId = apiModelId.replace(/[?#]/g, '')
+  return {
+    id: createUniqueModelId(provider.id, safeModelId),
+    providerId: provider.id,
+    apiModelId,
+    name: extra?.name || apiModelId,
+    group: extra?.group || defaultGroup(apiModelId, provider.id),
+    ownedBy: extra?.ownedBy,
+    description: extra?.description,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    ...extra
+  }
+}
+
+function dedup<T>(items: T[], getId: (item: T) => string | undefined): T[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const id = getId(item)?.trim()
+    if (!id || seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+function pickPreferredString(values: Array<unknown>): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed.length > 0) return trimmed
+    }
+  }
+  return undefined
+}
+
+/** The trained context length from `/api/show`, whose `model_info` keys carry an architecture prefix. */
+function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined): number | undefined {
+  const architecture = modelInfo?.['general.architecture']
+  if (typeof architecture !== 'string') return undefined
+  const contextLength = modelInfo?.[`${architecture}.context_length`]
+  return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
+}
+
+/**
+ * `/api/tags` carries no context length, so without this the model has no `contextWindow` and
+ * Ollama falls back to sizing by available VRAM — 4k below 24 GiB, where an agent's tool preamble
+ * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
+ * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
+ */
+async function fetchOllamaContextWindow(
+  baseUrl: string,
+  provider: Provider,
+  model: string,
+  signal?: AbortSignal
+): Promise<number | undefined> {
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/api/show`,
+      headers: defaultHeaders(provider),
+      body: { model },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(ApiErrorSchema),
+        errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
+      }),
+      abortSignal: signal,
+      fetch: modelListFetch
+    })
+    return readOllamaContextLength(value.model_info)
+  } catch (error) {
+    // A model that cannot be inspected still belongs in the list; it falls back to the default window.
+    logger.warn('failed to read Ollama context length', { model, error })
+    return undefined
+  }
+}
+
+const ollamaFetcher: ModelFetcher = {
+  match: (p) => isOllamaProvider(p),
+  fetch: async (provider, signal) => {
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+      .replace(/\/v1$/, '')
+      .replace(/\/api$/, '')
+    const response = await getFromApi({
+      url: `${baseUrl}/api/tags`,
+      headers: defaultHeaders(provider),
+      responseSchema: OllamaTagsResponseSchema,
+      abortSignal: signal
+    })
+    const models = dedup(response.models, (m) => m.name)
+    const contextWindows = await Promise.all(
+      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
+    )
+    return listing(
+      models.map((m, index) => {
+        const capabilities: Model['capabilities'] = []
+        if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
+        if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        return toModel(m.name, provider, {
+          ownedBy: 'ollama',
+          capabilities,
+          ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+        })
+      })
+    )
+  }
+}
+
+const EXCLUDED_GEMINI_GENERATION_METHODS = ['predictLongRunning', 'bidiGenerateContent'] as const
+
+const EXCLUDED_GEMINI_MODEL_KEYWORDS = ['tts'] as const
+
+function isSupportedGeminiModel(model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]): boolean {
+  const methods = model.supportedGenerationMethods ?? []
+  if (EXCLUDED_GEMINI_GENERATION_METHODS.some((method) => methods.includes(method))) {
+    return false
+  }
+
+  const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
+  return !EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
+const geminiFetcher: ModelFetcher = {
+  match: (p) => isGeminiProvider(p),
+  fetch: async (provider, signal) => {
+    let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+    baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
+    // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
+    // would persist the key into local logs users attach to bug reports.
+    const response = await getFromApi({
+      url: `${baseUrl}/v1beta/models`,
+      headers: mergeHeaders(
+        getProviderAppHeaders(provider),
+        { 'x-goog-api-key': apiKey },
+        provider.settings?.extraHeaders
+      ),
+      responseSchema: GeminiModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.models, (m) => m.name)
+        .filter(isSupportedGeminiModel)
+        .map((m) => {
+          const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+          return toModel(id, provider, { name: m.displayName || id, description: m.description })
+        })
+    )
+  }
+}
+
+/** Vertex AI: paginate `publishers/{publisher}/models` for each default publisher
+ *  (google, openai, meta, qwen, deepseek-ai, moonshotai, zai-org), then filter the
+ *  union down to model families we actually run. Misconfigured providers and
+ *  per-publisher request failures degrade to "no models from this publisher" with
+ *  a warn log instead of failing the whole listing. */
+const vertexFetcher: ModelFetcher = {
+  match: (p) => isVertexProvider(p),
+  fetch: async (provider, signal, options) => {
+    const request = await createVertexModelListRequest(provider, { throwOnError: options?.throwOnError })
+    if (!request) return listing([])
+
+    type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
+    let firstPublisherError: unknown
+    const publisherModelGroups = await Promise.all(
+      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher): Promise<PublisherGroup> => {
+        try {
+          const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
+          let pageToken: string | undefined
+          do {
+            const searchParams = new URLSearchParams({
+              pageSize: '100',
+              listAllVersions: 'true'
+            })
+            if (pageToken) searchParams.set('pageToken', pageToken)
+            const response = await getFromApi({
+              url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
+              headers: request.headers,
+              responseSchema: VertexPublisherModelsResponseSchema,
+              abortSignal: signal
+            })
+            publisherModels.push(...response.publisherModels)
+            pageToken = response.nextPageToken
+          } while (pageToken)
+          return publisherModels
+        } catch (error) {
+          if (firstPublisherError === undefined) {
+            firstPublisherError = error
+          }
+          logger.warn('Skipping Vertex publisher model listing after request failure', {
+            providerId: provider.id,
+            publisher,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return null
+        }
+      })
+    )
+
+    if (options?.throwOnError && publisherModelGroups.some((g) => g === null)) {
+      if (firstPublisherError instanceof Error) {
+        throw firstPublisherError
+      }
+      if (firstPublisherError !== undefined) {
+        throw new Error(String(firstPublisherError))
+      }
+      throw new Error('One or more Vertex AI publisher requests failed')
+    }
+
+    const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
+
+    const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
+      const bareId = getVertexModelId(model.name)
+      const ownedBy = getVertexModelPublisher(model.name)
+      // MaaS models are served over the OpenAI-compatible endpoint, which requires the
+      // `{publisher}/{model}` id form even when Google is the publisher. Native Google
+      // models (Gemini/Gemma/embeddings) keep their bare id.
+      const publisherModelId = `${ownedBy}/${bareId}`
+      const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
+      return toModel(apiModelId, provider, {
+        name: pickPreferredString([model.displayName, bareId]) || bareId,
+        description: model.description,
+        ownedBy
+      })
+    })
+
+    // Match against the bare model name (e.g. `gemini-2.0-flash`, `llama-4-scout-…-maas`), not
+    // the `provider::model` unique id nor the publisher-prefixed apiModelId — the support
+    // patterns are anchored to the model name and would reject either prefixed form.
+    const filteredModels = listedModels.filter((model) => {
+      const modelId = model.apiModelId ?? ''
+      return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
+    })
+
+    if (filteredModels.length !== listedModels.length) {
+      logger.info('Filtered unsupported Vertex publisher models from model list', {
+        providerId: provider.id,
+        filteredCount: listedModels.length - filteredModels.length,
+        returnedCount: filteredModels.length
+      })
+    }
+
+    return listing(filteredModels)
+  }
+}
+
+const copilotFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.copilot),
+  fetch: async (provider, signal) => {
+    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
+    // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
+    // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
+    // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
+    const { token } = await copilotService.getToken(null as any, copilotHeaders)
+    const response = await getFromApi({
+      url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
+      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
+      responseSchema: CopilotModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    const filtered = response.data.filter((m) => {
+      const modelId = m.id.toLowerCase()
+      return (
+        m.policy?.state !== 'disabled' &&
+        !/^accounts\/[^/]+\/routers\//.test(modelId) &&
+        !/^(tts|whisper|speech)/.test(modelId.split('/').pop() || '')
+      )
+    })
+
+    return listing(dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by })))
+  }
+}
+
+const ovmsFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.ovms,
+  fetch: async (provider, signal) => {
+    // The servable-status document lives at /v1/config; the provider's chat base URL points at
+    // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
+    // host carries so the version below is always the one OVMS actually serves this on.
+    const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
+    const response = await getFromApi({
+      url: `${baseUrl}/config`,
+      headers: defaultHeaders(provider),
+      responseSchema: OVMSConfigResponseSchema,
+      abortSignal: signal
+    })
+    // List every model registered in OVMS config regardless of its server-side
+    // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
+    // expect downloaded models to appear in the model manager even when OVMS
+    // fails to load them server-side — the UI communicates readiness, not OVMS.
+    return listing(
+      dedup(Object.entries(response), ([name]) => name).map(([name]) => toModel(name, provider, { ownedBy: 'ovms' }))
+    )
+  }
+}
+
+/**
+ * ComfyUI has no `/models` endpoint: what a user can generate with is whatever
+ * workflow they saved, so the saved-workflow listing IS the model list. Each row is
+ * declared image-only on the ComfyUI image endpoint, which is what makes it selectable
+ * on the paintings page (`supportsImageGenerationEndpoint`) and routes generation to
+ * the comfyui transport instead of an OpenAI adapter.
+ */
+const comfyuiFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
+  fetch: async (provider, signal) => {
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+    // The ComfyUI server takes no credentials, and the stored key belongs to
+    // some other provider's host: `defaultHeaders` would hand it to this one.
+    const workflows = await listWorkflows(baseUrl, signal, {
+      headers: headersWithoutCredentials(provider),
+      fetch: modelListFetch
+    })
+    const { listed, skipped } = partitionListableWorkflows(provider.id, workflows)
+    const models = dedup(listed, (workflow) => workflow).map((workflow) =>
+      toModel(workflow, provider, {
+        name: workflow.split('/').pop() ?? workflow,
+        ownedBy: 'comfyui',
+        supportsStreaming: false,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        inputModalities: [MODALITY.TEXT],
+        outputModalities: [MODALITY.IMAGE]
+      })
+    )
+    // A skip the user cannot see reads as a workflow that vanished: the names travel
+    // with the list so the model manager can say which files to rename.
+    return skipped.length > 0 ? { models, skippedModels: skipped } : listing(models)
+  }
+}
+
+const togetherFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.together,
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: TogetherModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          name: m.display_name || m.id,
+          description: m.description,
+          ownedBy: m.organization
+        })
+      )
+    )
+  }
+}
+
+type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'][number]
+
+const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
+}
+const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
+
+function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
+  if (!values?.length) {
+    return undefined
+  }
+
+  const endpointTypes = dedup(
+    values
+      .map((value) => {
+        const normalized = value.trim().toLowerCase()
+        return (
+          ENDPOINT_TYPE_ALIASES[normalized] ??
+          (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
+        )
+      })
+      .filter((value): value is EndpointType => Boolean(value)),
+    (value) => value
+  )
+
+  if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
+    const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+    if (chatEndpoint) {
+      return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
+    }
+  }
+
+  return endpointTypes.length > 0 ? endpointTypes : undefined
+}
+
+const newApiFetcher: ModelFetcher = {
+  match: (p) =>
+    p.id === SystemProviderIds['new-api'] ||
+    p.presetProviderId === 'new-api' ||
+    p.id === SystemProviderIds.cherryin ||
+    p.id === SystemProviderIds.aionly,
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: NewApiModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+        const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+
+        return toModel(m.id, provider, {
+          ownedBy: m.owned_by,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
+      })
+    )
+  }
+}
+
+const tokenDanceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokendance),
+  fetch: async (provider, signal) => {
+    const modelsUrl =
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
+      `${formatApiHost(getBaseUrl(provider))}/models`
+    const response = await getFromApi({
+      url: modelsUrl,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenDanceModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return listing(
+      dedup(response.data, (m) => m.id)
+        .map((m) => {
+          const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+          if (!endpointTypes) return undefined
+
+          const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+
+          return toModel(m.id, provider, {
+            name: m.name || m.id,
+            description: m.description,
+            contextWindow: m.context_length,
+            endpointTypes,
+            ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+          })
+        })
+        .filter((model): model is Partial<Model> => Boolean(model))
+    )
+  }
+}
+
+const openRouterFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.openrouter,
+  fetch: async (provider, signal, options) => {
+    const headers = defaultHeaders(provider)
+    const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
+      getFromApi({
+        url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }),
+      getFromApi({
+        url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'openrouter-embedding-models'
+        })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-image-models'
+        })
+      )
+    ])
+    warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    return listing(
+      dedup(all, (m) => m.id).map((m) => {
+        const imageModel = imageModelsById.get(m.id)
+        return toModel(m.id, provider, {
+          name: imageModel?.name ?? m.name,
+          ownedBy: m.owned_by,
+          ...(imageModel
+            ? {
+                capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+                endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+              }
+            : {})
+        })
+      })
+    )
+  }
+}
+
+const ppioFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.ppio,
+  fetch: async (provider, signal, options) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const headers = defaultHeaders(provider)
+    const [chat, embed, reranker] = await Promise.all([
+      getFromApi({
+        url: `${baseUrl}/models`,
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }),
+      getFromApi({
+        url: `${baseUrl}/models?model_type=embedding`,
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-embedding-models'
+        })
+      ),
+      getFromApi({
+        url: `${baseUrl}/models?model_type=reranker`,
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-reranker-models'
+        })
+      )
+    ])
+    warnSkippedOpenAIModelEntries(provider.id, chat, embed, reranker)
+    const modelsById = new Map<string, Partial<Model>>()
+    const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
+      const id = model.id?.trim()
+      if (!id) return
+
+      const existing = modelsById.get(id)
+      if (!existing) {
+        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        return
+      }
+
+      if (capability) {
+        existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
+      }
+    }
+
+    for (const model of chat.data) mergeModel(model)
+    for (const model of embed.data) mergeModel(model)
+    for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
+
+    return listing(Array.from(modelsById.values()))
+  }
+}
+
+const aiHubMixFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.aihubmix,
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/v1/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: AIHubMixModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.data, (m) => m.model_id).map((m) =>
+        toModel(m.model_id, provider, {
+          name: m.model_name || m.model_id,
+          description: m.desc
+        })
+      )
+    )
+  }
+}
+
+/** Vercel AI Gateway: hits /v3/ai/config directly with `ai-gateway-protocol-version` header
+ *  instead of going through `@ai-sdk/gateway`'s `getAvailableModels()`. The SDK validates the
+ *  response against a strict schema that breaks whenever Vercel evolves the registry, so we
+ *  parse with `z.looseObject` here to keep listing resilient. Inference still uses the SDK. */
+const gatewayFetcher: ModelFetcher = {
+  match: (p) => isAIGatewayProvider(p),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `https://ai-gateway.vercel.sh/v3/ai/config`,
+      headers: {
+        ...defaultHeaders(provider),
+        'ai-gateway-protocol-version': '0.0.1'
+      },
+      responseSchema: VercelGatewayModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.models, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          ownedBy: m.specification?.provider
+        })
+      )
+    )
+  }
+}
+
+const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech', 'audio', 'realtime', 'sora'] as const
+
+function isSupportedOpenAIModel(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
+// Anthropic authenticates model listing with `x-api-key` + `anthropic-version`, not
+// `Authorization: Bearer` — the generic OpenAI fetcher's Bearer header would 401. `/v1/models`
+// only returns chat models (no audio/tts), and `limit` maxes at 1000, well above the catalog
+// size, so a single page covers it.
+const ANTHROPIC_VERSION = '2023-06-01'
+
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.anthropic),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const response = await getFromApi({
+      url: `${baseUrl}/models?limit=1000`,
+      headers: mergeHeaders(
+        getProviderAppHeaders(provider),
+        { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+        provider.settings?.extraHeaders
+      ),
+      responseSchema: AnthropicModelsResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) =>
+        toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+      )
+    )
+  }
+}
+
+const jinaFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.jina),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    warnSkippedOpenAIModelEntries(provider.id, response)
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) => {
+        const apiModelId = m.id.replace(/^jina-ai\//, '')
+        return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+      })
+    )
+  }
+}
+
+const openAIFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.openai),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    warnSkippedOpenAIModelEntries(provider.id, response)
+    return listing(
+      dedup(response.data, (m) => m.id)
+        .filter((m) => isSupportedOpenAIModel(m.id))
+        .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    )
+  }
+}
+
+async function listOpenAICompatibleModels(
+  provider: Provider,
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<ListedModels> {
+  const response = await getFromApi({
+    url: `${baseUrl}/models`,
+    headers: defaultHeaders(provider),
+    responseSchema: OpenAIModelsResponseSchema,
+    abortSignal: signal
+  })
+  warnSkippedOpenAIModelEntries(provider.id, response)
+  return listing(
+    dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        ownedBy: m.owned_by
+      })
+    )
+  )
+}
+
+const openAICompatibleFetcher: ModelFetcher = {
+  match: () => true,
+  fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+}
+
+const omlxFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.omlx),
+  fetch: async (provider, signal) => {
+    // `/v1/models` carries no type information, so every entry would present
+    // as a chat model — including block-diffusion canvas models, which the
+    // server only serves through its diffusion lane. `/v1/models/status`
+    // reports the model type: keep the models that chat ('llm'/'vlm') and
+    // drop the diffusion families. The status endpoint hangs off the server
+    // root, and a configured host may already carry an API version other than
+    // v1, so strip any trailing version segment rather than only /v1.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
+    const response = await getFromApi({
+      url: `${root}/v1/models/status`,
+      headers: defaultHeaders(provider),
+      responseSchema: OmlxModelStatusResponseSchema,
+      abortSignal: signal
+    })
+    return listing(
+      dedup(
+        // The markitdown virtual model rides the same chat completions endpoint,
+        // so the server's own model_type list of chat-servable kinds.
+        response.models.filter(
+          (m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'
+        ),
+        (m) => m.id
+      )
+        .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))
+        // The server hides models on purpose (operator-managed); keep them out.
+        .filter((m) => m.is_hidden !== true)
+        .map((m) => {
+          // `resolveEffectiveEndpoint` reads `endpointTypes[0]` before
+          // `provider.defaultChatEndpoint`, so listing chat-completions first
+          // silently overrode the registry's declared default (Responses, oMLX's
+          // native chat surface) and routed every discovered model to the legacy
+          // dialect. Derive the first entry from the provider's declaration so
+          // discovery inherits it — including a user who changes the default.
+          //
+          // The Anthropic endpoint stays declared for the Claude Agent SDK, which
+          // speaks only Messages and asks for it explicitly.
+          //
+          // MarkItDown is the exception: the server special-cases that virtual
+          // model only on the chat-completions route, so it must not advertise
+          // Responses or Anthropic — either would send a dialect the server does
+          // not implement for it. The registry's other declared endpoints stay
+          // listed behind the default: callers that prefer one (the pi runtime
+          // asks for Anthropic when both chat dialects are present) must still
+          // find it.
+          const endpointTypes: EndpointType[] =
+            m.model_type === 'markitdown'
+              ? [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+              : [
+                  ...new Set([
+                    provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+                    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+                  ])
+                ]
+
+          return toModel(m.id, provider, {
+            ownedBy: 'omlx',
+            // An alias renames the model in the UI only: the server still keys
+            // the request on the physical id, so `id`/`apiModelId` stay `m.id`.
+            // Spread conditionally — `toModel` applies `extra` last, so a
+            // present-but-undefined `name` would overwrite the id fallback.
+            ...(m.model_alias ? { name: m.model_alias } : {}),
+            endpointTypes,
+            // The server reports the window it serves and its output cap; a
+            // discovered model would otherwise carry no limits at all.
+            ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
+            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
+            // A VLM takes text and images; the image modality has to be stated
+            // explicitly, or exported configurations read it as text-only even
+            // though the capability says otherwise.
+            ...(m.model_type === 'vlm'
+              ? {
+                  capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+                  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+                }
+              : {})
+          })
+        })
+    )
+  }
+}
+
+// Native v1 lists downloaded models even when JIT loading is disabled.
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
+  fetch: async (provider, signal) => {
+    // Both native and OpenAI-compatible endpoints must resolve from the server root.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${root}/api/v1/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
+      })
+    } catch (error) {
+      // LM Studio below 0.4.0 has no native v1 — fall back to the endpoint every version serves.
+      // A genuine failure (auth, server down) surfaces from the fallback call instead.
+      logger.warn('LM Studio /api/v1/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
+    }
+
+    return listing(
+      dedup(response.models, (m) => m.key).map((m) => {
+        const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+        const implied = endpointImpliedCapability(endpointTypes?.[0])
+        const capabilities: Model['capabilities'] = []
+        if (implied) {
+          capabilities.push(implied)
+        } else {
+          if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+          if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+        }
+
+        return toModel(m.key, provider, {
+          name: m.display_name || m.key,
+          ownedBy: m.publisher,
+          ...(endpointTypes ? { endpointTypes } : {}),
+          capabilities,
+          ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+        })
+      })
+    )
+  }
+}
+
+// ── Ollama probe ──
+
+/** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
+export async function probeOllamaModel(
+  provider: Provider,
+  modelApiId: string | undefined,
+  signal?: AbortSignal,
+  apiKeyOverride?: string
+): Promise<{ latency: number }> {
+  const start = performance.now()
+  const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
+  const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
+  const headers = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider), {
+    'Content-Type': 'application/json',
+    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
+  })
+  const response = await fetch(`${baseUrl}/show`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: modelApiId ?? '' }),
+    signal
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
+    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+  }
+  return { latency: performance.now() - start }
+}
+
+// ── Registry (order matters: first match wins) ──
+
+const fetchers: ModelFetcher[] = [
+  aiHubMixFetcher,
+  ollamaFetcher,
+  lmStudioFetcher,
+  omlxFetcher,
+  geminiFetcher,
+  vertexFetcher,
+  copilotFetcher,
+  ovmsFetcher,
+  comfyuiFetcher,
+  togetherFetcher,
+  newApiFetcher,
+  tokenDanceFetcher,
+  openRouterFetcher,
+  ppioFetcher,
+  gatewayFetcher,
+  anthropicFetcher,
+  jinaFetcher,
+  openAIFetcher,
+  openAICompatibleFetcher // always-match fallback, must be last
+]
+
+// ── Public API ──
+
+export async function listModels(
+  provider: Provider,
+  abortSignal?: AbortSignal,
+  options?: { throwOnError?: boolean }
+): Promise<ListedModels> {
+  try {
+    const fetcher = fetchers.find((f) => f.match(provider))!
+    return await fetcher.fetch(provider, abortSignal, options)
+  } catch (error) {
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
+    if (options?.throwOnError) {
+      throw error
+    }
+    return listing([])
+  }
+}

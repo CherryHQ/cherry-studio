@@ -1,0 +1,281 @@
+import fs from 'fs/promises'
+import crypto from 'node:crypto'
+import path from 'path'
+
+import type {
+  OAuthClientInformationContext,
+  OAuthDiscoveryState,
+  StoredOAuthClientInformation,
+  StoredOAuthTokens
+} from '@modelcontextprotocol/client'
+import { safeStorage } from 'electron'
+
+import { loggerService } from '@logger'
+
+import type { IOAuthStorage, OAuthSecretData, OAuthStorageData } from './types'
+import { LegacyOAuthStorageSchema, OAuthSecretDataSchema, OAuthStorageSchema } from './types'
+
+const logger = loggerService.withContext('Mcp:OAuthStorage')
+const LEGACY_ISSUER = 'legacy'
+const volatileSecrets = new Map<string, OAuthSecretData>()
+
+export interface OAuthSecretCipher {
+  isAvailable(): boolean
+  encrypt(value: string): string
+  decrypt(value: string): string
+}
+
+const electronSecretCipher: OAuthSecretCipher = {
+  isAvailable: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (value) => safeStorage.encryptString(value).toString('base64'),
+  decrypt: (value) => safeStorage.decryptString(Buffer.from(value, 'base64'))
+}
+
+function emptySecretData(): OAuthSecretData {
+  return {
+    clientInfoByIssuer: {},
+    tokensByIssuer: {}
+  }
+}
+
+/** Storage key for a server URL; servers sharing a URL share credentials. */
+export function oauthServerUrlHash(serverUrl: string): string {
+  return crypto.createHash('md5').update(serverUrl).digest('hex')
+}
+
+const storagePath = (configDir: string, serverUrlHash: string) => path.join(configDir, `${serverUrlHash}_oauth.json`)
+
+/** Forgets a server's credentials, including process-only ones kept when secure storage is unavailable. */
+export async function deleteOAuthStorage(serverUrlHash: string, configDir: string): Promise<void> {
+  const filePath = storagePath(configDir, serverUrlHash)
+  volatileSecrets.delete(filePath)
+  await fs.rm(filePath, { force: true })
+}
+
+export class JsonFileStorage implements IOAuthStorage {
+  private readonly filePath: string
+  private readonly cipher: OAuthSecretCipher
+  private cache: OAuthStorageData | null = null
+  private secretCache: OAuthSecretData | null = null
+
+  constructor(
+    readonly serverUrlHash: string,
+    configDir: string,
+    cipher: OAuthSecretCipher = electronSecretCipher
+  ) {
+    this.filePath = storagePath(configDir, serverUrlHash)
+    this.cipher = cipher
+  }
+
+  private issuerKey(ctx?: OAuthClientInformationContext, valueIssuer?: string): string {
+    return ctx?.issuer ?? valueIssuer ?? this.secretCache?.lastIssuer ?? LEGACY_ISSUER
+  }
+
+  /**
+   * Pre-upgrade credentials carry no issuer stamp; the SDK adopts them and saves them back
+   * stamped, so an issuer-specific miss falls back to them until that happens.
+   */
+  private readForIssuer<T>(byIssuer: Record<string, T>, ctx?: OAuthClientInformationContext): T | undefined {
+    return byIssuer[this.issuerKey(ctx)] ?? byIssuer[LEGACY_ISSUER]
+  }
+
+  /** Removes an issuer's entry and the unstamped one it may have been served from. */
+  private forgetForIssuer(byIssuer: Record<string, unknown>, issuer: string): void {
+    delete byIssuer[issuer]
+    delete byIssuer[LEGACY_ISSUER]
+  }
+
+  private async readStorage(): Promise<OAuthStorageData> {
+    if (this.cache) {
+      return this.cache
+    }
+
+    try {
+      const raw: unknown = JSON.parse(await fs.readFile(this.filePath, 'utf-8'))
+      const validated = OAuthStorageSchema.parse(raw)
+      const legacy = LegacyOAuthStorageSchema.parse(raw)
+      this.cache = validated
+
+      if (legacy.clientInfo || legacy.tokens || legacy.codeVerifier) {
+        const migrated = emptySecretData()
+        if (legacy.clientInfo) {
+          const issuer = legacy.clientInfo.issuer ?? LEGACY_ISSUER
+          migrated.clientInfoByIssuer[issuer] = legacy.clientInfo
+          migrated.lastIssuer = issuer
+        }
+        if (legacy.tokens) {
+          const issuer = legacy.tokens.issuer ?? migrated.lastIssuer ?? LEGACY_ISSUER
+          migrated.tokensByIssuer[issuer] = legacy.tokens
+          migrated.lastIssuer = issuer
+        }
+        migrated.codeVerifier = legacy.codeVerifier
+        this.secretCache = migrated
+        await this.writeStorage(validated)
+      }
+
+      return validated
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        const initial: OAuthStorageData = { lastUpdated: Date.now() }
+        await this.writeStorage(initial)
+        return initial
+      }
+      logger.error('Error reading OAuth storage:', error as Error)
+      throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  private async readSecrets(): Promise<OAuthSecretData> {
+    if (this.secretCache) {
+      return this.secretCache
+    }
+
+    const data = await this.readStorage()
+    // Reading a legacy file may already have migrated its credentials into this cache.
+    if (this.secretCache) return this.secretCache
+    if (data.encryptedCredentials && this.cipher.isAvailable()) {
+      try {
+        const decrypted: unknown = JSON.parse(this.cipher.decrypt(data.encryptedCredentials))
+        this.secretCache = OAuthSecretDataSchema.parse(decrypted)
+        return this.secretCache
+      } catch (error) {
+        logger.error('Failed to decrypt OAuth credentials; reauthorization is required', error as Error)
+      }
+    }
+
+    this.secretCache = volatileSecrets.get(this.filePath) ?? emptySecretData()
+    return this.secretCache
+  }
+
+  private async writeStorage(data: OAuthStorageData): Promise<void> {
+    try {
+      await fs.mkdir(path.dirname(this.filePath), { recursive: true })
+
+      const nextData: OAuthStorageData = {
+        ...data,
+        lastUpdated: Date.now()
+      }
+      if (this.secretCache) {
+        if (this.cipher.isAvailable()) {
+          nextData.encryptedCredentials = this.cipher.encrypt(JSON.stringify(this.secretCache))
+          volatileSecrets.delete(this.filePath)
+        } else {
+          delete nextData.encryptedCredentials
+          volatileSecrets.set(this.filePath, this.secretCache)
+          logger.warn('Secure credential storage is unavailable; OAuth credentials will be kept in memory only')
+        }
+      }
+
+      const tempPath = `${this.filePath}.tmp`
+      await fs.writeFile(tempPath, JSON.stringify(nextData, null, 2))
+      await fs.rename(tempPath, this.filePath)
+      this.cache = nextData
+    } catch (error) {
+      logger.error('Error writing OAuth storage:', error as Error)
+      throw new Error(`Failed to write OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  private async writeSecrets(secrets: OAuthSecretData): Promise<void> {
+    this.secretCache = secrets
+    await this.writeStorage(await this.readStorage())
+  }
+
+  async getClientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
+    const secrets = await this.readSecrets()
+    return this.readForIssuer(secrets.clientInfoByIssuer, ctx)
+  }
+
+  async saveClientInformation(
+    info: StoredOAuthClientInformation | undefined,
+    ctx?: OAuthClientInformationContext
+  ): Promise<void> {
+    const secrets = await this.readSecrets()
+    const issuer = this.issuerKey(ctx, info?.issuer)
+    this.forgetForIssuer(secrets.clientInfoByIssuer, issuer)
+    if (info) {
+      secrets.clientInfoByIssuer[issuer] = { ...info }
+      secrets.lastIssuer = issuer
+    }
+    await this.writeSecrets(secrets)
+  }
+
+  async getTokens(ctx?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined> {
+    const secrets = await this.readSecrets()
+    return this.readForIssuer(secrets.tokensByIssuer, ctx)
+  }
+
+  async saveTokens(tokens: StoredOAuthTokens | undefined, ctx?: OAuthClientInformationContext): Promise<void> {
+    const secrets = await this.readSecrets()
+    const issuer = this.issuerKey(ctx, tokens?.issuer)
+    this.forgetForIssuer(secrets.tokensByIssuer, issuer)
+    if (tokens) {
+      secrets.tokensByIssuer[issuer] = { ...tokens }
+      secrets.lastIssuer = issuer
+    }
+    await this.writeSecrets(secrets)
+  }
+
+  async getCodeVerifier(): Promise<string> {
+    const verifier = (await this.readSecrets()).codeVerifier
+    if (!verifier) {
+      throw new Error('No code verifier saved for session')
+    }
+    return verifier
+  }
+
+  async saveCodeVerifier(codeVerifier: string): Promise<void> {
+    const secrets = await this.readSecrets()
+    secrets.codeVerifier = codeVerifier || undefined
+    await this.writeSecrets(secrets)
+  }
+
+  async getState(): Promise<string | undefined> {
+    return (await this.readSecrets()).state
+  }
+
+  async saveState(state: string | undefined): Promise<void> {
+    const secrets = await this.readSecrets()
+    secrets.state = state
+    await this.writeSecrets(secrets)
+  }
+
+  async getDiscoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return (await this.readStorage()).discoveryState
+  }
+
+  async saveDiscoveryState(discoveryState: OAuthDiscoveryState | undefined): Promise<void> {
+    await this.writeStorage({
+      ...(await this.readStorage()),
+      discoveryState
+    })
+  }
+
+  async clear(
+    scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery' = 'all',
+    ctx?: OAuthClientInformationContext
+  ): Promise<void> {
+    if (scope === 'discovery') {
+      await this.saveDiscoveryState(undefined)
+      return
+    }
+
+    const secrets = await this.readSecrets()
+
+    if (scope === 'all') {
+      this.secretCache = emptySecretData()
+      volatileSecrets.delete(this.filePath)
+      await this.writeStorage({ lastUpdated: Date.now() })
+      return
+    }
+
+    if (scope === 'client') {
+      this.forgetForIssuer(secrets.clientInfoByIssuer, this.issuerKey(ctx))
+    } else if (scope === 'tokens') {
+      this.forgetForIssuer(secrets.tokensByIssuer, this.issuerKey(ctx))
+    } else if (scope === 'verifier') {
+      secrets.codeVerifier = undefined
+    }
+    await this.writeSecrets(secrets)
+  }
+}

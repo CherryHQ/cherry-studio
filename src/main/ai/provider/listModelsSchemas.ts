@@ -1,0 +1,339 @@
+/**
+ * API Response Schemas for model listing
+ * Used exclusively by listModels.ts
+ *
+ * All object schemas use z.looseObject() to tolerate unknown fields
+ * from providers — prevents parse failures when APIs add new fields.
+ */
+import * as z from 'zod'
+
+// === OpenAI-compatible (also used by OpenRouter, PPIO, etc.) ===
+
+const OpenAIModelSchema = z.looseObject({
+  id: z.string(),
+  name: z.string().optional(),
+  object: z.string().optional().default('model'),
+  created: z.number().optional(),
+  owned_by: z.string().optional()
+})
+
+const OpenAIModelItemSchema = z.unknown().transform((model) => {
+  const parsed = OpenAIModelSchema.safeParse(model)
+  return parsed.success ? parsed.data : undefined
+})
+
+export const OpenAIModelsResponseSchema = z
+  .object({
+    data: z.array(OpenAIModelItemSchema),
+    object: z.string().optional()
+  })
+  .transform((response) => {
+    const data = response.data.filter((model): model is z.output<typeof OpenAIModelSchema> => model !== undefined)
+    return {
+      ...response,
+      data,
+      skippedModelCount: response.data.length - data.length
+    }
+  })
+
+// === GitHub Copilot (/models) ===
+export const CopilotModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      object: z.string().optional().default('model'),
+      created: z.number().optional(),
+      owned_by: z.string().optional(),
+      name: z.string().optional(),
+      vendor: z.string().optional(),
+      version: z.string().optional(),
+      preview: z.boolean().optional(),
+      model_picker_enabled: z.boolean().optional(),
+      policy: z
+        .looseObject({
+          state: z.string().optional(),
+          terms: z.string().optional()
+        })
+        .optional()
+    })
+  ),
+  object: z.string().optional()
+})
+
+// === Ollama ===
+
+export const OllamaTagsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      name: z.string(),
+      model: z.string().optional(),
+      modified_at: z.string().optional(),
+      size: z.number().optional(),
+      digest: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
+      details: z
+        .looseObject({
+          parent_model: z.string().optional(),
+          format: z.string().optional(),
+          family: z.string().optional(),
+          families: z
+            .array(z.string())
+            .nullable()
+            .optional()
+            .transform((v) => v ?? undefined),
+          parameter_size: z.string().optional(),
+          quantization_level: z.string().optional()
+        })
+        .optional()
+    })
+  )
+})
+
+/**
+ * `POST /api/show`. `model_info` keys are architecture-prefixed
+ * (`llama.context_length`, `qwen3.context_length`, …), so the architecture has to be
+ * read first — `/api/tags` carries no context length at all.
+ */
+export const OllamaShowResponseSchema = z.looseObject({
+  model_info: z.record(z.string(), z.unknown()).optional()
+})
+
+// === Gemini ===
+
+export const GeminiModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      name: z.string(),
+      displayName: z.string().optional(),
+      description: z.string().optional(),
+      version: z.string().optional(),
+      baseModelId: z.string().optional(),
+      inputTokenLimit: z.number().optional(),
+      outputTokenLimit: z.number().optional(),
+      supportedGenerationMethods: z.array(z.string()).optional()
+    })
+  ),
+  nextPageToken: z.string().optional()
+})
+
+// === Vertex AI Model Garden ===
+
+export const VertexPublisherModelsResponseSchema = z.object({
+  publisherModels: z
+    .array(
+      z.looseObject({
+        name: z.string(),
+        displayName: z.string().optional(),
+        description: z.string().optional(),
+        versionId: z.string().optional(),
+        launchStage: z.string().optional(),
+        versionState: z.string().optional()
+      })
+    )
+    .optional()
+    .default([]),
+  nextPageToken: z.string().optional()
+})
+
+// === Together ===
+
+export const TogetherModelsResponseSchema = z.array(
+  z.looseObject({
+    id: z.string(),
+    display_name: z.string().optional(),
+    organization: z.string().optional(),
+    description: z.string().optional(),
+    context_length: z.number().optional(),
+    pricing: z
+      .looseObject({
+        input: z.number().optional(),
+        output: z.number().optional()
+      })
+      .optional()
+  })
+)
+
+// === LM Studio (/api/v1/models) ===
+
+export const LMStudioModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      key: z.string(),
+      display_name: z.string().nullish(),
+      capabilities: z
+        .looseObject({ vision: z.boolean().nullish(), trained_for_tool_use: z.boolean().nullish() })
+        .nullish(),
+      type: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      publisher: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      max_context_length: z
+        .number()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
+// === NewAPI (extends OpenAI with endpoint types) ===
+
+export const NewApiModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      object: z.string().optional().default('model'),
+      created: z.number().optional(),
+      owned_by: z.string().optional(),
+      supported_endpoint_types: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  ),
+  object: z.string().optional()
+})
+
+// === TokenDance ===
+
+export const TokenDanceModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      created: z.number().optional(),
+      description: z.string().optional(),
+      context_length: z.number().optional(),
+      supported_protocols: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
+// === OVMS (OpenVINO Model Server) ===
+
+export const OVMSConfigResponseSchema = z.record(
+  z.string(),
+  z.object({
+    model_version_status: z
+      .array(
+        z.looseObject({
+          state: z.string(),
+          status: z
+            .looseObject({
+              error_code: z.string().optional(),
+              error_message: z.string().optional()
+            })
+            .optional()
+        })
+      )
+      .optional()
+  })
+)
+
+// === Vercel AI Gateway (/v3/ai/config) ===
+
+export const VercelGatewayModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      modelType: z.string().optional(),
+      specification: z
+        .looseObject({
+          specificationVersion: z.string().optional(),
+          provider: z.string().optional(),
+          modelId: z.string().optional(),
+          type: z.string().optional()
+        })
+        .optional()
+    })
+  )
+})
+
+// === Anthropic (/v1/models) ===
+
+export const AnthropicModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      display_name: z.string().optional(),
+      created_at: z.string().optional()
+    })
+  ),
+  has_more: z.boolean().optional()
+})
+
+// === AIHubMix ===
+
+export const AIHubMixModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      model_id: z.string(),
+      model_name: z.string().optional(),
+      developer_id: z.number().optional(),
+      desc: z.string().optional(),
+      pricing: z
+        .looseObject({
+          cache_read: z.number().optional(),
+          cache_write: z.number().optional(),
+          input: z.number().optional(),
+          output: z.number().optional()
+        })
+        .optional(),
+      types: z.string().optional(),
+      features: z.string().optional(),
+      input_modalities: z.string().optional(),
+      endpoints: z.string().optional(),
+      max_output: z.number().optional(),
+      context_length: z.number().optional()
+    })
+  ),
+  message: z.string().optional(),
+  success: z.boolean().optional()
+})
+
+// === oMLX ===
+
+export const OmlxModelStatusSchema = z.looseObject({
+  id: z.string(),
+  model_type: z.string().optional(),
+  config_model_type: z.string().optional(),
+  is_hidden: z.boolean().optional(),
+  // The operator's display alias. The server only emits it for a model that has
+  // one configured, so its absence means "no alias" rather than an empty name.
+  model_alias: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  // The server's effective window and its configured output cap, so a
+  // discovered model carries the same limits the server enforces. Either can
+  // be an explicit null (the exposed MarkItDown model reports both that way),
+  // which must not reject the whole response.
+  max_context_window: z
+    .number()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined),
+  max_tokens: z
+    .number()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined)
+})
+
+export const OmlxModelStatusResponseSchema = z.object({
+  models: z.array(OmlxModelStatusSchema)
+})

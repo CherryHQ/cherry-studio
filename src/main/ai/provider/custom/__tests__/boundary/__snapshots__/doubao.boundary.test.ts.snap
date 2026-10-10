@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Doubao (Ark) image boundary > maps the whole canonical bag onto Ark option names 1`] = `
+{
+  "model": "doubao-seedream-5-0-lite",
+  "output_format": "png",
+  "prompt": "a fox",
+  "response_format": "b64_json",
+  "sequential_image_generation": "auto",
+  "sequential_image_generation_options": {
+    "max_images": 4,
+  },
+  "size": "4K",
+  "watermark": false,
+}
+`;

@@ -1,0 +1,54 @@
+import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+
+interface Props {
+  children: React.ReactNode
+}
+
+const ShadowDomRenderer: React.FC<Props> = ({ children }) => {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [shadowRoot, setShadowRoot] = React.useState<ShadowRoot | null>(null)
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+
+    // 创建 shadow root
+    const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' })
+
+    // 获取原始样式表
+    const markdownStyleSheet = Array.from(document.styleSheets).find((sheet) => {
+      try {
+        return Array.from(sheet.cssRules).some((rule: CSSRule) => {
+          return rule.cssText?.includes('.markdown')
+        })
+      } catch {
+        return false
+      }
+    })
+
+    if (markdownStyleSheet) {
+      const style = document.createElement('style')
+      const cssRules = Array.from(markdownStyleSheet.cssRules)
+        .map((rule) => rule.cssText)
+        .join('\n')
+
+      style.textContent = cssRules
+      shadow.appendChild(style)
+    }
+
+    setShadowRoot(shadow)
+  }, [])
+
+  if (!shadowRoot) {
+    return <div ref={hostRef} />
+  }
+
+  return (
+    <div ref={hostRef} style={{ display: 'none' }}>
+      {createPortal(children, shadowRoot)}
+    </div>
+  )
+}
+
+export default ShadowDomRenderer

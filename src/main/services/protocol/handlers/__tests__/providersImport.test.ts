@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { loggerMock, openSettingsInMainWindowMock } = vi.hoisted(() => {
+  const openSettingsInMainWindowMock = vi.fn()
+  const loggerMock = {
+    debug: vi.fn(),
+    error: vi.fn()
+  }
+  return { loggerMock, openSettingsInMainWindowMock }
+})
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => loggerMock
+  }
+}))
+
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  openSettingsInMainWindow: openSettingsInMainWindowMock
+}))
+
+import { handleProvidersProtocolUrl, parseProvidersImportData } from '../providersImport'
+
+const toUrlSafeBase64 = (value: unknown) =>
+  Buffer.from(JSON.stringify(value), 'utf-8').toString('base64').replaceAll('+', '_').replaceAll('/', '-')
+
+describe('providersImport protocol handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('opens provider settings with decoded provider import data', async () => {
+    const config = {
+      id: 'custom-openai',
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-test',
+      name: 'Custom OpenAI',
+      type: 'openai'
+    }
+    const data = toUrlSafeBase64(config)
+
+    await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
+
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith(
+      `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
+    )
+  })
+
+  it('does not open settings when provider import data is invalid', async () => {
+    await handleProvidersProtocolUrl(new URL('cherrystudio://providers/api-keys?v=1&data=not-json'))
+
+    expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
+    expect(loggerMock.error).toHaveBeenCalled()
+  })
+
+  it('preserves standard base64 plus and slash characters through URL parsing', async () => {
+    const config = { id: 'custom-openai', apiKey: 'sk-1919-Ͽ' }
+    const data = Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
+
+    expect(data).toContain('+')
+    expect(data).toContain('/')
+
+    await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
+
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith(
+      `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
+    )
+  })
+
+  it('parses wrapped legacy provider import payloads', () => {
+    const payload = Buffer.from("({'id':'custom-openai'})", 'utf-8').toString('base64')
+
+    expect(parseProvidersImportData(payload)).toBe(JSON.stringify({ id: 'custom-openai' }))
+  })
+
+  it('preserves standard JSON string values with apostrophes and parentheses', () => {
+    const config = {
+      id: 'custom-openai',
+      name: "Bob's OpenAI (EU)"
+    }
+    const payload = Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
+
+    expect(parseProvidersImportData(payload)).toBe(JSON.stringify(config))
+  })
+})

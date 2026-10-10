@@ -1,0 +1,75 @@
+/**
+ * Creator registry — the ONLY hand-maintained source for the model catalog.
+ *
+ * `data/models.json` is generated (see `scripts/generate-catalog.ts`): each creator supplies its model
+ * LIST (from its own API and/or hand-written entries), and metadata is enriched from
+ * models.dev/OpenRouter. You never edit `models.json` by hand — add/override in a creator here instead.
+ */
+import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
+
+/**
+ * A model a creator declares by hand. It is a Partial `ModelConfig` — `ownedBy` comes from the creator and
+ * `metadata` is set by the generator, so only `id` is required. Reuses the schema type; nothing is
+ * re-declared. Use it to ADD models the API/sources miss (new releases, AIGC, `imageGeneration`
+ * widget specs models.dev never has) or to override any field.
+ */
+export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & {
+  id: string
+}
+
+export interface Creator {
+  /** Canonical creator id — becomes every model's `ownedBy`. Never a host/gateway. */
+  id: string
+  name: string
+  /**
+   * Most native source: fetch this creator's list from its OWN `/models` API, parsing its response shape
+   * (each creator differs). Reads the creator's key from env; if the key is absent or the call fails, the
+   * generator falls back to the models.dev fields below. See `./_api.ts` for shared helpers.
+   */
+  fetchModels?: () => Promise<CreatorModel[]>
+  /** Fallback list source: models.dev provider key(s) whose listing is this creator's catalog. */
+  modelsDevProviders?: string[]
+  /** Fallback: claim every models.dev/OpenRouter model whose `family` matches (assigns ownedBy). */
+  families?: string[]
+  /** Fallback: claim every canonical id matching these prefixes. */
+  idPrefixes?: string[]
+  /**
+   * Canonical id-prefixes of THIS creator's models whose provider-native tools
+   * coexist with function declarations in one request (e.g. Gemini 3+). Absent
+   * models default to conflict-prone — the safe direction for unknown SKUs.
+   * Compiled into `server-tool-constraints.gen.ts`.
+   */
+  serverToolFunctionMixing?: string[]
+  /**
+   * Reasoning efforts the provider-native web-search tool rejects, declared as
+   * id patterns over THIS creator's models (generation-only regex, expanded to
+   * exact ids — mirrors the effort-vocabulary declarations above).
+   */
+  webSearchUnsupportedEfforts?: Array<{ pattern: string; efforts: string[] }>
+  /**
+   * Curated reasoning knowledge as DATA (no runtime regex module): the single
+   * rule table for THIS creator's id patterns. PROFILE rules (default) assert
+   * "this SKU reasons" — with knobs (effort vocabulary / thinking toggle /
+   * budget range) or none (fixed reasoner) — and thereby feed the ingest
+   * membership gate; TEMPLATE rules (`template: true`) carry a knob shape for
+   * a deliberately broad family pattern without asserting membership. The
+   * generator uses the knob parts to fill/complete per-model `controls` when
+   * models.dev's `reasoning_options` are missing or partial, and compiles the
+   * full table into `patterns/reasoning-families.gen.ts` for custom-model
+   * inference at runtime. NEVER declare a reasoning format here — the wire
+   * dialect follows the serving provider, not the model family.
+   */
+  reasoningFamilies?: ReasoningFamilyRule[]
+  /** Hand-written models — always merged in and winning over the API/sources. */
+  models?: CreatorModel[]
+  /**
+   * Default model kind for creators whose models are all embedders/rerankers but don't say so in their id
+   * (`bge-m3`, `voyage-4-lite`, `jina-clip`). The generator tags these with the `embedding`/`rerank`
+   * capability — models.dev mislabels them as text. An id containing `rerank` always wins as `rerank`.
+   */
+  kind?: 'embedding' | 'rerank'
+}
+
+export function defineCreator(creator: Creator): Creator {
+  return creator
+}

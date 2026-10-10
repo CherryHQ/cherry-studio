@@ -1,0 +1,128 @@
+import { render, screen } from '@testing-library/react'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+
+import TranslateOutputPane from '../TranslateOutputPane'
+
+vi.mock('react-i18next', () => {
+  const t = (key: string) => key
+  return { initReactI18next: { type: '3rdParty', init: vi.fn() }, useTranslation: () => ({ t }) }
+})
+
+// The independently tested diagram preview is the heavy leaf; keep the real app pipeline.
+vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
+  default: () => <div role="img" aria-label="Mermaid chart" />
+}))
+
+// The renderer-wide setup substitutes a text-echo StreamingMarkdown, which is
+// exactly the regression guarded here — opt back into the real @cherrystudio/ui.
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
+const baseProps = () => ({
+  translatedContent: '',
+  enableMarkdown: false,
+  translating: false,
+  copied: false,
+  onCopy: vi.fn(),
+  onExportToNotes: vi.fn(),
+  onScroll: vi.fn()
+})
+
+class ImmediateIntersectionObserver implements IntersectionObserver {
+  readonly root = null
+  readonly rootMargin = '0px'
+  readonly scrollMargin = '0px'
+  readonly thresholds = [0]
+
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+
+  disconnect() {}
+
+  observe(target: Element) {
+    this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this)
+  }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
+
+  unobserve() {}
+}
+
+beforeAll(() => {
+  vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver)
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('TranslateOutputPane', () => {
+  it('renders streamed output as formatted markdown, not the raw source', () => {
+    const props = baseProps()
+    props.enableMarkdown = true
+    props.translating = true
+    props.translatedContent = '## Streamed title\n\n**bold** pick:\n\n- one\n- two'
+
+    const { container, rerender } = render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(screen.getByRole('heading', { name: 'Streamed title' })).toBeInTheDocument()
+    // Streamdown renders bold as a marked span (data-streamdown="strong"), not a <strong> tag.
+    expect(container.querySelector('[data-streamdown="strong"]')).toHaveTextContent('bold')
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    // A plain-text fallback would echo the markers verbatim.
+    const output = container.querySelector('[data-ui="translate.output"]')
+    expect(output?.textContent).not.toContain('##')
+    expect(output?.textContent).not.toContain('**')
+
+    // Later stream frames keep the formatted rendering.
+    props.translatedContent += '\n- three'
+    rerender(<TranslateOutputPane {...props} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('keeps the raw source as plain text when markdown is disabled', () => {
+    const props = baseProps()
+    props.translatedContent = '**bold** pick'
+
+    const { container } = render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(screen.getByText('**bold** pick')).toBeInTheDocument()
+    expect(container.querySelector('.markdown')).toBeNull()
+    expect(container.querySelector('[data-streamdown="strong"]')).toBeNull()
+  })
+
+  it('renders a fenced Mermaid translation as a diagram', async () => {
+    const props = baseProps()
+    props.enableMarkdown = true
+    props.translatedContent = '```mermaid theme={null}\ngraph TB\n  A["Translated label"]\n```'
+
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(await screen.findByRole('img', { name: 'Mermaid chart' })).toBeInTheDocument()
+    expect(screen.queryByText(/graph TB/)).not.toBeInTheDocument()
+  })
+
+  it('shows the processing indicator while waiting for output', () => {
+    const props = baseProps()
+    props.translating = true
+
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(screen.getByText('translate.processing')).toBeInTheDocument()
+  })
+
+  it('shows translated content length and an enabled copy button', () => {
+    const props = baseProps()
+    props.translatedContent = 'partial output'
+
+    render(<TranslateOutputPane {...props} />, { wrapper: CodeStyleProvider })
+
+    expect(screen.getByText('partial output')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+  })
+})

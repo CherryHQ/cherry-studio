@@ -1,0 +1,39 @@
+name: Re-run CI on base branch change
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - v2
+    types: [edited]
+
+jobs:
+  rerun-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    if: github.event.changes.base != null
+    steps:
+      - name: Re-run latest CI workflow for this PR
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              head_sha: context.payload.pull_request.head.sha,
+              per_page: 1,
+              status: 'completed',
+            });
+            if (runs.data.workflow_runs.length > 0) {
+              await github.rest.actions.reRunWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runs.data.workflow_runs[0].id,
+              });
+              console.log(`Re-triggered CI run ${runs.data.workflow_runs[0].id}`);
+            } else {
+              console.log('No completed CI run found for this SHA, skipping re-run');
+            }

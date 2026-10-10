@@ -1,0 +1,57 @@
+diff --git a/dist/index.js b/dist/index.js
+index 88c405a000d21b3631eaa378690907c5527b8eaf..e03e66440c7c93aee38adf57df3096c6fefcd96d 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -82,7 +82,6 @@ module.exports = __toCommonJS(index_exports);
+ 
+ // src/utils.ts
+ var import_axios = __toESM(require("axios"));
+-var import_js_tiktoken = require("js-tiktoken");
+ var BASE_URL = "https://api.tavily.com";
+ var DEFAULT_MODEL_ENCODING = "gpt-3.5-turbo";
+ var DEFAULT_MAX_TOKENS = 4e3;
+@@ -97,8 +96,7 @@ function post(endpoint, body, apiKey) {
+   });
+ }
+ function getTotalTokensFromString(str, encodingName = DEFAULT_MODEL_ENCODING) {
+-  const encoding = (0, import_js_tiktoken.encodingForModel)(encodingName);
+-  return encoding.encode(str).length;
++  return 0;
+ }
+ function getMaxTokensFromList(data, maxTokens = DEFAULT_MAX_TOKENS) {
+   var result = [];
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0a9ea6a0add8d709e6721e806571f373d9fe0487..b81f1ea48a2b2a30ee98d53980a1b04ea3fdc5d4 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -49,7 +49,6 @@ var __async = (__this, __arguments, generator) => {
+ 
+ // src/utils.ts
+ import axios from "axios";
+-import { encodingForModel } from "js-tiktoken";
+ var BASE_URL = "https://api.tavily.com";
+ var DEFAULT_MODEL_ENCODING = "gpt-3.5-turbo";
+ var DEFAULT_MAX_TOKENS = 4e3;
+@@ -64,8 +63,7 @@ function post(endpoint, body, apiKey) {
+   });
+ }
+ function getTotalTokensFromString(str, encodingName = DEFAULT_MODEL_ENCODING) {
+-  const encoding = encodingForModel(encodingName);
+-  return encoding.encode(str).length;
++  return 0;
+ }
+ function getMaxTokensFromList(data, maxTokens = DEFAULT_MAX_TOKENS) {
+   var result = [];
+diff --git a/package.json b/package.json
+index 36d4a613166a7906c1dc5377a89dc0a65f746f73..dc6e0e9363046755cad123e627cc270a2e3580d1 100644
+--- a/package.json
++++ b/package.json
+@@ -36,7 +36,6 @@
+     "typescript": "^5.6.2"
+   },
+   "dependencies": {
+-    "axios": "^1.7.7",
+-    "js-tiktoken": "^1.0.14"
++    "axios": "^1.7.7"
+   }
+ }

@@ -1,0 +1,2 @@
+{"level":"error","message":"unable to verify the first certificate","stack":"Error: unable to verify the first certificate\n    at TLSSocket.onConnectSecure (node:_tls_wrap:1000:34)","timestamp":"2026-08-20 12:00:00"}
+{"level":"error","message":"Provider endpoint failed with net::ERR_CERT_AUTHORITY_INVALID","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 12:01:00"}

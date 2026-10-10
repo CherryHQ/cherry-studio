@@ -1,0 +1,268 @@
+import { loggerService } from '@logger'
+import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
+
+const logger = loggerService.withContext('oauth')
+
+const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
+const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
+const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
+
+export const oauthWithSiliconFlow = async (setKey) => {
+  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
+      setKey(event.data[0]['secretKey'])
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
+export const oauthWithAihubmix = async (setKey) => {
+  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = async (event) => {
+    const data = event.data
+
+    if (data && data.key === 'cherry_studio_oauth_callback') {
+      const { iv, encryptedData } = data.data
+
+      try {
+        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
+        const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
+        const { api_keys } = JSON.parse(decryptedData)
+        if (api_keys && api_keys.length > 0) {
+          setKey(api_keys[0].value)
+          popup?.close()
+          window.removeEventListener('message', messageHandler)
+        }
+      } catch (error) {
+        logger.error('[oauthWithAihubmix] error', error as Error)
+        popup?.close()
+        toast.error(i18n.t('settings.provider.oauth.error'))
+      }
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
+export const oauthWithPPIO = async (setKey) => {
+  const redirectUri = 'cherrystudio://'
+  const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
+
+  void openExternalWebsite(authUrl)
+
+  if (!setKey) {
+    logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
+    return
+  }
+
+  logger.debug('[PPIO OAuth] Setting up protocol listener')
+
+  return new Promise<string>((resolve, reject) => {
+    const removeListener = ipcApi.on('navigation.protocol_data', async (data) => {
+      try {
+        const url = new URL(data.url)
+        const params = new URLSearchParams(url.search)
+        const code = params.get('code')
+
+        if (!code) {
+          reject(new Error('No authorization code received'))
+          return
+        }
+
+        if (!PPIO_APP_SECRET) {
+          reject(
+            new Error('PPIO_APP_SECRET not configured. Please set RENDERER_VITE_PPIO_APP_SECRET environment variable.')
+          )
+          return
+        }
+        const formData = new URLSearchParams({
+          client_id: PPIO_CLIENT_ID,
+          client_secret: PPIO_APP_SECRET,
+          code: code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri
+        })
+        const tokenResponse = await fetch('https://ppio.com/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: formData.toString()
+        })
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text()
+          logger.error(`[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
+          throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
+        }
+
+        const tokenData = await tokenResponse.json()
+        const accessToken = tokenData.access_token
+
+        if (accessToken) {
+          setKey(accessToken)
+          resolve(accessToken)
+        } else {
+          reject(new Error('No access token received'))
+        }
+      } catch (error) {
+        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
+        reject(error)
+      } finally {
+        removeListener()
+      }
+    })
+  })
+}
+
+export const oauthWith302AI = async (setKey) => {
+  const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data && event.data.data.apikey !== undefined) {
+      setKey(event.data.data.apikey)
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
+export const oauthWithAiOnly = async (setKey) => {
+  const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
+
+  const popup = window.open(
+    authUrl,
+    'login',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
+      setKey(event.data[0]['secretKey'])
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
+export interface NewApiOAuthConfig {
+  oauthServer: string
+  apiHost?: string
+  requestId?: string
+}
+
+/** CherryIN authorization and HTTP callback are handled in the main process. */
+export const oauthWithCherryIn = async (
+  setKey: (key: string) => void | Promise<void>,
+  config: NewApiOAuthConfig
+): Promise<string> => {
+  const result = await ipcApi.request('cherryin.sign_in', {
+    requestId: config.requestId ?? crypto.randomUUID(),
+    oauthServer: config.oauthServer,
+    apiHost: config.apiHost
+  })
+  if (!result.apiKeys) throw new Error('No API keys received')
+  await setKey(result.apiKeys)
+  return result.apiKeys
+}
+
+export const oauthWithTokenDance = async (setKey) => {
+  try {
+    const apiKey = await ipcApi.request('oauth.tokendance.authorize_api_key')
+    setKey(apiKey)
+  } catch (error) {
+    logger.error('[oauthWithTokenDance] error', error as Error)
+    toast.error(i18n.t('settings.provider.oauth.error'))
+  }
+}
+
+export const providerCharge = async (provider: string) => {
+  const lang = await getLanguageCode()
+  const chargeUrlMap = {
+    silicon: {
+      url: 'https://cloud.siliconflow.cn/expensebill'
+    },
+    aihubmix: {
+      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`
+    },
+    ppio: {
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing'
+    },
+    '302ai': {
+      url: 'https://dash.302.ai/charge'
+    },
+    aionly: {
+      url: `https://maas.aiionly.com/recharge`
+    },
+    tokendance: {
+      url: 'https://tokendance.space/credits'
+    }
+  }
+
+  const { url } = chargeUrlMap[provider]
+
+  await openExternalWebsite(url)
+}
+
+export const providerBills = async (provider: string) => {
+  const lang = await getLanguageCode()
+  const billsUrlMap = {
+    silicon: {
+      url: 'https://cloud.siliconflow.cn/bills'
+    },
+    aihubmix: {
+      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`
+    },
+    ppio: {
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details'
+    },
+    '302ai': {
+      url: 'https://dash.302.ai/charge'
+    },
+    aionly: {
+      url: `https://maas.aiionly.com/billManagement`
+    },
+    tokendance: {
+      url: 'https://tokendance.space/activity/requests'
+    }
+  }
+
+  const { url } = billsUrlMap[provider]
+
+  await openExternalWebsite(url)
+}

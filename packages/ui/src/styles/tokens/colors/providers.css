@@ -1,0 +1,165 @@
+/**
+ * Semantic Value Providers - Light & Dark Mode
+ *
+ * Internal `--cs-*` values that back the public semantic contract
+ * (`shadcn.css` / `product.css`). These are providers, not the public API:
+ * components consume the unprefixed contract, never these `--cs-*` names.
+ *
+ * The canonical Cherry Studio feedback contract lives here alongside the other
+ * providers. The frozen legacy status palette it currently draws from stays in
+ * `status-legacy.css` (shrink-only compatibility).
+ */
+
+:root {
+  /* Brand Colors */
+  --cs-primary: var(--cs-brand-500);
+  --cs-destructive: var(--cs-red-500);
+  --cs-destructive-hover: var(--cs-red-400);
+  --cs-success: var(--cs-green-500);
+  --cs-warning: var(--cs-amber-500);
+  --cs-info: var(--cs-blue-500);
+
+  /* Background & Foreground */
+  --cs-background: var(--cs-white);
+  --cs-background-subtle: oklch(0 0 0 / 0.02);
+  --cs-foreground: oklch(0.213 0 0);
+  --cs-muted-foreground: oklch(0.556 0 0);
+  --cs-foreground-tertiary: oklch(0.669 0 0);
+  --cs-foreground-disabled: var(--cs-foreground-tertiary);
+
+  /* Card & Popover */
+  --cs-card: var(--cs-white);
+  --cs-popover: var(--cs-white);
+
+  /* Border */
+  --cs-border: oklch(0 0 0 / 0.1);
+  --cs-border-subtle: oklch(0 0 0 / 0.04);
+  --cs-border-strong: oklch(0 0 0 / 0.2);
+  --cs-border-selected: oklch(0 0 0 / 0.3);
+
+  /* Ring (Focus) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
+
+  /* UI Element Colors */
+  --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(0 0 0 / 0.1);
+  --cs-secondary-active: oklch(0 0 0 / 0.15);
+  --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
+  --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
+  --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: oklch(0.9672 0 0);
+  --cs-sidebar-accent: oklch(0.97 0 0);
+
+  /* Surface-paired foregrounds */
+  --cs-card-foreground: oklch(0.145 0 0);
+  --cs-popover-foreground: oklch(0.145 0 0);
+  --cs-secondary-foreground: oklch(0.205 0 0);
+  --cs-accent-foreground: oklch(0.205 0 0);
+
+  /* Foregrounds used on solid colored fills */
+  --cs-primary-foreground: oklch(0.985 0 0);
+  --cs-destructive-foreground: var(--cs-white);
+
+  /* Input border */
+  --cs-input: oklch(0.922 0 0);
+
+  /* Sidebar sub-palette */
+  --cs-sidebar-foreground: oklch(0.145 0 0);
+  --cs-sidebar-primary: oklch(0.205 0 0);
+  --cs-sidebar-primary-foreground: oklch(0.985 0 0);
+  --cs-sidebar-accent-foreground: oklch(0.205 0 0);
+  --cs-sidebar-border: oklch(0.922 0 0);
+  --cs-sidebar-ring: oklch(0.708 0 0);
+
+  /* Canonical Cherry Studio feedback contract.
+   * Base intents are defined above; subtle/border pairs draw from the frozen
+   * legacy status palette in status-legacy.css during migration. */
+  --cs-error: var(--cs-error-base);
+  --cs-error-subtle: var(--cs-error-bg);
+  --cs-error-subtle-foreground: var(--cs-error-text);
+
+  --cs-success-subtle: var(--cs-success-bg);
+  --cs-success-subtle-foreground: var(--cs-green-800);
+  --cs-success-border: var(--cs-green-200);
+
+  --cs-warning-subtle: var(--cs-warning-bg);
+  --cs-warning-subtle-foreground: var(--cs-amber-800);
+  --cs-warning-border: var(--cs-amber-200);
+
+  --cs-info-subtle: var(--cs-info-bg);
+  --cs-info-subtle-foreground: var(--cs-blue-800);
+  --cs-info-border: var(--cs-blue-200);
+}
+
+/* Dark Mode */
+.dark {
+  --cs-success: var(--cs-green-400);
+  --cs-warning: var(--cs-amber-400);
+  --cs-info: var(--cs-blue-400);
+
+  /* Background & Foreground */
+  --cs-background: oklch(0.209 0 0 / 0.55);
+  --cs-background-subtle: oklch(1 0 0 / 0.02);
+  --cs-foreground: oklch(0.931 0 0);
+  --cs-muted-foreground: oklch(0.708 0 0);
+  --cs-foreground-tertiary: oklch(0.559 0 0);
+
+  /* Card & Popover — surfaces stack via color (DESIGN.md): the higher the
+   * layer, the lighter the surface, so popovers sit ABOVE cards, not below. */
+  --cs-card: var(--cs-neutral-900);
+  --cs-popover: var(--cs-neutral-800);
+
+  /* Border */
+  --cs-border: oklch(1 0 0 / 0.1);
+  --cs-border-subtle: oklch(1 0 0 / 0.05);
+  --cs-border-strong: oklch(1 0 0 / 0.2);
+  --cs-border-selected: oklch(1 0 0 / 0.3);
+
+  /* Ring (Focus) - 保持不变 */
+  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+
+  /* UI Element Colors - Dark Mode */
+  --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(1 0 0 / 0.2);
+  --cs-secondary-active: oklch(1 0 0 / 0.25);
+  --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
+  --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
+  --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: oklch(0.2393 0 0);
+  --cs-sidebar-accent: oklch(0.269 0 0);
+
+  /* Surface-paired foregrounds */
+  --cs-card-foreground: oklch(0.985 0 0);
+  --cs-popover-foreground: oklch(0.985 0 0);
+  --cs-secondary-foreground: oklch(0.985 0 0);
+  --cs-accent-foreground: oklch(0.985 0 0);
+
+  /* Foregrounds used on solid colored fills */
+  --cs-primary-foreground: oklch(0.205 0 0);
+  --cs-destructive-foreground: var(--cs-white);
+
+  /* Input border */
+  --cs-input: oklch(0.269 0 0);
+
+  /* Sidebar sub-palette */
+  --cs-sidebar-foreground: oklch(0.985 0 0);
+  --cs-sidebar-primary: oklch(0.488 0.243 264.376);
+  --cs-sidebar-primary-foreground: oklch(0.985 0 0);
+  --cs-sidebar-accent-foreground: oklch(0.985 0 0);
+  --cs-sidebar-border: oklch(0.269 0 0);
+  --cs-sidebar-ring: oklch(0.439 0 0);
+
+  /* Canonical Cherry Studio feedback contract */
+  --cs-success-subtle-foreground: var(--cs-green-100);
+  --cs-success-border: var(--cs-green-700);
+
+  --cs-warning-subtle-foreground: var(--cs-amber-100);
+  --cs-warning-border: var(--cs-amber-700);
+
+  --cs-info-subtle-foreground: var(--cs-blue-100);
+  --cs-info-border: var(--cs-blue-700);
+}

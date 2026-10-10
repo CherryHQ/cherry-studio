@@ -1,0 +1,122 @@
+import type { Span } from '@opentelemetry/api'
+import { describe, expect, it } from 'vitest'
+
+import {
+  applyTurnInputAttributes,
+  applyTurnOutputAttributes,
+  MAX_TURN_INPUT_CHARS,
+  MAX_TURN_OUTPUT_CHARS
+} from '../turnSpanAttributes'
+
+function fakeSpan() {
+  const attributes: Record<string, unknown> = {}
+  const span = {
+    setAttribute: (key: string, value: unknown) => {
+      attributes[key] = value
+    }
+  } as unknown as Span
+  return { span, attributes }
+}
+
+describe('applyTurnInputAttributes', () => {
+  it('sets gen_ai identity + the last user message as the inputs', () => {
+    const { span, attributes } = fakeSpan()
+    applyTurnInputAttributes(span, {
+      modelId: 'openai::gpt-4',
+      topicId: 'topic-1',
+      operation: 'invoke_agent',
+      messages: [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'first' }] },
+        { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'answer' }] },
+        { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'second question' }] }
+        // biome-ignore lint/suspicious/noExplicitAny: minimal UIMessage fixture
+      ] as any
+    })
+
+    expect(attributes['gen_ai.operation.name']).toBe('invoke_agent')
+    expect(attributes['gen_ai.conversation.id']).toBe('topic-1')
+    expect(attributes['gen_ai.provider.name']).toBe('openai')
+    expect(attributes['gen_ai.request.model']).toBe('gpt-4')
+    expect(attributes.inputs).toBe('second question')
+    expect(attributes['gen_ai.agent.name']).toBeUndefined() // not provided
+  })
+
+  it('sets gen_ai.agent.name when an agent name is provided', () => {
+    const { span, attributes } = fakeSpan()
+    applyTurnInputAttributes(span, {
+      modelId: 'anthropic::claude',
+      topicId: 't',
+      operation: 'invoke_agent',
+      agentName: 'Research Agent'
+    })
+    expect(attributes['gen_ai.agent.name']).toBe('Research Agent')
+  })
+
+  it('does NOT set token usage (that is message.stats job)', () => {
+    const { span, attributes } = fakeSpan()
+    applyTurnInputAttributes(span, { modelId: 'openai::gpt-4', topicId: 't', operation: 'chat' })
+    expect(Object.keys(attributes)).not.toContain('gen_ai.usage.input_tokens')
+    expect(attributes.inputs).toBeUndefined() // no messages → no prompt
+  })
+})
+
+describe('applyTurnOutputAttributes', () => {
+  it('sets the final answer text + counts tool-call parts', () => {
+    const { span, attributes } = fakeSpan()
+    applyTurnOutputAttributes(span, {
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        { type: 'text', text: 'the ' },
+        { type: 'tool-search', state: 'output-available' },
+        { type: 'text', text: 'answer' },
+        { type: 'dynamic-tool' }
+      ]
+      // biome-ignore lint/suspicious/noExplicitAny: minimal CherryUIMessage fixture
+    } as any)
+
+    expect(attributes.outputs).toBe('the answer')
+    expect(attributes['cs.tool_calls']).toBe(2)
+  })
+
+  it('omits tool-call count when there are no tool parts', () => {
+    const { span, attributes } = fakeSpan()
+    // biome-ignore lint/suspicious/noExplicitAny: minimal fixture
+    applyTurnOutputAttributes(span, { id: 'a', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] } as any)
+    expect(attributes.outputs).toBe('hi')
+    expect(attributes['cs.tool_calls']).toBeUndefined()
+  })
+
+  it('preserves long streaming outputs (~8k chars, issue #19564) without truncation', () => {
+    const { span, attributes } = fakeSpan()
+    const longText = 'a'.repeat(20_000)
+    // biome-ignore lint/suspicious/noExplicitAny: minimal CherryUIMessage fixture
+    applyTurnOutputAttributes(span, { id: 'a', role: 'assistant', parts: [{ type: 'text', text: longText }] } as any)
+    expect(attributes.outputs).toBe(longText)
+  })
+
+  it('still truncates pathological outputs beyond the output cap', () => {
+    const { span, attributes } = fakeSpan()
+    const hugeText = 'b'.repeat(MAX_TURN_OUTPUT_CHARS + 10)
+    // biome-ignore lint/suspicious/noExplicitAny: minimal CherryUIMessage fixture
+    applyTurnOutputAttributes(span, { id: 'a', role: 'assistant', parts: [{ type: 'text', text: hugeText }] } as any)
+    expect(typeof attributes.outputs).toBe('string')
+    expect(attributes.outputs).toContain('[truncated')
+    expect((attributes.outputs as string).startsWith('b'.repeat(MAX_TURN_OUTPUT_CHARS))).toBe(true)
+  })
+
+  it('still caps inputs at the small prompt cap', () => {
+    const { span, attributes } = fakeSpan()
+    const longPrompt = 'p'.repeat(MAX_TURN_INPUT_CHARS + 100)
+    applyTurnInputAttributes(span, {
+      modelId: 'openai::gpt-4',
+      topicId: 't',
+      operation: 'chat',
+      // biome-ignore lint/suspicious/noExplicitAny: minimal UIMessage fixture
+      messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: longPrompt }] }] as any
+    })
+    expect(typeof attributes.inputs).toBe('string')
+    expect((attributes.inputs as string).length).toBeLessThan(longPrompt.length)
+    expect(attributes.inputs).toContain('[truncated')
+  })
+})

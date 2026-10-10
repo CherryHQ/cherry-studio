@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  CreateAgentSessionSchema,
+  ListAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
+  UpdateAgentSessionSchema
+} from '../agentSessions'
+
+describe('AgentSession schemas', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `session-${index}`)
+
+    expect(ListAgentSessionsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+
+  it('accepts workspace changes through the dedicated workspace source body', () => {
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user' }).success).toBe(false)
+  })
+
+  it('rejects workspace fields on the generic session PATCH body', () => {
+    expect(
+      UpdateAgentSessionSchema.safeParse({
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      }).success
+    ).toBe(false)
+    expect(
+      UpdateAgentSessionSchema.safeParse({
+        workspaceId: 'workspace-1'
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts manual-name marker updates', () => {
+    expect(
+      UpdateAgentSessionSchema.parse({
+        name: 'Renamed session',
+        isNameManuallyEdited: true
+      })
+    ).toEqual({
+      name: 'Renamed session',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('allows blank names for untitled placeholder sessions', () => {
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: '',
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(UpdateAgentSessionSchema.parse({ name: '' })).toEqual({ name: '' })
+  })
+
+  it('caps session names at 255 characters, matching topic.name semantics', () => {
+    const maxName = 'a'.repeat(255)
+    const overflowName = 'a'.repeat(256)
+
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: maxName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: overflowName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
+  })
+})

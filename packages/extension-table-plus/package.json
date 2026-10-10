@@ -1,0 +1,93 @@
+{
+  "name": "@cherrystudio/extension-table-plus",
+  "version": "3.0.13",
+  "description": "table extension for tiptap forked from tiptap/extension-table",
+  "keywords": [
+    "tiptap",
+    "tiptap extension"
+  ],
+  "homepage": "https://cherry-ai.com",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CherryHQ/cherry-studio",
+    "directory": "packages/extension-table-plus"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/index.d.ts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./table": {
+      "types": {
+        "import": "./dist/table/index.d.ts",
+        "require": "./dist/table/index.d.cts"
+      },
+      "import": "./dist/table/index.js",
+      "require": "./dist/table/index.cjs"
+    },
+    "./cell": {
+      "types": {
+        "import": "./dist/cell/index.d.ts",
+        "require": "./dist/cell/index.d.cts"
+      },
+      "import": "./dist/cell/index.js",
+      "require": "./dist/cell/index.cjs"
+    },
+    "./header": {
+      "types": {
+        "import": "./dist/header/index.d.ts",
+        "require": "./dist/header/index.d.cts"
+      },
+      "import": "./dist/header/index.js",
+      "require": "./dist/header/index.cjs"
+    },
+    "./kit": {
+      "types": {
+        "import": "./dist/kit/index.d.ts",
+        "require": "./dist/kit/index.d.cts"
+      },
+      "import": "./dist/kit/index.js",
+      "require": "./dist/kit/index.cjs"
+    },
+    "./row": {
+      "types": {
+        "import": "./dist/row/index.d.ts",
+        "require": "./dist/row/index.d.cts"
+      },
+      "import": "./dist/row/index.js",
+      "require": "./dist/row/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "lint": "pnpm --workspace-root exec oxfmt --write packages/extension-table-plus/src && eslint --fix ./src/",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "@tiptap/core": "3.26.1",
+    "@tiptap/pm": "3.26.1",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "tsdown": "^0.22.14",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@tiptap/core": "^3.0.9",
+    "@tiptap/pm": "^3.0.9"
+  },
+  "packageManager": "pnpm@10.27.0"
+}

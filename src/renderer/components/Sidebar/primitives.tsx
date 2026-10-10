@@ -1,0 +1,74 @@
+import { EmojiIcon } from '@cherrystudio/ui'
+import { isEmoji } from '@renderer/utils/naming'
+
+import type { SidebarUser } from './types'
+
+export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
+  return (
+    <>
+      <div
+        className={`pointer-events-none absolute inset-0 border border-[var(--sidebar-active-border)] ${className ?? ''}`}
+      />
+      {glow && (
+        <div className="pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center">
+          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-[var(--sidebar-glow-bg)] blur-[6px]" />
+          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-[var(--sidebar-glow-line)] blur-[2px]" />
+        </div>
+      )}
+    </>
+  )
+}
+
+export function DefaultLogo({ title }: { title: string }) {
+  return (
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
+      {title ? title.slice(0, 1).toUpperCase() : ''}
+    </div>
+  )
+}
+
+/** Returns true if the string is NOT a URL — i.e., should be rendered as text (emoji or initial). */
+function isTextAvatar(str?: string): boolean {
+  if (
+    !str ||
+    str.startsWith('data:') ||
+    str.startsWith('http') ||
+    str.startsWith('/') ||
+    str.startsWith('blob:') ||
+    str.startsWith('file:')
+  ) {
+    return false
+  }
+  return true
+}
+
+function getUserAvatarFallback(user?: SidebarUser) {
+  if (user?.avatar && isTextAvatar(user.avatar)) return user.avatar
+  return user?.name ? user.name.slice(0, 1).toUpperCase() : ''
+}
+
+export function UserAvatar({
+  user,
+  className,
+  ring = true
+}: {
+  user: SidebarUser
+  className?: string
+  ring?: boolean
+}) {
+  const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
+
+  return (
+    <div className={`overflow-hidden rounded-full ${ring ? 'ring-1 ring-border' : ''} ${className ?? ''}`}>
+      {user.avatar && !isTextAvatar(user.avatar) ? (
+        <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+      ) : isEmojiAvatar ? (
+        <EmojiIcon emoji={user.avatar!} fluid />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
+          {getUserAvatarFallback(user)}
+        </div>
+      )}
+    </div>
+  )
+}

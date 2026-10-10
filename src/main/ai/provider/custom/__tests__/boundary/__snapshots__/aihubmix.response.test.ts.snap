@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AiHubMix response boundary (Ideogram branches) > V_2 generate → output.b64_json[].bytesBase64 (wrapped → data: URLs) 1`] = `
+[
+  "data:image/png;base64,QUJD",
+]
+`;
+
+exports[`AiHubMix response boundary (Ideogram branches) > V_3 generate → data[].url 1`] = `
+[
+  "https://img/v3a.png",
+  "https://img/v3b.png",
+]
+`;

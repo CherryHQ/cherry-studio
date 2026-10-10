@@ -1,0 +1,126 @@
+import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 'react'
+
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { TabRouter } from '@renderer/components/layout/TabRouter'
+import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
+import { WINDOW_CONTROLS_OVERLAY_WIDTH } from '@renderer/components/WindowControls'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { useTabs } from '@renderer/hooks/tab'
+import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
+import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
+import { isLinux, isWin } from '@renderer/utils/platform'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import type { SubWindowInitData } from '@shared/types/subWindow'
+
+import { SubWindowTitleBar } from './SubWindowTitleBar'
+
+const WINDOW_FRAME: WindowFrame = { mode: 'window' }
+
+// Mock Webview component (TODO: Replace with actual MinApp/Webview)
+const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
+  <Activity mode={isActive ? 'visible' : 'hidden'}>
+    <div className="flex h-full w-full flex-col items-center justify-center bg-background">
+      <div className="mb-2 text-lg font-bold">Webview App</div>
+      <code className="rounded bg-muted p-2">{url}</code>
+    </div>
+  </Activity>
+)
+
+export const SubWindowAppShell = () => {
+  const { tabs, activeTabId, updateTab, openTab } = useTabs()
+  const initialized = useRef(false)
+  const init = useWindowInitData<SubWindowInitData>()
+  const isFullscreen = useNativeFullscreen()
+
+  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
+  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
+  const handleCloseTab = useCallback(() => {
+    void ipcApi.request('window.close')
+  }, [])
+
+  useCommandHandler('tab.close', handleCloseTab)
+
+  // Initialize tab from WindowManager init data (delivered via useWindowInitData).
+  // First render returns `init === null`; the effect re-runs after one IPC round-trip
+  // when the payload arrives. The `initialized` ref still guards against re-entry.
+  useEffect(() => {
+    if (!init || initialized.current) return
+    initialized.current = true
+
+    openTab(init.url, {
+      id: init.tabId,
+      title: init.title,
+      icon: init.icon,
+      type: init.type || 'route',
+      isPinned: init.isPinned,
+      forceNew: true
+    })
+  }, [init, openTab])
+
+  // Sync internal navigation back to tab state. Mirror the main AppShell:
+  // clear the per-entity icon override so a mini-app logo doesn't stick onto
+  // an unrelated route after navigation inside the same tab.
+  const handleUrlChange = (tabId: string, url: string) => {
+    // Chat / agent tabs are page-titled (topic / session name + emoji set by
+    // their page); only sync the url so navigating topics doesn't wipe them.
+    if (isPageTitledRoute(url)) {
+      updateTab(tabId, { url })
+      return
+    }
+    updateTab(tabId, {
+      url,
+      title: getDefaultRouteTitle(url),
+      icon: undefined,
+      metadata: undefined
+    })
+  }
+
+  return (
+    // The window frame keeps detached-page behavior scoped to this window. The standalone
+    // title bar stays outside every route so hosted pages can keep their normal page chrome.
+    <WindowFrameProvider value={WINDOW_FRAME}>
+      <div
+        data-ui="app.detached-window"
+        className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
+        style={
+          {
+            '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
+          } as CSSProperties
+        }>
+        <SubWindowTitleBar isFullscreen={isFullscreen} />
+        {/* Content Area - Multi MemoryRouter Architecture */}
+        <main className="relative flex-1 overflow-hidden bg-background">
+          {/* Route Tabs: Only render non-dormant tabs */}
+          <ResourceViewSourceProvider>
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
+          </ResourceViewSourceProvider>
+
+          {/* Webview Tabs: Only render non-dormant tabs */}
+          {tabs
+            .filter((t) => t.type === 'webview' && !t.isDormant)
+            .map((tab) => (
+              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
+            ))}
+
+          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
+              route tabs, same as the main AppShell. The cache backing the pool
+              is per-window (Memory tier) so this sub-window manages its own
+              list independently of the main window. */}
+          <MiniAppTabsPool />
+        </main>
+      </div>
+    </WindowFrameProvider>
+  )
+}

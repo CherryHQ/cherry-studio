@@ -1,0 +1,1466 @@
+import { type Canvas, createCanvas } from '@napi-rs/canvas'
+import type { Element as HastElement } from 'hast'
+import * as htmlToImage from 'html-to-image'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: ipcMocks }))
+
+import {
+  captureElement,
+  captureScrollable,
+  captureScrollableAsBlob,
+  captureScrollableAsDataUrl,
+  checkEntityImageSize,
+  convertToBase64,
+  dataUrlToBlob,
+  getImageBlobFromSource,
+  IMAGE_CAPTURE_ATTRIBUTE,
+  imageInputToPreviewUrl,
+  isKatexGeneratedSvg,
+  makeSvgSizeAdaptive,
+  MAX_ENTITY_IMAGE_UPLOAD_BYTES,
+  prepareEntityImageBytes,
+  svgToCanvas,
+  transformImageToPng,
+  waitForCaptureAssets
+} from '../image'
+
+// mock 依赖
+vi.mock('html-to-image', () => ({
+  toCanvas: vi.fn(() =>
+    Promise.resolve({
+      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
+      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
+    })
+  )
+}))
+
+// Deterministic i18n for checkEntityImageSize (avoids depending on real init).
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: string, opts?: Record<string, unknown>) => `${key}:${JSON.stringify(opts)}` }
+}))
+
+beforeEach(() => {
+  ipcMocks.request.mockReset()
+  vi.mocked(htmlToImage.toCanvas).mockReset()
+  vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
+    Promise.resolve({
+      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
+      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
+    } as unknown as HTMLCanvasElement)
+  )
+})
+
+// jsdom's Blob has neither arrayBuffer() nor text().
+const readBlobBytes = (blob: Blob) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(blob)
+  })
+
+describe('utils/image', () => {
+  describe('transformImageToPng', () => {
+    const sourcePixels = [
+      ['A', [255, 0, 0, 255]],
+      ['B', [0, 255, 0, 255]],
+      ['C', [0, 0, 255, 255]],
+      ['D', [255, 255, 0, 255]],
+      ['E', [255, 0, 255, 255]],
+      ['F', [0, 255, 255, 255]]
+    ] as const
+    const labelByRgb = new Map(sourcePixels.map(([label, [red, green, blue]]) => [`${red},${green},${blue}`, label]))
+    let closeBitmap: ReturnType<typeof vi.fn>
+    let outputCanvas: Canvas
+
+    beforeEach(() => {
+      const sourceCanvas = createCanvas(2, 3)
+      const sourceContext = sourceCanvas.getContext('2d')
+      const sourceImageData = sourceContext.createImageData(2, 3)
+      sourceImageData.data.set(sourcePixels.flatMap(([, rgba]) => rgba))
+      sourceContext.putImageData(sourceImageData, 0, 0)
+      closeBitmap = vi.fn()
+      Object.assign(sourceCanvas, { close: closeBitmap })
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(sourceCanvas))
+
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+        if (tagName !== 'canvas') {
+          return createElement(tagName, options)
+        }
+
+        outputCanvas = createCanvas(1, 1)
+        Object.assign(outputCanvas, {
+          toBlob: (callback: BlobCallback, type?: string) => callback(new Blob(['png'], { type }))
+        })
+        return outputCanvas as unknown as HTMLCanvasElement
+      }) as typeof document.createElement)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it.each([
+      ['rotation=90', { flipX: false, flipY: false, rotation: 90 }, 3, 2, ['E', 'C', 'A', 'F', 'D', 'B']],
+      ['rotation=180', { flipX: false, flipY: false, rotation: 180 }, 2, 3, ['F', 'E', 'D', 'C', 'B', 'A']],
+      ['rotation=270', { flipX: false, flipY: false, rotation: 270 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['rotation=-90', { flipX: false, flipY: false, rotation: -90 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['flipX', { flipX: true, flipY: false, rotation: 0 }, 2, 3, ['B', 'A', 'D', 'C', 'F', 'E']],
+      ['flipY', { flipX: false, flipY: true, rotation: 0 }, 2, 3, ['E', 'F', 'C', 'D', 'A', 'B']]
+    ])('bakes $0 into the output dimensions and pixels', async (_name, transform, width, height, expectedPixels) => {
+      const result = await transformImageToPng(new Blob(['source'], { type: 'image/png' }), transform)
+      const imageData = outputCanvas.getContext('2d').getImageData(0, 0, outputCanvas.width, outputCanvas.height)
+      const actualPixels = Array.from({ length: outputCanvas.width * outputCanvas.height }, (_, index) => {
+        const offset = index * 4
+        return labelByRgb.get(`${imageData.data[offset]},${imageData.data[offset + 1]},${imageData.data[offset + 2]}`)
+      })
+
+      expect(result.type).toBe('image/png')
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([width, height])
+      expect(actualPixels).toEqual(expectedPixels)
+      expect(closeBitmap).toHaveBeenCalledOnce()
+    })
+
+    it('expands the output canvas to preserve image corners at an arbitrary angle', async () => {
+      await transformImageToPng(new Blob(['source'], { type: 'image/png' }), {
+        flipX: false,
+        flipY: false,
+        rotation: 45
+      })
+
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([4, 4])
+    })
+  })
+
+  describe('convertToBase64', () => {
+    it('should convert file to base64 string', async () => {
+      const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
+      const result = await convertToBase64(file)
+      expect(typeof result).toBe('string')
+      expect(result).toMatch(/^data:/)
+    })
+  })
+
+  describe('checkEntityImageSize', () => {
+    const makeFile = (size: number): File => {
+      const file = new File(['x'], 'avatar.png', { type: 'image/png' })
+      Object.defineProperty(file, 'size', { value: size })
+      return file
+    }
+
+    it('returns null when the file is within the limit', () => {
+      expect(checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES))).toBeNull()
+    })
+
+    it('returns a localized message when the file exceeds the limit', () => {
+      const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
+      expect(message).toContain('message.error.avatar_image_too_large')
+      expect(message).toContain('10MB')
+    })
+  })
+
+  describe('prepareEntityImageBytes', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('throws a localized retry error when the canvas cannot decode the input', async () => {
+      // No raw fallback: a decode failure (SVG / corrupt / odd format) surfaces so the
+      // user can retry — raw bytes are never sent to main, which could not decode them.
+      vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(new Error('cannot decode')))
+      const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
+
+      await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+    })
+
+    it('cover-crops the largest centered square into a 128×128 WebP', async () => {
+      const close = vi.fn()
+      // 200×100 landscape → centered 100×100 square (sx=50, sy=0) scaled to 128².
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 200, height: 100, close }))
+      const drawImage = vi.fn()
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        drawImage
+      } as unknown as CanvasRenderingContext2D)
+      const webp = new Uint8Array([9, 8, 7])
+      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
+        this: HTMLCanvasElement,
+        cb: BlobCallback
+      ) {
+        cb({ arrayBuffer: async () => webp.buffer } as Blob)
+      })
+
+      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
+
+      expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
+      expect(out).toEqual(webp)
+      expect(close).toHaveBeenCalled()
+    })
+  })
+
+  describe('captureElement', () => {
+    it('should return image data url when elRef.current exists', async () => {
+      const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
+      const result = await captureElement(ref)
+      expect(result).toMatch(/^data:image\/png;base64/)
+    })
+
+    it('should return undefined when elRef.current is null', async () => {
+      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const result = await captureElement(ref)
+      expect(result).toBeUndefined()
+    })
+
+    it('should retry loading html-to-image after a failed dynamic import', async () => {
+      vi.resetModules()
+
+      let failImport = true
+      vi.doMock('html-to-image', () => {
+        if (failImport) {
+          throw new Error('load failed')
+        }
+
+        return {
+          toCanvas: vi.fn(() =>
+            Promise.resolve({
+              toDataURL: vi.fn(() => 'data:image/png;base64,recovered')
+            })
+          )
+        }
+      })
+
+      try {
+        const { captureElement: captureElementWithRetry } = await import('../image')
+        const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
+
+        await expect(captureElementWithRetry(ref)).rejects.toBeUndefined()
+
+        failImport = false
+        await expect(captureElementWithRetry(ref)).resolves.toBe('data:image/png;base64,recovered')
+      } finally {
+        vi.doMock('html-to-image', () => ({
+          toCanvas: htmlToImage.toCanvas
+        }))
+      }
+    })
+  })
+
+  describe('captureScrollable', () => {
+    it('should return canvas when elRef.current exists', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollable(ref)
+      expect(result).toBeTruthy()
+      expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
+    })
+
+    it('should warm up html-to-image before returning the final canvas', async () => {
+      const warmupCanvas = { toDataURL: vi.fn(() => 'warmup') } as unknown as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockResolvedValueOnce(warmupCanvas).mockResolvedValueOnce(finalCanvas)
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(htmlToImage.toCanvas).toHaveBeenCalledTimes(2)
+      expect(result).toBe(finalCanvas)
+    })
+
+    it('should release the warm-up canvas before the final capture', async () => {
+      const warmupCanvas = { width: 100, height: 100 } as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas)
+        .mockResolvedValueOnce(warmupCanvas)
+        .mockImplementationOnce(() => {
+          expect(warmupCanvas.width).toBe(0)
+          expect(warmupCanvas.height).toBe(0)
+          return Promise.resolve(finalCanvas)
+        })
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(result).toBe(finalCanvas)
+    })
+
+    it('marks the capture root during capture and removes the marker afterward', async () => {
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect(node.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(true)
+        return finalCanvas
+      })
+
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('removes the capture marker when capture fails', async () => {
+      vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('capture failed'))
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('should exclude HTML artifacts from image capture', async () => {
+      const div = document.createElement('div')
+      const content = document.createElement('div')
+      const htmlArtifact = document.createElement('div')
+      htmlArtifact.setAttribute('data-html-artifact', '')
+      div.append(content, htmlArtifact)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
+    })
+
+    it('inlines file image sources while capturing and restores them afterward', async () => {
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
+        expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
+        expect(options?.imagePlaceholder).toMatch(/^data:image\//)
+        return finalCanvas
+      })
+
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/avatar.webp'
+      image.srcset = 'file:///tmp/avatar@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+
+      expect(ipcMocks.request).toHaveBeenCalledTimes(1)
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+        handle: { kind: 'path', path: '/tmp/avatar.webp' },
+        options: { mode: 'full', encoding: 'binary' }
+      })
+      expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
+    })
+
+    it('deduplicates identical file image reads during capture', async () => {
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const div = document.createElement('div')
+      const firstImage = document.createElement('img')
+      const secondImage = document.createElement('img')
+      firstImage.src = 'file:///tmp/avatar.webp'
+      secondImage.src = 'file:///tmp/avatar.webp'
+      div.append(firstImage, secondImage)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      expect(ipcMocks.request).toHaveBeenCalledTimes(1)
+      expect(firstImage.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(secondImage.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+    })
+
+    it('continues capture with the placeholder when a file image read fails', async () => {
+      ipcMocks.request.mockRejectedValue(new Error('read failed'))
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
+        const image = node.querySelector('img') as HTMLImageElement
+        expect(image.getAttribute('src')).toBe('file:///tmp/missing.webp')
+        expect(image.hasAttribute('srcset')).toBe(false)
+        expect(options?.imagePlaceholder).toMatch(/^data:image\//)
+        return finalCanvas
+      })
+
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/missing.webp'
+      image.srcset = 'file:///tmp/missing@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+
+      expect(image.getAttribute('src')).toBe('file:///tmp/missing.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/missing@2x.webp 2x')
+    })
+
+    it('restores file image sources when html-to-image capture fails', async () => {
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/webp',
+        version: { mtime: 1, size: 3 }
+      })
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
+        throw new Error('capture failed')
+      })
+
+      const div = document.createElement('div')
+      const image = document.createElement('img')
+      image.src = 'file:///tmp/avatar.webp'
+      image.srcset = 'file:///tmp/avatar@2x.webp 2x'
+      div.appendChild(image)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+
+      expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
+      expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
+    })
+
+    it('applies full-content styles only to the html-to-image clone', async () => {
+      const div = document.createElement('div')
+      div.style.height = '120px'
+      div.style.maxHeight = '240px'
+      div.style.overflow = 'auto'
+      div.style.position = 'relative'
+      div.scrollTop = 32
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 360, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_node, options) => {
+        expect(options).toMatchObject({
+          width: 100,
+          height: 360,
+          canvasWidth: 100,
+          canvasHeight: 360,
+          style: {
+            height: 'auto',
+            maxHeight: 'none',
+            overflow: 'visible',
+            position: 'static',
+            scrollbarWidth: 'none'
+          }
+        })
+        expect(div.style.height).toBe('120px')
+        expect(div.style.maxHeight).toBe('240px')
+        expect(div.style.overflow).toBe('auto')
+        expect(div.style.position).toBe('relative')
+        expect(div.scrollTop).toBe(32)
+        return { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      })
+
+      await captureScrollable(ref)
+    })
+
+    it('should return undefined when elRef.current is null', async () => {
+      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const result = await captureScrollable(ref)
+      expect(result).toBeUndefined()
+    })
+
+    it('should reject if dimension too large', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 40000, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      await expect(captureScrollable(ref)).rejects.toThrow()
+    })
+  })
+
+  describe('captureScrollableImage pipeline routing', () => {
+    const makeEl = (left: number, top: number) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.getBoundingClientRect = () => ({ left, top, width: 100, height: 100 }) as DOMRect
+      return div
+    }
+
+    it('rasterizes an offscreen capture clone via the position-independent pipeline', async () => {
+      const ref = { current: makeEl(-10000, 0) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+
+    it('rasterizes an on-document element via the same clone pipeline (native CDP retired)', async () => {
+      const ref = { current: makeEl(10, 20) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+  })
+
+  describe('captureScrollableAsDataUrl', () => {
+    it('should return data url when canvas exists', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(result).toMatch(/^data:image\/png;base64/)
+    })
+
+    it('should return undefined when canvas is undefined', async () => {
+      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('verified remote-image inlining', () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+    const stubFetch = (contentType: string, body: Uint8Array) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          headers: { get: () => contentType },
+          blob: async () => new Blob([body.slice()], { type: contentType })
+        }))
+      )
+    }
+
+    const makeRoot = (img: HTMLImageElement) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.appendChild(img)
+      return div
+    }
+
+    // jsdom never decodes images, so the settle wait would ride its timeout cap;
+    // settle each swapped-in src on the next macrotask the way a browser decode would.
+    const armJsdomImageSettle = (root: HTMLElement) => {
+      for (const img of root.querySelectorAll('img')) {
+        const observer = new MutationObserver(() => {
+          if ((img.getAttribute('src') ?? '').startsWith('data:')) {
+            observer.disconnect()
+            setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+          }
+        })
+        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+      }
+    }
+
+    const captureWithRasterSpy = async (root: HTMLDivElement) => {
+      armJsdomImageSettle(root)
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        const img = root.querySelector('img') as HTMLImageElement
+        srcAtRaster = img.getAttribute('src') ?? undefined
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+      const result = await captureScrollableAsDataUrl({ current: root })
+      return { result, srcAtRaster }
+    }
+
+    it('inlines a healthy remote image as a data URL', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
+    })
+
+    it('swaps a rate-limited favicon (text/html answer) for the placeholder', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
+    })
+
+    it('dedupes repeated sources into a single fetch', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      Array.from({ length: 3 }).forEach(() => {
+        const img = document.createElement('img')
+        img.setAttribute('src', 'https://icon.horse/icon/same.example')
+        root.appendChild(img)
+      })
+      armJsdomImageSettle(root)
+
+      await captureScrollableAsDataUrl({ current: root })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      vi.unstubAllGlobals()
+    })
+
+    it('leaves data-url images untouched', async () => {
+      const img = document.createElement('img')
+      img.setAttribute('src', 'data:image/png;base64,QUJD')
+      const root = makeRoot(img)
+
+      const { srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(srcAtRaster).toBe('data:image/png;base64,QUJD')
+    })
+
+    it('inlines the srcset-selected candidate (currentSrc), not the src attribute', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://cdn.example.com/photo-small.jpg')
+      img.setAttribute(
+        'srcset',
+        'https://cdn.example.com/photo-small.jpg 480w, https://cdn.example.com/photo-large.jpg 1200w'
+      )
+      img.setAttribute('sizes', '800px')
+      // jsdom performs no srcset/sizes candidate selection; pin the browser's pick.
+      Object.defineProperty(img, 'currentSrc', { value: 'https://cdn.example.com/photo-large.jpg' })
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cdn.example.com/photo-large.jpg',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+      expect(fetchMock).not.toHaveBeenCalledWith('https://cdn.example.com/photo-small.jpg', expect.anything())
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://cdn.example.com/photo-small.jpg')
+      expect(img.getAttribute('srcset')).toContain('photo-large.jpg')
+      vi.unstubAllGlobals()
+    })
+
+    it('aborts a hung remote fetch into the placeholder instead of stalling the export', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://stalled.example.com/broken.png')
+      const root = makeRoot(img)
+      armJsdomImageSettle(root)
+
+      vi.useFakeTimers()
+      try {
+        let srcAtRaster: string | undefined
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcAtRaster = (root.querySelector('img') as HTMLImageElement).getAttribute('src') ?? undefined
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        const settled = captureScrollableAsDataUrl({ current: root })
+        // Covers the settle deadline (5s), the fonts wait (1s) and the per-source abort (10s).
+        await vi.advanceTimersByTimeAsync(20_000)
+        await expect(settled).resolves.toBe('data:image/png;base64,xxx')
+
+        expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+        expect(img.getAttribute('src')).toBe('https://stalled.example.com/broken.png')
+      } finally {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('inlines a healthy image behind hung sources instead of starving it on the shared budget', async () => {
+      const fetchMock = vi.fn((url: string, init?: RequestInit) =>
+        url.endsWith('/healthy.png')
+          ? Promise.resolve({
+              ok: true,
+              status: 200,
+              headers: { get: () => 'image/png' },
+              blob: async () => new Blob([PNG_BYTES.slice()], { type: 'image/png' })
+            })
+          : new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+            })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const srcs = [
+        'https://stalled.example.com/one.png',
+        'https://stalled.example.com/two.png',
+        'https://stalled.example.com/three.png',
+        'https://cdn.example.com/healthy.png'
+      ]
+      srcs.forEach((src) => {
+        const img = document.createElement('img')
+        img.setAttribute('src', src)
+        // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
+        root.appendChild(img)
+      })
+      armJsdomImageSettle(root)
+
+      vi.useFakeTimers()
+      try {
+        let srcsAtRaster: string[] = []
+        let resolved = false
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        void captureScrollableAsDataUrl({ current: root })
+          .then(() => {
+            resolved = true
+          })
+          .catch(() => {})
+        // Hung sources overlap, so the stage ends after one per-source abort (10s) plus the
+        // settle, not at the 20s budget; serial fetches would have starved healthy.png.
+        await vi.advanceTimersByTimeAsync(12_000)
+
+        expect(resolved).toBe(true)
+        expect(srcsAtRaster.slice(0, 3).every((src) => src.startsWith('data:image/gif'))).toBe(true)
+        expect(srcsAtRaster[3]).toMatch(/^data:image\/png/)
+      } finally {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('keeps at most four remote fetches in flight at once', async () => {
+      const release: Array<() => void> = []
+      const fetchMock = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release.push(() =>
+              resolve({
+                ok: true,
+                status: 200,
+                headers: { get: () => 'image/png' },
+                blob: async () => new Blob([PNG_BYTES.slice()], { type: 'image/png' })
+              })
+            )
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      Array.from({ length: 6 }).forEach((_, index) => {
+        const img = document.createElement('img')
+        img.setAttribute('src', `https://cdn.example.com/${index}.png`)
+        // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
+        root.appendChild(img)
+      })
+      armJsdomImageSettle(root)
+
+      try {
+        let srcsAtRaster: string[] = []
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        const settled = captureScrollableAsDataUrl({ current: root })
+
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
+        release.splice(0).forEach((resolveFetch) => resolveFetch())
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6))
+        release.splice(0).forEach((resolveFetch) => resolveFetch())
+
+        await expect(settled).resolves.toBe('data:image/png;base64,xxx')
+        expect(srcsAtRaster).toHaveLength(6)
+        expect(srcsAtRaster.every((src) => src.startsWith('data:image/png'))).toBe(true)
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('rasterizes only after the swapped-in data URL has settled', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = makeRoot(img)
+
+      let loadSeen = false
+      img.addEventListener('load', () => {
+        loadSeen = true
+      })
+      let settledAtRaster: boolean | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        settledAtRaster = loadSeen && (img.getAttribute('src') ?? '').startsWith('data:image/png')
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+      armJsdomImageSettle(root)
+
+      const result = await captureScrollableAsDataUrl({ current: root })
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(settledAtRaster).toBe(true)
+      vi.unstubAllGlobals()
+    })
+
+    it('sizes the canvas from the layout after the placeholder swap, not before', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://example.com/figure.png')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = document.createElement('div')
+      root.appendChild(img)
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      // A block-level markdown image collapses once its src becomes the 1×1 placeholder.
+      Object.defineProperty(root, 'scrollHeight', {
+        get: () => ((img.getAttribute('src') ?? '').startsWith('data:') ? 100 : 360),
+        configurable: true
+      })
+      armJsdomImageSettle(root)
+
+      await captureScrollableAsDataUrl({ current: root })
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions).toMatchObject({ height: 100, canvasHeight: 100 })
+      vi.unstubAllGlobals()
+    })
+
+    it('does not fetch remote images the capture filter omits', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const hidden = document.createElement('img')
+      hidden.setAttribute('src', 'https://icon.horse/icon/hidden.example')
+      const hiddenWrapper = document.createElement('div')
+      hiddenWrapper.style.display = 'none'
+      hiddenWrapper.appendChild(hidden)
+      const visible = document.createElement('img')
+      visible.setAttribute('src', 'https://icon.horse/icon/visible.example')
+      root.appendChild(hiddenWrapper)
+      root.appendChild(visible)
+      armJsdomImageSettle(root)
+
+      await captureWithRasterSpy(root)
+
+      // A swapped img implies its source was fetched, so the fetch count is the proof.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://icon.horse/icon/visible.example', expect.anything())
+      expect(hidden.getAttribute('src')).toBe('https://icon.horse/icon/hidden.example')
+      vi.unstubAllGlobals()
+    })
+  })
+
+  describe('dataUrlToBlob', () => {
+    it('preserves every byte of a binary payload', async () => {
+      const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff])
+      const base64 = btoa(String.fromCharCode(...bytes))
+
+      const blob = dataUrlToBlob(`data:image/png;base64,${base64}`)
+
+      expect(blob.type).toBe('image/png')
+      expect(await readBlobBytes(blob)).toEqual(bytes)
+    })
+  })
+
+  describe('captureScrollableAsBlob', () => {
+    it('should call func with blob when canvas exists', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      const func = vi.fn()
+      await captureScrollableAsBlob(ref, func)
+      expect(func).toHaveBeenCalled()
+      expect(func.mock.calls[0][0]).toBeInstanceOf(Blob)
+    })
+
+    it('should not call func when canvas is undefined', async () => {
+      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const func = vi.fn()
+      await captureScrollableAsBlob(ref, func)
+      expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('waitForCaptureAssets', () => {
+    const makeImage = (complete: boolean): HTMLImageElement => {
+      const img = document.createElement('img')
+      // jsdom never loads resources; drive `complete` explicitly per case.
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      return img
+    }
+
+    it('returns undefined immediately for a null root', async () => {
+      await expect(waitForCaptureAssets(null)).resolves.toBeUndefined()
+    })
+
+    it('switches lazy images to eager so they can load offscreen', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(true)
+      img.loading = 'lazy'
+      root.appendChild(img)
+
+      await waitForCaptureAssets(root)
+
+      expect(img.loading).toBe('eager')
+    })
+
+    it('waits for in-flight images to fire load', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['load', 'settled'])
+    })
+
+    it('treats image error as settled', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('error'))
+        order.push('error')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['error', 'settled'])
+    })
+
+    it('waits for images mounted after the first scan (late favicon waves)', async () => {
+      const root = document.createElement('div')
+      const lateImage = makeImage(false)
+      const order: string[] = []
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      // FallbackFavicon swaps its placeholder span for an <img> only after
+      // its source probe resolves — mount late and let the load land well
+      // past the recheck window, so a premature settle fails the ordering.
+      setTimeout(() => {
+        root.appendChild(lateImage)
+        order.push('mount')
+      }, 100)
+      setTimeout(() => {
+        lateImage.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 700)
+      await settled
+
+      expect(order).toEqual(['mount', 'load', 'settled'])
+    })
+
+    it('resolves via the deadline when an image never settles', async () => {
+      const root = document.createElement('div')
+      root.appendChild(makeImage(false))
+
+      vi.useFakeTimers()
+      try {
+        const settled = waitForCaptureAssets(root, 1000)
+        const assertion = vi.fn()
+        void settled.then(assertion)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(assertion).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('makeSvgSizeAdaptive', () => {
+    const createSvgElement = (svgString: string): SVGElement => {
+      const div = document.createElement('div')
+      div.innerHTML = svgString
+      const svgElement = div.querySelector<SVGElement>('svg')
+      if (!svgElement) {
+        throw new Error(`Test setup error: No <svg> element found in string: "${svgString}"`)
+      }
+      return svgElement
+    }
+
+    // Mock document.body.appendChild to avoid errors in jsdom
+    beforeEach(() => {
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => ({}) as Node)
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => ({}) as Node)
+    })
+
+    it('should measure and add viewBox/max-width when viewBox is missing', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock the measurement result on the prototype
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 133, height: 106 } as DOMRect)
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(spy).toHaveBeenCalled()
+      expect(result.getAttribute('viewBox')).toBe('0 0 133 106')
+      expect(result.style.maxWidth).toBe('133px')
+      expect(result.getAttribute('width')).toBe('100%')
+      expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore() // Clean up the prototype spy
+    })
+
+    it('should use width attribute for max-width when viewBox is present', () => {
+      const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="100pt" height="80pt"></svg>')
+      const spy = vi.spyOn(SVGElement.prototype, 'getBoundingClientRect') // Spy to ensure it's NOT called
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(spy).not.toHaveBeenCalled()
+      expect(result.getAttribute('viewBox')).toBe('0 0 50 50')
+      expect(result.style.maxWidth).toBe('100pt')
+      expect(result.getAttribute('width')).toBe('100%')
+      expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore()
+    })
+
+    it('should handle measurement failure gracefully', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock a failed measurement
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 0, height: 0 } as DOMRect)
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.style.maxWidth).toBe('100pt') // Falls back to width attribute
+      expect(result.getAttribute('width')).toBe('100%')
+
+      spy.mockRestore()
+    })
+
+    it('should return the element unchanged if it is not an SVGElement', () => {
+      const divElement = document.createElement('div')
+      const originalOuterHTML = divElement.outerHTML
+      const result = makeSvgSizeAdaptive(divElement)
+
+      expect(result.outerHTML).toBe(originalOuterHTML)
+    })
+  })
+
+  describe('imageInputToPreviewUrl', () => {
+    let previewBlob: Blob | undefined
+    let createObjectUrlDescriptor: PropertyDescriptor | undefined
+    const readBlob = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsText(blob)
+      })
+
+    beforeEach(() => {
+      previewBlob = undefined
+      createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn((blob: Blob) => {
+          previewBlob = blob
+          return 'blob:svg-preview'
+        })
+      })
+    })
+
+    afterEach(() => {
+      if (createObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      }
+    })
+
+    it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 960 480')
+      svg.setAttribute('width', '100%')
+      svg.style.maxWidth = '960px'
+      svg.innerHTML = '<text x="20" y="40">First line</text><text x="20" y="80">Second line</text>'
+
+      await expect(imageInputToPreviewUrl(svg, { format: 'svg' })).resolves.toBe('blob:svg-preview')
+
+      expect(svg.getAttribute('width')).toBe('100%')
+      expect(svg.hasAttribute('height')).toBe(false)
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('960')
+      expect(previewSvg.getAttribute('height')).toBe('480')
+      expect(previewSvg.getAttribute('viewBox')).toBe('0 0 960 480')
+      expect(previewSvg.textContent).toContain('First line')
+      expect(previewSvg.textContent).toContain('Second line')
+    })
+
+    it('preserves an SVG that already has positive intrinsic dimensions', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 800 400')
+      svg.setAttribute('width', '320px')
+      svg.setAttribute('height', '180px')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('320px')
+      expect(previewSvg.getAttribute('height')).toBe('180px')
+    })
+
+    it.each([
+      ['width only', '1600', null],
+      ['height only', null, '900'],
+      ['relative width', '20em', null],
+      ['signed and trailing-decimal lengths', '+320', '180.']
+    ])('preserves valid %s SVG sizing', async (_label, width, height) => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 16 9')
+      if (width !== null) svg.setAttribute('width', width)
+      if (height !== null) svg.setAttribute('height', height)
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe(width)
+      expect(previewSvg.getAttribute('height')).toBe(height)
+    })
+
+    it('replaces a non-finite SVG length with finite viewBox dimensions', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 800 400')
+      svg.setAttribute('width', '1e309px')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('800')
+      expect(previewSvg.getAttribute('height')).toBe('400')
+    })
+
+    it.each(['NaN 0 800 400', '0 Infinity 800 400'])(
+      'does not derive intrinsic dimensions from an invalid viewBox origin: %s',
+      async (viewBox) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('viewBox', viewBox)
+        svg.setAttribute('width', '100%')
+
+        await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+        const previewSvg = new DOMParser().parseFromString(
+          await readBlob(previewBlob!),
+          'image/svg+xml'
+        ).documentElement
+        expect(previewSvg.getAttribute('width')).toBe('100%')
+        expect(previewSvg.hasAttribute('height')).toBe(false)
+      }
+    )
+  })
+
+  describe('getImageBlobFromSource', () => {
+    const fetchMock = vi.fn()
+
+    beforeEach(() => {
+      fetchMock.mockReset().mockResolvedValue({
+        ok: true,
+        blob: async () => new Blob(['remote'], { type: 'image/webp' })
+      })
+      ipcMocks.request.mockResolvedValue({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'image/png',
+        version: { mtime: 1, size: 3 }
+      })
+      vi.stubGlobal('fetch', fetchMock)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('reads image blobs from base64 data URLs', async () => {
+      const blob = await getImageBlobFromSource('data:image/png;base64,aGVsbG8=')
+
+      expect(blob.type).toBe('image/png')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+    })
+
+    it('decodes non-base64 inline data URLs without fetching', async () => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100%"><text>hello</text></svg>'
+
+      const blob = await getImageBlobFromSource(`data:image/svg+xml,${svg}`)
+
+      expect(blob.type).toBe('image/svg+xml')
+      expect(blob.size).toBe(new TextEncoder().encode(svg).length)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('reads image blobs from file URLs', async () => {
+      const blob = await getImageBlobFromSource('file:///tmp/example.png')
+
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+        handle: { kind: 'path', path: '/tmp/example.png' },
+        options: { mode: 'full', encoding: 'binary' }
+      })
+      expect(blob.type).toBe('image/png')
+    })
+
+    it('reads image blobs from remote URLs', async () => {
+      const blob = await getImageBlobFromSource('https://example.com/image.webp')
+
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp', { signal: undefined })
+      expect(blob.type).toBe('image/webp')
+    })
+
+    it('throws on a non-ok remote response instead of returning the error page', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 404, blob: async () => new Blob(['gone']) })
+
+      await expect(getImageBlobFromSource('https://example.com/gone.webp')).rejects.toThrow('404')
+    })
+
+    it('throws when a 200 response carries non-image content (proxy/login page)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html>signin</html>'], { type: 'text/html' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
+    })
+
+    it.each(['', 'application/octet-stream'])(
+      'leaves remote image bytes with MIME "%s" for browser decoding',
+      async (type) => {
+        const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
+        fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob([pngBytes], { type }) })
+
+        const blob = await getImageBlobFromSource('https://example.com/image')
+
+        expect(blob.type).toBe(type)
+        expect(await readBlobBytes(blob)).toEqual(pngBytes)
+      }
+    )
+
+    it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['png'], { type: ' image/png' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/padded.png')
+
+      expect(blob.type).toBe(' image/png')
+    })
+
+    it('rejects a non-image content type carrying header parameters', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html/>'], { type: 'text/html; charset=utf-8' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
+    })
+
+    it('leaves extensionless local image bytes for browser decoding', async () => {
+      const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
+      ipcMocks.request.mockResolvedValueOnce({
+        content: pngBytes,
+        mime: 'application/octet-stream',
+        version: { mtime: 1, size: pngBytes.length }
+      })
+
+      const blob = await getImageBlobFromSource('file:///data/Files/noext')
+
+      expect(blob.type).toBe('application/octet-stream')
+      expect(await readBlobBytes(blob)).toEqual(pngBytes)
+    })
+
+    it('throws on a data URL with no media type', async () => {
+      await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
+    })
+  })
+
+  describe('isKatexGeneratedSvg', () => {
+    const katexNode = {
+      type: 'element',
+      tagName: 'svg',
+      properties: {
+        xmlns: 'http://www.w3.org/2000/svg',
+        width: '400em',
+        height: '1.08em',
+        viewBox: '0 0 400000 1080',
+        preserveAspectRatio: 'xMinYMin slice'
+      },
+      children: [{ type: 'element', tagName: 'path', properties: { d: 'M95,702' }, children: [] }]
+    } as HastElement
+
+    it('matches bare KaTeX shape SVGs', () => {
+      expect(isKatexGeneratedSvg(katexNode)).toBe(true)
+    })
+
+    it('rejects SVGs carrying an id, class, or text content', () => {
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, id: 'diagram' } })).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, className: ['chart'] } })).toBe(
+        false
+      )
+      expect(
+        isKatexGeneratedSvg({
+          ...katexNode,
+          children: [{ type: 'element', tagName: 'text', properties: {}, children: [] }]
+        })
+      ).toBe(false)
+    })
+
+    it('rejects viewBox-less SVGs and non-SVG input', () => {
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { width: '10' } })).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, tagName: 'g' })).toBe(false)
+      expect(isKatexGeneratedSvg(undefined)).toBe(false)
+    })
+
+    it('rejects ordinary user SVGs without the KaTeX stretch signature', () => {
+      const userSvg = {
+        type: 'element',
+        tagName: 'svg',
+        properties: { viewBox: '0 0 100 100' },
+        children: [{ type: 'element', tagName: 'circle', properties: { cx: '50', cy: '50', r: '40' }, children: [] }]
+      } as HastElement
+      expect(isKatexGeneratedSvg(userSvg)).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, width: '100%' } })).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, preserveAspectRatio: 'none' } })
+      ).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, viewBox: '0 0 100 100' } })
+      ).toBe(false)
+    })
+  })
+
+  describe('svgToCanvas', () => {
+    class FakeImage {
+      static latest: FakeImage | undefined
+      crossOrigin = ''
+      src = ''
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        FakeImage.latest = this
+      }
+    }
+
+    const makeSvg = () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 20 10')
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      text.textContent = '中文 🌸 # & %'
+      svg.append(text)
+      return svg
+    }
+
+    beforeEach(() => {
+      FakeImage.latest = undefined
+      vi.stubGlobal('Image', FakeImage)
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        scale: vi.fn(),
+        drawImage: vi.fn()
+      } as unknown as CanvasRenderingContext2D)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('preserves Unicode labels and SVG dimensions when rasterizing', async () => {
+      const pending = svgToCanvas(makeSvg(), 2)
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      const response = dataUrlToBlob(FakeImage.latest!.src)
+      const xml = new TextDecoder().decode(await readBlobBytes(response))
+      const svg = new DOMParser().parseFromString(xml, 'image/svg+xml')
+      expect(svg.querySelector('text')?.textContent).toBe('中文 🌸 # & %')
+
+      FakeImage.latest?.onload?.()
+      const canvas = await pending
+      expect([canvas.width, canvas.height]).toEqual([40, 20])
+    })
+
+    it('rejects when the SVG image fails to load', async () => {
+      const pending = svgToCanvas(makeSvg())
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      FakeImage.latest?.onerror?.()
+      await expect(pending).rejects.toThrow('Failed to load SVG image')
+    })
+  })
+})

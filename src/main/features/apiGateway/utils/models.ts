@@ -1,0 +1,174 @@
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { loggerService } from '@logger'
+import { getAppEdition } from '@main/utils/appEdition'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
+
+const logger = loggerService.withContext('ApiGatewayModels')
+
+/**
+ * OpenAI `/v1/models`-shaped model entry surfaced by the gateway. Defined locally —
+ * the renderer's old `ApiModel` type is gone in the new data model.
+ */
+export interface ApiModel {
+  id: string
+  object: 'model'
+  created: number
+  owned_by: string
+}
+
+export interface ApiModelsResponse {
+  object: 'list'
+  data: ApiModel[]
+}
+
+/** Optional pagination filter for the gateway `/v1/models` listing. */
+export interface ModelsFilter {
+  offset?: number
+  limit?: number
+}
+
+export interface ResolvedGatewayModelAddress {
+  providerId: string
+  apiModelId: string
+  uniqueModelId: UniqueModelId
+  provider: Provider
+  model: Model
+}
+
+/** Enabled providers from the data layer (`ProviderService`, not Redux). */
+function getAvailableProviders(): Provider[] {
+  try {
+    return providerService.list({ enabled: true })
+  } catch (error) {
+    logger.error('Failed to list providers', error as Error)
+    return []
+  }
+}
+
+/** All enabled models across enabled providers, via `ModelService`. */
+async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> {
+  try {
+    if (!providers) {
+      return modelService.list({ enabled: true })
+    }
+    const models: Model[] = []
+    for (const provider of providers) {
+      try {
+        models.push(...modelService.list({ providerId: provider.id, enabled: true }))
+      } catch (error) {
+        logger.error(`Failed to list models for provider ${provider.id}`, error as Error)
+      }
+    }
+    return models
+  } catch (error) {
+    logger.error('Failed to list available models', error as Error)
+    return []
+  }
+}
+
+/**
+ * Project a data-layer `Model` into the OpenAI `/v1/models` entry shape. The `id` is
+ * the gateway-addressable `"providerId:apiModelId"`.
+ */
+function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
+  const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  return {
+    id: formatGatewayModelId(model.providerId, apiModelId),
+    object: 'model',
+    created: Math.floor(Date.now() / 1000),
+    owned_by: model.ownedBy || provider?.name || model.providerId
+  }
+}
+
+/** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
+export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
+  const sepIdx = modelAddress.indexOf(':')
+  if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
+    throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
+  }
+
+  const providerId = modelAddress.slice(0, sepIdx)
+  const apiModelId = modelAddress.slice(sepIdx + 1)
+  if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
+    throw new Error('CherryAI managed default model is not available through the API gateway')
+  }
+
+  let provider: Provider
+  try {
+    provider = providerService.getByProviderId(providerId)
+  } catch {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+  if (!provider.isEnabled || isExternalCliProvider(provider)) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
+    if (!isGatewayRoutableModel(candidate)) return false
+    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
+    return candidateApiModelId === apiModelId
+  })
+  if (!model) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
+
+  return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
+}
+
+/**
+ * Build the OpenAI `/v1/models` listing: enabled models across enabled providers,
+ * deduplicated by gateway id and optionally paginated. Never throws — returns an empty
+ * list on failure so the route stays resilient.
+ */
+export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsResponse> {
+  try {
+    const providers = getAvailableProviders()
+    const models = await listAllAvailableModels(providers)
+
+    // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
+    const uniqueModels = new Map<string, ApiModel>()
+    for (const model of models) {
+      const provider = providers.find((p) => p.id === model.providerId)
+      // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
+      // external callers even though they pass the routable-model predicate (matches the renderer
+      // picker's exclusion).
+      if (provider && isAgentOnlyProvider(provider, getAppEdition())) {
+        continue
+      }
+      // Same routable-model predicate as the renderer's gateway picker — the
+      // listing must never advertise a model the proxy cannot route.
+      if (!isGatewayRoutableModel(model)) {
+        continue
+      }
+
+      const apiModel = transformModelToOpenAi(model, provider)
+      if (!uniqueModels.has(apiModel.id)) {
+        uniqueModels.set(apiModel.id, apiModel)
+      }
+    }
+
+    let modelData = Array.from(uniqueModels.values())
+    const offset = filter.offset ?? 0
+    const limit = filter.limit
+    if (limit !== undefined) {
+      modelData = modelData.slice(offset, offset + limit)
+    } else if (offset > 0) {
+      modelData = modelData.slice(offset)
+    }
+
+    logger.info('Models retrieved', { returned: modelData.length, discovered: models.length })
+    return { object: 'list', data: modelData }
+  } catch (error) {
+    logger.error('Error getting models', error as Error)
+    return { object: 'list', data: [] }
+  }
+}

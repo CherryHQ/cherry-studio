@@ -1,0 +1,263 @@
+/**
+ * Pure reasoning profile interpreter.
+ *
+ * Model/provider identification happens while resolving the registry profile.
+ * This module only consumes the resulting closed profile plus the canonical
+ * user selection, then emits a closed list of target/value operations.
+ */
+import type {
+  ReasoningEffort,
+  ReasoningWireMode,
+  ReasoningWireProfile,
+  ReasoningWireTarget
+} from '@cherrystudio/provider-registry'
+import { loggerService } from '@logger'
+import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
+import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
+import type { Model } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+const logger = loggerService.withContext('reasoningSerializers')
+
+export type CanonicalReasoningSelection = ReasoningEffortOption
+
+export type ResolvedReasoningKind = 'omit' | 'off' | 'auto' | 'effort' | 'budget'
+
+export interface ResolvedReasoningEmission {
+  target: ReasoningWireTarget
+  value: string | number | boolean
+}
+
+export interface ResolvedReasoningInvocation {
+  kind: ResolvedReasoningKind
+  selection: CanonicalReasoningSelection
+  effort?: ReasoningEffort
+  budgetTokens?: number
+  emissions: ResolvedReasoningEmission[]
+}
+
+export interface ResolveReasoningInvocationInput {
+  selection: CanonicalReasoningSelection | undefined
+  model: Model
+  profile: ReasoningWireProfile
+  maxTokens?: number
+  assistantSummary?: string | null
+}
+
+const OMIT: ResolvedReasoningInvocation = {
+  kind: 'omit',
+  selection: 'default',
+  emissions: []
+}
+
+// Only a selection the user made is worth a line: it is otherwise invisible, and not inert — the
+// resulting kind is what the sampling gates read. 'default' asked for nothing and is ordinary traffic.
+function omit(reason: string, model: Model, selection: CanonicalReasoningSelection): ResolvedReasoningInvocation {
+  if (selection !== 'default') logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
+  return { ...OMIT, selection }
+}
+
+/**
+ * Degrade a requested `auto` the model's vocabulary does not offer.
+ *
+ * `auto` is synthesized per model — a budget model never declares it, a toggle
+ * model declares nothing else — so a selection stored against one model can
+ * arrive at another that cannot express it. There it means `default`: let the
+ * provider decide, rather than push `auto` onto an effort wire with no such
+ * tier. Runs before {@link resolveSelection}, which deliberately passes `auto`
+ * through for cross-dialect requests carrying it canonically.
+ */
+export function normalizeRequestedSelection(
+  selection: CanonicalReasoningSelection,
+  model: Model
+): CanonicalReasoningSelection {
+  if (selection !== 'auto') return selection
+  return (model.reasoning?.selectableEfforts ?? []).includes(selection) ? selection : 'default'
+}
+
+/** The concrete tiers a model declares — its vocabulary minus the two non-tier selections. */
+function declaredEfforts(model: Model): Exclude<ReasoningEffort, 'none' | 'auto'>[] {
+  return (model.reasoning?.selectableEfforts ?? []).filter(
+    (effort): effort is Exclude<ReasoningEffort, 'none' | 'auto'> => effort !== 'none' && effort !== 'auto'
+  )
+}
+
+/**
+ * Project a selection onto what this model declares: the value itself, the
+ * nearest effort it does declare, or `undefined` when it declares none.
+ *
+ * Exported for a caller that must know whether reasoning will be active before
+ * the pipeline resolves the invocation. That is only the model half of the
+ * answer — the wire profile can still omit a mode this returns.
+ */
+export function resolveSelection(
+  selection: ResolveReasoningInvocationInput['selection'],
+  model: Model
+): CanonicalReasoningSelection | undefined {
+  if (!selection || selection === 'default') return 'default'
+  const selectable = model.reasoning?.selectableEfforts ?? []
+  if (selection === 'none') {
+    return selectable.includes(selection) ? selection : undefined
+  }
+
+  const declared = declaredEfforts(model)
+  // A cross-dialect request can still carry canonical `auto`; let the wire profile map it when the
+  // target has adjustable effort tiers. {@link resolveModeEffort} holds that mapping to this set.
+  if (selection === 'auto') {
+    return selectable.includes(selection) || declared.length > 0 ? selection : undefined
+  }
+  if (declared.length === 0) return undefined
+
+  return nearestThinkingOption(selection, declared)
+}
+
+function resolveMode(
+  selection: CanonicalReasoningSelection,
+  profile: ReasoningWireProfile
+): ReasoningWireMode | undefined {
+  if (profile.disabled) return undefined
+  if (selection === 'default') return profile.default
+  if (selection === 'none') return profile.off
+  if (selection === 'auto') return profile.auto ?? profile.effort
+  return profile.effort
+}
+
+/**
+ * An `effortMap` entry keyed by a real tier translates a selection the model already declared into
+ * the vendor's token, so it is deliberately outside the model's vocabulary and must stand. The
+ * `auto` entry is different: `auto` is synthesized per provider and never checked against a model,
+ * so it is the one value that reaches the wire unvalidated. Project it onto a declared tier first,
+ * then translate that tier exactly as an explicit selection would be.
+ */
+function resolveModeEffort(
+  selection: CanonicalReasoningSelection,
+  mode: ReasoningWireMode,
+  model: Model
+): ReasoningEffort | undefined {
+  if (selection === 'default' || selection === 'none') return undefined
+  const mapped = mode.effortMap?.[selection] ?? selection
+  if (selection !== 'auto') return mapped
+
+  // A profile with no auto mode resolves to its effort one, which has no tier to stand for `auto`.
+  // The model's own default is the only one; without it `auto` keeps its plain meaning — omit the
+  // value and let the provider decide, rather than send the literal `auto` no vendor accepts.
+  const tier = mapped === 'auto' ? model.reasoning?.defaultEffort : mapped
+  if (tier === undefined || tier === 'auto') return undefined
+
+  const declared = declaredEfforts(model)
+  const projected = nearestThinkingOption(tier, declared)
+  const nearest = declared.find((effort) => effort === projected)
+  return nearest ? (mode.effortMap?.[nearest] ?? nearest) : tier
+}
+
+function resolveModeBudget(
+  selection: CanonicalReasoningSelection,
+  model: Model,
+  policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
+  maxTokens: number | undefined
+): number | undefined | null {
+  let budget = selection === 'auto' ? policy.autoValue : undefined
+  budget ??= resolveBudgetTokens(selection, model.reasoning)
+
+  if (budget === undefined && policy.missing.type === 'fallback') {
+    budget = policy.missing.value
+  }
+  if (budget === undefined) return undefined
+
+  if (policy.min !== undefined) {
+    budget = Math.max(policy.min, budget)
+  }
+
+  if (policy.clampToMaxTokens) {
+    const minimum = policy.min ?? 1024
+    const outputLimit = maxTokens ?? DEFAULT_MAX_TOKENS
+    const maximumBudget = outputLimit - 1
+    if (maximumBudget < minimum) return null
+    budget = Math.min(Math.max(minimum, budget), maximumBudget)
+  }
+
+  return Math.floor(budget)
+}
+
+export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
+  const requested = input.selection ?? 'default'
+  if (!input.model.reasoning || input.profile.disabled) {
+    return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
+  }
+
+  const selection = resolveSelection(input.selection, input.model)
+  if (!selection) return omit('the model does not declare this effort', input.model, requested)
+
+  const mode = resolveMode(selection, input.profile)
+  if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
+
+  const effort = resolveModeEffort(selection, mode, input.model)
+  const budgetTokens =
+    'budget' in mode ? resolveModeBudget(selection, input.model, mode.budget, input.maxTokens) : undefined
+
+  // `null` means the request's output cap cannot satisfy the wire contract
+  // (for example Anthropic requires budget_tokens < max_tokens). Omit the
+  // whole mode instead of emitting an invalid or partially enabled request.
+  if (budgetTokens === null) {
+    return omit("the request's output cap cannot satisfy the wire's budget contract", input.model, selection)
+  }
+
+  if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
+    return omit('the wire requires a thinking budget and none could be derived', input.model, selection)
+  }
+
+  const emissions: ResolvedReasoningEmission[] = []
+  for (const operation of mode.operations) {
+    let value: string | number | boolean | undefined
+    switch (operation.value.source) {
+      case 'literal':
+        value = operation.value.value
+        break
+      case 'effort':
+        value = effort
+        break
+      case 'budget':
+        value = budgetTokens
+        break
+      case 'assistant-summary':
+        value = input.assistantSummary ?? undefined
+        break
+    }
+    if (value !== undefined) emissions.push({ target: operation.target, value })
+  }
+
+  if (emissions.length === 0) return omit('the mode produced no wire values', input.model, selection)
+
+  const kind: ResolvedReasoningKind =
+    budgetTokens !== undefined ? 'budget' : selection === 'none' ? 'off' : selection === 'auto' ? 'auto' : 'effort'
+
+  return {
+    kind,
+    selection,
+    effort,
+    budgetTokens,
+    emissions
+  }
+}
+
+function encodeEmissions(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+
+  for (const emission of invocation.emissions) {
+    const path = emission.target.split('.')
+    let cursor = result
+    for (let index = 0; index < path.length - 1; index += 1) {
+      const key = path[index]
+      cursor[key] ??= {}
+      cursor = cursor[key] as Record<string, unknown>
+    }
+    cursor[path[path.length - 1]] = emission.value
+  }
+
+  return result
+}
+
+/** Materialize the profile's closed emission operations into a provider-options object. */
+export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
+  return encodeEmissions(invocation)
+}

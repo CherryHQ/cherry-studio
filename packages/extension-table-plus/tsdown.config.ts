@@ -1,0 +1,19 @@
+import { defineConfig } from 'tsdown'
+
+export default defineConfig(
+  [
+    'src/table/index.ts',
+    'src/cell/index.ts',
+    'src/header/index.ts',
+    'src/kit/index.ts',
+    'src/row/index.ts',
+    'src/index.ts'
+  ].map((entry) => ({
+    entry: [entry],
+    outDir: `dist${entry.replace('src', '').split('/').slice(0, -1).join('/')}`,
+    dts: true,
+    sourcemap: true,
+    format: ['esm' as const, 'cjs' as const],
+    external: [/^[^./]/]
+  }))
+)

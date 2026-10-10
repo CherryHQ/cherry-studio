@@ -1,0 +1,100 @@
+import { randomUUID } from 'node:crypto'
+
+import { application } from '@application'
+import { readMcpResourcePreview } from '@main/ai/mcp/resourcePreview'
+import type { mcpRequestSchemas } from '@shared/ipc/schemas/mcp'
+import type { IpcHandlersFor } from '@shared/ipc/types'
+
+/**
+ * MCP request handlers. Delegation spans three services: McpRuntimeService (server
+ * lifecycle + queries), McpCatalogService (server.refresh_tools), and McpPackageService
+ * (package upload). The former NonEmptyString guards now live in the route schemas. Upload
+ * receives the file as an ArrayBuffer (the renderer does `file.arrayBuffer()`);
+ * McpPackageService stages it to a temp file and installs it. The server.added /
+ * tool.call_progress / server.log events are emitted by the services, not here.
+ */
+export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
+  'mcp.catalog.observe': async ({ serverId, requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP catalog observation requires a managed window')
+    application.get('McpRuntimeService').observeDesktopCatalog(senderId, requestId, serverId)
+  },
+  'mcp.resource.observe': async ({ serverId, requestId, uri }, { senderId }) => {
+    if (!senderId) throw new Error('MCP resource observation requires a managed window')
+    return application.get('McpRuntimeService').observeDesktopResource(senderId, requestId, serverId, uri)
+  },
+  // Server lifecycle + per-server queries.
+  'mcp.server.remove': async ({ serverId }) => {
+    await application.get('McpRuntimeService').removeServer(serverId)
+  },
+  'mcp.server.restart': async ({ serverId }) => {
+    await application.get('McpRuntimeService').restartServer(serverId)
+  },
+  'mcp.server.stop': async ({ serverId }) => {
+    await application.get('McpRuntimeService').stopServer(serverId)
+  },
+  'mcp.server.cancel_authorization': async ({ serverId }) => {
+    application.get('McpRuntimeService').cancelAuthorization(serverId)
+  },
+  'mcp.server.refresh_tools': async ({ serverId }) => {
+    await application.get('McpCatalogService').refreshTools(serverId)
+  },
+  'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
+  'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),
+  'mcp.server.list_resource_templates': async ({ serverId }) =>
+    application.get('McpRuntimeService').listResourceTemplates(serverId),
+  'mcp.server.get_instructions': async ({ serverId }) =>
+    application.get('McpRuntimeService').getConnectedServerInstructions(serverId),
+  'mcp.server.get_prompt': async ({ serverId, name, args, requestId = randomUUID(), topicId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP prompt request requires a managed window')
+    const runtime = application.get('McpRuntimeService')
+    return runtime.runDesktopRequest(senderId, requestId, (signal) =>
+      runtime.getPrompt({
+        serverId,
+        name,
+        args,
+        signal,
+        interactionContext: { windowId: senderId, topicId: topicId ?? requestId, requestId }
+      })
+    )
+  },
+  'mcp.server.read_resource_preview': async (
+    { serverId, uri, maxChars, refresh, requestId = randomUUID(), topicId },
+    { senderId }
+  ) => {
+    if (!senderId) throw new Error('MCP resource request requires a managed window')
+    return application.get('McpRuntimeService').runDesktopRequest(senderId, requestId, (signal) =>
+      readMcpResourcePreview({
+        serverId,
+        uri,
+        maxChars,
+        refresh,
+        signal,
+        interactionContext: { windowId: senderId, topicId: topicId ?? requestId, requestId }
+      })
+    )
+  },
+  'mcp.server.get_version': async ({ serverId, connect }) =>
+    application.get('McpRuntimeService').getServerVersion(serverId, connect),
+  'mcp.server.get_logs': async ({ serverId }) => application.get('McpRuntimeService').getServerLogs(serverId),
+  'mcp.protocol_install.list_pending': async (_input, { senderId }) =>
+    senderId ? application.get('ProtocolService').listPendingMcpInstallRequests(senderId) : [],
+  'mcp.protocol_install.install': async ({ requestId }, { senderId }) => {
+    if (!senderId) throw new Error('MCP protocol install request not found')
+    return application.get('ProtocolService').installPendingMcpInstallRequest(senderId, requestId)
+  },
+  'mcp.protocol_install.cancel': async ({ requestId }, { senderId }) => {
+    if (senderId) application.get('ProtocolService').cancelPendingMcpInstallRequest(senderId, requestId)
+  },
+  // In-flight tool-call control.
+  'mcp.tool.abort_call': async ({ callId, scope }) => application.get('McpRuntimeService').abortTool(callId, scope),
+  'mcp.interaction.respond': async (response, { senderId }) =>
+    application.get('McpRuntimeService').respondInteraction(response, senderId),
+  'mcp.request.cancel': async ({ requestId }, { senderId }) => {
+    if (senderId) application.get('McpRuntimeService').cancelDesktopRequest(senderId, requestId)
+  },
+  // Package upload.
+  'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
+    application.get('McpPackageService').uploadDxt(buffer, fileName),
+  'mcp.package.upload_mcpb': async ({ buffer, fileName }) =>
+    application.get('McpPackageService').uploadMcpb(buffer, fileName)
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "repository": "CherryHQ/cherry-studio-better-sqlite3",
+  "tag": "better-sqlite3-v12.11.1-electron-v44.4.0-r1",
+  "metadata": {
+    "electronVersion": "44.4.0",
+    "electronAbi": "149",
+    "betterSqlite3Version": "12.11.1"
+  },
+  "artifacts": {
+    "x64": {
+      "addon": {
+        "name": "better_sqlite3-v12.11.1-electron-v44.4.0-linux-x64.node",
+        "sha256": "212755c8eec009850b1a50803937864d464ed669c0c1e2506cb354cc06ab1487"
+      },
+      "manifest": {
+        "name": "better_sqlite3-v12.11.1-electron-v44.4.0-linux-x64.manifest.json",
+        "sha256": "8137d81c660a47e31c677d19a22471242387afc7d5434fac6417b038167cdbd5"
+      }
+    },
+    "arm64": {
+      "addon": {
+        "name": "better_sqlite3-v12.11.1-electron-v44.4.0-linux-arm64.node",
+        "sha256": "fbfb798d4495be07e6003caaff9a98e6de510a31b8edcc297c189791ff000f14"
+      },
+      "manifest": {
+        "name": "better_sqlite3-v12.11.1-electron-v44.4.0-linux-arm64.manifest.json",
+        "sha256": "0b5da6d77dd168026b20af39a1728fca39425505b26bd09da91b92c68e2d4b19"
+      }
+    }
+  }
+}

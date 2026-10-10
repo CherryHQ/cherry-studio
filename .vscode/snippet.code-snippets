@@ -1,0 +1,16 @@
+{
+  "Function component": {
+    "prefix": "rnfc",
+    "body": [
+      "import { FC } from 'react'",
+      "",
+      "const $1: FC = () => {",
+      "  return <div></div>",
+      "}",
+      "",
+      "export default $1",
+      ""
+    ],
+    "description": "Function component"
+  }
+}

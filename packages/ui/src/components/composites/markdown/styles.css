@@ -1,0 +1,6 @@
+/* Vendor stylesheets for the markdown composite, assigned to the `app`
+   cascade layer (declared by the consuming app) so unlayered user custom CSS
+   reliably overrides them without !important. */
+@import 'katex/dist/katex.min.css' layer(app);
+@import 'remark-github-blockquote-alert/alert.css' layer(app);
+@import 'streamdown/styles.css' layer(app);

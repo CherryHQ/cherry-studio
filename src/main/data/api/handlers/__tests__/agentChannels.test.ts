@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ErrorCode } from '@shared/data/api/errors'
+
+const { listChannelsMock, getChannelMock, getTaskMock, getTaskLogsMock } = vi.hoisted(() => ({
+  listChannelsMock: vi.fn(),
+  getChannelMock: vi.fn(),
+  getTaskMock: vi.fn(),
+  getTaskLogsMock: vi.fn()
+}))
+
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
+    listChannels: listChannelsMock,
+    getChannel: getChannelMock
+  }
+}))
+
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
+    getTask: getTaskMock,
+    getTaskLogs: getTaskLogsMock
+  }
+}))
+
+vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
+vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: {} }))
+vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService: {} }))
+vi.mock('@main/services/agents/skills/SkillService', () => ({ skillService: {} }))
+
+import { agentChannelHandlers } from '../agentChannels'
+import { agentHandlers } from '../agents'
+
+const AGENT_ID = 'agent_1234567890_abcdefghi'
+const CHANNEL_ID = 'channel_1234567890_abcdef'
+const TASK_ID = 'task_1234567890_abcdefghi'
+
+const mockChannel = {
+  id: CHANNEL_ID,
+  type: 'telegram',
+  name: 'Test Channel',
+  agentId: AGENT_ID,
+  config: { bot_token: 'abc123', allowed_chat_ids: [] },
+  isActive: true,
+  activeChatIds: null,
+  permissionMode: null,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z'
+}
+
+const mockLog = {
+  id: 1,
+  scheduleId: TASK_ID,
+  sessionId: null,
+  startedAt: '2024-01-01T00:00:00.000Z',
+  durationMs: 100,
+  status: 'completed',
+  result: 'ok',
+  error: null
+}
+
+describe('agentChannelHandlers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('/agent-channels', () => {
+    it('GET returns all channels when no filter is provided', async () => {
+      listChannelsMock.mockReturnValueOnce([mockChannel])
+
+      const result = await agentChannelHandlers['/agent-channels'].GET({ query: undefined })
+
+      expect(listChannelsMock).toHaveBeenCalledWith(undefined)
+      expect(result).toEqual([mockChannel])
+    })
+
+    it('GET passes agentId filter to listChannels', async () => {
+      listChannelsMock.mockReturnValueOnce([mockChannel])
+
+      const result = await agentChannelHandlers['/agent-channels'].GET({ query: { agentId: AGENT_ID } } as never)
+
+      expect(listChannelsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
+      expect(result).toEqual([mockChannel])
+    })
+
+    it('GET passes type filter to listChannels', async () => {
+      listChannelsMock.mockReturnValueOnce([mockChannel])
+
+      const result = await agentChannelHandlers['/agent-channels'].GET({ query: { type: 'telegram' } } as never)
+
+      expect(listChannelsMock).toHaveBeenCalledWith({ type: 'telegram' })
+      expect(result).toEqual([mockChannel])
+    })
+
+    it('GET rejects invalid query', async () => {
+      await expect(
+        agentChannelHandlers['/agent-channels'].GET({ query: { type: 'invalid' } } as never)
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+
+      expect(listChannelsMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-channels/:channelId', () => {
+    it('GET returns channel when found', async () => {
+      getChannelMock.mockReturnValueOnce(mockChannel)
+
+      const result = await agentChannelHandlers['/agent-channels/:channelId'].GET({
+        params: { channelId: CHANNEL_ID }
+      })
+
+      expect(getChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
+      expect(result).toMatchObject({ id: CHANNEL_ID })
+    })
+
+    it('GET throws NOT_FOUND when channel does not exist', async () => {
+      getChannelMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentChannelHandlers['/agent-channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+})
+
+describe('agentHandlers — task logs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('/agents/:agentId/tasks/:taskId/logs', () => {
+    it('GET returns paginated logs for a task', async () => {
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+      getTaskLogsMock.mockReturnValueOnce({ logs: [mockLog], total: 1 })
+
+      const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+        params: { agentId: AGENT_ID, taskId: TASK_ID },
+        query: { page: 1, limit: 20 }
+      } as never)
+
+      expect(getTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
+      expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 20, offset: 0 })
+      expect(result).toMatchObject({ items: [mockLog], total: 1, page: 1 })
+    })
+
+    it('GET uses default pagination when no query is provided', async () => {
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+      getTaskLogsMock.mockReturnValueOnce({ logs: [], total: 0 })
+
+      const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+        params: { agentId: AGENT_ID, taskId: TASK_ID }
+      })
+
+      expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 50, offset: 0 })
+      expect(result).toMatchObject({ items: [], total: 0, page: 1 })
+    })
+
+    it('GET throws NOT_FOUND when the task does not belong to the agent', async () => {
+      getTaskMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+          params: { agentId: AGENT_ID, taskId: TASK_ID },
+          query: { page: 1, limit: 20 }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(getTaskLogsMock).not.toHaveBeenCalled()
+    })
+
+    it('GET rejects invalid pagination query', async () => {
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+
+      await expect(
+        agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+          params: { agentId: AGENT_ID, taskId: TASK_ID },
+          query: { page: 0 }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      expect(getTaskLogsMock).not.toHaveBeenCalled()
+    })
+  })
+})

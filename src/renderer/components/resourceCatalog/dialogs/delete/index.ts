@@ -1,0 +1,1 @@
+export { ResourceDeleteConfirmDialog } from './ResourceDeleteConfirmDialog'

@@ -1,0 +1,148 @@
+import { createHash } from 'node:crypto'
+
+import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { mcpServerService } from '@data/services/McpServerService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
+import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
+import {
+  type McpServerSnapshotMap,
+  type NotifyChannel,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
+import { skillService } from '@main/ai/skills/SkillService'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+
+import { usesPiGateway } from './modelInjection'
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableValue(entry)])
+  )
+}
+
+export interface PiConnectionSnapshot {
+  agent: AgentEntity
+  session: AgentSessionEntity
+  provider: Provider
+  model: Model
+  enabledApiKeys: readonly ApiKeyEntry[]
+  additionalSkillPaths: readonly string[]
+  mcpServerSnapshots: McpServerSnapshotMap
+  linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
+  mcpInstructions?: string
+  signature: string
+}
+
+export class PiInvalidConnectionSnapshotError extends Error {}
+
+/**
+ * Capture every reconcilable fact consumed while constructing a Pi connection.
+ * Prompt files intentionally remain connection-lifetime snapshots: changing them
+ * does not invalidate a warm connection or its provider prompt cache.
+ * The effective agent language (per-agent `configuration.language` or global
+ * `agent.language` preference) is a rebuild fact: changing it invalidates the
+ * warm connection so the new language instruction is baked into the next
+ * connection's system prompt and prompt cache. This trades cache preservation
+ * for prompt correctness — the first turn after a language change pays full
+ * input-token cost until the new prefix is cached, but the user sees the new
+ * language on the next reconcile rather than only on the next natural connection.
+ */
+export async function capturePiConnectionSnapshot(
+  sessionId: string,
+  agentId: string,
+  requestedModelId?: UniqueModelId,
+  selectedKnowledgeBaseIds?: readonly string[]
+): Promise<PiConnectionSnapshot> {
+  const session = agentSessionService.getById(sessionId)
+  const agent = agentService.getAgent(agentId)
+  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
+  }
+
+  const modelId = requestedModelId ?? agent.model
+  const parsed = parseUniqueModelId(modelId)
+  const provider = providerService.getByProviderId(parsed.providerId)
+  const model = modelService.getByKey(parsed.providerId, parsed.modelId)
+  const [skills, workspaceSkillPaths] = await Promise.all([
+    skillService.list({ agentId: agent.id }),
+    skillService.listLocalSkillPaths(session.workspace.path)
+  ])
+  const enabledSkills = skills.filter((skill) => skill.isEnabled)
+  const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
+  const mcpServers = (agent.mcps ?? []).map((idOrName) => {
+    const server = mcpServerService.findByIdOrName(idOrName)
+    mcpServerSnapshots.set(idOrName, server)
+    return server ?? { idOrName }
+  })
+  const catalog = application.get('McpCatalogService')
+  const mcpInstructions = buildMcpInstructionsContext(
+    mcpServers.flatMap((server) => ('id' in server ? [server.id] : []))
+  )
+  const mcpTools = mcpServers.flatMap((server) =>
+    'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
+  )
+  const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
+  const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
+  const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
+  const configuration = { ...agent.configuration, permission_mode: undefined }
+  const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const signature = createHash('sha256')
+    .update(
+      JSON.stringify(
+        stableValue({
+          agent: { ...agent, updatedAt: undefined, configuration },
+          session: { workspaceId: session.workspaceId, workspace: session.workspace },
+          modelId,
+          provider,
+          model,
+          apiKeys,
+          enabledSkills,
+          workspaceSkillPaths,
+          mcpServers,
+          mcpTools,
+          mcpInstructions,
+          linkedChannel,
+          notificationContext,
+          browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+          effectiveLanguage,
+          gatewayCredentials
+        })
+      )
+    )
+    .digest('hex')
+
+  return {
+    agent,
+    session,
+    provider,
+    model,
+    enabledApiKeys: apiKeys,
+    effectiveLanguage,
+    mcpInstructions,
+    additionalSkillPaths: [
+      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...workspaceSkillPaths
+    ],
+    mcpServerSnapshots,
+    linkedChannel,
+    signature
+  }
+}

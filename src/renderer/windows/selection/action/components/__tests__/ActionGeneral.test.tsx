@@ -1,0 +1,339 @@
+import '@testing-library/jest-dom/vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
+const state = vi.hoisted(() => ({
+  assistant: undefined as { id: string } | undefined,
+  fallbackAssistant: undefined as { id: string } | undefined,
+  quickAssistantId: '' as string,
+  isFallbackLoading: false as boolean,
+  isChosenLoading: false as boolean,
+  sendMessage: vi.fn(),
+  stopChat: vi.fn(),
+  temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
+  useChatIds: [] as string[],
+  onError: undefined as ((error: Error) => void) | undefined,
+  liveAssistants: [] as CherryUIMessage[],
+  isPending: false
+}))
+
+import ActionGeneral from '../ActionGeneral'
+
+const resultContentChunk = vi.hoisted(() => ({ evaluated: vi.fn() }))
+
+vi.mock('../ActionResultContent', () => {
+  resultContentChunk.evaluated()
+  const MockActionResultContent = ({ message }: { message: { createdAt: string } }) => {
+    const elapsedMs = usePlaceholderElapsedMs(true, message.createdAt, 1000)
+    const elapsedSeconds = Math.floor(elapsedMs / 1000)
+    return <div>Processing {elapsedSeconds} seconds</div>
+  }
+  return {
+    default: MockActionResultContent
+  }
+})
+
+vi.mock('@ai-sdk/react', () => ({
+  useChat: ({ id, onError }: { id: string; onError?: (error: Error) => void }) => {
+    state.useChatIds.push(id)
+    state.onError = onError
+    return {
+      sendMessage: state.sendMessage,
+      stop: state.stopChat
+    }
+  }
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) => {
+    if (key === 'feature.quick_assistant.assistant_id') return [state.quickAssistantId]
+    return ['en-US']
+  }
+}))
+
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: (id: string) => {
+    if (!id) return { assistant: undefined, isLoading: false }
+    if (id === state.quickAssistantId) {
+      return { assistant: state.fallbackAssistant, isLoading: state.isFallbackLoading }
+    }
+    return { assistant: state.assistant, isLoading: state.isChosenLoading }
+  }
+}))
+
+vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
+  useTemporaryTopic: (options: { enabled?: boolean; assistantId?: string }) => {
+    state.temporaryTopicOptions.push(options)
+    return options.enabled === false ? { topicId: null, ready: false } : { topicId: 'temp-topic', ready: true }
+  }
+}))
+
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
+}))
+
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants })
+}))
+
+vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
+  useMessageListRenderConfig: () => ({ renderConfig: {} })
+}))
+
+vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', () => ({
+  useMessagePlatformActions: () => ({})
+}))
+
+vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
+  MessageContentProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+}))
+
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
+  default: () => <div data-testid="message-content" />
+}))
+
+vi.mock('@renderer/components/CopyButton', () => ({
+  default: () => <button type="button">copy</button>
+}))
+
+vi.mock('../WindowFooter', () => ({
+  default: ({
+    loading,
+    onPause,
+    onRegenerate
+  }: {
+    loading: boolean
+    onPause: () => void
+    onRegenerate: () => void
+  }) => (
+    <button type="button" data-testid="window-footer" onClick={loading ? onPause : onRegenerate}>
+      {loading ? 'stop' : 'regenerate'}
+    </button>
+  )
+}))
+
+vi.mock('@renderer/services/aiTransport', () => ({
+  ipcChatTransport: {}
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, string>) => `${key}:${options?.language ?? ''}`
+  })
+}))
+
+function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionActionItem {
+  return {
+    id: 'summary',
+    name: 'Summary',
+    enabled: true,
+    isBuiltIn: true,
+    selectedText: 'hello',
+    ...overrides
+  }
+}
+
+describe('ActionGeneral', () => {
+  beforeEach(() => {
+    state.assistant = undefined
+    state.fallbackAssistant = undefined
+    state.quickAssistantId = ''
+    state.isFallbackLoading = false
+    state.isChosenLoading = false
+    state.sendMessage.mockClear()
+    state.stopChat.mockClear()
+    state.temporaryTopicOptions = []
+    state.useChatIds = []
+    state.onError = undefined
+    state.liveAssistants = []
+    state.isPending = false
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // MUST run first in this file: if a future test ever renders a result, the
+  // lazy module would load through React.lazy and permanently mark
+  // `resultContentChunk.evaluated` (module caches defeat mockClear). Running
+  // before any result has ever rendered is what makes this assertion prove
+  // the mount preload specifically.
+  it('preloads the result-content chunk on mount, before any result arrives', async () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    // liveAssistants stays empty in this setup, so nothing result-related is
+    // rendered — the chunk import must still fire so its download overlaps the
+    // model's network latency instead of waiting for the first message.
+    await waitFor(() => expect(resultContentChunk.evaluated).toHaveBeenCalled())
+  })
+
+  it('leases a no-assistant temporary topic and sends for default model actions', async () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('interpolates selected text literally into every custom prompt placeholder', async () => {
+    const selectedText = "$$E=mc^2$$ | $& | $` | $' | {{text}}"
+    const prompt = 'Before {{text}} / {{text}} after'
+
+    render(
+      <ActionGeneral action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt, selectedText })} />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: `Before ${selectedText} / ${selectedText} after` })
+  })
+
+  it('waits for a configured assistant before leasing and sending', async () => {
+    state.isChosenLoading = true
+    const action = createAction({ assistantId: 'assistant-1' })
+    const { rerender } = render(<ActionGeneral action={action} />)
+
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    state.isChosenLoading = false
+    state.assistant = { id: 'assistant-1' }
+    rerender(<ActionGeneral action={{ ...action }} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
+  })
+
+  it('falls back to quickAssistant when built-in has no explicit assistant', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('waits for fallback assistant when quickAssistant is configured but not yet loaded', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = true
+
+    const { rerender } = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    state.isFallbackLoading = false
+    state.fallbackAssistant = { id: 'fallback-1' }
+    rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('does not fall back for custom actions configured with default model', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(
+      <ActionGeneral
+        action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt: 'hello', selectedText: 'hi' })}
+      />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('degrades to no-assistant when fallback assistant is stale (not found)', async () => {
+    state.quickAssistantId = 'deleted-id'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = false
+
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('localizes a known error and leaves space above it', () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
+
+    expect(screen.getByText('error.diagnosis.model:')).toHaveClass('mt-3')
+  })
+
+  it('advances the visible processing time for a temporary streamed message', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
+
+    const view = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
+      }
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+      await vi.dynamicImportSettled()
+    })
+    expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    expect(screen.getByText('Processing 3 seconds')).toBeInTheDocument()
+  })
+
+  it('restarts the visible processing time when regenerating', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
+
+    const action = createAction({ assistantId: '' })
+    const view = render(<ActionGeneral action={action} />)
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'first-streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
+      }
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
+    })
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(screen.getByText('Processing 3 seconds')).toBeInTheDocument()
+
+    state.isPending = false
+    view.rerender(<ActionGeneral action={{ ...action }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'regenerate' }))
+
+    state.isPending = true
+    state.liveAssistants = [
+      {
+        id: 'second-streamed-assistant',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
+      }
+    ]
+    await act(async () => {
+      view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
+    })
+
+    expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
+  })
+})

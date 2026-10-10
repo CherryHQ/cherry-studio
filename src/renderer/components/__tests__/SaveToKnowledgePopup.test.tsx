@@ -1,0 +1,432 @@
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { analyzeMessagesContent, processMessagesContent } from '@renderer/services/knowledgeContent'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { FileMetadata } from '@renderer/types/file'
+import type { MessageExportView } from '@renderer/types/messageExport'
+
+const mocks = vi.hoisted(() => ({
+  getMessageTitle: vi.fn(),
+  processMessageContent: vi.fn(),
+  submitKnowledgeItems: vi.fn()
+}))
+
+// This suite renders the real popup under a real PopupHost, so opt out of the
+// global services/popup mock installed in tests/renderer.setup.ts.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
+
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useKnowledgeBases: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
+  useAddKnowledgeItems: vi.fn()
+}))
+
+vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: mocks.getMessageTitle
+}))
+
+vi.mock('@renderer/utils/knowledge', () => ({
+  CONTENT_TYPES: {
+    TEXT: 'text',
+    CODE: 'code',
+    THINKING: 'thinking',
+    TOOL_USE: 'tools',
+    CITATION: 'citations',
+    TRANSLATION: 'translations',
+    ERROR: 'errors',
+    FILE: 'files',
+    IMAGES: 'images'
+  },
+  analyzeMessageContent: (message: MessageExportView & { testFiles?: FileMetadata[] }) => ({
+    text: message.parts.some((part) => part.type === 'text') ? 1 : 0,
+    code: 0,
+    thinking: 0,
+    images: 0,
+    files: message.testFiles?.length ?? 0,
+    tools: 0,
+    citations: 0,
+    translations: 0,
+    errors: 0
+  }),
+  processMessageContent: mocks.processMessageContent
+}))
+
+vi.mock('@renderer/services/knowledgeContent', () => ({
+  analyzeMessagesContent: vi.fn(() => ({
+    text: 0,
+    code: 0,
+    thinking: 0,
+    images: 0,
+    files: 0,
+    tools: 0,
+    citations: 0,
+    translations: 0,
+    errors: 0,
+    messages: 0
+  })),
+  analyzeTopicContent: vi.fn(),
+  processMessagesContent: vi.fn(),
+  processTopicContent: vi.fn()
+}))
+
+vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => (options ? `${key}:${JSON.stringify(options)}` : key)
+  })
+}))
+
+vi.mock('lucide-react', () => ({
+  Check: () => <span data-testid="check-icon" />
+}))
+
+vi.mock('@renderer/components/tags/CustomTag', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
+}))
+
+vi.mock('@renderer/components/KnowledgeBaseSelector', () => ({
+  KnowledgeBaseSelector: ({
+    onChange,
+    options = [],
+    value
+  }: {
+    onChange: (value: string) => void
+    options?: { label: string; value: string; disabled?: boolean }[]
+    value?: string
+  }) => (
+    <select aria-label="knowledge-base" onChange={(event) => onChange(event.target.value)} value={value ?? ''}>
+      {options.map((option) => (
+        <option key={option.value} disabled={option.disabled} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
+    <button type="button" {...props}>
+      {loading ? 'loading' : children}
+    </button>
+  ),
+  ColFlex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({
+    children,
+    closeOnOverlayClick,
+    ...props
+  }: React.ComponentProps<'div'> & { closeOnOverlayClick?: boolean }) => {
+    void closeOnOverlayClick
+    return <div {...props}>{children}</div>
+  },
+  DialogFooter: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogHeader: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogTitle: ({ children, ...props }: React.ComponentProps<'h2'>) => <h2 {...props}>{children}</h2>,
+  Flex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  HelpTooltip: () => null,
+  Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
+}))
+
+import { PopupHost } from '@renderer/components/PopupHost'
+
+import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
+
+function renderPopup(source: MessageExportView) {
+  render(<PopupHost />)
+
+  let promise!: ReturnType<typeof SaveToKnowledgePopup.show>
+  act(() => {
+    promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
+  })
+
+  return { promise }
+}
+
+function createFile(path: string, id: string): FileMetadata {
+  return {
+    id,
+    name: `${id}.pdf`,
+    origin_name: `${id}.pdf`,
+    path,
+    size: 1024,
+    ext: '.pdf',
+    type: 'document',
+    created_at: '2026-05-27T00:00:00.000Z',
+    count: 1
+  }
+}
+
+function createMessageWithFiles(files: FileMetadata[]): MessageExportView {
+  return {
+    id: 'message-1',
+    role: 'user',
+    assistantId: 'assistant-1',
+    topicId: 'topic-1',
+    createdAt: '2026-05-27T00:00:00.000Z',
+    status: 'success',
+    parts: [],
+    testFiles: files
+  } as MessageExportView & { testFiles: FileMetadata[] }
+}
+
+describe('SaveToKnowledgePopup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPreferenceService._resetMockState()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn()
+    })
+    mocks.processMessageContent.mockImplementation((message: MessageExportView & { testFiles?: FileMetadata[] }) => ({
+      text: '',
+      files: message.testFiles ?? []
+    }))
+    mocks.getMessageTitle.mockResolvedValue('All tools are working')
+    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
+      bases: [{ id: 'base-1', name: 'Knowledge Base', status: 'completed' }]
+    })
+    ;(useAddKnowledgeItems as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
+      submit: mocks.submitKnowledgeItems
+    })
+    mocks.submitKnowledgeItems.mockResolvedValue(undefined)
+    Object.assign(window, {
+      api: {
+        file: {
+          ensureExternalEntry: vi.fn()
+        }
+      }
+    })
+  })
+
+  afterEach(() => {
+    // Unmount the host first so draining leftover entries fires no React update on a
+    // still-mounted host, then settle+drain the singleton store for the next test. Fake
+    // timers fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
+  })
+
+  it('keeps the dialog title separate from the message group source title', async () => {
+    const message = createMessageWithFiles([])
+
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForMessages([message], 'Session title')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'chat.save.topic.knowledge.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Session title' })).not.toBeInTheDocument()
+    expect(await screen.findByText('chat.save.topic.knowledge.empty.no_content')).toBeInTheDocument()
+  })
+
+  it('uses the translated conversation fallback for blank message group source titles', async () => {
+    const message = createMessageWithFiles([])
+
+    ;(analyzeMessagesContent as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValueOnce({
+      text: 1,
+      code: 0,
+      thinking: 0,
+      images: 0,
+      files: 0,
+      tools: 0,
+      citations: 0,
+      translations: 0,
+      errors: 0,
+      messages: 1
+    })
+    ;(processMessagesContent as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValueOnce({
+      text: 'Saved conversation',
+      files: []
+    })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessages>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessages([message], '   ')
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'chat.save.topic.knowledge.source_fallback',
+          content: 'Saved conversation'
+        }
+      }
+    ])
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+  })
+
+  it('uses the readable message title as the note source', async () => {
+    const message = {
+      ...createMessageWithFiles([]),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'All tools are working' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({ text: 'All tools are working', files: [] })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.getMessageTitle).toHaveBeenCalledWith(message)
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'All tools are working',
+          content: 'All tools are working'
+        }
+      }
+    ])
+  })
+
+  it('saves resolvable files and warns about failed files', async () => {
+    const { promise } = renderPopup(
+      createMessageWithFiles([createFile('/tmp/ok.pdf', 'ok'), createFile('bad.pdf', 'bad')])
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
+        }
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+  })
+
+  it('preselects the last-used knowledge base when it is still available', async () => {
+    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
+      bases: [
+        { id: 'base-1', name: 'Base One', status: 'completed' },
+        { id: 'base-2', name: 'Base Two', status: 'completed' }
+      ]
+    })
+    await mockPreferenceService.set('chat.save.knowledge.last_base_id', 'base-2')
+
+    const message = {
+      ...createMessageWithFiles([]),
+      parts: [{ type: 'text', text: 'All tools are working' }]
+    } as MessageExportView
+
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'knowledge-base' })).toHaveValue('base-2'))
+  })
+
+  it('falls back to the first available base when the last-used base is gone or unusable', async () => {
+    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
+      bases: [
+        { id: 'base-1', name: 'Base One', status: 'completed' },
+        { id: 'base-2', name: 'Base Two', status: 'pending' }
+      ]
+    })
+    await mockPreferenceService.set('chat.save.knowledge.last_base_id', 'base-2')
+
+    const message = {
+      ...createMessageWithFiles([]),
+      parts: [{ type: 'text', text: 'All tools are working' }]
+    } as MessageExportView
+
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'knowledge-base' })).toHaveValue('base-1'))
+  })
+
+  it('persists the selected base after a successful save', async () => {
+    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
+      bases: [
+        { id: 'base-1', name: 'Base One', status: 'completed' },
+        { id: 'base-2', name: 'Base Two', status: 'completed' }
+      ]
+    })
+    const message = {
+      ...createMessageWithFiles([]),
+      parts: [{ type: 'text', text: 'All tools are working' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({ text: 'All tools are working', files: [] })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    fireEvent.change(screen.getByRole('combobox', { name: 'knowledge-base' }), { target: { value: 'base-2' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mockPreferenceService.set).toHaveBeenCalledWith('chat.save.knowledge.last_base_id', 'base-2')
+    await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBe('base-2')
+  })
+
+  it('does not persist the last-used base when a save produces zero knowledge items', async () => {
+    // Every file fails metadata resolution and the message has no text, so the
+    // save "succeeds" while producing zero knowledge items.
+    const { promise } = renderPopup(createMessageWithFiles([createFile('bad.pdf', 'bad')]))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 0 })
+    expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    await expect(mockPreferenceService.get('chat.save.knowledge.last_base_id')).resolves.toBeNull()
+  })
+})

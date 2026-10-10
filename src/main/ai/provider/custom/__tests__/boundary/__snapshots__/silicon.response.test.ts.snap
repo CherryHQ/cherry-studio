@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SiliconFlow response boundary > data[].url → images 1`] = `
+[
+  "https://img/d.png",
+]
+`;
+
+exports[`SiliconFlow response boundary > images[].url → images 1`] = `
+[
+  "https://img/s.png",
+]
+`;

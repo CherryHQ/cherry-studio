@@ -1,0 +1,891 @@
+.markdown {
+  --markdown-content-background: var(--background-subtle);
+  --markdown-border-color: var(--border-subtle);
+  --markdown-hover-background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--markdown-foreground, var(--foreground));
+  line-height: 1.65;
+  user-select: text;
+  /* Nested scrollers inherit the Scrollbar composite's idle `transparent` scrollbar-color,
+     which hides their scrollbars; `auto` breaks the inheritance (same as #19807). */
+  scrollbar-color: auto;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.markdown h1:first-child,
+.markdown h2:first-child,
+.markdown h3:first-child,
+.markdown h4:first-child,
+.markdown h5:first-child,
+.markdown h6:first-child {
+  margin-top: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 1.6em 0 0.65em;
+  color: var(--markdown-foreground, var(--foreground));
+  line-height: 1.35;
+  scroll-margin-top: 4rem;
+  text-wrap: balance;
+}
+
+.markdown h1 {
+  padding-bottom: 0.35em;
+  border-bottom: 0.5px solid var(--markdown-border-color);
+  font-size: 1.65em;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+}
+
+.markdown h2 {
+  font-size: 1.35em;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+}
+
+.markdown h3 {
+  font-size: 1.15em;
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown h4 {
+  font-size: 1em;
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown h5 {
+  font-size: 0.92em;
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown h6 {
+  font-size: 0.85em;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+}
+
+.markdown p {
+  margin: 0.8em 0;
+  line-height: inherit;
+  text-wrap: pretty;
+  /* Model/AI output uses \n as a line break; without this, in-paragraph
+   * newlines collapse into a single space (e.g. "count 1..5, one per line"
+   * renders as one line). pre-line keeps \n, collapses incidental runs of
+   * spaces, and trims trailing spaces — gentle for AI-generated prose.
+   * Code blocks keep their own `pre`/`break-spaces` rules above. */
+  white-space: pre-line;
+}
+
+.markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown p:only-child {
+  margin-bottom: 0;
+}
+
+.markdown p:first-child {
+  margin-top: 0;
+}
+
+.markdown p:has(+ ul),
+.markdown p:has(+ ol) {
+  margin-bottom: 0.35em;
+}
+
+/*
+ * Prompt editor preview (PromptEditorField): keep full WYSIWYG spacing.
+ *
+ * The global rule above already preserves newlines via pre-line. But prompts
+ * are user-authored plain text, so keep pre-wrap here to also preserve runs
+ * of spaces and trailing spaces that pre-line would collapse. See #18377.
+ */
+.prompt-preview .markdown p {
+  white-space: pre-wrap;
+}
+
+.markdown.static-markdown p {
+  white-space: normal;
+}
+
+.markdown ul {
+  list-style-type: disc;
+}
+
+.markdown ol {
+  list-style-type: decimal;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0.8em 0;
+  padding-inline-start: 1.45em;
+  list-style-position: outside;
+}
+
+.markdown li {
+  margin: 0.3em 0;
+  padding-block: 0;
+  padding-inline-start: 0.15em;
+}
+
+.markdown li pre {
+  margin: 1em 0;
+}
+
+.markdown li::marker {
+  color: var(--foreground-tertiary);
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin: 0.35em 0 0.25em;
+}
+
+.markdown li > p {
+  display: block;
+  margin: 0.35em 0;
+}
+
+.markdown li > p:first-child {
+  margin-top: 0;
+}
+
+.markdown li > p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown ul.contains-task-list {
+  padding-inline-start: 0.15em;
+  list-style: none;
+}
+
+.markdown .task-list-item {
+  padding-inline-start: 0.15em;
+  list-style: none;
+}
+
+.markdown .task-list-item > input[type='checkbox'] {
+  display: inline-grid;
+  place-content: center;
+  width: 1em;
+  height: 1em;
+  margin: 0;
+  margin-inline-end: 0.45em;
+  appearance: none;
+  background: var(--background);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 3px;
+  opacity: 1;
+  vertical-align: middle;
+}
+
+.markdown .task-list-item > input[type='checkbox']::before {
+  width: 0.28em;
+  height: 0.52em;
+  content: '';
+  border: solid var(--primary-foreground);
+  border-width: 0 0.12em 0.12em 0;
+  transform: translateY(-0.04em) rotate(45deg) scale(0);
+}
+
+.markdown .task-list-item > input[type='checkbox']:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.markdown .task-list-item > input[type='checkbox']:checked::before {
+  transform: translateY(-0.04em) rotate(45deg) scale(1);
+}
+
+.markdown hr {
+  border: none;
+  border-top: 0.5px solid var(--border);
+  margin: 1.5em 0;
+}
+
+.markdown span {
+  white-space: inherit;
+}
+
+.markdown mark {
+  padding: 0 0.15em;
+  color: inherit;
+  background: color-mix(in srgb, var(--warning) 24%, transparent);
+  border-radius: 3px;
+}
+
+.markdown dl {
+  margin: 0.8em 0;
+}
+
+.markdown dt {
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown dd {
+  margin: 0.2em 0 0.65em 1.25em;
+}
+
+.markdown progress {
+  width: 12rem;
+  max-width: 100%;
+  height: 0.5rem;
+  overflow: hidden;
+  appearance: none;
+  background: var(--border-subtle);
+  border: 0;
+  border-radius: 999px;
+  color: var(--primary);
+  vertical-align: middle;
+}
+
+.markdown progress::-webkit-progress-bar {
+  background: var(--border-subtle);
+  border-radius: inherit;
+}
+
+.markdown progress::-webkit-progress-value {
+  background: var(--primary);
+  border-radius: inherit;
+}
+
+.markdown progress::-moz-progress-bar {
+  background: var(--primary);
+  border-radius: inherit;
+}
+
+.markdown .katex span,
+.markdown pre span {
+  white-space: pre;
+}
+
+.markdown code {
+  font-family: var(--code-font-family);
+  font-variant-ligatures: none;
+}
+
+.markdown :not(pre) > code,
+.markdown [data-streamdown='inline-code'] {
+  box-decoration-break: clone;
+  background: var(--markdown-content-background);
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: 5px;
+  margin: 0 0.08em;
+  padding: 0.12em 0.38em;
+  font-size: 0.92em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: break-spaces;
+  word-break: normal;
+}
+
+.markdown pre {
+  margin: 1em 0;
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: 10px;
+  overflow-x: auto;
+  background-color: var(--markdown-content-background);
+  font-family: var(--code-font-family);
+  font-size: 0.92em;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.markdown [data-streamdown='code-block-header'] span,
+.markdown [data-streamdown='mermaid-block'] > div:first-child span {
+  text-transform: uppercase;
+}
+
+.markdown pre:has(.special-preview) {
+  background-color: transparent;
+}
+
+.markdown pre:has(.message-html-artifact) {
+  border: 0;
+}
+
+.markdown pre:not(pre pre) > code:not(pre pre > code) {
+  display: block;
+  padding: 0.9em 1em;
+}
+
+.markdown pre:has(> .code-block) {
+  margin: 1em 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.markdown pre pre {
+  margin: 0 !important;
+}
+
+.markdown pre pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdown pre + pre {
+  margin-top: 0.75em;
+}
+
+.markdown [data-streamdown='code-block'],
+.markdown [data-streamdown='mermaid-block'] {
+  margin: 1em 0;
+  gap: 0.5em;
+  padding: 0.5em;
+  overflow: hidden;
+  background: var(--markdown-content-background);
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: 10px;
+}
+
+.markdown [data-streamdown='code-block-header'],
+.markdown [data-streamdown='mermaid-block'] > div:first-child {
+  height: 1.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.78em;
+}
+
+.markdown [data-streamdown='code-block-body'] {
+  padding: 0.8em 1em;
+  overflow-x: auto;
+  background: var(--background);
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: var(--radius-md);
+}
+
+.markdown [data-streamdown='code-block-body'] pre,
+.markdown [data-streamdown='code-block-body'] pre > code {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.markdown [data-streamdown='mermaid-block'] > div:last-child {
+  overflow: hidden;
+  background: var(--background);
+  border-color: var(--markdown-border-color);
+  border-radius: var(--radius-md);
+}
+
+.markdown [data-streamdown='mermaid'] svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown blockquote {
+  position: relative;
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  background-color: var(--markdown-content-background);
+  border-left: 2px solid var(--primary);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+
+.markdown blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown .markdown-alert {
+  --markdown-alert-accent: var(--muted-foreground);
+  position: relative;
+  margin: 1em 0;
+  padding: 0.75em 0.9em;
+  background: var(--background-subtle);
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--markdown-foreground, var(--foreground));
+  font-style: normal;
+}
+
+.markdown .markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown .markdown-alert .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0 0 0.35em;
+  color: var(--markdown-alert-accent);
+  font-size: 0.82em;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.markdown .markdown-alert .markdown-alert-title .octicon {
+  flex: none;
+  margin-inline-end: 0 !important;
+  color: var(--markdown-alert-accent);
+}
+
+.markdown .markdown-alert[class*='markdown-alert-'] {
+  border-left-color: var(--border-subtle);
+}
+
+.markdown .markdown-alert[class*='markdown-alert-'] .markdown-alert-title {
+  color: var(--markdown-alert-accent);
+}
+
+.markdown .markdown-alert-note {
+  --markdown-alert-accent: var(--info);
+}
+
+.markdown .markdown-alert-tip {
+  --markdown-alert-accent: var(--success);
+}
+
+.markdown .markdown-alert-important {
+  --markdown-alert-accent: var(--markdown-important);
+}
+
+.markdown .markdown-alert-warning {
+  --markdown-alert-accent: var(--warning);
+}
+
+.markdown .markdown-alert-caution {
+  --markdown-alert-accent: var(--error);
+}
+
+.markdown table {
+  --table-border-radius: var(--radius-lg);
+  margin: 1em 0;
+  font-size: 0.92em;
+  line-height: 1.55;
+  width: 100%;
+  border-radius: var(--table-border-radius);
+  overflow: hidden;
+  border-collapse: separate;
+  border: 0.5px solid var(--markdown-border-color);
+  border-spacing: 0;
+}
+
+.markdown th,
+.markdown td {
+  padding: 0.65em 0.75em;
+  overflow-wrap: break-word;
+  word-break: normal;
+  border-right: 0.5px solid var(--markdown-border-color);
+  border-bottom: 0.5px solid var(--markdown-border-color);
+  text-align: start;
+  vertical-align: top;
+}
+
+.markdown th:last-child,
+.markdown td:last-child {
+  border-right: none;
+}
+
+.markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown th {
+  background-color: var(--markdown-content-background);
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown tbody tr:hover > td {
+  background-color: var(--markdown-hover-background);
+}
+
+.markdown caption {
+  padding: 0 0 0.55em;
+  color: var(--muted-foreground);
+  font-size: 0.85em;
+  text-align: start;
+}
+
+.markdown [data-streamdown='table-wrapper'] {
+  margin: 1em 0;
+  gap: 0.5em;
+  padding: 0.5em;
+  background: var(--markdown-content-background);
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: 10px;
+}
+
+.markdown [data-streamdown='table-wrapper'] > div:last-child {
+  border-color: var(--markdown-border-color);
+  border-radius: var(--radius-md);
+}
+
+.markdown [data-streamdown='table-wrapper'] table {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/*
+ * Image export (utils/image.ts `captureScrollable`) rasterizes a DOM clone via
+ * html-to-image: computed box sizes are frozen and `overflow` keeps clipping in
+ * the static image, where the user can no longer scroll. While the capture
+ * marker is set, unclip table viewports, table corner-clipping, and formula
+ * boxes so rendered content is not cut off. `!important` overrides inline
+ * table overflow and the later math rules.
+ */
+[data-image-capturing] .table-scroll-viewport,
+[data-image-capturing] [data-streamdown='table-wrapper'] > div:last-child {
+  overflow: visible !important;
+}
+
+[data-image-capturing] .table-scroll-viewport > table {
+  overflow: visible !important;
+}
+
+[data-image-capturing] .katex,
+[data-image-capturing] .katex-display,
+[data-image-capturing] mjx-container {
+  overflow: visible !important;
+}
+
+/* foreignObject rasters (html-to-image) measure text a hair wider than the
+ * live layout, so `truncate` ellipses fire on header labels and tool-block
+ * titles that fit on screen. Render clones un-truncated — the labels simply
+ * extend into the header row's empty right side — and keep timestamps on one
+ * line instead of wrapping. */
+[data-image-capturing] .truncate,
+[data-image-capturing] [class*='truncate'] {
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* In the header row the labels also stop shrinking, so the wider foreignObject
+ * measure cannot bleed a name over the gap before the next label. */
+[data-image-capturing] .message-header .truncate,
+[data-image-capturing] .message-header [class*='truncate'] {
+  width: max-content !important;
+  flex-shrink: 0 !important;
+}
+
+[data-image-capturing] .message-header-info-wrap span {
+  white-space: nowrap !important;
+}
+
+/* Flex gap is not reliably carried into foreignObject rasters; force a
+ * an explicit separation so the timestamp never touches the model label. */
+[data-image-capturing] .message-header-info-wrap {
+  margin-left: 8px !important;
+}
+
+/* Horizontally scrolling code blocks (`white-space: pre`) extend past the
+ * message column and every foreignObject raster clips them at the column
+ * edge. Wrap code lines for the capture instead — the full command stays
+ * visible where the live page would require horizontal scrolling. */
+[data-image-capturing] pre,
+[data-image-capturing] pre code {
+  white-space: pre-wrap !important;
+  overflow-x: visible !important;
+  overflow-wrap: anywhere !important;
+}
+
+.markdown img:not([data-file-token-icon-thumbnail]) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1em 0;
+  background: var(--markdown-content-background);
+  border: 0.5px solid var(--markdown-border-color);
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+}
+
+.markdown [data-streamdown='image-wrapper'] {
+  margin: 1em 0;
+}
+
+.markdown [data-streamdown='image-wrapper'] img {
+  margin: 0;
+}
+
+.markdown a,
+.markdown .link {
+  color: var(--link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.markdown .markdown-link-favicon img {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.markdown a:hover,
+.markdown .link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.markdown a:focus-visible,
+.markdown .link:focus-visible {
+  border-radius: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Streamdown renders bold as `<span data-streamdown="strong">` (not a `<strong>`
+   tag), so the tag selector alone leaves it at the component's font-semibold.
+   Match the data attribute too so streamed bold is as heavy as the markdown-it
+   path (real `<strong>`) used elsewhere. */
+.markdown strong,
+.markdown [data-streamdown='strong'] {
+  font-weight: bold;
+}
+
+.markdown [data-sd-animate] {
+  font-weight: inherit;
+}
+
+.markdown em {
+  font-style: italic;
+}
+
+.markdown del {
+  text-decoration: line-through;
+}
+
+.markdown mark {
+  padding: 0.05em 0.2em;
+  background: var(--warning-subtle);
+  border-radius: 3px;
+  color: var(--warning-subtle-foreground);
+}
+
+.markdown kbd {
+  display: inline-block;
+  margin: 0 0.08em;
+  padding: 0.08em 0.35em;
+  background: var(--markdown-content-background);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--markdown-foreground, var(--foreground));
+  font-family: var(--code-font-family);
+  font-size: 0.85em;
+  line-height: 1.4;
+  vertical-align: 0.05em;
+  white-space: nowrap;
+}
+
+.markdown details {
+  margin: 1em 0;
+  overflow: visible;
+}
+
+.markdown summary {
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+}
+
+.markdown summary::marker {
+  color: var(--muted-foreground);
+}
+
+.markdown details[open] > summary {
+  margin-bottom: 0.7em;
+}
+
+.markdown details > :last-child {
+  margin-bottom: 0.8em;
+}
+
+.markdown sup,
+.markdown sub {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+/*
+ * Only citation superscripts become badges. Plain semantic superscripts such
+ * as E = mc² keep the normal typographic treatment above.
+ */
+.markdown sup {
+  top: -0.4em;
+}
+
+.markdown sup[data-citation] {
+  top: -0.45em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.55em;
+  height: 1.55em;
+  padding: 0 0.25em;
+  /* Separates back-to-back markers, e.g. a statement supported by two sources. */
+  margin: 0 0.12em;
+  line-height: 1;
+  border-radius: 999px;
+  background-color: var(--reference);
+  color: var(--reference-foreground);
+}
+
+.markdown sup[data-citation] > span.link {
+  color: var(--reference-foreground);
+}
+
+.markdown sub {
+  bottom: -0.25em;
+}
+
+.markdown .footnote-ref {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 0;
+  margin: 0 2px;
+  color: var(--link);
+  text-decoration: none;
+}
+
+.markdown .footnote-ref:hover {
+  text-decoration: underline;
+}
+
+.markdown .footnotes {
+  margin: 1.5em 0 0;
+  padding: 1em 0 0;
+  background: transparent;
+  border-top: 0.5px solid var(--markdown-border-color);
+}
+
+.markdown .footnotes h4 {
+  margin: 0 0 0.5em;
+  color: var(--muted-foreground);
+  font-size: 0.82em;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+}
+
+.markdown .footnotes a {
+  color: var(--link);
+}
+
+.markdown .footnotes ol {
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+
+.markdown .footnotes ol li:last-child {
+  margin-bottom: 0;
+}
+
+.markdown .footnotes li {
+  margin-bottom: 0.4em;
+  color: var(--muted-foreground);
+  font-size: 0.88em;
+}
+
+.markdown .footnotes li p {
+  display: inline;
+  margin: 0;
+}
+
+.markdown .footnotes .footnote-backref {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 0;
+  margin-inline-start: 0.35em;
+  color: var(--link);
+  text-decoration: none;
+}
+
+.markdown .footnotes .footnote-backref:hover {
+  text-decoration: underline;
+}
+
+.block-wrapper + .block-wrapper {
+  margin-top: 1em;
+}
+
+.markdown .katex,
+.markdown mjx-container {
+  display: inline-block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding: 1px 2px;
+  margin-top: -2px;
+  vertical-align: middle;
+}
+
+.markdown .katex-display,
+.markdown mjx-container[display='true'] {
+  display: block;
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+.markdown .katex-display > .katex {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Shiki 相关样式 */
+.shiki {
+  font-family: var(--code-font-family);
+  /* 保持行高为初始值，在 shiki 代码块中处理 */
+  line-height: initial;
+}
+
+/* CodeMirror 相关样式 */
+.cm-editor {
+  border-radius: inherit;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.code-editor .cm-editor .cm-scroller {
+  font-family: var(--code-font-family);
+  border-radius: inherit;
+}
+
+.cm-editor .cm-scroller .cm-gutters {
+  line-height: 1.6;
+  border-right: none;
+}
+
+.cm-editor .cm-scroller .cm-content {
+  line-height: 1.6;
+  padding-left: 0.25em;
+}
+
+.cm-editor .cm-scroller .cm-lineWrapping * {
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.cm-editor .cm-announced {
+  position: absolute;
+  display: none;
+}

@@ -1,0 +1,122 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+
+import { useAssistantMutationsById, useImportAssistantMutation } from '../assistantAdapter'
+
+const { importTriggerMock, invalidateMock, ipcRequestMock, useMutationMock } = vi.hoisted(() => ({
+  importTriggerMock: vi.fn(),
+  invalidateMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
+  useMutationMock: vi.fn()
+}))
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateMock,
+  useMutation: useMutationMock,
+  useQuery: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, vars?: Record<string, string>) => {
+      if (key === 'library.duplicate_name') {
+        return `${vars?.name ?? ''} (副本)`
+      }
+      return key
+    }
+  })
+}))
+
+function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
+  return {
+    id: 'ast-source',
+    orderKey: 'a0',
+    name: '原助手',
+    prompt: 'prompt',
+    emoji: '💬',
+    description: 'desc',
+    settings: {
+      temperature: 1,
+      enableTemperature: false,
+      topP: 1,
+      enableTopP: false,
+      maxTokens: 4096,
+      enableMaxTokens: false,
+      streamOutput: true,
+      reasoning_effort: 'default',
+      mcpMode: 'auto',
+      maxToolCalls: 20,
+      enableMaxToolCalls: true,
+      enableWebSearch: false,
+      enableGenerateImage: false,
+      customParameters: []
+    },
+    modelId: 'openai::gpt-4o',
+    groupId: null,
+    mcpServerIds: ['mcp-1'],
+    knowledgeBaseIds: ['kb-1'],
+    createdAt: '2026-04-20T00:00:00.000Z',
+    updatedAt: '2026-04-20T00:00:00.000Z',
+    modelName: 'GPT-4o',
+    ...overrides
+  }
+}
+
+describe('useImportAssistantMutation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('imports an assistant through the atomic import endpoint and refreshes groups', async () => {
+    const imported = createAssistant({ id: 'ast-imported', groupId: '11111111-1111-4111-8111-111111111111' })
+    importTriggerMock.mockResolvedValue(imported)
+    useMutationMock.mockReturnValue({
+      trigger: importTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+
+    const { result } = renderHook(() => useImportAssistantMutation())
+
+    await act(async () => {
+      await result.current.importAssistant({ name: 'Imported', prompt: 'prompt', groupName: 'work' })
+    })
+
+    expect(useMutationMock).toHaveBeenCalledWith('POST', '/assistants:import', {
+      refresh: ['/assistants', '/groups']
+    })
+    expect(importTriggerMock).toHaveBeenCalledWith({
+      body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
+    })
+  })
+})
+
+describe('useAssistantMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMutationMock.mockReturnValue({
+      trigger: importTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+  })
+
+  it('passes the parent cascade option to the Assistant archive command', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.deleteAssistant({ deleteTopics: true })
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('trash.assistant.archive', {
+      assistantId: 'assistant-1',
+      deleteTopics: true
+    })
+    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
+  })
+})
