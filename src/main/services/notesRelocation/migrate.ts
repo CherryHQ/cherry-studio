@@ -8,6 +8,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import type { NotesRelocationInspection, NotesRelocationResult } from '@shared/types/notesRelocation'
 
+import { resolveNotesRelocationSourcePathFromPreference } from './resolveMigrationSource'
 import { scanNotesDirectory } from './stats'
 import { assertNotesRelocationPaths, NotesRelocationValidationError } from './validation'
 
@@ -169,10 +170,12 @@ async function verifySourceCopied(sourceRoot: string, targetRoot: string): Promi
         continue
       }
 
-      const sourceSize = (await fs.promises.stat(sourceEntryPath)).size
       try {
-        const targetSize = (await fs.promises.stat(targetEntryPath)).size
-        if (targetSize !== sourceSize) {
+        const [sourceDigest, targetDigest] = await Promise.all([
+          digestFile(sourceEntryPath),
+          digestFile(targetEntryPath)
+        ])
+        if (sourceDigest !== targetDigest) {
           unresolved.push(relativePath)
         }
       } catch {
@@ -199,6 +202,11 @@ export async function migrateNotesDirectory(
   const inspection = await inspectNotesRelocation(sourcePath, targetPath)
   if (!inspection.valid) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, inspection.reason)
+  }
+
+  const authoritativeSource = resolveNotesRelocationSourcePathFromPreference()
+  if (path.resolve(sourcePath) !== path.resolve(authoritativeSource)) {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'source_changed')
   }
 
   if (!options.merge && inspection.target.fileCount > 0) {

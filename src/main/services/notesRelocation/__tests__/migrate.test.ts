@@ -9,16 +9,28 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
 import { application } from '@application'
 
 import { inspectNotesRelocation, migrateNotesDirectory } from '../migrate'
 import { assertNotesRelocationPaths } from '../validation'
+
+function migrateWithPreferenceSource(
+  sourcePath: string,
+  targetPath: string,
+  options: { merge: boolean }
+): ReturnType<typeof migrateNotesDirectory> {
+  MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', sourcePath)
+  return migrateNotesDirectory(sourcePath, targetPath, options)
+}
 
 describe('notesRelocation', () => {
   let tempRoot: string
   let defaultNotesDir: string
 
   beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-relocation-'))
     defaultNotesDir = path.join(tempRoot, 'default-notes')
     fs.mkdirSync(defaultNotesDir, { recursive: true })
@@ -54,7 +66,7 @@ describe('notesRelocation', () => {
     expect(inspection.source.markdownFileCount).toBe(2)
     expect(inspection.source.folderCount).toBe(1)
 
-    const result = await migrateNotesDirectory(source, target, { merge: false })
+    const result = await migrateWithPreferenceSource(source, target, { merge: false })
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.existsSync(path.join(target, 'image.png'))).toBe(true)
     expect(fs.readFileSync(path.join(source, 'note-a.md'), 'utf8')).toBe('# A')
@@ -68,7 +80,7 @@ describe('notesRelocation', () => {
     fs.mkdirSync(path.join(target, 'folder-a'))
     fs.writeFileSync(path.join(source, 'folder-a', 'note-b.md'), '# B')
 
-    const result = await migrateNotesDirectory(source, target, { merge: false })
+    const result = await migrateWithPreferenceSource(source, target, { merge: false })
     expect(result.target.markdownFileCount).toBe(1)
     expect(fs.readFileSync(path.join(target, 'folder-a', 'note-b.md'), 'utf8')).toBe('# B')
   })
@@ -81,7 +93,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Source')
     fs.writeFileSync(path.join(target, 'image.png'), 'png')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })
@@ -94,7 +106,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Source')
     fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })
@@ -107,7 +119,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'folder-a', 'note-b.md'), '# B')
     fs.writeFileSync(path.join(target, 'folder-a', 'note-b.md'), 'existing')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })
@@ -120,7 +132,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'new-note.md'), '# New')
     fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
 
-    const result = await migrateNotesDirectory(source, target, { merge: true })
+    const result = await migrateWithPreferenceSource(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(2)
     expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('# New')
   })
@@ -137,7 +149,7 @@ describe('notesRelocation', () => {
     if (!inspection.valid) return
     expect(inspection.targetHasFiles).toBe(true)
 
-    const result = await migrateNotesDirectory(source, target, { merge: true })
+    const result = await migrateWithPreferenceSource(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(1)
     expect(fs.readFileSync(path.join(target, 'folder-a', 'note.md'), 'utf8')).toBe('# Note')
   })
@@ -150,9 +162,31 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# New')
     fs.writeFileSync(path.join(target, 'image.png'), 'png')
 
-    const result = await migrateNotesDirectory(source, target, { merge: true })
+    const result = await migrateWithPreferenceSource(source, target, { merge: true })
     expect(result.target.markdownFileCount).toBe(1)
     expect(fs.readFileSync(path.join(target, 'image.png'), 'utf8')).toBe('png')
+  })
+
+  it('fails merge verification when a skipped destination file changes to same-sized different content', async () => {
+    const source = path.join(tempRoot, 'source-notes-same-size-skip')
+    const target = path.join(tempRoot, 'target-notes-same-size-skip')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'shared.md'), 'same1234')
+    fs.writeFileSync(path.join(target, 'shared.md'), 'same1234')
+    fs.writeFileSync(path.join(source, 'new-note.md'), '# New content')
+    fs.writeFileSync(path.join(target, 'existing.md'), '# Existing note')
+
+    const copyFile = fs.promises.copyFile
+    const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to, mode?) => {
+      await fs.promises.writeFile(path.join(target, 'shared.md'), 'diff1234')
+      await copyFile(from, to, mode)
+    })
+
+    await expect(migrateWithPreferenceSource(source, target, { merge: true })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_VERIFY_FAILED'
+    })
+    copyFileSpy.mockRestore()
   })
 
   it('fails merge verification when a new file lands with the wrong size', async () => {
@@ -171,7 +205,7 @@ describe('notesRelocation', () => {
       }
     })
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: true })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_VERIFY_FAILED'
     })
     copyFileSpy.mockRestore()
@@ -196,7 +230,7 @@ describe('notesRelocation', () => {
       await copyFile(from, to)
     })
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_FAILED'
     })
     expect(fs.existsSync(path.join(target, 'first.md'))).toBe(true)
@@ -213,7 +247,7 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(target, 'conflict.md'), '# Existing')
     fs.writeFileSync(path.join(source, 'added.md'), '# Added')
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: true })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_MERGE_CONFLICT'
     })
   })
@@ -226,8 +260,23 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'conflict.md'), 'abcd')
     fs.writeFileSync(path.join(target, 'conflict.md'), 'efgh')
 
-    await expect(migrateNotesDirectory(source, target, { merge: true })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: true })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_MERGE_CONFLICT'
+    })
+  })
+
+  it('rejects migration when the authoritative notes source no longer matches', async () => {
+    const source = path.join(tempRoot, 'source-notes-stale')
+    const target = path.join(tempRoot, 'target-notes-stale')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Source')
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.notes.path', path.join(tempRoot, 'other-notes'))
+
+    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_INVALID',
+      message: 'source_changed'
     })
   })
 
@@ -244,7 +293,7 @@ describe('notesRelocation', () => {
 
     fs.writeFileSync(path.join(target, 'late.md'), 'late')
 
-    await expect(migrateNotesDirectory(source, target, { merge: false })).rejects.toMatchObject({
+    await expect(migrateWithPreferenceSource(source, target, { merge: false })).rejects.toMatchObject({
       code: 'NOTES_RELOCATION_TARGET_NOT_EMPTY'
     })
   })

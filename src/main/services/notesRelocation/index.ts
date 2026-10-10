@@ -1,4 +1,5 @@
 export { inspectNotesRelocation, migrateNotesDirectory } from './migrate'
+export { resolveNotesRelocationSourcePathFromPreference } from './resolveMigrationSource'
 export {
   abandonNotesRelocationSession,
   acquireNotesRelocationSession,

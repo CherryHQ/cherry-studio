@@ -89,10 +89,9 @@ export async function migrateNotesDirectoryWithUi(options: {
   t: TFunction
   sourcePath: string
   targetPath: string
-  configuredNotesPath?: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
-  const { t, sourcePath, targetPath, configuredNotesPath, onSuccess } = options
+  const { t, sourcePath, targetPath, onSuccess } = options
 
   try {
     const inspection = await ipcApi.request('app.notes_relocation.inspect', {
@@ -128,12 +127,12 @@ export async function migrateNotesDirectoryWithUi(options: {
 
     const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
     try {
-      if (configuredNotesPath != null) {
-        const currentSourcePath = await resolveNotesMigrationSourcePath(configuredNotesPath)
-        if (normalizePathValue(currentSourcePath) !== normalizePathValue(sourcePath)) {
-          toast.error(t('settings.data.notes_relocation.error.source_changed'))
-          return
-        }
+      const { sourcePath: authoritativeSourcePath } = await ipcApi.request(
+        'app.notes_relocation.resolve_migration_source'
+      )
+      if (normalizePathValue(authoritativeSourcePath) !== normalizePathValue(sourcePath)) {
+        toast.error(t('settings.data.notes_relocation.error.source_changed'))
+        return
       }
 
       await ipcApi.request('app.notes_relocation.migrate', {
@@ -180,7 +179,6 @@ export async function pickNotesTargetDirectory(t: TFunction): Promise<string> {
 export async function startNotesDirectoryMigration(options: {
   t: TFunction
   sourcePath: string
-  configuredNotesPath?: string
   onSuccess: (targetPath: string) => void | Promise<void>
 }): Promise<void> {
   try {

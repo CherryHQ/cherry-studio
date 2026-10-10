@@ -23,6 +23,7 @@ import {
   registerRendererNotesEditsFlushWindow,
   releaseNotesRelocationSession,
   requestRendererNotesEditsFlush,
+  resolveNotesRelocationSourcePathFromPreference,
   setNotesRelocationMigrateInFlight,
   unregisterRendererNotesEditsFlushWindow
 } from '@main/services/notesRelocation'
@@ -75,6 +76,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     requestUserDataRelocation(path, copy)
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
+  'app.notes_relocation.resolve_migration_source': async () => ({
+    sourcePath: resolveNotesRelocationSourcePathFromPreference()
+  }),
   'app.notes_relocation.flush_edits_register': async (_input, { senderId }) => {
     if (senderId != null) {
       registerRendererNotesEditsFlushWindow(senderId)

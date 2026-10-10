@@ -79,7 +79,6 @@ const NotesSettings: FC = () => {
         t,
         sourcePath: migrationSourcePath,
         targetPath: tempPath,
-        configuredNotesPath: notesPath || '',
         onSuccess: async (path) => {
           await updateNotesPath(path)
           setTempPath(path)
