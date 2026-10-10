@@ -1473,19 +1473,8 @@ export class MessageService {
    * Update a message
    *
    * Uses transaction to ensure atomicity of validation and update.
-   * Cycle check is performed outside transaction as a read-only safety check.
    */
   update(id: string, dto: UpdateMessageDto): Message {
-    // Pre-transaction: Check for cycle if moving to new parent
-    // This is done outside transaction since getDescendantIds uses its own db context
-    // and cycle check is a safety check (worst case: reject valid operation)
-    if (dto.parentId !== undefined && dto.parentId !== null) {
-      const descendants = this.getDescendantIds(id)
-      if (descendants.includes(dto.parentId)) {
-        throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
-      }
-    }
-
     let activityChanged = false
     const message = application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
@@ -1511,9 +1500,17 @@ export class MessageService {
         }
       }
 
-      // Verify new parent exists if changing parent
       if (dto.parentId !== undefined && dto.parentId !== existing.parentId && dto.parentId !== null) {
-        this.getAddressableMessageRowTx(tx, dto.parentId)
+        if (dto.parentId === id) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
+        }
+        const parent = this.getAddressableMessageRowTx(tx, dto.parentId)
+        if (parent.topicId !== existing.topicId) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'Parent message does not belong to this topic')
+        }
+        if (this.getDescendantIdsTx(tx, id).includes(dto.parentId)) {
+          throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
+        }
       }
 
       // Build update object
@@ -2181,10 +2178,6 @@ export class MessageService {
   /**
    * Get all descendant IDs of a message
    */
-  private getDescendantIds(id: string): string[] {
-    return this.getDescendantIdsTx(application.get('DbService').getDb(), id)
-  }
-
   private getDescendantIdsTx(tx: DbOrTx, id: string): string[] {
     // Use recursive query to get all descendants
     const result = tx.all<{ id: string }>(sql`
