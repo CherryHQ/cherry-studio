@@ -12,6 +12,7 @@ import {
   marketplaceSkillNamespace,
   marketplaceSkillSource
 } from '@shared/utils/cherrySkillMarketplace'
+import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
 const logger = loggerService.withContext('Marketplace')
 
@@ -31,13 +32,30 @@ export async function loadMarketplaceSkills(): Promise<MarketplaceSkill[]> {
   return [...items.values()]
 }
 
-export function useMarketplace() {
+export function useMarketplace(sourceId: string | null = null, active = true) {
   const { t, i18n } = useTranslation()
-  const { mutate } = useSWRConfig()
-  const catalog = useSWR('skill.marketplace.list', loadMarketplaceSkills, {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false
-  })
+  const { cache, mutate } = useSWRConfig()
+  const [sourceSummary, setSourceSummary] = useState<{ sourceId: string; skipped: number } | null>(null)
+  const cached = useSWR(
+    sourceId ? ['skill.subscription.cache', sourceId] : null,
+    ([, id]) => ipcApi.request('skill.subscription.list', { sourceId: id }),
+    { revalidateOnFocus: false, shouldRetryOnError: false }
+  )
+  const catalogKey = sourceId ? ['skill.subscription.catalog', sourceId] : 'skill.marketplace.list'
+  const catalog = useSWR<MarketplaceSkill[]>(
+    active ? catalogKey : null,
+    async () => {
+      if (!sourceId) return loadMarketplaceSkills()
+      const snapshot = await ipcApi.request('skill.subscription.refresh', { sourceId })
+      setSourceSummary({ sourceId, skipped: snapshot.skipped })
+      return snapshot.items
+    },
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+      fallbackData: cached.data?.items
+    }
+  )
   const installed = useInstalledSkills()
   const mutateCatalog = catalog.mutate
   useReconcileSkillsOnOpen(true)
@@ -49,28 +67,46 @@ export function useMarketplace() {
     () =>
       new Map(
         installed.skills
-          .filter((skill) => skill.source === 'marketplace' && skill.namespace?.startsWith('cherryin:'))
-          .flatMap((skill) => (skill.sourceUrl ? [[skill.sourceUrl, skill] as const] : []))
+          .filter((skill) => skill.source === 'marketplace')
+          .flatMap((skill) => (skill.sourceUrl ? [[skillInstallIdentity(skill.sourceUrl), skill] as const] : []))
       ),
     [installed.skills]
   )
   const installedMembers = useCallback(
-    (skill: MarketplaceSkill) =>
-      (skill.membersKnown
-        ? skill.members
-        : [...installedSources.values()].flatMap((local) => {
-            if (local.namespace !== marketplaceSkillNamespace(skill.id) || !local.sourceUrl) return []
-            try {
-              const path = decodeURIComponent(new URL(local.sourceUrl).hash.slice(1))
-              return [{ path, name: local.name }]
-            } catch {
-              return []
-            }
-          })
+    (skill: MarketplaceSkill) => {
+      if (skill.subscription) {
+        const members = skill.membersKnown
+          ? skill.members
+          : [...installedSources.values()].flatMap((local) => {
+              if (!local.sourceUrl?.startsWith(skill.subscription!.url + '#')) return []
+              try {
+                return [{ path: decodeURIComponent(new URL(local.sourceUrl).hash.slice(1)), name: local.name }]
+              } catch {
+                return []
+              }
+            })
+        return members.flatMap((member) => {
+          const local = installedSources.get(skillInstallIdentity(subscriptionMemberSource(skill, member.path)))
+          return local ? [{ ...member, skillId: local.id }] : []
+        })
+      }
+      return (
+        skill.membersKnown
+          ? skill.members
+          : [...installedSources.values()].flatMap((local) => {
+              if (local.namespace !== marketplaceSkillNamespace(skill.id) || !local.sourceUrl) return []
+              try {
+                const path = decodeURIComponent(new URL(local.sourceUrl).hash.slice(1))
+                return [{ path, name: local.name }]
+              } catch {
+                return []
+              }
+            })
       ).flatMap((member) => {
         const local = installedSources.get(marketplaceSkillSource(skill.id, member.path))
         return local?.namespace === marketplaceSkillNamespace(skill.id) ? [{ ...member, skillId: local.id }] : []
-      }),
+      })
+    },
     [installedSources]
   )
   const installedCount = useCallback((skill: MarketplaceSkill) => installedMembers(skill).length, [installedMembers])
@@ -79,7 +115,7 @@ export function useMarketplace() {
   const items = useMemo(
     () =>
       catalog.data?.map((skill) => {
-        const local = installedSources.get(marketplaceSkillSource(skill.id, ''))
+        const local = skill.subscription ? undefined : installedSources.get(marketplaceSkillSource(skill.id, ''))
         return !skill.membersKnown && local?.namespace === marketplaceSkillNamespace(skill.id)
           ? { ...skill, membersKnown: true, isCollection: false, members: [{ path: '', name: local.name }] }
           : skill
@@ -96,7 +132,12 @@ export function useMarketplace() {
       const name = localizeMarketplaceText(skill.name, i18n.language)
       try {
         if (action === 'install') {
-          const result = await ipcApi.request('skill.marketplace.install', { id: skill.id })
+          const result = skill.subscription
+            ? await ipcApi.request('skill.subscription.install', {
+                sourceId: skill.subscription.sourceId,
+                itemId: skill.id
+              })
+            : await ipcApi.request('skill.marketplace.install', { id: skill.id })
           const contents = {
             members: result.members,
             membersKnown: true,
@@ -107,7 +148,9 @@ export function useMarketplace() {
               revalidate: false
             }),
             mutate<MarketplaceSkillDetail>(
-              ['skill.marketplace.detail', skill.id],
+              skill.subscription
+                ? ['skill.subscription.detail', skill.subscription.sourceId, skill.id]
+                : ['skill.marketplace.detail', skill.id],
               (item) => (item ? { ...item, ...contents } : item),
               { revalidate: false }
             )
@@ -169,7 +212,14 @@ export function useMarketplace() {
   )
 
   return {
-    catalog: { ...catalog, data: items },
+    curatedCount: (cache.get('skill.marketplace.list')?.data as MarketplaceSkill[] | undefined)?.length ?? null,
+    catalog: {
+      ...catalog,
+      data: items,
+      isLoading: !items && (catalog.isLoading || cached.isLoading),
+      error: catalog.error ?? cached.error
+    },
+    skipped: sourceSummary?.sourceId === sourceId ? sourceSummary.skipped : (cached.data?.skipped ?? 0),
     installed,
     installedCount,
     installedMembers,

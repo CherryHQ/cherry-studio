@@ -147,13 +147,20 @@ async function loadCatalogPresets(resourcesPath: string, language: string) {
 }
 
 export function useAssistantCatalogPresets({ enabled = true }: { enabled?: boolean } = {}) {
-  const { isLoading, items: presets } = useBundledCatalog({
+  const {
+    isLoading,
+    items: presets,
+    error,
+    retry
+  } = useBundledCatalog({
     catalog: 'assistant presets',
     enabled,
     load: loadCatalogPresets
   })
 
   return {
+    error,
+    retry,
     isLoading,
     presets
   }

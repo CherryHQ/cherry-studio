@@ -2,20 +2,18 @@ import { Check, Download, ExternalLink, Loader2, Package, Sparkles } from 'lucid
 import { useTranslation } from 'react-i18next'
 import useSWR, { useSWRConfig } from 'swr'
 
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Spinner
-} from '@cherrystudio/ui'
+import { Button, Dialog, Spinner } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import type { MarketplaceInstallResult, MarketplaceSkill } from '@shared/types/skillMarketplace'
 import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
 
+import {
+  MarketplaceDetailBody,
+  MarketplaceDetailContent,
+  MarketplaceDetailFooter,
+  MarketplaceDetailHeader,
+  MarketplaceDetailProperties
+} from './MarketplaceComponents'
 import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
 import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 
@@ -50,14 +48,21 @@ export function MarketplaceSkillDialog({
     isLoading,
     mutate
   } = useSWR(
-    open && skill ? ['skill.marketplace.detail', skill.id] : null,
-    ([, id]) => ipcApi.request('skill.marketplace.detail', { id }),
+    open && skill
+      ? skill.subscription
+        ? ['skill.subscription.detail', skill.subscription.sourceId, skill.id]
+        : ['skill.marketplace.detail', skill.id]
+      : null,
+    () =>
+      skill!.subscription
+        ? ipcApi.request('skill.subscription.detail', { sourceId: skill!.subscription.sourceId, itemId: skill!.id })
+        : ipcApi.request('skill.marketplace.detail', { id: skill!.id }),
     {
       revalidateOnFocus: false,
       shouldRetryOnError: false,
       onSuccess: ({ id, members, membersKnown, isCollection }) => {
         void mutateCache<MarketplaceSkill[]>(
-          'skill.marketplace.list',
+          skill?.subscription ? ['skill.subscription.catalog', skill.subscription.sourceId] : 'skill.marketplace.list',
           (items) => items?.map((item) => (item.id === id ? { ...item, members, membersKnown, isCollection } : item)),
           { revalidate: false }
         )
@@ -80,59 +85,43 @@ export function MarketplaceSkillDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        size="default"
-        motion="fade-scale"
-        closeLabel={t('common.close')}
-        overlayClassName="backdrop-blur-sm"
-        className="flex max-h-[calc(100vh-3rem)] flex-col gap-0 overflow-hidden rounded-3xl bg-transparent p-0"
+      <MarketplaceDetailContent
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           onReturnFocus()
         }}>
-        <DialogDescription className="sr-only">{text(item.description)}</DialogDescription>
-        <DialogHeader
-          className="shrink-0 border-border-subtle border-b px-5 pt-10 pb-5 text-left backdrop-blur-2xl backdrop-saturate-150"
-          style={{ backgroundColor: 'color-mix(in srgb, var(--card) 85%, transparent)' }}>
-          <div className="flex items-center gap-3">
-            <MarketplaceSkillIcon skill={item} large />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <DialogTitle className="truncate">{text(item.name)}</DialogTitle>
-                <Badge variant="secondary">{t('marketplace.type.skill')}</Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {item.author ? `@${item.author} · ` : ''}
-                {published}
-              </p>
-            </div>
-          </div>
-        </DialogHeader>
+        <MarketplaceDetailHeader
+          curated={!skill.subscription}
+          name={text(item.name)}
+          description={text(item.description)}
+          type={t('marketplace.type.skill')}
+          icon={<MarketplaceSkillIcon skill={item} large />}>
+          <p className={`mt-1 text-xs ${skill.subscription ? 'text-muted-foreground' : 'text-black/60'}`}>
+            {item.author ? `@${item.author} · ` : ''}
+            {published}
+          </p>
+        </MarketplaceDetailHeader>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-card px-5 py-5">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              [
-                t('marketplace.downloads'),
-                new Intl.NumberFormat(i18n.resolvedLanguage, { notation: 'compact' }).format(item.downloads)
-              ],
-              [t('marketplace.version'), item.version || '—'],
-              [
-                t('marketplace.category'),
-                MARKETPLACE_CATEGORY_KEYS[item.domain] ? t(MARKETPLACE_CATEGORY_KEYS[item.domain]) : item.domain
-              ]
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="min-w-0 rounded-xl border border-border-subtle bg-background-subtle px-3 py-2">
-                <div className="text-xs text-foreground-tertiary">{label}</div>
-                <div className="mt-1 truncate text-sm font-medium" title={value}>
-                  {value}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">{text(item.description)}</p>
+        <MarketplaceDetailBody>
+          <MarketplaceDetailProperties
+            items={[
+              {
+                label: t('marketplace.downloads'),
+                value:
+                  item.downloads === null
+                    ? ''
+                    : new Intl.NumberFormat(i18n.resolvedLanguage, { notation: 'compact' }).format(item.downloads)
+              },
+              { label: t('marketplace.version'), value: item.version || '—' },
+              {
+                label: t('marketplace.category'),
+                value: MARKETPLACE_CATEGORY_KEYS[item.domain] ? t(MARKETPLACE_CATEGORY_KEYS[item.domain]) : item.domain
+              }
+            ]}
+          />
+          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+            {item.subscription && detail?.longDescription.en ? text(detail.longDescription) : text(item.description)}
+          </p>
           <dl className="grid grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
             {[
               [t('marketplace.author'), item.author ? `@${item.author.replace(/^@/, '')}` : '—'],
@@ -199,9 +188,9 @@ export function MarketplaceSkillDialog({
               ))}
             </ul>
           ) : null}
-        </div>
+        </MarketplaceDetailBody>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-border-subtle border-t bg-card px-5 py-3">
+        <MarketplaceDetailFooter>
           {validSource ? (
             <Button
               variant="ghost"
@@ -239,8 +228,8 @@ export function MarketplaceSkillDialog({
                       : 'marketplace.install_now'
             )}
           </Button>
-        </div>
-      </DialogContent>
+        </MarketplaceDetailFooter>
+      </MarketplaceDetailContent>
     </Dialog>
   )
 }

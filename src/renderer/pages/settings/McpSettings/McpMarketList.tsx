@@ -3,89 +3,10 @@ import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Composio,
-  Glama,
-  Higress,
-  Mcp,
-  Mcpso,
-  Modelscope,
-  Pulse,
-  Smithery,
-  Zhipu
-} from '@cherrystudio/ui/icons/providers'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { openExternalWebsite } from '@renderer/services/website'
+import { MCP_MARKETS } from '@renderer/utils/mcpDiscovery'
 import { cn } from '@renderer/utils/style'
-
-const mcpMarkets = [
-  {
-    name: 'MCP World',
-    url: 'https://www.mcpworld.com',
-    logo: 'https://mcpworld.bdstatic.com/store/v2/865ad5d/mcp-server-store/ec04344/favicon.ico',
-    descriptionKey: 'settings.mcp.more.mcpworld'
-  },
-  {
-    name: 'BigModel MCP Market',
-    url: 'https://bigmodel.cn/marketplace/index/mcp',
-    logo: Zhipu,
-    descriptionKey: 'settings.mcp.more.zhipu'
-  },
-  {
-    name: 'modelscope.cn',
-    url: 'https://www.modelscope.cn/mcp',
-    logo: Modelscope,
-    descriptionKey: 'settings.mcp.more.modelscope'
-  },
-  {
-    name: 'mcp.higress.ai',
-    url: 'https://mcp.higress.ai/',
-    logo: Higress,
-    descriptionKey: 'settings.mcp.more.higress'
-  },
-  {
-    name: 'mcp.so',
-    url: 'https://mcp.so/',
-    logo: Mcpso,
-    descriptionKey: 'settings.mcp.more.mcpso'
-  },
-  {
-    name: 'smithery.ai',
-    url: 'https://smithery.ai/',
-    logo: Smithery,
-    descriptionKey: 'settings.mcp.more.smithery'
-  },
-  {
-    name: 'glama.ai',
-    url: 'https://glama.ai/mcp/servers',
-    logo: Glama,
-    descriptionKey: 'settings.mcp.more.glama'
-  },
-  {
-    name: 'pulsemcp.com',
-    url: 'https://www.pulsemcp.com',
-    logo: Pulse,
-    descriptionKey: 'settings.mcp.more.pulsemcp'
-  },
-  {
-    name: 'mcp.composio.dev',
-    url: 'https://mcp.composio.dev/',
-    logo: Composio,
-    descriptionKey: 'settings.mcp.more.composio'
-  },
-  {
-    name: 'Model Context Protocol Servers',
-    url: 'https://github.com/modelcontextprotocol/servers',
-    logo: Mcp,
-    descriptionKey: 'settings.mcp.more.official'
-  },
-  {
-    name: 'Awesome MCP Servers',
-    url: 'https://github.com/wong2/awesome-mcp-servers',
-    logo: 'https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png',
-    descriptionKey: 'settings.mcp.more.awesome'
-  }
-]
 
 const McpMarketList: FC = () => {
   const { t } = useTranslation()
@@ -94,7 +15,7 @@ const McpMarketList: FC = () => {
     <>
       <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
-        {mcpMarkets.map((resource) => (
+        {MCP_MARKETS.map((resource) => (
           <MarketCard key={resource.name} onClick={() => void openExternalWebsite(resource.url)}>
             <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (

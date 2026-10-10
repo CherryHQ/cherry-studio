@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react'
+import { ArrowRight, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +27,7 @@ export function SkillTagPicker({
     <div className="flex flex-col gap-2">
       {creating ? (
         <form
-          className={!resourceKey ? 'order-last' : undefined}
+          className={`relative ${!resourceKey ? 'order-last' : ''}`}
           onSubmit={async (event) => {
             event.preventDefault()
             if (await manager.create(name, resourceKey)) {
@@ -45,9 +45,18 @@ export function SkillTagPicker({
             }}
             maxLength={40}
             disabled={manager.saving}
-            className="h-9 rounded-xl text-xs"
+            className="h-9 rounded-xl pr-10 text-xs"
             autoFocus={!resourceKey}
           />
+          <Button
+            type="submit"
+            size="icon-sm"
+            aria-label={t('common.confirm')}
+            title={t('common.confirm')}
+            disabled={!name.trim() || manager.saving}
+            className="absolute top-1/2 right-1.5 size-6 -translate-y-1/2 rounded-full">
+            <ArrowRight className="size-3.5" />
+          </Button>
         </form>
       ) : null}
       <div className="max-h-60 overflow-y-auto">

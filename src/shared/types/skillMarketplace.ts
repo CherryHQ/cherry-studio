@@ -36,7 +36,9 @@ export const CherrySkillPageSchema = z.object({
 
 export type CherrySkill = z.infer<typeof CherrySkillSchema>
 export type MarketplaceSkillMember = { path: string; name: string }
-export type MarketplaceSkill = CherrySkill & {
+export type MarketplaceSkill = Omit<CherrySkill, 'downloads'> & {
+  downloads: number | null
+  subscription?: { sourceId: string; kind: 'github' | 'zip'; url: string }
   members: MarketplaceSkillMember[]
   membersKnown: boolean
   isCollection: boolean
@@ -51,4 +53,19 @@ export type MarketplaceInstallResult = {
   installed: InstalledSkill[]
   alreadyInstalled: InstalledSkill[]
   failed: Array<{ path: string; name: string; error: string }>
+}
+
+export type SkillSubscriptionSource = {
+  id: string
+  url: string
+  name: string
+  kind: 'github' | 'rss' | 'json'
+  createdAt: number
+}
+
+export type SkillSubscriptionSnapshot = {
+  source: SkillSubscriptionSource
+  items: MarketplaceSkillDetail[]
+  fetchedAt: number
+  skipped: number
 }

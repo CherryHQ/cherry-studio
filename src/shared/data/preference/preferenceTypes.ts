@@ -455,3 +455,5 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type { SkillSubscriptionSource } from '@shared/types/skillMarketplace'

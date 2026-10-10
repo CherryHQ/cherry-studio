@@ -34,6 +34,7 @@ type ResourceCreateWizardProps = {
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
   initialName?: string
+  initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
@@ -43,7 +44,11 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+function getDefaultValues(
+  kind: ResourceCreateWizardKind,
+  initialName = '',
+  initialValues: ResourceCreateWizardProps['initialValues'] = {}
+): ResourceCreateWizardFormValues {
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
@@ -53,7 +58,8 @@ function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): Res
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: []
+    skillIds: [],
+    ...initialValues
   }
 }
 
@@ -131,10 +137,13 @@ export function ResourceCreateWizard({
   onSubmit,
   modelFilter,
   isSubmitting = false,
-  initialName
+  initialName,
+  initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
-  const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const form = useForm<ResourceCreateWizardFormValues>({
+    defaultValues: getDefaultValues(kind, initialName, initialValues)
+  })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
@@ -185,7 +194,7 @@ export function ResourceCreateWizard({
   // user is already filling in — the shared wizard has five callers and a comment would not hold them.
   const resetForOpen = useEffectEvent(() => {
     autoSelectedDefaultModelIdRef.current = null
-    form.reset(getDefaultValues(kind, initialName))
+    form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
     setStepIndex(0)
   })
@@ -193,7 +202,7 @@ export function ResourceCreateWizard({
   useEffect(() => {
     if (!open) return
     resetForOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initial values; this effect is keyed by the open transition.
   }, [kind, open])
 
   // Preference/model/provider hydration may finish after the dialog opens. Seed only an

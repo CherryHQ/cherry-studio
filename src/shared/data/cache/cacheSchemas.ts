@@ -7,7 +7,7 @@ import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
-import type { MarketplaceSkillMember } from '@shared/types/skillMarketplace'
+import type { MarketplaceSkillMember, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -536,6 +536,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
   // ZIP-derived contents only; installed state still comes from the skill library.
   'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
   'browser.favicons': Record<string, string>
@@ -553,6 +554,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': {},
   'skill.marketplace.members': {},
   'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },

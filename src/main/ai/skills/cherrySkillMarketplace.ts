@@ -11,7 +11,6 @@ import {
   CherrySkillDetailSchema,
   CherrySkillPageSchema,
   type CherrySkill,
-  type MarketplaceSkillMember,
   type MarketplaceSkillDetail,
   type MarketplaceSkillPage
 } from '@shared/types/skillMarketplace'
@@ -124,13 +123,12 @@ async function validatePortableArchive(file: string): Promise<void> {
   }
 }
 
-export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
-  if (!skill.hasPackage) throw new Error('CherryIN skill has no installable package')
-  const tempDir = await createTempDir('cherryin')
+export async function downloadSkillPackage(url: string, collection = false) {
+  const tempDir = await createTempDir('skill-package')
   try {
     const zipPath = path.join(tempDir, 'package.zip')
     await readMarketplace(
-      `${CHERRY_SKILL_MARKETPLACE_URL}/api/skills/${encodeURIComponent(skill.id)}/download`,
+      url,
       async (response) => {
         if (!response.body) throw new Error('Empty skill download')
         const reader = response.body.getReader()
@@ -160,7 +158,7 @@ export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
     await extractZip(zipPath, contentDir)
     const candidates = await findAllSkillDirectories(contentDir, contentDir)
     if (!candidates.length) throw new Error('Skill package contains no skills')
-    const isCollection = candidates.length > 1 || (skill.tags.includes('collection') && candidates[0].sourcePath !== '')
+    const isCollection = candidates.length > 1 || (collection && candidates[0].sourcePath !== '')
     const directories: Array<MarketplaceSkillDetail['members'][number] & { skillDir: string }> = []
     const folderNames = new Set<string>()
     for (const candidate of candidates) {
@@ -180,15 +178,23 @@ export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
       }
       directories.push({ path: memberPath, name: metadata.name, skillDir })
     }
-    const members: MarketplaceSkillMember[] = directories.map(({ path, name }) => ({ path, name }))
-    const cache = application.get('CacheService')
-    cache.setPersist('skill.marketplace.members', {
-      ...cache.getPersist('skill.marketplace.members'),
-      [skill.id]: members
-    })
     return { tempDir, directories }
   } catch (error) {
     await safeRemoveDirectory(tempDir)
     throw error
   }
+}
+
+export async function downloadMarketplaceSkill(skill: MarketplaceSkillDetail) {
+  if (!skill.hasPackage) throw new Error('CherryIN skill has no installable package')
+  const downloaded = await downloadSkillPackage(
+    CHERRY_SKILL_MARKETPLACE_URL + '/api/skills/' + encodeURIComponent(skill.id) + '/download',
+    skill.tags.includes('collection')
+  )
+  const cache = application.get('CacheService')
+  cache.setPersist('skill.marketplace.members', {
+    ...cache.getPersist('skill.marketplace.members'),
+    [skill.id]: downloaded.directories.map(({ path, name }) => ({ path, name }))
+  })
+  return downloaded
 }

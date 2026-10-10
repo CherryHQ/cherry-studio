@@ -10,6 +10,8 @@ import {
   type SystemSkillCandidate
 } from '@shared/types/skill'
 import type {
+  SkillSubscriptionSource,
+  SkillSubscriptionSnapshot,
   MarketplaceInstallResult,
   MarketplaceSkillDetail,
   MarketplaceSkillPage
@@ -29,6 +31,27 @@ import { uint8ArraySchema } from './common'
  * validates inputs, not outputs.
  */
 export const skillRequestSchemas = {
+  'skill.subscription.add': defineRoute({
+    input: z.object({ url: z.string().trim().min(1) }),
+    output: z.custom<SkillSubscriptionSource>()
+  }),
+  'skill.subscription.list': defineRoute({
+    input: z.object({ sourceId: z.string().min(1) }),
+    output: z.custom<SkillSubscriptionSnapshot | null>()
+  }),
+  'skill.subscription.refresh': defineRoute({
+    input: z.object({ sourceId: z.string().min(1) }),
+    output: z.custom<SkillSubscriptionSnapshot>()
+  }),
+  'skill.subscription.remove': defineRoute({ input: z.object({ sourceId: z.string().min(1) }), output: z.void() }),
+  'skill.subscription.detail': defineRoute({
+    input: z.object({ sourceId: z.string().min(1), itemId: z.string().min(1) }),
+    output: z.custom<MarketplaceSkillDetail>()
+  }),
+  'skill.subscription.install': defineRoute({
+    input: z.object({ sourceId: z.string().min(1), itemId: z.string().min(1) }),
+    output: z.custom<MarketplaceInstallResult>()
+  }),
   'skill.export': defineRoute({
     input: z.object({ skillId: z.string().min(1) }),
     output: uint8ArraySchema

@@ -28,15 +28,16 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
-import type { MarketplaceInstallResult } from '@shared/types/skillMarketplace'
+import type { MarketplaceInstallResult, MarketplaceSkillDetail } from '@shared/types/skillMarketplace'
 import { marketplaceSkillNamespace, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 import {
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
   parseSkillSourceUrl
 } from '@shared/utils/skillMarketplace'
+import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
-import { downloadMarketplaceSkill, getMarketplaceSkill } from './cherrySkillMarketplace'
+import { downloadMarketplaceSkill, downloadSkillPackage, getMarketplaceSkill } from './cherrySkillMarketplace'
 import {
   assertSkillDirectoryWithinLimits,
   exportSkillArchive,
@@ -289,6 +290,59 @@ export class SkillService {
       return result
     } finally {
       await safeRemoveDirectory(downloaded.tempDir)
+    }
+  }
+
+  async installSubscription(skill: MarketplaceSkillDetail): Promise<MarketplaceInstallResult> {
+    const source = skill.subscription!
+    const namespace = 'subscription:' + createHash('sha256').update(skillInstallIdentity(source.url)).digest('hex')
+    const fetched = source.kind === 'github' ? await fetchRemoteSkill('github', source.url) : null
+    const downloaded = fetched ? null : await downloadSkillPackage(source.url)
+    const directories = fetched
+      ? [{ path: '', name: skill.name.en, skillDir: fetched.skillDir }]
+      : downloaded!.directories
+    const result: MarketplaceInstallResult = {
+      members: directories.map(({ path, name }) => ({ path, name })),
+      installed: [],
+      alreadyInstalled: [],
+      failed: []
+    }
+    try {
+      await this.mutationLock.runExclusive(async () => {
+        const existing = await this.list()
+        for (const member of directories) {
+          const sourceUrl = fetched?.sourceUrl ?? subscriptionMemberSource(skill, member.path)
+          const installed = existing.find(
+            (entry) =>
+              entry.source === 'marketplace' &&
+              entry.sourceUrl &&
+              skillInstallIdentity(entry.sourceUrl) === skillInstallIdentity(sourceUrl)
+          )
+          if (installed) {
+            result.alreadyInstalled.push(installed)
+            continue
+          }
+          try {
+            result.installed.push(
+              await this.installSkillDirLocked(
+                member.skillDir,
+                'marketplace',
+                sourceUrl,
+                source.kind === 'zip' ? { namespace } : undefined
+              )
+            )
+          } catch (error) {
+            result.failed.push({
+              path: member.path,
+              name: member.name,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      })
+      return result
+    } finally {
+      await safeRemoveDirectory(fetched?.tempDir ?? downloaded!.tempDir)
     }
   }
 
