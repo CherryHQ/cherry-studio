@@ -550,7 +550,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { status: streamStatus, isPending, lastCompletedAt } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -1516,8 +1516,8 @@ const ChatComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
-    isFulfilled,
-    markSeen,
+    isComplete: streamStatus === 'done',
+    lastCompletedAt,
     onDrain: sendQueuedPayload
   })
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(

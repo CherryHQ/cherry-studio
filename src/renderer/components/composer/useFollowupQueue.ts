@@ -17,6 +17,7 @@ export interface FollowupQueueItem {
 const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
+const completionKeyFor = (scopeKey: string) => `followup-queue-completion.${scopeKey}`
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
@@ -31,10 +32,10 @@ function loadPaused(scopeKey: string): boolean {
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
-  isFulfilled: boolean
-  /** Acknowledge the completion so the drain fires once per turn. */
-  markSeen: () => void
+  /** Whether the current stream status is the successful terminal state. */
+  isComplete: boolean
+  /** Authoritative completion identity from `useTopicStreamStatus` — the live→idle drain trigger. */
+  lastCompletedAt: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when auto-drain fails and leaves the queued item in place. */
@@ -58,8 +59,8 @@ export interface FollowupQueueController {
  */
 export function useFollowupQueue({
   scopeKey,
-  isFulfilled,
-  markSeen,
+  isComplete,
+  lastCompletedAt,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
@@ -68,6 +69,7 @@ export function useFollowupQueue({
 
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
+  const handledCompletionRef = useRef(cacheService.getCasual<number>(completionKeyFor(scopeKey)) ?? null)
   const itemsRef = useRef(items)
   itemsRef.current = items
   const onDrainRef = useRef(onDrain)
@@ -83,6 +85,7 @@ export function useFollowupQueue({
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
+    handledCompletionRef.current = cacheService.getCasual<number>(completionKeyFor(scopeKey)) ?? null
     setItems(loadQueue(scopeKey))
     setPausedState(loadPaused(scopeKey))
   }, [scopeKey])
@@ -122,19 +125,20 @@ export function useFollowupQueue({
     [persist]
   )
 
-  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
-  // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
+  // Drain one message per completion. This receipt is queue-owned: the topic list's UI read receipt
+  // must not consume the completion before the queue observes it.
   useEffect(() => {
-    if (!isFulfilled || paused) return
+    if (!isComplete || lastCompletedAt == null || handledCompletionRef.current === lastCompletedAt || paused) return
     const head = itemsRef.current[0]
     if (!head) return
-    markSeen()
+    handledCompletionRef.current = lastCompletedAt
+    cacheService.setCasual(completionKeyFor(scopeKeyRef.current), lastCompletedAt, QUEUE_TTL)
     const reportDrainFailure = () => onDrainFailedRef.current?.()
     void onDrainRef.current(head.payload).then((sent) => {
       if (sent) removeId(head.id)
       else reportDrainFailure()
     }, reportDrainFailure)
-  }, [isFulfilled, paused, markSeen, removeId])
+  }, [isComplete, lastCompletedAt, paused, removeId])
 
   return { items, enqueue, removeId, reorder, paused, setPaused }
 }

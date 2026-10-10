@@ -1554,7 +1554,7 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  const { status: sessionStreamStatus, lastCompletedAt: sessionLastCompletedAt } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1564,8 +1564,8 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    isFulfilled: !launchOptions?.editing && sessionFulfilled,
-    markSeen: markSessionSeen,
+    isComplete: !launchOptions?.editing && sessionStreamStatus === 'done',
+    lastCompletedAt: launchOptions?.editing ? null : sessionLastCompletedAt,
     onDrain: sendQueuedPayload
   })
 

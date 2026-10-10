@@ -87,6 +87,7 @@ const mocks = vi.hoisted(() => ({
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   topicFulfilled: false,
+  topicLastCompletedAt: null as number | null,
   markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
@@ -542,8 +543,10 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
+    status: mocks.topicLastCompletedAt == null ? undefined : 'done',
     isPending: false,
     isFulfilled: mocks.topicFulfilled,
+    lastCompletedAt: mocks.topicLastCompletedAt,
     markSeen: mocks.markTopicSeen
   })
 }))
@@ -808,6 +811,7 @@ describe('AgentComposer', () => {
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
     mocks.topicFulfilled = false
+    mocks.topicLastCompletedAt = null
     mocks.markTopicSeen.mockReset()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
@@ -4740,11 +4744,10 @@ describe('AgentComposer', () => {
     const { rerender } = render(<AgentComposer {...props(true)} />)
 
     fireEvent.click(screen.getByText('send'))
-    mocks.topicFulfilled = true
+    mocks.topicLastCompletedAt = 100
     rerender(<AgentComposer {...props(false)} />)
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
-    expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {

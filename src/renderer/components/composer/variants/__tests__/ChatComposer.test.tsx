@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   selectedModel: undefined as Model | undefined,
   modelSelectorProps: [] as any[],
   topicPending: false,
+  topicLastCompletedAt: null as number | null,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
@@ -566,7 +567,13 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
-  useTopicStreamStatus: () => ({ isPending: mocks.topicPending, isFulfilled: false, markSeen: () => {} })
+  useTopicStreamStatus: () => ({
+    status: mocks.topicPending ? 'streaming' : mocks.topicLastCompletedAt == null ? undefined : 'done',
+    isPending: mocks.topicPending,
+    isFulfilled: false,
+    lastCompletedAt: mocks.topicLastCompletedAt,
+    markSeen: () => {}
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -766,6 +773,7 @@ describe('ChatComposer', () => {
     mocks.selectedModel = undefined
     mocks.modelSelectorProps = []
     mocks.topicPending = false
+    mocks.topicLastCompletedAt = null
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
@@ -2004,6 +2012,24 @@ describe('ChatComposer', () => {
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+  })
+
+  it('auto-sends a queued follow-up after completion even when the UI receipt is already seen', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'follow up', tokens: [] })
+    })
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    mocks.topicLastCompletedAt = 100
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('follow up', expect.any(Object)))
+    await waitFor(() => expect(mocks.surfaceProps?.queueContent).toBeFalsy())
   })
 
   it('restores queued knowledge selection from the user-message parts', async () => {
