@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery, useReadCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
@@ -12,10 +12,12 @@ import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import { toDataApiError } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -63,6 +65,12 @@ function isVisibleStatus(status: MiniAppStatus): boolean {
 function compareOrderKey(a: MiniApp, b: MiniApp): number {
   return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
 }
+
+type OrderRequestResolver = OrderRequest | ((apps: readonly MiniApp[]) => OrderRequest)
+type MiniAppStatusUpdate = { appId: string; status: MiniApp['status']; order?: OrderRequest }
+type MiniAppStatusUpdatesResolver =
+  | ReadonlyArray<MiniAppStatusUpdate>
+  | ((apps: readonly MiniApp[]) => ReadonlyArray<MiniAppStatusUpdate>)
 
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
@@ -122,38 +130,6 @@ function miniAppIdFromTabUrl(url: string): string | null {
   if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
   const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
   return id ? id : null
-}
-
-/**
- * Process Promise.allSettled results: throw on partial failures so callers
- * can distinguish "all succeeded" from "partially failed", and invalidate
- * the cache to resync UI with DB after partial failures.
- */
-async function settleAndInvalidate(
-  results: PromiseSettledResult<MiniApp>[],
-  invalidate: (path: string) => Promise<void>,
-  label: string
-): Promise<MiniApp[]> {
-  const fulfilled = results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled')
-  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-
-  if (rejected.length > 0) {
-    const failures = rejected.map((f) => {
-      const err = toDataApiError(f.reason)
-      return isDataApiError(err)
-        ? { code: err.code, message: err.message }
-        : { code: 'UNKNOWN', message: String(f.reason) }
-    })
-    logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, { failures })
-    // Resync UI with DB — partial failures leave local state drifting
-    await invalidate('/mini-apps')
-    throw DataApiErrorFactory.invalidOperation(
-      `${label}: ${rejected.length} of ${results.length} updates failed`,
-      i18n.t('miniApp.update_partial_failure', { failed: rejected.length, total: results.length })
-    )
-  }
-
-  return fulfilled.map((r) => r.value)
 }
 
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
@@ -237,6 +213,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
   // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
   const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
+  const allAppsRef = useRef(allApps)
+  allAppsRef.current = allApps
 
   // === UI State Cache (unchanged) ===
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
@@ -262,22 +240,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
-
-  // Batch PATCH/DELETE via dataApiService (for Promise.allSettled batch ops where
-  // a single template useMutation would share isMutating/error state incorrectly)
-  const patchApp = useCallback(
-    async (appId: string, body: UpdateMiniAppDto) => {
-      try {
-        const result = await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
-        await invalidate('/mini-apps')
-        return result
-      } catch (error) {
-        logger.error('Failed to patch mini app', { appId, error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
-    },
-    [invalidate]
-  )
+  const readCache = useReadCache()
 
   // Fixed-path mutations (useMutation with auto-refresh)
   const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
@@ -298,6 +261,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
     refresh: ['/mini-apps']
   })
+  const { trigger: patchMiniAppStatusBatchTrigger } = useMutation('PATCH', '/mini-apps/status:batch', {
+    refresh: ['/mini-apps']
+  })
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
@@ -310,15 +276,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * accidentally affecting rows the caller never saw.
    */
   const updateAppStatus = useCallback(
-    async (appId: string, status: MiniApp['status']) => {
-      try {
-        return await patchAppTrigger({ params: { appId }, body: { status } })
-      } catch (error) {
-        logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
-    },
-    [patchAppTrigger]
+    (appId: string, status: MiniApp['status'], order?: OrderRequestResolver) =>
+      miniAppMutationService.enqueue(async () => {
+        try {
+          const resolvedOrder =
+            typeof order === 'function' ? order(readCache<MiniApp[]>('/mini-apps') ?? allAppsRef.current) : order
+          return await patchAppTrigger({ params: { appId }, body: { status, order: resolvedOrder } })
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      }),
+    [invalidate, patchAppTrigger, readCache]
   )
 
   const hideMiniApp = useCallback(
@@ -335,25 +305,34 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
 
   /**
-   * Batch status flip. Each entry is an explicit {appId, status} change.
+   * Batch status flip. Each entry names a row, its status, and optionally its
+   * target position in the destination partition.
    * Rows not present in `updates` are not touched — there is no diff against
    * the current cache, so this is safe to call from a region-filtered context.
    *
    * Use for swap (move two columns) and reset (move all hidden back to
    * enabled). Single-row actions belong on `updateAppStatus`.
    *
-   * Throws an aggregated {@link DataApiErrorFactory.invalidOperation} when one
-   * or more PATCHes fail; the cache is invalidated either way so the UI
-   * reconciles with the DB on the next render.
+   * The service commits the complete batch in one transaction, including any
+   * requested destination order, so reset cannot leave a partial result.
    */
   const setAppStatusBulk = useCallback(
-    async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
-      if (updates.length === 0) return Promise.resolve([] as MiniApp[])
-      return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
-        settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
-      )
+    async (updates: MiniAppStatusUpdatesResolver) => {
+      if (Array.isArray(updates) && updates.length === 0) return
+      await miniAppMutationService.enqueue(async () => {
+        try {
+          const resolvedUpdates =
+            typeof updates === 'function' ? updates(readCache<MiniApp[]>('/mini-apps') ?? allAppsRef.current) : updates
+          if (resolvedUpdates.length === 0) return
+          await patchMiniAppStatusBatchTrigger({ body: { updates: [...resolvedUpdates] } })
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      })
     },
-    [patchApp, invalidate]
+    [invalidate, patchMiniAppStatusBatchTrigger, readCache]
   )
 
   const createCustomMiniApp = useCallback(
@@ -510,14 +489,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * minimal set of `PATCH /:id/order` or `PATCH /order:batch` calls.
    */
   const reorderMiniApps = useCallback(
-    async (orderedApps: MiniApp[]) => {
-      try {
-        await applyMiniAppOrder(orderedApps)
-      } catch (error) {
-        logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
-    },
+    (orderedApps: MiniApp[]) =>
+      miniAppMutationService.enqueue(async () => {
+        try {
+          await applyMiniAppOrder(orderedApps)
+        } catch (error) {
+          logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      }),
     [applyMiniAppOrder]
   )
 
@@ -530,26 +510,35 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    */
   const reorderMiniAppsByStatus = useCallback(
     async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
-      const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
-      const orderedIds = new Set(orderedPartition.map((app) => app.appId))
-      const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
-      const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
-      if (moves.length === 0) return
+      const persist = async () => {
+        try {
+          const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+          const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+          // Status mutate+refresh writes SWR before React re-renders; peek that membership.
+          const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
+          const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+          const currentIds = new Set(currentPartition.map((app) => app.appId))
+          // A queued status write may move requested rows out of this partition; preserve the drag order of survivors.
+          const currentOrderedPartition = orderedPartition.filter((app) => currentIds.has(app.appId))
+          const moves = computeMinimalMoves(currentPartition, currentOrderedPartition, 'appId')
+          if (moves.length === 0) return
 
-      try {
-        if (moves.length === 1) {
-          const [move] = moves
-          await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
-        } else {
-          await patchMiniAppOrderBatchTrigger({ body: { moves } })
+          if (moves.length === 1) {
+            const [move] = moves
+            await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
+          } else {
+            await patchMiniAppOrderBatchTrigger({ body: { moves } })
+          }
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
+          throw toDataApiError(error)
         }
-      } catch (error) {
-        await invalidate('/mini-apps')
-        logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
-        throw toDataApiError(error)
       }
+
+      return miniAppMutationService.enqueue(persist)
     },
-    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger]
+    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger, readCache]
   )
 
   return {
@@ -557,6 +546,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     miniApps,
     disabled: disabledApps,
     pinned: pinnedApps,
+    effectiveRegion,
     openedKeepAliveMiniApps,
     currentMiniAppId,
     splitOpen,
