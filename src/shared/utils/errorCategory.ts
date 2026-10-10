@@ -273,6 +273,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('err_connection_refused') ||
     msg.includes('err_connection_timed_out') ||
     msg.includes('err_connection_aborted') ||
+    msg.includes('err_http2_protocol_error') ||
+    msg.includes('err_http2_ping_failed') ||
     msg.includes('err_timed_out')
   ) {
     return 'network'
