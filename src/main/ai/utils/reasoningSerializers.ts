@@ -282,3 +282,19 @@ export function filterReasoningForProviderOptions(
 export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
   return encodeEmissions({ ...invocation, emissions: invocation.emissions.filter(isBodyEmission) })
 }
+
+/** All wire targets the resolved profile may deliver through the raw HTTP body. */
+export function collectBodyRoutedTargets(profile: ReasoningWireProfile | undefined): ReadonlySet<string> {
+  const targets = new Set<string>()
+  if (!profile) return targets
+
+  for (const mode of Object.values(profile)) {
+    if (!mode || typeof mode !== 'object' || !('operations' in mode)) continue
+    for (const operation of mode.operations) {
+      if ((operation.delivery ?? 'provider-option') === 'request-body') {
+        targets.add(operation.target)
+      }
+    }
+  }
+  return targets
+}
