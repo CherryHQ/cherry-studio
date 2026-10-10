@@ -147,10 +147,12 @@ handles.
   the rebuilt history.
 - **`createAskUserExtension(port)`** – `AskUserQuestion` with Claude Code's input schema (1–4
   questions, each with a `header`, 2–4 options and `multiSelect`; question texts must differ, since
-  answers are keyed by them). The tool waits on `AskUserPort.ask`, which resolves `answered`
-  (`answers`, optional `annotations` notes), `declined` (optional `feedback`) or `unavailable` (no
-  one can answer, e.g. a channel or scheduled run). The result text tells the model what happened;
-  only `answered` is a success. `details` is always `{ questions, answers, annotations? }`. Calls in
+  answers are keyed by them, and so must the option labels of a question, since answers name them).
+  The tool waits on `AskUserPort.ask`, which resolves `answered` (`answers`, optional `annotations`
+  notes), `declined` (optional `feedback`) or `unavailable` (no one can answer, e.g. a channel or
+  scheduled run). The result text tells the model what happened; only `answered` is a success. Every
+  result the tool returns, aborted included, has `details` `{ questions, answers, annotations? }`;
+  invalid input and a rejecting port fail the call with empty `details`. Calls in
   one model step run one at a time. When the turn aborts, the tool stops waiting at once and the
   request's `signal` aborts so the host can withdraw the question; a late answer is ignored. A
   question pending at a crash is not persisted: the rebuilt session closes the call as failed.

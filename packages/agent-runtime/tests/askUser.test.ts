@@ -192,6 +192,18 @@ describe('ask-user extension', () => {
       reason: /different question text/
     },
     {
+      name: 'the same option label twice in a question',
+      questions: [
+        question('Which one?', {
+          options: [
+            { label: 'Yes', description: 'Ship it' },
+            { label: 'Yes', description: 'Ship it later' }
+          ]
+        })
+      ],
+      reason: /different label/
+    },
+    {
       name: 'a single option',
       questions: [question('Which one?', { options: [{ label: 'A', description: 'a' }] })],
       reason: /options: must not have fewer than 2 items/
