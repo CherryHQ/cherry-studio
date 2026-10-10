@@ -58,6 +58,7 @@ import p_stepfun from './stepfun'
 import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
+import p_topxai from './topxai'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
@@ -110,6 +111,7 @@ export const PROVIDERS: Provider[] = [
   p_minimax,
   p_groq,
   p_together,
+  p_topxai,
   p_fireworks,
   p_nvidia,
   p_grok,

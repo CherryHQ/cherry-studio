@@ -1883,6 +1883,34 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TopxAI - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://ai.topxea.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://ai.topxea.com/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "topxai",
+      "metadata": {
+        "website": {
+          "apiKey": "https://ai.topxea.com/keys",
+          "docs": "https://ai.topxea.com/docs",
+          "models": "https://ai.topxea.com/pricing",
+          "official": "https://ai.topxea.com"
+        }
+      },
+      "name": "TopxAI"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Fireworks - AI model provider",
       "endpointConfigs": {
@@ -2688,5 +2716,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a97aae2405a78d18"
+  "version": "ccd0a4cae79b1b1f"
 }
