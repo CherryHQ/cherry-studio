@@ -44,6 +44,17 @@ class MissingFinishReasonError extends Error {
   }
 }
 
+class EmptyResponseError extends Error {
+  readonly i18nKey = 'no_response'
+
+  constructor() {
+    super(
+      'The provider reported output tokens but returned no response content. Retry with a lower output token limit.'
+    )
+    this.name = 'EmptyResponseError'
+  }
+}
+
 function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
   if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
     return new MissingFinishReasonError(error, providerId, modelId)
@@ -338,6 +349,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
       let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
+      let hasAnswerContent = false
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -357,6 +369,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             throw capturedError.error
           }
           if (signal.aborted) break
+          if (
+            (value.type === 'text-delta' && value.delta.trim().length > 0) ||
+            value.type === 'file' ||
+            value.type === 'tool-input-available'
+          ) {
+            hasAnswerContent = true
+          }
           // Hold the success-looking finish marker until the loop result has
           // been classified. A cap-triggered or terminal-tool stop must reach
           // persistence as an error instead of briefly completing as success.
@@ -387,6 +406,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         stopWhen: params.options?.stopWhen
       })
       if (terminalError) throw terminalError
+      const finalStep = steps?.at(-1)
+      const reportedTextTokens = finalStep?.usage?.outputTokenDetails?.textTokens ?? finalStep?.usage?.outputTokens ?? 0
+      if (
+        !hasAnswerContent &&
+        reportedTextTokens > 0 &&
+        (pendingFinish?.finishReason === 'stop' || pendingFinish?.finishReason === 'length')
+      ) {
+        throw new EmptyResponseError()
+      }
       if (pendingFinish) {
         if (!(await commitFinish(pendingFinish))) {
           await safeCall('onAbort', hooks.onAbort)
