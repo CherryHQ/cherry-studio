@@ -46,7 +46,9 @@ function userDisabledVisionInput(providerId: string, modelId: string): boolean {
     .limit(1)
     .all()
 
-  return Boolean(row?.inputModalitiesExplicit && !row.inputModalities?.includes(MODALITY.IMAGE))
+  return Boolean(
+    row?.inputModalitiesExplicit && row.inputModalities != null && !row.inputModalities.includes(MODALITY.IMAGE)
+  )
 }
 
 /**

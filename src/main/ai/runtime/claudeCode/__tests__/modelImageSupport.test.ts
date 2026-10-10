@@ -100,6 +100,17 @@ describe('resolveModelNativeImageSupport', () => {
     expect(mocks.resolveModel).not.toHaveBeenCalled()
   })
 
+  it('does not treat baseline-restored null input modalities as an explicit image disable', () => {
+    mocks.getByKey.mockReturnValue({
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+    })
+    mocks.all.mockReturnValue([{ inputModalities: null, inputModalitiesExplicit: true }])
+
+    expect(resolveModelNativeImageSupport('claude-code::claude-sonnet-5-5')).toBe(true)
+    expect(mocks.resolveModel).not.toHaveBeenCalled()
+  })
+
   it('assumes vision-capable when the model row cannot be resolved', () => {
     mocks.getByKey.mockImplementation(() => {
       throw new Error('not found')
