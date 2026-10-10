@@ -80,6 +80,11 @@ type SyncService = Pick<ExternalKnowledgeSyncService, 'syncSource'>
 
 export type SyncExternalSourceJobHandlerDependencies = {
   now(): number
+  dispatchScheduledEnvelope?(input: KnowledgeSyncExternalSourcePayload, trigger: 'scheduled' | 'startup'): Promise<void>
+}
+
+function isScheduleEnvelope(input: KnowledgeSyncExternalSourcePayload): boolean {
+  return input.dispatch === 'schedule'
 }
 
 function parseSummary(value: unknown): ExternalKnowledgeSourceSyncSummary {
@@ -98,6 +103,10 @@ export function createSyncExternalSourceJobHandler(
   syncService: SyncService,
   dependencies: SyncExternalSourceJobHandlerDependencies = { now: Date.now }
 ): JobHandler<KnowledgeSyncExternalSourcePayload> {
+  // Natural and catch-up rows both persist scheduledAt; the missed→enqueued hand-off is the only feature-local discriminator.
+  const missedScheduleIds = new Set<string>()
+  const startupEnvelopeJobIds = new Set<string>()
+
   return {
     recovery: 'abandon',
     defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
@@ -111,7 +120,28 @@ export function createSyncExternalSourceJobHandler(
     defaultTimeoutMs: 30 * 60 * 1000,
     cancelTimeoutMs: Math.floor(SERVICE_STOP_TIMEOUT_MS / 2),
 
+    onMissed(event) {
+      missedScheduleIds.add(event.scheduleId)
+    },
+
+    onEnqueued(snapshot) {
+      if (snapshot.scheduleId === null || !isScheduleEnvelope(snapshot.input as KnowledgeSyncExternalSourcePayload)) {
+        return
+      }
+      if (missedScheduleIds.delete(snapshot.scheduleId)) startupEnvelopeJobIds.add(snapshot.id)
+    },
+
     async execute(ctx) {
+      if (isScheduleEnvelope(ctx.input)) {
+        if (!dependencies.dispatchScheduledEnvelope) {
+          throw new Error('External knowledge schedule dispatch is unavailable')
+        }
+        await dependencies.dispatchScheduledEnvelope(
+          ctx.input,
+          startupEnvelopeJobIds.has(ctx.jobId) ? 'startup' : 'scheduled'
+        )
+        return
+      }
       ctx.reportProgress(0, { stage: 'scanning' })
       try {
         const result = await syncService.syncSource({
@@ -156,6 +186,10 @@ export function createSyncExternalSourceJobHandler(
     },
 
     async onSettled(event) {
+      if (isScheduleEnvelope(event.input)) {
+        startupEnvelopeJobIds.delete(event.jobId)
+        return
+      }
       const completedSummary = event.status === 'completed' ? parseSummary(event.output) : null
       const failedMetadata = event.status === 'completed' ? null : parseMetadata(event.metadata.externalKnowledgeSync)
       const summary = completedSummary ?? failedMetadata?.summary ?? { ...EMPTY_SUMMARY, warnings: [] }

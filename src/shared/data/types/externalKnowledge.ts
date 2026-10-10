@@ -17,6 +17,14 @@ export const EXTERNAL_KNOWLEDGE_SYNC_OUTCOMES = ['completed', 'completed-with-wa
 export const ExternalKnowledgeSyncOutcomeSchema = z.enum(EXTERNAL_KNOWLEDGE_SYNC_OUTCOMES)
 export type ExternalKnowledgeSyncOutcome = z.infer<typeof ExternalKnowledgeSyncOutcomeSchema>
 
+const DailyScheduleTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+
+export const ExternalKnowledgeSchedulePolicySchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('manual') }),
+  z.strictObject({ kind: z.literal('daily'), time: DailyScheduleTimeSchema, timezone: NonBlankStringSchema })
+])
+export type ExternalKnowledgeSchedulePolicy = z.infer<typeof ExternalKnowledgeSchedulePolicySchema>
+
 export const FeishuExternalKnowledgeScopeSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('space') }),
   z.strictObject({ kind: z.literal('node'), nodeId: NonBlankStringSchema }),
