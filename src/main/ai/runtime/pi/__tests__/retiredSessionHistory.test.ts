@@ -25,11 +25,18 @@ import {
   getRetiredAgentSessionMigration,
   listRetiredAgentSessionMigrations
 } from '@data/services/retiredAgentRuntimeMigration'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { AsyncEventQueue } from '@main/ai/runtime/AsyncEventQueue'
 import { RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '@main/ai/runtime/types'
+import { BaseService } from '@main/core/lifecycle'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 
 import { forkPiSession } from '../piFork'
+import { PiRuntimeConnection } from '../PiRuntimeConnection'
+import { PiRuntimeDriver } from '../PiRuntimeDriver'
 import { resolveResumeTokenSessionFile } from '../piSessionFile'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from '../retiredSessionHistory'
 
@@ -175,6 +182,51 @@ describe('retired DSH session migration', () => {
     vi.mocked(application.getPath).mockReset()
     rmSync(directory, { recursive: true, force: true })
   })
+
+  it.each(['dispatch', 'prewarm'])(
+    'retains imported context and resume identity after %s retries migration',
+    async (retry) => {
+      BaseService.resetInstances()
+      seeder.run(dbh.db)
+      const migration = getRetiredAgentSessionMigration(dbh.db, 'conversation')!
+      const sessions = path.join(directory, 'sessions')
+      writeFileSync(sessions, 'blocked history directory')
+      await migrateRetiredSessionHistories()
+
+      const events = new AsyncEventQueue<AgentRuntimeEvent>()
+      const contexts: string[] = []
+      const start = vi
+        .spyOn(PiRuntimeConnection.prototype, 'start')
+        .mockImplementation(async function (this: PiRuntimeConnection) {
+          const input = (this as unknown as { input: AgentRuntimeConnectInput }).input
+          const file = resolveResumeTokenSessionFile(input.resumeToken!, sessions)
+          const manager = file
+            ? SessionManager.open(file, sessions, directory)
+            : SessionManager.inMemory(directory, { id: input.resumeToken })
+          contexts.push(JSON.stringify(manager.buildContextEntries()))
+          return Object.assign(this, { events, send: () => {}, close: () => events.close() })
+        })
+      const runtime = new AgentSessionRuntimeService()
+      runtimeDriverRegistry.register(new PiRuntimeDriver())
+      try {
+        await runtime.primeConnection('conversation')
+        expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toEqual(migration)
+        expect(contexts).toEqual([])
+
+        rmSync(sessions)
+        mkdirSync(sessions)
+        if (retry === 'dispatch') await ensureRetiredSessionHistory('conversation')
+        await runtime.primeConnection('conversation')
+        await vi.waitFor(() => expect(contexts[0]).toContain('cherry-pi-928'))
+        expect(runtime.inspect('conversation')?.resumeToken).toBe(migration.resumeToken)
+        expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeUndefined()
+      } finally {
+        await runtime.closeSession('conversation')
+        start.mockRestore()
+        runtimeDriverRegistry.clearForTest()
+      }
+    }
+  )
 
   it('converts active and archived agents while preserving identity, permissions, workspace and history', () => {
     const original = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy')).get()!
