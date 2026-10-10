@@ -205,12 +205,14 @@ same key.
 
 Windows portable and path-variable installs (Electron `PORTABLE_EXECUTABLE_DIR`,
 including Scoop’s portable manifest and ZIP portable layouts) may still launch
-with a different `app.getPath('exe')` than the stable install root. Tray
-notification-area identity on Windows uses the same normalized executable key for
-`TrayService.getWindowsTrayGuid()`, so Explorer can persist tray overflow
-placement across restarts when only the runtime path changes. Moving the entire
-portable root to a new directory is treated as a new install identity (new
-GUID), matching non-portable behavior when the installed `.exe` path changes.
+with a different `app.getPath('exe')` than the stable install root. Signed
+portable builds use the same normalized executable key for tray notification-area
+identity, so Explorer can persist tray overflow placement across restarts when
+only the runtime path changes. Unsigned portable nightlies omit the tray GUID
+because Explorer binds unsigned executables to their actual runtime path.
+Moving the entire portable root to a new directory is treated as a new install
+identity (new GUID), matching non-portable behavior when the installed `.exe`
+path changes.
 
 ## File Structure
 

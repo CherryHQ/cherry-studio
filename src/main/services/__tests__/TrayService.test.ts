@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   normalizedExecutablePath: vi.fn(() => 'C:\\Program Files\\Cherry Studio\\Cherry Studio.exe'),
   platform: { isLinux: false, isMac: false, isPortable: false, isWin: true },
   preferenceGet: vi.fn(() => false),
+  runningExecutableSigned: vi.fn(() => true),
   trayConstructor: vi.fn()
 }))
 
@@ -49,6 +50,9 @@ vi.mock('@main/core/preboot/userDataLocation', () => ({
 }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 vi.mock('@main/utils/appEdition', () => ({ getApplicationId: mocks.applicationId }))
+vi.mock('@main/utils/windowsExecutableSignature', () => ({
+  isRunningWindowsExecutableSigned: mocks.runningExecutableSigned
+}))
 
 import { TrayService } from '../TrayService'
 
@@ -67,6 +71,7 @@ describe('TrayService', () => {
     mocks.platform.isMac = false
     mocks.platform.isLinux = false
     mocks.platform.isPortable = false
+    mocks.runningExecutableSigned.mockReturnValue(true)
     delete process.env.PORTABLE_EXECUTABLE_DIR
   })
 
@@ -96,9 +101,19 @@ describe('TrayService', () => {
     expect(mocks.trayConstructor.mock.calls[1][1]).not.toBe(firstGuid)
   })
 
+  it('omits the Windows tray identity for unsigned portable builds', () => {
+    mocks.platform.isPortable = true
+    mocks.runningExecutableSigned.mockReturnValue(false)
+
+    activateTray()
+
+    expect(mocks.trayConstructor.mock.calls[0]).toHaveLength(1)
+  })
+
   it('uses a stable tray identity for portable Windows when the runtime exe path changes', () => {
     vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'C:\\Users\\alice\\scoop\\apps\\cherry-studio\\current')
     mocks.platform.isPortable = true
+    mocks.runningExecutableSigned.mockReturnValue(true)
     mocks.normalizedExecutablePath.mockReturnValue(
       'C:\\Users\\alice\\scoop\\apps\\cherry-studio\\current\\cherry-studio-portable.exe'
     )
@@ -119,6 +134,7 @@ describe('TrayService', () => {
   it('uses a new portable tray identity when the portable install root moves', () => {
     vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'D:\\PortableApps\\CherryStudio')
     mocks.platform.isPortable = true
+    mocks.runningExecutableSigned.mockReturnValue(true)
     mocks.normalizedExecutablePath.mockReturnValueOnce('D:\\PortableApps\\CherryStudio\\cherry-studio-portable.exe')
 
     activateTray()
