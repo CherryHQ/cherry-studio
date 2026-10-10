@@ -49,6 +49,17 @@ describe('remarkHtmlArtifact', () => {
     })
   })
 
+  it.each([
+    '<details><summary>Answer</summary>',
+    '<!-- answer -->\n<DETAILS open>\n\n<SUMMARY>Answer</SUMMARY>\n\n**Body**\n\n</DETAILS>',
+    '<details><summary>Outer</summary>\n\n<details><summary>Inner</summary>\n\n**Body**\n\n</details>\n\n</details>'
+  ])('preserves native disclosure boundaries, including streamed and nested disclosures: %s', (source) => {
+    const tree = parse(source)
+
+    expect(tree.children.some((child) => child.type === 'code')).toBe(false)
+    expect(tree.children[0]?.type).toBe('html')
+  })
+
   it('keeps a complete HTML document with blank lines in one code node', () => {
     const source = `<!doctype html>
 <html>
