@@ -109,7 +109,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
     if (existing) {
       // Connect (including a warm-hit) refreshes the shared instance with the current agent so a
       // policy change made between prewarm and connect is honored on the running subprocess.
-      await existing.update(agent)
+      // The key mapping rides along: a server renamed between prewarm and connect must not
+      // leave the snapshot translating id-keyed rules onto the stale name.
+      await existing.update(agent, { serverNameById: options?.serverNameById })
       return existing
     }
     const snapshot = await createClaudeAgentToolPolicySnapshot(agent, options)

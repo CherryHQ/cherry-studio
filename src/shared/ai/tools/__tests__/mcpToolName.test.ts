@@ -6,7 +6,8 @@ import {
   generateMcpToolFunctionName,
   parseFunctionCallToolName,
   toCamelCase,
-  translateLegacyMcpToolRules
+  translateLegacyMcpToolRules,
+  translateMcpToolRulesToRuntimeNames
 } from '../mcpToolName'
 
 describe('parseFunctionCallToolName', () => {
@@ -308,5 +309,33 @@ describe('translateLegacyMcpToolRules', () => {
     ])
     expect(translateLegacyMcpToolRules(undefined, byId)).toEqual([])
     expect(translateLegacyMcpToolRules(null, byId)).toEqual([])
+  })
+})
+
+describe('translateMcpToolRulesToRuntimeNames', () => {
+  const byId = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Old server']])
+
+  it('rewrites translated rules onto the bridge-registered runtime identity', () => {
+    // `Old server` is not provider-safe: the executable tool carries the lossy hash suffix,
+    // so the translated name-form rule must be replaced by the identity the bridge actually
+    // registered — otherwise an exact-match policy misses the denial.
+    const runtimeNames = new Map([['mcp__Old server__run', 'mcp__oldServer__run_4f7413c24ae4']])
+    expect(
+      translateMcpToolRulesToRuntimeNames([`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run`], byId, runtimeNames)
+    ).toEqual(['mcp__oldServer__run_4f7413c24ae4'])
+  })
+
+  it('rewrites name-form rules whose rule string matches a registered identity', () => {
+    const runtimeNames = new Map([['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], byId, runtimeNames)).toEqual([
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
+  it('keeps rules with no registered runtime identity unchanged', () => {
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__ghost__run', 'Bash'], byId, new Map())).toEqual([
+      'mcp__ghost__run',
+      'Bash'
+    ])
   })
 })

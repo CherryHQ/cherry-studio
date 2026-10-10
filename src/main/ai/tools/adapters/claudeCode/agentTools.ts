@@ -155,7 +155,10 @@ export interface ClaudeAgentToolPolicySnapshot {
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(
+    agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    options?: { serverNameById?: ReadonlyMap<string, string> }
+  ): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -175,6 +178,10 @@ export async function createClaudeAgentToolPolicySnapshot(
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
   let rebuildSequence = 0
+  // The id → server-key mapping is mutable state: a server renamed mid-session must be
+  // translated under its CURRENT key, or a later-added id-keyed denial blocks the
+  // pre-rename name while the executable tool answers to the new one.
+  let serverNameById = options.serverNameById
 
   const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
@@ -204,7 +211,7 @@ export async function createClaudeAgentToolPolicySnapshot(
     // saved under the pre-#21322 namespace still blocks its name-keyed tool.
     disallowed = new Set(
       resolveDisallowedTools(
-        { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, options.serverNameById) },
+        { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, serverNameById) },
         options.conditionContext
       )
     )
@@ -241,7 +248,8 @@ export async function createClaudeAgentToolPolicySnapshot(
       policy = { ...policy, permissionMode }
     },
 
-    update(agent) {
+    update(agent, nextOptions) {
+      if (nextOptions?.serverNameById) serverNameById = nextOptions.serverNameById
       return rebuild(agent)
     }
   }

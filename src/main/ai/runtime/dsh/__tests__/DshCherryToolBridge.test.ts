@@ -129,6 +129,49 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('keeps the collision counter effective so allocation terminates when the hash fallback is taken', async () => {
+    // `docs` exposes `search__all` (plain `mcp__docs__search__all`) and
+    // `search__all_353988fff1e9` (plain `mcp__docs__search__all_353988fff1e9`), then
+    // `docs__search` exposes `all`: its plain name hits the first server and its hash
+    // fallback suffix (sha256("docs__search\0all") = 353988fff1e9...) hits the second —
+    // the counter must change the retained suffix or allocation loops forever.
+    const docs = createServer([tool('search__all'), tool('search__all_353988fff1e9')], async () => ({
+      content: [{ type: 'text', text: 'docs' }]
+    }))
+    const docsSearch = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docs.connect },
+        docs__search: { name: 'docs__search', connect: docsSearch.connect }
+      },
+      bridgeOptions()
+    )
+
+    const names = bridge.tools.map(({ name }) => name)
+    expect(names).toHaveLength(3)
+    expect(new Set(names).size).toBe(names.length)
+    for (const name of names) expect(name.length).toBeLessThanOrEqual(63)
+    await expect(bridge.callTool(names[2], {}, undefined)).resolves.toMatchObject({ text: 'docs__search' })
+    await bridge.close()
+  })
+
+  it('exposes the raw-tool to runtime-name mapping so denial rules can target lossy identities', async () => {
+    // A server named `Old server` is not provider-safe: the executable tool is the lossy
+    // `mcp__oldServer__run_<hash>` while a legacy denial translated through the server key
+    // reads `mcp__Old server__run`. The mapping lets the policy layer rewrite onto the
+    // identity the bridge actually registered.
+    const server = createServer([tool('run')], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      { only: { name: 'Old server', connect: server.connect } },
+      bridgeOptions()
+    )
+
+    const runtimeName = bridge.tools.map(({ name }) => name)[0]
+    expect(runtimeName).toBe('mcp__oldServer__run_4f7413c24ae4')
+    expect(bridge.ruleNames.get('mcp__Old server__run')).toBe(runtimeName)
+    await bridge.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],

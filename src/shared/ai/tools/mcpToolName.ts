@@ -167,6 +167,23 @@ export function translateLegacyMcpToolRules(
 }
 
 /**
+ * Rewrite denial rules onto the identities a tool bridge actually registered. Runs the
+ * legacy id rewrite first, then replaces every rule whose name-form string matches a
+ * registered runtime identity (the bridge maps `mcp__<server name>__<raw tool>` to the
+ * name it allocated, including lossy normalization and collision suffixes). Rules with
+ * no registered identity pass through unchanged.
+ */
+export function translateMcpToolRulesToRuntimeNames(
+  rules: readonly string[] | null | undefined,
+  serverNameById: ReadonlyMap<string, string> = new Map(),
+  runtimeNameByRule: ReadonlyMap<string, string> = new Map()
+): string[] {
+  const translated = translateLegacyMcpToolRules(rules, serverNameById)
+  if (runtimeNameByRule.size === 0) return translated
+  return translated.map((rule) => runtimeNameByRule.get(rule) ?? rule)
+}
+
+/**
  * Parse MCP tool-call names in the Claude/AI-SDK format:
  * `mcp__{server}__{tool}`.
  *

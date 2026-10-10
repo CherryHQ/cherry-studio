@@ -21,6 +21,12 @@ interface DshToolBinding {
 
 export interface DshCherryToolBridge {
   tools: BridgeToolDescriptor[]
+  /**
+   * `mcp__<server name>__<raw tool>` → the runtime name this bridge registered for the pair
+   * (wire-safe plain or lossy hash identity). Policy layers map denial rules onto these
+   * registered identities instead of re-deriving names.
+   */
+  readonly ruleNames: ReadonlyMap<string, string>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
   close(): Promise<void>
 }
@@ -59,6 +65,9 @@ export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = ne
   )
 )
 
+/** Upper bound on collision rehashes before a config is declared pathological. */
+const DSH_TOOL_NAME_DISAMBIGUATION_LIMIT = 1000
+
 /** Adapt every runtime-neutral MCP server into host-dispatched dsh native tools. */
 export async function buildDshCherryToolBridge(
   servers: Record<string, AgentMcpServer>,
@@ -68,6 +77,7 @@ export async function buildDshCherryToolBridge(
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
   const usedNames = new Set<string>()
+  const ruleNames = new Map<string, string>()
 
   for (const [serverId, server] of Object.entries(servers)) {
     let client: Client | undefined
@@ -83,6 +93,7 @@ export async function buildDshCherryToolBridge(
         let name = buildDshCherryToolName(server.name, raw.name)
         if (usedNames.has(name)) name = disambiguatedDshToolName(server.name, raw.name, usedNames)
         usedNames.add(name)
+        ruleNames.set(`mcp__${server.name}__${raw.name}`, name)
         tools.push({
           name,
           description: raw.description ?? '',
@@ -98,6 +109,7 @@ export async function buildDshCherryToolBridge(
 
   return {
     tools,
+    ruleNames,
     async callTool(name, args, signal) {
       const binding = bindings.get(name)
       if (!binding) throw new Error(`Unknown dsh Cherry tool: ${name}`)
@@ -127,14 +139,17 @@ export async function buildDshCherryToolBridge(
  */
 function disambiguatedDshToolName(serverName: string, toolName: string, taken: ReadonlySet<string>): string {
   const base = buildDshCherryToolName(serverName, toolName).slice(0, 50)
-  const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex')
-  let name = `${base}_${hash.slice(0, 12)}`
-  let counter = 1
-  while (taken.has(name)) {
-    name = `${base}_${(hash + String(counter)).slice(0, 12)}`
-    counter++
+  let name = `${base}_${createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 12)}`
+  // The counter must reach the retained suffix: re-hashing with it produces a fresh candidate,
+  // and the bound turns a pathological config into a thrown error instead of a frozen main
+  // process (a synchronous loop here blocks Electron startup).
+  for (let counter = 1; counter <= DSH_TOOL_NAME_DISAMBIGUATION_LIMIT; counter++) {
+    if (!taken.has(name)) return name
+    name = `${base}_${createHash('sha256').update(`${serverName}\0${toolName}\0${counter}`).digest('hex').slice(0, 12)}`
   }
-  return name
+  throw new Error(
+    `No free dsh tool name for ${serverName}/${toolName} after ${DSH_TOOL_NAME_DISAMBIGUATION_LIMIT} candidates`
+  )
 }
 
 async function connectClient(server: AgentMcpServer, clientName: string): Promise<Client> {
