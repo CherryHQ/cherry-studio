@@ -91,6 +91,15 @@ function resolveRowDialect(model: Model | undefined): TokenDialect {
   }
 }
 
+/** A reply folded mid-turn: its usage measured the folded prompt, not the rows stored for it. */
+function foldedInLoop(row: CompactionRow): boolean {
+  return row.parts.some((part) => {
+    if (part.type !== 'data-compaction-anchor') return false
+    const data = part.data as CompactionAnchorData | undefined
+    return data?.phase === 'in-loop' && data.status === 'done'
+  })
+}
+
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
 function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
@@ -871,13 +880,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   /**
    * Trigger estimate for the served history. Anchors on the most recent assistant
    * row in the served view that carries a real contextTokens (prior turn's last-step
-   * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
-   * full tokenx estimate when no anchor exists or it was folded out by the marker.
+   * totalTokens) and whose prompt was not folded in-loop, adding a tokenx estimate of
+   * only the rows after it. Falls back to a full tokenx estimate when no anchor exists
+   * or it was folded out by the marker.
    */
   private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
     let anchorIdx = -1
     for (let i = effective.length - 1; i >= 0; i--) {
-      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
+      const row = effective[i]
+      if (row.role === 'assistant' && typeof row.contextTokens === 'number' && !foldedInLoop(row)) {
         anchorIdx = i
         break
       }

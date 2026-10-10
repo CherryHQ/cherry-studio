@@ -266,6 +266,17 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
   return refs
 }
 
+/** Key-order-stable JSON of the model-visible parts; `data-*` parts (translations, errors, anchors) are never sent. */
+function modelVisiblePartsKey(parts: readonly CherryMessagePart[] | undefined): string {
+  return JSON.stringify(
+    (parts ?? []).filter((part) => !part.type.startsWith('data-')),
+    (_key, value) =>
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)))
+        : value
+  )
+}
+
 function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<string> {
   const existing = new Set<string>()
   for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
@@ -1536,6 +1547,12 @@ export class MessageService {
         ) {
           activityTransitionAt = Date.now()
         }
+      }
+
+      // Summaries and anchors on this row and below were derived from the old parts; clear them
+      // before the UPDATE so the returned row is already clean.
+      if (dto.data?.parts && modelVisiblePartsKey(dto.data.parts) !== modelVisiblePartsKey(existing.data.parts)) {
+        this.clearContextAnchorsTx(tx, [id, ...this.getDescendantIdsTx(tx, id)])
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()

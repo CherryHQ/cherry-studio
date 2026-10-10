@@ -74,6 +74,14 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
   })
 
+  // Settings shows a pick that no longer resolves as "Follow current model".
+  it('falls back to the request model when the explicit pick no longer resolves', async () => {
+    setPrefs({ modelId: 'openai::deleted-model' })
+    mockResolveCompressionModel.mockResolvedValueOnce(null as never)
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
+  })
+
   it('does not resolve a compression model when compression is disabled', async () => {
     setPrefs({ compressEnabled: false })
     const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
@@ -137,12 +145,13 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
     expect(contextSettings.truncateThreshold).toBe(100_000)
   })
 
-  it('does not let an assistant modelId of null override the global explicit pick (?? passthrough)', async () => {
+  // The assistant dialog writes null for "Follow current model"; only an absent key inherits.
+  it('lets an assistant modelId of null follow the current model over a global pick', async () => {
     setPrefs({ modelId: 'openai::global-compressor' })
-    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION, {
-      compress: { modelId: null }
-    })
-    expect(compressionModel?.languageModel.modelId).toBe('openai::global-compressor')
+    const followCurrent = await resolveRequestContextSettings(model, CONVERSATION, { compress: { modelId: null } })
+    expect(followCurrent.compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
+    const inherited = await resolveRequestContextSettings(model, CONVERSATION, { compress: { enabled: true } })
+    expect(inherited.compressionModel?.languageModel.modelId).toBe('openai::global-compressor')
   })
 
   it('reads the compaction trigger from the global preference, and lets an assistant override it', async () => {

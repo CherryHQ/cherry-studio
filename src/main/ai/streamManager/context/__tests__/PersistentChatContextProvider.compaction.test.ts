@@ -1067,6 +1067,33 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
   })
 
+  // An in-loop fold shrank a2's own prompt, so its usage (900) measured the folded
+  // view while ~1400 tokens are stored for it; trusting it hid the overflow.
+  it('5b. ignores the usage anchor of a reply whose prompt was folded in-loop', async () => {
+    const BIG = 'token '.repeat(700)
+    const foldedReply = {
+      ...fakeMsgWithContextTokens('a2', 'assistant', BIG + BIG, 900),
+      data: {
+        parts: [
+          { type: 'text', text: BIG + BIG },
+          { type: 'data-compaction-anchor', id: 'fold-1', data: { status: 'done', phase: 'in-loop', startedAt: '' } }
+        ]
+      }
+    }
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      foldedReply,
+      fakeMsg('u3', 'user', 'next question')
+    ])
+    compressionOn({})
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+  })
+
   it('6. no anchor → fallback to full tokenx; under budget → no compaction', async () => {
     // No row carries contextTokens → estimateContext falls back to estimateTotal (full tokenx).
     // Tiny messages → full tokenx well under threshold → no compaction.

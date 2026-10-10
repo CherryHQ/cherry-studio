@@ -1,4 +1,4 @@
-import type { JSONValue, LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { JSONValue, LanguageModelV3Prompt, LanguageModelV3ToolResultPart } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { Offloader, type VFSStorageAdapter } from '../offloader'
@@ -445,5 +445,101 @@ describe('truncateToolResults — entity codec', () => {
     const content = (part.output.value as Array<{ content: string }>)[0].content
     expect(content).toContain('--- truncated')
     expect(content.length).toBeLessThan(BIG.length)
+  })
+})
+
+describe('truncateToolResults — resolveToolName (dispatcher meta-tool)', () => {
+  const resolveToolName = (toolName: string, input: unknown) =>
+    toolName === 'tool_invoke' ? (input as { name: string }).name : toolName
+
+  const dispatchPrompt = (
+    calls: Array<{ id: string; target: string; output: LanguageModelV3ToolResultPart['output'] }>
+  ): LanguageModelV3Prompt => [
+    {
+      role: 'assistant',
+      content: calls.map(({ id, target }) => ({
+        type: 'tool-call' as const,
+        toolCallId: id,
+        toolName: 'tool_invoke',
+        input: { name: target, params: {} }
+      }))
+    },
+    {
+      role: 'tool',
+      content: calls.map(({ id, output }) => ({
+        type: 'tool-result' as const,
+        toolCallId: id,
+        toolName: 'tool_invoke',
+        output
+      }))
+    }
+  ]
+
+  const resultsOf = (prompt: LanguageModelV3Prompt): LanguageModelV3ToolResultPart[] => {
+    const msg = prompt.find((m) => m.role === 'tool')
+    if (msg?.role !== 'tool') throw new Error('expected tool message')
+    return msg.content.filter((part): part is LanguageModelV3ToolResultPart => part.type === 'tool-result')
+  }
+
+  const SNAPSHOT = 's'.repeat(500)
+  const budget = { threshold: 50, headChars: 5, tailChars: 5 }
+  const truncatedText = { type: 'text', value: expect.stringContaining('--- truncated') }
+
+  it('applies the policy of the tool each call dispatched, not the dispatcher', async () => {
+    const prompt = dispatchPrompt([
+      { id: 'c1', target: 'browser_snapshot', output: { type: 'text', value: SNAPSHOT } },
+      { id: 'c2', target: 'web_search', output: { type: 'text', value: SNAPSHOT } }
+    ])
+    const result = await truncateToolResults(prompt, { ...budget, perTool: ['browser_snapshot'], resolveToolName })
+    const [preserved, trimmed] = resultsOf(result)
+    expect(preserved.output).toEqual({ type: 'text', value: SNAPSHOT })
+    expect(trimmed.output).toMatchObject(truncatedText)
+  })
+
+  it('routes a dispatched codec tool through the codec lane', async () => {
+    const textCodec: EntityToolOutputCodec = {
+      deflate: (value) => ({ skeleton: value, blobs: [{ key: '/text', text: (value as { text: string }).text }] }),
+      assemble: (skeleton, texts) => ({ ...(skeleton as object), text: texts['/text'] })
+    }
+    const value = { kind: 'text', text: SNAPSHOT, totalLines: 42 }
+    const prompt = dispatchPrompt([{ id: 'c1', target: 'fs_read', output: { type: 'json', value } }])
+    const result = await truncateToolResults(prompt, {
+      ...budget,
+      perTool: [{ name: 'fs_read', codec: textCodec }],
+      resolveToolName
+    })
+    const [part] = resultsOf(result)
+    expect(part.output).toMatchObject({
+      type: 'json',
+      value: { kind: 'text', totalLines: 42, text: expect.stringContaining('--- truncated') }
+    })
+  })
+
+  it('without a resolver the dispatcher name is looked up, so a preserved tool is still truncated', async () => {
+    const prompt = dispatchPrompt([{ id: 'c1', target: 'browser_snapshot', output: { type: 'text', value: SNAPSHOT } }])
+    const result = await truncateToolResults(prompt, { ...budget, perTool: ['browser_snapshot'] })
+    expect(resultsOf(result)[0].output).toMatchObject(truncatedText)
+  })
+
+  it('falls back to the result toolName when no call matches (e.g. compacted away)', async () => {
+    const prompt: LanguageModelV3Prompt = [
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'orphan',
+            toolName: 'keep_me',
+            output: { type: 'text', value: SNAPSHOT }
+          }
+        ]
+      }
+    ]
+    const result = await truncateToolResults(prompt, {
+      ...budget,
+      perTool: ['keep_me'],
+      resolveToolName: () => 'other'
+    })
+    expect(result).toEqual(prompt)
   })
 })

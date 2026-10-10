@@ -51,11 +51,14 @@ export interface AssistantFormState {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   /**
-   * Serve only the last N messages; null = unlimited. Independent of
-   * `contextOverrideEnabled` — it decides how much history a request carries,
-   * not what happens when the context overflows, and it persists on its own.
+   * Serve only the last N messages; null = empty field (inherit the global).
+   * Independent of `contextOverrideEnabled` — it decides how much history a
+   * request carries, not what happens when the context overflows, and it
+   * persists on its own.
    */
   contextMaxMessages: number | null
+  /** Explicit no-limit, stored as `maxMessages: null`; unlike an empty field it beats a finite global. */
+  contextMaxMessagesUnlimited: boolean
   /**
    * Compact once the prompt passes this percent of the available input context.
    * null = inherit the global trigger — same three-state contract as
@@ -100,6 +103,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
     contextMaxMessages: ctx?.maxMessages ?? null,
+    contextMaxMessagesUnlimited: ctx?.maxMessages === null,
     contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
@@ -152,6 +156,7 @@ export function diffAssistantUpdate(
     // Always compared: the scope control persists whether or not the
     // offload/compression override is on.
     baseline.contextMaxMessages !== form.contextMaxMessages ||
+    baseline.contextMaxMessagesUnlimited !== form.contextMaxMessagesUnlimited ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&
@@ -159,6 +164,12 @@ export function diffAssistantUpdate(
         baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
+
+  const maxMessages = form.contextMaxMessagesUnlimited
+    ? { maxMessages: null }
+    : form.contextMaxMessages !== null
+      ? { maxMessages: form.contextMaxMessages }
+      : undefined
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
     ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
@@ -176,11 +187,11 @@ export function diffAssistantUpdate(
     ...(contextSettingsChanged
       ? {
           // null clears the override; the `enabled` kill-switch stays global.
-          // An empty limit is ABSENT, matching the "follow global" placeholder.
+          // An empty limit is ABSENT (follow global); only Unlimited writes null.
           contextSettings: form.contextOverrideEnabled
             ? {
                 truncateThreshold: form.contextTruncateThreshold,
-                ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
+                ...maxMessages,
                 compress: {
                   enabled: form.contextCompressEnabled,
                   modelId: form.contextCompressModelId,
@@ -190,9 +201,7 @@ export function diffAssistantUpdate(
                     : {})
                 }
               }
-            : form.contextMaxMessages !== null
-              ? { maxMessages: form.contextMaxMessages }
-              : null
+            : (maxMessages ?? null)
         }
       : {})
   }

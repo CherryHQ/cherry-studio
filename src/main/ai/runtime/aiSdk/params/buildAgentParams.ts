@@ -229,7 +229,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   customParameters.standardParams = filterStandardParams(customParameters.standardParams, model)
   const requestedMaxOutputTokens = resolveRequestedMaxOutputTokens(
     request.callOverrides?.maxOutputTokens,
-    customParameters.standardParams.maxOutputTokens,
     assistant,
     model,
     endpointType
