@@ -377,6 +377,10 @@ export class TopicService {
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   update(id: string, dto: UpdateTopicDto): Topic {
+    if (Object.values(dto).every((value) => value === undefined)) {
+      return this.getById(id)
+    }
+
     const dbService = application.get('DbService')
 
     const topic = dbService.withWriteTx((tx) => {
