@@ -156,6 +156,7 @@ describe('useHealthCheck', () => {
     })
 
     expect(result.current.isChecking).toBe(true)
+    expect(result.current.completedModelStatuses).toEqual([])
     expect(readStatuses()).toEqual([
       expect.objectContaining({ kind: 'checking', model: chatModel }),
       expect.objectContaining({ kind: 'skipped', model: imageModel }),
@@ -171,6 +172,11 @@ describe('useHealthCheck', () => {
     })
 
     expect(result.current.isChecking).toBe(false)
+    expect(result.current.completedModelStatuses).toEqual([
+      expect.objectContaining({ kind: 'ok', model: chatModel }),
+      expect.objectContaining({ kind: 'skipped', model: imageModel }),
+      expect.objectContaining({ kind: 'ok', model: rerankModel })
+    ])
     expect(readModelHealthStatus(chatModel.id)).toMatchObject({ kind: 'ok', model: chatModel })
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
@@ -265,6 +271,7 @@ describe('useHealthCheck', () => {
     })
 
     expect(readStatuses()).toEqual(previousResults)
+    expect(result.current.completedModelStatuses).toEqual(previousResults)
     expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
     expect(toastErrorMock).toHaveBeenCalled()
   })
@@ -343,6 +350,7 @@ describe('useHealthCheck', () => {
     rerender()
     expect(signals[0].aborted).toBe(true)
     expect(result.current.isChecking).toBe(false)
+    expect(result.current.completedModelStatuses).toEqual([])
     expect(readStatuses()).toEqual([])
 
     await act(async () => {

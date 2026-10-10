@@ -33,9 +33,10 @@ const baseProps = {
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
-  selectedTypeFilter: 'all' as const,
-  setSelectedTypeFilter: vi.fn(),
+  selectedFilter: 'all' as const,
+  setSelectedFilter: vi.fn(),
   typeCounts: emptyTypeCounts,
+  failedModelCount: 0,
   groupsExpanded: true,
   onToggleGroupsExpanded: vi.fn()
 }
@@ -127,5 +128,15 @@ describe('ModelListHeader', () => {
 
     expect(screen.getByRole('tab', { name: 'models.all' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
+  })
+
+  it('shows the failed-model filter only when the latest check found failures', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.filter.label' }))
+    expect(screen.queryByRole('tab', { name: 'settings.models.check.filter_failed' })).not.toBeInTheDocument()
+
+    rerender(<ModelListHeader {...baseProps} failedModelCount={2} />)
+    expect(screen.getByRole('tab', { name: 'settings.models.check.filter_failed' })).toBeInTheDocument()
   })
 })
