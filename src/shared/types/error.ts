@@ -7,6 +7,7 @@ import type { Serializable } from './serializable'
  * - `i18nKey?: string` — When present, `ErrorBlock` uses `error.${i18nKey}` for
  *   translated display instead of `message`. Set by error handlers (e.g. abort,
  *   auth failure). See: ErrorBlock.tsx, ErrorHandlerMiddleware.ts
+ * - `providerErrorCategory?: ErrorCategory` — Diagnosis retained before provider payload redaction.
  * - `providerId?: string` — Provider ID for i18n interpolation in error messages.
  */
 export interface SerializedError {

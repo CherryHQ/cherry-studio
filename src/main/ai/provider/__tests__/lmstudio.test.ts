@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createExecutor } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'

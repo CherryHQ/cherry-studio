@@ -1,8 +1,9 @@
 import type * as NodeFs from 'node:fs'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractReadableMarkdown: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@main/services/RegionService', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
@@ -50,6 +52,7 @@ import { JinaProvider } from '../api/JinaProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
+import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
@@ -367,6 +370,52 @@ describe('main web search API providers', () => {
       advanced_settings: { max_results: 4 },
       objective: 'hello',
       search_queries: ['hello']
+    })
+  })
+
+  it('matches the Serply path-encoded search request and normalizes fixture results', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('serply-response.json')))
+
+    const provider = createProviderDriver(
+      SerplyProvider,
+      createProvider({
+        id: 'serply',
+        name: 'Serply',
+        apiKeys: ['serply-key'],
+        apiHost: 'https://api.serply.io'
+      })
+    )
+
+    const abortController = new AbortController()
+    const result = await provider.searchKeywords('latest web research', runtimeConfig, {
+      signal: abortController.signal
+    })
+
+    expect(fetchMock.mock.lastCall?.[1]?.signal).toBe(abortController.signal)
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: null,
+      headers: {
+        accept: 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-api-key': 'serply-key',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'GET',
+      url: 'https://api.serply.io/v1/search/q=latest%20web%20research&num=4'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['latest web research'],
+      providerId: 'serply',
+      query: 'latest web research',
+      results: [
+        {
+          content: 'Serply Description',
+          sourceInput: 'latest web research',
+          title: 'Serply Title',
+          url: 'https://serply.example/result'
+        }
+      ]
     })
   })
 
@@ -1362,6 +1411,59 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('keeps usable Querit results when individual items omit optional fields', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        error_code: 200,
+        error_msg: '',
+        query_context: { query: 'hello' },
+        results: {
+          result: [
+            {
+              title: 'Complete result',
+              snippet: 'Complete content',
+              url: 'https://querit.example/complete'
+            },
+            {
+              site_name: 'Querit fallback title',
+              snippet: 'Partial content',
+              url: 'https://querit.example/partial'
+            },
+            {
+              title: 'Missing URL',
+              snippet: 'This item cannot be opened'
+            }
+          ]
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        apiHost: 'https://api.querit.ai'
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).resolves.toMatchObject({
+      results: [
+        {
+          title: 'Complete result',
+          content: 'Complete content',
+          url: 'https://querit.example/complete'
+        },
+        {
+          title: 'Querit fallback title',
+          content: 'Partial content',
+          url: 'https://querit.example/partial'
+        }
+      ]
+    })
+  })
+
   it('sends a markdown contents request and normalizes the crawled page', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-contents-response.json')))
 
@@ -1834,6 +1936,61 @@ describe('main web search API providers', () => {
     expect(tavilyResult.results[0]?.title).toBe('')
     expect(zhipuResult.results[0]?.title).toBe('')
     expect(exaMcpResult.results[0]?.title).toBe('')
+  })
+
+  describe('Crawl4AIProvider', () => {
+    function crawl4ai(apiKeys: string[] = []) {
+      return createProviderDriver(
+        Crawl4AIProvider,
+        createProvider({
+          id: 'crawl4ai',
+          apiKeys,
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'http://localhost:11235/proxy/' }]
+        })
+      )
+    }
+
+    it('fetches fit Markdown through a self-hosted endpoint without requiring a token', async () => {
+      const url = 'https://example.org/page'
+      fetchMock.mockResolvedValueOnce(createJsonResponse({ url, markdown: '  # Rendered page  ', success: true }))
+      const signal = new AbortController().signal
+
+      const result = await crawl4ai().fetchUrls(` ${url} `, runtimeConfig, { signal })
+
+      expect(result.results).toEqual([{ title: url, content: '# Rendered page', url, sourceInput: url }])
+      expect(result).toMatchObject({ capability: 'fetchUrls', providerId: 'crawl4ai', inputs: [url] })
+      const [requestUrl, request] = fetchMock.mock.calls[0]
+      expect(requestUrl).toBe('http://localhost:11235/proxy/md')
+      expect(JSON.parse(request.body)).toEqual({ url, f: 'fit' })
+      expect(request.signal).toBe(signal)
+      expect(new Headers(request.headers).has('Authorization')).toBe(false)
+    })
+
+    it('uses the configured bearer token for authenticated deployments', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createJsonResponse({
+          url: 'https://example.org',
+          markdown: 'Page',
+          success: true
+        })
+      )
+      await crawl4ai(['private-token']).fetchUrls('https://example.org', runtimeConfig)
+      expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer private-token')
+    })
+
+    it.each([
+      { url: 'https://example.org', markdown: '', success: true },
+      { url: 'https://example.org', markdown: 'Failed', success: false },
+      { url: 'https://example.org', markdown: { raw_markdown: 'Wrong endpoint shape' }, success: true }
+    ])('rejects unsuccessful, empty, or invalid Markdown responses: %j', async (payload) => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow()
+    })
+
+    it('reports server HTTP failures rather than producing a page result', async () => {
+      fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow('HTTP 401 Unauthorized')
+    })
   })
 
   describe('FirecrawlProvider', () => {

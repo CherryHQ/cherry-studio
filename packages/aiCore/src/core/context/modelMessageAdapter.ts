@@ -205,7 +205,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
     }
   }
 
-  return ensureValidHistory(ir) as ModelMessageIR[]
+  return ensureValidHistory(ir)
 }
 
 function asMM(msg: ContextMessage): ModelMessageIR {

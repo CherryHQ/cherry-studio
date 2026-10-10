@@ -2,6 +2,10 @@ import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
+
+import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
+import { ToolRegistry } from '../../tools/adapters/aiSdk/registry'
 import { coalesceConsecutiveSameRole, ensureNonEmptyAssistantContent, toModelMessages } from '../messageRules'
 
 const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMessage => ({ id, role, parts })
@@ -119,6 +123,83 @@ describe('toModelMessages', () => {
     })
   })
 
+  it('attributes a denied approval reason to the user, leaving the stored part alone', async () => {
+    const messages = [
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-responded',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ]
+
+    const model = await toModelMessages(messages)
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason:
+            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+        }
+      ]
+    })
+    expect((messages[1].parts[0] as { approval?: { reason?: string } }).approval?.reason).toBe('use a copy')
+  })
+
+  it('attributes a denied approval reason on the terminal output-denied shape', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'output-denied',
+            input: {},
+            approval: { id: 'ap-1', approved: false, reason: 'use a copy' }
+          }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-approval-response',
+          approvalId: 'ap-1',
+          approved: false,
+          reason:
+            "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+        },
+        {
+          type: 'tool-result',
+          toolCallId: '1',
+          toolName: 'kb_manage',
+          output: {
+            type: 'error-text',
+            value:
+              "The user doesn't want to proceed with this tool use. The tool use was rejected (it did not run). To tell you how to proceed, the user said:\nuse a copy"
+          }
+        }
+      ]
+    })
+  })
+
   it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
       [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],
@@ -171,6 +252,39 @@ describe('toModelMessages', () => {
     expect(messages).toEqual(originalMessages)
   })
 
+  it('replays a malformed stored tool_search result without making the topic unsendable', async () => {
+    const toolSearch = createToolSearchTool(new ToolRegistry(), new Set(), new Set())
+    const model = await toModelMessages(
+      [
+        ui('assistant', [
+          {
+            type: 'tool-tool_search',
+            toolCallId: 'search-1',
+            state: 'output-available',
+            input: {},
+            output: { content: [{ type: 'text', text: 'Process started' }], metadata: {} }
+          }
+        ]),
+        ui('user', [{ type: 'text', text: 'continue' }], 'u1')
+      ],
+      undefined,
+      { tool_search: toolSearch }
+    )
+
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [
+        expect.objectContaining({
+          toolName: 'tool_search',
+          output: {
+            type: 'text',
+            value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+          }
+        })
+      ]
+    })
+  })
+
   it('replays a completed legacy MCP tool name unchanged', async () => {
     const legacyToolName = 'mcp__mysql__executeSql'
     const model = await toModelMessages([
@@ -194,6 +308,106 @@ describe('toModelMessages', () => {
       role: 'tool',
       content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
     })
+  })
+
+  // #15712: a follow-up turn must still carry the previous turn's MCP tool
+  // call, tool result and closing text — not just the assistant's summary.
+  it('preserves a completed MCP tool turn across a follow-up turn', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'List all projects.' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'dynamic-tool',
+            toolName: 'mcp__mysql__executeSql',
+            toolCallId: 'call_mcp_1',
+            state: 'output-available',
+            input: { sql: 'SELECT id, name FROM projects' },
+            output: {
+              content: [{ type: 'text', text: '[{"id":1,"name":"Project A"},{"id":2,"name":"Project B"}]' }]
+            }
+          },
+          { type: 'text', text: 'Projects are Project A and Project B.' }
+        ],
+        'a1'
+      ),
+      ui('user', [{ type: 'text', text: 'What is the ID of Project A?' }], 'u2')
+    ])
+
+    expect(model.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'user'])
+    expect(model[1]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolCallId: 'call_mcp_1' })]
+    })
+    expect(model[2]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolCallId: 'call_mcp_1' })]
+    })
+    expect(JSON.stringify(model[2])).toContain('Project A')
+    expect(model[3]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'text', text: 'Projects are Project A and Project B.' })]
+    })
+  })
+
+  // #21306: the MCP adapter's toModelOutput must forward image/audio blocks as structured
+  // media so the capability pipeline (routeToolResultMedia) can decide per model + wire —
+  // forward when the model accepts them, an honest omission note when it doesn't.
+  const mcpMediaTool = tool({
+    inputSchema: z.object({}),
+    toModelOutput: ({ output }) => mcpResultToModelOutput(output)
+  })
+  const mcpMediaMessages = (content: unknown[]) => [
+    ui('assistant', [
+      {
+        type: 'tool-read_media',
+        toolCallId: 'call-media-1',
+        state: 'output-available',
+        input: {},
+        output: { content }
+      }
+    ]),
+    ui('user', [{ type: 'text', text: 'describe it' }], 'u1')
+  ]
+
+  it('forwards tool-result images to a vision-capable model on a media-capable wire', async () => {
+    const imageData = 'A'.repeat(1024)
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'image', data: imageData, mimeType: 'image/png' }]),
+      { image: true, video: true, audio: true },
+      { read_media: mcpMediaTool },
+      { image: true, video: true, audio: true }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).toContain(imageData)
+  })
+
+  it('replaces tool-result media with an honest note for a non-vision model', async () => {
+    const imageData = 'A'.repeat(1024)
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'image', data: imageData, mimeType: 'image/png' }]),
+      { image: false, video: true, audio: true },
+      { read_media: mcpMediaTool },
+      { image: false, video: true, audio: true }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).not.toContain(imageData)
+    expect(text).toContain('image attachment omitted')
+  })
+
+  it('gates tool-result audio for a model without audio input', async () => {
+    const model = await toModelMessages(
+      mcpMediaMessages([{ type: 'audio', data: 'QUFB', mimeType: 'audio/wav' }]),
+      { image: true, video: true, audio: false },
+      { read_media: mcpMediaTool },
+      { image: true, video: true, audio: false }
+    )
+    const text = JSON.stringify(model)
+    expect(text).not.toContain('delivered to user')
+    expect(text).toContain('audio attachment omitted')
   })
 
   const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({

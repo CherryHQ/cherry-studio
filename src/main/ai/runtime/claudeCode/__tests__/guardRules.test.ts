@@ -1,7 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -10,15 +13,20 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>()
+  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>(),
+  evaluateUserDataSqliteGuard: vi.fn<() => Promise<{ ruleId: 'user-data-sqlite-write'; reason: string } | undefined>>()
 }))
 
 vi.mock('../skillDependencies', () => ({
   SKILL_TOOL_NAME: 'Skill',
   checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
+
+vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
+  USER_DATA_SQLITE_GUARD_REASON: 'Access to SQLite files inside Cherry Studio user data is blocked.',
+  evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
@@ -57,6 +65,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   beforeEach(() => {
     mocks.checkSkillRuntimeDependencies.mockReset()
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
+    mocks.evaluateUserDataSqliteGuard.mockReset()
+    mocks.evaluateUserDataSqliteGuard.mockResolvedValue(undefined)
   })
 
   it('is structurally valid', () => {
@@ -288,33 +298,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
@@ -426,6 +409,23 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it('denies the UI-backed draft tool on headless Assistant turns', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            builtinRole: 'assistant',
+            toolName,
+            permissionMode: 'default',
+            interaction: HEADLESS
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+    })
+
+    it('leaves the draft tool auto-approved on interactive Assistant turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'assistant', toolName }))).resolves.toBeUndefined()
+    })
+
     it('leaves the draft tool auto-approved on interactive Support turns', async () => {
       await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
@@ -488,6 +488,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('user-data-sqlite-write', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+      'enforces a policy denial under %s',
+      async (permissionMode) => {
+        mocks.evaluateUserDataSqliteGuard.mockResolvedValue({
+          ruleId: 'user-data-sqlite-write',
+          reason: 'protected SQLite'
+        })
+
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', permissionMode, input: { file_path: '/user-data/app.sqlite' } }))
+        ).resolves.toEqual({
+          effect: 'deny',
+          ruleId: 'user-data-sqlite-write',
+          reason: 'Access to SQLite files inside Cherry Studio user data is blocked.'
+        })
+        expect(mocks.evaluateUserDataSqliteGuard).toHaveBeenCalledWith(
+          expect.objectContaining({ runtime: 'claude-code', toolName: 'Write' })
+        )
+      }
+    )
+  })
+
   describe('workspace-escape', () => {
     let root: string
     let cwd: string
@@ -527,6 +550,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(
@@ -547,4 +586,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })

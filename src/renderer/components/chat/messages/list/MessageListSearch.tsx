@@ -1,3 +1,7 @@
+import type { FC, RefObject } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+
 /**
  * In-conversation search for one virtualized MessageList.
  *
@@ -10,9 +14,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { FC, RefObject } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 
 import type { MessageListItem } from '../types'
 import { computeMessageSearchMatches, type MessageSearchMatch, type MessageTextSearchMatch } from './messageSearch'

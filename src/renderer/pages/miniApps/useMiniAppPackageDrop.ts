@@ -1,10 +1,11 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { DropzoneProps } from '@cherrystudio/ui'
 import type { InstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type SettlePreview = (run: () => Promise<InstallPreview | null>, errorKey: string) => Promise<void>
 

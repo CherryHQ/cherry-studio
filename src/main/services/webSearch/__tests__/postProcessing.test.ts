@@ -1,5 +1,6 @@
-import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { describe, expect, it } from 'vitest'
+
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 
 import { postProcessWebSearchResponse } from '../postProcessing'
 

@@ -94,7 +94,7 @@ The sync is idempotent; a stale entry is overwritten on the next sync.
 - **`listTools(serverId)`** is cache-only — it returns the shared
   `mcp.tools.<serverId>` cache and **never connects** to the upstream MCP server.
   Every hot path that builds an agent/chat's tool surface uses it: the Claude Code
-  SDK bridge (`createSdkMcpServerInstance`), `buildMcpToolMetadata`, the agent
+  SDK bridge (`createMcpBridgeServer`), `buildMcpToolMetadata`, the agent
   tool-policy (`agentTools.listMcpDescriptors`), and the two AI-SDK adapters
   above. A dead or slow server therefore cannot block agent/chat startup
   (issue #16242).
@@ -165,7 +165,7 @@ surface vs the renderer's prior restrictions. It is meant to be re-enabled
 behind an explicit Preference key once there is a concrete need.
 
 This statement is specific to the AI SDK registry. The Pi agent runtime has a
-separate, Pi-native `tool_search` / `tool_describe` / `tool_call` / `tool_exec` interface over its bridged MCP tools;
+native Pi 1.0 `codemode`, `tool_search`, and MCP extensions over its session tools;
 see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
 
 ## `applies` and tool-call repair

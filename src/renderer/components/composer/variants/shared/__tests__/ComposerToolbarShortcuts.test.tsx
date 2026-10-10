@@ -1,8 +1,9 @@
-import { TopicType } from '@renderer/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TopicType } from '@renderer/types/topic'
 
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],
@@ -178,6 +179,28 @@ describe('ComposerToolbarShortcuts', () => {
     expect(webSearchButton).not.toHaveAttribute('aria-haspopup')
     // Unpinned and unknown ids stay off the bar.
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
+  })
+
+  it('keeps nested brand artwork under its own sizing contract', () => {
+    mocks.launchers = [
+      {
+        ...webSearchLauncher,
+        icon: (
+          <span data-slot="nested-brand-icon">
+            <svg aria-hidden />
+          </span>
+        )
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    const button = screen.getByRole('button', { name: 'web-search-label' })
+    // data-slot is the maintained layout boundary: only direct glyphs are normalized by the toolbar.
+    const iconSlot = button.querySelector('[data-slot="composer-toolbar-icon"]')
+    expect(iconSlot).toBeInTheDocument()
+    expect(iconSlot).toHaveClass('[&>svg]:!size-[18px]')
+    expect(button).not.toHaveClass('[&_svg]:!size-[18px]')
   })
 
   it('renders a known pinned manifest immediately while runtime state is unresolved', () => {
@@ -370,6 +393,60 @@ describe('ComposerToolbarShortcuts', () => {
       inputAdapter: props.inputAdapter,
       unifiedPanelControl: props.unifiedPanelControl
     })
+  })
+
+  // Catches the #20198 regression where MCP (and other customTools) stayed visually idle
+  // even when the session had tools enabled — active was hard-coded false for custom shortcuts.
+  it('marks custom toolbar tools active when their activation flag is set', () => {
+    renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          active: true,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    const mcpButton = screen.getByRole('button', { name: 'MCP' })
+    expect(mcpButton).toHaveAttribute('data-active', 'true')
+    expect(mcpButton.className).toContain('bg-accent')
+  })
+
+  it('keeps custom toolbar tools inactive when activation is unset or false', () => {
+    const { rerender, props } = renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
+
+    rerender(
+      <ComposerToolbarShortcuts
+        {...props}
+        customTools={[
+          {
+            id: 'mcp-status',
+            label: 'MCP',
+            icon: <span />,
+            active: false,
+            onSelect: vi.fn()
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
   })
 
   it('lists pinned rows (switch on) then unpinned candidates (switch off) in the customize popover', () => {

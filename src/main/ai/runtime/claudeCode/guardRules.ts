@@ -8,13 +8,14 @@
  * same reason deterministically that the SDK's parallel severity fold produced by race before.
  * `bypassBehavior` is the single authority on what bypassPermissions lifts: it skips the
  * interactive effect of 'skipInteractiveEffect' rules and nothing else — headless denials hold in
- * every mode (skill-install's explicit opt-out excepted). A rule whose only decision is a headless
+ * every mode (approval-required's explicit opt-out excepted). A rule whose only decision is a headless
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
 import path from 'node:path'
 
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -23,6 +24,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
@@ -72,6 +74,18 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   return reason ? { evidence: reason } : null
 }
 
+const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  const decision = await evaluateUserDataSqliteGuard({
+    runtime: 'claude-code',
+    toolName: ctx.toolName,
+    args: ctx.input,
+    cwd: ctx.cwd,
+    workspacePath: ctx.cwd,
+    signal: ctx.signal
+  })
+  return decision ? {} : null
+}
+
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
   const action = typeof ctx.input?.action === 'string' ? ctx.input.action : ''
   return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
@@ -118,11 +132,28 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
+    id: 'browser-tool-disabled',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) =>
+        ctx.mountedServers.has('browser') && resolveBrowserToolPermission(ctx.toolName) === 'deny' ? {} : null
+    },
+    effect: 'deny',
+    reason: 'Agent browser control is disabled in Browser settings.'
+  },
+  {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
+  },
+  {
+    id: 'user-data-sqlite-write',
+    bypassBehavior: 'enforce',
+    match: { when: userDataSqliteWrite },
+    effect: 'deny',
+    reason: USER_DATA_SQLITE_GUARD_REASON
   },
   {
     id: 'unsupported-image-read',
@@ -169,18 +200,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
       predicate: 'turn-headless',
       reason:
         'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
-    }
-  },
-  {
-    // Installing third-party skill code needs a responder — except under bypassPermissions, the
-    // user's explicit opt-in to unattended installation.
-    id: 'skill-install',
-    match: { tool: 'mcp__skills__install_skill' },
-    headless: {
-      predicate: 'turn-headless',
-      reason:
-        'This channel or scheduled turn cannot approve a skill installation. Use bypassPermissions for unattended installation, or install it from an interactive turn.',
-      skipHeadlessDenyInBypass: true
     }
   },
   {

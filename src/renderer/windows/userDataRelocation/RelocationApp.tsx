@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
 import { CircleCheck, Loader2, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { useRelocationProgress } from './hooks/useRelocationProgress'
 
@@ -11,8 +12,8 @@ const RelocationApp = () => {
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
-      <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
-        <h1 className="font-medium text-foreground text-sm">{t('relocation.title')}</h1>
+      <header className="relative flex h-11 shrink-0 items-center justify-center border-b border-border [-webkit-app-region:drag]">
+        <h1 className="text-sm font-medium text-foreground">{t('relocation.title')}</h1>
       </header>
 
       <main className="flex min-h-0 flex-1 justify-center px-8 py-6 [-webkit-app-region:no-drag]">
@@ -60,7 +61,7 @@ const RelocationApp = () => {
 const Spinner = ({ label }: { label: string }) => (
   <div className="flex flex-col items-center gap-3 text-center">
     <Loader2 className="animate-spin text-foreground-tertiary" size={28} />
-    <p className="text-muted-foreground text-sm">{label}</p>
+    <p className="text-sm text-muted-foreground">{label}</p>
   </div>
 )
 
@@ -70,7 +71,7 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
 
   return (
     <div className="flex w-full max-w-[360px] flex-col items-center gap-3">
-      <p className="text-muted-foreground text-sm">{label}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
       <div className="h-2 w-full overflow-hidden rounded-full bg-border">
         {hasTotal ? (
           <div
@@ -81,7 +82,7 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
           <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
         )}
       </div>
-      <span className="min-h-4 text-foreground-tertiary text-xs">{hasTotal ? `${percent}%` : ''}</span>
+      <span className="min-h-4 text-xs text-foreground-tertiary">{hasTotal ? `${percent}%` : ''}</span>
     </div>
   )
 }
@@ -101,10 +102,10 @@ const Failure = ({
 }) => (
   <div className="flex w-full flex-col items-center gap-3 text-center">
     <XCircle className="text-destructive" size={40} />
-    <h2 className="font-semibold text-base text-foreground">{title}</h2>
-    <p className="text-muted-foreground text-sm">{description}</p>
+    <h2 className="text-base font-semibold text-foreground">{title}</h2>
+    <p className="text-sm text-muted-foreground">{description}</p>
     {error && (
-      <pre className="max-h-24 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background-subtle px-3 py-2 text-left text-foreground-tertiary text-xs">
+      <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
         {error}
       </pre>
     )}
@@ -127,8 +128,8 @@ const Completion = ({
 }) => (
   <div className="flex w-full flex-col items-center gap-3 text-center">
     <CircleCheck className="text-success" size={40} />
-    <h2 className="font-semibold text-base text-foreground">{title}</h2>
-    <p className="text-muted-foreground text-sm">{description}</p>
+    <h2 className="text-base font-semibold text-foreground">{title}</h2>
+    <p className="text-sm text-muted-foreground">{description}</p>
     <Button onClick={onRestart} className="mt-2 w-full">
       {buttonLabel}
     </Button>
@@ -136,7 +137,7 @@ const Completion = ({
 )
 
 const Paths = ({ fromLabel, toLabel, from, to }: { fromLabel: string; toLabel: string; from: string; to: string }) => (
-  <div className="mt-4 flex flex-col gap-2 border-border border-t pt-4 text-xs">
+  <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 text-xs">
     <PathRow label={fromLabel} value={from} />
     <PathRow label={toLabel} value={to} />
   </div>

@@ -1,13 +1,15 @@
-import { loggerService } from '@logger'
 // Cache highlighter instance once initialized so that decoration computation can run synchronously.
 import type { HighlighterGeneric } from 'shiki/core'
+
+import { loggerService } from '@logger'
 let cachedHighlighter: HighlighterGeneric<any, any> | null = null
-import { getHighlighter, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import { findChildren } from '@tiptap/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
 import type { PluginView } from '@tiptap/pm/state'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
+import { getHighlighter, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 
 const logger = loggerService.withContext('RichEditor:CodeBlockShiki')
 

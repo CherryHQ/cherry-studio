@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Input,
@@ -15,8 +18,6 @@ import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -346,7 +347,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-foreground-tertiary text-sm">
+            <div className="text-center text-sm text-foreground-tertiary">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>

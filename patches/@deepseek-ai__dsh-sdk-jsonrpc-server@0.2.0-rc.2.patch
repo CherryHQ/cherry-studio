@@ -1,0 +1,19 @@
+diff --git a/lib/index.js b/lib/index.js
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -71,6 +71,15 @@
+ 				event
+ 			};
+ 			this.transport.notify("session.event", payload);
++		}));
++		const attempts = new Map();
++		this.disposers.push(ctx.on("agent/assistant-stream", ({ agent, frame }) => {
++			if (frame.type === "start") attempts.set(agent.id, { turn: frame.turn, step: frame.step });
++			else if (frame.type === "end") attempts.delete(agent.id);
++			else {
++				const attempt = attempts.get(agent.id);
++				if (attempt) this.transport.notify("session.chunk", { sessionId: String(agent.id), ...attempt, chunk: frame.chunk });
++			}
+ 		}));
+ 		this.disposers.push(ctx.on("agent/status", ({ agent, status }) => {
+ 			this.transport.notify("session.status", {

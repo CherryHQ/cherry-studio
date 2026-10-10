@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 
 import {
   cloudModelListSchema,

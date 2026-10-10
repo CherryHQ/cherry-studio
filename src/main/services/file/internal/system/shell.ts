@@ -6,8 +6,9 @@
  * message on failure, so we treat any non-empty return as a failure.
  */
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { shell } from 'electron'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 export async function open(target: AbsoluteFilePath): Promise<void> {
   const errorMessage = await shell.openPath(target)

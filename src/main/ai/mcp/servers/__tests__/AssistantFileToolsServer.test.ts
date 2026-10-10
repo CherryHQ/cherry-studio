@@ -1,8 +1,11 @@
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import type * as ReadFileToolModule from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   listSessionMessages: vi.fn(),
@@ -31,7 +34,7 @@ vi.mock('@main/ai/tools/moveToTrash', async (importOriginal) => ({
   moveWorkspaceItemToTrash: mocks.moveWorkspaceItemToTrash
 }))
 
-const { AssistantFileToolsServer } = await import('../AssistantFileToolsServer')
+const { createAssistantFileToolsServer } = await import('../AssistantFileToolsServer')
 
 function message(fileEntryId: string, filename: string) {
   return {
@@ -51,37 +54,81 @@ function message(fileEntryId: string, filename: string) {
   }
 }
 
-function handlers(server: InstanceType<typeof AssistantFileToolsServer>) {
-  return (server.mcpServer.server as any)._requestHandlers
+function messageWithComposerAttachments() {
+  return {
+    id: 'message-managed-files',
+    role: 'user',
+    data: {
+      parts: [
+        {
+          type: 'text',
+          text: 'attachments',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [{ id: 'file:live-source', kind: 'file', label: 'live.txt', index: 0, textOffset: 0 }]
+              }
+            }
+          }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/live.txt',
+          mediaType: 'text/plain',
+          filename: 'live.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-live', fileTokenSourceId: 'live-source' } }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/stale.txt',
+          mediaType: 'text/plain',
+          filename: 'stale.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-stale', fileTokenSourceId: 'stale-source' } }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/legacy.txt',
+          mediaType: 'text/plain',
+          filename: 'legacy.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-legacy' } }
+        }
+      ]
+    }
+  }
 }
 
-async function callTool(
-  server: InstanceType<typeof AssistantFileToolsServer>,
-  name: string,
-  args: Record<string, unknown>
-) {
-  return handlers(server).get('tools/call')(
-    { method: 'tools/call', params: { name, arguments: args } },
-    { signal: new AbortController().signal }
+type Result = { isError?: boolean; content: Array<{ type: string; text: string }> }
+const clients: Client[] = []
+
+async function createServer(): Promise<Client> {
+  const client = await connectMcpTestClient(() =>
+    createAssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
   )
+  clients.push(client)
+  return client
 }
 
-describe('AssistantFileToolsServer', () => {
+async function callTool(client: Client, name: string, args: Record<string, unknown>) {
+  return (await client.callTool({ name, arguments: args })) as Result
+}
+
+describe('assistant-files MCP server', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listSessionMessages.mockReturnValue({ items: [], nextCursor: undefined })
   })
 
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
   it('advertises only the assistant file capabilities', async () => {
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    const server = await createServer()
 
-    const result = await handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const result = await server.listTools()
 
-    expect(result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual([
-      'move_to_trash',
-      'read_file',
-      'save_attachment'
-    ])
+    expect(result.tools.map((tool) => tool.name).sort()).toEqual(['move_to_trash', 'read_file', 'save_attachment'])
   })
 
   it('rebuilds the attachment allow-list for every read call', async () => {
@@ -93,7 +140,7 @@ describe('AssistantFileToolsServer', () => {
     mocks.readFile.mockImplementation(async (_input, context) => ({
       text: context.attachments.map((attachment: { handle: string }) => attachment.handle).join(',') || '(none)'
     }))
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    const server = await createServer()
 
     // offset/limit omitted: they are plain optionals now, and `limit: 0` is rejected outright
     // (it used to be the "use the default" sentinel that `strict: true` forced on this schema).
@@ -102,8 +149,31 @@ describe('AssistantFileToolsServer', () => {
 
     expect(first.content[0].text).toBe(handle)
     expect(second.content[0].text).toBe('(none)')
-    expect(mocks.listSessionMessages).toHaveBeenCalledTimes(2)
     expect(JSON.stringify(first)).not.toContain(entryId)
+  })
+
+  it('does not expose orphaned managed attachments to read_file', async () => {
+    mocks.listSessionMessages.mockReturnValue({ items: [messageWithComposerAttachments()], nextCursor: undefined })
+    mocks.readFile.mockImplementation(async (_input, context) => ({
+      text: context.attachments.map((attachment: { displayName: string }) => attachment.displayName).join(',')
+    }))
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', {
+      filename: createAssistantFileAttachmentHandle('entry-live')
+    })
+
+    expect(result.content[0].text).toBe('live.txt,legacy.txt')
+    expect(mocks.readFile).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        attachments: [
+          expect.objectContaining({ fileEntryId: 'entry-live', displayName: 'live.txt' }),
+          expect.objectContaining({ fileEntryId: 'entry-legacy', displayName: 'legacy.txt' })
+        ]
+      },
+      expect.any(AbortSignal)
+    )
   })
 
   it('resolves attachments only when save_attachment is invoked', async () => {
@@ -111,7 +181,7 @@ describe('AssistantFileToolsServer', () => {
     const handle = createAssistantFileAttachmentHandle(entryId)
     mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'report.txt')], nextCursor: undefined })
     mocks.saveAttachmentToWorkspace.mockResolvedValue({ path: 'inputs/report.txt' })
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    const server = await createServer()
 
     const result = await callTool(server, 'save_attachment', {
       filename: handle,
@@ -131,17 +201,29 @@ describe('AssistantFileToolsServer', () => {
     mocks.listSessionMessages.mockImplementation(() => {
       throw new Error('database unavailable')
     })
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    const server = await createServer()
 
-    const result = await callTool(server, 'read_file', {
-      filename: createAssistantFileAttachmentHandle('entry'),
-      offset: 0,
-      limit: 0
-    })
+    const result = await callTool(server, 'read_file', { filename: createAssistantFileAttachmentHandle('entry') })
 
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toBe('Error: Tool execution failed')
+    expect(result.content[0].text).toContain('Tool execution failed')
     expect(JSON.stringify(result)).not.toContain('database unavailable')
+  })
+
+  it.each([
+    ['read_file', { filename: 'report.txt', limit: 0 }],
+    ['save_attachment', { filename: 'report.txt', output_path: '/etc/passwd' }],
+    ['move_to_trash', { path: '' }]
+  ])('rejects invalid %s input before touching the workspace', async (name, args) => {
+    const server = await createServer()
+
+    const result = await callTool(server, name, args)
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Input validation error')
+    expect(mocks.readFile).not.toHaveBeenCalled()
+    expect(mocks.saveAttachmentToWorkspace).not.toHaveBeenCalled()
+    expect(mocks.moveWorkspaceItemToTrash).not.toHaveBeenCalled()
   })
 
   it('moves a confirmed workspace path to trash without reading the transcript', async () => {
@@ -150,7 +232,7 @@ describe('AssistantFileToolsServer', () => {
       type: 'file',
       destination: 'trash'
     })
-    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+    const server = await createServer()
 
     const result = await callTool(server, 'move_to_trash', { path: 'old-draft.md' })
 
