@@ -11,10 +11,25 @@ const updateProviderByIdMock = vi.fn()
 const addApiKeyTriggerMock = vi.fn()
 const navigateMock = vi.fn()
 const popupShowMock = vi.fn()
+let providersFixture: Array<{
+  id: string
+  endpointConfigs?: Record<string, { baseUrl?: string; reasoningFormat?: { type: string } }>
+}> = [
+  {
+    id: 'anthropic',
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+        baseUrl: 'https://old.example.com',
+        reasoningFormat: { type: 'self-hosted' }
+      }
+    }
+  }
+]
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({
-    createProvider: createProviderMock
+    createProvider: createProviderMock,
+    providers: providersFixture
   }),
   useProviderActions: () => ({
     updateProviderById: updateProviderByIdMock
@@ -40,6 +55,17 @@ vi.mock('../../UrlSchemaInfoPopup', () => ({
 describe('useProviderDeepLinkImport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    providersFixture = [
+      {
+        id: 'anthropic',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://old.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      }
+    ]
     createProviderMock.mockResolvedValue({ id: 'openai' })
     updateProviderByIdMock.mockResolvedValue(undefined)
     addApiKeyTriggerMock.mockResolvedValue(undefined)
@@ -141,7 +167,8 @@ describe('useProviderDeepLinkImport', () => {
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-          baseUrl: 'https://api.anthropic.com'
+          baseUrl: 'https://api.anthropic.com',
+          reasoningFormat: { type: 'self-hosted' }
         }
       }
     })
@@ -154,6 +181,41 @@ describe('useProviderDeepLinkImport', () => {
       to: '/settings/provider',
       search: { id: 'anthropic' }
     })
+  })
+
+  it('runs a deep-link import only once while the same search payload stays mounted', async () => {
+    const onSelectProvider = vi.fn()
+    const payload = JSON.stringify({
+      id: 'openai',
+      apiKey: 'sk-openai',
+      baseUrl: 'https://api.openai.com',
+      type: 'openai',
+      name: 'OpenAI'
+    })
+
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'openai',
+        name: 'OpenAI',
+        type: 'openai',
+        apiKey: 'sk-openai',
+        apiHost: 'https://api.openai.com'
+      },
+      isNew: true,
+      displayName: 'OpenAI'
+    })
+
+    const { rerender } = renderHook(({ data }) => useProviderDeepLinkImport(data, onSelectProvider), {
+      initialProps: { data: payload }
+    })
+
+    await waitFor(() => expect(createProviderMock).toHaveBeenCalledTimes(1))
+
+    providersFixture = [{ id: 'openai' }]
+    rerender({ data: payload })
+
+    await waitFor(() => expect(popupShowMock).toHaveBeenCalledTimes(1))
+    expect(createProviderMock).toHaveBeenCalledTimes(1)
   })
 
   it('shows an error toast and clears the search state for invalid input', async () => {

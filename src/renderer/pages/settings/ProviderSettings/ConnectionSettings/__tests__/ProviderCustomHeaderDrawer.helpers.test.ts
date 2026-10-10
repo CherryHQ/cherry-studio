@@ -30,7 +30,8 @@ vi.mock('react-i18next', () => ({
 import {
   findInvalidSecondaryEndpointUrl,
   mergeEndpointConfigs,
-  resolveEndpointTypes
+  resolveEndpointTypes,
+  sanitizeEndpointDraftsForSave
 } from '../ProviderCustomHeaderDrawer'
 
 const PRIMARY = 'openai-chat-completions' as any
@@ -58,6 +59,39 @@ describe('mergeEndpointConfigs', () => {
       { [PRIMARY]: { baseUrl: 'https://new' } }
     )
     expect(out[PRIMARY]).toEqual({ baseUrl: 'https://new', modelsApiUrls: ['https://models'] })
+  })
+
+  it('preserves reasoningFormat when the draft only changes baseUrl', () => {
+    const out = mergeEndpointConfigs(
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } as any },
+      { [PRIMARY]: { baseUrl: 'https://new' } }
+    )
+    expect(out[PRIMARY]).toEqual({
+      baseUrl: 'https://new',
+      reasoningFormat: { type: 'self-hosted' }
+    })
+  })
+
+  it('clears reasoningFormat only when the drawer explicitly selects default', () => {
+    const out = mergeEndpointConfigs(
+      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } } as any },
+      { [PRIMARY]: { baseUrl: 'https://new', reasoningFormat: null } }
+    )
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://new' })
+  })
+})
+
+describe('sanitizeEndpointDraftsForSave', () => {
+  it('drops a touched reasoning-format draft when the server value changed after the drawer opened', () => {
+    const touched = new Set<typeof PRIMARY>([PRIMARY])
+    const drafts = sanitizeEndpointDraftsForSave(
+      { [PRIMARY]: { baseUrl: 'https://new', reasoningFormat: null } },
+      touched,
+      { [PRIMARY]: { type: 'self-hosted' } },
+      { [PRIMARY]: { baseUrl: 'https://new' } as any }
+    )
+
+    expect(drafts[PRIMARY]).toEqual({ baseUrl: 'https://new' })
   })
 })
 
