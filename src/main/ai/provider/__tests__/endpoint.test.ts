@@ -385,19 +385,32 @@ describe('resolveEffectiveEndpoint', () => {
       id: 'deepseek',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' },
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' }
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com', adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com', adapterFamily: 'deepseek' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://api.deepseek.com/anthropic',
+          adapterFamily: 'anthropic'
+        }
       }
     })
     const flash = {
-      id: 'deepseek-v4-flash',
+      id: 'deepseek-flash',
       endpointTypes: [
         ENDPOINT_TYPE.OPENAI_RESPONSES,
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       ]
     } as never
+
+    it('routes in-app DeepSeek V4 Flash through its official OpenAI endpoint', () => {
+      const endpoint = resolveEffectiveEndpoint(deepseek, flash)
+
+      expect(endpoint).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        baseUrl: 'https://api.deepseek.com'
+      })
+      expect(resolveAiSdkProviderId(deepseek, endpoint.endpointType)).toBe('openai')
+    })
 
     it('wins over model.endpointTypes[0] when the model declares it', () => {
       expect(resolveEffectiveEndpoint(deepseek, flash, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
