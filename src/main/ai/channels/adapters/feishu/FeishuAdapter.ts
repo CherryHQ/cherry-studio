@@ -4,6 +4,7 @@ import { fileTypeFromBuffer } from 'file-type'
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { registrationBegin, registrationPoll } from '@main/services/feishuAppRegistration'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
@@ -16,7 +17,6 @@ import {
 } from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { FILE_EXTENSION_MIME_MAP } from '../../utils'
-import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
