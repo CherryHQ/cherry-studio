@@ -169,6 +169,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  disposeToolPolicySnapshot: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -504,7 +505,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
-      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'ClaudeCodeSessionStateService')
+        return { disposeToolPolicySnapshot: mocks.disposeToolPolicySnapshot }
       if (name === 'PreferenceService') return { get: mocks.getPreference }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -3767,6 +3769,206 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     )
     void connection.close()
+  })
+
+  it('drops the fallback setup registrations when Stop closes the connection during request construction', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    // The builder recreates these session-keyed registrations while constructing the fallback
+    // request; after a mid-build close they are the ones nobody would otherwise dispose.
+    const abandonedApproval = { dispose: vi.fn() }
+    const abandonedSteer = { pending: [], dispose: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    // Stop: close while the fallback request is still being built, then let construction finish.
+    const closed = connection.close()
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { approvalEmitter: abandonedApproval, steerHolder: abandonedSteer },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await closed
+    await delay(10)
+
+    // No session state survives closure: the abandoned request's fresh registrations are disposed
+    // and nothing was installed after cancellation (no re-registration, no second query).
+    expect(abandonedApproval.dispose).toHaveBeenCalledOnce()
+    expect(abandonedSteer.dispose).toHaveBeenCalledOnce()
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(2) // close teardown + abandoned snapshot
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledTimes(1) // primary install only
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the closing barrier until a fallback build racing the close settles', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const abandonedApproval = { dispose: vi.fn() }
+    const abandonedSteer = { pending: [], dispose: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    let closeResolved = false
+    const closed = Promise.resolve(connection.close()).then(() => {
+      closeResolved = true
+    })
+    // The build is still parked mid-construction: close must not resolve past it, or the host's
+    // closing barrier releases while the builder can still register fresh session state.
+    await delay(20)
+    expect(closeResolved).toBe(false)
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { approvalEmitter: abandonedApproval, steerHolder: abandonedSteer },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await closed
+    expect(closeResolved).toBe(true)
+    expect(abandonedApproval.dispose).toHaveBeenCalledOnce()
+    expect(abandonedSteer.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('refuses fallback installation after close and disposes the abandoned warm process', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const warmConsume = createDeferred<any>()
+    const warmDispose = vi.fn(async () => {})
+    mocks.consumeWarmQuery
+      .mockResolvedValueOnce(undefined) // primary installs cold
+      .mockImplementationOnce(() => warmConsume.promise) // fallback install parks consuming a warm process
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.consumeWarmQuery).toHaveBeenCalledTimes(2))
+
+    // Stop lands while the fallback install is mid-consumption; the consumed warm process was
+    // evicted from its manager, so abandoning the install must dispose it explicitly.
+    const closed = connection.close()
+    warmConsume.resolve({ warmQuery: { [Symbol.asyncDispose]: warmDispose } })
+    await closed
+    await delay(10)
+
+    expect(warmDispose).toHaveBeenCalledOnce()
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledTimes(1) // primary install only
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(1) // close teardown only — nothing re-registered
   })
 
   it('does not re-send a completed turn when a later failure is retryable', async () => {

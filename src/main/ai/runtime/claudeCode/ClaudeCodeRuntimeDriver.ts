@@ -69,7 +69,11 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
-import { resolveAgentFallbackPolicy, resolveAgentSessionFallback } from './modelFallback'
+import {
+  type AgentSessionFallbackDecision,
+  resolveAgentFallbackPolicy,
+  resolveAgentSessionFallback
+} from './modelFallback'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -326,6 +330,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>
+  /** Settles when an in-flight fallback build/install does; closeQuery() joins it so close cannot
+   *  resolve while the builder can still register fresh session-keyed state. */
+  private pendingFallbackSetup?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
@@ -433,6 +440,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       notificationContext: request.notificationContext
     })
 
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
+    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+    if (this.sessionTornDown) {
+      // A close tore the session down while this install awaited setup; registering now would
+      // leave session-keyed state nobody disposes — teardown already latched and never reruns.
+      // Drop the consumed warm process (consume evicted its manager entry, so nothing else will).
+      await Promise.resolve(consumedWarmQuery?.warmQuery[Symbol.asyncDispose]()).catch((error) => {
+        logger.warn('Failed to dispose a warm query abandoned by cancellation', {
+          sessionId: this.input.sessionId,
+          error
+        })
+      })
+      return
+    }
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
     // describes the credential that will actually serve this connection.
@@ -441,8 +462,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
-    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
-    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -697,6 +716,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.steerBoundaryPending = undefined
     this.teardownSession()
     this.eventQueue.close()
+    // Join an in-flight fallback setup before the close settles: its builder registers fresh
+    // session-keyed state across awaits, and the barrier must hold until the setup settles — it
+    // refuses to install once sessionTornDown latched above and disposes its abandoned
+    // registrations before this join releases.
+    await this.pendingFallbackSetup
     const exited = this.processDiagnostics?.exited
     if (!query && !exited) return
     try {
@@ -849,64 +873,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       if (!decision) return false
       this.fallbackAttempted = true
-      const request = await buildClaudeCodeQueryRequestForAgentSession(
-        this.input.sessionId,
-        this.resumeToken,
-        decision.fallbackModelId,
-        this.input.reasoningEffort ?? 'default',
-        this.input.fastMode === true,
-        this.input.knowledgeBaseIds
-      ).catch((cause) => {
-        logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
-          sessionId: this.input.sessionId,
-          fallbackModelId: decision.fallbackModelId,
-          cause
-        })
-        return undefined
-      })
-      if (!request) return false
-      // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
-      // abandoned with no trace in the transcript and the original error surfaces.
-      const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId, input, previousMessage)
-      logger.warn('Agent session turn fell back to the next configured model', {
-        sessionId: this.input.sessionId,
-        from: this.input.modelId,
-        to: decision.fallbackModelId,
-        reason: decision.reason
-      })
-      // Rebind before the host can observe the fallback chunk: it re-reads `usageCapture` on it,
-      // and the capture must already describe the fallback model (installQuery may still refine
-      // it with a consumed warm query's receipt — same fallback model either way).
-      this._usageCapture = request.usageCapture
-      this.sdkInputQueue.close()
-      this.sdkInputQueue = new SdkInputQueue()
-      if (replayedMessage) {
-        this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
-      }
-      // The rebuilt query runs on the fallback model: its trace env and every later span must name
-      // it, while traceId/rootSpanId/turnId stay put so the turn remains one trace.
-      if (this.input.trace) {
-        this.input.trace = {
-          ...this.input.trace,
-          modelName: parseUniqueModelId(decision.fallbackModelId).modelId
-        }
-        this.refreshTraceContext(this.input.trace)
-      }
-      await this.installQuery(request)
-      // Tell the user in the transcript itself — persisted with the turn like any other data part.
-      // Announced only now: a swap that never installed must leave no notice claiming it did, and
-      // installQuery is pure setup, so nothing of the fallback turn can precede this.
-      this.eventQueue.push({
-        type: 'chunk',
-        chunk: {
-          type: 'data-model-fallback',
-          id: crypto.randomUUID(),
-          data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
-        }
-      })
-      // installQuery swapped the adapter; the replayed message must land inside an open turn.
-      this.adapter?.beginTurn()
-      return true
+      const setup = this.setupFallbackQuery(decision, input, previousMessage)
+      // Retain the setup before it can settle: closeQuery() joins this promise so the closing
+      // barrier spans the async build/install window. Setups never overlap (the query loop awaits
+      // one before another attempt can start), so the overwrite cannot strand a live setup.
+      this.pendingFallbackSetup = setup.then(
+        () => undefined,
+        () => undefined
+      )
+      return await setup
     } catch (cause) {
       // A fallback decision must never break error surfacing — degrade to the ordinary error path.
       logger.warn('Model fallback attempt failed; surfacing the original turn error', {
@@ -915,6 +890,98 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
       return false
     }
+  }
+
+  /**
+   * Build and install the decided fallback query, refusing to install onto a closed connection:
+   * a Stop that lands inside the async build/install window latches `sessionTornDown`, and the
+   * builder has typically recreated the session's approval holder, steer holder and tool-policy
+   * snapshot by then — registering after teardown (which never reruns) would retain that
+   * session state past closure, so the abandoned request's registrations are disposed instead
+   * and the aborted turn's original error surfaces.
+   */
+  private async setupFallbackQuery(
+    decision: AgentSessionFallbackDecision,
+    input: AgentRuntimeUserInput,
+    previousMessage: SDKUserMessage
+  ): Promise<boolean> {
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      this.input.sessionId,
+      this.resumeToken,
+      decision.fallbackModelId,
+      this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
+      this.input.knowledgeBaseIds
+    ).catch((cause) => {
+      logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
+        sessionId: this.input.sessionId,
+        fallbackModelId: decision.fallbackModelId,
+        cause
+      })
+      return undefined
+    })
+    if (!request) return false
+    if (this.sessionTornDown) {
+      this.disposeAbandonedRequestSettings(request)
+      return false
+    }
+    // Rebuild the replay while nothing has been announced yet: if it fails, the fallback is
+    // abandoned with no trace in the transcript and the original error surfaces.
+    const replayedMessage = await this.buildReplayUserMessage(decision.fallbackModelId, input, previousMessage)
+    logger.warn('Agent session turn fell back to the next configured model', {
+      sessionId: this.input.sessionId,
+      from: this.input.modelId,
+      to: decision.fallbackModelId,
+      reason: decision.reason
+    })
+    // Rebind before the host can observe the fallback chunk: it re-reads `usageCapture` on it,
+    // and the capture must already describe the fallback model (installQuery may still refine
+    // it with a consumed warm query's receipt — same fallback model either way).
+    this._usageCapture = request.usageCapture
+    this.sdkInputQueue.close()
+    this.sdkInputQueue = new SdkInputQueue()
+    if (replayedMessage) {
+      this.sdkInputQueue.push({ ...replayedMessage, session_id: this.resumeToken ?? '' })
+    }
+    // The rebuilt query runs on the fallback model: its trace env and every later span must name
+    // it, while traceId/rootSpanId/turnId stay put so the turn remains one trace.
+    if (this.input.trace) {
+      this.input.trace = {
+        ...this.input.trace,
+        modelName: parseUniqueModelId(decision.fallbackModelId).modelId
+      }
+      this.refreshTraceContext(this.input.trace)
+    }
+    await this.installQuery(request)
+    // installQuery skips registration when the connection closed mid-install; with no installed
+    // query there is nothing to restart the loop on and nothing to announce.
+    if (this.sessionTornDown) return false
+    // Tell the user in the transcript itself — persisted with the turn like any other data part.
+    // Announced only now: a swap that never installed must leave no notice claiming it did, and
+    // installQuery is pure setup, so nothing of the fallback turn can precede this.
+    this.eventQueue.push({
+      type: 'chunk',
+      chunk: {
+        type: 'data-model-fallback',
+        id: crypto.randomUUID(),
+        data: { from: this.input.modelId, to: decision.fallbackModelId, reason: decision.reason }
+      }
+    })
+    // installQuery swapped the adapter; the replayed message must land inside an open turn.
+    this.adapter?.beginTurn()
+    return true
+  }
+
+  /**
+   * Dispose the fresh session-keyed registrations a built-but-abandoned request carries. Safe
+   * alongside close's own teardown in either order: holder disposal is identity-guarded and the
+   * by-id snapshot dispose drops the builder's fresh entry — a successor connection registers
+   * only after close() resolves, and the closing barrier holds until the setup settles.
+   */
+  private disposeAbandonedRequestSettings(request: ClaudeCodeAgentSessionQueryRequest): void {
+    request.settings.approvalEmitter?.dispose?.()
+    request.settings.steerHolder?.dispose()
+    disposeToolPolicySnapshot(this.input.sessionId)
   }
 
   /** The retained replay belongs to the in-flight host turn; drop it once that turn is over. */
