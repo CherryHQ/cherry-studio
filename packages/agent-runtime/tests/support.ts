@@ -65,7 +65,7 @@ export function scriptedModel(scripts: LanguageModelV3StreamPart[][], chunkDelay
 /** The production shape of the port: one single-step `streamText` call (Cherry adds its executor here). */
 export function streamTextPort<TRequestOptions = undefined>(
   model: LanguageModel,
-  extra: Pick<Parameters<typeof streamText>[0], 'experimental_transform'> = {}
+  extra: Pick<Parameters<typeof streamText>[0], 'experimental_transform' | 'experimental_repairToolCall'> = {}
 ) {
   const requests: ModelCallRequest<TRequestOptions>[] = []
   const port: ModelCallPort<TRequestOptions> = {
