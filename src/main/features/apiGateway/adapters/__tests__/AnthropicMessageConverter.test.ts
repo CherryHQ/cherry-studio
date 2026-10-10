@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { ImageBlockParam, MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +13,64 @@ const params = (overrides: Partial<MessageCreateParams>): MessageCreateParams =>
   messages: [],
   ...overrides
 })
+
+const malformedImageBlocks = [
+  { name: 'missing source', block: { type: 'image' } },
+  { name: 'null source', block: { type: 'image', source: null } },
+  { name: 'non-object source', block: { type: 'image', source: 42 } },
+  { name: 'missing base64 data', block: { type: 'image', source: { type: 'base64', media_type: 'image/png' } } },
+  {
+    name: 'null base64 data',
+    block: { type: 'image', source: { type: 'base64', media_type: 'image/png', data: null } }
+  },
+  {
+    name: 'numeric base64 data',
+    block: { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 42 } }
+  },
+  { name: 'missing url', block: { type: 'image', source: { type: 'url' } } },
+  { name: 'null url', block: { type: 'image', source: { type: 'url', url: null } } },
+  { name: 'numeric url', block: { type: 'image', source: { type: 'url', url: 42 } } }
+]
+
+const malformedMediaTypes = [
+  { name: 'missing media_type', field: {} },
+  { name: 'null media_type', field: { media_type: null } },
+  { name: 'numeric media_type', field: { media_type: 42 } },
+  { name: 'blank media_type', field: { media_type: '  ' } },
+  { name: 'bare media_type', field: { media_type: 'png' } },
+  { name: 'comma in media_type', field: { media_type: 'image/png,a' } },
+  { name: 'semicolon in media_type', field: { media_type: 'image/png;base64,x' } },
+  { name: 'trailing space in media_type', field: { media_type: 'image/png ' } },
+  { name: 'newline in media_type', field: { media_type: 'image/png\n' } }
+]
+
+const unusableImageSources = [
+  { name: 'non-image data URL', source: { type: 'url' as const, url: 'data:text/plain,hello' } },
+  { name: 'data URL without a media type', source: { type: 'url' as const, url: 'data:,hello' } },
+  { name: 'invalid base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,not-valid-base64' } },
+  {
+    name: 'short padded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'A=' }
+  },
+  {
+    name: 'short unpadded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'A' }
+  },
+  {
+    name: 'long unpadded base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'QUJDRQ' }
+  },
+  { name: 'short padded base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,A=' } },
+  { name: 'long unpadded base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,QUJDRQ' } },
+  {
+    name: 'non-image base64 source',
+    source: { type: 'base64' as const, media_type: 'text/plain', data: 'AAAA' } as unknown as ImageBlockParam['source']
+  },
+  {
+    name: 'invalid base64 source',
+    source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'not-valid-base64' }
+  }
+]
 
 describe('AnthropicMessageConverter.toUIMessages', () => {
   it('emits a leading system message from a string system prompt', () => {
@@ -131,6 +189,136 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ])
   })
 
+  it('accepts base64 image data with whitespace without changing the URL payload', () => {
+    const data = ' AQ==\n'
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data } }] }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${data}` }])
+  })
+
+  it.each([
+    ['data:image/jpeg;base64,/9j/4AAQ', 'image/jpeg'],
+    ['data:image/png,%89PNG', 'image/png']
+  ])('keeps a usable image data URL and its declared media type: %s', (url, mediaType) => {
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType, url }])
+  })
+
+  it('preserves a valid https image source', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: [{ type: 'image', source: { type: 'url', url: 'https://img.example/x.png' } }] }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }])
+  })
+
+  it('preserves a file URL image source for local inlining', () => {
+    const url = 'file:///tmp/image.png'
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url }])
+  })
+
+  it.each([
+    ['data:image/png;base64,QUJD', 'image/png'],
+    ['data:image/jpeg;base64,/9j/4AAQ', 'image/jpeg'],
+    ['https://example.com/a.png', 'image/png'],
+    ['file:///tmp/a.png', 'image/png']
+  ])('keeps a valid image URL in top-level and tool_result content: %s', (url, mediaType) => {
+    const source = { type: 'url' as const, url }
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'user', content: [{ type: 'image', source }] },
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [{ type: 'image', source }] }]
+          }
+        ]
+      })
+    )
+    const file = { type: 'file', mediaType, url }
+    const anchor = '[tool-result attachment call_id="call_img" image=1]'
+    expect(msgs[0].parts).toEqual([file])
+    expect((msgs[1].parts[0] as { output: string }).output).toBe(
+      `${anchor} (${mediaType}): attached in the following user message`
+    )
+    expect(msgs[2].parts).toEqual([{ type: 'text', text: anchor }, file])
+  })
+
+  it.each([
+    ['HTTPS://img.example/CaseSensitive.PNG?token=AbC', 'https://img.example/CaseSensitive.PNG?token=AbC'],
+    ['FILE:///tmp/CaseSensitive.PNG', 'file:///tmp/CaseSensitive.PNG'],
+    ['DATA:image/png;base64,AAAA', 'data:image/png;base64,AAAA']
+  ])('accepts %s and lowercases only its scheme', (url, expectedUrl) => {
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
+    )
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: expectedUrl }])
+  })
+
+  it.each([
+    { type: 'base64' as const, media_type: 'image/png' as const, data: '' },
+    { type: 'base64' as const, media_type: 'image/png' as const, data: '  ' },
+    { type: 'url' as const, url: '' },
+    { type: 'url' as const, url: '  ' },
+    { type: 'url' as const, url: 'data:image/png;base64,' },
+    { type: 'url' as const, url: 'DATA:image/png;base64,' },
+    { type: 'url' as const, url: 'data:image/png' },
+    { type: 'url' as const, url: 'ftp://example.com/x.png' }
+  ])('replaces an unusable image source with a visible note: %j', (source) => {
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
+  it.each(malformedImageBlocks)('omits a top-level image with $name', ({ block }) => {
+    const msgs = converter.toUIMessages(
+      params({ messages: [{ role: 'user', content: [block] }] as MessageCreateParams['messages'] })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
+  it.each(malformedMediaTypes)('omits a top-level base64 image with $name', ({ field }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', data: 'AAAA', ...field } as ImageBlockParam['source'] }
+            ]
+          }
+        ]
+      })
+    )
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
+  it.each(unusableImageSources)('omits a top-level image with $name', ({ source }) => {
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: [{ type: 'image', source }] }] }))
+    expect(msgs[0].parts).toEqual([
+      { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' }
+    ])
+  })
+
   it('maps thinking and redacted_thinking blocks to reasoning parts preserving replay metadata', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -233,6 +421,103 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         { type: 'file', mediaType: 'image/png', url: 'https://img.example/x.png' }
       ]
     })
+  })
+
+  it('keeps unusable tool_result images visible without claiming they were attached', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+                  { type: 'image', source: { type: 'url', url: '' } }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    const output = (msgs[0].parts[0] as { output: string }).output
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=1]')
+    expect(output).toContain('[tool-result attachment call_id="call_img" image=2]')
+    expect(output).toContain('[image attachment omitted: empty or unsupported image payload]')
+    expect(output).not.toContain('attached in the following user message')
+    expect(msgs[1].parts).toEqual([
+      {
+        type: 'text',
+        text: '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+      },
+      {
+        type: 'text',
+        text: '[tool-result attachment call_id="call_img" image=2] [image attachment omitted: empty or unsupported image payload]'
+      }
+    ])
+  })
+
+  it.each(malformedImageBlocks)('omits a tool_result image with $name', ({ block }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [block] }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+    const note =
+      '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+    expect((msgs[0].parts[0] as { output: string }).output).toBe(note)
+    expect(msgs[1].parts).toEqual([{ type: 'text', text: note }])
+  })
+
+  it.each(malformedMediaTypes)('omits a tool_result base64 image with $name', ({ field }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call_img',
+                content: [
+                  { type: 'image', source: { type: 'base64', data: 'AAAA', ...field } as ImageBlockParam['source'] }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    const note =
+      '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+    expect((msgs[0].parts[0] as { output: string }).output).toBe(note)
+    expect(msgs[1].parts).toEqual([{ type: 'text', text: note }])
+  })
+
+  it.each(unusableImageSources)('omits a tool_result image with $name', ({ source }) => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: 'call_img', name: 'generate_image', input: {} }] },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'call_img', content: [{ type: 'image', source }] }]
+          }
+        ]
+      })
+    )
+    const note =
+      '[tool-result attachment call_id="call_img" image=1] [image attachment omitted: empty or unsupported image payload]'
+    expect((msgs[0].parts[0] as { output: string }).output).toBe(note)
+    expect(msgs[1].parts).toEqual([{ type: 'text', text: note }])
   })
 
   it('keeps call ids attached to relocated images when parallel results arrive out of order', () => {

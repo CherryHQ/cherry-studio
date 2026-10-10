@@ -21,6 +21,7 @@ import { tool, zodSchema } from 'ai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import { isGemini3ModelId } from '@shared/utils/model'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -74,13 +75,44 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
-/** An Anthropic image block as a `file` UI part (undefined for unknown sources). */
+// Accept only declared image types with a non-empty payload in the advertised encoding.
+function imageDataUrlMediaType(url: string): string | undefined {
+  const parsed = parseDataUrl(url)
+  const mediaType = parsed?.mediaType
+  if (!mediaType || !/^image\/[a-z0-9+.-]+$/i.test(mediaType)) return undefined
+  const data = parsed.data
+  if (parsed.isBase64) {
+    const payload = data.replace(/\s/g, '')
+    if (!/^[a-z0-9+/]+={0,2}$/i.test(payload) || payload.length % 4 !== 0) return undefined
+  } else if (!data.trim()) {
+    return undefined
+  }
+  return mediaType
+}
+
+/** An Anthropic image block as a `file` UI part (undefined for unusable sources). */
 function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
+  if (!source || typeof source !== 'object') return undefined
   if (source.type === 'base64') {
-    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+    if (typeof source.data !== 'string' || !source.data.trim()) return undefined
+    // Guard the raw media type before it can shift delimiters in the URL we build.
+    if (typeof source.media_type !== 'string' || !/^image\/[a-z0-9+.-]+$/i.test(source.media_type)) return undefined
+    const url = `data:${source.media_type};base64,${source.data}`
+    // Validate the effective URL and payload before forwarding it.
+    const mediaType = imageDataUrlMediaType(url)
+    return mediaType ? { type: 'file', mediaType, url } : undefined
   }
   if (source.type === 'url') {
-    return { type: 'file', mediaType: 'image/png', url: source.url }
+    if (typeof source.url !== 'string' || !source.url.trim()) return undefined
+    const prefix = /^(https?:\/\/|file:\/\/|data:)/i.exec(source.url)?.[0]
+    if (!prefix) return undefined
+    const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
+    if (url.startsWith('data:')) {
+      // Validate the effective URL and payload before forwarding it.
+      const mediaType = imageDataUrlMediaType(url)
+      return mediaType ? { type: 'file', mediaType, url } : undefined
+    }
+    return { type: 'file', mediaType: 'image/png', url }
   }
   return undefined
 }
@@ -122,6 +154,10 @@ function toolResultToOutput(
         const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
+      } else {
+        const note = `${toolResultImageAnchor(toolCallId, ++imageIndex)} [image attachment omitted: empty or unsupported image payload]`
+        lines.push(note)
+        relocatedParts.push({ type: 'text', text: note })
       }
     }
   }
@@ -249,9 +285,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           parts.push(part)
         } else if (block.type === 'image') {
           const part = imageBlockToFilePart(block.source)
-          if (part) {
-            parts.push(part)
-          }
+          parts.push(part ?? { type: 'text', text: '[image attachment omitted: empty or unsupported image payload]' })
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.id)
