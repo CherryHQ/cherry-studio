@@ -248,6 +248,13 @@
       "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
     },
     {
+      "targetKey": "ui.mode",
+      "type": "'efficiency' | 'minimal'",
+      "defaultValue": "efficiency",
+      "status": "classified",
+      "description": "Main window interface mode; efficiency preserves the full workspace navigation"
+    },
+    {
       "targetKey": "ui.launchpad.app_order",
       "type": "PreferenceTypes.SidebarFavorite[]",
       "defaultValue": [],

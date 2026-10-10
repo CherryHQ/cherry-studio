@@ -58,6 +58,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import {
   cancelTopicRenaming,
@@ -146,6 +147,7 @@ const TOPIC_EXPORT_MENU_PREFERENCE_KEYS = {
 } as const
 
 interface Props {
+  className?: string
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
@@ -224,6 +226,7 @@ function AssistantGroupMoreMenu({
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const sidebarAvailable = useSidebarAvailable()
   const actionContext: AssistantGroupActionContext = {
     assistantId,
     assistantIconType,
@@ -237,7 +240,7 @@ function AssistantGroupMoreMenu({
     onSetAssistantIconType,
     onToggleGrouping,
     onTogglePin,
-    onToggleSidebar,
+    onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
     pinned,
     sidebarPinned,
     t
@@ -260,6 +263,7 @@ function AssistantGroupMoreMenu({
 }
 
 export function Topics({
+  className,
   activeTopic,
   assistantTopicsSource,
   assistantIdFilter,
@@ -428,6 +432,7 @@ export function Topics({
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
+  const sidebarAvailable = useSidebarAvailable()
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const listRef = useRef<HTMLDivElement>(null)
@@ -1168,6 +1173,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -1194,7 +1200,7 @@ export function Topics({
         onSetAssistantIconType: setAssistantIconType,
         onToggleGrouping: () => setAssistantSortType(isGroupGrouping ? 'list' : 'tags'),
         onTogglePin: handleToggleAssistantPin,
-        onToggleSidebar: handleToggleAssistantSidebar,
+        onToggleSidebar: sidebarAvailable ? handleToggleAssistantSidebar : undefined,
         pinned: assistantPinnedIdSet.has(assistantId),
         sidebarPinned: sidebarAssistantFavoriteIdSet.has(assistantId),
         t
@@ -1222,6 +1228,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
+      sidebarAvailable,
       sidebarAssistantFavoriteIdSet,
       t
     ]
@@ -1514,6 +1521,7 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
+        className={className}
         key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
         presentation={presentation}
         items={visibleFilteredTopics}

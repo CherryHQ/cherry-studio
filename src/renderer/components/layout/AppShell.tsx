@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useCache } from '@data/hooks/useCache'
@@ -26,7 +27,14 @@ import { TabRouter } from './TabRouter'
 const isCompactMinWidthRoute = (url?: string): boolean =>
   !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
-export const AppShell = () => {
+export const AppShell = ({
+  minimalMode,
+  minimalToolbar
+}: {
+  minimalMode?: { isHome: boolean; returnHome: () => void; homeTabIds?: { agent?: string; assistant?: string } }
+  minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
+}) => {
+  const isMinimal = !!minimalMode
   const isMacTransparentWindow = useMacTransparentWindow()
   const {
     tabs,
@@ -42,7 +50,7 @@ export const AppShell = () => {
     openTab
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
-  const canCycleTabs = tabs.length > 1 && !!activeTab
+  const canCycleTabs = !isMinimal && tabs.length > 1 && !!activeTab
   const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
@@ -123,6 +131,10 @@ export const AppShell = () => {
   )
 
   const handleCloseActiveTab = useCallback(() => {
+    if (isMinimal) {
+      if (!minimalMode?.isHome) minimalMode?.returnHome()
+      return
+    }
     if (!activeTabId) return
     // Closing the last tab would strand the shell in the empty Launchpad state;
     // browsers close the window for the final tab (Safari / Chrome convention).
@@ -131,7 +143,7 @@ export const AppShell = () => {
       return
     }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab, tabs])
+  }, [activeTabId, handleCloseTab, isMinimal, minimalMode, tabs])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
@@ -214,10 +226,18 @@ export const AppShell = () => {
   )
 
   const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+    <div
+      className={cn(
+        'flex min-h-0 min-w-0 flex-1 flex-col',
+        !isMinimal && ['pb-2', isSettingsTabActive ? 'px-2' : 'pr-2']
+      )}>
       <main
         data-ui="app.content"
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+        className={cn(
+          'relative min-h-0 flex-1 overflow-hidden',
+          isMinimal && minimalMode?.isHome ? 'bg-transparent' : 'bg-background',
+          !isMinimal && 'rounded-[12px] border-[0.5px] border-border'
+        )}>
         {/* Route Tabs: Only render non-dormant tabs */}
         <ResourceViewSourceProvider>
           {tabs
@@ -227,6 +247,7 @@ export const AppShell = () => {
                 key={tab.id}
                 tab={tab}
                 isActive={tab.id === activeTabId}
+                preload={tab.id === minimalMode?.homeTabIds?.agent || tab.id === minimalMode?.homeTabIds?.assistant}
                 onUrlChange={(url) => handleUrlChange(tab.id, url)}
               />
             ))}
@@ -240,7 +261,7 @@ export const AppShell = () => {
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {tabBar}
+      {isMinimal ? minimalToolbar?.(handleDetachTab) : tabBar}
       {contentArea}
     </div>
   )
@@ -253,7 +274,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
+        {!isMinimal && !isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -272,7 +293,7 @@ export const AppShell = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      {!isSettingsTabActive && (
+      {!isMinimal && !isSettingsTabActive && (
         <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
           {!isFullscreen && (
             <div
