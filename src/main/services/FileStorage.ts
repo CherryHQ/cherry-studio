@@ -29,7 +29,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
-import { getFileType } from '@main/utils/file'
+import { getFileType, isPathInside } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -734,11 +734,13 @@ class FileStorage {
       const filesDir = path.resolve(application.getPath('feature.files.data'))
       const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
 
-      // Prevent selecting app data directories
+      // Prevent selecting app data directories (segment boundaries, not string prefixes)
       if (
-        normalizedPath.startsWith(filesDir) ||
-        normalizedPath.startsWith(appDataPath) ||
-        normalizedPath === currentNotesDir
+        normalizedPath === filesDir ||
+        isPathInside(normalizedPath, filesDir) ||
+        normalizedPath === currentNotesDir ||
+        normalizedPath === appDataPath ||
+        isPathInside(normalizedPath, appDataPath)
       ) {
         logger.warn(`Invalid directory selection: ${normalizedPath} (app data directory)`)
         return false

@@ -16,6 +16,8 @@ import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
+import { NotesFileEditSessionProvider } from '@renderer/components/notes/NotesFileEditSessionProvider'
+import { NotesRelocationFlushListener } from '@renderer/components/notes/NotesRelocationFlushListener'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
@@ -121,7 +123,10 @@ export function MainWindowContent(): React.ReactElement {
               <OnboardingPage />
             </Suspense>
           ) : (
-            <AppShell />
+            <NotesFileEditSessionProvider>
+              <NotesRelocationFlushListener />
+              <AppShell />
+            </NotesFileEditSessionProvider>
           )}
           <MainWindowRuntime />
           <ConversationNotificationRuntime />

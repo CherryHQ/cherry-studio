@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import { constants } from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -17,10 +18,40 @@ const MAX_RECURSION_DEPTH = 1000
  * @param depth - Current recursion depth (internal use)
  * @throws If copy operation fails or paths are invalid
  */
+type CopyDirectoryRecursiveOptions = {
+  allowedBasePath?: string
+  allowedSourceBasePath?: string
+  allowedDestinationBasePath?: string
+  skipExistingFiles?: boolean
+  exclusiveFileCopies?: boolean
+}
+
+async function assertDestinationPathHasNoSymlinkComponents(basePath: string, absolutePath: string): Promise<void> {
+  const relative = path.relative(basePath, absolutePath)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Destination path is outside allowed directory: ${absolutePath}`)
+  }
+
+  let current = basePath
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment)
+    try {
+      const stats = await fs.promises.lstat(current)
+      if (stats.isSymbolicLink()) {
+        throw new Error(`Destination contains a symlink: ${current}`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+}
+
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string },
+  options?: CopyDirectoryRecursiveOptions,
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -37,14 +68,16 @@ export async function copyDirectoryRecursive(
     throw new Error(`Maximum recursion depth exceeded: ${MAX_RECURSION_DEPTH}`)
   }
 
-  // Path validation - ensure operations stay within allowed boundaries
-  if (options?.allowedBasePath) {
-    if (!isPathInside(source, options.allowedBasePath)) {
-      throw new Error(`Source path is outside allowed directory: ${source}`)
-    }
-    if (!isPathInside(destination, options.allowedBasePath)) {
-      throw new Error(`Destination path is outside allowed directory: ${destination}`)
-    }
+  const allowedSourceBasePath = options?.allowedSourceBasePath ?? options?.allowedBasePath
+  const allowedDestinationBasePath = options?.allowedDestinationBasePath ?? options?.allowedBasePath
+  if (allowedSourceBasePath && !isPathInside(source, allowedSourceBasePath)) {
+    throw new Error(`Source path is outside allowed directory: ${source}`)
+  }
+  if (allowedDestinationBasePath && !isPathInside(destination, allowedDestinationBasePath)) {
+    throw new Error(`Destination path is outside allowed directory: ${destination}`)
+  }
+  if (allowedDestinationBasePath) {
+    await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destination)
   }
 
   try {
@@ -66,6 +99,10 @@ export async function copyDirectoryRecursive(
       const sourcePath = path.join(source, entry.name)
       const destPath = path.join(destination, entry.name)
 
+      if (allowedDestinationBasePath) {
+        await assertDestinationPathHasNoSymlinkComponents(allowedDestinationBasePath, destPath)
+      }
+
       // Use lstat to detect symlinks and prevent following them
       const entryStats = await fs.promises.lstat(sourcePath)
 
@@ -78,17 +115,37 @@ export async function copyDirectoryRecursive(
         // Recursively copy subdirectory
         await copyDirectoryRecursive(sourcePath, destPath, options, depth + 1)
       } else if (entryStats.isFile()) {
-        // Copy file with error handling for race conditions
         try {
-          await fs.promises.copyFile(sourcePath, destPath)
-          // Preserve file permissions
+          const destStats = await fs.promises.lstat(destPath)
+          if (destStats.isSymbolicLink()) {
+            throw new Error(`Destination is a symlink: ${destPath}`)
+          }
+          if (options?.skipExistingFiles) {
+            logger.debug('Skipping existing file during merge', { path: destPath })
+            continue
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+          }
+        }
+        try {
+          if (options?.exclusiveFileCopies || options?.skipExistingFiles) {
+            await fs.promises.copyFile(sourcePath, destPath, constants.COPYFILE_EXCL)
+          } else {
+            await fs.promises.copyFile(sourcePath, destPath)
+          }
           await fs.promises.chmod(destPath, entryStats.mode)
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
-          // Handle race condition where file was deleted during copy
           if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
+          }
+          if (options?.exclusiveFileCopies && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+            const existsError = new Error(`Destination file already exists: ${destPath}`) as NodeJS.ErrnoException
+            existsError.code = 'EEXIST'
+            throw existsError
           }
           throw error
         }

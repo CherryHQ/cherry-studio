@@ -1,0 +1,213 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { application } from '@application'
+import { isLinux, isWin } from '@main/core/platform'
+import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
+
+export class NotesRelocationValidationError extends Error {
+  constructor(
+    readonly reason: NotesRelocationValidationReason,
+    message: string
+  ) {
+    super(message)
+    this.name = 'NotesRelocationValidationError'
+  }
+}
+
+function invalid(reason: NotesRelocationValidationReason, message: string): never {
+  throw new NotesRelocationValidationError(reason, message)
+}
+
+function normalizeForCompare(value: string): string {
+  const resolved = path.resolve(value)
+  return isWin ? resolved.toLowerCase() : resolved
+}
+
+function pathsReferToSameLocation(left: string, right: string): boolean {
+  const leftResolved = normalizeForCompare(left)
+  const rightResolved = normalizeForCompare(right)
+  if (leftResolved === rightResolved) {
+    return true
+  }
+  if (isWin) {
+    return false
+  }
+  try {
+    return realPath(left) === realPath(right)
+  } catch {
+    return false
+  }
+}
+
+function isPathInside(child: string, parent: string): boolean {
+  const childResolved = path.resolve(child)
+  const parentResolved = path.resolve(parent)
+  if (pathsReferToSameLocation(childResolved, parentResolved)) {
+    return false
+  }
+  const relative = path.relative(parentResolved, childResolved)
+  if (relative === '' || relative === '..' || path.isAbsolute(relative)) {
+    return false
+  }
+  return !relative.startsWith(`..${path.sep}`)
+}
+
+function realPath(value: string): string {
+  try {
+    return fs.realpathSync.native?.(value) ?? fs.realpathSync(value)
+  } catch {
+    return path.resolve(value)
+  }
+}
+
+function pathEntryExists(value: string): boolean {
+  try {
+    fs.lstatSync(value)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
+function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
+  let cursor = path.resolve(value)
+  const missingParts: string[] = []
+  while (!pathEntryExists(cursor)) {
+    const parent = path.dirname(cursor)
+    if (parent === cursor) {
+      invalid('invalid_target', `no existing ancestor for target: ${value}`)
+    }
+    missingParts.unshift(path.basename(cursor))
+    cursor = parent
+  }
+  return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
+}
+
+async function assertSourceHasNoSymbolicLinks(dirPath: string): Promise<void> {
+  const walk = async (currentPath: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        invalid('source_contains_symlinks', `source contains a symbolic link: ${entry.name}`)
+      }
+      const entryPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        await walk(entryPath)
+      }
+    }
+  }
+
+  await walk(path.resolve(dirPath))
+}
+
+async function assertTargetHasNoSymbolicLinks(dirPath: string): Promise<void> {
+  const walk = async (currentPath: string): Promise<void> => {
+    const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name)
+      const stats = await fs.promises.lstat(entryPath)
+      if (stats.isSymbolicLink()) {
+        invalid('invalid_target', `target contains a symbolic link: ${entryPath}`)
+      }
+      if (stats.isDirectory()) {
+        await walk(entryPath)
+      }
+    }
+  }
+
+  await walk(path.resolve(dirPath))
+}
+
+function assertNotesTargetDirectory(dirPath: string): void {
+  if (!dirPath || typeof dirPath !== 'string') {
+    invalid('invalid_target', 'target path is required')
+  }
+
+  const normalizedPath = path.resolve(dirPath)
+  if (!fs.existsSync(normalizedPath)) {
+    invalid('invalid_target', `target does not exist: ${dirPath}`)
+  }
+
+  const lstats = fs.lstatSync(normalizedPath)
+  if (lstats.isSymbolicLink()) {
+    invalid('invalid_target', `target is a symbolic link: ${dirPath}`)
+  }
+  if (!lstats.isDirectory()) {
+    invalid('invalid_target', `target is not a directory: ${dirPath}`)
+  }
+
+  const physicalPath = normalizeForCompare(resolveExistingAncestor(dirPath).effectivePath)
+  const appDataPath = normalizeForCompare(realPath(application.getPath('sys.appdata')))
+  const filesDir = normalizeForCompare(realPath(application.getPath('feature.files.data')))
+  const defaultNotesDir = normalizeForCompare(realPath(application.getPath('feature.notes.data')))
+
+  if (
+    physicalPath === filesDir ||
+    isPathInside(physicalPath, filesDir) ||
+    physicalPath === defaultNotesDir ||
+    physicalPath === appDataPath ||
+    isPathInside(physicalPath, appDataPath)
+  ) {
+    invalid('invalid_target', `target is a protected directory: ${dirPath}`)
+  }
+
+  const isSystemRoot = isWin
+    ? /^[a-zA-Z]:[\\/]?$/.test(physicalPath)
+    : physicalPath === '/' ||
+      physicalPath === '/usr' ||
+      physicalPath === '/etc' ||
+      physicalPath === '/system' ||
+      (isLinux && (physicalPath === '/bin' || physicalPath === '/sbin' || physicalPath === '/var'))
+
+  if (isSystemRoot) {
+    invalid('invalid_target', `target is a system root directory: ${dirPath}`)
+  }
+
+  try {
+    fs.accessSync(normalizedPath, fs.constants.W_OK)
+  } catch {
+    invalid('target_not_writable', `target is not writable: ${dirPath}`)
+  }
+}
+
+export async function assertNotesRelocationPaths(sourcePath: string, targetPath: string): Promise<void> {
+  const sourceReal = normalizeForCompare(realPath(sourcePath))
+  const targetEffective = normalizeForCompare(resolveExistingAncestor(targetPath).effectivePath)
+
+  if (!fs.existsSync(sourcePath)) {
+    invalid('source_missing', `source does not exist: ${sourcePath}`)
+  }
+  if (fs.lstatSync(sourcePath).isSymbolicLink()) {
+    invalid('source_contains_symlinks', `source is a symbolic link: ${sourcePath}`)
+  }
+  if (!fs.statSync(sourcePath).isDirectory()) {
+    invalid('source_not_directory', `source is not a directory: ${sourcePath}`)
+  }
+  try {
+    fs.accessSync(sourcePath, fs.constants.R_OK)
+  } catch {
+    invalid('source_missing', `source is not readable: ${sourcePath}`)
+  }
+
+  await assertSourceHasNoSymbolicLinks(sourcePath)
+
+  if (fs.existsSync(targetPath)) {
+    await assertTargetHasNoSymbolicLinks(targetPath)
+  }
+
+  if (pathsReferToSameLocation(sourcePath, targetEffective)) {
+    invalid('same_path', `source and target are the same path: ${targetPath}`)
+  }
+  if (isPathInside(targetEffective, sourceReal)) {
+    invalid('target_inside_source', `target is inside source: ${targetPath}`)
+  }
+  if (isPathInside(sourceReal, targetEffective)) {
+    invalid('target_contains_source', `target contains source: ${targetPath}`)
+  }
+
+  assertNotesTargetDirectory(targetPath)
+}
