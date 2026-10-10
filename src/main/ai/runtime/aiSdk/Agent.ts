@@ -2,14 +2,25 @@
  * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
  */
 
+import {
+  type FinishReason,
+  InvalidResponseDataError,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type ToolSet,
+  type UIMessage,
+  type UIMessageChunk
+} from 'ai'
+
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
-import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { serializeError } from '../../utils/serializeError'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -17,6 +28,28 @@ import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
+
+const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
+
+class MissingFinishReasonError extends Error {
+  readonly i18nKey = 'missing_finish_reason'
+
+  constructor(
+    cause: Error,
+    readonly providerId: string,
+    readonly modelId: string
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MissingFinishReasonError'
+  }
+}
+
+function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
+  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+    return new MissingFinishReasonError(error, providerId, modelId)
+  }
+  return error
+}
 
 type ObserverMap = {
   [K in keyof AgentLoopHooks]?: Array<NonNullable<AgentLoopHooks[K]>>
@@ -27,7 +60,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private currentWriter?: WritableStreamDefaultWriter<UIMessageChunk>
 
   constructor(public readonly params: AgentLoopParams<T>) {
-    attachUsageObserver(this as Agent)
+    attachUsageObserver(this)
   }
 
   /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
@@ -53,7 +86,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const list = this.observers[key]
       if (!list) continue
       for (const fn of list) {
-        parts.push({ [key]: fn } as Partial<AgentLoopHooks>)
+        parts.push({ [key]: fn })
       }
     }
     if (this.params.hookParts) parts.push(...this.params.hookParts)
@@ -91,9 +124,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
-        tools: toolsWithHooks as ToolSet,
+        tools: toolsWithHooks,
         toolChoice: opts.toolChoice,
-        activeTools: opts.activeTools as Array<keyof ToolSet>,
+        activeTools: opts.activeTools,
         // System
         instructions: params.system,
         // CallSettings (model parameters)
@@ -126,7 +159,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal
-  ): Promise<{ text: string; usage: LanguageModelUsage }> {
+  ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
@@ -153,7 +186,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
-      return { text: result.text, usage: result.usage }
+      return {
+        text: result.text,
+        usage: result.usage,
+        finishReason: result.finishReason,
+        ...(result.rawFinishReason === undefined ? {} : { rawFinishReason: result.rawFinishReason })
+      }
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
       if (isCancellation) {
@@ -161,7 +199,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         throw err
       }
 
-      logger.error('agent generate error', err as Error)
+      logger.error('agent generate error', chatErrorContext(err))
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
@@ -220,7 +258,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       if (!hooks.onError) return undefined
       try {
         return await hooks.onError({
-          error: err instanceof Error ? err : new Error(String(err))
+          error: err instanceof Error ? err : new Error(serializeError(err).message ?? 'Unknown AI error')
         })
       } catch (hookErr) {
         logger.error('hooks.onError threw; aborting run', hookErr as Error)
@@ -284,6 +322,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)
@@ -375,15 +414,21 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return
         }
 
-        const action = await invokeOnError(err)
+        const streamError = normalizeStreamError(
+          err,
+          params.errorContext?.providerId ?? params.providerId,
+          params.errorContext?.modelId ?? params.modelId
+        )
+        const action = await invokeOnError(streamError)
+        const logError = chatErrorContext(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
-          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', logError)
         } else {
-          logger.error('agentLoop error', err)
+          logger.error('agentLoop error', logError)
         }
-        await settleWriter({ error: err })
+        await settleWriter({ error: streamError })
       })
 
     return readable

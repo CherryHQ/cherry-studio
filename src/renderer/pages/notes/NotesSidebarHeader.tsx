@@ -1,3 +1,8 @@
+import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
+import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Input,
@@ -11,10 +16,6 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { NotesSortType } from '@renderer/types/note'
-import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
-import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface HeaderIconButtonProps extends ComponentPropsWithRef<typeof Button> {
   label: string
@@ -77,7 +78,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
   return (
     <div
-      className={`flex h-(--navbar-height) border-border border-b px-3 py-2 ${
+      className={`flex h-(--navbar-height) border-b border-border px-3 py-2 ${
         isShowStarred || isShowSearch ? 'justify-start' : 'justify-center'
       }`}>
       <div className="flex items-center gap-1">
@@ -151,7 +152,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="-translate-y-1/2 absolute top-1/2 right-1 size-5 text-muted-foreground"
+                  className="absolute top-1/2 right-1 size-5 -translate-y-1/2 text-muted-foreground"
                   onClick={() => onSetSearchKeyword('')}
                   aria-label={t('common.clear')}>
                   <X size={13} />

@@ -1,4 +1,3 @@
-import { cn } from '@renderer/utils/style'
 import {
   type ButtonHTMLAttributes,
   createElement,
@@ -8,11 +7,19 @@ import {
   useInsertionEffect
 } from 'react'
 
+import { cn } from '@renderer/utils/style'
+
 const STYLE_ID = 'cherry-rich-editor-style-helpers'
 
 const STYLE_CONTENT = `
 @layer app {
 .RichEditorWrapper {
+  --editor-padding: 12px 55px 12px 60px;
+  --editor-min-height: 120px;
+  --editor-font-size: 16px;
+  --editor-line-height: normal;
+  --editor-paragraph-margin: 1.1rem 0 0.5rem 0;
+  --editor-placeholder-font-style: italic;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -21,6 +28,13 @@ const STYLE_CONTENT = `
   background: var(--background);
   overflow-y: hidden;
   min-height: 0;
+}
+
+.RichEditorWrapper .tiptap::after {
+  content: '';
+  display: block;
+  height: 50px;
+  pointer-events: none;
 }
 
 .RichEditorWrapper .ProseMirror table,

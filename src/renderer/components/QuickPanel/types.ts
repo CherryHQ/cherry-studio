@@ -24,6 +24,7 @@ export interface QuickPanelInsertTokenOptions {
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
+  getSelectionEndOffset?: () => number
   /**
    * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
    * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that
@@ -83,6 +84,8 @@ export type QuickPanelOpenOptions = {
   title?: string
   /** default: [] */
   list: QuickPanelListItem[]
+  /** Compact actions rendered in the panel footer, outside search and result scrolling. */
+  footerActions?: QuickPanelFooterAction[]
   /** default: 0 */
   defaultIndex?: number
   /** default: 7 */
@@ -102,6 +105,8 @@ export type QuickPanelOpenOptions = {
   queryAnchor?: number
   /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
   trackInputQuery?: boolean
+  /** Remove this panel's live-filter query on any close. Resource submenus opt in; the root "+" panel must not. */
+  consumeQueryOnDismiss?: boolean
   /** Initial tracked search text for panels opened from buttons without inserting query text into the input. */
   initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
@@ -147,15 +152,20 @@ export type QuickPanelListItem = {
    * when there are no matches.
    */
   alwaysVisible?: boolean
-  /**
-   * Keeps an action outside the virtualized result list and anchored at the
-   * bottom of the panel, immediately above the footer. Fixed items stay visible
-   * while filtering and remain part of keyboard navigation after regular rows.
-   */
-  fixedToBottom?: boolean
   /** Keep the current panel open after this item's action runs. */
   keepOpenOnAction?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
+}
+
+export type QuickPanelFooterAction = Pick<
+  QuickPanelListItem,
+  'action' | 'disabled' | 'icon' | 'keepOpenOnAction' | 'label' | 'tooltip'
+> & {
+  id: string
+  ariaLabel: string
+  /** Hide this action while the panel has a search query. */
+  hideWhenSearching?: boolean
+  action: NonNullable<QuickPanelListItem['action']>
 }
 
 // Context type definition.
@@ -164,9 +174,11 @@ export interface QuickPanelContextType {
   readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
   readonly updateList: (newList: QuickPanelListItem[]) => void
+  readonly updateFooterActions: (actions: QuickPanelFooterAction[]) => void
   readonly isVisible: boolean
   readonly symbol: string
   readonly list: QuickPanelListItem[]
+  readonly footerActions?: QuickPanelFooterAction[]
   readonly title?: string
   readonly defaultIndex: number
   readonly pageSize: number
@@ -175,6 +187,7 @@ export interface QuickPanelContextType {
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
   readonly trackInputQuery?: boolean
+  readonly consumeQueryOnDismiss?: boolean
   readonly initialSearchText?: string
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean

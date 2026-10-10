@@ -94,10 +94,8 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
 
     for (const plugin of this.plugins) {
       if (plugin.transformResult) {
-        // SAFETY: transformResult 的契约保证返回 TResult
-        // 由于插件接口定义，这个类型断言是安全的
         const transformed = await plugin.transformResult(result, context)
-        result = transformed as TResult
+        result = transformed
       }
     }
 
@@ -131,15 +129,15 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
         if (!hook) return null
 
         if (hookName === 'onError' && error !== undefined) {
-          return (hook as NonNullable<typeof plugin.onError>)(error, context)
+          return Promise.resolve((hook as NonNullable<typeof plugin.onError>)(error, context))
         } else if (hookName === 'onRequestEnd' && result !== undefined) {
-          return (hook as NonNullable<typeof plugin.onRequestEnd>)(context, result)
+          return Promise.resolve((hook as NonNullable<typeof plugin.onRequestEnd>)(context, result))
         } else if (hookName === 'onRequestStart') {
-          return (hook as NonNullable<typeof plugin.onRequestStart>)(context)
+          return Promise.resolve((hook as NonNullable<typeof plugin.onRequestStart>)(context))
         }
         return null
       })
-      .filter(Boolean)
+      .filter((promise): promise is Promise<void> => promise !== null)
 
     // 使用 Promise.all 而不是 allSettled，让插件错误能够抛出
     await Promise.all(promises)

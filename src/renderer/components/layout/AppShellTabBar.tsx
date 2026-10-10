@@ -1,11 +1,3 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -18,6 +10,16 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
+import { isMac, isWin } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 
 import { WindowControls } from '../WindowControls'
 import { ShellTabBarActions } from './ShellTabBarActions'
@@ -128,6 +130,7 @@ const PinnedTabButton = ({
         onPointerDown={drag.onPointerDown}
         onClick={onSelect}
         title={tab.title}
+        aria-label={tab.title}
         style={{
           ...rest.style,
           transform: `translateX(${drag.translateX}px)`,
@@ -147,7 +150,8 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
+  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -257,7 +261,7 @@ const NormalTabButton = ({
       onClose()
       return
     }
-    const tabButton = (e.currentTarget as HTMLElement).closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)
@@ -603,6 +607,7 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -912,8 +917,9 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         data-ui="app.tab-bar"
+        style={isWin ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full shrink-0 select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           'pl-0'
         )}>
@@ -922,8 +928,12 @@ export const AppShellTabBar = ({
           ref={stripRef}
           data-testid="app-shell-tab-strip"
           style={
-            isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+            (isMac || hasLeadingWindowControls) && !isFullscreen
+              ? {
+                  paddingLeft: isFocusedTab
+                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
+                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                }
               : undefined
           }
           onMouseEnter={() => {

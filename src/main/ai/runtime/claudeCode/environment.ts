@@ -7,10 +7,18 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import {
+  type Environment,
+  hasStaleCherryProxyMarkers,
+  mergeAgentLoopbackProxyBypass,
+  stripInheritedCherryProxyMarkers
+} from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
@@ -20,13 +28,6 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
-
-import {
-  type Environment,
-  hasStaleCherryProxyMarkers,
-  mergeAgentLoopbackProxyBypass,
-  stripInheritedCherryProxyMarkers
-} from './agentProxyEnvironment'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
@@ -134,7 +135,12 @@ export async function getClaudeCodeLoginShellEnvironment(
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
     loginShellEnv = await refreshShellEnv()
   }
-  return stripInheritedCherryProxyMarkers(loginShellEnv)
+  const env = stripInheritedCherryProxyMarkers(loginShellEnv)
+  // A login shell can drop the desktop-session bus inherited by packaged Electron.
+  if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {
+    env.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
+  }
+  return env
 }
 
 export async function buildEnvironment(
@@ -197,6 +203,11 @@ export async function buildEnvironment(
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
+    // Identify Cherry Studio in the agent CLI's User-Agent (appends
+    // `client-app/cherry-studio/<version>`) so gateways and analytics can
+    // distinguish agent-mode traffic from a standalone Claude Code CLI.
+    // Documented in the Agent SDK `Options.env` JSDoc.
+    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -222,6 +233,7 @@ export async function buildEnvironment(
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
       'CHERRY_STUDIO_SKILLS_DIR',
+      'CLAUDE_AGENT_SDK_CLIENT_APP',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',

@@ -172,7 +172,7 @@ export class BundleInstaller {
       }
     } else {
       const error = failure?.error ?? new Error(`Local model bundle ${this.bundle.id} is incomplete after download.`)
-      logger.error(`local ${this.bundle.capability} model download failed`, error as Error)
+      logger.error(`local ${this.bundle.capability} model download failed`, error)
       outcome = {
         kind: 'error',
         error,
@@ -257,6 +257,12 @@ export class BundleInstaller {
       attempt.controller.abort(new Error('download cancelled'))
     }
     await attempt.promise.catch(() => {})
+  }
+
+  /** Wait until nothing is touching the bundle's files: abort a download, let a removal finish. */
+  async settle(): Promise<void> {
+    await this.cancel()
+    await this.removalInFlight?.catch(() => {})
   }
 
   private waitForSourcePreference(

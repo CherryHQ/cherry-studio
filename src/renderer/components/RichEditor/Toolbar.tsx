@@ -1,9 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import type { LucideProps } from 'lucide-react'
 import type { ForwardRefExoticComponent, RefAttributes } from 'react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
 
 import { getCommandsByGroup } from './command'
 import { ImageUploader } from './components/ImageUploader'
@@ -178,11 +179,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         const isDisabled = getDisabledState(formattingState, command)
         const tooltipText = getTooltipText(t, command)
 
+        // The update guard reads DOM focus, so toolbar presses must not blur the editor before commands run.
         const buttonElement = (
           <ToolbarButton
             $active={isActive}
             data-active={isActive}
             disabled={isDisabled}
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => handleCommand(command)}
             data-testid={`toolbar-${command}`}
             aria-label={tooltipText}

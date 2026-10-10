@@ -33,13 +33,10 @@ export const codexOAuthProvider = {
   // OAuth is the only credential; logout/token loss disables the provider.
   clearDisablesProvider: true,
   transport: {
-    type: 'loopback',
-    config: {
-      hosts: CODEX_CONFIG.CALLBACK_HOSTS,
-      port: CODEX_CONFIG.CALLBACK_PORT,
-      path: CODEX_CONFIG.CALLBACK_PATH,
-      redirectUri: CODEX_CONFIG.REDIRECT_URI
-    }
+    hosts: CODEX_CONFIG.CALLBACK_HOSTS,
+    port: CODEX_CONFIG.CALLBACK_PORT,
+    path: CODEX_CONFIG.CALLBACK_PATH,
+    redirectUri: CODEX_CONFIG.REDIRECT_URI
   },
   createClient: () =>
     new PkceOAuthClient({

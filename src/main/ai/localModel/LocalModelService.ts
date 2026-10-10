@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type {
   LocalModelBundleId,
   LocalModelCapability,
@@ -17,7 +18,9 @@ import { isLocalInferenceHardwareAccelerationSupported } from './runtime/inferen
 
 const logger = loggerService.withContext('LocalModelService')
 
-export class LocalModelService {
+@Injectable('LocalModelService')
+@ServicePhase(Phase.BeforeReady)
+export class LocalModelService extends BaseService {
   private readonly installers = Object.fromEntries(
     ALL_MODEL_BUNDLE_IDS.map((id) => {
       const bundle = getModelBundle(id)
@@ -32,6 +35,20 @@ export class LocalModelService {
       ]
     })
   ) as Record<LocalModelBundleId, BundleInstaller>
+
+  protected async onInit(): Promise<void> {
+    for (const id of ALL_MODEL_BUNDLE_IDS) {
+      try {
+        await localModelStorageService.sweepStaleDownloads(getModelBundle(id))
+      } catch (error) {
+        logger.warn('failed to sweep stale local model downloads', { bundle: id, error: String(error) })
+      }
+    }
+  }
+
+  protected async onStop(): Promise<void> {
+    await Promise.all(ALL_MODEL_BUNDLE_IDS.map((id) => this.installerFor(id).settle()))
+  }
 
   listModels(): Array<{ id: LocalModelBundleId; capability: LocalModelCapability }> {
     return ALL_MODEL_BUNDLE_IDS.map((id) => ({ id, capability: getModelBundle(id).capability }))
@@ -58,7 +75,7 @@ export class LocalModelService {
     return this.installerFor(id).remove()
   }
 
-  isReady(capability: LocalModelCapability): boolean {
+  isCapabilityReady(capability: LocalModelCapability): boolean {
     return this.installerFor(bundleForCapability(capability).id).getStatus() === 'ready'
   }
 
@@ -98,5 +115,3 @@ export class LocalModelService {
     }
   }
 }
-
-export const localModelService = new LocalModelService()

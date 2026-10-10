@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { buildProviderBuiltinWebSearchConfig, getWebSearchParams } from '../websearch'
 

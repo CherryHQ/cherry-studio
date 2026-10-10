@@ -1,9 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 
 import type * as TranslationFilesModule from '../../translationFiles'
 import TranslateHistory from '../TranslateHistory'
@@ -344,6 +346,32 @@ describe('TranslateHistory', () => {
       expect(screen.getAllByRole('button', { name: 'translate.history.file.reveal' })).toHaveLength(2)
       expect(screen.queryByRole('button', { name: 'translate.history.file.preview' })).not.toBeInTheDocument()
     })
+  })
+
+  it.each(['{Enter}', ' '])('toggles a row star with %s without opening details', async (key) => {
+    const user = userEvent.setup()
+    renderHistory()
+
+    const row = screen.getByRole('button', { name: /hello/ })
+    const star = within(row).getByRole('button', { name: 'translate.history.star' })
+    star.focus()
+    await user.keyboard(key)
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
+    expect(screen.queryByRole('button', { name: 'translate.history.back' })).not.toBeInTheDocument()
+    expect(star).toHaveFocus()
+  })
+
+  it.each(['{Enter}', ' '])('opens details with %s when the row itself is focused', async (key) => {
+    const user = userEvent.setup()
+    renderHistory()
+
+    screen.getByRole('button', { name: /hello/ }).focus()
+    await user.keyboard(key)
+
+    expect(screen.getByRole('button', { name: 'translate.history.back' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'translate.history.copy_target' })).toBeInTheDocument()
+    expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('invokes update mutation when clicking row star action', async () => {

@@ -1,5 +1,6 @@
-import type * as RendererConstantModule from '@renderer/utils/platform'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as RendererConstantModule from '@renderer/utils/platform'
 
 import { shouldShowLanguageOptions, supportsLanguageConfig } from '../utils/fileProcessingMeta'
 

@@ -1,6 +1,7 @@
-import type OpenAI from '@cherrystudio/openai'
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type OpenAI from '@cherrystudio/openai'
 
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
 import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
@@ -12,6 +13,8 @@ const createTextDelta = (text: string, id = 'text_0'): UIMessageChunk => ({ type
 interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
+  cacheReadTokens?: number
+  reasoningTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
@@ -21,7 +24,13 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            ...(usage.cacheReadTokens !== undefined
+              ? { inputTokenDetails: { cacheReadTokens: usage.cacheReadTokens } }
+              : {}),
+            ...(usage.reasoningTokens !== undefined
+              ? { outputTokenDetails: { reasoningTokens: usage.reasoningTokens } }
+              : {})
           }
         }
       : undefined
@@ -227,6 +236,68 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 
+  describe('Usage Tracking', () => {
+    it('projects cache and reasoning breakdowns onto the terminal usage without adding them to totals', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('hi'),
+        createFinish('stop', { inputTokens: 12, outputTokens: 7, cacheReadTokens: 9, reasoningTokens: 5 })
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const completed = events.find((e) => e.type === 'response.completed') as
+        | { response: { usage: Record<string, unknown> } }
+        | undefined
+      expect(completed?.response.usage).toEqual({
+        input_tokens: 12,
+        output_tokens: 7,
+        total_tokens: 19,
+        input_tokens_details: { cached_tokens: 9 },
+        output_tokens_details: { reasoning_tokens: 5 }
+      })
+    })
+
+    it('omits both details objects when the provider does not report breakdowns', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('hi'),
+        createFinish('stop', { inputTokens: 12, outputTokens: 7 })
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const usage = (
+        events.find((e) => e.type === 'response.completed') as
+          | { response: { usage: Record<string, unknown> } }
+          | undefined
+      )?.response.usage
+      expect(usage).toEqual({ input_tokens: 12, output_tokens: 7, total_tokens: 19 })
+      expect(usage).not.toHaveProperty('input_tokens_details')
+      expect(usage).not.toHaveProperty('output_tokens_details')
+    })
+
+    it('preserves explicit zeros for both breakdowns in the non-streaming response', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('Hello world'),
+        createFinish('stop', { inputTokens: 10, outputTokens: 20, cacheReadTokens: 0, reasoningTokens: 0 })
+      ])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain to populate state */
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse() as unknown as { usage: Record<string, unknown> }
+      expect(response.usage).toEqual({
+        input_tokens: 10,
+        output_tokens: 20,
+        total_tokens: 30,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 }
+      })
+    })
+  })
+
   describe('Non-Streaming Response', () => {
     it('assembles text plus function_call items into output[]', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
@@ -278,6 +349,44 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 
+  describe('Truncated output', () => {
+    const cases = [
+      ['length', 'max_output_tokens'],
+      ['content-filter', 'content_filter']
+    ] as const
+
+    it.each(cases)('finishReason %s ends the stream with response.incomplete (%s)', async (finishReason, reason) => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([createTextDelta('partial'), createFinish(finishReason)])
+      const events = await collectEvents(adapter.transform(stream))
+      const types = typesOf(events)
+
+      expect(types[types.length - 1]).toBe('response.incomplete')
+      expect(types).not.toContain('response.completed')
+
+      const incomplete = events.find((e) => e.type === 'response.incomplete')
+      expect(incomplete?.response.status).toBe('incomplete')
+      expect(incomplete?.response.incomplete_details).toEqual({ reason })
+
+      const itemDone = events.find((e) => e.type === 'response.output_item.done')
+      expect(itemDone?.item).toMatchObject({ type: 'message', status: 'incomplete' })
+    })
+
+    it.each(cases)(
+      'non-streaming response reports finishReason %s as incomplete (%s)',
+      async (finishReason, reason) => {
+        const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+        const stream = createMockStream([createTextDelta('partial'), createFinish(finishReason)])
+        await collectEvents(adapter.transform(stream))
+
+        const response = adapter.buildNonStreamingResponse()
+        expect(response.status).toBe('incomplete')
+        expect(response.incomplete_details).toEqual({ reason })
+        expect(response.output[0]).toMatchObject({ type: 'message', status: 'incomplete' })
+      }
+    )
+  })
+
   describe('Error Handling', () => {
     it('throws on error chunks (pull path)', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
@@ -297,7 +406,7 @@ describe('AiSdkToOpenAiResponsesSse', () => {
         delta: 'x',
         logprobs: [],
         sequence_number: 0
-      } as ResponseStreamEvent)
+      })
       expect(frame).toContain('event: response.output_text.delta')
       expect(frame).toContain('data: ')
       expect(frame.endsWith('\n\n')).toBe(true)

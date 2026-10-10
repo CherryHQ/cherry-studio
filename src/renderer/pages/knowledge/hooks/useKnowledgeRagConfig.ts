@@ -1,3 +1,6 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -5,8 +8,6 @@ import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProc
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
 import { normalizeKnowledgeError } from '../utils/error'

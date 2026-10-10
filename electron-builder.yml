@@ -24,13 +24,15 @@ files:
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
+  - "!electron.vite.entries.config.ts"
   - "!.*"
   - "!components.json"
-  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,.oxfmtrc.json}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
@@ -63,7 +65,12 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
+  # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
+  # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
+  - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
   - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
@@ -76,12 +83,13 @@ files:
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
+  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/**"
 asarUnpack:
   - resources/**
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
+  # DSH runs under bundled Bun: bundle its JS and unpack native/runtime files.
   - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
@@ -91,7 +99,17 @@ asarUnpack:
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
+  - "node_modules/@deepseek-ai/dsh-win32-process/**"
+  - "node_modules/@deepseek-ai/dsh-lazy-require/**"
+  - "node_modules/@deepseek-ai/dsh-subprocess/**"
+  - "node_modules/@deepseek-ai/dsh-skill/**"
+  - "node_modules/@deepseek-ai/dsh-scope/**"
+  - "node_modules/@deepseek-ai/dsh-util-values/**"
+  - "node_modules/@deepseek-ai/cordis/**"
+  - "node_modules/@deepseek-ai/cosmokit/**"
+  - "node_modules/@deepseek-ai/schemastery/**"
+  - "node_modules/yaml/**"
+  - "node_modules/@deepseek-ai/node-addon-system*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
@@ -114,7 +132,9 @@ win:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -127,7 +147,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -147,6 +167,8 @@ mac:
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -169,139 +191,130 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.11 - Features, Fixes, and Improvements
+    Cherry Studio 2.1.4 - New Models, Device Connections, and Bug Fixes
 
     ✨ New Features
-    - [Cherry Cloud] Sign in to Cherry Cloud for entitlement-aware Agent models, automatic local Gateway startup, quota-aware model selection, and durable Product Session handling.
-    - [Context Management] Configure the compression trigger threshold per assistant or globally in Settings.
-    - [Mini Apps] Improved installation and navigation with drag-and-drop packages, stable tabs and icons, and transparent Translate and Painting views.
-    - [Translate] Single-direction text translation now requires only a target language and starts without source-language detection.
-    - [Files] Press Ctrl+A (Cmd+A on macOS) in the file list to select all files in the current view.
-    - [Translate] Added an inline delete button to remove a message's translation in one click.
-    - [Sidebar] Hide the chat assistant from the sidebar via Appearance Settings, and launch directly to the first visible sidebar app.
-    - [Agent] Added a global search action to the Agent conversation toolbar.
-    - [Models] Add Hy4 Preview, Ling 3.0 Flash, and Qwen3.8 Flash support.
-    - [Anthropic Cache] Anthropic-compatible providers can now keep prompt caches for 1 hour from API Settings.
-    - [i18n] Added initial Turkish localization support across Cherry Studio.
-    - [Screenshot] Confirm the capture on double-click inside the selection rectangle.
+    - [Device connections] Connect over reachable LAN or externally configured VPN networks with IPv4/IPv6 support, automatic address prioritization, and manual selection by network interface. Action required: update to a compatible mobile app to save and verify additional addresses and scan pairing codes containing more than 16 addresses.
+    - [Messages] Add export to multi-select action bar: export selected messages as Markdown, Word, or to Notion/Yuque/Obsidian/Joplin/Siyuan.
+    - [Models] Add GPT-6.1 Sol support for OpenAI and OpenAI Codex, including pricing and reasoning settings.
+    - [Models] Add Claude Sonnet 5.5 and Opus 5.5 with thinking controls and native web-tool eligibility.
+    - [Models] Claude Code provider now offers Claude Opus 5.5 (with fast mode) and Claude Fable 5.1.
+    - [Models] Add MiniMax M3.1 Flash Preview with five reasoning effort levels.
+    - [ComfyUI] Add local ComfyUI image provider: pick saved workflows as models and generate from the paintings page.
+    - [Launchpad] Built-in app tiles now use theme-aware card surfaces.
 
     🐛 Bug Fixes
-    - [Agent Sessions] Pinned agent sessions now remain in their agent group and appear before unpinned sessions.
-    - [Citations] Knowledge base and web search citations referenced again in a later turn now render as numbered citations and export correctly.
-    - [WebDAV] WebDAV backups now verify the server's TLS certificate by default. Enable “Allow Self-Signed Certificates” if your server uses a self-signed certificate.
-    - [Web Search] Web search now prefers model-native search by default, with automatic fallback to configured services.
-    - [Export] Fixed markdown export with images: oversized embeds are skipped, folder-mode images are copied directly, and broken links are removed.
-    - [Backup] Shows the available disk space when a backup or restore fails because the disk is full.
-    - [Chat] Fixed the app freezing for seconds when removing all models of a provider on a large chat history.
-    - [PDF] Improved PDF previews with selectable text, direct page jumps, and document outlines.
-    - [Thinking] Fixed thinking time restarting from 0 when switching tabs during streaming.
-    - [Migration] Fixed v1-to-v2 migration so multi-model conversations preserve the response selected as context.
-    - [Topics] Fixed a race where deleting the active conversation could leave the UI stuck on the deleted conversation.
-    - [Topics] Keep pinned conversations inside their assistant group when conversations are grouped by assistant.
-    - [Composer] Fixed the agent input box sometimes showing a raw knowledge-base prompt sentence after switching sessions.
-    - [Composer] Long pasted text is pasted as plain text by default again; the “paste long text as file” toggle is back in Input Settings.
-    - [Provider] Fixed custom request headers not being deletable in the provider request-configuration drawer.
-    - [Provider] Fixed image generation icon not displaying for OpenRouter models with versioned GPT image IDs.
-    - [Provider] Restored the Off reasoning option for optional OpenRouter reasoning models.
-    - [Provider] Corrected reasoning-effort options for Qwen3.8 Flash and Max on DashScope Responses endpoint.
-    - [Provider] Point the TokenHub “Get API key” link to the API Key management page.
-    - [Models] Preserve Fireworks Kimi Fast and Turbo variants.
-    - [Models] Fixed Kimi K2.5 and newer requests failing when assistant sampling settings were enabled.
-    - [Chat] Fixed the inconsistent edit action on assistant messages so all assistant replies with text are uniformly editable.
-    - [Chat] Fixed a race where switching the model from the conversation header could leave the next message routed to the previously selected model.
-    - [Chat] Improved automatic conversation titles by requesting them in the selected language using an explicit language name.
-    - [Chat] Citation markers that cannot be matched to a source are no longer shown as raw `[cite:...]` text in answers.
-    - [Chat] Fixed scheduled task cards showing “Running” forever for runs that were cancelled before the app quit.
-    - [Chat] Fixed the agent heartbeat toggle being ignored for agents migrated from v1.
-    - [Chat] Fixed the right-side list opening at the same width as the left list and remembering its own width.
-    - [Chat] Improved focus responsiveness in large Assistant and Agent resource selectors.
-    - [Chat] Keep thinking elapsed stable across tab switches.
-    - [Markdown] Fixed rendering of standalone LaTeX environments such as `equation` and `aligned`.
-    - [Markdown] Fixed table columns keeping a stale fixed width after inserting or resizing columns in the notes editor.
-    - [Mini Apps] Passing null options to chat or file export no longer rejects with an unexpected error.
-    - [Mini Apps] Use a fixed 25px size for Mini App tab icons.
-    - [Mini Apps] Managed DeepSeek Harness sessions no longer open the system browser when they start or restart.
-    - [Mini Apps] Links inside unauthorized HTML artifact previews can no longer navigate the preview frame.
-    - [MCP Browser] Restored MCP browser window controls and tab-bar actions on Windows.
-    - [Knowledge] Reindex now re-acquires files from the real source.
-    - [Files] Pasting multiple files into the composer no longer drops the remaining files when one fails to read.
-    - [Painting] Fixed painting migrator leaving dangling model references that disabled the send button.
-    - [Sidebar] New installs now open Agent first and place it before Chat; existing users keep their saved order.
-
-    ⚡ Performance
-    - [Export] Exporting or analyzing a long topic with many web/knowledge searches no longer slows down quadratically.
-    - [File Preview] Improved file preview startup time by loading supported preview modules while file metadata is checked.
+    - [Agent] Fix Agent sessions becoming unusable when the previous Claude Code process was slow to exit.
+    - [Agent] Fix repeated message conflicts and stale titles in newly created remote Agent sessions.
+    - [Agent] Fix checkpoint error message on edit-and-resend — now explains the issue clearly.
+    - [Agent] Fix Agent session messages remaining in the list after a successful delete.
+    - [Agent tasks] Reclaim unused heartbeat workspaces together with orphaned schedules.
+    - [Chat] Fix Regenerate using the wrong provider — now uses the composer selection.
+    - [Chat] Fix multi-model group retry using the assistant's default model instead of the reply's own model.
+    - [Chat] Fix conversations restored via archive undo jumping away when opened.
+    - [Chat] Fix tool call panels not using the same viewport-aware height as the thinking panel.
+    - [Chat] Topic chats no longer inline browser tool schemas, reducing multi-thousand-token overhead.
+    - [Chat] Only treat the tag block that opens a reply as inline reasoning — literal tags in answers no longer truncate content.
+    - [Knowledge] Fix MCP package (DXT/MCPB) installs with paths differing only in case or Unicode form.
+    - [Knowledge] Fix captured URL snapshots named with percent-escapes when the page path is not ASCII.
+    - [Knowledge] Remember the last knowledge base used by the save dialog.
+    - [Skills] Fix skills.sh installs for repositories storing skills under .gemini/skills/, .claude/skills/, or .agents/skills/.
+    - [Skills] Fix skill ZIP imports with paths differing only in case or Unicode form.
+    - [Translate] Fix Mermaid diagrams not being preserved and rendered during translation.
+    - [File preview] Fix file preview showing path fragments as language for files in dotted directories or without extensions.
+    - [File preview] Fix PDF preview not rendering Chinese/CJK text that uses non-embedded CID fonts.
+    - [File icon] Fix file icons for Windows paths — artifact cards now show the correct icon.
+    - [Markdown] Fix SVGs in chat being rendered with sizes measured for previously rendered SVGs.
+    - [Model list] Keep numeric group names in model order while a search filter is active.
+    - [Rich text editor] Formatting applied from the toolbar is now saved to the note.
+    - [Browser] Restore resizing along the full height of the browser sidebar separator.
+    - [Chat layout] Use narrower 280 px default for file and artifact panes on first run.
+    - [Diagnostics] Fix health check reporting “No API key configured” for Claude Code CLI-based provider.
+    - [Diagnostics] Show status link, processing state, and local history for diagnostic reports.
+    - [Selection Assistant] Fix result code blocks not wrapping at narrow widths.
+    - [Selection Assistant] Fix black screen after closing the action window while in macOS fullscreen.
+    - [Screenshot] Fix Windows screenshot capture on mixed-DPI multi-monitor layouts.
+    - [Web search] Fix API key rotation never reaching other keys when a duplicate entry exists.
+    - [OpenClaw] Fix misleading “binary incompatible” error when the config-schema probe was merely slow.
+    - [Copilot] Fix GitHub Copilot GPT-6 model routing by selecting the Responses API for the GPT-6 family.
+    - [DSH] Fix Windows managed DSH temporary-directory cleanup and upgrade to 0.2.0-rc.2.
+    - [Claude Agent] Upgrade Claude Agent SDK to 0.3.284 with preserved instructions on resume.
+    - [Agent creation] Remove DeepSeek Harness from new-agent runtime options; existing agents remain supported.
+    - [Filesystem] Fix `ls` tool reporting empty directory instead of error for missing or non-directory paths.
+    - [API] Fix OpenAI-compatible streaming dropping the required `arguments` field for tools with no parameters.
+    - [HTML preview] Fix text jumping when scrollbar appears/disappears at content-size threshold.
+    - [Scheduled tasks] Keep multi-hour selections compact and support editable, validated Cron expressions.
+    - [Composer] Copied Excel cells now paste as text when rich text is alongside an image.
+    - [Provider settings] Clarify that Doubao models use Volcengine Ark with supported API base URL.
+    - [macOS] Fix main window not reopening on first Dock click after closing with the red button.
+    - [Provider] Keep model provider list position on enable/disable; show new providers at the top.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.11 - 新功能、修复与改进
+    Cherry Studio 2.1.4 - 新模型、设备连接与问题修复
 
     ✨ 新功能
-    - [樱桃云] 登录樱桃云获取权益感知的智能体模型、自动本地网关启动、配额感知的模型选择和持久的产品会话处理。
-    - [上下文管理] 在设置中为每个助手或全局配置压缩触发阈值。
-    - [小程序] 改进安装和导航，支持拖放包、稳定的标签和图标，以及透明的翻译和绘画视图。
-    - [翻译] 单向文本翻译现在只需要目标语言，无需源语言检测即可开始。
-    - [文件] 在文件列表中按 Ctrl+A（macOS 上为 Cmd+A）全选当前视图中的所有文件。
-    - [翻译] 添加内联删除按钮，一键删除消息的翻译。
-    - [侧边栏] 通过外观设置隐藏聊天助手，启动时直接打开第一个可见的侧边栏应用。
-    - [智能体] 在智能体会话工具栏添加全局搜索操作。
-    - [模型] 新增 Hy4 Preview、Ling 3.0 Flash 和 Qwen3.8 Flash 支持。
-    - [Anthropic 缓存] Anthropic 兼容服务商现在可以从 API 设置中将提示缓存保持 1 小时。
-    - [国际化] 在 Cherry Studio 中添加初始土耳其语本地化支持。
-    - [截图] 在选择区域内双击确认截图。
+    - [设备连接] 支持通过可达的局域网或自行配置的 VPN 网络连接，支持 IPv4/IPv6、地址自动排序和按网卡手动选择地址。需要操作：更新至兼容的移动端版本，以保存和验证额外连接地址，并扫描包含超过 16 个地址的配对码。
+    - [消息] 多选消息新增导出功能：可导出为 Markdown、Word，或发送到 Notion/语雀/Obsidian/Joplin/思源。
+    - [模型] 新增 GPT-6.1 Sol 支持，适用于 OpenAI 和 OpenAI Codex，包含定价和推理设置。
+    - [模型] 新增 Claude Sonnet 5.5 和 Opus 5.5，支持思考控制和原生网页工具。
+    - [模型] Claude Code 供应商现提供 Claude Opus 5.5（含快速模式）和 Claude Fable 5.1。
+    - [模型] 新增 MiniMax M3.1 Flash Preview，支持五种推理强度。
+    - [ComfyUI] 新增本地 ComfyUI 图像供应商：选择已保存的工作流作为模型，从绘图画廊生成。
+    - [启动台] 内置应用卡片现使用主题感知的卡片背景。
 
     🐛 问题修复
-    - [智能体会话] 固定的智能体会话现在保留在其智能体组中，并显示在未固定会话之前。
-    - [引用] 在后续对话中再次引用的知识库和网络搜索引用现在渲染为编号引用并正确导出。
-    - [WebDAV] WebDAV 备份现在默认验证服务器的 TLS 证书。如果您的服务器使用自签名证书，请启用”允许自签名证书”。
-    - [联网搜索] 联网搜索现在默认优先使用模型原生搜索，并自动回退到配置的服务。
-    - [导出] 修复带图片的 Markdown 导出：跳过超大嵌入、直接复制文件夹模式图片、移除损坏的链接。
-    - [备份] 当备份或恢复因磁盘已满而失败时显示可用磁盘空间。
-    - [对话] 修复在大型对话历史中删除服务商的所有模型时应用卡顿数秒的问题。
-    - [PDF] 改进 PDF 预览，支持可选文本、直接页面跳转和文档大纲。
-    - [思考] 修复流式传输期间切换标签时思考时间从 0 重新开始的问题。
-    - [迁移] 修复 v1 到 v2 迁移，使多模型对话保留上下文中选择的响应。
-    - [话题] 修复删除活动对话可能导致界面卡在已删除对话上的竞争条件。
-    - [话题] 按助手分组时，固定对话保留在其助手组中。
-    - [输入框] 修复切回已挂载知识库的智能体会话时，输入框偶尔显示知识库提示词原文的问题。
-    - [输入框] 长粘贴文本默认再次作为纯文本粘贴；”将长文本粘贴为文件”开关已恢复到输入设置中。
-    - [服务商] 修复服务商请求配置抽屉中的自定义请求头无法删除的问题。
-    - [服务商] 修复带有版本化 GPT 图像 ID 的 OpenRouter 模型不显示图像生成图标的问题。
-    - [服务商] 恢复可选 OpenRouter 推理模型的 Off 推理选项。
-    - [服务商] 修正百炼 Responses 接口上 Qwen3.8 Flash 和 Max 的推理强度选项。
-    - [服务商] 将 TokenHub”获取 API 密钥”链接指向 API 密钥管理页面。
-    - [模型] 保留 Fireworks Kimi Fast 和 Turbo 变体。
-    - [模型] 修复开启助手采样设置时 Kimi K2.5 及更新模型请求失败的问题。
-    - [对话] 修复助手消息编辑操作不一致的问题，使所有带文本的助手回复可通过”更多操作 → 编辑”统一编辑。
-    - [对话] 修复从对话标题切换模型可能导致下一条消息路由到之前选择的模型的竞争条件。
-    - [对话] 改进自动对话标题，使用显式语言名称按所选语言请求。
-    - [对话] 无法匹配来源的引用标记不再显示为原始 `[cite:...]` 文本。
-    - [对话] 修复定时任务卡片在应用退出前被取消的运行永远显示”运行中”的问题。
-    - [对话] 修复从 v1 迁移的智能体的心跳开关被忽略的问题。
-    - [对话] 右侧列表现在以与左侧列表相同的宽度打开，并记住自己的宽度。
-    - [对话] 改进大型助手和智能体资源选择器中的焦点响应速度。
-    - [对话] 保持思考时间在标签切换时稳定。
-    - [Markdown] 修复独立 LaTeX 环境（如 `equation` 和 `aligned`）的渲染。
-    - [Markdown] 修复在笔记编辑器中插入或调整列后表格列保持过时固定宽度的问题。
-    - [小程序] 向聊天或文件导出传递 null 选项不再报意外错误。
-    - [小程序] 使用固定的 25px 大小显示小程序标签图标。
-    - [小程序] 托管的 DeepSeek Harness 会话在启动或重启时不再打开系统浏览器。
-    - [小程序] 未授权的 HTML 产物预览中的链接不再能导航预览框架。
-    - [MCP 浏览器] 恢复 Windows 上的 MCP 浏览器窗口控件和标签栏操作。
-    - [知识库] 重建索引现在从真实来源重新获取文件。
-    - [文件] 向输入框粘贴多个文件时，如果一个文件读取失败，不再丢弃其余文件。
-    - [绘画] 修复绘画迁移器留下悬空模型引用导致发送按钮禁用的问题。
-    - [侧边栏] 全新安装现在首先打开智能体并将其放在聊天之前；现有用户保持其保存的顺序。
-
-    ⚡ 性能优化
-    - [导出] 导出或分析包含多次网络/知识搜索的长话题不再二次方减慢。
-    - [文件预览] 改进文件预览启动时间，在检查文件元数据的同时加载支持的预览模块。
+    - [智能体] 修复 Claude Code 进程退出缓慢时 Agent 会话无法使用的问题。
+    - [智能体] 修复新建远程 Agent 会话时消息冲突和标题陈旧的问题。
+    - [智能体] 修复编辑后重发时的检查点错误信息 — 现在清晰说明问题所在。
+    - [智能体] 修复删除成功后 Agent 会话消息仍显示在列表中的问题。
+    - [智能体任务] 清理遗留定时任务时，一并回收未被引用的心跳工作区。
+    - [对话] 修复重生成使用错误的供应商 — 现在使用编辑器中选择的供应商。
+    - [对话] 修复多模型组重试时使用助手默认模型而非该回复自身模型的问题。
+    - [对话] 修复通过存档撤销恢复的对话打开时跳转走的问题。
+    - [对话] 修复工具调用面板未使用与思考面板相同的视口感知高度。
+    - [对话] 主题对话不再内联浏览器工具模式，减少数千 token 开销。
+    - [对话] 仅将开启回复的标签块视为内联推理 — 答案中的字面标签不再截断内容。
+    - [知识库] 修复路径仅大小写或 Unicode 形式不同的 MCP 包（DXT/MCPB）安装问题。
+    - [知识库] 修复页面路径非 ASCII 时 URL 快照名称带有百分号转义的问题。
+    - [知识库] 记住保存对话框上次使用的知识库。
+    - [技能] 修复从 .gemini/skills/、.claude/skills/ 或 .agents/skills/ 安装 skills.sh 技能的问题。
+    - [技能] 修复路径仅大小写或 Unicode 形式不同的技能 ZIP 导入问题。
+    - [翻译] 修复翻译时 Mermaid 图表未保留和渲染的问题。
+    - [文件预览] 修复位于点号目录或无扩展名的文件预览显示路径片段作为语言的问题。
+    - [文件预览] 修复 PDF 预览无法渲染使用非嵌入 CID 字体的中文/CJK 文本。
+    - [文件图标] 修复 Windows 路径的文件图标 — 工件卡片现在显示正确的图标。
+    - [Markdown] 修复聊天中的 SVG 使用之前渲染的 SVG 尺寸渲染的问题。
+    - [模型列表] 搜索过滤激活时保持模型组名称的数字顺序。
+    - [富文本编辑器] 工具栏应用的格式现在保存到笔记中。
+    - [浏览器] 恢复浏览器侧边栏分隔线的全高度拖拽区域。
+    - [对话布局] 首次运行时文件和工件面板默认宽度改为 280 像素。
+    - [诊断] 修复 Claude Code CLI 供应商健康检查错误报告”未配置 API 密钥”的问题。
+    - [诊断] 诊断报告显示状态链接、处理状态和本地历史。
+    - [划词助手] 修复窄宽度下结果代码块不换行的问题。
+    - [划词助手] 修复 macOS 全屏时关闭操作窗口后黑屏的问题。
+    - [截图] 修复 Windows 混合 DPI 多显示器布局下的截图捕获问题。
+    - [网页搜索] 修复重复 API 密钥条目时无法轮换到其他密钥的问题。
+    - [OpenClaw] 修复配置模式探测仅是缓慢时错误报告”二进制不兼容”的问题。
+    - [Copilot] 修复 GitHub Copilot GPT-6 模型路由，为 GPT-6 系列选择 Responses API。
+    - [DSH] 修复 Windows 托管 DSH 临时目录清理，升级到 0.2.0-rc.2。
+    - [Claude Agent] 升级 Claude Agent SDK 到 0.3.284，恢复时保留指令。
+    - [智能体创建] 从新智能体运行时选项中移除 DeepSeek Harness；现有智能体仍受支持。
+    - [文件系统] 修复 `ls` 工具对缺失或非目录路径返回空目录而非错误的问题。
+    - [API] 修复 OpenAI 兼容流式响应对无参数工具丢弃必需的 `arguments` 字段的问题。
+    - [HTML 预览] 修复内容大小阈值处滚动条出现/消失时文本跳动的问题。
+    - [计划任务] 保持多小时选择紧凑，支持可编辑验证的 Cron 表达式。
+    - [编辑器] 复制的 Excel 单元格在剪贴板同时包含富文本和图像时现在粘贴为文本。
+    - [供应商设置] 澄清 Doubao 模型使用火山引擎 Ark，包含支持的 API 基础 URL。
+    - [macOS] 修复点击红绿灯按钮关闭窗口后首次点击 Dock 图标不恢复窗口的问题。
+    - [供应商] 启用/禁用时保持模型供应商列表位置；新供应商显示在顶部。
     <!--LANG:END-->

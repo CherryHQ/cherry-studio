@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { TreeMutationEvent } from '@shared/utils/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TreeMutationEvent } from '@shared/utils/file'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
@@ -196,7 +197,8 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       const subscription = builder.onMutation((event) => events.push(event))
       const addedPromise = waitForEvent(
         builder,
-        (event) => event.type === 'added' && event.path.endsWith('/artifact.md')
+        (event) => event.type === 'added' && event.path.endsWith('/artifact.md'),
+        10_000
       )
       await mkdir(root)
       await mkdir(path.join(root, '.claude'))

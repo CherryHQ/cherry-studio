@@ -4,6 +4,7 @@ import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
+import type { SkillCatalogEntry } from '@shared/types/skill'
 
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
@@ -46,7 +47,10 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
 export type ResourceItem =
   | (ResourceItemBase<'assistant', Assistant> & { groupId?: string; groupName?: string })
   | (ResourceItemBase<'agent', AgentDetail> & { groupId?: never; groupName?: never })
-  | (ResourceItemBase<'skill', InstalledSkill> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'skill', InstalledSkill & Partial<Pick<SkillCatalogEntry, 'scope'>>> & {
+      groupId?: never
+      groupName?: never
+    })
   | (ResourceItemBase<'prompt', Prompt> & { groupId?: never; groupName?: never })
 
 export interface GroupItem {

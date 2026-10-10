@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CircularProgress,
@@ -11,8 +14,6 @@ import { getRestoreProgressLabelKey } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Props = PopupInjectedProps<any>
 

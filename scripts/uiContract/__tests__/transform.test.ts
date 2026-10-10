@@ -1,10 +1,14 @@
-import { parseSync } from '@swc/core'
+import { parseSync } from 'oxc-parser'
 import { describe, expect, it } from 'vitest'
 
 import { mergeDataUi, mergeUiProps } from '../runtime'
 import { transformHtml, transformJsx } from '../transform'
 
 const options = { sourceFile: 'src/renderer/components/chat/Message.tsx' }
+
+function expectParseable(source: string): void {
+  expect(parseSync('generated.tsx', source, { lang: 'tsx', sourceType: 'unambiguous' }).errors).toEqual([])
+}
 
 describe('UI contract compiler', () => {
   it('keeps inferred semantics stable across formatting-only builds', () => {
@@ -35,7 +39,7 @@ describe('UI contract compiler', () => {
 
     expect(result.code).toContain('<input data-ui=')
     expect(result.code).toContain(' />')
-    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    expectParseable(result.code)
   })
 
   it('marks component roots without labeling adjacent internal elements', () => {
@@ -90,9 +94,9 @@ describe('UI contract compiler', () => {
     expect(markdown.descriptors[0].semanticId).toBe('chat.markdown')
   })
 
-  it('uses file-relative SWC spans across files with leading comments and multibyte text', () => {
+  it('uses file-relative Oxc offsets across repeated parses with leading comments and multibyte text', () => {
     transformJsx('const Previous = () => <aside />', options)
-    const source = `// 原始路径：组件 — editable
+    const source = `// 原始路径：组件 😀 — editable
 const Message = () => {
   const handleClick = (event: Event) => event.preventDefault()
   return <div onClick={handleClick}><span /></div>
@@ -106,7 +110,40 @@ const Message = () => {
     expect(result.code).toContain('event.preventDefault()')
     expect(result.code).toContain('<div data-ui=')
     expect(result.code).toContain('<span />')
-    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    expectParseable(result.code)
+  })
+
+  it('walks decorators, fragments, optional handlers, and their owned JSX', () => {
+    const source = `@sealed
+class Message {
+  render() {
+    return <div><><section data-testid="message" /><button onClick={actions?.handleCopy}>复制 😀</button></></div>
+  }
+}`
+    const result = transformJsx(source, { ...options, injectDataUi: true })
+
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['div', 'button'])
+    expect(result.descriptors[1].semanticId).toContain('action.copy')
+    expect(result.descriptors[0].sourceOffset).toBe(source.indexOf('<div'))
+    expect(result.code).toContain('<><section data-testid="message" />')
+    expect(result.code).toContain('<button data-ui=')
+    expectParseable(result.code)
+  })
+
+  it('inserts runtime imports after a directive prologue', () => {
+    const result = transformJsx(`'use client'\nconst Message = ({ contract }) => <main data-ui={contract} />`, {
+      ...options,
+      injectDataUi: true
+    })
+
+    expect(result.code).toMatch(/^'use client'\nimport \{ /)
+    expectParseable(result.code)
+  })
+
+  it('fails the build with an explicit Oxc parse error', () => {
+    expect(() => transformJsx('const Message = () => <div>', options)).toThrow(
+      'Failed to parse src/renderer/components/chat/Message.tsx with Oxc'
+    )
   })
 
   it('composes forwarded component semantics onto intrinsic DOM', () => {
@@ -140,7 +177,7 @@ const Message = () => {
       })
 
       expect(result.code.indexOf('data-ui=')).toBeLessThan(result.code.indexOf('{...__cherryUiContractMergeUiProps'))
-      expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+      expectParseable(result.code)
     }
   })
 
@@ -154,7 +191,7 @@ const Message = () => {
       expect(result.descriptors).toHaveLength(0)
       expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
       expect(result.code).toContain('</__CherryUiContractSlot></Button>')
-      expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+      expectParseable(result.code)
     }
   })
 
@@ -169,7 +206,7 @@ const Message = () => {
 
     expect(result.descriptors).toHaveLength(0)
     expect(result.code).not.toContain('__CherryUiContractSlot')
-    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    expectParseable(result.code)
   })
 
   it('keeps the data-ui merge layer when asChild is dynamic', () => {
@@ -181,7 +218,7 @@ const Message = () => {
     expect(result.descriptors).toHaveLength(0)
     expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
     expect(result.code).toContain('</__CherryUiContractSlot></Button>')
-    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    expectParseable(result.code)
   })
 
   it('treats component call sites as parent boundaries for ordinary children', () => {
@@ -247,7 +284,7 @@ const Message = () => {
     expect(result.code).not.toContain('id:ui-')
     expect(result.code).toContain('data-slot="button"')
     expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
-    expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+    expectParseable(result.code)
   })
 
   it('normalizes data-slot and authored part tokens into the same inferred semantic', () => {

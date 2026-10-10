@@ -1,10 +1,11 @@
-import type { AgentType } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentType } from '@shared/data/types/agent'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,

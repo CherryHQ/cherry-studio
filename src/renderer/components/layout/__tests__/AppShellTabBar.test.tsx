@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -9,10 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
+  emojiIconProps: [] as Array<{ emoji: string; size?: number; fontSize?: number; className?: string }>,
   emitResourceListReveal: vi.fn(),
   ipcRequest: vi.fn(() => Promise.resolve(undefined)),
   macTransparentState: { value: false },
-  platformState: { isMac: false },
+  platformState: { isMac: false, isWin: false },
   showSearchPopup: vi.fn()
 }))
 
@@ -39,6 +39,10 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  EmojiIcon: (props: { emoji: string; size?: number; fontSize?: number; className?: string }) => {
+    mocks.emojiIconProps.push(props)
+    return <span data-testid="emoji-tab-icon">{props.emoji}</span>
+  },
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -51,7 +55,9 @@ vi.mock('@renderer/utils/platform', () => ({
     return mocks.platformState.isMac
   },
   isLinux: false,
-  isWin: false,
+  get isWin() {
+    return mocks.platformState.isWin
+  },
   platform: 'linux'
 }))
 
@@ -156,12 +162,9 @@ const mockCloseAnimation = () => {
     x: 0,
     y: 0,
     toJSON: () => ({})
-  } as DOMRect)
+  })
   vi.useFakeTimers()
-  vi.stubGlobal(
-    'requestAnimationFrame',
-    (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-  )
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
 
   return () => {
@@ -183,11 +186,21 @@ const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.emojiIconProps.length = 0
   mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
+  mocks.platformState.isWin = false
 })
 
 describe('AppShellTabBar', () => {
+  it('keeps the Windows title bar at least as tall as the native overlay when zoomed out', () => {
+    mocks.platformState.isWin = true
+    renderTabBar({ tabs: [createTab('home')], activeTabId: 'home' })
+    expect(document.querySelector<HTMLElement>('[data-ui="app.tab-bar"]')?.style.minHeight).toBe(
+      'env(titlebar-area-height, 0px)'
+    )
+  })
+
   const renderTabBar = (
     props?: Partial<ComponentProps<typeof AppShellTabBar>>,
     wrapperProps?: ComponentProps<'div'>
@@ -214,6 +227,15 @@ describe('AppShellTabBar', () => {
 
     return closeTab
   }
+
+  it('names an icon-only pinned tab after its title, not its emoji', () => {
+    const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
+
+    renderTabBar({ tabs: [emojiTab], activeTabId: emojiTab.id })
+
+    expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
+  })
+
   it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
     const openTab = vi.fn()
@@ -292,7 +314,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -357,7 +379,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
@@ -647,7 +669,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect)
+      })
 
       try {
         const closeTab = renderTabBar()
@@ -747,12 +769,9 @@ describe('AppShellTabBar', () => {
       x: 0,
       y: 0,
       toJSON: () => ({})
-    } as DOMRect)
+    })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       const staleCloseTab = vi.fn()
@@ -997,13 +1016,10 @@ describe('AppShellTabBar', () => {
         x: geometry.left,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       renderTabBar({
@@ -1131,17 +1147,19 @@ describe('AppShellTabBar', () => {
         width: geometry.width,
         height: geometry.height,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
 
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
     vi.useFakeTimers()
     Object.defineProperty(globalThis, 'requestAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
     })
     Object.defineProperty(globalThis, 'cancelAnimationFrame', {
       configurable: true,
+      writable: true,
       value: (id: number) => window.clearTimeout(id)
     })
 

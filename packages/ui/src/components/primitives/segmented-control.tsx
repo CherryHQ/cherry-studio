@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface SegmentedControlOption<TValue extends string = string> {
   value: TValue
@@ -7,8 +8,10 @@ export interface SegmentedControlOption<TValue extends string = string> {
   disabled?: boolean
 }
 
-export interface SegmentedControlProps<TValue extends string = string>
-  extends Omit<React.ComponentPropsWithoutRef<'div'>, 'defaultValue' | 'onChange'> {
+export interface SegmentedControlProps<TValue extends string = string> extends Omit<
+  React.ComponentPropsWithoutRef<'div'>,
+  'defaultValue' | 'onChange'
+> {
   options: readonly SegmentedControlOption<TValue>[]
   value?: TValue
   defaultValue?: TValue
@@ -65,7 +68,7 @@ function SegmentedControl<TValue extends string = string>({
             disabled={disabled || option.disabled}
             onClick={() => handleSelect(option)}
             className={cn(
-              'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full font-medium text-muted-foreground outline-none transition-[background-color,color,box-shadow]',
+              'inline-flex shrink-0 items-center justify-center rounded-full font-medium whitespace-nowrap text-muted-foreground transition-[background-color,color,box-shadow] outline-none',
               'hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground disabled:pointer-events-none disabled:opacity-50',
               size === 'sm' ? 'h-7 gap-1.5 px-2.5 text-xs' : 'h-8 gap-2 px-3 text-sm',
               selected && 'bg-background text-foreground shadow-xs'

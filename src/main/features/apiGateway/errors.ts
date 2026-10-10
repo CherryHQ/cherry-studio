@@ -1,8 +1,9 @@
+import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
+import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiError } from '@shared/data/api/errors'
-import type { ErrorHandler } from 'elysia'
 
 import type { OutputFormat } from './adapters'
 
@@ -41,7 +42,7 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
  */
 export const MCP_TRANSPORT_ERROR = -32000
 
-export const jsonRpcEnvelope = (code: ErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
+export const jsonRpcEnvelope = (code: ProtocolErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
   jsonrpc: JSONRPC_VERSION,
   error: { code, message },
   id: null
@@ -293,7 +294,7 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
  * Cherry REST error handler — for Cherry's own endpoints (`knowledge-bases`,
  * `models`) and the app-level fallback (`/health`, `/`, unmatched routes). Speaks
  * the same `{ error: { code, message, details? } }` vocabulary as the v2 data
- * layer (`ErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
+ * layer (`ProtocolErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
  */
 export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (error instanceof DataApiError) {
@@ -322,16 +323,16 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
  * client, so a framework-level failure it never reaches the route for — a body Elysia
  * could not parse, an unknown server id — must still arrive as JSON-RPC.
  *
- * `MCP_TRANSPORT_ERROR` for the resource failures: `ErrorCode` names -32000
+ * `MCP_TRANSPORT_ERROR` for the resource failures: `ProtocolErrorCode` names -32000
  * `ConnectionClosed`, which is not what happened, and it is the code both the SDK's
  * transport and this route's 403/405 responders already use for a transport-level refusal.
  */
 function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'PARSE') {
-    return status(400, jsonRpcEnvelope(ErrorCode.ParseError, 'Parse error'))
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.ParseError, 'Parse error'))
   }
   if (code === 'VALIDATION') {
-    return status(400, jsonRpcEnvelope(ErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
   }
   if (code === 'NOT_FOUND') {
     return status(404, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Not found'))
@@ -343,7 +344,7 @@ function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
   logger.error('API gateway request error', { code, error })
   return status(
     500,
-    jsonRpcEnvelope(ErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
+    jsonRpcEnvelope(ProtocolErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
   )
 }
 
@@ -372,6 +373,10 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
  * per-group handler would be shadowed by this fallback.
  */
 export function gatewayErrorHandler(ctx: GatewayErrorContext) {
+  // Elysia wraps parser exceptions, including explicit HTTP responses, in ParseError.
+  if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
+    return ctx.error.cause
+  }
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)

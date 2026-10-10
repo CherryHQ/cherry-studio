@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import PQueue from 'p-queue'
 import { sanitizeUrl } from 'strict-url-sanitise'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000

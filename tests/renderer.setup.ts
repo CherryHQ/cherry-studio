@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
-
 import { createRequire } from 'node:module'
+
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
 import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
@@ -165,8 +165,12 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui/components/composites/markdown/styles', () => ({}))
 
 // Mock @cherrystudio/ui globally for renderer tests
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  // Real implementation: its filtering/normalization contract is what callers
+  // are tested against, and a stub would drift from it.
+  const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -255,6 +259,8 @@ vi.mock('@cherrystudio/ui', () => {
             )
           )
         : null,
+    InputNumber,
+    InputGroupInputNumber,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -698,7 +704,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Dropzone: ({
       children,
@@ -979,7 +985,7 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
@@ -988,14 +994,15 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize }) =>
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
       React.createElement(
         'div',
         {
           className,
           'data-testid': 'emoji-icon',
           ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
-          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {})
+          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {}),
+          ...(size !== undefined ? { 'data-size': String(size) } : {})
         },
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji

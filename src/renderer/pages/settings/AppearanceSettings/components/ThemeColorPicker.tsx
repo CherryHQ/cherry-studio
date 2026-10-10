@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
+
 import { Input, RowFlex } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { useEffect, useState } from 'react'
 
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 const SHORT_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3}$/
@@ -71,8 +72,8 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
   }
 
   return (
-    <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
-      <RowFlex className="min-w-0 max-w-full flex-wrap gap-3">
+    <RowFlex className={cn('max-w-full min-w-0 flex-wrap items-center gap-3', className)}>
+      <RowFlex className="max-w-full min-w-0 flex-wrap gap-3">
         {presets.map((color) => {
           const normalizedPreset = normalizeHexColor(color) ?? color
           const selected = normalizedPreset === normalizedValue
@@ -84,7 +85,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
               aria-label={normalizedPreset}
               aria-pressed={selected}
               className={cn(
-                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:[box-shadow:inset_0_0_0_2px_var(--ring)]'
+                'relative flex h-6 w-6 items-center justify-center rounded-full transition-opacity outline-none hover:opacity-80 focus-visible:[box-shadow:inset_0_0_0_2px_var(--ring)]'
               )}
               onClick={() => commitColor(normalizedPreset)}>
               <span
