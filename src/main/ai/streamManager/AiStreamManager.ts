@@ -1671,17 +1671,25 @@ export class AiStreamManager extends BaseService {
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone: true
     }
-    await this.dispatchToListeners(
-      stream,
-      'onDone',
-      (listener) => listener.onDone(result),
-      (listener) => listener.terminalPhase === 'persistence'
-    )
-    if (this.activeStreams.get(topicId) !== stream) return
-    // The hold only exists across a `done` topic gap, so this restates the value the settling
-    // execution resolved rather than overriding a live status.
-    stream.status = 'done'
-    this.runTerminalLifecycle(stream)
+    // The awaited dispatch parks on cleanup listeners (e.g. trace span persistence) with no live
+    // execution left; a follow-up admitted in that window would evict this stream and the identity
+    // guard below would skip the terminal lifecycle (see onExecutionDone).
+    const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+    try {
+      await this.dispatchToListeners(
+        stream,
+        'onDone',
+        (listener) => listener.onDone(result),
+        (listener) => listener.terminalPhase === 'persistence'
+      )
+      if (this.activeStreams.get(topicId) !== stream) return
+      // The hold only exists across a `done` topic gap, so this restates the value the settling
+      // execution resolved rather than overriding a live status.
+      stream.status = 'done'
+      this.runTerminalLifecycle(stream)
+    } finally {
+      settleTerminalDispatch()
+    }
   }
 
   /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every

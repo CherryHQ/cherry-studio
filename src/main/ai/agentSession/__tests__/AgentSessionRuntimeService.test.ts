@@ -3156,6 +3156,62 @@ describe('AgentSessionRuntimeService', () => {
       expect(interactive.getMcpInteractionHost('session-1')).toBeUndefined()
     })
 
+    // The detached work's responder describes the work's own channel, not any later turn's: a
+    // desktop follow-up that reuses the entry must keep AskUserQuestion/approval available instead
+    // of inheriting the headless delivery's restrictions (`canUseTool` resolves by session id at
+    // fire time and cannot tell the turns apart).
+    it('resolves a desktop follow-up as interactive while headless detached work still holds the responder', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const headlessEntry = getEntry(service)
+      headlessEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(headlessEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.getInteractionState('session-1').userResponse).toBe('unavailable')
+
+      const turn = service.beginTurn(baseTurnInput)
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'message'
+      })
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      expect(service.getInteractionState('session-1').userResponse).toBe('stream')
+
+      // The restriction is preserved for the detached work itself: once the foreground turn
+      // settles, only the headless responder is left to answer.
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.getInteractionState('session-1').userResponse).toBe('unavailable')
+    })
+
+    it('resolves a headless follow-up as unavailable even while interactive detached work holds the responder', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const interactiveEntry = getEntry(service)
+      interactiveEntry.connection = warmConnection()
+      ;(service as any).handleRuntimeEvent(interactiveEntry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+
+      const turn = service.beginTurn({ ...baseTurnInput, headless: true })
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      // openTurnStream's start() reconciles the warm connection asynchronously; let it settle so
+      // the occupancy under test survives the open.
+      await vi.waitFor(() => expect(getEntry(service).runtimeState.connection.kind === 'connected').toBe(true))
+      // A channel wake must not gain approval UI merely because detached desktop-spawned work
+      // still holds an interactive responder on the shared connection.
+      expect(service.getInteractionState('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+    })
+
     it('republishes the membership snapshot as session-scoped status', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

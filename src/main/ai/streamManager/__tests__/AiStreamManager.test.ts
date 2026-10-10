@@ -2956,6 +2956,58 @@ describe('AiStreamManager', () => {
 
       expect(listener.doneResults).toHaveLength(1)
     })
+
+    // The finalize dispatch awaits cleanup listeners (TraceFlushListener persists spans) with no
+    // live execution left. Unless it registers the terminal-dispatch barrier for that window, a
+    // same-topic follow-up admitted mid-dispatch evicts the held stream and the stale-generation
+    // guard skips `runTerminalLifecycle` — the `onConversationCompleted` event NotificationService
+    // consumes is lost, and eviction alone emits no replacement event.
+    it('finalizeHeldTopicStream holds the terminal-dispatch barrier until its lifecycle ran', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s7'
+      let releaseTrace!: () => void
+      const trace = new FakeListener(`persistence:trace:${topicId}`, 'cleanup')
+      trace.onDoneImpl = (result) => {
+        if (!result.isTopicDone) return
+        return new Promise<void>((resolve) => {
+          releaseTrace = resolve
+        })
+      }
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener(`l:${topicId}`), trace],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { turnId: string }).turnId
+
+      // Hold the stream, then park the finalize dispatch inside the cleanup listener.
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      const finalizing = mgr.finalizeHeldTopicStream(topicId, 'provider-a::model-a')
+      await flushMicrotasksUntil(() => typeof releaseTrace === 'function')
+
+      const next = new FakeListener(`wc:next:${topicId}`)
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled(topicId).then(() => {
+        settled = true
+      })
+      const followUp = settledPromise.then(() =>
+        startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [next] })
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).toBe(false)
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseTrace()
+      await finalizing
+      await followUp
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId, turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(mgr.inspect(topicId)).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+    })
   })
 
   // ── idle timeout terminal classification ────────────────────────

@@ -3359,22 +3359,24 @@ export class AgentSessionRuntimeService extends BaseService {
         userResponse: execution.headless ? 'unavailable' : 'stream'
       }
     }
-    const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
-    if (backgroundResponder) {
-      if (backgroundResponder === 'headless') {
-        return { currentTurn, userResponse: 'unavailable' }
-      }
+    // A live turn resolves its own interaction: detached background work's responder describes the
+    // work's own channel, not any later turn's. A desktop follow-up that reuses an entry whose
+    // headless delivery still holds the responder stays interactive (and a headless wake under an
+    // interactive responder stays headless) — `canUseTool` resolves by session id at fire time and
+    // cannot tell the concurrent generations apart.
+    if (turn !== undefined) {
+      if (turn.headless === true) return { currentTurn, userResponse: 'unavailable' }
       // A background wake is deliberately an independent interaction. It must not attach approval
       // UI to a prior turn's stream merely because the receive-only projection is still opening.
       if (execution.kind === 'autonomous-turn') return { currentTurn, userResponse: 'message' }
-      const hasStream =
-        hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
+      const hasStream = hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && this.isTurnLive(entry, turn)
       return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
     }
-    if (currentTurn !== 'interactive') return { currentTurn, userResponse: 'unavailable' }
-    const hasStream =
-      hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn) && turn !== undefined && this.isTurnLive(entry, turn)
-    return { currentTurn, userResponse: hasStream ? 'stream' : 'message' }
+    // No live turn: only detached background work can answer, through its own responder.
+    const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
+    if (backgroundResponder === 'headless') return { currentTurn, userResponse: 'unavailable' }
+    if (backgroundResponder === 'interactive') return { currentTurn, userResponse: 'message' }
+    return { currentTurn, userResponse: 'unavailable' }
   }
 
   private startRuntimeRootSpan(
