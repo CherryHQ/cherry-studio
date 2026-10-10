@@ -1,0 +1,4 @@
+/* Shared by the library build and source-consuming hosts; components keeps utilities above pdf.js rules.
+   The order statement keeps that ranking even if this file is emitted before styles.css. */
+@layer theme, base, components, utilities;
+@import 'pdfjs-dist/web/pdf_viewer.css' layer(components);

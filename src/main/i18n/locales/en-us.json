@@ -1,5 +1,6 @@
 {
   "agent.builtin.cherry_assistant.description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills",
+  "agent.builtin.cherry_doctor.description": "Built-in System Doctor analyst. Reads the diagnostic report and runtime state, explains the root cause, and proposes bounded fixes",
   "agent.builtin.cherry_support.description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback",
   "agent.session.dsh.bun_unavailable": "DSH could not start because its bundled runtime is unavailable. Reinstall Cherry Studio and try again.",
   "agent.session.dsh.bun_unavailable_dev": "DSH could not start because its bundled runtime is unavailable. Run pnpm download:binaries in the development checkout and try again.",
@@ -169,6 +170,9 @@
   "settings.mcp.oauth.callback.listen_error": "Could not listen for the OAuth callback on 127.0.0.1:{{port}} ({{reason}}). Check that the port is available and retry.",
   "settings.mcp.oauth.callback.message": "You can close this page and return to Cherry Studio",
   "settings.mcp.oauth.callback.title": "Authentication Successful",
+  "settings.mcp.oauth.cancelled": "Authorization was cancelled.",
+  "settings.mcp.oauth.not_completed": "Authorization was not completed in the browser.",
+  "settings.mcp.oauth.required": "Sign-in required.",
   "settings.title": "Settings",
   "tray.quit": "Quit",
   "tray.show_quick_assistant": "Quick Assistant",

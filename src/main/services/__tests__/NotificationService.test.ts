@@ -83,6 +83,7 @@ function emitCompletion(overrides: Partial<ConversationCompletedEvent> = {}): vo
     topicId: 'topic-1',
     turnId: 'turn-1',
     completedAt: 100,
+    responseText: 'I checked the implementation. Here is the final answer.',
     ...overrides
   })
 }
@@ -166,8 +167,9 @@ describe('NotificationService', () => {
       id: 'task-completion:turn-1',
       kind: 'task-completion',
       type: 'success',
-      title: 'Assistant response complete',
-      message: 'Research notes',
+      title: 'Research notes',
+      conversationName: 'Research notes',
+      message: 'Here is the final answer.',
       timestamp: 100,
       actionKey: 'conversation.open',
       meta: { conversationType: 'assistant', conversationId: 'topic-1' },
@@ -189,6 +191,7 @@ describe('NotificationService', () => {
       kind: 'approval-request',
       type: 'warning',
       title: 'Assistant needs your input',
+      conversationName: 'Research notes',
       message: 'Research notes',
       timestamp: 200,
       actionKey: 'conversation.open',
@@ -226,6 +229,51 @@ describe('NotificationService', () => {
     expect(mocks.broadcastToType).not.toHaveBeenCalled()
   })
 
+  it('uses the session name as title and only the last sentence as body', () => {
+    emitCompletion({
+      topicId: 'agent-session:session-1',
+      responseText: 'I checked every call site. The refactor is complete.'
+    })
+
+    expect(mocks.electronNotifications[0].options).toEqual({
+      title: 'Refactor project',
+      body: 'The refactor is complete.'
+    })
+    mocks.electronNotifications[0].click?.()
+    expect(mocks.focusOrOpen).toHaveBeenCalledWith(
+      { conversationType: 'agent', conversationId: 'session-1' },
+      'Refactor project'
+    )
+  })
+
+  it.each([
+    ['已经定位问题。现在可以正常使用了！', '现在可以正常使用了！'],
+    ['第一句。最后一句没有句末标点', '最后一句没有句末标点'],
+    ['Checked the value. The result is 3.14.', 'The result is 3.14.'],
+    ['First sentence! Are we done?', 'Are we done?'],
+    ['前面的说明。\n\n最后一句。\n  ', '最后一句。'],
+    ['处理完毕。他说：“可以发布了。”', '他说：“可以发布了。”'],
+    ['Only one sentence', 'Only one sentence']
+  ])('shows only the last sentence of %s', (responseText, expected) => {
+    emitCompletion({ responseText })
+    expect(mocks.electronNotifications[0].options).toEqual({ title: 'Research notes', body: expected })
+  })
+
+  it.each([
+    ['topic-1', 'Assistant response complete'],
+    ['agent-session:session-1', 'Agent task complete']
+  ])('uses a generic completion title when %s has no name', (topicId, title) => {
+    mocks.topicGetById.mockReturnValue({ name: '  ' })
+    mocks.agentSessionGetById.mockReturnValue({ name: '' })
+    emitCompletion({ topicId })
+    expect(mocks.electronNotifications[0].options).toEqual({ title, body: 'Here is the final answer.' })
+  })
+
+  it.each([undefined, '', '   '])('falls back to the conversation name without reply text (%s)', (responseText) => {
+    emitCompletion({ responseText })
+    expect(mocks.electronNotifications[0].options.body).toBe('Research notes')
+  })
+
   it('logs a name lookup failure and keeps notifying with the localized generic name', () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo()] : []
@@ -234,9 +282,12 @@ describe('NotificationService', () => {
       throw new Error('missing')
     })
 
-    emitCompletion({ topicId: 'agent-session:missing' })
+    emitCompletion({ topicId: 'agent-session:missing', responseText: undefined })
 
-    expect(mocks.electronNotifications[0].options).toEqual({ title: 'Agent task complete', body: 'New task' })
+    expect(mocks.electronNotifications[0].options).toEqual({
+      title: 'Agent task complete',
+      body: 'Agent task complete'
+    })
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to resolve conversation name for notification',
       expect.objectContaining({ target: { conversationType: 'agent', conversationId: 'missing' } })
@@ -259,8 +310,8 @@ describe('NotificationService', () => {
 
     expect(mocks.electronNotifications).toHaveLength(1)
     expect(mocks.electronNotifications[0].options).toEqual({
-      title: 'Assistant response complete',
-      body: 'Research notes'
+      title: 'Research notes',
+      body: 'Here is the final answer.'
     })
 
     mocks.electronNotifications[0].click?.()

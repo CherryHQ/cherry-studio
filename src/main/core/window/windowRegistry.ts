@@ -2,6 +2,9 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
+// Matches the renderer's sub-window title bar (TITLE_BAR_HEIGHT_PX = 37.5px), rounded down to whole DIPs.
+const SUB_WINDOW_TITLE_BAR_HEIGHT = 37
+
 /**
  * Default window configuration.
  * Base configuration applied to all windows unless overridden by the type-specific config.
@@ -78,7 +81,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           // always frameless; backgroundMaterial stays runtime-computed → args.options.
           frame: false
         }
-        // linux: frame honors `app.use_system_title_bar` preference, icon is nativeImage
+        // linux: WCO vs system frame honors `app.use_system_title_bar`, icon is nativeImage
         //        → both injected via args.options
       },
       webPreferences: {
@@ -150,15 +153,19 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         devTools: true
       },
       platformOverrides: {
-        // macOS keeps the native frame with window-controls overlay; Windows and
-        // Linux are frameless (the in-window tab bar renders its own controls).
+        // macOS and Linux get system window controls via the window-controls overlay;
+        // Windows is frameless (the in-window tab bar renders its own controls).
         mac: {
           titleBarStyle: 'hidden',
           titleBarOverlay: { height: 42 }, // WCO height (macOS)
           trafficLightPosition: { x: 13, y: 13 }
         },
         win: { frame: false },
-        linux: { frame: false }
+        linux: {
+          titleBarStyle: 'hidden',
+          // Matches the tab bar's #tab-row; colors follow the theme via CdpBrowserController.
+          titleBarOverlay: { height: 42 }
+        }
       }
     },
     behavior: {
@@ -227,7 +234,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           // backgroundColor is theme-dependent → injected via args.options (non-mac only)
         },
         linux: {
-          frame: false
+          // WCO regardless of `app.use_system_title_bar`: pooled standbys are created from
+          // these static options only. Overlay colors follow the theme via SubWindowService.
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: SUB_WINDOW_TITLE_BAR_HEIGHT }
           // icon is a nativeImage (required for Wayland task switcher) → injected via args.options
         }
       },

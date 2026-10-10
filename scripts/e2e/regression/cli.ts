@@ -111,8 +111,10 @@ async function initializeCommand(): Promise<void> {
 }
 
 async function preflightCommand(): Promise<void> {
-  const config = loadTestConfig()
-  const redacted = createRedactor(getSensitiveConfigValues(config))
+  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  if (task === 'chat-stream-failure') return
+  loadTestConfig()
+  const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
 }
 
