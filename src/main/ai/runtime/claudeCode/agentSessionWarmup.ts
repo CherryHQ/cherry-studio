@@ -20,6 +20,7 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import {
@@ -380,11 +381,15 @@ async function deriveConnectionConfigFromSnapshot(
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
+  const { invocationModel: claudeCodeInvocationModel } = resolveClaudeCodeReasoningContext(model)
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
+    reasoningEffortMapping: Object.entries(
+      getUserReasoningEffortMap({ id: model.providerId }, claudeCodeInvocationModel)
+    ).sort(([a], [b]) => a.localeCompare(b)),
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
@@ -595,14 +600,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
-/**
- * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
- * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
- */
-function resolveClaudeCodeThinkingOptions(
-  model: Model,
-  reasoningEffort: ReasoningEffortOption
-): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+function resolveClaudeCodeReasoningContext(model: Model) {
   const profile = providerRegistryService.resolveReasoningProfile(
     {
       id: 'anthropic',
@@ -615,11 +613,24 @@ function resolveClaudeCodeThinkingOptions(
   const invocationModel = profile.support
     ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
     : model
+  return { profile, invocationModel }
+}
+
+/**
+ * Claude Agent SDK always speaks the Anthropic-native reasoning dialect. When its route points at
+ * Cherry's gateway, the gateway translates those native fields again for the target endpoint.
+ */
+function resolveClaudeCodeThinkingOptions(
+  model: Model,
+  reasoningEffort: ReasoningEffortOption
+): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+  const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
-    maxTokens: model.maxOutputTokens
+    maxTokens: model.maxOutputTokens,
+    userEffortMap: getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   })
   const encoded = encodeReasoningInvocation(invocation)
 

@@ -19,6 +19,7 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import {
   type Assistant,
@@ -67,6 +68,7 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { getUserReasoningEffortMap } from '../../../utils/reasoningEffortPreferences'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
@@ -235,7 +237,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
-  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
+  const userEffortMap = getUserReasoningEffortMap(provider, invocationModel)
+  const userAdjustedSelection = applyUserReasoningEffortTranslation(requestedReasoningSelection, userEffortMap)
+  const reasoningSelection =
+    userAdjustedSelection !== requestedReasoningSelection
+      ? userAdjustedSelection
+      : normalizeRequestedSelection(userAdjustedSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
     selection: reasoningSelection,
     model: invocationModel,

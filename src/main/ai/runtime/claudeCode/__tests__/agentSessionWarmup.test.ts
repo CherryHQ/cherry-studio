@@ -1671,6 +1671,29 @@ describe('deriveConnectionConfig', () => {
     expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
   })
 
+  it('rebuilds when reasoning effort mappings change', async () => {
+    const originalGet = mocks.preferenceGet.getMockImplementation()
+    const originalModelByKey = mocks.getModelByKey.getMockImplementation()
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    }))
+    const base = await deriveSignature()
+    mocks.preferenceGet.mockImplementation((key) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium' } } : originalGet?.(key)
+    )
+    const mapped = await deriveSignature()
+    mocks.getModelByKey.mockImplementation(originalModelByKey!)
+    mocks.preferenceGet.mockImplementation(originalGet!)
+    expect(mapped.rebuildSignature).not.toBe(base.rebuildSignature)
+    expect(
+      Object.keys(base.rebuildFactFingerprints).filter(
+        (name) => base.rebuildFactFingerprints[name] !== mapped.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['reasoningEffortMapping'])
+  })
+
   it('changes the rebuild signature for each rebuild-group input', async () => {
     const base = await deriveSignature()
 
