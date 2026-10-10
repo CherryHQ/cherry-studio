@@ -773,7 +773,7 @@ jobs:
 
       - name: Verify draft matches approved archive
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_SHA: ${{ inputs.expected_sha }}

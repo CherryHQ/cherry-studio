@@ -201,120 +201,76 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.4 - New Models, Device Connections, and Bug Fixes
+    Cherry Studio 2.1.5 - Remote Attachments, Channels, and Major Improvements
 
     ✨ New Features
-    - [Device connections] Connect over reachable LAN or externally configured VPN networks with IPv4/IPv6 support, automatic address prioritization, and manual selection by network interface. Action required: update to a compatible mobile app to save and verify additional addresses and scan pairing codes containing more than 16 addresses.
-    - [Messages] Add export to multi-select action bar: export selected messages as Markdown, Word, or to Notion/Yuque/Obsidian/Joplin/Siyuan.
-    - [Models] Add GPT-6.1 Sol support for OpenAI and OpenAI Codex, including pricing and reasoning settings.
-    - [Models] Add Claude Sonnet 5.5 and Opus 5.5 with thinking controls and native web-tool eligibility.
-    - [Models] Claude Code provider now offers Claude Opus 5.5 (with fast mode) and Claude Fable 5.1.
-    - [Models] Add MiniMax M3.1 Flash Preview with five reasoning effort levels.
-    - [ComfyUI] Add local ComfyUI image provider: pick saved workflows as models and generate from the paintings page.
-    - [Launchpad] Built-in app tiles now use theme-aware card surfaces.
+    - [Remote Access] Upload images and files to remote Agent sessions from your paired mobile device, with resumable transfers up to 1 GiB per file.
+    - [Channels] Add WeCom and DingTalk channels with QR setup, Agent conversations, streaming replies, notifications, and attachments.
+    - [MCP] Support MCP SDK v2 with interactive requests, validated forms, cancellation, and structured results across chat and agent runtimes.
+    - [Agent] Upgrade Pi runtime to 1.0 with native sandboxed Code Mode and MCP support. Action required: update custom Pi scripts to the native codemode API.
+    - [Doctor] System Doctor gains an AI analysis section that reads diagnostic reports and proposes bounded fixes you can apply and undo.
+    - [Device Connections] Improve mobile onboarding with platform-specific downloads, remembered progress, and automatic mobile previews.
+    - [Paintings] Minimize the prompt dock after generate, zoom generated images with the mouse wheel, and open the shared image viewer on click.
+    - [Models] Add Claude Haiku 5.5 support with reasoning controls, updated token limits, pricing, and Claude Code availability.
+    - [Composer] Highlight the MCP toolbar shortcut when MCP tools are enabled for the current chat or agent session.
+    - [Web Search] Add self-hosted Crawl4AI as a URL-fetch provider with configurable API Host and optional bearer token.
+    - [Windows] Use native caption buttons in main and detached windows while preserving custom title bars and theme adaptation.
+    - [Updates] Enable native differential downloads to reduce update size when a compatible cached installer is available.
+    - [File Preview] Improve document previews with touch zoom, resilient PowerPoint slides, and clearer size-limit fallbacks. Add WebView compatibility for mobile integration.
+    - [Archive] Restoring an agent now also restores its sessions, and archived task/topic rows show their owning agent or assistant.
 
     🐛 Bug Fixes
-    - [Agent] Fix Agent sessions becoming unusable when the previous Claude Code process was slow to exit.
-    - [Agent] Fix repeated message conflicts and stale titles in newly created remote Agent sessions.
-    - [Agent] Fix checkpoint error message on edit-and-resend — now explains the issue clearly.
-    - [Agent] Fix Agent session messages remaining in the list after a successful delete.
-    - [Agent tasks] Reclaim unused heartbeat workspaces together with orphaned schedules.
-    - [Chat] Fix Regenerate using the wrong provider — now uses the composer selection.
-    - [Chat] Fix multi-model group retry using the assistant's default model instead of the reply's own model.
-    - [Chat] Fix conversations restored via archive undo jumping away when opened.
-    - [Chat] Fix tool call panels not using the same viewport-aware height as the thinking panel.
-    - [Chat] Topic chats no longer inline browser tool schemas, reducing multi-thousand-token overhead.
-    - [Chat] Only treat the tag block that opens a reply as inline reasoning — literal tags in answers no longer truncate content.
-    - [Knowledge] Fix MCP package (DXT/MCPB) installs with paths differing only in case or Unicode form.
-    - [Knowledge] Fix captured URL snapshots named with percent-escapes when the page path is not ASCII.
-    - [Knowledge] Remember the last knowledge base used by the save dialog.
-    - [Skills] Fix skills.sh installs for repositories storing skills under .gemini/skills/, .claude/skills/, or .agents/skills/.
-    - [Skills] Fix skill ZIP imports with paths differing only in case or Unicode form.
-    - [Translate] Fix Mermaid diagrams not being preserved and rendered during translation.
-    - [File preview] Fix file preview showing path fragments as language for files in dotted directories or without extensions.
-    - [File preview] Fix PDF preview not rendering Chinese/CJK text that uses non-embedded CID fonts.
-    - [File icon] Fix file icons for Windows paths — artifact cards now show the correct icon.
-    - [Markdown] Fix SVGs in chat being rendered with sizes measured for previously rendered SVGs.
-    - [Model list] Keep numeric group names in model order while a search filter is active.
-    - [Rich text editor] Formatting applied from the toolbar is now saved to the note.
-    - [Browser] Restore resizing along the full height of the browser sidebar separator.
-    - [Chat layout] Use narrower 280 px default for file and artifact panes on first run.
-    - [Diagnostics] Fix health check reporting “No API key configured” for Claude Code CLI-based provider.
-    - [Diagnostics] Show status link, processing state, and local history for diagnostic reports.
-    - [Selection Assistant] Fix result code blocks not wrapping at narrow widths.
-    - [Selection Assistant] Fix black screen after closing the action window while in macOS fullscreen.
-    - [Screenshot] Fix Windows screenshot capture on mixed-DPI multi-monitor layouts.
-    - [Web search] Fix API key rotation never reaching other keys when a duplicate entry exists.
-    - [OpenClaw] Fix misleading “binary incompatible” error when the config-schema probe was merely slow.
-    - [Copilot] Fix GitHub Copilot GPT-6 model routing by selecting the Responses API for the GPT-6 family.
-    - [DSH] Fix Windows managed DSH temporary-directory cleanup and upgrade to 0.2.0-rc.2.
-    - [Claude Agent] Upgrade Claude Agent SDK to 0.3.284 with preserved instructions on resume.
-    - [Agent creation] Remove DeepSeek Harness from new-agent runtime options; existing agents remain supported.
-    - [Filesystem] Fix `ls` tool reporting empty directory instead of error for missing or non-directory paths.
-    - [API] Fix OpenAI-compatible streaming dropping the required `arguments` field for tools with no parameters.
-    - [HTML preview] Fix text jumping when scrollbar appears/disappears at content-size threshold.
-    - [Scheduled tasks] Keep multi-hour selections compact and support editable, validated Cron expressions.
-    - [Composer] Copied Excel cells now paste as text when rich text is alongside an image.
-    - [Provider settings] Clarify that Doubao models use Volcengine Ark with supported API base URL.
-    - [macOS] Fix main window not reopening on first Dock click after closing with the red button.
-    - [Provider] Keep model provider list position on enable/disable; show new providers at the top.
+    - [Agent] Fix browser tool timeouts when switching sessions or closing tabs during an active task.
+    - [Agent] Fix tool-denial reasons being mistaken for tool output — now explicitly attributed as the user's words.
+    - [Chat] Fix mid-response failures discarding already-streamed content — now preserved alongside the error.
+    - [Chat] Fix context compression progress not appearing inside the assistant message.
+    - [Chat] Fix horizontal multi-model answers blocking upward scroll to earlier chat history.
+    - [ComfyUI] Fix workflows with randomize seed rendering the same image every run.
+    - [ComfyUI] Fix partner (API) nodes failing without the provider's API key — now sent correctly.
+    - [ComfyUI] Fix workflows being converted with wrong values or failing with no_prompt_node.
+    - [Notifications] Fix completion notifications to show the topic or session name and the final sentence.
+    - [Notifications] Clear the macOS Dock badge when all notification preferences are turned off.
+    - [Markdown] Stop linkifying single-segment slash runs (like `/jX_s`) as file paths.
+    - [WebView] Limit native user agent to Google sign-in, preserving cleaned UA for AI Studio and other requests.
+    - [Open Responses] Fix conversations failing when compatible gateways emit marked SSE keep-alive deltas.
+    - [Backup] Fix local backups failing when the destination is a Windows drive root.
+    - [Channels] Fix Channels settings rendering errors caused by malformed user IDs in saved WeChat credentials.
+    - [Tools] Fix custom command-line tools named constructor or toString being misclassified as built-in Code CLIs.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.4 - 新模型、设备连接与问题修复
+    Cherry Studio 2.1.5 - 远程附件、消息通道与重要改进
 
     ✨ 新功能
-    - [设备连接] 支持通过可达的局域网或自行配置的 VPN 网络连接，支持 IPv4/IPv6、地址自动排序和按网卡手动选择地址。需要操作：更新至兼容的移动端版本，以保存和验证额外连接地址，并扫描包含超过 16 个地址的配对码。
-    - [消息] 多选消息新增导出功能：可导出为 Markdown、Word，或发送到 Notion/语雀/Obsidian/Joplin/思源。
-    - [模型] 新增 GPT-6.1 Sol 支持，适用于 OpenAI 和 OpenAI Codex，包含定价和推理设置。
-    - [模型] 新增 Claude Sonnet 5.5 和 Opus 5.5，支持思考控制和原生网页工具。
-    - [模型] Claude Code 供应商现提供 Claude Opus 5.5（含快速模式）和 Claude Fable 5.1。
-    - [模型] 新增 MiniMax M3.1 Flash Preview，支持五种推理强度。
-    - [ComfyUI] 新增本地 ComfyUI 图像供应商：选择已保存的工作流作为模型，从绘图画廊生成。
-    - [启动台] 内置应用卡片现使用主题感知的卡片背景。
+    - [远程访问] 从已配对的移动端向远程 Agent 会话上传图片和文件，支持可恢复传输，单文件最大 1 GiB。
+    - [消息通道] 新增企业微信和钉钉通道，支持二维码设置、Agent 对话、流式回复、通知和附件。
+    - [MCP] 支持 MCP SDK v2，支持交互式请求、表单验证、取消和结构化结果，适用于对话和智能体运行时。
+    - [智能体] 升级 Pi 运行时到 1.0，支持原生沙箱化代码模式和 MCP。需要操作：更新自定义 Pi 脚本到原生 codemode API。
+    - [诊断] 系统诊断新增 AI 分析区域，读取诊断报告并提出可应用和撤销的有界修复建议。
+    - [设备连接] 改进移动端引导流程，支持平台特定下载、记忆进度和自动移动端预览。
+    - [绘图画廊] 生成后自动收起提示词面板，支持鼠标滚轮缩放图片，点击打开共享图片查看器。
+    - [模型] 新增 Claude Haiku 5.5 支持，包含推理控制、更新的 token 限制、定价和 Claude Code 可用性。
+    - [编辑器] 当 MCP 工具对当前对话或智能体会话启用时，高亮显示 MCP 工具栏快捷方式。
+    - [网页搜索] 新增自托管 Crawl4AI 作为 URL 获取供应商，支持配置 API Host 和可选的 bearer 令牌。
+    - [Windows] 在主窗口和分离窗口中使用原生标题栏按钮，同时保留自定义标题栏和主题适配。
+    - [更新] 启用原生差量下载，在有兼容的缓存安装包时减少更新大小。
+    - [文件预览] 改进文档预览，支持触控缩放、PowerPoint 幻灯片弹性和更清晰的大小限制回退。新增 WebView 兼容性以支持移动端集成。
+    - [回收站] 恢复智能体时同时恢复其会话，已归档的任务/主题行显示所属智能体或助手。
 
     🐛 问题修复
-    - [智能体] 修复 Claude Code 进程退出缓慢时 Agent 会话无法使用的问题。
-    - [智能体] 修复新建远程 Agent 会话时消息冲突和标题陈旧的问题。
-    - [智能体] 修复编辑后重发时的检查点错误信息 — 现在清晰说明问题所在。
-    - [智能体] 修复删除成功后 Agent 会话消息仍显示在列表中的问题。
-    - [智能体任务] 清理遗留定时任务时，一并回收未被引用的心跳工作区。
-    - [对话] 修复重生成使用错误的供应商 — 现在使用编辑器中选择的供应商。
-    - [对话] 修复多模型组重试时使用助手默认模型而非该回复自身模型的问题。
-    - [对话] 修复通过存档撤销恢复的对话打开时跳转走的问题。
-    - [对话] 修复工具调用面板未使用与思考面板相同的视口感知高度。
-    - [对话] 主题对话不再内联浏览器工具模式，减少数千 token 开销。
-    - [对话] 仅将开启回复的标签块视为内联推理 — 答案中的字面标签不再截断内容。
-    - [知识库] 修复路径仅大小写或 Unicode 形式不同的 MCP 包（DXT/MCPB）安装问题。
-    - [知识库] 修复页面路径非 ASCII 时 URL 快照名称带有百分号转义的问题。
-    - [知识库] 记住保存对话框上次使用的知识库。
-    - [技能] 修复从 .gemini/skills/、.claude/skills/ 或 .agents/skills/ 安装 skills.sh 技能的问题。
-    - [技能] 修复路径仅大小写或 Unicode 形式不同的技能 ZIP 导入问题。
-    - [翻译] 修复翻译时 Mermaid 图表未保留和渲染的问题。
-    - [文件预览] 修复位于点号目录或无扩展名的文件预览显示路径片段作为语言的问题。
-    - [文件预览] 修复 PDF 预览无法渲染使用非嵌入 CID 字体的中文/CJK 文本。
-    - [文件图标] 修复 Windows 路径的文件图标 — 工件卡片现在显示正确的图标。
-    - [Markdown] 修复聊天中的 SVG 使用之前渲染的 SVG 尺寸渲染的问题。
-    - [模型列表] 搜索过滤激活时保持模型组名称的数字顺序。
-    - [富文本编辑器] 工具栏应用的格式现在保存到笔记中。
-    - [浏览器] 恢复浏览器侧边栏分隔线的全高度拖拽区域。
-    - [对话布局] 首次运行时文件和工件面板默认宽度改为 280 像素。
-    - [诊断] 修复 Claude Code CLI 供应商健康检查错误报告”未配置 API 密钥”的问题。
-    - [诊断] 诊断报告显示状态链接、处理状态和本地历史。
-    - [划词助手] 修复窄宽度下结果代码块不换行的问题。
-    - [划词助手] 修复 macOS 全屏时关闭操作窗口后黑屏的问题。
-    - [截图] 修复 Windows 混合 DPI 多显示器布局下的截图捕获问题。
-    - [网页搜索] 修复重复 API 密钥条目时无法轮换到其他密钥的问题。
-    - [OpenClaw] 修复配置模式探测仅是缓慢时错误报告”二进制不兼容”的问题。
-    - [Copilot] 修复 GitHub Copilot GPT-6 模型路由，为 GPT-6 系列选择 Responses API。
-    - [DSH] 修复 Windows 托管 DSH 临时目录清理，升级到 0.2.0-rc.2。
-    - [Claude Agent] 升级 Claude Agent SDK 到 0.3.284，恢复时保留指令。
-    - [智能体创建] 从新智能体运行时选项中移除 DeepSeek Harness；现有智能体仍受支持。
-    - [文件系统] 修复 `ls` 工具对缺失或非目录路径返回空目录而非错误的问题。
-    - [API] 修复 OpenAI 兼容流式响应对无参数工具丢弃必需的 `arguments` 字段的问题。
-    - [HTML 预览] 修复内容大小阈值处滚动条出现/消失时文本跳动的问题。
-    - [计划任务] 保持多小时选择紧凑，支持可编辑验证的 Cron 表达式。
-    - [编辑器] 复制的 Excel 单元格在剪贴板同时包含富文本和图像时现在粘贴为文本。
-    - [供应商设置] 澄清 Doubao 模型使用火山引擎 Ark，包含支持的 API 基础 URL。
-    - [macOS] 修复点击红绿灯按钮关闭窗口后首次点击 Dock 图标不恢复窗口的问题。
-    - [供应商] 启用/禁用时保持模型供应商列表位置；新供应商显示在顶部。
+    - [智能体] 修复在活跃任务期间切换会话或关闭标签页导致浏览器工具超时的问题。
+    - [智能体] 修复工具拒绝原因被误认为工具输出的问题 — 现在明确归属为用户的意见。
+    - [对话] 修复响应中途失败时丢失已流式内容的问题 — 现在内容与错误一并保留。
+    - [对话] 修复上下文压缩进度未显示在助手消息内的问题。
+    - [对话] 修复水平多模型回答阻止向上滚动到较早对话历史的问题。
+    - [ComfyUI] 修复随机种子的重复生成相同图像的问题。
+    - [ComfyUI] 修复合作伙伴 (API) 节点因缺少供应商 API 密钥而失败的问题 — 现在正确发送。
+    - [ComfyUI] 修复工作流被转换时值错误或 no_prompt_node 失败的问题。
+    - [通知] 修复完成通知显示对话名称和最后一句的问题。
+    - [通知] 当所有通知偏好关闭时清除 macOS Dock 徽章。
+    - [Markdown] 停止将单段斜杠运行（如 `/jX_s`）识别为文件路径。
+    - [网页视图] 将原生 User Agent 仅限于 Google 登录，为 AI Studio 和其他请求保留清理后的 UA。
+    - [Open Responses] 修复兼容网关发送标记的 SSE keep-alive 增量时对话失败的问题。
+    - [备份] 修复备份目标为 Windows 驱动器根目录时失败的问题。
+    - [通道] 修复保存的企业微信凭据中格式错误的用户 ID 导致通道设置渲染错误的问题。
+    - [工具] 修复名为 constructor 或 toString 的自定义命令行工具被错误分类为内置 Code CLI 的问题。
     <!--LANG:END-->

@@ -835,7 +835,18 @@ const TaskSessionReuseField: FC<{
 
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }),
+    [locale]
+  )
   const { openConversation } = useConversationNavigation('agents')
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
@@ -848,9 +859,9 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.startedAt).toLocaleString(locale).toLowerCase().includes(query)
+        dateFormatter.format(new Date(log.startedAt)).toLowerCase().includes(query)
     )
-  }, [locale, logs, searchText])
+  }, [dateFormatter, logs, searchText])
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
     () => [
@@ -858,14 +869,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         accessorKey: 'startedAt',
         header: t('agent.tasks.logs.runAt'),
         meta: { width: 160 },
-        cell: ({ getValue }) =>
-          new Date(getValue() as string).toLocaleString(undefined, {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          })
+        cell: ({ getValue }) => dateFormatter.format(new Date(getValue() as string))
       },
       {
         accessorKey: 'durationMs',
@@ -931,7 +935,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         }
       }
     ],
-    [openConversation, t]
+    [dateFormatter, openConversation, t]
   )
 
   if (isLoading) {
