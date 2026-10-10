@@ -8,6 +8,7 @@ import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 import { application } from '@application'
+import type { DshAssistantChunk } from '@cherrystudio/dsh-bridge'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -17,7 +18,7 @@ import {
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -66,8 +67,7 @@ import {
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
-  type DshCherryToolBridge,
-  warmDshMcpToolCatalogs
+  type DshCherryToolBridge
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
 import {
@@ -309,7 +309,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.
     if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
-    await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -837,6 +837,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           }
           continue
         }
+        if (notification.method === 'session.chunk') {
+          const { sessionId, ...data } = notification.params as unknown as DshAssistantChunk
+          const event = { type: 'assistant/chunk' as const, data }
+          if (sessionId === this.runtimeSessionId) this.adapter.handleEvent(event)
+          else this.subagents.handleChildEvent(sessionId, event)
+          continue
+        }
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
@@ -916,7 +923,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         const checkpoint = DshForkCheckpointSchema.safeParse({
           runtime: 'dsh',
           runtimeSessionId: this.runtimeSessionId,
-          boundary
+          boundary,
+          formatVersion: 4
         })
         this.eventQueue.push({
           type: 'turn-complete',

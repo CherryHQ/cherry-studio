@@ -66,7 +66,8 @@ export async function resolveStdioLaunch({
     loginShellEnv: buildStdioEnvironment(loginShellEnv, serverEnv),
     logger,
     signal,
-    resolutionCache
+    resolutionCache,
+    useStandaloneBundledBinary: hasUserMise
   })
   return { launch, loginShellEnv, serverEnv }
 }

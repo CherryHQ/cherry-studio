@@ -143,7 +143,6 @@ vi.mock('../DshCherryToolBridge', () => ({
     close: vi.fn().mockResolvedValue(undefined)
   }),
   buildDshCherryToolName: (server: string, tool: string) => `mcp__${server}__${tool}`,
-  warmDshMcpToolCatalogs: vi.fn().mockResolvedValue(undefined),
   DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>(),
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>(),
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: new Set<string>()
@@ -263,7 +262,7 @@ describe('DshRuntimeConnection tracing', () => {
       await vi.waitFor(() =>
         expect(events.find((event) => event.type === 'turn-complete')).toEqual({
           type: 'turn-complete',
-          forkAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: 'session-1', boundary: 7, formatVersion: 0 } }
+          forkAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: 'session-1', boundary: 7, formatVersion: 4 } }
         })
       )
       expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()

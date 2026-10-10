@@ -705,13 +705,13 @@ describe('PiRuntimeConnection', () => {
       env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter), PI_ONLY: 'preserved' }
     })
 
+    const loginShellPathTail = process.platform === 'win32' ? [] : (['/opt/homebrew/bin', '/usr/bin'] as const)
     expect(result.env.PATH?.split(path.delimiter)).toEqual([
       path.join('/cherry/Toolchain/mise', 'shims'),
       '/cherry/bin',
       '/pi/agent/bin',
       '/system/bin',
-      '/opt/homebrew/bin',
-      '/usr/bin'
+      ...loginShellPathTail
     ])
     expect(result.env).toMatchObject({
       PI_ONLY: 'preserved',
@@ -744,11 +744,11 @@ describe('PiRuntimeConnection', () => {
       }
     })
 
+    const loginShellPathTail = process.platform === 'win32' ? [] : (['/opt/homebrew/bin', '/usr/bin'] as const)
     expect(result.env.PATH?.split(path.delimiter)).toEqual([
       '/home/user/.local/share/mise/shims',
       '/system/bin',
-      '/opt/homebrew/bin',
-      '/usr/bin',
+      ...loginShellPathTail,
       '/cherry/bin'
     ])
     expect(result.env).toMatchObject({
