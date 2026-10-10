@@ -847,6 +847,10 @@ const AgentComposerInner = ({
     if (!reasoningOverride?.scopedModelId || reasoningOverride.scopedModelId === model?.id) return
     setReasoningOverride(null)
   }, [model?.id, reasoningOverride?.scopedModelId])
+  useEffect(() => {
+    if (sessionModelOverrideId != null) return
+    setReasoningOverride((current) => (current?.scopedModelId != null ? null : current))
+  }, [sessionModelOverrideId])
   const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
   const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
   const [serviceTierOverride, setServiceTierOverride] = useState<{

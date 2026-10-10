@@ -1541,6 +1541,51 @@ describe('AgentComposer', () => {
     expect(mocks.speedControlProps?.reasoningEffort).toBe('default')
   })
 
+  it('drops session-scoped reasoning when inheritance resumes without changing the effective model', () => {
+    const sessionOverrideModel = {
+      ...model,
+      id: 'anthropic::claude-opus-4',
+      apiModelId: 'claude-opus-4',
+      name: 'Claude Opus 4'
+    } satisfies Model
+    const agentWithAlignedDefault = {
+      ...createControlledAgent(),
+      model: sessionOverrideModel.id
+    } as NonNullable<ControlledComposerProps['resolvedAgent']>
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{ ...createControlledSession(), modelId: sessionOverrideModel.id }}
+        resolvedModel={sessionOverrideModel}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        resolvedAgent={agentWithAlignedDefault}
+        sessionOverride={createControlledSession()}
+        resolvedModel={sessionOverrideModel}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('default')
+  })
+
   it('does not mistake an in-flight session update for a pending reasoning edit', () => {
     mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
