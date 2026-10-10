@@ -139,12 +139,22 @@ export class PersistenceListener implements StreamListener {
       hasNoAnswerContent(finalMessageForPersistence.parts)
     ) {
       const error = zeroTextTurnError(finalMessageForPersistence.metadata.stats.outputTokens)
-      const withErrorPart = mergeErrorIntoMessage(
-        finalMessageForPersistence,
-        error,
-        toExecutionFailure(error, this.opts.modelId),
-        result.anchorMessageId
-      )
+      // Explicit app-owned failure metadata. The prose carries the billed token count, and letting
+      // toExecutionFailure re-parse it (extractHttpStatus) would reclassify e.g. 401 tokens as a
+      // persisted, non-retryable auth failure instead of the retryable runtime gap this is.
+      const failure: ExecutionFailure = {
+        message: error.message ?? '',
+        retryable: true,
+        failure: {
+          version: 1,
+          reasonCode: 'internal',
+          source: { layer: 'runtime', name: 'EmptyResponseError' },
+          ...(this.opts.modelId
+            ? { context: { providerId: this.opts.modelId.split('::')[0], modelId: this.opts.modelId } }
+            : {})
+        }
+      }
+      const withErrorPart = mergeErrorIntoMessage(finalMessageForPersistence, error, failure, result.anchorMessageId)
       return this.persistAssistant(withErrorPart, 'error', runtimeTiming, result)
     }
 

@@ -634,6 +634,32 @@ describe('PersistenceListener — billed zero-text turn demotion', () => {
     expect(messageFinalizeMock.mock.calls[0][1].status).toBe('success')
   })
 
+  it('a token count that looks like an HTTP status must not reclassify the synthetic failure', async () => {
+    const finalMessage = {
+      id: 'msg-401',
+      role: 'assistant',
+      parts: [{ type: 'step-start' }],
+      metadata: { stats: { outputTokens: 401 } }
+    } as unknown as CherryUIMessage
+
+    await makeZeroTextListener().onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-x' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledTimes(1)
+    expect(messageFinalizeMock.mock.calls[0][1].status).toBe('error')
+    const parts = messageFinalizeMock.mock.calls[0][1].data.parts as Array<{
+      type: string
+      data?: {
+        executionFailure?: { retryable: boolean; failure: { reasonCode: string; context?: { statusCode?: number } } }
+      }
+    }>
+    const failure = parts.at(-1)?.data?.executionFailure
+    // App-owned empty-response metadata: the billed token count (401) must not be re-parsed as an
+    // HTTP status and demote the retryable runtime error into a persisted auth failure.
+    expect(failure?.failure.reasonCode).toBe('internal')
+    expect(failure?.retryable).toBe(true)
+    expect(failure?.failure.context?.statusCode).toBeUndefined()
+  })
+
   it('an empty-success-opt-in backend (agent sessions) keeps persisting zero-text turns as success', async () => {
     const persistAssistant = vi.fn()
     const listener = new PersistenceListener({
