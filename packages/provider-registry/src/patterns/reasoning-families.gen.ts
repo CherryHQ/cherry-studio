@@ -198,6 +198,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^xopqwen3[5-9]\\d*', toggle: true },
   { pattern: '^xopglmv?(?:4[5-7]|5\\d*)', toggle: true },
   { pattern: '^xsparkx2', toggle: true },
+  { pattern: '^spark-x2[.-]5', toggle: true },
   // inception
   { pattern: '^mercury-2' },
   // meituan
