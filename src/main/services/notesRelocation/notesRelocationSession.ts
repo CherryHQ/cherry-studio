@@ -53,6 +53,17 @@ export function isNotesRelocationSessionActive(): boolean {
   return notesRelocationSessionOwnerId != null
 }
 
+export function isNotesRelocationBarrierActive(): boolean {
+  return notesRelocationSessionOwnerId != null
+}
+
+export function getActiveNotesRelocationSession(): { ownerId: string; epoch: number } | null {
+  if (notesRelocationSessionOwnerId == null) {
+    return null
+  }
+  return { ownerId: notesRelocationSessionOwnerId, epoch: notesRelocationSessionEpoch }
+}
+
 /** Resets module state for unit tests. */
 export function resetNotesRelocationSessionForTests(): void {
   notesRelocationSessionOwnerId = null

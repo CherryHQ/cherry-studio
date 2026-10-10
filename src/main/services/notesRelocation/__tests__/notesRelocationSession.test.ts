@@ -6,6 +6,7 @@ import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 import {
   abandonNotesRelocationSession,
   acquireNotesRelocationSession,
+  isNotesRelocationBarrierActive,
   releaseNotesRelocationSession,
   resetNotesRelocationSessionForTests,
   setNotesRelocationMigrateInFlight
@@ -57,6 +58,14 @@ describe('notesRelocationSession', () => {
     expect(abandonNotesRelocationSession('window-a')).toBe(true)
     const epoch = acquireNotesRelocationSession('window-c')
     expect(releaseNotesRelocationSession('window-c', epoch)).toBe(true)
+  })
+
+  it('exposes whether the relocation barrier is active', () => {
+    expect(isNotesRelocationBarrierActive()).toBe(false)
+    const epoch = acquireNotesRelocationSession('window-a')
+    expect(isNotesRelocationBarrierActive()).toBe(true)
+    expect(releaseNotesRelocationSession('window-a', epoch)).toBe(true)
+    expect(isNotesRelocationBarrierActive()).toBe(false)
   })
 
   it('does not abandon the session while migrate is in flight', () => {

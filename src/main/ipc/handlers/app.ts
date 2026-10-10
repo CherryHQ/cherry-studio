@@ -12,7 +12,12 @@ import {
   acknowledgeRendererNotesEditsFlush,
   acquireNotesRelocationSession,
   assertNotesRelocationSessionOwner,
+  bindNotesRelocationSessionOwnerWindow,
+  clearNotesRelocationSessionOwnerWindowBinding,
+  handleNotesRelocationOwnerWindowGone,
   inspectNotesRelocation,
+  isNotesRelocationBarrierActive,
+  isNotesRelocationOwnerWindowAlive,
   isRendererNotesEditsFlushWindowRegistered,
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
@@ -35,6 +40,7 @@ function broadcastNotesRelocationMigrateComplete(): void {
 }
 
 function finishNotesRelocationSession(ownerId: string, sessionEpoch: number): void {
+  clearNotesRelocationSessionOwnerWindowBinding()
   if (releaseNotesRelocationSession(ownerId, sessionEpoch)) {
     broadcastNotesRelocationMigrateComplete()
   }
@@ -72,6 +78,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     if (senderId != null) {
       registerRendererNotesEditsFlushWindow(senderId)
     }
+    return { barrierActive: isNotesRelocationBarrierActive() }
   },
   'app.notes_relocation.flush_edits_unregister': async (_input, { senderId }) => {
     if (senderId == null) {
@@ -94,10 +101,14 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       )
     }
     const sessionEpoch = acquireNotesRelocationSession(senderId)
+    bindNotesRelocationSessionOwnerWindow(senderId, () => {
+      handleNotesRelocationOwnerWindowGone(senderId, broadcastNotesRelocationMigrateComplete)
+    })
     try {
       await requestRendererNotesEditsFlush()
       return { sessionEpoch }
     } catch (error) {
+      clearNotesRelocationSessionOwnerWindowBinding()
       if (releaseNotesRelocationSession(senderId, sessionEpoch)) {
         broadcastNotesRelocationMigrateComplete()
       }
@@ -122,7 +133,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     setNotesRelocationMigrateInFlight(true)
     try {
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
-      if (!isRendererNotesEditsFlushWindowRegistered(senderId)) {
+      if (!isNotesRelocationOwnerWindowAlive(senderId) || !isRendererNotesEditsFlushWindowRegistered(senderId)) {
         finishNotesRelocationSession(senderId, sessionEpoch)
       }
       return result

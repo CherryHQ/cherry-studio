@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { useNotesFileEditSession } from '@renderer/components/notes/NotesFileEditSessionProvider'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { runStructuralNotesFilesystemWrite } from '@renderer/hooks/notesFileEditFlush'
+import { runStructuralNotesFilesystemWrite, useNotesEditsLockedForRelocation } from '@renderer/hooks/notesFileEditFlush'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -76,6 +76,7 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
+  const editsLockedForRelocation = useNotesEditsLockedForRelocation()
   const fileSession = useNotesFileEditSession()
   const {
     discard: discardFileDraft,
@@ -238,8 +239,21 @@ const NotesPage: FC = () => {
     /* no-op — see comment above */
   }, [])
 
+  useEffect(() => {
+    if (!activeFilePath || fileSession.isDirty) {
+      return
+    }
+    void reloadFileDraft().catch((error) => {
+      logger.error('Failed to refresh note after reopening Notes', error as Error)
+    })
+    // Re-read disk when the Notes view remounts; the edit session outlives the page.
+  }, [])
+
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
+      if (editsLockedForRelocation) {
+        return
+      }
       if (contentLoadError) {
         logger.warn('Ignored note edit because current file content failed to load', { activeFilePath })
         toast.error(t('notes.save_blocked_load_failed'))
@@ -249,7 +263,7 @@ const NotesPage: FC = () => {
       // a file switch mid-flight can never write to the wrong file.
       setFileDraft(newMarkdown)
     },
-    [activeFilePath, contentLoadError, setFileDraft, t]
+    [activeFilePath, contentLoadError, editsLockedForRelocation, setFileDraft, t]
   )
 
   useEffect(() => {
@@ -1151,6 +1165,13 @@ const NotesPage: FC = () => {
               {t('notes.file_removed_draft')}
             </div>
           )}
+          {editsLockedForRelocation && (
+            <div
+              role="status"
+              className="shrink-0 border-border border-b bg-background-subtle px-3 py-2 text-muted-foreground text-xs">
+              {t('notes.relocation_edits_locked')}
+            </div>
+          )}
           {activeFilePath && fileSession.status === 'loading' ? (
             <NotesEditorLoading label={t('common.loading')} />
           ) : (
@@ -1158,6 +1179,7 @@ const NotesPage: FC = () => {
               activeNodeId={editorNodeId}
               currentContent={currentContent}
               contentLoadError={contentLoadError}
+              editsLocked={editsLockedForRelocation}
               tokenCount={tokenCount}
               onMarkdownChange={handleMarkdownChange}
               editorRef={editorRef}
