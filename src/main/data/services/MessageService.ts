@@ -1476,6 +1476,10 @@ export class MessageService {
    * Cycle check is performed outside transaction as a read-only safety check.
    */
   update(id: string, dto: UpdateMessageDto): Message {
+    if (Object.values(dto).every((value) => value === undefined)) {
+      return this.getById(id)
+    }
+
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
