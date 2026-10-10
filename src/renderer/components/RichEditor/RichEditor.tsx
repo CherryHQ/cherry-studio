@@ -1,4 +1,5 @@
 import DragHandle from '@tiptap/extension-drag-handle-react'
+import { TextSelection } from '@tiptap/pm/state'
 import { EditorContent } from '@tiptap/react'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronsUp, GripVertical, Plus, Trash2 } from 'lucide-react'
@@ -175,7 +176,7 @@ const RichEditor = ({
   enableImageInsertion = true,
   disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
-}: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
+}: RichEditorProps & { ref?: React.Ref<RichEditorRef> }) => {
   // Use the rich editor hook for complete editor management
   const { editor, markdown, formattingState, tableOfContentsItems, linkEditor, setMarkdown, clear } = useRichEditor({
     initialContent,
@@ -567,6 +568,26 @@ const RichEditor = ({
         if (!editor) return null
         const { from, to } = editor.state.selection
         return { from, to, text: editor.state.doc.textBetween(from, to, '\n') }
+      },
+      replaceRange: ({ from, to }, text: string) => {
+        if (
+          !editor ||
+          editor.isDestroyed ||
+          !editor.isEditable ||
+          !Number.isInteger(from) ||
+          !Number.isInteger(to) ||
+          from < 0 ||
+          to < from ||
+          to > editor.state.doc.content.size
+        ) {
+          return false
+        }
+
+        editor.view.focus()
+        const tr = editor.state.tr.insertText(text, from, to)
+        tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(to)), -1))
+        editor.view.dispatch(tr)
+        return true
       },
       setMarkdown: (markdownContent: string) => {
         setMarkdown(markdownContent)

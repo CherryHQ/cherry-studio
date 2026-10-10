@@ -1,19 +1,20 @@
 import { SpellCheck, Volume2 } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
+import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
-import { readTextAloud } from '@renderer/services/voice'
+import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
 
 const logger = loggerService.withContext('NotesEditor')
@@ -79,6 +80,66 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const readButtonRef = useRef<HTMLButtonElement>(null)
     const voiceIdentityRef = useRef(voiceNoteId)
     voiceIdentityRef.current = voiceNoteId
+    const [richEditorReady, setRichEditorReady] = useState(false)
+    const [sourceEditorReady, setSourceEditorReady] = useState(false)
+    const [, refreshVoiceTarget] = useReducer((version: number) => version + 1, 0)
+    const voiceTargetId = voiceNoteId ? `notes:${voiceNoteId}:${tmpViewMode}` : ''
+    const voiceEditorReady = tmpViewMode === 'source' ? sourceEditorReady : richEditorReady
+    const setRichEditorRef = useCallback(
+      (instance: RichEditorRef | null) => {
+        editorRef.current = instance
+        setRichEditorReady(instance?.getSelection() != null)
+      },
+      [editorRef]
+    )
+    const setSourceEditorRef = useCallback(
+      (instance: CodeEditorHandles | null) => {
+        codeEditorRef.current = instance
+        setSourceEditorReady(instance !== null)
+      },
+      [codeEditorRef]
+    )
+    const markVoiceTargetCurrent = () => {
+      if (voiceTargetManager.captureCurrent()?.targetId === voiceTargetId) return
+      if (voiceTargetManager.markCurrent(voiceTargetId)) refreshVoiceTarget()
+    }
+    const focusCurrentEditor = () => {
+      if (voiceIdentityRef.current !== voiceNoteId || !readButtonRef.current) return
+      if (activeViewModeRef.current === 'source' && codeEditorRef.current?.focus) codeEditorRef.current.focus()
+      else if (activeViewModeRef.current === 'preview' && editorRef.current) editorRef.current.focus()
+      else readButtonRef.current.focus()
+    }
+
+    useEffect(() => {
+      if (!activeNodeId || !voiceNoteId || contentLoadError || tmpViewMode === 'read' || !voiceEditorReady) return
+      const isCurrent = () => voiceIdentityRef.current === voiceNoteId && activeViewModeRef.current === tmpViewMode
+      return voiceTargetManager.bind({
+        targetId: voiceTargetId,
+        sourceEntityId: voiceNoteId,
+        owner: window,
+        captureReplaceRange: () => {
+          if (!isCurrent()) return null
+          const selection =
+            tmpViewMode === 'source' ? codeEditorRef.current?.getSelection?.() : editorRef.current?.getSelection()
+          return selection ? { from: selection.from, to: selection.to } : null
+        },
+        replaceRange: (range, text) => {
+          if (!isCurrent()) return false
+          return tmpViewMode === 'source'
+            ? (codeEditorRef.current?.replaceRange?.(range, text) ?? false)
+            : (editorRef.current?.replaceRange(range, text) ?? false)
+        }
+      })
+    }, [
+      activeNodeId,
+      voiceNoteId,
+      contentLoadError,
+      tmpViewMode,
+      voiceEditorReady,
+      voiceTargetId,
+      codeEditorRef,
+      editorRef
+    ])
 
     const readCurrentNote = () => {
       if (!voiceNoteId) return
@@ -99,12 +160,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
         sourceLabel: mode,
         sourceEntityId: voiceNoteId,
         isCurrent,
-        focusOnClose: () => {
-          if (!isCurrent()) return
-          if (activeViewModeRef.current === 'source' && codeEditorRef.current?.focus) codeEditorRef.current.focus()
-          else if (activeViewModeRef.current === 'preview' && editorRef.current) editorRef.current.focus()
-          else readButtonRef.current?.focus()
-        }
+        focusOnClose: focusCurrentEditor
       })
     }
 
@@ -150,13 +206,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
         <div
           data-ui="notes.editor"
           data-note-id={activeNodeId}
+          onFocusCapture={markVoiceTargetCurrent}
+          onPointerDownCapture={markVoiceTargetCurrent}
           className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           <ErrorBoundary>
             <Suspense fallback={<NotesEditorLoading label={t('common.loading')} />}>
               {tmpViewMode === 'source' ? (
                 <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
                   <CodeEditor
-                    ref={codeEditorRef}
+                    ref={setSourceEditorRef}
                     value={currentContent}
                     language="markdown"
                     onChange={onMarkdownChange}
@@ -170,7 +228,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ) : (
                 <RichEditor
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
-                  ref={editorRef}
+                  ref={setRichEditorRef}
                   initialContent={currentContent}
                   onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
                   showToolbar={tmpViewMode === 'preview'}
@@ -191,12 +249,22 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             </Suspense>
           </ErrorBoundary>
         </div>
-        <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
-          <SpaceBetweenRowFlex className="w-full items-center">
+        <div
+          className="flex min-h-12 shrink-0 items-center border-border border-t px-4 py-2"
+          onFocusCapture={markVoiceTargetCurrent}
+          onPointerDownCapture={markVoiceTargetCurrent}>
+          <SpaceBetweenRowFlex className="w-full flex-wrap items-center gap-2">
             <div className="select-none text-muted-foreground text-xs leading-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="flex items-center gap-3 text-muted-foreground text-xs">
+            <div className="flex flex-wrap items-center justify-end gap-3 text-muted-foreground text-xs">
+              {voiceNoteId && (
+                <DictationControls
+                  targetId={voiceTargetId}
+                  disabled={tmpViewMode === 'read' || !voiceEditorReady}
+                  focusInput={focusCurrentEditor}
+                />
+              )}
               {voiceNoteId && (
                 <Button
                   ref={readButtonRef}

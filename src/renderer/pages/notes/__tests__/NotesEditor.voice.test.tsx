@@ -119,27 +119,22 @@ describe('Notes manual read-aloud', () => {
     { mode: 'preview', editor: 'rich draft', draft: 'unsaved rich draft' },
     { mode: 'source', editor: 'source draft', draft: 'unsaved source draft' },
     { mode: 'read', editor: 'rich draft', draft: 'unsaved rich draft' }
-  ])(
-    'reads the selection or current draft in $mode mode without offering dictation',
-    async ({ mode, editor, draft }) => {
-      render(<NotesEditor {...props} />)
-      const user = userEvent.setup()
-      await screen.findByRole('textbox', { name: 'rich draft' })
-      await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), mode)
-      fireEvent.focus(await screen.findByRole('textbox', { name: editor }))
+  ])('reads the selection or current draft in $mode mode', async ({ mode, editor, draft }) => {
+    render(<NotesEditor {...props} />)
+    const user = userEvent.setup()
+    await screen.findByRole('textbox', { name: 'rich draft' })
+    await user.selectOptions(screen.getByRole('combobox', { name: 'view mode' }), mode)
+    fireEvent.focus(await screen.findByRole('textbox', { name: editor }))
 
-      expect(screen.queryByRole('button', { name: 'Dictate locally' })).not.toBeInTheDocument()
-      expect(mocks.targetManager!.captureCurrent()).toBeNull()
-      await user.click(screen.getByRole('button', { name: 'Read aloud' }))
-      expect(mocks.read).toHaveBeenLastCalledWith(
-        expect.objectContaining({ text: 'selected text', mode: 'selection', sourceEntityId: 'opaque-note-1' })
-      )
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    expect(mocks.read).toHaveBeenLastCalledWith(
+      expect.objectContaining({ text: 'selected text', mode: 'selection', sourceEntityId: 'opaque-note-1' })
+    )
 
-      mocks.selection = { from: 4, to: 4, text: '' }
-      await user.click(screen.getByRole('button', { name: 'Read aloud' }))
-      expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ text: draft, mode: 'document' }))
-    }
-  )
+    mocks.selection = { from: 4, to: 4, text: '' }
+    await user.click(screen.getByRole('button', { name: 'Read aloud' }))
+    expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ text: draft, mode: 'document' }))
+  })
 
   it.each([
     { before: 'source', after: 'preview', target: 'rich draft' },
@@ -227,15 +222,6 @@ describe('Notes manual read-aloud', () => {
     await waitFor(() => expect(oldRequest.isCurrent()).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
     expect(mocks.read).toHaveBeenLastCalledWith(expect.objectContaining({ sourceEntityId: 'opaque-note-2' }))
-  })
-
-  it('does not offer to insert a recovered transcript into the note', async () => {
-    mocks.snapshot = { phase: 'recovery', elapsedMs: 0 }
-    render(<NotesEditor {...props} />)
-    fireEvent.focus(await screen.findByRole('textbox', { name: 'rich draft' }))
-    expect(screen.queryByRole('button', { name: 'Insert transcript' })).not.toBeInTheDocument()
-    expect(mocks.targetManager!.captureCurrent()).toBeNull()
-    expect(screen.getByRole('button', { name: 'Read aloud' })).toBeEnabled()
   })
 
   it('keeps note text, selection, and physical path out of public metadata and ambient sinks', async () => {
