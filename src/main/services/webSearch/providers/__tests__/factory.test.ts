@@ -43,6 +43,7 @@ import { JinaProvider } from '../api/JinaProvider'
 import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
+import { SerpKiteProvider } from '../api/SerpKiteProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
@@ -81,6 +82,7 @@ describe('createWebSearchProvider', () => {
       'parallel',
       'querit',
       'searxng',
+      'serpkite',
       'serply',
       'tavily',
       'zhipu'
@@ -115,6 +117,7 @@ describe('createWebSearchProvider', () => {
       )
     ).toBeInstanceOf(JinaProvider)
     expect(createWebSearchProvider(createProvider({ id: 'parallel' }), rotationState)).toBeInstanceOf(ParallelProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'serpkite' }), rotationState)).toBeInstanceOf(SerpKiteProvider)
     expect(createWebSearchProvider(createProvider({ id: 'serply' }), rotationState)).toBeInstanceOf(SerplyProvider)
   })
 })

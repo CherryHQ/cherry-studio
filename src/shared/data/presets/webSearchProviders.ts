@@ -223,6 +223,18 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         apiHost: 'https://api.serply.io'
       }
     ]
+  },
+  serpkite: {
+    name: 'SerpKite',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serpkite.com'
+      }
+    ]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 
