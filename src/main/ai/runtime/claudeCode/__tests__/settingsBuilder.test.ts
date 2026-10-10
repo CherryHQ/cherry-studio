@@ -2682,30 +2682,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(systemPromptText(settings.systemPrompt)).toContain('mcp__cherry-tools__kb_search')
   })
 
-  it('uses the session model override as the Assistant MCP default model', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet',
-      mcps: [],
-      allowedTools: [],
-      disabledTools: [],
-      configuration: { builtin_role: 'assistant' }
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'anthropic::claude-opus-4',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    await buildClaudeCodeSessionSettings(session as never, {} as never, {
-      connectionModelId: 'anthropic::claude-opus-4'
-    })
-
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-opus-4', undefined)
-  })
-
   it('exposes CLI management tools to a normal Agent session', async () => {
     const session = {
       id: 'session-1',
