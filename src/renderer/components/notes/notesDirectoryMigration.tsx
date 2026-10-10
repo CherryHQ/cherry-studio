@@ -1,0 +1,161 @@
+import type { TFunction } from 'i18next'
+
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { recordNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
+import { resolveNotesPath } from '@renderer/services/NotesService'
+import { normalizePathValue } from '@renderer/services/NotesTreeService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
+
+import {
+  NotesDirectoryMigrationConfirmContent,
+  NotesDirectoryMigrationMergeContent
+} from './NotesDirectoryMigrationConfirmContent'
+
+const logger = loggerService.withContext('NotesDirectoryMigration')
+
+function showValidationError(t: TFunction, reason: NotesRelocationValidationReason) {
+  const key = `settings.data.notes_relocation.error.${reason}` as const
+  toast.error(t(key, { defaultValue: t('settings.data.notes_relocation.error.generic') }))
+}
+
+async function confirmMigration(
+  t: TFunction,
+  sourcePath: string,
+  targetPath: string,
+  markdownFileCount: number,
+  folderCount: number,
+  totalBytes: number
+): Promise<boolean> {
+  return popup.confirm({
+    title: t('settings.data.notes_relocation.confirm.title'),
+    width: 'min(560px, 90vw)',
+    content: (
+      <NotesDirectoryMigrationConfirmContent
+        t={t}
+        sourcePath={sourcePath}
+        targetPath={targetPath}
+        markdownFileCount={markdownFileCount}
+        folderCount={folderCount}
+        totalBytes={totalBytes}
+      />
+    ),
+    okText: t('settings.data.notes_relocation.confirm.action'),
+    cancelText: t('common.cancel'),
+    centered: true
+  })
+}
+
+async function confirmMerge(t: TFunction, markdownFileCount: number): Promise<boolean> {
+  return popup.confirm({
+    title: t('settings.data.notes_relocation.merge.title'),
+    content: <NotesDirectoryMigrationMergeContent t={t} markdownFileCount={markdownFileCount} />,
+    okText: t('settings.data.notes_relocation.merge.merge'),
+    cancelText: t('common.cancel'),
+    centered: true
+  })
+}
+
+export async function migrateNotesDirectoryWithUi(options: {
+  t: TFunction
+  sourcePath: string
+  targetPath: string
+  configuredNotesPath: string
+  onSuccess: (targetPath: string) => void | Promise<void>
+}): Promise<void> {
+  const { t, sourcePath, targetPath, configuredNotesPath, onSuccess } = options
+
+  try {
+    const inspection = await ipcApi.request('app.notes_relocation.inspect', {
+      sourcePath,
+      targetPath
+    })
+
+    if (!inspection.valid) {
+      showValidationError(t, inspection.reason)
+      return
+    }
+
+    let merge = false
+    if (inspection.targetHasFiles) {
+      const mergeConfirmed = await confirmMerge(t, inspection.target.markdownFileCount)
+      if (!mergeConfirmed) {
+        return
+      }
+      merge = true
+    }
+
+    const confirmed = await confirmMigration(
+      t,
+      sourcePath,
+      targetPath,
+      inspection.source.markdownFileCount,
+      inspection.source.folderCount,
+      inspection.source.totalBytes
+    )
+    if (!confirmed) {
+      return
+    }
+
+    const resolvedSource = await resolveNotesPath(configuredNotesPath)
+    if (normalizePathValue(resolvedSource.path) !== normalizePathValue(sourcePath)) {
+      showValidationError(t, 'stale_source')
+      return
+    }
+
+    let filesCopied = false
+    let migrationSessionId: string | undefined
+    try {
+      const migrationResult = await ipcApi.request('app.notes_relocation.migrate', {
+        sourcePath,
+        targetPath,
+        merge,
+        expectedSourceRealPath: inspection.sourceRealPath
+      })
+      migrationSessionId = migrationResult.sessionId
+      filesCopied = true
+      recordNotesDirectoryRootTransition(sourcePath, targetPath)
+      await onSuccess(targetPath)
+      await ipcApi.request('app.notes_relocation.commit', { sessionId: migrationResult.sessionId })
+      toast.success(t('settings.data.notes_relocation.success'))
+    } catch (error) {
+      if (filesCopied && migrationSessionId) {
+        await ipcApi.request('app.notes_relocation.commit', { sessionId: migrationSessionId }).catch((releaseError) => {
+          logger.warn('Failed to release notes migration lock after error', releaseError as Error)
+        })
+      }
+      throw error
+    }
+  } catch (error) {
+    logger.error('Notes directory migration failed', error as Error)
+    toast.error(t('settings.data.notes_relocation.error.generic'))
+  }
+}
+
+export async function pickNotesTargetDirectory(t: TFunction): Promise<string> {
+  const result = await window.api.file.selectFolder({
+    title: t('settings.data.notes_relocation.select_title'),
+    properties: ['openDirectory', 'createDirectory']
+  })
+  return result ?? ''
+}
+
+export async function startNotesDirectoryMigration(options: {
+  t: TFunction
+  sourcePath: string
+  configuredNotesPath: string
+  onSuccess: (targetPath: string) => void | Promise<void>
+}): Promise<void> {
+  try {
+    const targetPath = await pickNotesTargetDirectory(options.t)
+    if (!targetPath) {
+      return
+    }
+    await migrateNotesDirectoryWithUi({ ...options, targetPath })
+  } catch (error) {
+    logger.error('Failed to start notes directory migration', error as Error)
+    toast.error(options.t('settings.data.notes_relocation.error.generic'))
+  }
+}

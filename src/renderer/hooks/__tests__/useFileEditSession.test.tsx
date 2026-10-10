@@ -576,6 +576,37 @@ describe('useFileEditSession', () => {
     }
   })
 
+  it('refreshFromDiskIfClean preserves edits made while the disk read is pending', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.status).toBe('ready')
+
+      let resolveRead!: (value: ReturnType<typeof readResult>) => void
+      ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveRead = resolve)))
+
+      await act(async () => {
+        void result.current.refreshFromDiskIfClean()
+        await Promise.resolve()
+      })
+
+      act(() => result.current.setDraft('typed during refresh'))
+      await act(async () => {
+        resolveRead(readResult(utf8('external\n'), 9))
+        await Promise.resolve()
+      })
+
+      expect(result.current.draft).toBe('typed during refresh')
+      expect(result.current.isDirty).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('flush writes the pending draft immediately', async () => {
     vi.useFakeTimers()
     try {

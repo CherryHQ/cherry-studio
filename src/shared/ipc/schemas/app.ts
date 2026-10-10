@@ -7,12 +7,31 @@ import {
   CACHE_CLEANUP_SIZE_ACCURACIES,
   CACHE_CLEANUP_SIZE_COMPLETENESS
 } from '../../types/cacheCleanup'
+import { NOTES_RELOCATION_VALIDATION_REASONS } from '../../types/notesRelocation'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
 import { defineRoute } from '../define'
 
 const relocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({ valid: z.literal(true), targetEmpty: z.boolean() }),
   z.object({ valid: z.literal(false), reason: z.enum(USER_DATA_RELOCATION_VALIDATION_REASONS) })
+])
+
+const notesDirectoryStatsSchema = z.object({
+  markdownFileCount: z.number().int().nonnegative(),
+  fileCount: z.number().int().nonnegative(),
+  folderCount: z.number().int().nonnegative(),
+  totalBytes: z.number().int().nonnegative()
+})
+
+const notesRelocationInspectionSchema = z.discriminatedUnion('valid', [
+  z.object({
+    valid: z.literal(true),
+    source: notesDirectoryStatsSchema,
+    target: notesDirectoryStatsSchema,
+    targetHasFiles: z.boolean(),
+    sourceRealPath: z.string().min(1)
+  }),
+  z.object({ valid: z.literal(false), reason: z.enum(NOTES_RELOCATION_VALIDATION_REASONS) })
 ])
 
 const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
@@ -60,6 +79,48 @@ export const appRequestSchemas = {
     }),
     output: z.void()
   }),
+  'app.notes_relocation.inspect': defineRoute({
+    input: z.object({
+      sourcePath: z.string().min(1),
+      targetPath: z.string().min(1)
+    }),
+    output: notesRelocationInspectionSchema
+  }),
+  'app.notes_relocation.migrate': defineRoute({
+    input: z.object({
+      sourcePath: z.string().min(1),
+      targetPath: z.string().min(1),
+      merge: z.boolean(),
+      expectedSourceRealPath: z.string().min(1)
+    }),
+    output: z.object({
+      source: notesDirectoryStatsSchema,
+      target: notesDirectoryStatsSchema,
+      sessionId: z.string().uuid()
+    })
+  }),
+  'app.notes_relocation.flush_ack': defineRoute({
+    input: z.object({
+      batchId: z.string().min(1),
+      ok: z.boolean()
+    }),
+    output: z.void()
+  }),
+  'app.notes_relocation.migration_lock_ack': defineRoute({
+    input: z.object({
+      batchId: z.string().min(1),
+      ok: z.boolean()
+    }),
+    output: z.void()
+  }),
+  'app.notes_relocation.commit': defineRoute({
+    input: z.object({ sessionId: z.string().uuid() }),
+    output: z.void()
+  }),
+  'app.notes_relocation.sync_state': defineRoute({
+    input: z.void(),
+    output: z.object({ migrationLocked: z.boolean() })
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
@@ -106,4 +167,7 @@ export type AppEventSchemas = {
   'app.updater.not_available': void
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.notes_relocation.flush_requested': { batchId: string }
+  'app.notes_relocation.migration_started': { batchId: string }
+  'app.notes_relocation.migration_finished': void
 }

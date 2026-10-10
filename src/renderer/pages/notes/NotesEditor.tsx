@@ -1,6 +1,6 @@
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
@@ -12,6 +12,7 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 
@@ -71,6 +72,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const userViewModeOverrideRef = useRef(false)
+    const migrationLocked = useSyncExternalStore(
+      (listener) => notesEditFlushService.subscribeMigrationLock(listener),
+      () => notesEditFlushService.getMigrationLocked(),
+      () => false
+    )
+    const editorEditable = !migrationLocked && tmpViewMode === 'preview'
 
     useEffect(() => {
       currentViewModeRef.current = currentViewMode
@@ -124,6 +131,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     value={currentContent}
                     language="markdown"
                     onChange={onMarkdownChange}
+                    readOnly={migrationLocked}
                     className="h-full"
                     expanded={false}
                     height="100%"
@@ -136,9 +144,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={editorRef}
                   initialContent={currentContent}
-                  onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-                  showToolbar={tmpViewMode === 'preview'}
-                  editable={tmpViewMode === 'preview'}
+                  onMarkdownChange={editorEditable ? onMarkdownChange : undefined}
+                  showToolbar={editorEditable}
+                  editable={editorEditable}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}
