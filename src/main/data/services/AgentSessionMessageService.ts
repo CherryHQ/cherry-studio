@@ -22,6 +22,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { withTerminalErrorPart, type TerminalSentinelKey } from '@main/ai/utils/terminalSentinel'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -39,7 +40,6 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import { withTerminalErrorPart, type TerminalSentinelKey } from '@shared/ai/terminalSentinel'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {

@@ -7,8 +7,8 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { terminalSentinel } from '@main/ai/utils/terminalSentinel'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import { terminalSentinel } from '@shared/ai/terminalSentinel'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -16,7 +16,6 @@ import type {
   MessageRuntimeTiming
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { hasTurnContent, isRenderedContentPart } from '@shared/data/types/terminalContent'
 import type { SerializedError } from '@shared/types/error'
 
 import {
@@ -25,6 +24,7 @@ import {
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
+import { hasTurnContent, isRenderedContentPart } from '../persistence/terminalContent'
 import type { EmptyTurnReason, StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')

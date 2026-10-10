@@ -8,7 +8,7 @@
  * to an explicit classified error instead. See §Terminal invariants.
  */
 
-import type { CherryMessagePart } from './message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 /**
  * Part types that make a turn answerable to the user.
