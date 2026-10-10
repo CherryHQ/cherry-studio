@@ -11,6 +11,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
+import { AgentLaunchIndexProvider } from '../../tools/agent'
+import { buildAgentLaunchIndex } from '../../tools/shared/agentToolTypes'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
 
@@ -1392,6 +1394,95 @@ describe('MessagePartsRenderer', () => {
       expect(summary.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(container.querySelectorAll('[data-tool-name="Agent"]')).toHaveLength(1)
       expect(screen.queryByText('Private child output')).toBeNull()
+    })
+
+    // A receipt that resumed a child belongs in the subtask list beside its launch; leaving it
+    // inline was what kept a duplicate capsule at the message tail.
+    it('lists a resume receipt as a subtask of the message it continued', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          {
+            type: 'tool-SendMessage',
+            toolCallId: 'resume',
+            state: 'output-available',
+            input: { to: 'child', message: 'Please continue' },
+            output: { success: true, resumedAgentId: 'child' }
+          }
+        ] as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        { openAgentToolFlow: vi.fn() }
+      )
+
+      const toggle = screen.getByRole('button', { expanded: true })
+      const list = container.querySelector(`#${toggle.getAttribute('aria-controls')}`)
+      expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
+    })
+
+    // A receipt whose result is still an envelope names no child, but the adapter stamp already
+    // ties it to a launch of this message — it belongs in the list, not inline with the flow.
+    it('lists a stamp-only resume receipt as a subtask of the message it continued', () => {
+      const { container } = renderParts(
+        [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'reviewer',
+            state: 'output-available',
+            input: { description: 'Review database' },
+            output: { status: 'async_launched', taskId: 'child' }
+          },
+          {
+            type: 'tool-SendMessage',
+            toolCallId: 'resume',
+            state: 'output-available',
+            input: { to: 'child', message: 'Please continue' },
+            output: { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'resume' } },
+            providerMetadata: { cherry: { launchToolCallId: 'reviewer' } }
+          }
+        ] as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        { openAgentToolFlow: vi.fn() }
+      )
+
+      const toggle = screen.getByRole('button', { expanded: true })
+      const list = container.querySelector(`#${toggle.getAttribute('aria-controls')}`)
+      expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
+    })
+
+    // A resume row's flow is keyed by the launch it opens, not by the row's own call: while that
+    // flow is the active one the list must stay expanded, exactly as the row's click resolves it.
+    it('keeps the subtasks open while a resume row launch flow is active', () => {
+      const launch = {
+        type: 'tool-Agent',
+        toolCallId: 'reviewer',
+        state: 'output-available',
+        input: { description: 'Review database' },
+        output: { status: 'async_launched', taskId: 'child' }
+      } as CherryMessagePart
+      const receipt = {
+        type: 'tool-SendMessage',
+        toolCallId: 'resume',
+        state: 'output-available',
+        input: { to: 'child', message: 'Please continue' },
+        output: { success: true, resumedAgentId: 'child' }
+      } as CherryMessagePart
+      const launchIndex = buildAgentLaunchIndex({ 'msg-0': [launch], 'msg-1': [receipt] })
+      const actions = { openAgentToolFlow: vi.fn(), isAgentToolFlowActive: (id: string) => id === 'reviewer' }
+      finishTurn('done')
+
+      render(
+        <AgentLaunchIndexProvider value={launchIndex}>
+          {renderPartsTree([receipt], msg(), actions, undefined, [{ message: msg({ id: 'msg-0' }), parts: [launch] }])}
+        </AgentLaunchIndexProvider>
+      )
+
+      expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
     })
 
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {

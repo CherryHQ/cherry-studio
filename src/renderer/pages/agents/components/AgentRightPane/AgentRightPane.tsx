@@ -49,6 +49,8 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { AgentLaunchIndexProvider } from '@renderer/components/chat/messages/tools/agent'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
   type ArtifactPaneFileSelection,
@@ -660,6 +662,14 @@ function AgentRightPaneStateProvider({
     () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
     [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
   )
+  // The pane renders the same resume receipts as the chat list, so it needs the same index: without
+  // it a receipt cannot resolve to its launch root and stays non-navigable. Resume edges can live
+  // only in the runtime's live task cache, so they feed the index here exactly as they do there.
+  const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const launchIndex = useMemo(
+    () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
+    [lateTaskEvents, partsByMessageId]
+  )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
@@ -853,43 +863,45 @@ function AgentRightPaneStateProvider({
       <AgentRightPaneMetaContext value={meta}>
         <AgentRightPaneFileStateContext value={fileState}>
           <AgentRightPaneRuntimeContext value={runtime}>
-            <RightPanelProvider
-              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
-              scope={scope}
-              defaultPanelId={RESOURCE_PANE_TAB}
-              defaultOpen={defaultOpen}
-              onOpenChange={onOpenChange}
-              userOpenIntentSeq={userOpenIntentSeq}
-              present={present}>
-              <ResourcePaneLocateOpener revealRequest={revealRequest} />
-              <AgentRightPaneActionsProvider
-                artifactOpenRequestRef={artifactOpenRequestRef}
-                conversationState={conversationState}
-                sessionId={sessionId}
-                workspacePath={workspacePath}
-                replaceFlowTab={replaceFlowTab}
-                openBrowserUrl={openBrowserUrl}
-                closeFilePreview={closeFilePreview}
-                requestFileSelection={requestFileSelection}
-                selectFile={selectFile}
-                setFileEditMode={requestFileEditMode}
-                setFileTreeExpandedIds={setFileTreeExpandedIds}
-                setFileTreeSearchKeyword={setFileTreeSearchKeyword}
-                workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                {children}
-              </AgentRightPaneActionsProvider>
-              <ConfirmDialog
-                open={showDirtyLeaveConfirmation}
-                onOpenChange={handleDirtyLeaveConfirmationChange}
-                title={t('agent.preview_pane.edit.leave.title')}
-                description={t('agent.preview_pane.edit.leave.description')}
-                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
-                cancelText={t('common.cancel')}
-                destructive
-                confirmLoading={fileSession.isSaving}
-                onConfirm={handleDiscardAndContinue}
-              />
-            </RightPanelProvider>
+            <AgentLaunchIndexProvider value={launchIndex}>
+              <RightPanelProvider
+                capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+                scope={scope}
+                defaultPanelId={RESOURCE_PANE_TAB}
+                defaultOpen={defaultOpen}
+                onOpenChange={onOpenChange}
+                userOpenIntentSeq={userOpenIntentSeq}
+                present={present}>
+                <ResourcePaneLocateOpener revealRequest={revealRequest} />
+                <AgentRightPaneActionsProvider
+                  artifactOpenRequestRef={artifactOpenRequestRef}
+                  conversationState={conversationState}
+                  sessionId={sessionId}
+                  workspacePath={workspacePath}
+                  replaceFlowTab={replaceFlowTab}
+                  openBrowserUrl={openBrowserUrl}
+                  closeFilePreview={closeFilePreview}
+                  requestFileSelection={requestFileSelection}
+                  selectFile={selectFile}
+                  setFileEditMode={requestFileEditMode}
+                  setFileTreeExpandedIds={setFileTreeExpandedIds}
+                  setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                  workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                  {children}
+                </AgentRightPaneActionsProvider>
+                <ConfirmDialog
+                  open={showDirtyLeaveConfirmation}
+                  onOpenChange={handleDirtyLeaveConfirmationChange}
+                  title={t('agent.preview_pane.edit.leave.title')}
+                  description={t('agent.preview_pane.edit.leave.description')}
+                  confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                  cancelText={t('common.cancel')}
+                  destructive
+                  confirmLoading={fileSession.isSaving}
+                  onConfirm={handleDiscardAndContinue}
+                />
+              </RightPanelProvider>
+            </AgentLaunchIndexProvider>
           </AgentRightPaneRuntimeContext>
         </AgentRightPaneFileStateContext>
       </AgentRightPaneMetaContext>

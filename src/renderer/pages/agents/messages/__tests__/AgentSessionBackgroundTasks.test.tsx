@@ -9,7 +9,12 @@ import AgentSessionBackgroundTasks from '../AgentSessionBackgroundTasks'
 const mocks = vi.hoisted(() => ({
   backgroundTasks: [] as Array<{ id: string; type: string; description: string; toolCallId?: string }>,
   taskEvents: {} as Record<string, Record<string, unknown>>,
-  openAgentToolFlow: vi.fn()
+  openAgentToolFlow: vi.fn(),
+  launchIndex: null as null | {
+    toolCallIds: Set<string>
+    childRootCallIds: Set<string>
+    dshTaskRootCallIds: Set<string>
+  }
 }))
 
 vi.mock('@renderer/components/HorizontalScrollContainer', () => ({
@@ -28,6 +33,10 @@ vi.mock('@renderer/hooks/agent/useAgentSessionTaskEvents', () => ({
   useAgentSessionTaskEvents: () => mocks.taskEvents
 }))
 
+vi.mock('@renderer/components/chat/messages/tools/agent', () => ({
+  useAgentLaunchIndex: () => mocks.launchIndex
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { count?: number }) => `${key}:${options?.count ?? ''}`
@@ -38,6 +47,7 @@ describe('AgentSessionBackgroundTasks', () => {
   beforeEach(() => {
     mocks.backgroundTasks = []
     mocks.taskEvents = {}
+    mocks.launchIndex = null
     mocks.openAgentToolFlow.mockReset()
   })
 
@@ -86,6 +96,47 @@ describe('AgentSessionBackgroundTasks', () => {
     expect(screen.queryByText('Review database')).toBeNull()
     expect(screen.getByRole('button', { name: 'Other reply task' })).toBeVisible()
     expect(screen.getByText('Background shell')).toBeVisible()
+  })
+
+  // A cold-resumed child's row is its receipt, which lives in the message that resumed it — often
+  // older than the anchor this capsule row attaches to. The index covers the whole map, so the
+  // capsule disappears instead of duplicating a subtask that is already listed.
+  it('does not draw a capsule for a task whose row the subtask list already owns', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Review watcher freeze fix plan', toolCallId: 'call-send' }
+    ]
+    mocks.launchIndex = {
+      toolCallIds: new Set(),
+      childRootCallIds: new Set(['call-send']),
+      dshTaskRootCallIds: new Set()
+    }
+    render(
+      <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+
+    expect(screen.queryByText('Review watcher freeze fix plan')).toBeNull()
+  })
+
+  // Before the child's content arrives the call is not a child root yet, but the runtime has already
+  // bound its task to it: the list owns the row, so the capsule must not draw a second one.
+  it('does not draw a capsule for a dsh task the runtime bound to its resume call', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Review watcher freeze fix plan', toolCallId: 'call-send' }
+    ]
+    mocks.launchIndex = {
+      toolCallIds: new Set(),
+      childRootCallIds: new Set(),
+      dshTaskRootCallIds: new Set(['call-send'])
+    }
+    render(
+      <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+
+    expect(screen.queryByText('Review watcher freeze fix plan')).toBeNull()
   })
 
   it('does not reserve message space after background work ends', () => {
