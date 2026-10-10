@@ -490,6 +490,9 @@ describe('remote agent access', () => {
         durable: true,
         failure: { failure: { reasonCode: 'permission', source: { layer: 'provider' }, context: { statusCode: 403 } } }
       })
+      // The journal emits v1 snapshots: the desktop-local `stage` must not ride along,
+      // or deployed v1 peers reject the whole batch and checkpoint.
+      expect(projection.executions[receipt.executionId].failure?.failure).not.toHaveProperty('stage')
       expect(projection.messages[anchor]).toBeUndefined()
       const history = await call('agent.messages.list', {
         sessionId,
@@ -497,6 +500,7 @@ describe('remote agent access', () => {
       })
       const message = history.items.find((item: { messageId: string }) => item.messageId === anchor)
       expect(message).toMatchObject({ status: 'error', failure: projection.executions[receipt.executionId].failure })
+      expect(message.failure.failure).not.toHaveProperty('stage')
       expect(message.failure.message).toContain('OpenCode Go subscription')
       const stored = agentSessionMessageService.getSessionMessage(sessionId, anchor)
       expect(stored.data.parts?.filter((part) => part.type === 'text')).toHaveLength(partial ? 1 : 0)

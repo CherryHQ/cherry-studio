@@ -24,7 +24,7 @@ import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { toExecutionFailure, toWireExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -502,17 +502,23 @@ export class SessionJournal {
     const anchor = saved?.messageId ?? result.finalMessage?.id ?? result.anchorMessageId ?? execution.messageId
     if (!anchor) throw new Error('Terminal execution has no assistant message identity')
     const messageId = this.ensureMessage(execution, anchor)
+    // Failures cross the wire as v1 snapshots: the persisted `stage` is desktop-local
+    // and deployed v1 peers reject it, so project it away before journalling.
     const failure =
-      result.status === 'error' ? (result.failure ?? toExecutionFailure(result.error, result.modelId)) : undefined
+      result.status === 'error'
+        ? toWireExecutionFailure(result.failure ?? toExecutionFailure(result.error, result.modelId))
+        : undefined
     const persistenceFailure =
       result.persistence?.status === 'failed'
-        ? result.persistence.failure
+        ? toWireExecutionFailure(result.persistence.failure)
         : saved
           ? undefined
-          : toExecutionFailure(
-              { name: 'PersistenceError', message: 'Execution result was not saved', stack: null },
-              result.modelId,
-              'host'
+          : toWireExecutionFailure(
+              toExecutionFailure(
+                { name: 'PersistenceError', message: 'Execution result was not saved', stack: null },
+                result.modelId,
+                'host'
+              )
             )
     const stored = saved ? agentSessionMessageService.getSessionMessage(this.sessionId, messageId) : undefined
     const stats = stored
