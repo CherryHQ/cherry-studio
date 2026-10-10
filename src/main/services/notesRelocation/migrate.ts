@@ -13,14 +13,37 @@ import { assertNotesRelocationPaths, NotesRelocationValidationError } from './va
 
 const logger = loggerService.withContext('NotesRelocation')
 
+async function isDirectoryTreeEmpty(directoryPath: string): Promise<boolean> {
+  const entries = await fs.promises.readdir(directoryPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) {
+      continue
+    }
+    if (entry.isFile()) {
+      return false
+    }
+    if (entry.isDirectory()) {
+      if (!(await isDirectoryTreeEmpty(path.join(directoryPath, entry.name)))) {
+        return false
+      }
+    }
+  }
+  return true
+}
+
 async function assertNonMergeDestinationAbsent(destinationPath: string): Promise<void> {
+  let stats: fs.Stats
   try {
-    await fs.promises.lstat(destinationPath)
+    stats = await fs.promises.lstat(destinationPath)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return
     }
     throw error
+  }
+
+  if (stats.isDirectory() && (await isDirectoryTreeEmpty(destinationPath))) {
+    return
   }
 
   throw new IpcError(
@@ -178,7 +201,7 @@ export async function migrateNotesDirectory(
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, inspection.reason)
   }
 
-  if (!options.merge && inspection.targetHasFiles) {
+  if (!options.merge && inspection.target.fileCount > 0) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY, 'target already contains files')
   }
 

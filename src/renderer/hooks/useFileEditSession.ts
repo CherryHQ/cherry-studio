@@ -95,6 +95,8 @@ export interface FileEditSession {
    * next autosave through the optimistic write's version check.
    */
   notifyExternalChange: (eventMtimeMs?: number) => void
+  /** Reload from disk when the model is clean (e.g. after the notes tree reconnects). */
+  refreshFromDiskIfIdle: () => Promise<void>
 }
 
 async function readFile(handle: FileHandle): Promise<FileEditSnapshot> {
@@ -411,6 +413,28 @@ export function useFileEditSession(
     }
   }, [debouncedWrite, requestWrite])
 
+  const refreshFromDiskIfIdle = useCallback(async () => {
+    const model = modelRef.current
+    if (!model || model.draft !== model.snapshot.content) return
+    const draftBefore = model.draft
+    try {
+      const disk = await readFile(model.handle)
+      if (modelRef.current !== model) return
+      if (model.draft !== draftBefore || model.draft !== model.snapshot.content) return
+      if (disk.version.mtime < model.snapshot.version.mtime) return
+      if (disk.content === model.snapshot.content) {
+        model.snapshot = disk
+        return
+      }
+      model.snapshot = disk
+      model.draft = disk.content
+      syncFromModel(model)
+      void mutate(model.key, disk, { revalidate: false })
+    } catch (reloadError) {
+      logger.error('Idle disk refresh failed', reloadError as Error)
+    }
+  }, [mutate, syncFromModel])
+
   const notifyExternalChange = useCallback(
     (eventMtimeMs?: number) => {
       const model = modelRef.current
@@ -425,27 +449,9 @@ export function useFileEditSession(
         const floored = Math.floor(eventMtimeMs)
         if (floored === model.snapshot.version.mtime && !isAmbiguousMtime(floored)) return
       }
-      void (async () => {
-        try {
-          const disk = await readFile(model.handle)
-          if (modelRef.current !== model) return
-          if (model.draft !== model.snapshot.content) return // became dirty meanwhile
-          if (disk.version.mtime < model.snapshot.version.mtime) return // stale read (monotonic guard)
-          if (disk.content === model.snapshot.content) {
-            // Content unchanged — just advance the version baseline quietly.
-            model.snapshot = disk
-            return
-          }
-          model.snapshot = disk
-          model.draft = disk.content
-          syncFromModel(model)
-          void mutate(model.key, disk, { revalidate: false })
-        } catch (reloadError) {
-          logger.error('External-change reload failed', reloadError as Error)
-        }
-      })()
+      void refreshFromDiskIfIdle()
     },
-    [mutate, syncFromModel]
+    [refreshFromDiskIfIdle]
   )
 
   return useMemo(() => {
@@ -483,7 +489,8 @@ export function useFileEditSession(
       keepDraft,
       flush,
       cancelPendingAutosave,
-      notifyExternalChange
+      notifyExternalChange,
+      refreshFromDiskIfIdle
     }
   }, [
     handle,
@@ -502,6 +509,7 @@ export function useFileEditSession(
     keepDraft,
     flush,
     cancelPendingAutosave,
-    notifyExternalChange
+    notifyExternalChange,
+    refreshFromDiskIfIdle
   ])
 }

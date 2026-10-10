@@ -82,6 +82,7 @@ const NotesPage: FC = () => {
     discard: discardFileDraft,
     flush: flushFileDraft,
     notifyExternalChange,
+    refreshFromDiskIfIdle,
     reload: reloadFileDraft,
     setDraft: setFileDraft
   } = fileSession
@@ -108,6 +109,7 @@ const NotesPage: FC = () => {
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
+  const diskRefreshTreeIdRef = useRef<string | null>(null)
 
   // Tell the session when the watcher reports an external `change` on the file
   // being viewed — it reloads if idle, or flags a conflict if the user has
@@ -243,11 +245,14 @@ const NotesPage: FC = () => {
     if (!activeFilePath || !treeId || fileSession.isDirty) {
       return
     }
-    void reloadFileDraft().catch((error) => {
-      logger.error('Failed to refresh note after reopening Notes', error as Error)
+    if (diskRefreshTreeIdRef.current === treeId) {
+      return
+    }
+    diskRefreshTreeIdRef.current = treeId
+    void refreshFromDiskIfIdle().catch((error) => {
+      logger.error('Failed to refresh note after notes tree reconnect', error as Error)
     })
-    // Re-read disk when the directory tree reconnects; the edit session outlives the page.
-  }, [activeFilePath, fileSession.isDirty, reloadFileDraft, treeId])
+  }, [activeFilePath, fileSession.isDirty, refreshFromDiskIfIdle, treeId])
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {

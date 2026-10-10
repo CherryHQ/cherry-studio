@@ -40,10 +40,11 @@ function broadcastNotesRelocationMigrateComplete(): void {
 }
 
 function finishNotesRelocationSession(ownerId: string, sessionEpoch: number): void {
-  clearNotesRelocationSessionOwnerWindowBinding()
-  if (releaseNotesRelocationSession(ownerId, sessionEpoch)) {
-    broadcastNotesRelocationMigrateComplete()
+  if (!releaseNotesRelocationSession(ownerId, sessionEpoch)) {
+    return
   }
+  clearNotesRelocationSessionOwnerWindowBinding()
+  broadcastNotesRelocationMigrateComplete()
 }
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
