@@ -1,4 +1,6 @@
-import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import * as nodeFsPromises from 'node:fs/promises'
+
+const { chmod, mkdtemp, realpath, rm, symlink, writeFile } = nodeFsPromises
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -39,7 +41,7 @@ describe('canonicalizePathForContainment', () => {
 
     vi.resetModules()
     vi.doMock('node:fs/promises', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('node:fs/promises')>()
+      const actual = await importOriginal<typeof nodeFsPromises>()
       return {
         ...actual,
         realpath: async (p: Parameters<typeof actual.realpath>[0], options?: Parameters<typeof actual.realpath>[1]) => {
