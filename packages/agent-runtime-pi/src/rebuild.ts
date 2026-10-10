@@ -60,6 +60,8 @@ function toAssistantMessage(
 ): AssistantMessage {
   const stopReason = entry.stopReason ?? 'stop'
   if (!STOP_REASONS.has(stopReason)) throw invalid(entry.id, `unknown stop reason ${String(stopReason)}`)
+  if (![entry.errorMessage, entry.responseId].every((value) => value === undefined || typeof value === 'string'))
+    throw invalid(entry.id, 'errorMessage and responseId must be strings')
   const sameModel = entry.modelKey === model.key
   const foreign = entry.modelKey ?? 'unknown'
   return {
@@ -103,7 +105,8 @@ export function rebuildSessionEntries(
       throw invalid(undefined, 'every entry needs a non-empty string id')
     const entry = raw as unknown as TranscriptEntry
     const { id } = entry
-    if (!Number.isFinite(entry.timestamp)) throw invalid(id, 'timestamp must be a number of milliseconds')
+    if (typeof entry.timestamp !== 'number' || Number.isNaN(new Date(entry.timestamp).getTime()))
+      throw invalid(id, 'timestamp must be a number of milliseconds within the Date range')
     if (kinds.has(id)) throw new TranscriptError('duplicate_id', id, 'Duplicate transcript entry id')
     const base = { id, parentId, timestamp: new Date(entry.timestamp).toISOString() }
 
