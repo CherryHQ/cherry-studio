@@ -1,12 +1,14 @@
 import net from 'node:net'
+import os from 'node:os'
 
-import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+
 import type { AgentRuntimeEvent } from '../../types'
-import { DshBridgeServer } from '../DshBridgeServer'
+import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'
 
 const SESSION_ID = 'dsh-bridge-test-session'
 
@@ -23,6 +25,7 @@ interface Harness {
   socket: net.Socket
   transport: JsonRpcLineTransport
   events: AgentRuntimeEvent[]
+  eventSources: Array<Parameters<DshBridgeServerOptions['emit']>[1]>
   lifecycleEdges: Array<BridgeNotificationMap['subagent/lifecycle']>
   nextRequest: () => Promise<HostRequest>
 }
@@ -33,19 +36,25 @@ function makeServer(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
-  readyTimeoutMs?: number
-): { server: DshBridgeServer; events: AgentRuntimeEvent[]; lifecycleEdges: Harness['lifecycleEdges'] } {
+  readyTimeoutMs?: number,
+  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' })
+): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
+  const eventSources: Harness['eventSources'] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
-    emit: (event) => events.push(event),
+    emit: (event, source) => {
+      events.push(event)
+      eventSources.push(source)
+    },
     getInteractionState: () => ({ userResponse }),
     onToolCall,
+    onGuardCheck,
     onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
-  return { server, events, lifecycleEdges }
+  return { server, events, eventSources, lifecycleEdges }
 }
 
 /** Connect a JSON-RPC peer that records host requests; authenticates unless a token is given. */
@@ -93,13 +102,14 @@ async function connectPlugin(
 
 async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
-  onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>
+  onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
+  onGuardCheck?: DshBridgeServerOptions['onGuardCheck']
 ): Promise<Harness> {
-  const { server, events, lifecycleEdges } = makeServer(userResponse, onToolCall)
+  const { server, events, eventSources, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
-  const harness: Harness = { server, events, lifecycleEdges, ...plugin }
+  const harness: Harness = { server, events, eventSources, lifecycleEdges, ...plugin }
   harnesses.push(harness)
   return harness
 }
@@ -171,6 +181,79 @@ describe('DshBridgeServer authentication gate', () => {
 })
 
 describe('DshBridgeServer', () => {
+  it.each([undefined, 60_000])(
+    'abandons a cancelled fork flush without closing the connection (timeout %s)',
+    async (timeoutMs) => {
+      const harness = await makeHarness()
+      const controller = new AbortController()
+      const reason = new Error('fork cancelled')
+      const params = { sessionId: SESSION_ID }
+      const pending = harness.server.request('session/flush', params, { timeoutMs, signal: controller.signal })
+      let failure: unknown
+      const settled = pending.catch((error) => {
+        failure = error
+      })
+      const late = await harness.nextRequest()
+      try {
+        controller.abort(reason)
+        await vi.waitFor(() => expect(failure).toBe(reason))
+        late.respond({})
+        const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+        ;(await harness.nextRequest()).respond({})
+        await expect(retry).resolves.toEqual({})
+        expect(harness.socket.destroyed).toBe(false)
+      } finally {
+        late.respond({})
+        await settled
+      }
+    }
+  )
+
+  it('does not dispatch a flush whose signal is already aborted', async () => {
+    const harness = await makeHarness()
+    const reason = new Error('already cancelled')
+    const pending = harness.server.request(
+      'session/flush',
+      { sessionId: SESSION_ID },
+      {
+        signal: AbortSignal.abort(reason),
+        timeoutMs: 60_000
+      }
+    )
+    const failed = pending.catch((error) => error)
+    const retry = harness.server.request('session/flush', { sessionId: 'retry-session' }, { timeoutMs: 2_000 })
+    const retried = retry.catch((error) => error)
+    const request = await harness.nextRequest()
+    try {
+      expect(request.params.sessionId).toBe('retry-session')
+      request.respond({})
+      await expect(failed).resolves.toBe(reason)
+      await expect(retried).resolves.toEqual({})
+    } finally {
+      await harness.server.close()
+      await Promise.all([failed, retried])
+    }
+  })
+
+  it('times out an unanswered fork flush and still accepts a subsequent request', async () => {
+    const harness = await makeHarness()
+    const controller = new AbortController()
+    const params = { sessionId: SESSION_ID }
+    const pending = harness.server.request('session/flush', params, {
+      timeoutMs: 100,
+      signal: controller.signal
+    })
+    const failed = expect(pending).rejects.toThrow('session/flush timed out after 100ms')
+    const late = await harness.nextRequest()
+    await failed
+    late.respond({})
+    const retry = harness.server.request('session/flush', params, { timeoutMs: 2_000 })
+    ;(await harness.nextRequest()).respond({})
+    await expect(retry).resolves.toEqual({})
+    expect(harness.socket.destroyed).toBe(false)
+    expect(controller.signal.aborted).toBe(false)
+  })
+
   it('round-trips a context usage query and surfaces error responses', async () => {
     const harness = await makeHarness()
     const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })
@@ -279,6 +362,42 @@ describe('DshBridgeServer', () => {
     ).rejects.toThrow('provider unavailable')
   })
 
+  it('authenticates and validates guard/check before dispatching to the Main policy', async () => {
+    const onGuardCheck = vi.fn<DshBridgeServerOptions['onGuardCheck']>(async () => ({
+      kind: 'deny',
+      ruleId: 'user-data-sqlite-write',
+      reason: 'protected'
+    }))
+    const harness = await makeHarness('stream', undefined, onGuardCheck)
+
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: SESSION_ID,
+        toolName: 'write',
+        args: { file_path: '/tmp/user-data/app.sqlite' },
+        cwd: os.tmpdir()
+      })
+    ).resolves.toEqual({ kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected' })
+    expect(onGuardCheck).toHaveBeenCalledWith('write', { file_path: '/tmp/user-data/app.sqlite' }, os.tmpdir())
+
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: 'other-session',
+        toolName: 'write',
+        args: {},
+        cwd: os.tmpdir()
+      })
+    ).rejects.toThrow('wrong session')
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: SESSION_ID,
+        toolName: 'write',
+        args: {},
+        cwd: 'relative-workspace'
+      })
+    ).rejects.toThrow('not absolute')
+  })
+
   it('rejects a tool call addressed to another session', async () => {
     const harness = await makeHarness('stream', async () => ({ text: 'unused' }))
     await expect(
@@ -323,12 +442,14 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 17,
       toolName: 'bash',
       callId: 'call-9',
       args: { command: 'echo hi' }
     })
 
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 17 }])
     const event = harness.events[0]
     expect(event.type).toBe('tool-approval-request')
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
@@ -410,6 +531,7 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('question/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 21,
       callId: 'exit-plan-call-1',
       questions: [
         {
@@ -426,7 +548,7 @@ describe('DshBridgeServer', () => {
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
-    // Anchored to the streamed exit_plan_mode call so the card lands on its tool row.
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 21 }])
     expect(event.request).toMatchObject({
       toolCallId: 'exit-plan-call-1',
       toolName: 'exit_plan_mode',

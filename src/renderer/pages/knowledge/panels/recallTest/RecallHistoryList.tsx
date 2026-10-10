@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
 import { History, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { useRecallQuery } from './RecallTestProvider'
 
@@ -14,11 +15,11 @@ const RecallHistoryList = () => {
   return (
     <div>
       <div className="mb-0.5 flex items-center justify-between px-2 py-0.5">
-        <span className="text-foreground-tertiary text-xs leading-4">{t('knowledge.recall.history_title')}</span>
+        <span className="text-xs leading-4 text-foreground-tertiary">{t('knowledge.recall.history_title')}</span>
         <Button
           type="button"
           variant="ghost"
-          className="h-auto min-h-0 rounded-none p-0 text-muted-foreground text-xs leading-4 shadow-none transition-colors hover:bg-transparent hover:text-destructive"
+          className="h-auto min-h-0 rounded-none p-0 text-xs leading-4 text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-destructive"
           onClick={clearHistory}>
           {t('knowledge.recall.history_clear')}
         </Button>
@@ -31,12 +32,12 @@ const RecallHistoryList = () => {
           onClick={() => selectHistory(item)}>
           <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <History className="size-3.5 shrink-0 text-foreground-tertiary" />
-            <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-5">{item.query}</span>
+            <span className="min-w-0 flex-1 truncate text-sm leading-5 text-foreground">{item.query}</span>
           </button>
           <button
             type="button"
             aria-label={t('knowledge.recall.history_remove')}
-            className="shrink-0 cursor-default text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover/hist:opacity-100"
+            className="shrink-0 cursor-default text-muted-foreground opacity-0 transition-all group-hover/hist:opacity-100 hover:text-destructive"
             onClick={(event) => {
               event.stopPropagation()
               removeHistory(item.id)

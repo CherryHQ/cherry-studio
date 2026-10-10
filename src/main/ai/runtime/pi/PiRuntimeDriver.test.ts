@@ -1,7 +1,7 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import type { McpTool } from '@shared/types/mcp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { McpTool } from '@shared/types/mcp'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
@@ -67,7 +67,7 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
   })
 
   it('appends bridged MCP tools (prompt-gated) after the builtins', async () => {
-    mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' } as McpServer)
+    mocks.findByIdOrName.mockReturnValue({ id: 'srv-1', name: 'github' })
     mocks.listTools.mockReturnValue([{ name: 'search_issues', description: 'Search issues' } as McpTool])
 
     const tools = await new PiRuntimeDriver().listAvailableTools(['srv-1'])
@@ -76,7 +76,7 @@ describe('PiRuntimeDriver.listAvailableTools', () => {
     expect(mocks.listTools).toHaveBeenCalledWith('srv-1', { includeDisabled: false })
     expect(mcpTools).toEqual([
       expect.objectContaining({
-        id: expect.stringMatching(/^mcp__/),
+        id: 'mcp__srv_1__search_issues',
         name: 'search_issues',
         approval: 'prompt',
         sourceId: 'srv-1',

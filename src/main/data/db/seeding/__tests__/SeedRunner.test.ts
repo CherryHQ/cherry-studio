@@ -1,14 +1,15 @@
 import { resolve } from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
 

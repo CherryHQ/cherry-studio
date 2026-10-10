@@ -26,8 +26,21 @@ interface BuiltAgentParams {
 ```
 
 It is a standalone async orchestrator — no class or retained request state.
+It is the **chat** pipeline: its input is an `AiChatRequest` (streaming or
+not), which carries `conversation: ConversationRef { id, topicId? }` supplied
+by the caller — the stream manager passes the topic (or the trusted agent
+session), topic naming passes its topic, a health probe its own id. Every stage
+below reads it from the request: the HTTP trace, the tool `RequestContext`,
+in-loop compaction and steer-yield gates, and the header a provider declared
+via `ProviderConfig.conversationHeader`. Embedding, rerank and image requests
+never enter this pipeline; they use `resolveSdkConfig` directly.
+
+`AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
+field. `conversation.id` may instead identify the longer-lived agent session;
+non-streaming requests such as probes may omit `topicId`.
+
 Callers (chat, agent session, translate, prompt-only) shape their own
-`AiBaseRequest` and hand it in. The pipeline refines the request-local
+`AiChatRequest` and hand it in. The pipeline refines the request-local
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
@@ -100,7 +113,7 @@ request-local `sdkConfig.providerSettings.fetch` before returning it.
 
 ```
 buildAgentParams(input)
-  ├─ resolveSdkConfig         → providerToAiSdkConfig + modelId
+  ├─ resolveSdkConfig         → provider/sdkConfig: providerToAiSdkConfig + modelId
   ├─ applyHttpTrace           → optional request-local fetch wrapper
   ├─ canModelConsumeTools?    → resolveTools (registry sync + defer)
   │     └─ syncMcpToolsToRegistry  (only servers owning a selected tool)
@@ -116,6 +129,7 @@ buildAgentParams(input)
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
   └─ buildAgentOptions        → standard params + providerOptions + call overrides
                                 + reasoning-adjusted output limit
+                                + sampling filtering across all parameter surfaces
                                 + optional body-passthrough fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
@@ -133,7 +147,20 @@ options).
 Standard sampling params are assembled directly in `buildAgentOptions`;
 they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
-override them, and per-call overrides apply last.
+override them, and per-call overrides apply last. After service tier, per-call
+and Fast Mode options, and the output limit have been resolved,
+`stripRejectedSamplingParams` applies the resolved model's temperature/topP
+support and existing family policies to all three parameter surfaces:
+
+- Top-level standard parameters.
+- Direct fields in each `providerOptions` namespace.
+- Top-level body-passthrough parameters, including the wire alias `top_p`.
+
+The filter does not mutate its inputs or traverse arbitrary nested custom data.
+Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
+in `getTemperature` / `getTopP`; this final step enforces sampling omission
+regardless of which input supplied the value. Undeclared support retains the
+existing default behavior.
 
 `maxOutputTokens` uses a separate raw-limit resolution before reasoning:
 
@@ -155,7 +182,13 @@ Anthropic-compatible non-Claude models can defer to the endpoint instead of
 inheriting an SDK fallback; unrecognized Claude aliases retain the SDK's Claude
 fallback because Anthropic requires `max_tokens`.
 
-Flat provider params also pass through a request-local fetch wrapper after the
+Flat provider params and request-body service tier values are collected as data
+until sampling filtering finishes. Only then is a request-local fetch wrapper
+installed with the filtered body parameters; capturing them earlier would let
+body passthrough bypass the final capability check. Service tier values override
+custom body values, and SDK-produced fields override both.
+
+The wrapper applies the filtered parameters after the
 AI SDK serializes its JSON POST body. This preserves provider-defined wire names
 such as `snake_case` keys that an adapter schema does not recognize. Provider
 namespace bags remain exclusive to `providerOptions`, non-JSON requests are

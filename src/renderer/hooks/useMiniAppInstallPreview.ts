@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /** The card's input — an install (fresh or reinstall) or an upgrade, as main decided by version. */
 export type InstallPreview = OutputFor<'mini_app.install.preview_url'>

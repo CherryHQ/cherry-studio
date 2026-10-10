@@ -1,12 +1,22 @@
+import { EventEmitter } from 'events'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { t } from '@main/i18n'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -152,6 +162,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
+  adapter.discardResponse = vi.fn()
   adapter.notifyChatIds = []
   return adapter
 }
@@ -162,8 +173,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  */
 async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapter>, message: ChannelMessageEvent) {
   const promise = channelMessageHandler.handleIncoming(adapter, { ...message })
-  // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
-  await vi.advanceTimersByTimeAsync(10500)
+  await vi.advanceTimersByTimeAsync(1000)
   return promise
 }
 
@@ -223,6 +233,52 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
+  })
+
+  it('delivers a sanitized terminal reply when admission throws an unexpected error', async () => {
+    const adapter = createMockAdapter({ channelType: 'wecom' })
+    vi.mocked(agentSessionService.create).mockReturnValueOnce({
+      id: 'session-admission',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+    mockStartAgentSessionRun.mockRejectedValueOnce(new Error('provider secret=private'))
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello',
+      messageId: 'inbound-1'
+    })
+    expect(adapter.sendMessage.mock.calls).toEqual([
+      ['chat-1', t('common.channel_message_processing_error'), { replyToMessageId: 'inbound-1' }]
+    ])
+  })
+
+  it('leaves admitted stream errors to the listener without sending a second terminal reply', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.create).mockReturnValueOnce({
+      id: 'session-stream-error',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/test-workspace' }
+    } as any)
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }: any) => {
+      setTimeout(() => {
+        for (const listener of listeners) void listener.onError({ error: { message: 'runtime failed' } })
+      }, 1)
+      return { mode: 'started' }
+    })
+    const pending = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    })
+    await vi.advanceTimersByTimeAsync(1001)
+    await pending
+    expect(adapter.sendMessage.mock.calls).toEqual([
+      ['chat-1', t('common.channel_error', { error: 'runtime failed' }), undefined]
+    ])
   })
 
   it('settles a busy channel message and leaves the chat queue usable', async () => {
@@ -365,6 +421,133 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
 
+  it.each(['Compare these attachments', ''])('sends structured attachments with unchanged text %j', async (text) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text,
+        images: [{ media_type: 'image/png', data: Buffer.from('image bytes').toString('base64') }],
+        files: ['first file', 'second file'].map((content) => ({
+          filename: 'report #1 中文.txt',
+          media_type: 'text/plain',
+          data: Buffer.from(content).toString('base64'),
+          size: Buffer.byteLength(content)
+        }))
+      })
+
+      const parts: CherryMessagePart[] = mockStartAgentSessionRun.mock.calls[0][0].userParts
+      expect(parts.filter((part) => part.type === 'text')).toEqual(text ? [{ type: 'text', text }] : [])
+      const files = parts.filter((part) => part.type === 'file')
+      expect(files).toEqual([
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'image/png',
+          filename: expect.stringMatching(/\.png$/)
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        },
+        {
+          type: 'file',
+          url: expect.stringMatching(/^file:\/\//),
+          mediaType: 'text/plain',
+          filename: 'report #1 中文.txt'
+        }
+      ])
+      expect(new Set(files.map((file) => file.url)).size).toBe(3)
+      expect(await Promise.all(files.map((file) => readFile(new URL(file.url), 'utf8')))).toEqual([
+        'image bytes',
+        'first file',
+        'second file'
+      ])
+      const content = buildAgentUserContent({ data: { parts } } as AgentSessionMessageEntity)
+      for (const file of files) {
+        expect(content).toContain(fileURLToPath(file.url))
+        expect(content).toContain(JSON.stringify(file.filename))
+      }
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['images', 'files'] as const)('does not dispatch a turn when saving %s fails', async (kind) => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    try {
+      await writeFile(path.join(workDir, '.cherry-studio'), 'blocks attachment directory creation')
+      const adapter = createMockAdapter()
+      vi.mocked(agentSessionService.create).mockReturnValueOnce({
+        agentId: 'agent-1',
+        workspace: { path: workDir }
+      } as any)
+      simulateStream([{ type: 'text-delta', delta: 'should not run' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'Read the attachment',
+        [kind]: [
+          { filename: 'report.txt', media_type: kind === 'images' ? 'image/png' : 'text/plain', data: 'AA==', size: 1 }
+        ]
+      })
+
+      expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+      expect(adapter.sendMessage.mock.calls).toEqual([
+        ['chat-1', t('common.channel_message_processing_error'), { replyToMessageId: undefined }]
+      ])
+    } finally {
+      mockStartAgentSessionRun.mockReset()
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it('confines an image with a hostile media type to channel-images as .png', async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-images-'))
+    try {
+      const adapter = createMockAdapter()
+      const session = {
+        id: 'session-1',
+        agentId: 'agent-1',
+        agentType: 'claude-code',
+        model: 'openai::gpt-4',
+        workspace: { path: workDir },
+        configuration: {}
+      }
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'Hi',
+        images: [{ media_type: 'image/a\\..\\..\\..\\evil', data: Buffer.from('img').toString('base64') }]
+      })
+
+      const written = await readdir(path.join(workDir, '.cherry-studio', 'channel-images'))
+      expect(written).toHaveLength(1)
+      expect(written[0]).toMatch(/\.png$/)
+      expect(await readdir(workDir)).toEqual(['.cherry-studio'])
+      expect(await readdir(path.join(workDir, '.cherry-studio'))).toEqual(['channel-images'])
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
   it('skips final send when adapter handles stream completion', async () => {
     const adapter = createMockAdapter()
     const session = {
@@ -387,7 +570,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined)
+    expect(adapter.onStreamComplete).toHaveBeenCalledWith('chat-1', 'Hello world!', undefined, { status: 'success' })
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -734,6 +917,90 @@ describe('ChannelMessageHandler', () => {
     expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
   })
 
+  it('dispatches a single message after exactly one second', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    const turn = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    })
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await turn
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('dispatches a merged batch one second after the latest rapid message', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    const first = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first',
+      messageId: 'first-id'
+    })
+    await vi.advanceTimersByTimeAsync(500)
+    const second = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second',
+      messageId: 'second-id'
+    })
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.all([first, second])
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe('first\nsecond')
+    expect(adapter.discardResponse.mock.calls).toEqual([['chat-1', { replyToMessageId: 'first-id' }]])
+  })
+
+  it('flushes a sustained message burst at the original sixteen-second deadline', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+    const turns = [
+      channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'message-0'
+      })
+    ]
+
+    for (let index = 1; index <= 17; index++) {
+      await vi.advanceTimersByTimeAsync(900)
+      turns.push(
+        channelMessageHandler.handleIncoming(adapter, {
+          chatId: 'chat-1',
+          userId: 'user-1',
+          userName: 'User',
+          text: `message-${index}`
+        })
+      )
+    }
+
+    await vi.advanceTimersByTimeAsync(699)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.all(turns)
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe(
+      Array.from({ length: 18 }, (_, index) => `message-${index}`).join('\n')
+    )
+  })
+
   it('preserves first-arrival order across senders whose debounce timers expire out of order', async () => {
     const adapter = createMockAdapter()
     simulateStream([{ type: 'text-delta', delta: 'A reply' }])
@@ -745,14 +1012,14 @@ describe('ChannelMessageHandler', () => {
       userName: 'Alice',
       text: 'A1'
     })
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(100)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
     })
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(100)
     const secondA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'alice',
@@ -760,7 +1027,7 @@ describe('ChannelMessageHandler', () => {
       text: 'A2'
     })
 
-    await vi.advanceTimersByTimeAsync(9000)
+    await vi.advanceTimersByTimeAsync(1000)
     await Promise.all([firstA, B, secondA])
 
     expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2', 'B1'])
@@ -771,38 +1038,41 @@ describe('ChannelMessageHandler', () => {
     simulateStream([{ type: 'text-delta', delta: 'A reply' }])
     simulateStream([{ type: 'text-delta', delta: 'B reply' }])
 
-    const firstA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A1'
-    })
-    await vi.advanceTimersByTimeAsync(1000)
+    const turns = [
+      channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'group-1',
+        userId: 'alice',
+        userName: 'Alice',
+        text: 'A0'
+      })
+    ]
+    await vi.advanceTimersByTimeAsync(100)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
     })
-    await vi.advanceTimersByTimeAsync(6000)
-    const secondA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A2'
-    })
-    await vi.advanceTimersByTimeAsync(7000)
-    const thirdA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A3'
-    })
 
-    await vi.advanceTimersByTimeAsync(2000)
-    await Promise.all([firstA, B, secondA, thirdA])
+    for (let index = 1; index <= 17; index++) {
+      await vi.advanceTimersByTimeAsync(index === 1 ? 800 : 900)
+      turns.push(
+        channelMessageHandler.handleIncoming(adapter, {
+          chatId: 'group-1',
+          userId: 'alice',
+          userName: 'Alice',
+          text: `A${index}`
+        })
+      )
+    }
 
-    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2\nA3', 'B1'])
+    await vi.advanceTimersByTimeAsync(700)
+    await Promise.all([...turns, B])
+
+    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual([
+      Array.from({ length: 18 }, (_, index) => `A${index}`).join('\n'),
+      'B1'
+    ])
   })
 
   it('isolates threads in the same chat and preserves their reply context', async () => {

@@ -1,12 +1,13 @@
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelHealthStatus } from './modelHealthStatusCache'
@@ -28,6 +29,7 @@ const HealthAwareModelListItem: React.FC<HealthAwareModelListItemProps> = (props
 }
 
 interface ModelListSectionsProps {
+  scrollElement?: HTMLDivElement | null
   provider?: Provider
   isLoading: boolean
   hasNoModels: boolean
@@ -65,6 +67,7 @@ type ModelListVirtualRow =
     }
 
 const ModelListSections: React.FC<ModelListSectionsProps> = ({
+  scrollElement,
   provider,
   isLoading,
   hasNoModels,
@@ -166,6 +169,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
   return (
     <DynamicVirtualList
+      externalScrollElement={scrollElement}
       list={virtualRows}
       className={modelListClasses.listScroller}
       role="list"
@@ -176,7 +180,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         return MODEL_LIST_MODEL_ROW_ESTIMATE
       }}
       overscan={10}
-      isSticky={(index) => virtualRows[index]?.type === 'group'}
       getItemKey={(index) => virtualRows[index]?.key ?? index}>
       {(row) => {
         if (row.type === 'separator') {

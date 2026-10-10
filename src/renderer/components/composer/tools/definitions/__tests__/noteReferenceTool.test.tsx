@@ -1,9 +1,10 @@
+import { act, render, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { act, render, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   directoryTreeCalls: [] as Array<{ path: string | undefined; options: unknown }>,
@@ -11,20 +12,28 @@ const mocks = vi.hoisted(() => ({
   files: [] as ComposerAttachment[],
   isLoading: false,
   open: vi.fn(),
+  openRoute: vi.fn(),
   projectNotesTree: vi.fn(),
-  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
+  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[], footerActions?: unknown[]) => () => void>(
+    () => () => undefined
+  ),
   resolveNotesPath: vi.fn(),
   root: null as object | null,
   notesPath: '/notes',
   setFiles: vi.fn(),
+  symbol: 'notes',
   updateList: vi.fn(),
   version: 0
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: (...args: unknown[]) => mocks.openRoute(...args)
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => ({
     isVisible: true,
-    symbol: ComposerPanelSymbol.Notes,
+    symbol: mocks.symbol,
     updateList: mocks.updateList
   })
 }))
@@ -65,8 +74,8 @@ const note = (overrides: Partial<NotesTreeNode> = {}): NotesTreeNode => ({
   ...overrides
 })
 
-function renderRuntime() {
-  return render(
+function runtimeView() {
+  return (
     <NoteReferenceComposerRuntime
       context={
         {
@@ -80,6 +89,18 @@ function renderRuntime() {
   )
 }
 
+function renderRuntime() {
+  return render(runtimeView())
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((next) => {
+    resolve = next
+  })
+  return { promise, resolve }
+}
+
 describe('noteReferenceTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -89,7 +110,9 @@ describe('noteReferenceTool', () => {
     mocks.isLoading = false
     mocks.notesPath = '/notes'
     mocks.root = null
+    mocks.symbol = ComposerPanelSymbol.Notes
     mocks.version = 0
+    mocks.resolveNotesPath.mockReset()
     mocks.resolveNotesPath.mockImplementation(async (path: string) => ({ path, isFallback: false }))
     mocks.setFiles.mockImplementation((updater) => {
       mocks.files = typeof updater === 'function' ? updater(mocks.files) : updater
@@ -121,6 +144,10 @@ describe('noteReferenceTool', () => {
         symbol: ComposerPanelSymbol.Notes
       })
     )
+    expect(mocks.open.mock.calls.at(-1)?.[0]).not.toHaveProperty('footerActions')
+    const footerAction = mocks.registerLaunchers.mock.calls.at(-1)?.[1]?.[0] as { action: () => void }
+    await act(async () => footerAction.action())
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/notes')
     await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/notes' }))
     expect(mocks.directoryTreeCalls.at(-1)?.options).toMatchObject({ extensions: ['.md'] })
     await waitFor(() => {
@@ -179,6 +206,48 @@ describe('noteReferenceTool', () => {
     await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith(configuredPath))
     await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: resolvedPath }))
     await waitFor(() => expect(mocks.projectNotesTree).toHaveBeenCalledWith(mocks.root, resolvedPath))
+  })
+
+  it('reloads root search when the configured notes directory changes', async () => {
+    const nextPath = deferred<{ path: string; isFallback: boolean }>()
+    mocks.notesPath = '/first-notes'
+    mocks.symbol = ComposerPanelSymbol.Root
+    mocks.resolveNotesPath
+      .mockResolvedValueOnce({ path: '/first-notes', isFallback: false })
+      .mockReturnValueOnce(nextPath.promise)
+
+    const view = renderRuntime()
+    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/first-notes' }))
+
+    mocks.notesPath = '/second-notes'
+    view.rerender(runtimeView())
+
+    await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith('/second-notes'))
+    expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: undefined })
+
+    nextPath.resolve({ path: '/second-notes', isFallback: false })
+    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/second-notes' }))
+  })
+
+  it('ignores stale root-search path resolutions', async () => {
+    const firstPath = deferred<{ path: string; isFallback: boolean }>()
+    const secondPath = deferred<{ path: string; isFallback: boolean }>()
+    mocks.symbol = ComposerPanelSymbol.Root
+    mocks.resolveNotesPath.mockReturnValueOnce(firstPath.promise).mockReturnValueOnce(secondPath.promise)
+
+    const view = renderRuntime()
+    await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith('/notes'))
+
+    mocks.notesPath = '/latest-notes'
+    view.rerender(runtimeView())
+    await waitFor(() => expect(mocks.resolveNotesPath).toHaveBeenCalledWith('/latest-notes'))
+
+    secondPath.resolve({ path: '/latest-notes', isFallback: false })
+    await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/latest-notes' }))
+
+    firstPath.resolve({ path: '/notes', isFallback: false })
+    await act(async () => undefined)
+    expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/latest-notes' })
   })
 
   it('does not add a note that is already attached', async () => {

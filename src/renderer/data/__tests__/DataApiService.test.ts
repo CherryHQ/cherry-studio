@@ -1,5 +1,6 @@
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const configMock = vi.hoisted(() => ({
   isDev: true

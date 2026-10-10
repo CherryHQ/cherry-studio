@@ -1,8 +1,9 @@
-import { application } from '@application'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import fs from 'fs/promises'
 import path from 'path'
+
+import { McpServer } from '@modelcontextprotocol/server'
+
+import { application } from '@application'
 
 import {
   deleteToolDefinition,
@@ -22,100 +23,31 @@ import {
 } from './tools'
 import { expandHome, logger, normalizePath } from './types'
 
-export class FileSystemServer {
-  public server: Server
-  private baseDir: string
+export function createFileSystemServer(baseDir?: string): McpServer {
+  const root = resolveBaseDir(baseDir)
+  void fs.mkdir(root, { recursive: true }).catch((error) => {
+    logger.error('Failed to create filesystem MCP baseDir', { error, baseDir: root })
+  })
 
-  constructor(baseDir?: string) {
-    const expandedBaseDir = baseDir ? expandHome(baseDir) : undefined
-
-    if (expandedBaseDir && path.isAbsolute(expandedBaseDir)) {
-      this.baseDir = normalizePath(path.resolve(expandedBaseDir))
-      logger.info(`Using provided baseDir for filesystem MCP: ${this.baseDir}`)
-    } else {
-      this.baseDir = application.getPath('feature.mcp.workspace')
-      logger.info(`Using default workspace for filesystem MCP baseDir: ${this.baseDir}`)
-    }
-
-    this.server = new Server(
-      {
-        name: 'filesystem-server',
-        version: '2.0.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-
-    this.registerHandlers()
-    void this.ensureBaseDir()
-  }
-
-  private async ensureBaseDir() {
-    try {
-      await fs.mkdir(this.baseDir, { recursive: true })
-    } catch (error) {
-      logger.error('Failed to create filesystem MCP baseDir', { error, baseDir: this.baseDir })
-    }
-  }
-
-  private registerHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          globToolDefinition,
-          lsToolDefinition,
-          grepToolDefinition,
-          readToolDefinition,
-          editToolDefinition,
-          writeToolDefinition,
-          deleteToolDefinition
-        ]
-      }
-    })
-
-    // Register tool call handler
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      try {
-        const { name, arguments: args } = request.params
-
-        switch (name) {
-          case 'glob':
-            return await handleGlobTool(args, this.baseDir)
-
-          case 'ls':
-            return await handleLsTool(args, this.baseDir)
-
-          case 'grep':
-            return await handleGrepTool(args, this.baseDir)
-
-          case 'read':
-            return await handleReadTool(args, this.baseDir)
-
-          case 'edit':
-            return await handleEditTool(args, this.baseDir)
-
-          case 'write':
-            return await handleWriteTool(args, this.baseDir)
-
-          case 'delete':
-            return await handleDeleteTool(args, this.baseDir)
-
-          default:
-            throw new Error(`Unknown tool: ${name}`)
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Tool execution error for ${request.params.name}:`, { error })
-        return {
-          content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-          isError: true
-        }
-      }
-    })
-  }
+  const server = new McpServer({ name: 'filesystem-server', version: '2.0.0' })
+  server.registerTool('glob', globToolDefinition, (args) => handleGlobTool(args, root))
+  server.registerTool('ls', lsToolDefinition, (args) => handleLsTool(args, root))
+  server.registerTool('grep', grepToolDefinition, (args) => handleGrepTool(args, root))
+  server.registerTool('read', readToolDefinition, (args) => handleReadTool(args, root))
+  server.registerTool('edit', editToolDefinition, (args) => handleEditTool(args, root))
+  server.registerTool('write', writeToolDefinition, (args) => handleWriteTool(args, root))
+  server.registerTool('delete', deleteToolDefinition, (args) => handleDeleteTool(args, root))
+  return server
 }
 
-export default FileSystemServer
+function resolveBaseDir(baseDir?: string): string {
+  const expandedBaseDir = baseDir ? expandHome(baseDir) : undefined
+  if (expandedBaseDir && path.isAbsolute(expandedBaseDir)) {
+    const resolved = normalizePath(path.resolve(expandedBaseDir))
+    logger.info(`Using provided baseDir for filesystem MCP: ${resolved}`)
+    return resolved
+  }
+  const workspace = application.getPath('feature.mcp.workspace')
+  logger.info(`Using default workspace for filesystem MCP baseDir: ${workspace}`)
+  return workspace
+}

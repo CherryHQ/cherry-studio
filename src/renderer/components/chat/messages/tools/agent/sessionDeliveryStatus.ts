@@ -1,5 +1,6 @@
-import type { AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { TFunction } from 'i18next'
+
+import type { AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 
 const DELIVERY_STATUS_LABEL_KEYS = {
   accepted: 'agent.session_delivery.status.accepted',

@@ -1,6 +1,7 @@
-import { Button, PageSidePanel, PageSidePanelItem, PageSidePanelSection, Switch } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { Button, PageSidePanel, PageSidePanelItem, PageSidePanelSection, Switch } from '@cherrystudio/ui'
 
 const meta: Meta<typeof PageSidePanel> = {
   title: 'Components/Composites/page-side-panel',
@@ -106,7 +107,7 @@ export const SettingsPanel: Story = {
                   </Button>
                 </>
               }>
-              <div className="h-36 rounded-lg bg-muted/40 p-3 text-muted-foreground text-sm">Management content</div>
+              <div className="h-36 rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">Management content</div>
             </PageSidePanelSection>
             <PageSidePanelSection title="Preferences">
               <div className="flex flex-col gap-5">

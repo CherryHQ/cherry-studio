@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../applyContext'
 

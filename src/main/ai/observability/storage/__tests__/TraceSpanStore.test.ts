@@ -1,5 +1,6 @@
-import type { SpanEntity } from '@shared/data/types/trace'
 import { describe, expect, it } from 'vitest'
+
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import { TraceSpanStore } from '../TraceSpanStore'
 

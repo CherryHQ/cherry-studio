@@ -1,6 +1,7 @@
+import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 
 export const MODEL_SELECTOR_ROW_CLASS =
   'group relative flex h-8 w-full items-center gap-1 rounded-[10px] px-2 py-1 text-left text-xs transition-colors'
@@ -71,7 +72,7 @@ export function ModelSelectorRow({
       {showSelectedIndicator ? (
         <span
           aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-primary"
+          className="absolute top-1/2 left-0 block h-[60%] w-0.75 -translate-y-1/2 rounded-full bg-primary"
         />
       ) : null}
       <div

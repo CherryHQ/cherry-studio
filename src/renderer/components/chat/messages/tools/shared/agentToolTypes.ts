@@ -33,7 +33,6 @@ import type {
   TaskGetOutput,
   TaskListInput,
   TaskListOutput,
-  TaskOutputInput,
   TaskStopInput,
   TaskStopOutput,
   TaskUpdateInput,
@@ -47,8 +46,9 @@ import type {
   WorkflowInput,
   WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
-import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import * as z from 'zod'
+
+import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -112,7 +112,12 @@ export type TaskToolOutput = AgentOutput | TextOutput[]
 export type AgentToolInput = AgentInput
 export type AgentToolOutput = AgentOutput | TextOutput[]
 
-export type TaskOutputToolInput = TaskOutputInput
+// Historical TaskOutput messages still need rendering after the SDK removed its input type.
+export type TaskOutputToolInput = {
+  task_id: string
+  block: boolean
+  timeout: number
+}
 export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
 export type TaskStopToolInput = TaskStopInput
@@ -156,7 +161,7 @@ export type MultiEditToolInput = {
 }
 export type MultiEditToolOutput = string
 
-export type BashOutputToolInput = Partial<TaskOutputInput> & {
+export type BashOutputToolInput = Partial<TaskOutputToolInput> & {
   bash_id?: string
   filter?: string
 }
@@ -241,7 +246,7 @@ export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): bo
  */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
-  return result.success ? (result.data as AskUserQuestionToolInput) : undefined
+  return result.success ? result.data : undefined
 }
 
 export type ListMcpResourcesToolInput = ListMcpResourcesInput

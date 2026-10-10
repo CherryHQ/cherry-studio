@@ -1,25 +1,34 @@
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { omit } from 'es-toolkit/compat'
+import { ImageOff } from 'lucide-react'
+import {
+  Children,
+  isValidElement,
+  type CSSProperties,
+  type JSX,
+  type MouseEvent as ReactMouseEvent,
+  useMemo,
+  useState
+} from 'react'
+import type { Components, ExtraProps } from 'streamdown'
+
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
-import { OgCard } from '@renderer/components/OgCard'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import { omit } from 'es-toolkit/compat'
-import { ImageOff } from 'lucide-react'
-import { type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent, useMemo, useState } from 'react'
-import type { Components, ExtraProps } from 'streamdown'
-import { useIsCodeFenceIncomplete } from 'streamdown'
 
+import MarkdownHyperlink from './MarkdownHyperlink'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
-import { useMarkdownHost } from './useMarkdownHost'
+import MarkdownTable from './MarkdownTable'
+import { INLINE_CODE_CLASS, useMarkdownCode } from './useMarkdownCode'
+import { useMarkdownHost, type MarkdownHost } from './useMarkdownHost'
+import { useMarkdownStreaming } from './useMarkdownStreaming'
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
 
 const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
-const INLINE_CODE_CLASS = 'whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
   if (!node) return true
@@ -58,8 +67,14 @@ export function scrollToMarkdownAnchor(event: ReactMouseEvent<HTMLAnchorElement>
   target.scrollIntoView({ block: 'start' })
 }
 
-function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
-  const { openFilePath } = useMarkdownHost()
+export function MarkdownLinkRenderer({
+  openFilePath: fileOpener,
+  openExternalUrl: urlOpener,
+  ...props
+}: MarkdownRendererProps<'a'> & Pick<MarkdownHost, 'openFilePath' | 'openExternalUrl'>) {
+  const host = useMarkdownHost()
+  const openFilePath = fileOpener ?? host.openFilePath
+  const openExternalUrl = urlOpener ?? host.openExternalUrl
   const hostname = useMemo(() => {
     if (!props.href) return ''
     try {
@@ -69,7 +84,6 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
       return ''
     }
   }, [props.href])
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   if (props.href?.startsWith('#')) {
     return (
@@ -102,15 +116,10 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
     )
   }
 
-  const link = (() => {
-    try {
-      return decodeURIComponent(props.href ?? '')
-    } catch {
-      return props.href ?? ''
-    }
-  })()
   const linkContent =
-    hostname && shouldShowMarkdownLinkFavicon(props.node) ? (
+    hostname &&
+    !Children.toArray(props.children).some((child) => isValidElement(child) && child.type === Favicon) &&
+    shouldShowMarkdownLinkFavicon(props.node) ? (
       <>
         <span
           className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
@@ -128,70 +137,51 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
       target="_blank"
       rel="noreferrer"
       className={cn('text-link', !props.className && 'hover:underline', props.className)}
-      onClick={(event) => event.stopPropagation()}>
+      onClick={(event) => {
+        event.stopPropagation()
+        props.onClick?.(event)
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey ||
+          !hostname ||
+          !openExternalUrl
+        )
+          return
+        event.preventDefault()
+        void openExternalUrl(props.href!)
+      }}>
       {linkContent}
     </a>
   )
 
-  if (!link) return anchor
-
   return (
-    <HoverCard openDelay={1500} closeDelay={100} onOpenChange={setPreviewOpen}>
-      <HoverCardTrigger asChild>
-        <span className="inline">{anchor}</span>
-      </HoverCardTrigger>
-      <HoverCardContent className="w-auto max-w-none overflow-hidden rounded-lg p-0" sideOffset={0}>
-        <OgCard link={link} show={previewOpen} />
-      </HoverCardContent>
-    </HoverCard>
+    <MarkdownHyperlink href={props.href ?? ''} onOpenLink={hostname ? openExternalUrl : undefined}>
+      {anchor}
+    </MarkdownHyperlink>
   )
 }
 
 function MarkdownCodeRenderer({ children: rawChildren, className, node: _node }: MarkdownRendererProps<'code'>) {
   void _node
-  const children = typeof rawChildren === 'string' ? rawChildren : String(rawChildren ?? '')
-  const languageMatch = /language-([\w-+]+)/.exec(className || '')
-  const isMultiline = children.includes('\n')
-  const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
-  const language = useMemo(
-    () =>
-      detectedLanguage !== 'xml'
-        ? detectedLanguage
-        : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(children)
-          ? 'svg'
-          : detectedLanguage,
-    [children, detectedLanguage]
-  )
-  const isIncomplete = useIsCodeFenceIncomplete()
+  const { text, language, isIncomplete } = useMarkdownCode(rawChildren, className)
+  const isStreaming = useMarkdownStreaming()
 
   if (language === null) {
-    return <code className={cn(className, INLINE_CODE_CLASS)}>{children}</code>
+    return <code className={cn(className, INLINE_CODE_CLASS)}>{rawChildren}</code>
   }
 
   return (
-    <CodeBlockView language={language} editable={false} allowExecution={false} isStreaming={isIncomplete}>
-      {children}
+    <CodeBlockView
+      language={language}
+      editable={false}
+      allowExecution={false}
+      isStreaming={isStreaming || isIncomplete}>
+      {text}
     </CodeBlockView>
-  )
-}
-
-function MarkdownTableRenderer({ children }: MarkdownRendererProps<'table'>) {
-  return (
-    <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full">
-      <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
-        <table
-          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
-          style={{
-            border: '0.5px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            borderSpacing: 0,
-            margin: 0,
-            overflow: 'hidden'
-          }}>
-          {children}
-        </table>
-      </div>
-    </div>
   )
 }
 
@@ -245,7 +235,7 @@ function MarkdownParagraphRenderer({ node, ...props }: MarkdownRendererProps<'p'
 const MARKDOWN_COMPONENTS = {
   a: MarkdownLinkRenderer,
   code: MarkdownCodeRenderer,
-  table: MarkdownTableRenderer,
+  table: MarkdownTable,
   img: MarkdownImageRenderer,
   pre: MarkdownPreRenderer,
   p: MarkdownParagraphRenderer,

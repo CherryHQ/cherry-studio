@@ -51,9 +51,7 @@ beforeEach(() => {
   vi.resetModules()
   crashReporterStartMock.mockReset()
   appOnMock.mockReset()
-  processOnMock
-    .mockReset()
-    .mockImplementation(() => process)
+  processOnMock.mockReset().mockImplementation(() => process)
   // Swap process.on with our observable stub. Cast through unknown to
   // sidestep the overloaded EventEmitter.on signature.
   ;(process as unknown as { on: typeof processOnMock }).on = processOnMock
