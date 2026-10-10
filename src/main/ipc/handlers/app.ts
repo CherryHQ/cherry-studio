@@ -136,12 +136,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     assertNotesRelocationSessionOwner(senderId, sessionEpoch)
     setNotesRelocationMigrateInFlight(true)
     try {
-      const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
-      finishNotesRelocationSession(senderId, sessionEpoch)
-      return result
-    } catch (error) {
-      finishNotesRelocationSession(senderId, sessionEpoch)
-      throw error
+      return await migrateNotesDirectory(sourcePath, targetPath, { merge })
     } finally {
       setNotesRelocationMigrateInFlight(false)
     }

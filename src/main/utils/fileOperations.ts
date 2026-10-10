@@ -18,10 +18,18 @@ const MAX_RECURSION_DEPTH = 1000
  * @param depth - Current recursion depth (internal use)
  * @throws If copy operation fails or paths are invalid
  */
+type CopyDirectoryRecursiveOptions = {
+  allowedBasePath?: string
+  allowedSourceBasePath?: string
+  allowedDestinationBasePath?: string
+  skipExistingFiles?: boolean
+  exclusiveFileCopies?: boolean
+}
+
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string; skipExistingFiles?: boolean; exclusiveFileCopies?: boolean },
+  options?: CopyDirectoryRecursiveOptions,
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -38,14 +46,13 @@ export async function copyDirectoryRecursive(
     throw new Error(`Maximum recursion depth exceeded: ${MAX_RECURSION_DEPTH}`)
   }
 
-  // Path validation - ensure operations stay within allowed boundaries
-  if (options?.allowedBasePath) {
-    if (!isPathInside(source, options.allowedBasePath)) {
-      throw new Error(`Source path is outside allowed directory: ${source}`)
-    }
-    if (!isPathInside(destination, options.allowedBasePath)) {
-      throw new Error(`Destination path is outside allowed directory: ${destination}`)
-    }
+  const allowedSourceBasePath = options?.allowedSourceBasePath ?? options?.allowedBasePath
+  const allowedDestinationBasePath = options?.allowedDestinationBasePath ?? options?.allowedBasePath
+  if (allowedSourceBasePath && !isPathInside(source, allowedSourceBasePath)) {
+    throw new Error(`Source path is outside allowed directory: ${source}`)
+  }
+  if (allowedDestinationBasePath && !isPathInside(destination, allowedDestinationBasePath)) {
+    throw new Error(`Destination path is outside allowed directory: ${destination}`)
   }
 
   try {

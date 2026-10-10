@@ -256,7 +256,8 @@ export async function migrateNotesDirectory(
 
   const copyOptions = {
     ...(options.merge ? { skipExistingFiles: true as const } : { exclusiveFileCopies: true as const }),
-    allowedBasePath: resolvedTarget
+    allowedSourceBasePath: resolvedSource,
+    allowedDestinationBasePath: resolvedTarget
   }
 
   try {
@@ -286,7 +287,7 @@ export async function migrateNotesDirectory(
       if (targetEntry?.isSymbolicLink()) {
         throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
       }
-      if (targetEntry && copyOptions?.skipExistingFiles) {
+      if (targetEntry && options.merge) {
         continue
       }
       if (!options.merge) {
