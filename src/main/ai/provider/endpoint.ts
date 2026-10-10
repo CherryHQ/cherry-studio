@@ -3,15 +3,20 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
+import { endpointImpliedCapability, MODEL_CAPABILITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getRawModelId } from '@shared/utils/model'
+import { getLowerBaseModelName, getRawModelId } from '@shared/utils/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
+
+/** Whether endpoint resolution serves in-app chat or OpenAI-compatible image transport. */
+export type ResolveEndpointIntent = 'chat' | 'image'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -37,6 +42,42 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
   return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
 }
 
+/** New API listings often put `openai` before vendor-native protocols; pick the native wire when configured. */
+function resolveNewApiModelEndpoint(
+  provider: Provider,
+  model: Model,
+  intent: ResolveEndpointIntent
+): EndpointType | undefined {
+  const endpointTypes = model.endpointTypes
+  if (!endpointTypes?.length || !isNewApiProvider(provider)) return endpointTypes?.[0]
+
+  const primaryEndpoint = endpointTypes[0]
+  if (endpointImpliedCapability(primaryEndpoint) !== undefined) {
+    return primaryEndpoint
+  }
+
+  if (intent === 'image') {
+    const imageEndpoint = endpointTypes.find(
+      (endpointType) =>
+        endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION &&
+        provider.endpointConfigs?.[endpointType]
+    )
+    return imageEndpoint ?? primaryEndpoint
+  }
+
+  const modelId = getLowerBaseModelName(getRawModelId(model))
+  const pick = (endpointType: EndpointType, matches: boolean): EndpointType | undefined =>
+    matches && endpointTypes.includes(endpointType) && provider.endpointConfigs?.[endpointType]
+      ? endpointType
+      : undefined
+
+  return (
+    pick(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, VENDOR_PATTERNS.gemini.test(modelId)) ??
+    pick(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, VENDOR_PATTERNS.anthropic.test(modelId)) ??
+    endpointTypes[0]
+  )
+}
+
 /**
  * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
  * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
@@ -54,7 +95,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  intent: ResolveEndpointIntent = 'chat'
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
   const preferred =
@@ -64,7 +106,10 @@ export function resolveEffectiveEndpoint(
       ? preferredEndpointType
       : undefined
   const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+    preferred ??
+    resolveNewApiModelEndpoint(provider, model, intent) ??
+    gatewayRoute?.endpointType ??
+    provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
