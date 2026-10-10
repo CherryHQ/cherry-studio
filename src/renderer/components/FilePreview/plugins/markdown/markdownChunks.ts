@@ -85,6 +85,35 @@ const DEFINITION_CONTAINER = /^(?:(?:[ \t]*>)+[ \t]*|(?:[ \t]*[-+*]|[ \t]*\d{1,9
  */
 const QUOTE_MARKER = /^ {0,3}>[ \t]?/
 
+/**
+ * A fenced code block opened behind block quote markers, or null. The fence belongs to the quote
+ * its markers open: every line carrying those markers is its content — a definition-looking line
+ * among them is code the parser never reads — and the fence ends when the quote does, because a
+ * line the markers do not reproduce starts a block outside, where a fence cannot follow.
+ */
+function openQuotedFence(line: string): { fence: Fence; quotes: number } | null {
+  if (!QUOTE_MARKER.test(line)) return null
+  let content = line
+  let quotes = 0
+  for (let marker = QUOTE_MARKER.exec(content); marker; marker = QUOTE_MARKER.exec(content)) {
+    content = content.slice(marker[0].length)
+    quotes += 1
+  }
+  const fence = parseFence(content)
+  return fence ? { fence, quotes } : null
+}
+
+/** The line past its first `count` block quote markers, or null when it carries fewer than that. */
+function afterQuoteMarkers(line: string, count: number): string | null {
+  let content = line
+  for (let quote = 0; quote < count; quote += 1) {
+    const marker = QUOTE_MARKER.exec(content)
+    if (!marker) return null
+    content = content.slice(marker[0].length)
+  }
+  return content
+}
+
 /** A line opening a block quote: a marker at three columns or less, at any depth of nesting. */
 const QUOTE_START = /^ {0,3}>/
 
@@ -173,6 +202,30 @@ const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[
  * below the one it opens on, and only the closing delimiter ends it.
  */
 const LINK_TITLE_OPEN = /^[ \t]*(?:"(?:\\.|[^"\\\n])*|'(?:\\.|[^'\\\n])*|\((?:\\.|[^)\\\n])*)$/
+
+/** The delimiter a title opened with, as the one that has to close it. */
+function titleClosingDelimiter(text: string): string {
+  const opening = /^[ \t]*("|'|\()/.exec(text)
+  return opening ? (opening[1] === '(' ? ')' : opening[1]) : ''
+}
+
+/**
+ * How a line below leaves a title that is still open. The title's content admits no unescaped
+ * closing delimiter, so the first one on a line ends the title when only whitespace follows it and
+ * can never be recovered from otherwise. A backslash escapes the character after it, and one at a
+ * line's end escapes the space that joins the lines, so every line starts unescaped.
+ */
+function scanTitleContinuation(line: string, close: string): 'closed' | 'open' | 'dead' {
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+    if (character === '\\') {
+      index += 1
+    } else if (character === close) {
+      return /^[ \t]*$/.test(line.slice(index + 1)) ? 'closed' : 'dead'
+    }
+  }
+  return 'open'
+}
 
 /** Whether a bare destination's unescaped parentheses balance, as the parser requires of one. */
 function balancedParens(text: string): boolean {
@@ -455,7 +508,11 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // lines are measured from the column its content begins at, so that column gates them. Counted in
   // columns: a tab inside a marker advances to the next stop, so `-\t` spans four of them.
   const labelColumn = start !== null && /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(start[0]) ? columnCount(start[0]) : -1
-  const label = LINK_DEFINITION_LABEL.exec(start ? lines[index].slice(start[0].length) : lines[index])
+  // Without a container the label may sit at up to three columns of indent — the deepest the parser
+  // still reads as a definition. A fourth column, or a tab — which spans four of them — leaves the
+  // line in indented code, where no definition opens.
+  const definitionSource = start ? lines[index].slice(start[0].length) : lines[index].replace(/^ {1,3}(?=\[)/, '')
+  const label = LINK_DEFINITION_LABEL.exec(definitionSource)
   // A label the parser would refuse — one of whitespace alone — leaves the line a paragraph.
   if (!label || !/[^\s]/.test(label[1])) return null
   const body = [`[${label[1]}]:${label[2]}${label[3]}`]
@@ -479,24 +536,33 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // Whatever is left on the destination's line has to be a title, but the title may wrap: the parser
   // closes it on whichever line carries the closing delimiter, so one that is still open here is
   // taken from the lines below rather than rejected. Anything that is neither closed nor open, and
-  // any title that never closes, is a paragraph rather than a definition.
-  let title: string | undefined = /^[ \t]*$/.test(tail) ? undefined : tail
-  if (title === undefined) {
+  // any title that never closes, is a paragraph rather than a definition. The closing delimiter is
+  // then tracked a line at a time — retesting the whole title for every line below it rescans an
+  // ever-longer string, so a title left open across a long document would cost its length squared.
+  let titleClose: string | null = null
+  let titleClosed = false
+  if (/^[ \t]*$/.test(tail)) {
     const below = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
-      title = below
+      titleClose = titleClosingDelimiter(below)
+      titleClosed = LINK_TITLE.test(below)
       body.push(below)
       span += 1
     }
-  } else if (!LINK_TITLE.test(title) && !LINK_TITLE_OPEN.test(title)) {
+  } else if (LINK_TITLE.test(tail) || LINK_TITLE_OPEN.test(tail)) {
+    titleClose = titleClosingDelimiter(tail)
+    titleClosed = LINK_TITLE.test(tail)
+  } else {
     return null
   }
-  while (title !== undefined && !LINK_TITLE.test(title)) {
+  while (titleClose !== null && !titleClosed) {
     const next = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (next === undefined) return null
+    const scan = scanTitleContinuation(next, titleClose)
+    if (scan === 'dead') return null
     body.push(next)
     span += 1
-    title = `${title} ${next}`.trim()
+    titleClosed = scan === 'closed'
   }
   return { text: body.join('\n'), lines: span }
 }
@@ -718,6 +784,11 @@ export function splitMarkdownChunks(
   let dollarFence = 0
   let mathRun: MathRun | null = null
   let htmlTerminator: RegExp | null = null
+  // A block-level HTML block (a type-6 tag, the raw types having their own terminator above) runs to
+  // the next blank line, and everything it holds is HTML the parser reads as text — no definition
+  // opens inside it and nothing else opens there either.
+  let htmlBlankBlock = false
+  let quotedFence: { fence: Fence; quotes: number } | null = null
   let inDefinition = false
   let footnoteDefinition = false
   let run: ListRun | null = null
@@ -735,6 +806,18 @@ export function splitMarkdownChunks(
     if (htmlTerminator) {
       if (htmlTerminator.test(line)) htmlTerminator = null
       continue
+    }
+    if (htmlBlankBlock) {
+      if (!blank) continue
+      htmlBlankBlock = false
+    }
+    if (quotedFence) {
+      const inside = afterQuoteMarkers(line, quotedFence.quotes)
+      if (inside !== null) {
+        if (isClosingFence(inside, quotedFence.fence)) quotedFence = null
+        continue
+      }
+      quotedFence = null
     }
     if (mathRun) {
       mathRun = trackMathRun(mathRun, line)
@@ -765,6 +848,17 @@ export function splitMarkdownChunks(
     const math = openMathRun(line)
     if (math) {
       mathRun = math
+      inDefinition = false
+      continue
+    }
+    const quoted = openQuotedFence(line)
+    if (quoted) {
+      quotedFence = quoted
+      inDefinition = false
+      continue
+    }
+    if (opensHtmlBlock(line)) {
+      htmlBlankBlock = true
       inDefinition = false
       continue
     }
