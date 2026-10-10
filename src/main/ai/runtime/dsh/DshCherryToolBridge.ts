@@ -25,8 +25,10 @@ export interface DshCherryToolBridge {
    * Denial-rule string → the runtime name(s) this bridge registered for it. Keys: the
    * name-form rule `mcp__<server name>__<raw tool>` (two pairs can flatten to one string —
    * their candidates merge, fail-closed), the exact pair identity `<server name>\0<raw tool>`,
-   * and pre-name runtime aliases rebuilt from mounted-server ids (wire-safe and hashed forms)
-   * so denials saved under uuid-keyed names follow the server to its current identity.
+   * the allocated runtime names themselves (a denial saved at runtime is the registered name,
+   * which another pair's name-form rule can flatten onto), and pre-name runtime aliases
+   * rebuilt from mounted-server ids (wire-safe and hashed forms) so denials saved under
+   * uuid-keyed names follow the server to its current identity.
    */
   readonly ruleNames: ReadonlyMap<string, readonly string[]>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
@@ -184,6 +186,12 @@ function buildDshCherryRuleNameLookup(
   for (const { serverKey, rawTool, runtimeName } of identities) {
     addRule(`mcp__${serverKey}__${rawTool}`, runtimeName)
     addRule(`${serverKey}\u0000${rawTool}`, runtimeName)
+    // The registered runtime name itself is a saved denial string: a user disabling a tool at
+    // runtime writes exactly this string. Another pair's name-form rule can flatten onto it
+    // (B `oldServer`/`run_4f7413c24ae4` vs A `Old server`/`run`), so the runtime identity must
+    // claim its own name too — otherwise translation rewrites A's denial onto B's allocation
+    // and the exact-match policy lets the explicitly disabled tool execute.
+    addRule(runtimeName, runtimeName)
     const siblings = rawToolsByKey.get(serverKey)
     if (siblings) siblings.push({ rawTool, runtimeName })
     else rawToolsByKey.set(serverKey, [{ rawTool, runtimeName }])

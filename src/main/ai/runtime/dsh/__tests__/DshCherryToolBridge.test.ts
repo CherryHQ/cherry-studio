@@ -218,6 +218,49 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('keeps a saved runtime-name denial blocking its own tool when another pair flattens onto it', async () => {
+    // A (`Old server`/`run`) registers the lossy `mcp__oldServer__run_4f7413c24ae4`; B
+    // (`oldServer`/`run_4f7413c24ae4`) is provider-safe and flattens to that exact string.
+    // A denial saved under A's runtime name must keep blocking A — the runtime identity
+    // claims its own name in the fail-closed candidate map instead of B's name-form rule
+    // alone rewriting the denial onto B's allocation.
+    const uuidA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const uuidB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const serverA = createServer([tool('run')], async () => ({ content: [{ type: 'text', text: 'a' }] }))
+    const serverB = createServer([tool('run_4f7413c24ae4')], async () => ({
+      content: [{ type: 'text', text: 'b' }]
+    }))
+    const bridge = await buildDshCherryToolBridge(
+      {
+        a: { id: uuidA, name: 'Old server', connect: serverA.connect },
+        b: { id: uuidB, name: 'oldServer', connect: serverB.connect }
+      },
+      {
+        ...bridgeOptions(),
+        serverNameById: new Map([
+          [uuidA, 'Old server'],
+          [uuidB, 'oldServer']
+        ])
+      }
+    )
+
+    const [aRuntime, bRuntime] = bridge.tools.map(({ name }) => name)
+    expect(aRuntime).toBe('mcp__oldServer__run_4f7413c24ae4')
+    expect(bRuntime).not.toBe(aRuntime)
+
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    const translated = translateMcpToolRulesToRuntimeNames(
+      [aRuntime],
+      new Map([
+        [uuidA, 'Old server'],
+        [uuidB, 'oldServer']
+      ]),
+      bridge.ruleNames
+    )
+    expect(translated).toEqual([aRuntime, bRuntime])
+    await bridge.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],

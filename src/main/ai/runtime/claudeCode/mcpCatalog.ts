@@ -13,7 +13,8 @@ import {
   type AgentNotificationContext,
   buildAgentMcpServers,
   type LinkedChannelSnapshot,
-  type McpServerSnapshotMap
+  type McpServerSnapshotMap,
+  resolveMountedAgentMcpServers
 } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -64,10 +65,18 @@ function addMcpToolMetadataAlias(
   key: string | undefined,
   metadata: McpToolDisplayMetadata
 ): void {
-  if (!key) return
+  // First claim wins: the runtime-key pass runs before the compatibility aliases, and no
+  // alias may overwrite it (two servers can share a configured name; only one registers
+  // under it).
+  if (!key || Object.hasOwn(metadataByName, key)) return
   metadataByName[key] = metadata
 }
 
+/**
+ * Compatibility aliases the CLI may use to name a tool (catalog id, uuid-keyed forms, raw and
+ * camelized configured-name forms). Never overwrite: the authoritative runtime-key entries are
+ * written first and a same-named server's aliases must not steal its identity.
+ */
 function addMcpToolMetadataAliases(
   metadataByName: Record<string, McpToolDisplayMetadata>,
   server: McpServer,
@@ -138,20 +147,36 @@ export async function buildMcpToolMetadata(
   const mcpIds = agent.mcps
   if (!mcpIds?.length) return undefined
 
-  const metadataByName: Record<string, McpToolDisplayMetadata> = {}
   const mcpService = application.get('McpCatalogService')
-
-  for (const mcpId of mcpIds) {
+  // Same allocation the record builder uses: the key a server registers under is the only
+  // authority for which metadata a runtime tool name (`mcp__<key>__<tool>`) resolves to.
+  const mounted = resolveMountedAgentMcpServers(agent).flatMap(({ mcpId, legacyServer, key }) => {
     try {
-      const server = mcpServerService.findByIdOrName(mcpId)
-      if (!server) continue
-
-      const tools = mcpService.listTools(server.id)
-      for (const tool of tools) {
-        addMcpToolMetadataAliases(metadataByName, server, tool)
-      }
+      return [{ server: legacyServer, key, tools: mcpService.listTools(legacyServer.id) }]
     } catch (error) {
       logger.warn('Failed to build MCP tool display metadata', { mcpId, error })
+      return []
+    }
+  })
+
+  const metadataByName: Record<string, McpToolDisplayMetadata> = {}
+  // Authoritative pass: the allocated runtime key claims its tool names before any alias.
+  for (const { server, key, tools } of mounted) {
+    for (const tool of tools) {
+      const metadata: McpToolDisplayMetadata = {
+        type: 'mcp',
+        serverId: server.id,
+        serverName: server.name,
+        name: tool.name,
+        description: tool.description
+      }
+      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${tool.name}`, metadata)
+      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${toCamelCase(tool.name)}`, metadata)
+    }
+  }
+  for (const { server, tools } of mounted) {
+    for (const tool of tools) {
+      addMcpToolMetadataAliases(metadataByName, server, tool)
     }
   }
 

@@ -64,7 +64,7 @@ export interface AgentNotificationContext {
  * and legacy denial-rule translation, so a saved rule always translates to the exact key the
  * server registers under.
  */
-function resolveMountedAgentMcpServers(
+export function resolveMountedAgentMcpServers(
   agent: Pick<AgentEntity, 'mcps'>,
   mcpServerSnapshots?: McpServerSnapshotMap
 ): Array<{ mcpId: string; legacyServer: McpServerEntity; key: string }> {
