@@ -84,9 +84,11 @@ files:
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/**"
+  - "resources/devtools/main-network/**" # Main Network panel (Developer Mode)
 asarUnpack:
   - resources/**
   - "!resources/devtools/**"
+  - "resources/devtools/main-network/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
   # DSH runs under bundled Bun: bundle its JS and unpack native/runtime files.
