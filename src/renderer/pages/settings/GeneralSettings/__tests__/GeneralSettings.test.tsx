@@ -176,6 +176,7 @@ describe('GeneralSettings', () => {
     const preset = screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' })
     expect(preset).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'settings.agent.language.custom_label' })).toHaveValue('')
+    expect(screen.queryByText('settings.agent.language.description')).not.toBeInTheDocument()
   })
 
   it('persists the agent reply language preset', async () => {
