@@ -2334,6 +2334,35 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('internal')
     })
 
+    it('does not append a stray suffix when a streamed block is reconciled against an assistant snapshot', () => {
+      const { adapter, parts } = createAdapter()
+      const raw = '<thinking>hidden</thinking>\nVisible'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: raw } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: raw }]
+        }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+    })
+
     it('suppresses scratchpad wrappers split across a whitespace-only first delta', () => {
       const { adapter, parts } = createAdapter()
 

@@ -15,6 +15,7 @@ describe('scratchpadText', () => {
     expect(textStartsWithModelScratchpadTag('<div>markup</div>')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<thinking-note>ordinary markup</thinking-note>')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<thinking />')).toBe(false)
+    expect(textStartsWithModelScratchpadTag('<thinking mode="demo" />')).toBe(false)
     expect(textStartsWithModelScratchpadTag('<thinking data="path/foo">plan</thinking>')).toBe(true)
   })
 
@@ -109,6 +110,22 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toContain('<analysis-note>keep</analysis-note>')
     expect(stripModelScratchpadBlocks(input)).toContain('answer')
     expect(stripModelScratchpadBlocks(input)).not.toContain('hidden')
+  })
+
+  it('preserves attributed self-closing scratchpad tags while stripping paired wrappers', () => {
+    const input = 'Example: <thinking mode="demo" /> should stay. <thinking>internal</thinking> Actual summary.'
+    expect(stripKnownModelScratchpadBlocks(input)).toBe(
+      'Example: <thinking mode="demo" /> should stay.  Actual summary.'
+    )
+  })
+
+  it('preserves fenced scratchpad literals inside blockquote-indented fences', () => {
+    const input = `<summary>
+> ~~~xml
+> <thinking>literal example</thinking>
+> ~~~
+</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
   })
 
   it('preserves fenced scratchpad literals when the closing fence uses CRLF', () => {
