@@ -40,7 +40,7 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => {
     void ipcApi
-      .request('app.notes_relocation.sync_state', undefined)
+      .request('app.notes_relocation.sync_state')
       .then(({ migrationLocked }) => {
         if (migrationLocked && !notesEditFlushService.getMigrationLocked()) {
           notesEditFlushService.beginMigrationLock()
@@ -52,7 +52,14 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
   const pendingMigrationLockAckRef = useRef<string | null>(null)
 
   useIpcOn('app.notes_relocation.migration_started', ({ batchId }) => {
+    const wasLocked = notesEditFlushService.getMigrationLocked()
     notesEditFlushService.beginMigrationLock()
+    if (wasLocked) {
+      void ipcApi
+        .request('app.notes_relocation.migration_lock_ack', { batchId, ok: true })
+        .catch((error) => logger.warn('Failed to acknowledge notes migration lock', error as Error))
+      return
+    }
     pendingMigrationLockAckRef.current = batchId
   })
 

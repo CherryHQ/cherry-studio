@@ -140,7 +140,17 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_permanent_delete_from_trash': async ({ ids }) =>
     application.get('FileManager').batchPermanentDeleteFromTrash(ids),
   'file.batch_remove_from_library': async ({ ids }) => application.get('FileManager').batchRemoveFromLibrary(ids),
-  'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
+  'file.rename': async ({ id, newName }) =>
+    withNotesFilesystemMutation(async () => {
+      const fileManager = application.get('FileManager')
+      try {
+        const physicalPath = fileManager.getPhysicalPath(id)
+        assertNotesPathNotMutatingDuringMigration(physicalPath)
+      } catch {
+        // Internal entries use managed storage paths outside the notes roots.
+      }
+      return fileManager.rename(id, newName)
+    }),
   // Guard the destination only: sources legitimately live inside managed storage
   // (attachments, generated images) and copying reads them without mutating.
   'file.copy': async ({ sourcePath, destPath }, { senderId }) => {
