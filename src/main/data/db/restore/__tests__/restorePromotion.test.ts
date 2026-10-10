@@ -577,10 +577,10 @@ describe('runRestorePromotion', () => {
 
     await runRestorePromotion()
 
-    // Old DB is live again; the broken candidate is retained for forensics.
+    // Old DB is live again; the failed candidate is removed after rollback.
     expect(readMarker(livePath())).toBe('old')
     const workFailed = readdirSync(userData).filter((name) => name.includes(`work-failed-${RID}`))
-    expect(workFailed).toHaveLength(1)
+    expect(workFailed).toHaveLength(0)
     // ALL file operations undone — note aside restored, every add removed.
     expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
     expect(existsSync(noteAside())).toBe(false)

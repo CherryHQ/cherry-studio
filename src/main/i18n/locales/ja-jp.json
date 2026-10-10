@@ -65,6 +65,8 @@
   "appMenu.zoom": "ズーム",
   "appMenu.zoomIn": "ズームイン",
   "appMenu.zoomOut": "ズームアウト",
+  "backup.restore_failed.message": "バックアップを復元できませんでした。既存のデータは保持されています。もう一度復元してください。問題が続く場合は、アプリのログを確認してください。",
+  "backup.restore_failed.title": "バックアップの復元に失敗しました",
   "chat.conversation.new": "新しいチャット",
   "common.channel_available_commands": "利用可能なコマンド：",
   "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",

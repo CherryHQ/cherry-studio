@@ -65,6 +65,8 @@
   "appMenu.zoom": "縮放",
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "縮小",
+  "backup.restore_failed.message": "無法還原備份，原有資料已保留。請重試還原；如果問題持續，請查看應用程式日誌。",
+  "backup.restore_failed.title": "備份還原失敗",
   "chat.conversation.new": "新對話",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { closeSync, createReadStream, openSync, readSync } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 
 /**
@@ -12,5 +12,21 @@ import { pipeline } from 'node:stream/promises'
 export async function hashDbFile(filePath: string): Promise<string> {
   const hash = createHash('sha256')
   await pipeline(createReadStream(filePath), hash)
+  return hash.digest('hex')
+}
+
+// Preboot must not yield to Chromium's ready handlers, which can lock the profile.
+export function hashDbFileSync(filePath: string): string {
+  const hash = createHash('sha256')
+  const buffer = Buffer.allocUnsafe(1024 * 1024)
+  const fd = openSync(filePath, 'r')
+  try {
+    let bytesRead: number
+    while ((bytesRead = readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, bytesRead))
+    }
+  } finally {
+    closeSync(fd)
+  }
   return hash.digest('hex')
 }

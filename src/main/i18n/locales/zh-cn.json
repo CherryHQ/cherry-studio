@@ -65,6 +65,8 @@
   "appMenu.zoom": "缩放",
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "缩小",
+  "backup.restore_failed.message": "无法恢复备份，原有数据已保留。请重试恢复；如果问题持续，请查看应用日志。",
+  "backup.restore_failed.title": "备份恢复失败",
   "chat.conversation.new": "新对话",
   "common.channel_available_commands": "可用命令：",
   "common.channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",

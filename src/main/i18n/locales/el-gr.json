@@ -65,6 +65,8 @@
   "appMenu.zoom": "Ζουμ",
   "appMenu.zoomIn": "Μεγέθυνση",
   "appMenu.zoomOut": "Σμίκρυνση",
+  "backup.restore_failed.message": "Δεν ήταν δυνατή η επαναφορά του αντιγράφου ασφαλείας. Τα υπάρχοντα δεδομένα σας διατηρήθηκαν. Δοκιμάστε ξανά. Αν το πρόβλημα παραμένει, ελέγξτε τα αρχεία καταγραφής της εφαρμογής.",
+  "backup.restore_failed.title": "Αποτυχία επαναφοράς αντιγράφου ασφαλείας",
   "chat.conversation.new": "Νέα συνομιλία",
   "common.channel_available_commands": "Διαθέσιμες εντολές:",
   "common.channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",

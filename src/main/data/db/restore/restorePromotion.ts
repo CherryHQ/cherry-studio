@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
-import { hashDbFile } from './hashDbFile'
+import { hashDbFileSync } from './hashDbFile'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, removeRestoreJournal, writeRestoreJournal } from './restoreJournal'
 
@@ -203,7 +203,7 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
   try {
     assertNoAddConflicts(ctx)
     sealWorkSidecars(ctx.workPath)
-    if (!(await fingerprintMatches(ctx.livePath, journal.db.fingerprint))) {
+    if (!fingerprintMatches(ctx.livePath, journal.db.fingerprint)) {
       return expire(
         ctx,
         'live fingerprint mismatch — the DB changed after staging (write-gate leak or external writer)'
@@ -265,14 +265,14 @@ function sealWorkSidecars(workPath: string): void {
 }
 
 /** Both fingerprint sides use the same primitives: TRUNCATE checkpoint, then hash the main file. */
-async function fingerprintMatches(livePath: string, expected: string): Promise<boolean> {
+function fingerprintMatches(livePath: string, expected: string): boolean {
   const sqlite = new Database(livePath, { fileMustExist: true })
   try {
     checkpointTruncateAssert(sqlite)
   } finally {
     sqlite.close()
   }
-  return (await hashDbFile(livePath)) === expected
+  return hashDbFileSync(livePath) === expected
 }
 
 /**
@@ -546,7 +546,11 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  */
 function revertPostCommit(ctx: PromotionContext): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
+    const parked = path.join(
+      application.getPath('feature.backup.restore.staging'),
+      ctx.journal.restoreId,
+      'failed.sqlite'
+    )
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
     logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })

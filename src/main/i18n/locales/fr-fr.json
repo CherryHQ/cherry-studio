@@ -65,6 +65,8 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Zoom Avant",
   "appMenu.zoomOut": "Dézoomer",
+  "backup.restore_failed.message": "La sauvegarde n’a pas pu être restaurée. Vos données existantes ont été conservées. Réessayez la restauration. Si le problème persiste, consultez les journaux de l’application.",
+  "backup.restore_failed.title": "Échec de la restauration de la sauvegarde",
   "chat.conversation.new": "Nouvelle conversation",
   "common.channel_available_commands": "Commandes disponibles :",
   "common.channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",

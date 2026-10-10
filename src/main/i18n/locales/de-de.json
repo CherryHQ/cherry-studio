@@ -65,6 +65,8 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Heranzoomen",
   "appMenu.zoomOut": "Herauszoomen",
+  "backup.restore_failed.message": "Die Sicherung konnte nicht wiederhergestellt werden. Ihre bisherigen Daten wurden beibehalten. Versuchen Sie es erneut. Falls das Problem weiterhin besteht, prüfen Sie die Anwendungsprotokolle.",
+  "backup.restore_failed.title": "Wiederherstellung fehlgeschlagen",
   "chat.conversation.new": "Neuer Chat",
   "common.channel_available_commands": "Verfügbare Befehle:",
   "common.channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",

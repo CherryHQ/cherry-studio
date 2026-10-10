@@ -65,6 +65,8 @@
   "appMenu.zoom": "Масштаб",
   "appMenu.zoomIn": "Увеличить",
   "appMenu.zoomOut": "Уменьшить",
+  "backup.restore_failed.message": "Не удалось восстановить резервную копию. Ваши существующие данные сохранены. Повторите восстановление. Если проблема сохраняется, проверьте журналы приложения.",
+  "backup.restore_failed.title": "Не удалось восстановить резервную копию",
   "chat.conversation.new": "Новый чат",
   "common.channel_available_commands": "Доступные команды:",
   "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",

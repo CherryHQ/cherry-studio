@@ -65,6 +65,8 @@
   "appMenu.zoom": "Zoom",
   "appMenu.zoomIn": "Zoom In",
   "appMenu.zoomOut": "Zoom Out",
+  "backup.restore_failed.message": "The backup could not be restored. Your existing data has been kept. Please try restoring again. If the problem persists, check the application logs.",
+  "backup.restore_failed.title": "Backup Restore Failed",
   "chat.conversation.new": "New Chat",
   "common.channel_available_commands": "Available commands:",
   "common.channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",

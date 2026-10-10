@@ -1,3 +1,6 @@
+import { app, dialog } from 'electron'
+
+import { readRestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   cleanupTerminalRestoreArtifacts,
   isLiveDbStranded,
@@ -5,6 +8,7 @@ import {
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
 import { loggerService } from '@logger'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('BackupRestoreGate')
 
@@ -50,5 +54,14 @@ export async function runBackupRestoreGate(): Promise<void> {
       )
     }
   }
+  const result = readRestoreJournal()
   cleanupTerminalRestoreArtifacts()
+  if (result.kind === 'ok' && (result.journal.state === 'failed' || result.journal.state === 'expired')) {
+    await app.whenReady()
+    const language = resolveSystemLanguage(app.getLocale())
+    dialog.showErrorBox(
+      t('backup.restore_failed.title', undefined, language),
+      t('backup.restore_failed.message', undefined, language)
+    )
+  }
 }
