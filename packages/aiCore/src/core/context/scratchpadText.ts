@@ -35,7 +35,7 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = fenceStart + openMatch[0].length
-    const closePattern = new RegExp(`\\n[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\n|$)`)
+    const closePattern = new RegExp(`(?:\\r\\n|\\n)[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
     const closeMatch = closePattern.exec(text.slice(afterOpen))
     if (!closeMatch) {
       out += text[fenceStart]
@@ -54,6 +54,30 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
 
 function unmaskCodeFences(text: string, fences: string[]): string {
   return text.replace(CODE_FENCE_PLACEHOLDER, (_, index) => fences[Number(index)] ?? '')
+}
+
+/** True when the text opens a fenced code block that has no closing delimiter yet. */
+export function textHasUnclosedCodeFence(text: string): boolean {
+  let pos = 0
+  while (pos < text.length) {
+    const rel = text.slice(pos).search(/[`~]{3,}/)
+    if (rel === -1) return false
+    const fenceStart = pos + rel
+    const openMatch = text.slice(fenceStart).match(/^([`~])\1{2,}/)
+    if (!openMatch) {
+      pos = fenceStart + 1
+      continue
+    }
+
+    const fenceChar = openMatch[1]
+    const fenceLen = openMatch[0].length
+    const afterOpen = fenceStart + openMatch[0].length
+    const closePattern = new RegExp(`(?:\\r\\n|\\n)[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
+    const closeMatch = closePattern.exec(text.slice(afterOpen))
+    if (!closeMatch) return true
+    pos = afterOpen + closeMatch.index + closeMatch[0].length
+  }
+  return false
 }
 
 function isModelScratchpadTagName(tag: string): boolean {
@@ -91,7 +115,7 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
   do {
     previous = out
     for (const tag of MODEL_SCRATCHPAD_TAG_NAMES) {
-      const block = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
+      const block = new RegExp(`<${tag}(?:>(?!/)|\\s[^>/][^>]*>)[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
       out = out.replace(block, '')
     }
   } while (out !== previous)

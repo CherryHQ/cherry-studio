@@ -37,6 +37,7 @@ import type {
 
 import {
   stripKnownModelScratchpadBlocksPreservingCodeFences,
+  textHasUnclosedCodeFence,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
@@ -962,6 +963,9 @@ export class ClaudeCodeStreamAdapter {
     if (!probe) return { action: 'pending' }
 
     const trimmed = probe.trimStart()
+    if (!trimmed) {
+      return atBlockEnd ? { action: 'emit', visible: probe } : { action: 'pending' }
+    }
     if (!trimmed.startsWith('<')) {
       return { action: 'emit', visible: probe }
     }
@@ -977,10 +981,13 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (textStartsWithModelScratchpadTag(probe)) {
+      if (!atBlockEnd && textHasUnclosedCodeFence(probe)) {
+        return { action: 'pending' }
+      }
       const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
       if (stripped.length < probe.length) {
         if (stripped.trim().length > 0) {
-          return { action: 'emit', visible: stripped }
+          return { action: 'emit', visible: stripped.trimStart() }
         }
         return { action: 'suppress' }
       }
@@ -1278,29 +1285,22 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
       visibleText = stripKnownModelScratchpadBlocksPreservingCodeFences(text)
       if (!visibleText.trim()) {
-        if (ctx.hasReceivedStreamEvents) {
-          ctx.accumulatedText = text
-          ctx.streamedTextLength = text.length
-        } else {
-          ctx.accumulatedText += text
-        }
         return
       }
     }
     if (ctx.hasReceivedStreamEvents) {
-      const newTextStart = ctx.streamedTextLength
-      const deltaText = visibleText.length > newTextStart ? visibleText.slice(newTextStart) : ''
-      ctx.accumulatedText = visibleText
+      const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         this.enqueueVisibleTextDelta(deltaText, ctx, providerMetadata)
       }
+      ctx.accumulatedText = visibleText
       ctx.streamedTextLength = visibleText.length
-    } else {
+    } else if (ctx.options.responseFormat?.type === 'json') {
       ctx.accumulatedText += visibleText
-      if (ctx.options.responseFormat?.type !== 'json') {
-        this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
-      }
+      ctx.streamedTextLength += visibleText.length
+    } else {
+      this.enqueueVisibleTextDelta(visibleText, ctx, providerMetadata)
     }
   }
 
@@ -1443,11 +1443,17 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({ type: 'text-end', id: jsonTextId })
     } else if (ctx.textPartId) {
       this.closeActiveTextPart(ctx)
-    } else if (ctx.accumulatedText && !ctx.textStreamedViaContentBlock) {
+    } else if (
+      ctx.accumulatedText &&
+      !ctx.textStreamedViaContentBlock &&
+      ctx.streamedTextLength < ctx.accumulatedText.length
+    ) {
       const fallbackTextId = generateId()
+      const fallbackDelta = ctx.accumulatedText.slice(ctx.streamedTextLength)
       ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
-      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: ctx.accumulatedText })
+      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
       ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+      ctx.streamedTextLength = ctx.accumulatedText.length
     }
 
     this.finalizeToolCalls(ctx)
