@@ -550,7 +550,8 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
   if (partType === 'file') return !!(part as { url?: string }).url
-  if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
+  if (partType === 'data-error') return 'data' in part && !!part.data && !isErrorPartDismissed(part)
+  if (partType === 'data-video') return 'data' in part && !!part.data
   return true
 }
 
@@ -564,6 +565,11 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
     return part.providerMetadata.cherry
   }
   return undefined
+}
+
+/** Dismissed error parts stay persisted as the turn's evidence but are invisible. */
+function isErrorPartDismissed(part: CherryMessagePart): boolean {
+  return part.type === 'data-error' && readCherryMeta(part)?.dismissed === true
 }
 
 // Keep normalized error identity stable across parent renders.
@@ -586,8 +592,10 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  const synthetic = readCherryMeta(part)?.synthetic === true
-  return <ErrorBlock partId={partId} error={error} message={message} synthetic={synthetic} />
+  const meta = readCherryMeta(part)
+  // Dismissed errors stay persisted as evidence but render nothing.
+  if (meta?.dismissed === true) return null
+  return <ErrorBlock partId={partId} error={error} message={message} synthetic={meta?.synthetic === true} />
 })
 
 const TranslationPartView = React.memo(function TranslationPartView({
@@ -1415,7 +1423,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const completedToolItems = buildToolRenderItems(completedHistoryEntries, message.id, true)
   const completedHasError = (() => {
     const historyHasError = completedHistoryEntries.some((entry) => {
-      if ((entry.part.type as string) === 'data-error') return true
+      if ((entry.part.type as string) === 'data-error') return !isErrorPartDismissed(entry.part)
       if (!isToolUIPart(entry.part)) return false
 
       const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse

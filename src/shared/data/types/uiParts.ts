@@ -207,6 +207,12 @@ export interface CherryErrorMeta {
   diagnosis?: DiagnosisResult
   /** Marks display-synthesized fallback parts (see `withTerminalErrorFallback`) — never persisted. */
   synthetic?: boolean
+  /**
+   * The user dismissed this error part: it stays persisted as the turn's error
+   * evidence (the message keeps its `error` status) but is hidden from display and
+   * never replaced by the terminal fallback.
+   */
+  dismissed?: boolean
 }
 
 /** Cherry metadata on a FileUIPart. */
@@ -330,7 +336,8 @@ const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
 
 export const CherryErrorMetaSchema: z.ZodType<CherryErrorMeta> = z.object({
   diagnosis: DiagnosisResultSchema.optional(),
-  synthetic: z.boolean().optional()
+  synthetic: z.boolean().optional(),
+  dismissed: z.boolean().optional()
 })
 
 export const KnowledgeScopePartDataSchema: z.ZodType<KnowledgeScopePartData> = z.strictObject({
