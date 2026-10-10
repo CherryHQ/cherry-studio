@@ -33,6 +33,20 @@ import {
 } from '../requestRendererNotesEditsFlush'
 
 describe('notesRelocationOwnerLifecycle', () => {
+  function createOwnerWindow(): EventEmitter & {
+    isDestroyed: () => boolean
+    webContents: EventEmitter & { isDestroyed: () => boolean }
+  } {
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter & { isDestroyed: () => boolean }
+    }
+    ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter() as EventEmitter & { isDestroyed: () => boolean }
+    ownerWindow.webContents.isDestroyed = () => false
+    return ownerWindow
+  }
+
   beforeEach(() => {
     resetNotesRelocationSessionForTests()
     resetNotesRelocationOwnerLifecycleForTests()
@@ -52,12 +66,7 @@ describe('notesRelocationOwnerLifecycle', () => {
   })
 
   it('releases the session when the bound owner window closes', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & {
-      isDestroyed: () => boolean
-      webContents: EventEmitter
-    }
-    ownerWindow.isDestroyed = () => false
-    ownerWindow.webContents = new EventEmitter()
+    const ownerWindow = createOwnerWindow()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')
@@ -76,12 +85,7 @@ describe('notesRelocationOwnerLifecycle', () => {
   })
 
   it('releases the session when the owner renderer process exits', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & {
-      isDestroyed: () => boolean
-      webContents: EventEmitter
-    }
-    ownerWindow.isDestroyed = () => false
-    ownerWindow.webContents = new EventEmitter()
+    const ownerWindow = createOwnerWindow()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')
@@ -100,12 +104,7 @@ describe('notesRelocationOwnerLifecycle', () => {
   })
 
   it('keeps the session when the owner window closes during migration copy', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & {
-      isDestroyed: () => boolean
-      webContents: EventEmitter
-    }
-    ownerWindow.isDestroyed = () => false
-    ownerWindow.webContents = new EventEmitter()
+    const ownerWindow = createOwnerWindow()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')
@@ -126,12 +125,7 @@ describe('notesRelocationOwnerLifecycle', () => {
   })
 
   it('releases the session after migrate when the owner became unavailable during copy', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & {
-      isDestroyed: () => boolean
-      webContents: EventEmitter
-    }
-    ownerWindow.isDestroyed = () => false
-    ownerWindow.webContents = new EventEmitter()
+    const ownerWindow = createOwnerWindow()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')
