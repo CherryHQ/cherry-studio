@@ -44,13 +44,14 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import type {
-  AgentRuntimeConnectInput,
-  AgentRuntimeConnection,
-  AgentRuntimeEvent,
-  AgentRuntimeReconcileResult,
-  AgentRuntimeTraceContext,
-  AgentSessionUsageCapture
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeConnection,
+  type AgentRuntimeEvent,
+  AgentRuntimeInputDeliveryError,
+  type AgentRuntimeReconcileResult,
+  type AgentRuntimeTraceContext,
+  type AgentSessionUsageCapture
 } from '../types'
 import { resolveDshBunRuntime } from './bunRuntime'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
@@ -515,8 +516,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
     const bridge = this.bridge
     if (!bridge) {
-      this.eventQueue.push({ type: 'error', error: new Error('dsh session is not started') })
-      return
+      throw new AgentRuntimeInputDeliveryError(new Error('dsh session is not started'))
     }
     const rawContent = buildAgentUserContent(input.message)
     // A systemReminder message is a host-requeued steer, never a command line (pi parity).
@@ -537,9 +537,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       this.turnActive = false
       this.adapter.abortTurn()
-      if (this.closed) return
-      logger.error('dsh prompt failed', chatErrorContext(error))
-      this.eventQueue.push({ type: 'error', error })
+      if (!this.closed) logger.error('dsh prompt failed', chatErrorContext(error))
+      throw new AgentRuntimeInputDeliveryError(error)
     }
   }
 

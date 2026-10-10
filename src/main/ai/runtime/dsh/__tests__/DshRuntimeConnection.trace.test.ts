@@ -6,7 +6,12 @@ import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeEvent,
+  AgentRuntimeInputDeliveryError,
+  type AgentRuntimeTraceContext
+} from '../../types'
 
 interface FakeSpan {
   name: string
@@ -234,6 +239,27 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('rejects a prompt failure before host admission without queuing a runtime error', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    await drain()
+    events.length = 0
+    const failure = new Error('session prompt transport failed')
+    runtimeMocks.bridgeRequest.mockRejectedValueOnce(failure)
+
+    await expect(connection.send({ message: {} } as never)).rejects.toEqual(
+      expect.objectContaining({ name: AgentRuntimeInputDeliveryError.name, cause: failure })
+    )
+    await drain()
+    expect(events).toEqual([])
+
+    await connection.close()
+    await consume
+  })
+
   it('records the exact completed turn without a separate checkpoint request', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events: AgentRuntimeEvent[] = []
