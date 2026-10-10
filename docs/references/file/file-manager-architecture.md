@@ -228,6 +228,10 @@ not retry blindly.
 - `trash` and `restore` only update internal entries' `deletedAt` state.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
+- `deleteUnreferencedInternalEntry` checks persistent refs and deletes an internal row in one
+  transaction. Missing, external, and referenced entries are preserved. `ProfileService` uses it
+  only after replacing its Preference reference; failed retirement is retried on a later avatar
+  update in the same process.
 - Batch delete/trash operations return per-ID successes and failures.
 - Internal rename changes display metadata; its UUID-based physical path is unchanged.
 - External rename moves the file inside its current parent and updates path/name in the DB. On a
