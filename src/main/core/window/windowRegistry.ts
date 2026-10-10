@@ -68,7 +68,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
@@ -220,7 +220,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // flash on reuse and the never-fires ready-to-show stuck-hidden failure mode).
       paintWhenInitiallyHidden: true,
       vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      visualEffectState: 'followWindow',
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
