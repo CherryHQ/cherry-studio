@@ -1004,8 +1004,6 @@ class ProviderRegistryService {
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
-    if (profileProvider?.modelResolution?.source === 'provider')
-      return resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
     const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
@@ -1130,21 +1128,23 @@ class ProviderRegistryService {
     const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
     if (presetProvider?.modelResolution?.source === 'provider') {
+      const providerModel = {
+        ...presetProvider.modelResolution.defaults,
+        id: createUniqueModelId(providerContext.id, modelId),
+        providerId: providerContext.id,
+        apiModelId: modelId,
+        presetModelId: null,
+        name: modelId.split('/').pop() ?? modelId,
+        ownedBy: presetProvider.id,
+        isEnabled: true,
+        isHidden: false
+      }
       return {
         presetModel: null,
         registryOverride: null,
-        providerModel: {
-          ...presetProvider.modelResolution.defaults,
-          id: createUniqueModelId(providerContext.id, modelId),
-          providerId: providerContext.id,
-          apiModelId: modelId,
-          presetModelId: null,
-          name: modelId.split('/').pop() ?? modelId,
-          ownedBy: presetProvider.id,
-          isEnabled: true,
-          isHidden: false
-        },
-        reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
+        providerModel,
+        reasoningProfile: this.resolveReasoningProfile(providerContext, providerModel),
+        serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, null)
       }
     }
     const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
