@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 import type { AgentRuntimeConnectInput } from '../../types'
 
 const mocks = vi.hoisted(() => ({
@@ -78,6 +80,7 @@ vi.mock('../DshCherryToolBridge', () => ({
     close: vi.fn().mockResolvedValue(undefined)
   }),
   buildDshCherryToolName: (server: string, tool: string) => `mcp__${server}__${tool}`,
+  warmDshMcpToolCatalogs: vi.fn().mockResolvedValue(undefined),
   DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>(),
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>(),
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: new Set<string>()
@@ -95,10 +98,10 @@ vi.mock('../dshSdk', () => ({
     })
   })
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: mocks.getShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+  getRawShellEnv: mocks.getShellEnv
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
@@ -106,10 +109,7 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
 vi.mock('@main/ai/runtime/agentPrompt', () => ({
   buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
 }))
-vi.mock('@main/ai/runtime/agentMcpServers', () => ({
-  buildAgentMcpServers: vi.fn(() => []),
-  warmAgentMcpToolCatalogs: vi.fn().mockResolvedValue(undefined)
-}))
+vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
 vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: string) => text) }))
 

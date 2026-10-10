@@ -8,7 +8,6 @@ import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 import { application } from '@application'
-import type { DshAssistantChunk } from '@cherrystudio/dsh-bridge'
 import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
@@ -18,7 +17,7 @@ import {
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
@@ -28,8 +27,14 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
+import {
+  getMiseEnvEntries,
+  getPathFromEnvironment,
+  getRawShellEnv,
+  hasUserMiseEnv,
+  resolveCherryPathTailDirs
+} from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -61,7 +66,8 @@ import {
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
   DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
-  type DshCherryToolBridge
+  type DshCherryToolBridge,
+  warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
 import {
@@ -303,7 +309,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.
     if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
-    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -452,9 +458,19 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
-      const loginShellEnv = await getShellEnv()
-      const loginPath = getPathFromEnvironment(loginShellEnv)
-      const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
+      const rawShellEnv = await getRawShellEnv()
+      const loginPath = getPathFromEnvironment(rawShellEnv)
+      // Preserve the user's MISE_* contract so system mise shims (e.g. pnpx)
+      // don't get redirected to Cherry's isolated data dir (#19738).
+      // Cherry-managed shims remain reachable as PATH tails; Cherry's
+      // MISE vars are added only where the user has no mise of their own
+      // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
+      const rawMiseEnv = Object.fromEntries(getMiseEnvEntries(rawShellEnv))
+      const hasUserMise = hasUserMiseEnv(rawShellEnv)
+      const tailDirs = resolveCherryPathTailDirs(hasUserMise)
+      const binaryExecutionEnv = mergePathSuffixes(loginPath !== undefined ? { PATH: loginPath } : {}, tailDirs)
+      const cherryMiseEnv = getBinaryExecutionEnv()
+      const miseEnv = hasUserMise ? rawMiseEnv : cherryMiseEnv
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the applied proxy, the routed API key, and the bridge socket.
       const dshBin = resolveDshRuntimeBinPath()
@@ -467,8 +483,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         processCwd: path.dirname(dshBin),
         env: {
           ...binaryExecutionEnv,
-          ...(loginShellEnv.HOME !== undefined
-            ? { HOME: loginShellEnv.HOME }
+          ...miseEnv,
+          ...(rawShellEnv.HOME !== undefined
+            ? { HOME: rawShellEnv.HOME }
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
@@ -820,13 +837,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           }
           continue
         }
-        if (notification.method === 'session.chunk') {
-          const { sessionId, ...data } = notification.params as unknown as DshAssistantChunk
-          const event = { type: 'assistant/chunk' as const, data }
-          if (sessionId === this.runtimeSessionId) this.adapter.handleEvent(event)
-          else this.subagents.handleChildEvent(sessionId, event)
-          continue
-        }
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
@@ -906,8 +916,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         const checkpoint = DshForkCheckpointSchema.safeParse({
           runtime: 'dsh',
           runtimeSessionId: this.runtimeSessionId,
-          boundary,
-          formatVersion: 4
+          boundary
         })
         this.eventQueue.push({
           type: 'turn-complete',
