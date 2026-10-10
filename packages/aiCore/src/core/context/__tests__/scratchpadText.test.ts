@@ -154,6 +154,11 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
   })
 
+  it('strips analysis when inline code mentions tilde fence delimiters', () => {
+    const input = '<analysis>The user supplied `~~~` delimiters.</analysis><summary>Keep this</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
+  })
+
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
     const input = `<summary>
 1. Task Overview: user wants the syntax for a reasoning tag

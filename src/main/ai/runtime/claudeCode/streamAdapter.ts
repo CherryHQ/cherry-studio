@@ -999,7 +999,7 @@ export class ClaudeCodeStreamAdapter {
       const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
       if (stripped.length < probe.length) {
         if (stripped.trim().length > 0) {
-          return { action: 'emit', visible: stripped.trimStart() }
+          return { action: 'emit', visible: stripped }
         }
         return { action: 'suppress' }
       }
@@ -1031,12 +1031,13 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
+    const visible = this.trimLeadingAssistantVisible(classified.visible)
     ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
-    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: classified.visible })
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
     ctx.textPartStarted = true
     ctx.textStreamedViaContentBlock = true
-    ctx.accumulatedText += classified.visible
-    ctx.streamedTextLength += classified.visible.length
+    ctx.accumulatedText += visible
+    ctx.streamedTextLength += visible.length
   }
 
   private enqueueVisibleTextDelta(
@@ -1070,9 +1071,7 @@ export class ClaudeCodeStreamAdapter {
       const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
       if (classified.action === 'pending') return
       if (classified.action === 'suppress') {
-        ctx.textStartDeferred = false
         ctx.scratchpadTextProbe = ''
-        ctx.textPartStarted = false
         return
       }
       ctx.textStartDeferred = false
@@ -1082,7 +1081,7 @@ export class ClaudeCodeStreamAdapter {
         ...(providerMetadata ? { providerMetadata } : {})
       })
       ctx.textPartStarted = true
-      text = classified.visible
+      text = this.trimLeadingAssistantVisible(classified.visible)
       ctx.scratchpadTextProbe = ''
     }
 
@@ -1305,8 +1304,15 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  private trimLeadingAssistantVisible(visible: string): string {
+    return visible.trimStart()
+  }
+
   private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    if (!visibleText) {
+      return
+    }
     if (ctx.hasReceivedStreamEvents) {
       const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
@@ -1710,6 +1716,10 @@ export class ClaudeCodeStreamAdapter {
       // Success ends suppression: the SDK does not guarantee a boundary, so content after
       // success is post-compaction output and must stay visible. A later boundary still wins.
       this.runtimeCompactionActive = false
+      // closeActiveTextPart on compacting may have cleared textPartId while offsets still
+      // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
       this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
