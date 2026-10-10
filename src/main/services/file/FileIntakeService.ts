@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, open, rename, rm, stat, truncate } from 'node:fs/promises'
+import { mkdir, open, rm, stat, truncate } from 'node:fs/promises'
 import path from 'node:path'
 
 import { Semaphore } from 'async-mutex'
@@ -20,7 +20,7 @@ import {
   type FileIntakeWrite,
   type FileIntakeResume
 } from './intakeTypes'
-import { metadataSchema, recordSchema, type Upload } from './internal/IntakeStore'
+import { metadataSchema, type Upload } from './internal/IntakeStore'
 
 const logger = loggerService.withContext('FileIntakeService')
 export type FileIntakeOwner = { ownerId: string; quotaKey: string }
@@ -105,29 +105,6 @@ export class FileIntakeService extends BaseService {
     return [
       ...new Map([...this.uploads.values()].map(({ ownerId, quotaKey }) => [ownerId, { ownerId, quotaKey }])).values()
     ]
-  }
-  async adoptLegacy(owner: FileIntakeOwner, directory: string, value: unknown): Promise<void> {
-    const upload = recordSchema.parse({ ...(value as object), ...owner })
-    await this.load()
-    const key = this.key(owner, upload.uploadId)
-    if (this.uploads.has(key)) return
-    const handle = await open(path.join(directory, 'state.tmp'), 'w', 0o600)
-    try {
-      await handle.writeFile(JSON.stringify(upload))
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    await rename(path.join(directory, 'state.tmp'), path.join(directory, 'state.json'))
-    await this.syncDirectory(directory)
-    await rename(directory, this.directory(upload))
-    await this.syncDirectory(this.root())
-    if (upload.state === 'ready' && !upload.entryId) upload.state = 'verifying'
-    this.uploads.set(key, upload)
-    if (upload.state === 'verifying') {
-      this.verify(upload)
-      await this.verifying.get(key)
-    }
   }
   private load(): Promise<void> {
     return (this.loading ??= (async () => {

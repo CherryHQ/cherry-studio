@@ -934,7 +934,6 @@ export class RemoteAgentHub {
   }
 
   dispose(): void {
-    void this.uploads.dispose().catch((error) => logger.warn('Upload shutdown cleanup failed', error))
     for (const journal of this.journals.values()) journal.dispose()
     this.journals.clear()
   }

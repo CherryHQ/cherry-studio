@@ -458,7 +458,6 @@ describe('remote agent access', () => {
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
     } finally {
-      await hub.uploads.dispose()
       await intake.drain()
       paths.mockRestore()
       await rm(root, { recursive: true, force: true })

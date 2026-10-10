@@ -90,9 +90,8 @@ export class RemoteAccessService extends BaseService {
     })
   }
 
-  protected async onStop(): Promise<void> {
+  protected onStop(): void {
     this.closeIngress()
-    await this.hub.uploads.dispose()
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */

@@ -10,7 +10,6 @@ const methods = [
   'cancelOwner',
   'withEntries',
   'owners',
-  'adoptLegacy',
   'drain'
 ] as const
 export const mockFileIntakeService = Object.fromEntries(methods.map((name) => [name, vi.fn()])) as {

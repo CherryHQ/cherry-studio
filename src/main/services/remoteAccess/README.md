@@ -117,7 +117,7 @@ The file module owns checkpoint-based recovery and retention. Selection is dispo
 explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
 
 `FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
-binds its operations to the current device grant and migrates older remote-owned checkpoints.
+binds its operations to the current device grant.
 File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
 truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
 retains resumable records. Each upload is serialized independently and fenced by writer epoch.

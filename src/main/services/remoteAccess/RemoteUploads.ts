@@ -1,6 +1,3 @@
-import { readFile, readdir, rm } from 'node:fs/promises'
-import path from 'node:path'
-
 import { application } from '@application'
 import type { UploadChunk } from '@cherrystudio/remote-protocol'
 import {
@@ -21,7 +18,6 @@ const logger = loggerService.withContext('RemoteUploads')
 export type UploadOwner = { deviceId: string; grantId: string; peerIdentity: string }
 
 export class RemoteUploads {
-  private migration?: Promise<void>
   private sweeping = false
   private authorized(owner: UploadOwner): boolean {
     return Boolean(
@@ -46,44 +42,7 @@ export class RemoteUploads {
     }
     return undefined
   }
-  private async migrate(): Promise<void> {
-    return (this.migration ??= (async () => {
-      const root = application.getPath('feature.remote_access.uploads')
-      let directories: string[]
-      try {
-        directories = await readdir(root)
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-        throw error
-      }
-      for (const name of directories) {
-        if (!/^[a-f0-9]{64}$/.test(name)) continue
-        const directory = path.join(root, name)
-        let value
-        try {
-          value = JSON.parse(await readFile(path.join(directory, 'state.json'), 'utf8'))
-        } catch (error) {
-          if (!(error instanceof SyntaxError) && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          logger.warn('Skipping unreadable legacy upload checkpoint', { name })
-          continue
-        }
-        const { deviceId, grantId, peerIdentity, ...record } = value
-        const owner =
-          typeof record.ownerId === 'string' ? this.parseOwner(record.ownerId) : { deviceId, grantId, peerIdentity }
-        if (!owner || !this.authorized(owner)) {
-          await rm(directory, { recursive: true, force: true })
-          continue
-        }
-        await application.get('FileIntakeService').adoptLegacy(this.scope(owner), directory, record)
-      }
-    })().catch((error) => {
-      this.migration = undefined
-      throw error
-    }))
-  }
   private async run<T>(owner: UploadOwner, work: (scope: FileIntakeOwner) => Promise<T>): Promise<T> {
-    if (!this.authorized(owner)) throw new RemoteRpcError('GRANT_REVOKED', 'Upload authorization expired')
-    await this.migrate()
     if (!this.authorized(owner)) throw new RemoteRpcError('GRANT_REVOKED', 'Upload authorization expired')
     try {
       return await work(this.scope(owner))
@@ -145,7 +104,6 @@ export class RemoteUploads {
     if (this.sweeping) return
     this.sweeping = true
     void (async () => {
-      await this.migrate()
       const intake = application.get('FileIntakeService')
       const owners = new Map((await intake.owners()).map((owner) => [owner.ownerId, owner]))
       for (const ownerId of application.get('AttachmentPresenceService').owners())
@@ -162,8 +120,5 @@ export class RemoteUploads {
       .finally(() => {
         this.sweeping = false
       })
-  }
-  async dispose(): Promise<void> {
-    await this.migration
   }
 }

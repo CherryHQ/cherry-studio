@@ -42,13 +42,7 @@ describe('durable remote uploads', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
       path.join(
         root,
-        key === 'feature.files.intakes'
-          ? 'intakes'
-          : key === 'feature.files.data'
-            ? 'files'
-            : key === 'feature.remote_access.uploads'
-              ? 'legacy'
-              : key,
+        key === 'feature.files.intakes' ? 'intakes' : key === 'feature.files.data' ? 'files' : key,
         filename ?? ''
       )
     )
@@ -64,7 +58,6 @@ describe('durable remote uploads', () => {
     uploads = new RemoteUploads()
   })
   afterEach(async () => {
-    await uploads.dispose()
     await intake.drain()
     await rm(root, { recursive: true, force: true })
     vi.restoreAllMocks()
@@ -94,7 +87,6 @@ describe('durable remote uploads', () => {
     await write(metadata.uploadId, bytes.subarray(0, 6))
     const [directory] = await readdir(path.join(root, 'intakes'))
     await appendFile(path.join(root, 'intakes', directory, 'data', metadata.filename), 'uncommitted garbage')
-    await uploads.dispose()
     await intake.drain()
     BaseService.resetInstances()
     intake = new FileIntakeService()
@@ -131,7 +123,6 @@ describe('durable remote uploads', () => {
     await expect(uploads.write(approve('stranger'), chunk)).rejects.toMatchObject({
       data: { reason: 'NOT_FOUND' }
     })
-    await uploads.dispose()
     await intake.drain()
     BaseService.resetInstances()
     intake = new FileIntakeService()
@@ -180,7 +171,6 @@ describe('durable remote uploads', () => {
       data: { reason: 'NOT_FOUND' }
     })
     await uploads.cancel(owner, metadata.uploadId)
-    await uploads.dispose()
     uploads = new RemoteUploads()
     await expect(uploads.prepare(owner, metadata)).rejects.toMatchObject({ data: { reason: 'NOT_FOUND' } })
     const next = prepare(bytes)
@@ -229,7 +219,6 @@ describe('durable remote uploads', () => {
       const results = await Promise.all(writes)
       expect(results.at(-1)?.committedOffset).toBe(String(offset))
       if (!restarted && offset >= size / 2) {
-        await uploads.dispose()
         await intake.drain()
         BaseService.resetInstances()
         intake = new FileIntakeService()
