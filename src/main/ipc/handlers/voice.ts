@@ -27,6 +27,21 @@ export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
     callVoice(senderId, (service, owner) => service.transcribe(owner, input)),
   'ai.transcription.abort': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.abort(owner, input, 'transcription')),
+  'ai.voice.session.state': (_input, { senderId }) => callVoice(senderId, (service, owner) => service.getState(owner)),
+  'ai.voice.recording.start': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.startRecording(owner, input)),
+  'ai.voice.output.read': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.readOutput(owner, input)),
+  'ai.voice.output.release': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.releaseOutput(owner, input)),
+  'ai.voice.playback.update': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.updatePlayback(owner, input)),
+  'ai.voice.playback.control': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.controlPlayback(owner, input)),
+  'ai.voice.microphone.status': (_input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.getMicrophoneStatus(owner)),
+  'ai.voice.microphone.open_settings': (_input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.openMicrophoneSettings(owner)),
   'ai.voice.session.discard': ({ sessionId }, { senderId }) =>
     callVoice(senderId, (service, owner) => service.discard(owner, sessionId)),
   'ai.voice.models.list': (_input, { senderId }) => callVoice(senderId, (service) => service.listModels()),

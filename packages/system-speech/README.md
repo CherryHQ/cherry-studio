@@ -47,4 +47,4 @@ without blocking ARM64 application packages. See the [Windows helper guide](./wi
 for build prerequisites, independent protocol and real TTS smokes, packaged
 helper signature checks, and the remaining NSIS/portable device acceptance.
 The native synthesis protocol requires an explicit `speed` from 0.5 to 2;
-Apple adapters on this foundation branch send 1 until their speed support lands.
+Apple and Windows adapters both forward the selected speed.

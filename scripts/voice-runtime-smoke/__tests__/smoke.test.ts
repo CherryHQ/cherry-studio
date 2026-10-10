@@ -3,7 +3,6 @@ import { runInNewContext } from 'node:vm'
 
 import { describe, expect, it } from 'vitest'
 
-import { fileRequestSchemas } from '../../../src/shared/ipc/schemas/file'
 import { voiceRequestSchemas } from '../../../src/shared/ipc/schemas/voice'
 import { selectMainTarget, validateConnection } from '../connection'
 import { createVoiceRuntimeSmokeExpression } from '../rendererExpression'
@@ -35,6 +34,8 @@ function browserEnvironment(
 ) {
   const created = new Set<string>()
   const discarded = new Set<string>()
+  const preempted = new Set<string>()
+  let lease: { sessionId: string; phase: 'ready' | 'recording' | 'recorded'; fileEntryId?: string } | undefined
   const requestedModels: string[] = []
   const languageRequests: { route: string; language: string; voice?: string; text?: string }[] = []
   const voicePrefix = windows ? 'windows-sapi-test' : 'com.apple.voice.test'
@@ -104,24 +105,43 @@ function browserEnvironment(
     }
   }
   const handle = async (route: string, input?: Record<string, any>) => {
-    const schemas = { ...voiceRequestSchemas, 'file.read': fileRequestSchemas['file.read'] }
-    schemas[route as keyof typeof schemas].input.parse(input)
+    voiceRequestSchemas[route as keyof typeof voiceRequestSchemas].input.parse(input)
     if (input?.language)
       languageRequests.push({ route, language: input.language, voice: input.voice, text: input.text })
     if (route === 'ai.speech.voices.list') return voices
     if (route === 'ai.voice.model.status') return { status: 'ready' }
     if (route === 'ai.speech.generate') {
+      if (lease) throw { code: 'VOICE_BUSY' }
       created.add(input!.sessionId)
       if (input!.voice !== voices.find((voice) => voice.language === input!.language)?.id)
         throw new Error('Exact selected voice was not used')
-      return { fileEntry: { id: 'e0b0c5ec-dcb8-4f77-b027-0a3c05637786' }, mimeType: 'audio/wav' }
+      lease = {
+        sessionId: input!.sessionId,
+        phase: 'ready',
+        fileEntryId: 'e0b0c5ec-dcb8-4f77-b027-0a3c05637786'
+      }
+      return { fileEntry: { id: lease.fileEntryId }, mimeType: 'audio/wav' }
     }
-    if (route === 'file.read') return { content: new Uint8Array([82, 73, 70, 70]), mime: 'audio/wav' }
-    if (route === 'file.voice_recording.create') {
+    if (route === 'ai.voice.output.read') {
+      if (!lease || lease.sessionId !== input!.sessionId) throw { code: 'VOICE_INVALID_REQUEST' }
+      if (lease.phase !== 'ready' || lease.fileEntryId !== input!.fileEntryId) throw { code: 'VOICE_FORBIDDEN' }
+      return { audio: new Uint8Array([82, 73, 70, 70]), mimeType: 'audio/wav' }
+    }
+    if (route === 'ai.voice.recording.start') {
+      if (lease) preempted.add(lease.sessionId)
       created.add(input!.sessionId)
-      return { id: randomUUID() }
+      lease = { sessionId: input!.sessionId, phase: 'recording' }
+      return { sessionId: lease.sessionId, phase: lease.phase, revision: 1 }
+    }
+    if (route === 'file.voice_recording.create') {
+      if (lease?.sessionId !== input!.sessionId || lease?.phase !== 'recording') throw { code: 'VOICE_INVALID_REQUEST' }
+      lease.phase = 'recorded'
+      lease.fileEntryId = randomUUID()
+      return { id: lease.fileEntryId }
     }
     if (route === 'ai.transcription.generate') {
+      if (lease?.sessionId !== input!.sessionId || lease?.phase !== 'recorded') throw { code: 'VOICE_INVALID_REQUEST' }
+      if (lease.fileEntryId !== input!.fileEntryId) throw { code: 'VOICE_FORBIDDEN' }
       requestedModels.push(input!.modelId)
       if (transcription === 'native_failure')
         throw { code: 'SENSITIVE_NATIVE_DETAIL', message: '/private/audio transcript' }
@@ -136,6 +156,7 @@ function browserEnvironment(
     }
     if (route === 'ai.voice.session.discard') {
       discarded.add(input!.sessionId)
+      if (lease?.sessionId === input!.sessionId) lease = undefined
       return
     }
     throw new Error('Unexpected route')
@@ -162,9 +183,11 @@ function browserEnvironment(
     },
     created,
     discarded,
+    preempted,
     requestedModels,
     languageRequests,
-    resourcesClosed: () => recorderStopped && contextClosed && tracksStopped
+    activeSessionId: () => lease?.sessionId,
+    resourcesClosed: () => recorderStopped && contextClosed && tracksStopped && !lease
   }
 }
 
@@ -227,11 +250,13 @@ describe('voice smoke renderer contract', () => {
       passed: true,
       apple: { transcriptNonEmpty: true },
       funasr: { reason: 'license_unverified' },
-      cleanupSucceeded: true
+      cleanupSucceeded: true,
+      sessionsDiscarded: 3
     })
     expect(fixture.requestedModels).toEqual(['local-voice::apple-system-asr', 'local-voice::funasr-nano'])
     expect(fixture.created.size).toBe(3)
     expect(fixture.discarded).toEqual(fixture.created)
+    expect(fixture.preempted.size).toBe(0)
     expect(fixture.resourcesClosed()).toBe(true)
     expect(JSON.stringify(result)).not.toContain('Private transcript')
     expect(JSON.stringify(result)).not.toContain('e0b0c5ec-dcb8-4f77-b027-0a3c05637786')
@@ -250,6 +275,49 @@ describe('voice smoke renderer contract', () => {
       text: '这是樱桃工作室的本地语音验证。今天天空晴朗，我们正在检查离线语音转写功能。'
     })
     expect(fixture.discarded).toEqual(fixture.created)
+  })
+
+  it('reads owned speech output even when generic file access is unavailable', async () => {
+    const fixture = browserEnvironment('success')
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    ipc.request = async (route, input) =>
+      route === 'file.read' ? { ok: false, error: { code: 'VOICE_FORBIDDEN' } } : originalRequest(route, input)
+
+    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+    expect(result).toMatchObject({ passed: true, sessionsDiscarded: 3, cleanupSucceeded: true })
+    expect(fixture.resourcesClosed()).toBe(true)
+  })
+
+  it('fails an upload after another recording takes ownership without discarding the replacement', async () => {
+    const fixture = browserEnvironment('success')
+    const ipc = fixture.globals.window.api.ipcApi
+    const originalRequest = ipc.request
+    const replacementSession = randomUUID()
+    ipc.request = async (route, input) => {
+      if (route === 'file.voice_recording.create') {
+        await originalRequest('ai.voice.recording.start', {
+          sessionId: replacementSession,
+          requestId: randomUUID(),
+          source: 'automation'
+        })
+      }
+      return originalRequest(route, input)
+    }
+
+    const result = await runInNewContext(createVoiceRuntimeSmokeExpression(expectedUrl), fixture.globals)
+
+    expect(result).toMatchObject({
+      passed: false,
+      stage: 'apple_upload',
+      code: 'VOICE_INVALID_REQUEST',
+      cleanupSucceeded: true
+    })
+    expect(fixture.activeSessionId()).toBe(replacementSession)
+    expect(fixture.discarded.has(replacementSession)).toBe(false)
+    expect(result.apple).toBeUndefined()
+    expect(result.funasr).toBeUndefined()
   })
 
   it('rejects unapproved test languages before any IPC session is created', async () => {

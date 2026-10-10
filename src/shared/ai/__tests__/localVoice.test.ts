@@ -11,8 +11,17 @@ import {
   resolveDefaultSpeechModel,
   WINDOWS_TTS_MODEL_ID
 } from '../localVoice'
+import * as localVoice from '../localVoice'
 
 describe('local voice model facts and default resolution', () => {
+  it('publishes the product speech-speed contract', () => {
+    expect(localVoice).toMatchObject({
+      DEFAULT_SPEECH_SPEED: 1,
+      MIN_SPEECH_SPEED: 0.5,
+      MAX_SPEECH_SPEED: 2
+    })
+  })
+
   it('recommends Apple ASR on supported macOS releases', () => {
     expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 13 })).toBe(APPLE_ASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'darwin', majorVersion: 15 })).toBe(APPLE_ASR_MODEL_ID)
