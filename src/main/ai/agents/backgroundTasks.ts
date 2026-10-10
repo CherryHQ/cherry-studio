@@ -318,12 +318,13 @@ async function stopDetachedBackgroundTaskUnlocked(
   // be signalled safely after restart; newly created tasks always capture one on POSIX.
   const liveChild = activeTaskPids.get(record.id) === record.pid
   if (process.platform === 'win32' && !liveChild) return undefined
-  if (
-    process.platform !== 'win32' &&
-    !liveChild &&
-    (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime)
-  ) {
-    return undefined
+  if (process.platform !== 'win32' && !liveChild) {
+    // Leader alive: only a matching start stamp proves the pid is still this task's. Leader
+    // gone: the group it created stays ours while a member runs, so the stop stays reachable.
+    const unverifiable = isPidAlive(record.pid)
+      ? !record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime
+      : !groupHasLiveMember(record.pid)
+    if (unverifiable) return undefined
   }
   const signal = force ? 'SIGKILL' : 'SIGTERM'
   const requested = {
@@ -437,6 +438,9 @@ async function reconcileDetachedBackgroundTask(
       ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') }
       : record
   }
+  // The leader is gone but its group can still be working (a member ignoring SIGTERM); the
+  // task stays running — and controllable — until no member remains.
+  if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) return record
   if (record.stopRequestedAt) {
     return {
       ...record,
@@ -488,6 +492,9 @@ async function finalizeDetachedBackgroundTask(
         }
       }
       if (current?.status === 'stopped') return
+      // The leader exited while the group it created still holds a live member (a worker
+      // ignoring SIGTERM): the work is not done, and the record must stay controllable.
+      if (process.platform !== 'win32' && groupHasLiveMember(record.pid)) return
       if (current?.stopRequestedAt) status = 'stopped'
       const completion: BackgroundTaskCompletion = {
         id: record.id,

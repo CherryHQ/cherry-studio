@@ -4,6 +4,7 @@ import { application } from '@application'
 import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { sanitizeChannelOutput } from '@main/ai/channels'
 
 import {
   getDetachedBackgroundTask,
@@ -79,7 +80,9 @@ export async function listAgentBackgroundTasks(agentId: string): Promise<Backgro
 /**
  * Announces a finished task to the recipients the starting turn authorized, wherever the task was
  * stopped from. The summary carries task name, id, outcome, and the log path, so delivery stays
- * inside the record's persisted recipient scope — the same authority `notify` enforces live.
+ * inside the record's persisted recipient scope — the same authority `notify` enforces live. The
+ * name is unrestricted input, so the summary is redacted here exactly as a `notify` reply would
+ * be; the channel adapters send what they are given.
  */
 export function notifyAgentBackgroundTaskCompletion(agentId: string, task: CompletedBackgroundTask): void {
   try {
@@ -87,7 +90,7 @@ export function notifyAgentBackgroundTaskCompletion(agentId: string, task: Compl
     const adapters = application.get('ChannelManager').getAgentAdapters(agentId)
     for (const adapter of adapters.filter((adapter) => authorized.has(adapter.channelId))) {
       for (const chatId of adapter.notifyChatIds) {
-        adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
+        adapter.sendMessage(chatId, sanitizeChannelOutput(task.summary).text).catch((err: unknown) => {
           logger.warn('Failed to deliver background task completion notification', {
             agentId,
             taskId: task.record.id,
