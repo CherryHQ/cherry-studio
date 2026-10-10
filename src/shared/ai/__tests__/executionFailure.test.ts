@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 
-import { toExecutionFailure } from '../executionFailure'
+import { toExecutionFailure, toWireExecutionFailure } from '../executionFailure'
 
 describe('execution failure projection', () => {
   it('extracts a subscription rejection from CLI-style errors without confusing it with remote authorization', () => {
@@ -54,7 +54,9 @@ describe('execution failure projection', () => {
       providerId: '\u0001'.repeat(128),
       modelId: '\u0001'.repeat(128)
     })
-    expect(executionFailureSchema.safeParse(large).success).toBe(true)
+    // The persisted failure itself only has to stay within the byte budget; wire
+    // validity is asserted on its v1 projection.
     expect(new TextEncoder().encode(JSON.stringify(large)).length).toBeLessThanOrEqual(4096)
+    expect(executionFailureSchema.safeParse(toWireExecutionFailure(large)).success).toBe(true)
   })
 })
