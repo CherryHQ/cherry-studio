@@ -3,12 +3,12 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
-import { VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { endpointImpliedCapability, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNewApiProvider } from '@shared/utils/provider'
 import { getLowerBaseModelName, getRawModelId } from '@shared/utils/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -43,6 +43,11 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 function resolveNewApiModelEndpoint(provider: Provider, model: Model): EndpointType | undefined {
   const endpointTypes = model.endpointTypes
   if (!endpointTypes?.length || !isNewApiProvider(provider)) return endpointTypes?.[0]
+
+  const primaryEndpoint = endpointTypes[0]
+  if (endpointImpliedCapability(primaryEndpoint) !== undefined) {
+    return primaryEndpoint
+  }
 
   const modelId = getLowerBaseModelName(getRawModelId(model))
   const pick = (endpointType: EndpointType, matches: boolean): EndpointType | undefined =>
