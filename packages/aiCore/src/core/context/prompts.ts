@@ -10,6 +10,8 @@
  * contract teach the same protocol), and `getCompactSummaryWrapper` is the
  * framing persisted into `message.compaction_summary` rows.
  */
+import { stripModelScratchpadBlocks } from './scratchpadText'
+
 /**
  * Opening tag of the truncation marker. Exported so the truncator can
  * recognise an already-persisted marker and never re-truncate it.
@@ -155,7 +157,7 @@ Be concise but complete — err on the side of including information that would 
   /**
    * Cleans the raw output of a compression model by stripping XML scaffolding.
    *
-   * - Removes <analysis>...</analysis> scratchpad blocks
+   * - Removes model scratchpad blocks (any simple `<tag>...</tag>` wrapper)
    * - Extracts content from <summary>...</summary> when present
    * - Falls back to the stripped text if no <summary> tag is found
    * - Collapses excessive blank lines and trims whitespace
@@ -164,21 +166,7 @@ Be concise but complete — err on the side of including information that would 
    * formatCompactSummary('<analysis>thinking</analysis><summary>result</summary>')
    * // → 'result'
    */
-  formatCompactSummary: (raw: string): string => {
-    let out = raw
-
-    // Strip <analysis> scratchpad blocks (case-insensitive, all occurrences)
-    out = out.replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
-
-    // Extract <summary> content if present
-    const match = out.match(/<summary>([\s\S]*?)<\/summary>/i)
-    if (match) {
-      out = match[1]
-    }
-
-    // Collapse 3+ consecutive newlines into 2, then trim
-    return out.replace(/\n{3,}/g, '\n\n').trim()
-  },
+  formatCompactSummary: (raw: string): string => stripModelScratchpadBlocks(raw),
 
   /**
    * Wraps a compression summary with context explanation.
