@@ -18,7 +18,10 @@ export function getRequiredCapability(
 }
 
 export function getApiKey(config: FileProcessorMerged, processorId: FileProcessorId): string | undefined {
-  const keys = config.apiKeys?.map((value) => value.trim()).filter(Boolean) ?? []
+  // Rotate over distinct keys. `indexOf` always reports the first occurrence of a
+  // value, so a duplicated entry pinned the rotation to it and starved every later
+  // key. Deduplicating here keeps the round-robin correct when users paste a key twice.
+  const keys = [...new Set(config.apiKeys?.map((value) => value.trim()).filter(Boolean) ?? [])]
 
   if (keys.length === 0) {
     return undefined
