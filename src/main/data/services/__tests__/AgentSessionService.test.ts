@@ -1288,6 +1288,52 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(session.id).agentId).toBe('agent-session-test')
   })
 
+  it('rejects cross-runtime reassignment of a conversation that already has messages', async () => {
+    // Each runtime keeps its own native transcript and admission does not replay history, so an
+    // established conversation switching runtimes would orphan its visible history — the backend
+    // refuses even when the renderer's agent cache never saw the target.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-pi',
+      type: 'pi',
+      name: 'Pi target',
+      instructions: '',
+      orderKey: 'z1'
+    })
+    const session = await createSession('Established conversation')
+    await insertSessionMessage(session.id, 'message-cross-runtime')
+
+    expect(captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-pi' }))).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+    expect(agentSessionService.getById(session.id).agentId).toBe('agent-session-test')
+  })
+
+  it('still allows cross-runtime reassignment for an empty session and same-runtime for an established one', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-pi',
+      type: 'pi',
+      name: 'Pi target',
+      instructions: '',
+      orderKey: 'z1'
+    })
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-other-claude',
+      type: 'claude-code',
+      name: 'Other Claude target',
+      instructions: '',
+      orderKey: 'z2'
+    })
+
+    const empty = await createSession('Empty conversation')
+    agentSessionService.update(empty.id, { agentId: 'agent-session-pi' })
+    expect(agentSessionService.getById(empty.id).agentId).toBe('agent-session-pi')
+
+    const established = await createSession('Established same-runtime conversation')
+    await insertSessionMessage(established.id, 'message-same-runtime')
+    agentSessionService.update(established.id, { agentId: 'agent-session-other-claude' })
+    expect(agentSessionService.getById(established.id).agentId).toBe('agent-session-other-claude')
+  })
+
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
