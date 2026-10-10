@@ -49,6 +49,8 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
+import { isPlanExitToolName } from '@shared/ai/tool'
+import type { PlanModelHandoffResult } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -444,6 +446,9 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
+  /** Sessions whose runtime history folds plan mode inactive (an approved plan exit): a
+   *  reconnecting plan-permission connection must keep plan folded instead of re-arming it. */
+  private readonly planExitedSessions = new Set<string>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -1441,16 +1446,26 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
-   * Returns `false` if no registry entry matches so the caller can fall back to the MCP path.
+   * `dispatched: false` means no registry entry matched, so the caller can fall back to the MCP
+   * path; `handoff` reports what happened to a requested execution model so the caller never has to
+   * guess whether one was honored — `refused` with `dispatched: true` means the approval itself ran
+   * but the model switch did not, and the caller must surface that instead of implying it did.
    */
-  respondToolApproval(approvalId: string, decision: DispatchDecision, anchorId?: string): boolean {
+  respondToolApproval(
+    approvalId: string,
+    decision: DispatchDecision,
+    anchorId?: string,
+    options?: { executionModelId?: string }
+  ): { dispatched: boolean; handoff: PlanModelHandoffResult } {
+    const executionModelId = options?.executionModelId
+    const requested = typeof executionModelId === 'string'
     const pending = toolApprovalRegistry.peek(approvalId)
-    if (!pending) return false
+    if (!pending) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
-        return false
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
@@ -1463,7 +1478,7 @@ export class AgentSessionRuntimeService extends BaseService {
           approvalId,
           anchorId
         })
-        return false
+        return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
       }
     }
 
@@ -1473,14 +1488,66 @@ export class AgentSessionRuntimeService extends BaseService {
       approvalId,
       decision.approved ? decision : { ...decision, reasonSource: 'user' }
     )
-    if (!dispatched) return false
+    if (!dispatched) return { dispatched: false, handoff: requested ? 'refused' : 'not-requested' }
 
     if (dispatched.presentation === 'stream') {
       application
         .get('AiStreamManager')
         .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
     }
-    return true
+
+    // Only an approval has an execution to switch; a denial's model id is meaningless and must not
+    // fail the decision it rides on.
+    if (typeof executionModelId !== 'string' || !decision.approved)
+      return { dispatched: true, handoff: 'not-requested' }
+    if (!isPlanExitToolName(dispatched.toolName)) return { dispatched: true, handoff: 'refused' }
+    // A `message` presentation is the requesting agent outliving its parent turn (background work or
+    // subagents); its session entry also carries unrelated turns, so a handoff would stop them too.
+    if (dispatched.presentation !== 'stream') return { dispatched: true, handoff: 'refused' }
+    return { dispatched: true, handoff: this.stopTurnForModelHandoff(dispatched.sessionId, executionModelId) }
+  }
+
+  /**
+   * Plan-approval model handoff: the plan was approved (the SDK history records the tool result as
+   * allowed), but the user asked for a different execution model. The running model is spawn-frozen
+   * for the live turn's connection, so the handoff stops the turn here — the same teardown a user
+   * Stop performs — and the renderer completes it by switching the agent model and sending the
+   * execution follow-up, which starts a fresh turn on the new model with the session resumed. The
+   * approved exit is recorded first so the reconnecting connection keeps plan folded inactive
+   * instead of re-arming it. `already-current` when the turn runs that model already; `refused`
+   * when there is no live turn to stop — the caller must not report a handoff that cannot happen.
+   */
+  private stopTurnForModelHandoff(sessionId: string, executionModelId: string): PlanModelHandoffResult {
+    const entry = this.entries.get(sessionId)
+    // Without a live turn nothing can be restarted, and closing the session would tear down
+    // unrelated work for a handoff that can never happen.
+    const turn = entry ? this.liveTurn(entry) : undefined
+    if (!entry || !turn) return 'refused'
+    const runningModelId = turn.modelId
+    if (runningModelId === executionModelId) return 'already-current'
+
+    logger.info('Stopping approved plan turn for execution-model handoff', {
+      sessionId,
+      executionModelId,
+      runningModelId
+    })
+    // The approved exit must survive the teardown below: the follow-up turn reconnects with plan
+    // still folded inactive (mutation tools admitted), not re-armed plan mode.
+    this.planExitedSessions.add(sessionId)
+    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    void this.closeSession(sessionId)
+    return 'started'
+  }
+
+  /**
+   * Mirror the runtime's committed plan fold (an approved exit or a `/plan` re-entry) into the
+   * session-level overlay so it survives connection replacement; a fold reported by a replaced
+   * entry's connection must not clobber the current one's state.
+   */
+  private syncPlanExitOverlay(entry: AgentSessionRuntimeEntry, active: boolean): void {
+    if (!this.isCurrentEntry(entry)) return
+    if (active) this.planExitedSessions.delete(entry.sessionId)
+    else this.planExitedSessions.add(entry.sessionId)
   }
 
   /**
@@ -1773,9 +1840,11 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
+      planExitApproved: this.planExitedSessions.has(entry.sessionId),
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs),
+      onPlanModeFold: (active) => this.syncPlanExitOverlay(entry, active)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)

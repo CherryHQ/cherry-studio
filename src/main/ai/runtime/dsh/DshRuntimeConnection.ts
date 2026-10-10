@@ -485,6 +485,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       client.start()
       await client.initialize({ cwd: workspacePath, provider: injection.providerName, model: injection.modelId })
       await this.bridge.whenReady()
+      // An approved plan exit folds plan inactive in the resumed history; re-arming plan here
+      // would deny the execution follow-up its mutation tools until another exit or mode change.
+      const resumeWithApprovedPlanExit = this.permissionMode === 'plan' && this.input.planExitApproved === true
+      if (resumeWithApprovedPlanExit) this.runtimePlanActive = false
       await this.bridge.request('session/open', {
         sessionId: this.runtimeSessionId,
         provider: injection.providerName,
@@ -494,7 +498,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })
-      if (this.permissionMode === 'plan') {
+      if (this.permissionMode === 'plan' && !resumeWithApprovedPlanExit) {
         // Activate dsh's plan surface (prompt section + exit tool); a resumed log
         // that already folds to plan makes this a no-op.
         this.runtimePlanActive = true
@@ -775,6 +779,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * live policy; Cherry's stored mode is deliberately not rewritten.
    */
   private handlePlanModeFold(active: boolean): void {
+    // Report every committed fold — the host mirrors it across connection replacement, so even a
+    // fold that merely confirms an optimistic assignment must reach it.
+    this.input.onPlanModeFold?.(active)
     if (this.runtimePlanActive === active) return
     this.runtimePlanActive = active
     const bridge = this.bridge

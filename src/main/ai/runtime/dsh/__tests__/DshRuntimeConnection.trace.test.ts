@@ -683,6 +683,69 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
+  it('arms plan mode on open for a plan-permission agent', async () => {
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'plan' }, disabledTools: [] }
+    }
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ policy: expect.objectContaining({ permissionMode: 'plan' }) })
+      )
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('plan/set', { sessionId: 'session-1', active: true })
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it('keeps an approved plan exit folded on resume instead of re-arming plan', async () => {
+    // The plan was approved and exited on an earlier connection; the resumed history folds plan
+    // inactive. Re-arming plan here would deny the execution follow-up's mutation tools.
+    runtimeMocks.snapshot = {
+      ...baseSnapshot(),
+      agent: { id: 'agent-1', configuration: { permission_mode: 'plan' }, disabledTools: [] }
+    }
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      resumeToken: 'native-resumed',
+      planExitApproved: true
+    }).start()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ policy: expect.objectContaining({ permissionMode: 'default' }) })
+      )
+      expect(runtimeMocks.bridgeRequest.mock.calls.some(([method]) => method === 'plan/set')).toBe(false)
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it('reports committed plan folds so the host overlay survives connection replacement', async () => {
+    const folds: boolean[] = []
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      onPlanModeFold: (active) => folds.push(active)
+    }).start()
+    try {
+      for (const [seq, active] of [
+        [1, false],
+        [2, true]
+      ] as const) {
+        subscription.push({
+          method: 'session.event',
+          params: { sessionId: 'session-1', event: { type: 'plan/mode', seq, time: 0, data: { active } } }
+        })
+      }
+      await drain()
+      expect(folds).toEqual([false, true])
+    } finally {
+      await connection.close()
+    }
+  })
+
   it.each(['idle', 'active'] as const)(
     'closes its event stream when the notification transport dies while %s',
     async (state) => {

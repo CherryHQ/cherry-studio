@@ -4,6 +4,7 @@ import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import {
   readAskUserQuestionDraftCache,
   writeAskUserQuestionDraftCache
@@ -404,6 +405,92 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(sent).toBe(false)
+  })
+
+  function makePlanApprovalInput(executionModelId?: string) {
+    return {
+      match: {
+        part: {
+          type: 'tool-ExitPlanMode',
+          toolName: 'ExitPlanMode',
+          toolCallId: 'call-plan',
+          state: 'approval-requested',
+          input: { plan: '# Plan' },
+          approval: { id: 'approval-plan' }
+        },
+        state: 'approval-requested',
+        toolCallId: 'call-plan',
+        messageId: 'assistant-1',
+        approvalId: 'approval-plan',
+        input: { plan: '# Plan' }
+      },
+      approved: true,
+      ...(executionModelId ? { executionModelId } : {})
+    } as unknown as MessageToolApprovalInput
+  }
+
+  // The card promised the plan would run on the plan-execution model, so a handoff Main could not
+  // perform has to be said out loud — "approved" alone would leave that claim standing.
+  it('warns when the requested plan-execution model was not applied', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: true, handoff: 'refused' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+
+    expect(mocks.toastWarning).toHaveBeenCalledWith('agent.toolPermission.executionModel.notApplied')
+  })
+
+  it('stays quiet when no plan-execution model was requested', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: true, handoff: 'not-requested' })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput()))
+
+    expect(mocks.toastWarning).not.toHaveBeenCalled()
+  })
+
+  // Main has already stopped the approved turn here, so a follow-up that will not go out leaves no
+  // automatic path left — swallowing it would lose the plan without a word.
+  it('reports a plan execution follow-up that fails to send', async () => {
+    mocks.sendTurn.mockRejectedValueOnce(new Error('stream unavailable'))
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendPlanExecutionFollowUp()
+    })
+
+    expect(sent).toBe(false)
+    expect(mocks.toastError).toHaveBeenCalledWith('stream unavailable')
+  })
+
+  it('stays quiet when the plan execution follow-up goes out', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(true)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await result.current.sendPlanExecutionFollowUp()
+    })
+
+    expect(sent).toBe(true)
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('invalidates disclosure state after deleting a session message', async () => {

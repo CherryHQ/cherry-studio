@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -12,8 +12,8 @@ import PermissionRequestComposer, { type PermissionRequestComposerRequest } from
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string) =>
-      ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const table: Record<string, string> = {
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
         'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
@@ -23,6 +23,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
+        'agent.toolPermission.executionModel.notice': 'Plan execution model: {{model}}',
+        'agent.toolPermission.executionModel.unavailable': '{{model}} cannot be used here',
         'message.processing': 'Processing',
         'message.tools.activity.checking': 'Checking',
         'message.tools.activity.projectChecks': 'project checks',
@@ -32,7 +34,10 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
-      })[key] ?? key
+      }
+      const value = table[key] ?? key
+      return options ? value.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options[name] ?? '')) : value
+    }
   })
 }))
 
@@ -42,6 +47,34 @@ vi.mock('@renderer/components/CodeViewer', () => ({
       {value}
     </div>
   )
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: (options?: { enabled?: boolean }) => {
+    lookupRequests.providerEnabled.push(options?.enabled)
+    return { providers: [{ id: 'anthropic', name: 'Anthropic' }] }
+  }
+}))
+
+const planExecutionPreference = vi.hoisted(() => ({ modelId: null as string | null }))
+const modelByIdFixture = vi.hoisted(() => ({
+  model: undefined as { id: string; name: string; providerId: string } | undefined
+}))
+const lookupRequests = vi.hoisted(() => ({
+  modelIds: [] as unknown[],
+  providerEnabled: [] as (boolean | undefined)[]
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (key: string) =>
+    key === 'chat.plan_execution.model_id' ? [planExecutionPreference.modelId, vi.fn()] : [undefined, vi.fn()]
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (uniqueModelId: unknown) => {
+    lookupRequests.modelIds.push(uniqueModelId)
+    return { model: uniqueModelId ? modelByIdFixture.model : undefined }
+  }
 }))
 
 const part = {
@@ -84,7 +117,48 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
   }
 }
 
+function makePlanRequest(): PermissionRequestComposerRequest {
+  return makeRequest({
+    title: 'ExitPlanMode',
+    toolResponse: {
+      id: 'exit-plan-call-1',
+      toolCallId: 'exit-plan-call-1',
+      status: 'pending',
+      arguments: { plan: '# Plan' },
+      tool: { id: 'ExitPlanMode', name: 'ExitPlanMode', type: 'builtin' }
+    }
+  })
+}
+
+/** An MCP tool that merely shares the plan-exit name — it carries no plan semantics. */
+function makeCollidingMcpRequest(): PermissionRequestComposerRequest {
+  return makeRequest({
+    title: 'exit_plan_mode',
+    toolResponse: {
+      id: 'mcp-plan-call-1',
+      toolCallId: 'mcp-plan-call-1',
+      status: 'pending',
+      arguments: { plan: '# Plan' },
+      tool: { id: 'exit_plan_mode', name: 'exit_plan_mode', type: 'mcp', serverName: 'plans' }
+    } as NormalToolResponse
+  })
+}
+
+function configurePlanExecutionModel(overrides: Partial<{ id: string; name: string; providerId: string }> = {}) {
+  const model = { id: 'anthropic::claude-opus-5', name: 'Claude Opus 5', providerId: 'anthropic', ...overrides }
+  planExecutionPreference.modelId = model.id
+  modelByIdFixture.model = model
+  return model
+}
+
 describe('PermissionRequestComposer', () => {
+  beforeEach(() => {
+    planExecutionPreference.modelId = null
+    modelByIdFixture.model = undefined
+    lookupRequests.modelIds.length = 0
+    lookupRequests.providerEnabled.length = 0
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
@@ -203,6 +277,191 @@ describe('PermissionRequestComposer', () => {
     const preview = screen.getByTestId('permission-preview')
     expect(preview).toHaveTextContent('Release plan')
     expect(preview).toHaveTextContent('Run the focused tests')
+  })
+
+  it('names the configured plan-execution model only on a plan approval', () => {
+    configurePlanExecutionModel()
+    const { rerender } = render(
+      <PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />
+    )
+
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
+
+    rerender(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+  })
+
+  it('says nothing when no plan-execution model is configured', () => {
+    const { rerender } = render(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+  })
+
+  it('warns when the agent runtime cannot run the configured plan-execution model', () => {
+    configurePlanExecutionModel()
+    render(
+      <PermissionRequestComposer
+        request={makePlanRequest()}
+        onRespond={vi.fn()}
+        planExecution={{ modelFilter: (model) => model.id !== 'anthropic::claude-opus-5' }}
+      />
+    )
+
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
+  })
+
+  it('warns when the availability gate rejects the configured plan-execution model', () => {
+    configurePlanExecutionModel()
+    render(
+      <PermissionRequestComposer
+        request={makePlanRequest()}
+        onRespond={vi.fn()}
+        planExecution={{ isModelDisabled: (model) => model.id === 'anthropic::claude-opus-5' }}
+      />
+    )
+
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Claude Opus 5 cannot be used here')
+  })
+
+  // Runtime compatibility predicates are provider-aware and fail closed without one, so the gates
+  // must see the configured model's Provider or every pi/dsh model looks unusable.
+  it('evaluates the gates against the configured model with its provider', () => {
+    configurePlanExecutionModel()
+    const seen: Array<{ modelId: string; providerId: string | undefined }> = []
+    render(
+      <PermissionRequestComposer
+        request={makePlanRequest()}
+        onRespond={vi.fn()}
+        planExecution={{
+          modelFilter: (model, provider) => {
+            seen.push({ modelId: model.id, providerId: provider?.id })
+            return true
+          }
+        }}
+      />
+    )
+
+    expect(seen).toEqual([{ modelId: 'anthropic::claude-opus-5', providerId: 'anthropic' }])
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
+  })
+
+  it('never hands off for an MCP tool that merely shares the plan-exit name', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeCollidingMcpRequest()} onRespond={onRespond} planExecution={{}} />)
+
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: makeCollidingMcpRequest().match, approved: true })
+  })
+
+  it('approves a plan without a configured model exactly as before', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  it('approves a plan with the configured execution model for the fresh-turn restart', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: planRequest.match,
+      approved: true,
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+  })
+
+  // A malformed handoff id would stop the approved turn without a usable execution follow-up —
+  // the approval must go through without it rather than sending an id Main cannot resolve.
+  it('approves a plan without the handoff when the configured model id is malformed', async () => {
+    configurePlanExecutionModel({ id: 'not-a-model-id' })
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // A configured model the gates refuse must not reach Main as a requested handoff.
+  it('drops a configured plan-execution model the gates would not offer', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(
+      <PermissionRequestComposer
+        request={planRequest}
+        onRespond={onRespond}
+        planExecution={{ modelFilter: (model) => model.id !== 'anthropic::claude-opus-5' }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // Main refuses a handoff that is not a plan approval — but only after the approval has already
+  // been dispatched, so a non-plan tool must never carry one in the first place.
+  it('never requests an execution-model handoff for a non-plan tool approval', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} planExecution={{}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: makeRequest().match, approved: true })
+  })
+
+  // Home has no agent whose model a handoff could switch, and its IPC layer drops the id anyway.
+  it('requests no handoff without an agent context', async () => {
+    configurePlanExecutionModel()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const planRequest = makePlanRequest()
+    render(<PermissionRequestComposer request={planRequest} onRespond={onRespond} />)
+
+    expect(screen.queryByTestId('plan-execution-model')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: planRequest.match, approved: true })
+  })
+
+  // An approval that cannot hand a model off must not resolve the plan-execution model or its
+  // Provider either — the policy belongs to the caller, not to every card this composer renders.
+  it('resolves the plan-execution model only where a handoff can happen', () => {
+    configurePlanExecutionModel()
+    const { rerender } = render(
+      <PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} planExecution={{}} />
+    )
+
+    expect(lookupRequests.modelIds.length).toBeGreaterThan(0)
+    expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).not.toContain(true)
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} />)
+    expect(lookupRequests.modelIds).not.toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).not.toContain(true)
+
+    rerender(<PermissionRequestComposer request={makePlanRequest()} onRespond={vi.fn()} planExecution={{}} />)
+    expect(lookupRequests.modelIds).toContain('anthropic::claude-opus-5')
+    expect(lookupRequests.providerEnabled).toContain(true)
+    expect(screen.getByTestId('plan-execution-model')).toHaveTextContent('Plan execution model: Claude Opus 5')
   })
 
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {

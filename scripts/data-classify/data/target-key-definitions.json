@@ -290,6 +290,13 @@
       "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
     },
     {
+      "targetKey": "chat.plan_execution.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Model that executes an approved plan (provider::modelId); null keeps the turn's current model and the approval card can still override per plan"
+    },
+    {
       "targetKey": "chat.retry.backoff_enabled",
       "type": "boolean",
       "defaultValue": true,

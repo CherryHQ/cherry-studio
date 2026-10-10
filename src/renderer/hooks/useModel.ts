@@ -21,12 +21,14 @@ const logger = loggerService.withContext('useModels')
 const EMPTY_MODELS: readonly Model[] = Object.freeze([])
 
 /**
- * Reactive read of the user's default / quick / translate / painting models.
- * Each id lives in Preference; the Model record lives in DataApi. Quick /
- * translate fall back to the default-model id when their dedicated preference
- * is unset; painting does not — it needs an image-generation model, which the
- * chat default is not, so it stays empty (and out of the cascade) until the
- * user picks one.
+ * Reactive read of the user's default / quick / translate / painting / plan
+ * execution models. Each id lives in Preference; the Model record lives in
+ * DataApi. Quick / translate fall back to the default-model id when their
+ * dedicated preference is unset; painting and plan execution do not — painting
+ * needs an image-generation model, which the chat default is not, and an unset
+ * plan-execution model means "keep the turn's current model" rather than any
+ * particular model, so both stay empty (and out of the cascade) until the user
+ * picks one.
  */
 export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const enabled = options.enabled ?? true
@@ -34,6 +36,7 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
+  const [planExecutionModelId, setPlanExecutionModelId] = usePreference('chat.plan_execution.model_id')
 
   const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
   const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
@@ -41,12 +44,14 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
     enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
   )
   const { model: paintingModel } = useModelById(enabled ? (paintingModelId as UniqueModelId) : null)
+  const { model: planExecutionModel } = useModelById(enabled ? (planExecutionModelId as UniqueModelId) : null)
 
   return {
     defaultModel,
     quickModel,
     translateModel,
     paintingModel,
+    planExecutionModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
     setDefaultModel: async (next: { id: UniqueModelId }, options?: { forceCascade?: boolean }) => {
       await setDefaultModelId(next.id)
@@ -57,7 +62,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
     },
     setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
     setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id),
-    setPaintingModel: (next: { id: UniqueModelId }) => setPaintingModelId(next.id)
+    setPaintingModel: (next: { id: UniqueModelId }) => setPaintingModelId(next.id),
+    // Clearable: an unset plan-execution model means "keep the turn's current model".
+    setPlanExecutionModel: (next: { id: UniqueModelId } | undefined) => setPlanExecutionModelId(next?.id ?? null)
   }
 }
 
