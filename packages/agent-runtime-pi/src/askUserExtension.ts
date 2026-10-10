@@ -40,7 +40,10 @@ export interface AskUserPort {
   ask(request: AskUserRequest): Promise<AskUserResponse>
 }
 
-/** `details` of every `AskUserQuestion` result, in the shape Cherry's card reads. */
+/**
+ * `details` of every result the tool returns (answered, declined, unavailable or aborted), in the shape
+ * Cherry's card reads. Calls Pi rejects before `execute`, or that throw, carry empty `details`.
+ */
 export interface AskUserQuestionDetails {
   questions: AskUserQuestionItem[]
   answers: Record<string, string>
@@ -165,8 +168,10 @@ export function createAskUserExtension(port: AskUserPort): ExtensionFactory {
       async execute(toolCallId, params, signal) {
         const questions = params.questions.map((item) => ({ ...item, multiSelect: item.multiSelect ?? false }))
         const texts = new Set(questions.map((item) => item.question))
-        // Answers are keyed by question text.
+        // Answers are keyed by question text and name the chosen labels.
         if (texts.size !== questions.length) throw new Error('Each question must have a different question text.')
+        if (questions.some(({ options }) => new Set(options.map((option) => option.label)).size !== options.length))
+          throw new Error('Each option of a question must have a different label.')
 
         const request = { toolCallId, questions, signal: signal ?? new AbortController().signal }
         return toToolResult(questions, await waitForAnswer(port, request))
