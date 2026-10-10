@@ -357,6 +357,27 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
   })
 
+  it('prefers the Gemini native endpoint for New API Gemini models when both openai and gemini are listed (#21249)', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.aiionly.com/v1',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+  })
+
   it('falls back to provider.defaultChatEndpoint when model has no endpointTypes hint', () => {
     const provider = makeProvider({
       id: 'minimax',

@@ -7,16 +7,27 @@ import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 
 async function getMiddleware(
-  scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
+  scope: {
+    aiSdkProviderId?: string
+    endpointType?: EndpointType
+    runtimeProviderId?: string
+    model?: Model
+    provider?: Provider
+  } = {}
 ): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
+    model: scope.model ?? makeModel({ apiModelId: 'gpt-4o' }),
+    provider: scope.provider ?? makeProvider({ id: 'openai' }),
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
@@ -29,7 +40,13 @@ async function getMiddleware(
 
 async function transform(
   params: LanguageModelV3CallOptions,
-  scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
+  scope: {
+    aiSdkProviderId?: string
+    endpointType?: EndpointType
+    runtimeProviderId?: string
+    model?: Model
+    provider?: Provider
+  } = {}
 ): Promise<LanguageModelV3CallOptions> {
   const middleware = await getMiddleware(scope)
   return middleware.transformParams!({ params, type: 'generate', model: {} as never })
@@ -601,7 +618,13 @@ describe('toolSchemaCompatibilityFeature', () => {
 
     for (const scope of [
       { aiSdkProviderId: 'google', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
-      { aiSdkProviderId: 'aihubmix', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+      { aiSdkProviderId: 'aihubmix', endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT },
+      {
+        runtimeProviderId: 'newapi',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        model: makeModel({ apiModelId: 'gemini-3.8-flash' }),
+        provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
+      }
     ] as const) {
       const transformed = (await transform(params, scope)).tools?.[0]
       if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
