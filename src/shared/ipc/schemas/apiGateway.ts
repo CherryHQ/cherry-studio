@@ -32,7 +32,8 @@ export const apiGatewayRequestSchemas = {
       desktopIdentity: z.string(),
       protocolVersions: z.array(z.number()),
       expiresAt: z.string(),
-      addresses: z.array(z.string()),
+      addresses: z.array(z.string()).max(32),
+      addressOptions: z.array(z.object({ address: z.string(), interfaceName: z.string() })),
       port: z.number(),
       hostname: z.string()
     })

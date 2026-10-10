@@ -5,6 +5,7 @@ import {
   pairingMethods,
   remoteAuthorizationSchema,
   remoteLimits,
+  type DirectEndpoint,
   type RemoteAuthorization,
   type RemoteCapability
 } from '@cherrystudio/remote-protocol'
@@ -37,7 +38,8 @@ export class RemoteConnection {
     pairing: RemotePairing,
     tokens: RemoteTokens,
     onClaim: () => void,
-    hub: RemoteAgentHub
+    hub: RemoteAgentHub,
+    getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[] }>
   ) {
     this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification))
     // The reply is queued on the write chain in a microtask; setImmediate runs after it, keeping events behind the response.
@@ -58,6 +60,7 @@ export class RemoteConnection {
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
+        connectionEndpointsVersion: 1,
         limits: remoteLimits,
         heartbeatMs: remoteLimits.heartbeatMs
       }
@@ -83,6 +86,12 @@ export class RemoteConnection {
     this.rpc.addMethod('connection.refresh', connectionSchemas['connection.refresh'], () => {
       const auth = this.requireAuthentication(true)
       return authenticate(auth.deviceId)
+    })
+    this.rpc.addMethod('connection.endpoints', connectionSchemas['connection.endpoints'], async ({ domain }) => {
+      this.requireCapability(domain)
+      const snapshot = await getEndpoints()
+      this.requireCapability(domain)
+      return snapshot
     })
     this.rpc.addMethod('connection.ping', connectionSchemas['connection.ping'], ({ nonce }) => {
       this.requireHello()

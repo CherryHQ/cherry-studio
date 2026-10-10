@@ -26,7 +26,7 @@ export interface UiNode {
   mode?: number
   title?: string
   inputs?: Array<{ name: string; type?: string; link?: number | null; widget?: { name: string } }>
-  outputs?: Array<{ name: string; type?: string; links?: number[] | null }>
+  outputs?: Array<{ name: string; type?: string; links?: number[] | null; widget?: { name: string } }>
   widgets_values?: unknown[] | JsonObject
   widgets_values_named?: JsonObject
 }
@@ -47,7 +47,7 @@ interface UiGraph {
 interface UiSubgraph extends UiGraph {
   id: string
   name?: string
-  inputs?: Array<{ name: string; linkIds?: number[] }>
+  inputs?: Array<{ name: string; type?: string; linkIds?: number[] }>
   outputs?: Array<{ name: string; type?: string; linkIds?: number[] }>
   inputNode?: { id: number }
   outputNode?: { id: number }
@@ -65,6 +65,12 @@ export type ObjectInfo = Record<
     /** The server's own declaration order per section. Object key order is not
      * a reliable substitute: integer-like keys iterate first, in numeric order. */
     input_order?: { required?: string[]; optional?: string[] }
+    /** The server executes this class for its side effect, so a node of it is
+     * where a run ends — the anchor the target walk falls back to. */
+    output_node?: boolean
+    /** The types this class produces. `STRING` marks a node that carries text
+     * to whatever reads it. */
+    output?: unknown
   }
 >
 
@@ -77,12 +83,47 @@ export interface ApiPromptNode {
 export interface ConversionResult {
   prompt: Record<string, ApiPromptNode>
   warnings: string[]
+  /**
+   * The text widgets the workflow itself exposes on a subgraph instance, in the
+   * order a run should prefer them. A subgraph that promotes a STRING widget
+   * shows it on the instance as the field the workflow is meant to be run with,
+   * which is the one place a text input is unambiguous even when the graph
+   * reaches the encoder through a concat that hides it.
+   */
+  promotedText: { nodeId: string; input: string }[]
 }
 
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
 /** Widget declarations with this config flag spend an extra positional value
  * for the control_after_generate pseudo-widget, which never reaches the prompt. */
 const CONTROL_AFTER_GENERATE = 'control_after_generate'
+
+/** The frontend's bounds for a randomized widget (`valueControl.ts`): past 2^50
+ * a double no longer holds every integer the step lands on. */
+const SAFE_INTEGER_MAX = 1125899906842624
+const SAFE_INTEGER_MIN = -1125899906842624
+
+export interface ConversionOptions {
+  /**
+   * Redraw every number widget the workflow set to `randomize` — in practice a
+   * seed, the only kind the backend offers that control on — the way the
+   * frontend does each time it queues. Without it the value the workflow last
+   * saved runs every time, so the same prompt renders the same image.
+   */
+  random?: () => number
+}
+
+const isSeedName = (name: string): boolean =>
+  name === 'seed' || name === 'noise_seed' || name.endsWith('.seed') || name.endsWith('.noise_seed')
+
+/** A value the frontend's `randomize` could land on, inside the widget's range. */
+function randomWidgetValue(config: JsonObject, random: () => number): number {
+  const max = Math.min(SAFE_INTEGER_MAX, typeof config.max === 'number' ? config.max : SAFE_INTEGER_MAX)
+  const min = Math.max(SAFE_INTEGER_MIN, typeof config.min === 'number' ? config.min : 0)
+  const step = typeof config.step === 'number' && config.step > 0 ? config.step : 1
+  const next = Math.floor(random() * ((max - min) / step)) * step + min
+  return Math.min(Math.max(next, min), max)
+}
 
 /** Further frontend widget input types that spend a positional value: COLOR
  * holds a color string (or int), COLORS a list of color strings, RANGE a
@@ -113,6 +154,22 @@ interface WidgetNames {
   positions: (string | null)[]
   /** Widgets whose API value must carry the frontend's CURVE envelope. */
   curves: Set<string>
+}
+
+/** The declaration config of a top-level widget, `{}` when it has none. */
+function widgetConfig(info: ObjectInfo[string], name: string): JsonObject {
+  const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as unknown[] | undefined
+  return Array.isArray(entry) && entry.length > 1 && typeof entry[1] === 'object' ? (entry[1] as JsonObject) : {}
+}
+
+/** The top-level widget the server declares control_after_generate on, if any. */
+function controlledWidget(info: ObjectInfo[string]): string | undefined {
+  for (const section of [info.input?.required, info.input?.optional]) {
+    for (const name of Object.keys(section ?? {})) {
+      if (widgetConfig(info, name)[CONTROL_AFTER_GENERATE]) return name
+    }
+  }
+  return undefined
 }
 
 /** The widget names a node def's positions resolve to, dummies removed. */
@@ -191,6 +248,39 @@ function widgetInputNames(
 
 export const isReference = (value: unknown): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
+
+/**
+ * A node that is its own value: every input it declares is either the `value`
+ * widget or something the graph cannot reference. A text primitive is the
+ * common case; a concat or a generator that takes other nodes as input is not
+ * one, so its `value`-shaped input is never mistaken for the text.
+ */
+const isValueSource = (node: ApiPromptNode): boolean =>
+  Object.entries(node.inputs).every(([name, value]) => name === 'value' || !isReference(value))
+
+/**
+ * A node that holds text and does not sample: a text primitive, or a text
+ * encode whose prompt is still a workflow constant. It is the kind of node the
+ * walk may stop at, and the kind an edgeless text source is not — a generator
+ * with its own seed writes its prompt from its input rather than holding it.
+ */
+const holdsText = (node: ApiPromptNode, objectInfo?: ObjectInfo): boolean => {
+  // The server says which classes produce a STRING — a concatenate, a format, a
+  // primitive. Any of them carries text to the node that reads it, whatever its
+  // own inputs are; a concatenate that joins two links is a text source to the
+  // node above it just as a primitive is.
+  const outputs = objectInfo?.[node.class_type]?.output
+  if (Array.isArray(outputs) && outputs.includes('STRING')) return true
+  return (
+    node.class_type === 'StringConcatenate' ||
+    typeof node.inputs.value === 'string' ||
+    Object.entries(node.inputs).some(([name, value]) => typeof value === 'string' && isPromptShaped(name))
+  )
+}
+
+/** Whether a node samples on its own, rather than only carrying text. */
+const isPlainTextNode = (node: ApiPromptNode): boolean =>
+  seedInputKey(node.inputs) === undefined && !('latent_image' in node.inputs)
 
 /** Required inputs the prompt must still carry when the workflow saved no
  * value for them: the frontend's widgets always hold something (the declared
@@ -282,9 +372,14 @@ function wrapWidgetValue(value: unknown): unknown {
   return Array.isArray(value) ? { __value__: value } : value
 }
 
-export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo): ConversionResult {
+export function convertUiWorkflowToPrompt(
+  ui: UiWorkflow,
+  objectInfo: ObjectInfo,
+  options: ConversionOptions = {}
+): ConversionResult {
   const subgraphs = new Map((ui.definitions?.subgraphs ?? []).map((sub) => [sub.id, sub]))
   const prompt: Record<string, ApiPromptNode> = {}
+  const promotedText: { nodeId: string; input: string }[] = []
   const warnings: string[] = []
   /**
    * Node ids the prompt cannot contain (subgraph instances, bypassed and
@@ -352,13 +447,24 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     return out
   }
 
-  /** Widget values, aligned to the backend's declaration order. */
-  function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
+  /** Widget values, aligned to the backend's declaration order, and the
+   * control_after_generate mode of each widget that has one. */
+  function widgetValues(
+    node: UiNode,
+    linked: Set<string>
+  ): { values: Record<string, unknown>; controls: Map<string, string> } {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
-    if (!info) return {}
+    const controls = new Map<string, string>()
+    if (!info) return { values: {}, controls }
     let out: Record<string, unknown>
     let values: unknown[]
+    // A named map keys the mode as `control_after_generate` itself; the widget it
+    // belongs to is the one the server declares the control on.
+    const named = node.widgets_values_named ?? (raw !== undefined && !Array.isArray(raw) ? raw : undefined)
+    const namedControl = named?.[CONTROL_AFTER_GENERATE]
+    const controlled = controlledWidget(info)
+    if (typeof namedControl === 'string' && controlled) controls.set(controlled, namedControl)
     // Named values (widgets_values_named, or the object form of widgets_values)
     // key straight to the inputs — a schema change cannot silently remap them
     // to a different position. A node the frontend has no widget for can still
@@ -401,7 +507,12 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       }
       const positional: Record<string, unknown> = {}
       names.forEach((name, index) => {
-        if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
+        if (name === CONTROL_AFTER_GENERATE) {
+          // The mode follows the widget it controls.
+          if (typeof values[index] === 'string') controls.set(names[index - 1], values[index])
+          return
+        }
+        if (index >= values.length || linked.has(name)) return
         // A curve widget value rides the frontend's envelope; the backend
         // unwraps it during execution.
         positional[name] = curves.has(name)
@@ -421,7 +532,21 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       if (linked.has(name) || name in out) continue
       out[name] = wrapWidgetValue(fallback)
     }
-    return out
+    return { values: out, controls }
+  }
+
+  /**
+   * The frontend redraws a `randomize` widget each time it queues — a promoted
+   * one too, whose value the subgraph instance binds — so a run does the same.
+   * A combo keeps its saved option, and an input another node feeds follows
+   * that node's own control.
+   */
+  function redrawRandomized(node: UiNode, inputs: Record<string, unknown>, controls: Map<string, string>) {
+    if (!options.random) return
+    for (const [name, mode] of controls) {
+      if (mode !== 'randomize' || typeof inputs[name] !== 'number') continue
+      inputs[name] = randomWidgetValue(widgetConfig(objectInfo[node.type], name), options.random)
+    }
   }
 
   /**
@@ -466,7 +591,14 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
    * value itself, so `Value: 3` feeding `steps` becomes `steps: 3`.
    */
   function emitPrimitive(node: UiNode, remap: Map<number, number>) {
-    const value = Array.isArray(node.widgets_values) ? node.widgets_values[0] : undefined
+    const saved = Array.isArray(node.widgets_values) ? node.widgets_values : []
+    // A primitive carries its own control mode after the value. The range lives on
+    // the widget it feeds, so only one feeding a seed is redrawn, over 0 … 2^50.
+    const feedsSeed = (node.outputs ?? []).some((output) => output.widget && isSeedName(output.widget.name))
+    const value =
+      options.random && feedsSeed && saved[1] === 'randomize' && typeof saved[0] === 'number'
+        ? randomWidgetValue({}, options.random)
+        : saved[0]
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(node.outputs ?? []).forEach((_, slot) => {
       alias[slot] = () => ({ kind: 'value', value: wrapWidgetValue(value) })
@@ -501,12 +633,24 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         return
       }
     }
-    const linked = new Set((node.inputs ?? []).filter((slot) => slot.link != null).map((slot) => slot.name))
+    // A link that resolves to nothing — a promoted input the instance bound no
+    // value to, a dangling link, an alias that ran out — leaves the input to the
+    // value the node itself saved. The frontend reads it the same way: it
+    // registers a promoted widget with the interior value and only overwrites it
+    // when the instance actually carries one, so an unbound promotion is the
+    // interior's value, not an absent input.
+    const linked = new Set<string>()
     const inputs: Record<string, unknown> = {}
     for (const slot of node.inputs ?? []) {
-      if (slot.link != null) inputs[slot.name] = resolveLink(slot.link, links, remap, bindings)
+      if (slot.link == null) continue
+      const resolved = resolveLink(slot.link, links, remap, bindings)
+      if (resolved === undefined) continue
+      linked.add(slot.name)
+      inputs[slot.name] = resolved
     }
-    Object.assign(inputs, widgetValues(node, linked))
+    const widgets = widgetValues(node, linked)
+    Object.assign(inputs, widgets.values)
+    redrawRandomized(node, inputs, widgets.controls)
     prompt[String(id)] = {
       class_type: node.type,
       inputs,
@@ -527,26 +671,51 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const innerLinks = linkMap(definition.links)
     const inputNodeId = definition.inputNode?.id
 
-    // Linked widgets still occupy a saved positional value; non-widget sockets do not.
+    // A promoted input spends a positional widget value when the interior backs
+    // it with a widget; a socket-only promotion spends none, and only a link can
+    // fill it. Linked widgets still spend their position — the frontend writes
+    // one entry per widget-hosting slot whether or not it is linked.
+    const widgetSlotOf = (def: { linkIds?: number[] }): { nodeId: number; name: string } | undefined => {
+      for (const linkId of def.linkIds ?? []) {
+        const link = innerLinks.get(linkId)
+        if (!link) continue
+        const slot = definition.nodes.find((node) => node.id === link.target_id)?.inputs?.[link.target_slot]
+        if (slot?.widget) return { nodeId: link.target_id, name: slot.widget.name }
+      }
+      return undefined
+    }
+
+    // The saved positional values are read against the subgraph's own inputs, in
+    // declaration order: `SubgraphNode.configure` rebuilds the instance's input
+    // list from the subgraph's slots before `_applyPromotedWidgetValues` walks
+    // it, and `serializeFromStoreState` writes one entry per slot that hosts a
+    // widget. The `inputs[]` in the file is a different list — it can omit a
+    // promoted widget altogether — so reading the positions off it shifts every
+    // value that follows the omission.
     const innerBindings = new Map<number, Map<number, unknown>>()
     if (inputNodeId !== undefined) {
       const values = instance.widgets_values
+      const saved = new Map((instance.inputs ?? []).map((slot) => [slot.name, slot]))
       const byName = new Map<string, unknown>()
       let widgetIndex = 0
-      for (const slot of instance.inputs ?? []) {
-        if (slot.link != null) {
-          byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
-        } else if ('widget' in slot) {
-          // Named values preserve bindings when promoted widgets are reordered.
-          const named = instance.widgets_values_named?.[slot.name]
-          byName.set(
-            slot.name,
-            wrapWidgetValue(
-              named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]
-            )
-          )
+      for (const def of definition.inputs ?? []) {
+        const slot = saved.get(def.name)
+        const widgetSlot = widgetSlotOf(def)
+        const widget = widgetSlot !== undefined
+        if (widgetSlot && def.type === 'STRING') {
+          const target = innerRemap.get(widgetSlot.nodeId)
+          if (target !== undefined) promotedText.push({ nodeId: String(target), input: widgetSlot.name })
         }
-        if ('widget' in slot) widgetIndex += 1
+        if (slot?.link != null) {
+          const bound = resolveLink(slot.link, links, remap, bindings)
+          if (bound !== undefined) byName.set(def.name, bound)
+        } else if (widget) {
+          // Named values preserve bindings when promoted widgets are reordered.
+          const named = instance.widgets_values_named?.[def.name]
+          const value = named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[def.name]
+          if (value !== undefined) byName.set(def.name, wrapWidgetValue(value))
+        }
+        if (widget) widgetIndex += 1
       }
       const bySlot = new Map<number, unknown>()
       ;(definition.inputs ?? []).forEach((def, index) => {
@@ -657,7 +826,15 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     }
   }
 
-  return { prompt, warnings }
+  // A prompt-shaped name first, then declaration order (the sort is stable): a
+  // workflow that promotes both a caption and a style string means the caption.
+  const promotedRank = (entry: { input: string }): number => {
+    const rank = promptInputRank(entry.input)
+    return rank === -1 ? PROMPT_INPUT_PREFERENCE.length : rank
+  }
+  promotedText.sort((a, b) => promotedRank(a) - promotedRank(b))
+
+  return { prompt, warnings, promotedText }
 }
 
 /**
@@ -669,6 +846,107 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
 const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 'clip_l', 'text_l', 'user_prompt']
 
 /**
+ * The rank of an input whose value is a prompt, read off the leaf of its key:
+ * the backend nests a widget under the group it belongs to, so the prompt of
+ * `QwenImageTextToImageApi` is `model.prompt` and its negative is
+ * `model.negative_prompt` — the leaf is the widget's own name.
+ */
+const promptInputRank = (name: string): number => PROMPT_INPUT_PREFERENCE.indexOf(name.slice(name.lastIndexOf('.') + 1))
+
+/**
+ * Whether an input is where a prompt is asked for: `text` and its named
+ * streams, or anything ending in `prompt`. Wider than the preference list on
+ * purpose — the *negative* prompt is not a place to write the run's prompt, but
+ * a graph that names one was built around a prompt, and a run that cannot find
+ * the positive one has to refuse rather than submit the workflow with the
+ * user's text dropped.
+ */
+const isPromptShaped = (name: string): boolean => {
+  const leaf = name.slice(name.lastIndexOf('.') + 1)
+  return leaf === 'text' || leaf.endsWith('prompt') || PROMPT_INPUT_PREFERENCE.includes(leaf)
+}
+
+/**
+ * The conditioning a node names as its positive stream: a plain sampler says
+ * `positive`, and `DualCFGGuider` — the Omnigen2 shape — numbers its streams
+ * `cond1`, `cond2`, where the first carries the text and the second the
+ * reference latent. The streams are tried in declaration order, so the
+ * leftmost one wins. `conditioning` is not one of them: a combiner and a
+ * forwarder name their single stream that way without being the sampler.
+ */
+function positiveConditioning(inputs: Record<string, unknown>): Reference | undefined {
+  for (const [name, value] of Object.entries(inputs)) {
+    if (!isReference(value)) continue
+    if (name === 'positive' || /^cond\d+$/.test(name)) return value
+  }
+  return undefined
+}
+
+/**
+ * Whether the graph holds any text a run's prompt could replace. A workflow
+ * that holds none — an upscaler, a background remover, a depth estimator — has
+ * nothing to write and runs as it was saved. A prompt-named input that is a
+ * *reference* counts as text even though it holds no string itself: the graph
+ * feeds that input from somewhere, and if the walk could not follow it to the
+ * text, submitting the workflow would quietly drop the run's prompt.
+ */
+export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
+  return Object.values(prompt).some(
+    (node) =>
+      (isValueSource(node) && typeof node.inputs.value === 'string') ||
+      Object.entries(node.inputs).some(
+        ([name, value]) => isPromptShaped(name) && (typeof value === 'string' || isReference(value))
+      )
+  )
+}
+
+/**
+ * The value an If/Else Switch puts on the wire. Both of its value inputs are
+ * lazy and exactly one is ever evaluated — `on_true` when its boolean `switch`
+ * widget is on, `on_false` when it is off — so a walk that follows both can
+ * end up on the branch the run discards. Verified against a live server: a
+ * `ComfySwitchNode` feeding `PreviewAny` returns the selected branch's text for
+ * either setting and never evaluates the other.
+ *
+ * Keyed on the declared input names rather than the class, so the same rule
+ * covers any node that declares this shape.
+ */
+function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_false'; value: unknown } | undefined {
+  const selector = node.inputs.switch
+  if (typeof selector !== 'boolean') return undefined
+  const name = selector ? 'on_true' : 'on_false'
+  return name in node.inputs ? { name, value: node.inputs[name] } : undefined
+}
+
+/** Input types that carry a widget value rather than a graph stream. */
+const SCALAR_INPUT_TYPES = new Set(['STRING', 'INT', 'FLOAT', 'BOOLEAN', 'COMBO'])
+
+/**
+ * The type the server declares for a node input, looked up by its leaf as well
+ * as by its full key: the backend nests a widget under the group it belongs to,
+ * so the leaf is the name the server declares.
+ */
+function declaredInputType(objectInfo: ObjectInfo, classType: string, name: string): string | undefined {
+  const spec = objectInfo[classType]?.input
+  const leaf = name.slice(name.lastIndexOf('.') + 1)
+  const entry = (spec?.required?.[name] ??
+    spec?.optional?.[name] ??
+    spec?.required?.[leaf] ??
+    spec?.optional?.[leaf]) as unknown[] | undefined
+  const type = Array.isArray(entry) ? entry[0] : undefined
+  return Array.isArray(type) ? 'COMBO' : typeof type === 'string' ? type : undefined
+}
+
+export interface PromptTargetOptions {
+  /** Text widgets the workflow promotes on a subgraph instance, from
+   *  `ConversionResult.promotedText`. */
+  promotedText?: { nodeId: string; input: string }[]
+  /** The server's class table. It names the classes a run executes for their
+   *  side effect, which is where the fallback walk starts. */
+  objectInfo?: ObjectInfo
+}
+
+/**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
  * actually consumes as its positive conditioning. That node may chain the
@@ -678,7 +956,8 @@ const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 
  * graph reads its own.
  */
 export function findPromptTarget(
-  prompt: Record<string, ApiPromptNode>
+  prompt: Record<string, ApiPromptNode>,
+  { promotedText = [], objectInfo }: PromptTargetOptions = {}
 ): { nodeId: string; input: string; samplerId: string } | undefined {
   // Prefer real samplers — nodes that hold their own seed or take the latent —
   // over conditioning transformers that merely forward a positive stream, so
@@ -687,12 +966,76 @@ export function findPromptTarget(
   const conditioningInputs = (node: ApiPromptNode): Record<string, unknown> =>
     isReference(node.inputs.guider) ? (prompt[node.inputs.guider[0]]?.inputs ?? {}) : node.inputs
   const withPositive = Object.entries(prompt).filter(([, node]) => {
+    // `conditioningInputs` follows one `guider` hop, so a sampler reading its
+    // positive stream off `CFGGuider`/`DualCFGGuider` counts here too.
     const inputs = conditioningInputs(node)
-    return isReference(inputs.positive) || (isReference(node.inputs.guider) && isReference(inputs.conditioning))
+    if (positiveConditioning(inputs) !== undefined) return true
+    // A guider that names its only stream `conditioning` — `BasicGuider`.
+    return isReference(node.inputs.guider) && isReference(inputs.conditioning)
   })
   const isSampler = ([, node]): boolean =>
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
-  const ordered = [...withPositive.filter(isSampler), ...withPositive.filter((entry) => !isSampler(entry))]
+  /**
+   * The node ids reachable from `from` in the graph a run evaluates: a negative
+   * branch is part of it — both encoders run — but a switch evaluates only its
+   * selected side, so the discarded branch is not. With `positive`, the walk
+   * also stays off every `negative` edge, which is what a *seed* needs: a
+   * sampler that only a negative branch reaches does not sample the run.
+   */
+  const reachedFrom = (from: string, options: { positive?: boolean } = {}): Set<string> => {
+    const reached = new Set<string>()
+    const queue = [from]
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      if (reached.has(id)) continue
+      reached.add(id)
+      const node = prompt[id]
+      if (!node) continue
+      const branch = selectedSwitchBranch(node)
+      if (branch) {
+        if (isReference(branch.value)) queue.push(branch.value[0])
+        continue
+      }
+      for (const [name, value] of Object.entries(node.inputs)) {
+        if (!isReference(value)) continue
+        if (options.positive && name === 'negative') continue
+        queue.push(value[0])
+      }
+    }
+    return reached
+  }
+  const reaches = (from: string, target: string, options: { positive?: boolean } = {}): boolean =>
+    reachedFrom(from, options).has(target)
+
+  const byNodeId = (a: string, b: string): number => {
+    // A node id is a string to the API but a number to ComfyUI: ordering the
+    // tie-break lexicographically would read "10" as lower than "9".
+    const left = Number(a)
+    const right = Number(b)
+    if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
+    return a < b ? -1 : a > b ? 1 : 0
+  }
+  const orderedIds = Object.keys(prompt).sort(byNodeId)
+
+  const referenced = new Set<string>()
+  for (const node of Object.values(prompt)) {
+    for (const value of Object.values(node.inputs)) {
+      if (isReference(value)) referenced.add(value[0])
+    }
+  }
+  const outputIds = orderedIds.filter((id) => objectInfo?.[prompt[id].class_type]?.output_node === true)
+  const rootIds = outputIds.length > 0 ? outputIds : orderedIds.filter((id) => !referenced.has(id))
+
+  // Only the samplers a run reaches matter: a node nothing the server executes
+  // leads to still holds a prompt and a seed, and writing either into it would
+  // change a graph the run never reads.
+  const executed = new Set<string>()
+  for (const root of rootIds) for (const id of reachedFrom(root)) executed.add(id)
+  const runs = withPositive.filter(([id]) => executed.has(id))
+  const ordered = [...runs.filter(isSampler), ...runs.filter((entry) => !isSampler(entry))]
+  // A seed only counts on a node a run reaches: one nothing leads to samples
+  // a graph no output reads, and the run's seed must not land there.
+  const samplingIds = orderedIds.filter((id) => executed.has(id) && seedInputKey(prompt[id].inputs) !== undefined)
 
   /** All nodes reachable through reference inputs from a starting id. */
   const reachableFrom = (start: Reference): Set<string> => {
@@ -711,10 +1054,110 @@ export function findPromptTarget(
     return reached
   }
 
+  /**
+   * The first text source reached from the node ids in `queue`, breadth first.
+   * A node the graph cannot feed is its own value: a text widget the workflow
+   * hoisted out of the sampler's chain. `value` is too generic a name to rank
+   * above the prompt names, so it is only read off such a node.
+   */
+  const walk = (queue: string[], excluded?: Set<string>): { nodeId: string; input: string } | undefined => {
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!
+      if (seen.has(nodeId) || excluded?.has(nodeId)) continue
+      seen.add(nodeId)
+      const target = prompt[nodeId]
+      if (!target) continue
+      let best: { name: string; rank: number } | undefined
+      for (const [name, value] of Object.entries(target.inputs)) {
+        if (typeof value !== 'string') continue
+        const rank = promptInputRank(name)
+        if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
+      }
+      if (best) return { nodeId, input: best.name }
+      // A switch puts one branch on the wire and leaves the other unevaluated,
+      // so only the selected branch is part of the graph the sampler reads.
+      // When that branch carries the text as a literal — the workflow's own
+      // "use this text" side of the switch — the literal is what the consumer
+      // receives, which is where the prompt has to be written.
+      const branch = selectedSwitchBranch(target)
+      if (branch) {
+        if (typeof branch.value === 'string') return { nodeId, input: branch.name }
+        if (isReference(branch.value)) queue.push(branch.value[0])
+        continue
+      }
+      // A node the graph cannot feed is its own value — but an output class is
+      // where a run ends, not a text it supplies: an ordinary string input on
+      // one (`filename_prefix`, a path) is not a prompt.
+      if (
+        objectInfo?.[target.class_type]?.output_node !== true &&
+        isValueSource(target) &&
+        typeof target.inputs.value === 'string'
+      ) {
+        return { nodeId, input: 'value' }
+      }
+      const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
+      // An output class ends a run, so only the media it saves can lead to the
+      // text: a scalar reference leaving it — `SaveImage.filename_prefix` fed
+      // by a string primitive — is metadata the workflow set, not the prompt,
+      // and following it would overwrite the source the metadata reads.
+      const endsRun = objectInfo?.[target.class_type]?.output_node === true
+      // Never follow an intermediate node's negative edge (e.g. a ControlNet
+      // apply node carries both streams) — only the sampler's own negative
+      // branch is out of bounds, not a conditioning input anywhere.
+      const following = refs.filter(([name]) => {
+        if (name === 'negative') return false
+        if (!endsRun) return true
+        const type = declaredInputType(objectInfo, target.class_type, name)
+        return type === undefined || !SCALAR_INPUT_TYPES.has(type)
+      })
+      // Follow the prompt edge before the node's other references when it lands
+      // on a plain text node: a generator keeps its prompt, its style and its
+      // reference image as separate sockets, and object order alone would let a
+      // style source win. A prompt socket fed by *another* generator is not a
+      // text edge — that node writes the prompt from its own input, and which
+      // socket carries the workflow's text is the workflow's own choice.
+      const textEdges = following.filter(([, value]) => {
+        const producer = prompt[value[0]]
+        return producer !== undefined && holdsText(producer, objectInfo) && isPlainTextNode(producer)
+      })
+      // A `StringConcatenate` joins text sources, and both operands have the
+      // same STRING contract: `string_a` and `string_b` rank nothing, so a
+      // concat that takes text from more than one of them — a style literal
+      // beside a linked prompt, or two links — names no single text a run
+      // supplies. Stop: the run refuses a graph whose text it cannot place,
+      // which beats overwriting whichever operand the workflow used for its own
+      // style. A promotion below it still names the text, and the caller finds
+      // that after the walk.
+      if (target.class_type === 'StringConcatenate') {
+        // Unless the workflow promotes the text of a node this one feeds: then
+        // the promotion — the workflow's own statement of what a run supplies —
+        // names the text, and no operand here does.
+        if (promotedText.some((entry) => reaches(nodeId, entry.nodeId))) continue
+        const literals = Object.entries(target.inputs).filter(
+          ([name, value]) => name !== 'delimiter' && typeof value === 'string'
+        )
+        if (literals.length + textEdges.length > 1) continue
+        if (literals.length === 1) return { nodeId, input: literals[0][0] }
+      }
+      const later: [string, Reference][] = []
+      for (const entry of following) {
+        const [name, value] = entry
+        if (isPromptShaped(name) && textEdges.includes(entry)) queue.push(value[0])
+        else later.push(entry)
+      }
+      for (const [, value] of later) queue.push(value[0])
+    }
+    return undefined
+  }
+
+  /** Every node that only a negative branch reaches, across the graph. */
+  const negativeOnlyNodes = new Set<string>()
   for (const [samplerId, node] of ordered) {
     const inputs = conditioningInputs(node)
-    const positive = inputs.positive ?? inputs.conditioning
-    if (!isReference(positive)) continue
+    const positive =
+      positiveConditioning(inputs) ?? (isReference(inputs.conditioning) ? inputs.conditioning : undefined)
+    if (!positive) continue
     // Only the negative-exclusive part of the graph is out of bounds: the
     // classic zero-out chain hangs a ConditioningZeroOut off the negative
     // encode, and crossing into it would replace the negative prompt. Nodes
@@ -723,60 +1166,50 @@ export function findPromptTarget(
     const negativeOnly = isReference(negative)
       ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
       : new Set<string>()
-    const queue = [positive[0]]
-    const seen = new Set<string>()
-    while (queue.length > 0) {
-      const nodeId = queue.shift()!
-      if (seen.has(nodeId) || negativeOnly.has(nodeId)) continue
-      seen.add(nodeId)
-      const target = prompt[nodeId]
-      if (!target) continue
-      let best: { name: string; rank: number } | undefined
-      for (const [name, value] of Object.entries(target.inputs)) {
-        if (typeof value !== 'string') continue
-        const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
-        if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
-      }
-      if (best) return { nodeId, input: best.name, samplerId }
-      for (const [name, value] of Object.entries(target.inputs)) {
-        // Never follow an intermediate node's negative edge (e.g. a
-        // ControlNet apply node carries both streams) — only the sampler's own
-        // negative branch is out of bounds, not a conditioning input anywhere.
-        if (name === 'negative' && isReference(value)) continue
-        if (isReference(value)) queue.push(value[0])
-      }
-    }
+    for (const id of negativeOnly) negativeOnlyNodes.add(id)
+    const found = walk([positive[0]], negativeOnly)
+    if (found) return { ...found, samplerId }
   }
 
   // A self-contained generator — one node that takes the prompt as a widget and
   // samples it internally, e.g. MiniMaxH3MLXTurbo — has no `positive` edge to
   // walk: the prompt and the seed are both its own widgets. Nothing better can
-  // be said about which text input a graph means, so take the highest-ranked
-  // prompt-like input on a node that also samples a seed, lowest node id first.
-  const byNodeId = (a: string, b: string): number => {
-    // A node id is a string to the API but a number to ComfyUI: ordering the
-    // tie-break lexicographically would read "10" as lower than "9".
-    const left = Number(a)
-    const right = Number(b)
-    if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
-    return a < b ? -1 : a > b ? 1 : 0
+  // be said about which text input a graph means, so start from the nodes that
+  // sample, lowest node id first, and take the first text source reached from
+  // one: the node's own prompt input, or the text node it links to — a Gemini
+  // or Seedream generator keeps its prompt in a Primitive it references.
+  /**
+   * The node a per-run seed belongs to: the root when it samples, otherwise the
+   * sampling node the target is reachable from. A target no sampling node
+   * reaches names itself, which writes no seed at all — landing the run's seed
+   * on whichever node happens to hold one would change a setting the run never
+   * touched.
+   */
+  const seedNodeFor = (target: string, root: string): string => {
+    if (seedInputKey(prompt[root]?.inputs ?? {}) !== undefined) return root
+    return samplingIds.find((id) => reaches(id, target, { positive: true })) ?? target
   }
-  let standalone: { nodeId: string; input: string; rank: number } | undefined
-  for (const [nodeId, node] of Object.entries(prompt)) {
-    if (seedInputKey(node.inputs) === undefined) continue
-    for (const [name, value] of Object.entries(node.inputs)) {
-      if (typeof value !== 'string') continue
-      const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
-      if (rank === -1) continue
-      const better =
-        standalone === undefined ||
-        rank < standalone.rank ||
-        (rank === standalone.rank && byNodeId(nodeId, standalone.nodeId) < 0)
-      if (better) standalone = { nodeId, input: name, rank }
+
+  for (const roots of [samplingIds, rootIds]) {
+    for (const root of roots) {
+      const found = walk([root])
+      if (found) return { ...found, samplerId: seedNodeFor(found.nodeId, root) }
     }
   }
-  if (standalone) {
-    return { nodeId: standalone.nodeId, input: standalone.input, samplerId: standalone.nodeId }
+
+  // Last, the field the workflow itself promotes. A subgraph that exposes a
+  // STRING widget — the Qwen-Image template style string, a `string_a` the
+  // graph joins into the encode — names the text a run is meant to supply even
+  // when the walk above cannot tell it apart from the graph's own constants.
+  // It still has to be a text the run reads: a promotion that only the negative
+  // branch reaches, or that nothing a run executes reaches at all, would put
+  // the prompt somewhere the user never meant it.
+  for (const entry of promotedText) {
+    if (typeof prompt[entry.nodeId]?.inputs[entry.input] !== 'string') continue
+    if (negativeOnlyNodes.has(entry.nodeId)) continue
+    if (!rootIds.some((id) => reaches(id, entry.nodeId))) continue
+    const sampler = samplingIds.find((id) => reaches(id, entry.nodeId))
+    return { ...entry, samplerId: sampler ?? entry.nodeId }
   }
 
   return undefined
@@ -787,6 +1220,8 @@ export function findPromptTarget(
  * consumes the prompt, so two runs differ; a graph that keeps the seed on a shared node
  * feeding that sampler instead gets it there. Regular samplers read `seed`; advanced
  * variants (KSamplerAdvanced and friends, which schedule their own noise) read `noise_seed`.
+ * A seed the backend nests under a widget group (`model.seed`, `sampling_mode.seed`) is
+ * read and written by its full key, so the per-run value lands where the graph reads it.
  */
 export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined, samplerId?: string): void {
   if (typeof seed !== 'number' || !Number.isFinite(seed)) return
@@ -822,8 +1257,17 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
   }
 }
 
-const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | undefined =>
-  'seed' in inputs ? 'seed' : 'noise_seed' in inputs ? 'noise_seed' : undefined
+/**
+ * The key a node keeps its seed under, or undefined when it holds none. The
+ * plain names win over a nested one so a node that carries both keeps writing
+ * the seed it always wrote; a node that only nests its seed — the API
+ * generators and the newer template nodes do — still counts as one that samples.
+ */
+const seedInputKey = (inputs: Record<string, unknown>): string | undefined => {
+  if ('seed' in inputs) return 'seed'
+  if ('noise_seed' in inputs) return 'noise_seed'
+  return Object.keys(inputs).find((key) => key.endsWith('.seed') || key.endsWith('.noise_seed'))
+}
 
 /**
  * Write the seed into `inputs[key]`. A linked seed input is rewritten at its
@@ -834,7 +1278,7 @@ const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | 
 function writeSeed(
   graph: Record<string, ApiPromptNode>,
   inputs: Record<string, unknown>,
-  key: 'seed' | 'noise_seed',
+  key: string,
   value: number
 ): void {
   const current = inputs[key]

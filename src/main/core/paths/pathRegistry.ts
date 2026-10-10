@@ -99,8 +99,16 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.selection.native_panel_file': path.join(
+      appRootResources,
+      'binaries',
+      `darwin-${process.arch}`,
+      'selection-panel.node'
+    ),
 
     'feature.remote_access.identity_file': path.join(appUserDataRuntime, 'remote-identity.enc'),
+    // Plaintext fallback (0600) used only when no OS key store is available
+    'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -199,6 +207,7 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
     // NOTE(app-managed-dirs): dsh dirs are new in this PR and freely relocatable —
     // dsh resume tokens persist the session id, never a filesystem path.
     'feature.agents.dsh.root': path.join(appUserDataData, 'Agents', '.dsh'), // Cherry-owned dsh home (DSH_HOME) + per-connection compositions
@@ -374,6 +383,7 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'feature.selection.native_panel_file',
   'app.utility_process',
   'app.session.webview',
   'app.database.migrations',
@@ -385,6 +395,7 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.agents.pi.vcc_file',
   'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

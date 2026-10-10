@@ -20,6 +20,15 @@ parts calculate their own length. Producers read `part.append` offsets through t
 not inherit the streaming snapshot's cache. Older snapshots remain independently usable
 for atomic recovery; their weakly held cache entries disappear with those objects.
 
+## Connection addresses
+
+`connection.hello.connectionEndpointsVersion: 1` advertises `connection.endpoints`.
+The request names an already approved domain; the desktop rechecks its current grant
+before and after preparing the response. The result contains the desktop identity and
+at most 32 direct endpoints, with no invitation or VPN credentials. Clients pin the
+identity, keep suggestions ephemeral, and persist only explicitly verified selections.
+Peers without this optional capability retain existing pairing and manual-address flows.
+
 ## Failure outcomes
 
 `./failure` owns the bounded execution failure snapshot shared by live execution and message

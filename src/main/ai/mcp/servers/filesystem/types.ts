@@ -1,13 +1,11 @@
 import { spawn } from 'child_process'
-import fs from 'fs/promises'
-import os from 'os'
 import path from 'path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { canonicalizePathForContainment } from '@main/utils/file'
+import { canonicalizePathForContainment, isOutsidePath } from '@main/utils/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -38,49 +36,9 @@ export function normalizePath(p: string): string {
 
 export function expandHome(filepath: string): string {
   if (filepath.startsWith('~/') || filepath === '~') {
-    return path.join(os.homedir(), filepath.slice(1))
+    return path.join(application.getPath('sys.home'), filepath.slice(1))
   }
   return filepath
-}
-
-function normalizeForComparison(filePath: string): string {
-  const normalizedPath = normalizePath(path.resolve(filePath))
-  return isWin ? normalizedPath.toLowerCase() : normalizedPath
-}
-
-async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
-  try {
-    return normalizePath(await fs.realpath(targetPath))
-  } catch {
-    let currentPath = path.dirname(targetPath)
-
-    while (true) {
-      try {
-        const realCurrentPath = await fs.realpath(currentPath)
-        const relativeSuffix = path.relative(currentPath, targetPath)
-        return normalizePath(path.join(realCurrentPath, relativeSuffix))
-      } catch {
-        const parentPath = path.dirname(currentPath)
-        if (parentPath === currentPath) {
-          logger.warn('Could not resolve any existing ancestor for path', { targetPath })
-          return normalizePath(targetPath)
-        }
-        currentPath = parentPath
-      }
-    }
-  }
-}
-
-function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
-  const normalizedTargetPath = normalizeForComparison(targetPath)
-  const normalizedRootPath = normalizeForComparison(rootPath)
-
-  if (normalizedTargetPath === normalizedRootPath) {
-    return true
-  }
-
-  const relativePath = path.relative(normalizedRootPath, normalizedTargetPath)
-  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
 }
 
 // Security validation
@@ -89,10 +47,11 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
-  const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
+  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
-  if (!resolvedPath || !isPathWithinRoot(resolvedPath, resolvedRoot)) {
+  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
+  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
@@ -564,104 +523,66 @@ export function replaceWithFuzzyMatch(
 }
 
 // ============================================================================
-// Binary File Detection
-// ============================================================================
-
-// Check if a file is likely binary
-export async function isBinaryFile(filePath: string): Promise<boolean> {
-  try {
-    const buffer = Buffer.alloc(4096)
-    const fd = await fs.open(filePath, 'r')
-    const { bytesRead } = await fd.read(buffer, 0, buffer.length, 0)
-    await fd.close()
-
-    if (bytesRead === 0) return false
-
-    const view = buffer.subarray(0, bytesRead)
-
-    let zeroBytes = 0
-    let evenZeros = 0
-    let oddZeros = 0
-    let nonPrintable = 0
-
-    for (let i = 0; i < view.length; i++) {
-      const b = view[i]
-
-      if (b === 0) {
-        zeroBytes++
-        if (i % 2 === 0) evenZeros++
-        else oddZeros++
-        continue
-      }
-
-      // treat common whitespace as printable
-      if (b === 9 || b === 10 || b === 13) continue
-
-      // basic ASCII printable range
-      if (b >= 32 && b <= 126) continue
-
-      // bytes >= 128 are likely part of UTF-8 sequences; count as printable
-      if (b >= 128) continue
-
-      nonPrintable++
-    }
-
-    // If there are lots of null bytes, it's probably binary unless it looks like UTF-16 text.
-    if (zeroBytes > 0) {
-      const evenSlots = Math.ceil(view.length / 2)
-      const oddSlots = Math.floor(view.length / 2)
-      const evenZeroRatio = evenSlots > 0 ? evenZeros / evenSlots : 0
-      const oddZeroRatio = oddSlots > 0 ? oddZeros / oddSlots : 0
-
-      // UTF-16LE/BE tends to have zeros on every other byte.
-      if (evenZeroRatio > 0.7 || oddZeroRatio > 0.7) return false
-
-      if (zeroBytes / view.length > 0.05) return true
-    }
-
-    // Heuristic: too many non-printable bytes => binary.
-    return nonPrintable / view.length > 0.3
-  } catch {
-    return false
-  }
-}
-
-// ============================================================================
 // Ripgrep Utilities
 // ============================================================================
 
 export interface RipgrepResult {
   ok: boolean
   stdout: string
+  stderr: string
+  /** `null` when ripgrep was killed by a signal, including the `timeoutMs` kill. */
   exitCode: number | null
+}
+
+export interface RipgrepOptions {
+  /** Written to ripgrep's stdin; pass `-` as the search path to search it. */
+  input?: string
+  /** SIGKILL ripgrep after this many milliseconds. */
+  timeoutMs?: number
 }
 
 export async function getRipgrepBinaryPath(): Promise<string> {
   return getBinaryPath('rg')
 }
 
-export async function runRipgrep(args: string[]): Promise<RipgrepResult> {
+export async function runRipgrep(args: string[], options: RipgrepOptions = {}): Promise<RipgrepResult> {
   const ripgrepBinaryPath = await getRipgrepBinaryPath()
 
   return new Promise((resolve) => {
     const child = spawn(ripgrepBinaryPath, args, {
       cwd: process.cwd(),
       env: { ...process.env, ...getBinaryExecutionEnv() },
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
     })
+    const timer =
+      options.timeoutMs === undefined ? undefined : setTimeout(() => child.kill('SIGKILL'), options.timeoutMs)
 
     let stdout = ''
+    let stderr = ''
 
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString('utf-8')
+    child.stdout?.setEncoding('utf-8')
+    child.stdout?.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr?.setEncoding('utf-8')
+    child.stderr?.on('data', (chunk: string) => {
+      stderr += chunk
     })
 
+    if (options.input !== undefined) {
+      // ripgrep exits without draining stdin on a bad pattern; the resulting EPIPE would otherwise be unhandled.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(options.input)
+    }
+
     child.on('error', () => {
-      resolve({ ok: false, stdout: '', exitCode: null })
+      clearTimeout(timer)
+      resolve({ ok: false, stdout: '', stderr: '', exitCode: null })
     })
 
     child.on('close', (code) => {
-      resolve({ ok: true, stdout, exitCode: code })
+      clearTimeout(timer)
+      resolve({ ok: true, stdout, stderr, exitCode: code })
     })
   })
 }

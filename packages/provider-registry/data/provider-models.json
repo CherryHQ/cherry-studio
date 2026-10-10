@@ -3570,6 +3570,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-haiku-5-5",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-opus-4-1",
       "providerId": "claude-code"
     },
@@ -4515,6 +4519,14 @@
     {
       "apiModelId": "kimi/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "dashscope",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -19040,6 +19052,18 @@
       }
     },
     {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
       "apiModelId": "kimi-k2.5",
       "modelId": "kimi-k2-5",
       "parameterSupport": {
@@ -19234,6 +19258,18 @@
           }
         }
       }
+    },
+    {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
     },
     {
       "apiModelId": "nvidia/active-speaker-detection",
@@ -21471,6 +21507,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.1-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-1-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -21571,6 +21632,38 @@
               {
                 "kind": "effort",
                 "values": ["high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "deepseek-v4-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "high", "max"]
               }
             ]
           }
@@ -29380,6 +29473,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.5",
       "modelId": "kimi-k2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29412,6 +29513,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.6",
       "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29444,6 +29553,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29470,6 +29587,14 @@
     {
       "apiModelId": "moonshotai/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29508,6 +29633,14 @@
     {
       "apiModelId": "~moonshotai/kimi-latest",
       "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -40953,5 +41086,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "8fb0dde9d8d03bba"
+  "version": "b5d75fe20ff361b6"
 }

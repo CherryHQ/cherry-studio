@@ -46,9 +46,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     } finally {
       const currentPage = await app.mainWindow().catch(() => page)
       if (testInfo.status !== testInfo.expectedStatus) {
-        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues(app.config)).catch(
-          () => undefined
-        )
+        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined)
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
       }
 

@@ -104,7 +104,10 @@ beforeAll(async () => {
     interpolation: { escapeValue: false }
   })
 })
-afterEach(cleanup)
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  cleanup()
+})
 beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)

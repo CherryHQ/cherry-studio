@@ -29,6 +29,11 @@ application dependencies. The controller then launches the development server di
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
 do not need it. Restarting still stops the owned application and preserves its profile.
+Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
+so package-manager subprocesses cannot escape the owned process group. Each profile sets
+`CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
+state, user data, and logs from developer instances. Launches disable occluded-window
+backgrounding so Playwright actionability checks keep receiving animation frames.
 
 The workflow keeps ten separately timed steps. Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. The workflow task dropdown lists `all` and every task ID from the manifest. When adding a task, update the workflow options too; the manifest tests enforce that the lists stay in sync.

@@ -207,6 +207,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-mini',
         'gpt-5-nano',
         'gpt-5-pro',
+        'gpt-6-1-sol',
         'gpt-6-astra',
         'gpt-6-astra-pro',
         'gpt-6-luna',
@@ -422,6 +423,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     anthropic: {
       'web-search': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -438,6 +440,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ],
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -456,6 +459,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     'claude-code': {
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -508,6 +512,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gpt-5-mini',
         'gpt-5-nano',
         'gpt-5-pro',
+        'gpt-6-1-sol',
         'gpt-6-astra',
         'gpt-6-luna',
         'gpt-6-sol',
@@ -872,6 +877,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'grok-4-3',
         'grok-4-5',
         'grok-4-6',
+        'grok-4-7',
         'grok-4-fast'
       ]
     },

@@ -9,11 +9,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
+import { getLinuxTitleBarOverlay, syncLinuxTitleBarOverlayWithTheme } from '@main/core/window/linuxTitleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -39,6 +41,8 @@ const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+// Matches the renderer's main tab bar height (AppShellTabBar `h-11`).
+const MAIN_TITLE_BAR_HEIGHT = 44
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -258,9 +262,10 @@ export class MainWindowService extends BaseService {
       initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isLinux && {
-          frame: preferenceService.get('app.use_system_title_bar'),
-          icon: linuxIcon
+        ...(isLinux && { icon: linuxIcon }),
+        ...(this.usesLinuxTitleBarOverlay() && {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: getLinuxTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -271,12 +276,19 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  /** Linux draws window controls via WCO unless the user opted into the system title bar. */
+  private usesLinuxTitleBarOverlay(): boolean {
+    return isLinux && !application.get('PreferenceService').get('app.use_system_title_bar')
+  }
+
   private setupMainWindow(mainWindow: BrowserWindow) {
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
+    // Runs inside openMainWindow's open() call, so it sees the same preference value.
+    if (this.usesLinuxTitleBarOverlay()) syncLinuxTitleBarOverlayWithTheme(mainWindow)
 
     this.setupWebviewSecurityProfiles(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -677,7 +689,7 @@ export class MainWindowService extends BaseService {
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
         } else {
-          shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
+          openRequestPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
         void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
@@ -766,8 +778,10 @@ export class MainWindowService extends BaseService {
        * When the window is visible but covered by other windows, simply calling show() and focus()
        * is not enough to bring it to the front. We need to hide it first, then show it again.
        * This mimics the "close to tray and reopen" behavior which works correctly.
+       * X11 only: on Wayland hide() destroys the xdg_toplevel and the re-created one is
+       * denied activation, so the window ends up buried; plain show()+focus() works there.
        */
-      if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
+      if (isLinux && !isLinuxWayland && mainWindow.isVisible() && !mainWindow.isFocused()) {
         mainWindow.hide()
         setImmediate(() => {
           // Re-check through the field — the window may have been destroyed
