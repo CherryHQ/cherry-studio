@@ -41,8 +41,9 @@ accounting, retries) applies to Pi's requests unchanged.
   call already accounts it, so it must not be billed again.
 - **Retries** – Pi's retry is always disabled. Retries belong to the AI SDK layer.
 - **Model identity** – every model has a host `key` (in Cherry, the unique model id). Assistant
-  entries store it, and on rebuild only replies with the current key replay their reasoning and
-  signatures; the Pi `provider`/`id` may change between sessions.
+  entries store it, and on rebuild only replies with the current key replay their reasoning as
+  reasoning, with signatures; other models get that reasoning as plain text. The Pi `provider`/`id`
+  may change between sessions.
 
 ## Session builder
 
