@@ -229,7 +229,7 @@ not retry blindly.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
 - `deleteUnreferencedInternalEntry` checks persistent refs and deletes an internal row in one
-  transaction. Missing, external, and referenced entries are preserved. The avatar owner uses it
+  transaction. Missing, external, and referenced entries are preserved. `ProfileService` uses it
   only after replacing its Preference reference; failed retirement is retried on a later avatar
   update in the same process.
 - Batch delete/trash operations return per-ID successes and failures.
