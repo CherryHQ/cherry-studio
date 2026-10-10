@@ -356,6 +356,148 @@ describe('backgroundTasks', () => {
         expect(completion.record.exitCode).toBe(0)
       }
     )
+
+    it.skipIf(process.platform === 'win32')(
+      'finalizes with the leader completion once its backgrounded worker drains',
+      async () => {
+        // `sleep 1 &`: the shell closes while its worker holds the group open (the log is a
+        // file, so nothing holds the close back), and that one close handler is the only exit
+        // observation. It must survive and land — with the shell's own exit code, not an
+        // invented descendant one — once the worker exits.
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "process.stdout.write(String(process.pid)); setTimeout(() => process.exit(7), 900)" &`,
+          cwd: storageDir,
+          onExit
+        })
+        try {
+          await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+          const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
+          expect(isPidAlive(workerPid)).toBe(true)
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+
+          // Polled to a deadline rather than waitFor, so a regression reports the status it
+          // settled on: without the retained completion the record folds to `unknown` here.
+          const deadline = Date.now() + 10_000
+          let settled: BackgroundTaskRecord | undefined
+          while (Date.now() < deadline) {
+            settled = await getDetachedBackgroundTask(storageDir, record.id)
+            if (settled && settled.status !== 'running' && settled.status !== 'unknown') break
+            await new Promise((resolve) => setTimeout(resolve, 50))
+          }
+          expect(settled?.status).toBe('completed')
+          expect(settled?.exitCode).toBe(0)
+          await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+          expect(onExit.mock.calls[0][0].record.exitCode).toBe(0)
+        } finally {
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'does not adopt a leaderless group it cannot attribute to the task after a restart',
+      async () => {
+        // A record read after a restart owns nothing in memory, and a pgid is only a number:
+        // this live group — a session whose leader exited while its worker kept running — is
+        // exactly what a reused pgid looks like, so it must not be treated as the task's or
+        // Stop/Kill would signal processes that are not the task's.
+        const pidFile = path.join(storageDir, 'unowned-worker.pid')
+        const leader = spawn(
+          '/bin/sh',
+          [
+            '-c',
+            `${nodeBin} -e "require('fs').writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 60_000)" "${pidFile}" &`
+          ],
+          { detached: true, stdio: 'ignore' }
+        )
+        leader.unref()
+        let workerPid = 0
+        try {
+          await vi.waitFor(() => expect(isPidAlive(leader.pid!)).toBe(false), { timeout: 10_000 })
+          await vi.waitFor(
+            async () => {
+              expect((await readFile(pidFile, 'utf8')).trim()).toMatch(/^\d+$/)
+            },
+            { timeout: 10_000 }
+          )
+          workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          await writeFile(
+            path.join(storageDir, 'bt-unowned.json'),
+            JSON.stringify({
+              id: 'bt-unowned',
+              name: 'unowned',
+              command: 'true',
+              pid: leader.pid,
+              cwd: storageDir,
+              startedAt: new Date().toISOString(),
+              logFile: path.join(storageDir, 'bt-unowned.log'),
+              status: 'running',
+              exitCode: null,
+              signal: null
+            })
+          )
+
+          const reconciled = await getDetachedBackgroundTask(storageDir, 'bt-unowned')
+          expect(reconciled?.status).toBe('unknown')
+          // Unattributable, so unreachable: the stop must not signal the group's live worker.
+          await expect(stopDetachedBackgroundTask(storageDir, 'bt-unowned', true)).resolves.toBeUndefined()
+          expect(isPidAlive(workerPid)).toBe(true)
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      }
+    )
+  })
+
+  describe('forced stop verification', () => {
+    it.skipIf(process.platform === 'win32')(
+      'withholds the stopped record while a group member survives the kill',
+      async () => {
+        // A delivered group SIGKILL proves nothing per member: with a privileged worker in the
+        // group (an authorized noninteractive sudo), the shell dies while the worker survives
+        // the credential check. Simulated here by a group signal that "succeeds" without
+        // reaching any member — the state the verification must key on either way.
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        const realKill = process.kill.bind(process)
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+          if (pid < 0) return true
+          return realKill(pid, signal)
+        })
+        try {
+          const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+          // The survivor keeps the task running and controllable; nothing may announce it
+          // stopped while a live member remains.
+          expect(withheld?.status).toBe('running')
+          expect(isPidAlive(record.pid)).toBe(true)
+          expect(onExit).not.toHaveBeenCalled()
+        } finally {
+          killSpy.mockRestore()
+        }
+
+        const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+        expect(stopped?.status).toBe('stopped')
+        expect(onExit).toHaveBeenCalledTimes(1)
+        await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+      }
+    )
   })
 
   describe('isPidAlive', () => {

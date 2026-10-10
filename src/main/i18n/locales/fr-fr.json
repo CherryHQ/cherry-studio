@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Dézoomer",
   "background_task.name.unnamed": "tâche en arrière-plan",
   "background_task.note.gone_no_marker": "Le processus a disparu et aucun marqueur de fin n’existe — l’application s’est probablement arrêtée pendant la tâche. Consultez le fichier journal.",
+  "background_task.note.group_unattributed": "Le groupe de processus de la tâche contient encore des processus vivants, mais après un redémarrage ils ne peuvent plus lui être attribués ; la tâche ne peut donc pas être contrôlée en toute sécurité. Consultez le fichier journal.",
   "background_task.note.kill_requested": "Arrêt forcé demandé.",
   "background_task.note.stop_requested": "Arrêt demandé ; utilisez l’arrêt forcé si le processus ne se termine pas.",
   "background_task.note.stopped_no_event": "Le processus arrêté ne s’exécute plus ; aucun événement de fin n’a été capturé.",

@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Micșorează",
   "background_task.name.unnamed": "sarcina de fundal",
   "background_task.note.gone_no_marker": "Procesul a dispărut și nu există niciun marcaj de finalizare — aplicația s-a închis probabil cât timp sarcina rula. Consultați fișierul jurnal.",
+  "background_task.note.group_unattributed": "Grupul de procese al sarcinii mai conține procese vii, dar după o repornire nu mai pot fi atribuite sarcinii, deci nu poate fi controlată în siguranță. Consultați fișierul jurnal.",
   "background_task.note.kill_requested": "Solicitată de oprire forțată.",
   "background_task.note.stop_requested": "Solicitată de oprire; folosiți oprirea forțată dacă procesul nu se încheie.",
   "background_task.note.stopped_no_event": "Procesul oprit nu mai rulează; nu a fost capturat niciun eveniment de finalizare.",

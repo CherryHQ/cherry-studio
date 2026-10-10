@@ -53,6 +53,12 @@ export const BACKGROUND_TASK_SENTINEL_EXT = '.done'
 
 export const MAX_BACKGROUND_TASK_COMMAND_LENGTH = 10_000
 
+/** How often a leaderless group is polled for its last member's exit. */
+const LEADERLESS_GROUP_POLL_MS = 250
+/** How long a forced stop waits for the group to drain before treating a member as a survivor. */
+const STOP_DRAIN_TIMEOUT_MS = 3_000
+const STOP_DRAIN_POLL_MS = 50
+
 /** Payload handed to the completion callback and written into the sentinel file. */
 export interface BackgroundTaskCompletion {
   id: string
@@ -182,17 +188,40 @@ export async function startDetachedBackgroundTask(
     // at most one completion lands. Handlers go
     // on before any await — both events can fire on the first ticks.
     let settled = false
-    // A completion the gate below refused. The recovery path spends that gate before its record
-    // exists, so a child that exits while the recovery is awaiting its kill never fires again.
+    // The completion the leader's handler observed. A member it backgrounded (`sleep 1 &`) can
+    // outlive that handler, so the observation is held until the group drains. The recovery path
+    // spends `settled` before its record exists; this is what it replays afterwards.
     let observedCompletion:
       | { status: BackgroundTaskCompletion['status']; exitCode: number | null; signal: string | null }
       | undefined
+    // Publishes the observed completion once the task's group holds no live member. A live
+    // member keeps both the completion and the ownership — the only thing that makes a
+    // leaderless group verifiably this task's — so Stop/Kill stays reachable and the completion
+    // lands as observed, with the leader's own exit evidence, once the group drains.
+    const settleThroughGroupDrain = async (): Promise<void> => {
+      if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) {
+        const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
+        poll.unref?.()
+        return
+      }
+      activeTaskPids.delete(id)
+      const completion = observedCompletion
+      if (completion) {
+        await finalizeDetachedBackgroundTask(
+          input.storageDir,
+          record,
+          input.onExit,
+          completion.status,
+          completion.exitCode,
+          completion.signal
+        )
+      }
+    }
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
       observedCompletion = { status, exitCode, signal }
-      activeTaskPids.delete(id)
       if (settled) return
       settled = true
-      void finalizeDetachedBackgroundTask(input.storageDir, record, input.onExit, status, exitCode, signal)
+      void settleThroughGroupDrain()
     }
     child.on('error', (error) => {
       logger.warn('Detached background task failed to spawn', { taskId: id, error })
@@ -319,12 +348,11 @@ async function stopDetachedBackgroundTaskUnlocked(
   const liveChild = activeTaskPids.get(record.id) === record.pid
   if (process.platform === 'win32' && !liveChild) return undefined
   if (process.platform !== 'win32' && !liveChild) {
-    // Leader alive: only a matching start stamp proves the pid is still this task's. Leader
-    // gone: the group it created stays ours while a member runs, so the stop stays reachable.
-    const unverifiable = isPidAlive(record.pid)
-      ? !record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime
-      : !groupHasLiveMember(record.pid)
-    if (unverifiable) return undefined
+    // After a restart only numbers tie the record to a process. A live leader is still provably
+    // this task's by start stamp; a leaderless group is not — a reused pgid can hold unrelated
+    // live workers — so it stays signalable only through the ownership the spawn retained.
+    if (!isPidAlive(record.pid)) return undefined
+    if (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime) return undefined
   }
   const signal = force ? 'SIGKILL' : 'SIGTERM'
   const requested = {
@@ -346,6 +374,13 @@ async function stopDetachedBackgroundTaskUnlocked(
     throw error
   }
   if (!force) return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  // A delivered group SIGKILL still proves nothing per member: a privileged worker (an
+  // authorized noninteractive sudo) fails the credential check and survives while the shell
+  // dies. The record may only say `stopped` once no live member remains — reconciliation and
+  // the permanent purge trust that word, and a survivor would lose its tracking and controls.
+  if (process.platform !== 'win32' && !(await waitForGroupDrain(record.pid))) {
+    return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  }
   const completion: BackgroundTaskCompletion = {
     id: record.id,
     status: 'stopped',
@@ -399,6 +434,32 @@ function groupHasLiveMember(pgid: number): boolean {
 }
 
 /**
+ * Whether live processes still sit in the record's process group while this app holds no
+ * ownership of it. A pgid is only a number — once the original group has fully exited the OS is
+ * free to hand the same one to an unrelated group, so after a restart such members cannot be
+ * attributed to the task and must not be treated as its workers.
+ */
+export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
+  if (process.platform === 'win32' || record.pid <= 0) return false
+  if (activeTaskPids.get(record.id) === record.pid) return false
+  return groupHasLiveMember(record.pid)
+}
+
+/**
+ * Bounded wait for the group's last member to disappear. Group-signal delivery is per member:
+ * a survivor failing the credential check keeps the group alive after a successful kill, so
+ * only an empty group proves the task has ended.
+ */
+async function waitForGroupDrain(pgid: number): Promise<boolean> {
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (groupHasLiveMember(pgid)) {
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+  return true
+}
+
+/**
  * List every task record, newest first. Records still marked `running` are
  * reconciled read-only: an existing sentinel wins, then a pid liveness probe,
  * and a dead pid with no sentinel becomes `unknown` (the app probably exited
@@ -438,9 +499,16 @@ async function reconcileDetachedBackgroundTask(
       ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') }
       : record
   }
-  // The leader is gone but its group can still be working (a member ignoring SIGTERM); the
-  // task stays running — and controllable — until no member remains.
-  if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) return record
+  // The leader is gone but its group can still be working (a member ignoring SIGTERM) — the
+  // task stays running and controllable, but only while this app still owns the group from the
+  // spawn: a pgid is a plain number, and one a restart no longer owns can have been reused by
+  // an unrelated group, whose members are not the task's to signal. Such a record reads
+  // `unknown`, the one status every control path excludes.
+  if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) {
+    return activeTaskPids.get(record.id) === record.pid
+      ? record
+      : { ...record, status: 'unknown', note: t('background_task.note.group_unattributed') }
+  }
   if (record.stopRequestedAt) {
     return {
       ...record,
@@ -492,9 +560,6 @@ async function finalizeDetachedBackgroundTask(
         }
       }
       if (current?.status === 'stopped') return
-      // The leader exited while the group it created still holds a live member (a worker
-      // ignoring SIGTERM): the work is not done, and the record must stay controllable.
-      if (process.platform !== 'win32' && groupHasLiveMember(record.pid)) return
       if (current?.stopRequestedAt) status = 'stopped'
       const completion: BackgroundTaskCompletion = {
         id: record.id,

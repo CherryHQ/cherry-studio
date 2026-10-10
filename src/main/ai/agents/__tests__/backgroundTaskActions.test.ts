@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -245,6 +246,66 @@ describe('stopAllAgentBackgroundTasks', () => {
           process.kill(-record.pid, 'SIGKILL')
         } catch {
           // the group is already gone
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'keeps an unattributable leaderless record through the purge refusal',
+    async () => {
+      // After a restart the app owns nothing in memory: a record whose leader is gone while
+      // its pgid still holds live members — here a session built for exactly that shape — may
+      // be guarding this task's own survivor, so the purge must refuse and leave the record
+      // rather than sweep it away with the agent.
+      const pidFile = path.join(storageDir, 'unowned-worker.pid')
+      const leader = spawn(
+        '/bin/sh',
+        [
+          '-c',
+          `${nodeBin} -e "require('fs').writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 60_000)" "${pidFile}" &`
+        ],
+        { detached: true, stdio: 'ignore' }
+      )
+      leader.unref()
+      let workerPid = 0
+      try {
+        await vi.waitFor(() => expect(isPidAlive(leader.pid!)).toBe(false), { timeout: 10_000 })
+        await vi.waitFor(
+          async () => {
+            expect((await readFile(pidFile, 'utf8')).trim()).toMatch(/^\d+$/)
+          },
+          { timeout: 10_000 }
+        )
+        workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+        expect(isPidAlive(workerPid)).toBe(true)
+
+        await writeFile(
+          path.join(storageDir, 'bt-unowned.json'),
+          JSON.stringify({
+            id: 'bt-unowned',
+            name: 'unowned',
+            command: 'true',
+            pid: leader.pid,
+            cwd: storageDir,
+            startedAt: new Date().toISOString(),
+            logFile: path.join(storageDir, 'bt-unowned.log'),
+            status: 'running',
+            exitCode: null,
+            signal: null
+          })
+        )
+
+        await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+          'Cannot permanently delete Agent agent-1 while background task bt-unowned is unresolved'
+        )
+        expect(isPidAlive(workerPid)).toBe(true)
+        expect(await readFile(path.join(storageDir, 'bt-unowned.json'), 'utf8')).toContain('"running"')
+      } finally {
+        try {
+          if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+        } catch {
+          // already gone
         }
       }
     }

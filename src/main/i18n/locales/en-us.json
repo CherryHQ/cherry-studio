@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Zoom Out",
   "background_task.name.unnamed": "background task",
   "background_task.note.gone_no_marker": "Process is gone and no completion marker exists — the app likely exited while the task was running. Check the log file.",
+  "background_task.note.group_unattributed": "The task's process group still holds live processes, but after a restart they can no longer be attributed to the task, so it cannot be safely controlled. Check the log file.",
   "background_task.note.kill_requested": "Kill requested.",
   "background_task.note.stop_requested": "Stop requested; use Kill if the process does not exit.",
   "background_task.note.stopped_no_event": "The stopped process is no longer running; no completion event was captured.",

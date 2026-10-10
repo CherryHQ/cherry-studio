@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Uzaklaştır",
   "background_task.name.unnamed": "arka plan görevi",
   "background_task.note.gone_no_marker": "Süreç kayboldu ve tamamlanma işareti yok — uygulama görev çalışırken kapandı olabilir. Günlük dosyasını kontrol edin.",
+  "background_task.note.group_unattributed": "Görevin işlem grubunda hâlâ canlı işlemler var, ancak yeniden başlatmanın ardından bunlar göreve atanamadığı için görev güvenle kontrol edilemiyor. Günlük dosyasını kontrol edin.",
   "background_task.note.kill_requested": "Zorla sonlandırma istendi.",
   "background_task.note.stop_requested": "Durdurma istendi; süreç sonlanmazsa zorla sonlandırmayı kullanın.",
   "background_task.note.stopped_no_event": "Durdurulan süreç artık çalışmıyor; hiçbir tamamlanma olayı yakalanmadı.",

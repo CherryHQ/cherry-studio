@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Herauszoomen",
   "background_task.name.unnamed": "Hintergrundaufgabe",
   "background_task.note.gone_no_marker": "Der Prozess ist weg und es gibt keine Abschlussmarkierung — die App wurde während der Aufgabe vermutlich beendet. Siehe die Protokolldatei.",
+  "background_task.note.group_unattributed": "Die Prozessgruppe der Aufgabe enthält noch lebende Prozesse, doch nach einem Neustart lassen sie sich der Aufgabe nicht mehr zuordnen, sodass sie sich nicht sicher steuern lässt. Siehe die Protokolldatei.",
   "background_task.note.kill_requested": "Beenden erzwungen angefordert.",
   "background_task.note.stop_requested": "Stoppen angefordert; Beenden erzwingen, falls der Prozess nicht endet.",
   "background_task.note.stopped_no_event": "Der gestoppte Prozess läuft nicht mehr; es wurde kein Abschlussereignis erfasst.",

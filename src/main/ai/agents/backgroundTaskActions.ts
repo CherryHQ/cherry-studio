@@ -8,6 +8,7 @@ import { sanitizeChannelOutput } from '@main/ai/channels'
 
 import {
   getDetachedBackgroundTask,
+  hasUnownedLiveGroup,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask,
@@ -141,7 +142,8 @@ export async function stopAgentBackgroundTask(
  */
 export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void> {
   const storageDir = storageDirFor(agentId)
-  const running = (await listDetachedBackgroundTasks(storageDir)).filter((record) => record.status === 'running')
+  const records = await listDetachedBackgroundTasks(storageDir)
+  const running = records.filter((record) => record.status === 'running')
   const stopped = await Promise.all(running.map((record) => stopDetachedBackgroundTask(storageDir, record.id, true)))
   for (const [index, record] of running.entries()) {
     if (stopped[index] && stopped[index].status !== 'running') continue
@@ -151,5 +153,13 @@ export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void
     const settled = await getDetachedBackgroundTask(storageDir, record.id)
     if (settled && settled.status !== 'running') continue
     throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
+  }
+  // An unresolved record — its leader gone while its pgid still holds live members this app
+  // cannot own after a restart — must survive the purge: the members may be the task's own
+  // survivors, and deleting the record would strip the last control path they answer to.
+  for (const record of records) {
+    if (record.status === 'unknown' && hasUnownedLiveGroup(record)) {
+      throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is unresolved`)
+    }
   }
 }

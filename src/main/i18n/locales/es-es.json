@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Alejar",
   "background_task.name.unnamed": "tarea en segundo plano",
   "background_task.note.gone_no_marker": "El proceso desapareció y no hay marcador de finalización: la aplicación probablemente se cerró mientras la tarea se ejecutaba. Consulta el archivo de registro.",
+  "background_task.note.group_unattributed": "El grupo de procesos de la tarea aún contiene procesos vivos, pero tras un reinicio ya no se pueden atribuir a la tarea, por lo que no se puede controlar de forma segura. Consulta el archivo de registro.",
   "background_task.note.kill_requested": "Solicitud de detención forzada.",
   "background_task.note.stop_requested": "Solicitud de detención; usa la detención forzada si el proceso no termina.",
   "background_task.note.stopped_no_event": "El proceso detenido ya no se está ejecutando; no se capturó ningún evento de finalización.",

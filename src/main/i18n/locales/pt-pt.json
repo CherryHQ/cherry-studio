@@ -66,6 +66,7 @@
   "appMenu.zoomOut": "Reduzir Zoom",
   "background_task.name.unnamed": "tarefa em segundo plano",
   "background_task.note.gone_no_marker": "O processo desapareceu e não existe marcador de conclusão — a aplicação provavelmente terminou enquanto a tarefa decorria. Consulte o ficheiro de registo.",
+  "background_task.note.group_unattributed": "O grupo de processos da tarefa ainda contém processos vivos, mas após um reinício já não podem ser atribuídos à tarefa, pelo que esta não pode ser controlada em segurança. Consulte o ficheiro de registo.",
   "background_task.note.kill_requested": "Pedido de paragem forçada.",
   "background_task.note.stop_requested": "Pedido de paragem; use a paragem forçada se o processo não terminar.",
   "background_task.note.stopped_no_event": "O processo parado já não está em execução; não foi capturado nenhum evento de conclusão.",
