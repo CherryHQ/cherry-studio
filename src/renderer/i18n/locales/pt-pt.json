@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Ativar e experimentar",
   "settings.skills.enableToTry.description": "A competência {{name}} tem de estar ativada globalmente para que o Cherry Assistant a possa usar.",
   "settings.skills.enableToTry.title": "Ativar esta competência?",
+  "settings.skills.enabledOnly": "Apenas competências ativadas",
   "settings.skills.globalToggle": "Ativar globalmente a competência {{name}}",
   "settings.skills.install": "Instalar",
   "settings.skills.installFailed": "Falha ao instalar a competência: {{name}}",

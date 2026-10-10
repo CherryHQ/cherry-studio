@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Etkinleştir ve dene",
   "settings.skills.enableToTry.description": "{{name}}, Cherry Assistant tarafından kullanılmadan önce genel olarak etkinleştirilmelidir.",
   "settings.skills.enableToTry.title": "Bu beceri etkinleştirilsin mi?",
+  "settings.skills.enabledOnly": "Yalnızca Etkin Beceriler",
   "settings.skills.globalToggle": "{{name}} becerisini genel olarak etkinleştir",
   "settings.skills.install": "Yükle",
   "settings.skills.installFailed": "Beceri yüklenemedi: {{name}}",

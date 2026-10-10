@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Ενεργοποίηση και δοκιμή",
   "settings.skills.enableToTry.description": "Η δεξιότητα {{name}} πρέπει να ενεργοποιηθεί καθολικά πριν τη χρησιμοποιήσει το Cherry Assistant.",
   "settings.skills.enableToTry.title": "Ενεργοποίηση αυτής της δεξιότητας;",
+  "settings.skills.enabledOnly": "Μόνο ενεργοποιημένες δεξιότητες",
   "settings.skills.globalToggle": "Καθολική ενεργοποίηση δεξιότητας {{name}}",
   "settings.skills.install": "Εγκατάσταση",
   "settings.skills.installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",

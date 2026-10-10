@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Activer et essayer",
   "settings.skills.enableToTry.description": "{{name}} doit être activée globalement avant que Cherry Assistant puisse l’utiliser.",
   "settings.skills.enableToTry.title": "Activer cette compétence ?",
+  "settings.skills.enabledOnly": "Compétences activées uniquement",
   "settings.skills.globalToggle": "Activer globalement la compétence {{name}}",
   "settings.skills.install": "Installer",
   "settings.skills.installFailed": "Échec de l'installation de la compétence : {{name}}",

@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "有効にして試す",
   "settings.skills.enableToTry.description": "Cherry Assistant が使用するには、{{name}} をグローバルに有効にする必要があります。",
   "settings.skills.enableToTry.title": "このスキルを有効にしますか？",
+  "settings.skills.enabledOnly": "有効なスキルのみ",
   "settings.skills.globalToggle": "スキル {{name}} をグローバルに有効化",
   "settings.skills.install": "インストール",
   "settings.skills.installFailed": "スキルのインストールに失敗しました: {{name}}",

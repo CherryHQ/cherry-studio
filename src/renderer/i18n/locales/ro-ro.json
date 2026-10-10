@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Activează și încearcă",
   "settings.skills.enableToTry.description": "Abilitatea {{name}} trebuie activată global înainte ca Cherry Assistant să o poată folosi.",
   "settings.skills.enableToTry.title": "Activezi această abilitate?",
+  "settings.skills.enabledOnly": "Doar abilitățile activate",
   "settings.skills.globalToggle": "Activează global abilitatea {{name}}",
   "settings.skills.install": "Instalare",
   "settings.skills.installFailed": "Nu s-a putut instala abilitatea: {{name}}",

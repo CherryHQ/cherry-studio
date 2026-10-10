@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Включить и попробовать",
   "settings.skills.enableToTry.description": "Навык {{name}} должен быть включён глобально, прежде чем Cherry Assistant сможет его использовать.",
   "settings.skills.enableToTry.title": "Включить этот навык?",
+  "settings.skills.enabledOnly": "Только включённые навыки",
   "settings.skills.globalToggle": "Включить навык {{name}} глобально",
   "settings.skills.install": "Установить",
   "settings.skills.installFailed": "Не удалось установить навык: {{name}}",

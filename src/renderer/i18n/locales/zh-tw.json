@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "啟用並試用",
   "settings.skills.enableToTry.description": "必須先全域啟用 {{name}}，Cherry Assistant 才能使用它。",
   "settings.skills.enableToTry.title": "啟用此技能？",
+  "settings.skills.enabledOnly": "僅顯示已啟用技能",
   "settings.skills.globalToggle": "全域啟用技能 {{name}}",
   "settings.skills.install": "安裝",
   "settings.skills.installFailed": "技能安裝失敗：{{name}}",

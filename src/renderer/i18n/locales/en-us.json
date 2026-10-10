@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Enable and try",
   "settings.skills.enableToTry.description": "{{name}} must be globally enabled before Cherry Assistant can use it.",
   "settings.skills.enableToTry.title": "Enable this Skill?",
+  "settings.skills.enabledOnly": "Enabled Skills Only",
   "settings.skills.globalToggle": "Globally enable skill {{name}}",
   "settings.skills.install": "Install",
   "settings.skills.installFailed": "Failed to install skill: {{name}}",

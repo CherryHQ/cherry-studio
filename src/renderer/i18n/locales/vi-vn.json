@@ -5480,6 +5480,7 @@
   "settings.skills.enableToTry.confirm": "Bật và dùng thử",
   "settings.skills.enableToTry.description": "Phải bật {{name}} trên toàn hệ thống trước khi Cherry Assistant có thể sử dụng kỹ năng này.",
   "settings.skills.enableToTry.title": "Bật kỹ năng này?",
+  "settings.skills.enabledOnly": "Chỉ kỹ năng đã bật",
   "settings.skills.globalToggle": "Bật kỹ năng {{name}} trên toàn hệ thống",
   "settings.skills.install": "Cài đặt",
   "settings.skills.installFailed": "Không thể cài đặt kỹ năng: {{name}}",
