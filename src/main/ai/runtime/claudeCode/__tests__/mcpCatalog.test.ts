@@ -134,4 +134,28 @@ describe('buildMcpToolMetadata', () => {
     expect(metadata?.['mcp__docs__searchDocs']).toMatchObject({ serverId: 'id-a', name: 'searchDocs' })
     expect(metadata?.['mcp__docs__search_docs']).toMatchObject({ serverId: 'id-a', name: 'search_docs' })
   })
+
+  it('keeps metadata under the running connection allocation across mount changes', async () => {
+    // A and B are both configured as `docs`; the live connection binds A to the configured name
+    // and B to its UUID. Removing A from the agent mid-turn and refreshing B's tool cache must
+    // not re-allocate the freed `docs` key to B: the live connection still executes
+    // `mcp__docs__run` against A until the deferred rebuild, so the refresh must attribute it
+    // to A under the frozen allocation.
+    const servers = new Map([
+      ['id-a', server('id-a', 'docs')],
+      ['id-b', server('id-b', 'docs')]
+    ])
+    mockFindByIdOrName.mockImplementation((idOrName: string) => servers.get(idOrName))
+    mockListTools.mockImplementation((serverId: string) => [tool(`${serverId}-run`, 'run')])
+
+    const metadata = await buildMcpToolMetadata({ id: 'agent-1', mcps: ['id-b'] } as unknown as AgentEntity, {
+      serverAllocation: new Map([
+        ['id-a', 'docs'],
+        ['id-b', 'id-b']
+      ])
+    })
+
+    expect(metadata?.['mcp__docs__run']).toMatchObject({ serverId: 'id-a', name: 'run' })
+    expect(metadata?.['mcp__id-b__run']).toMatchObject({ serverId: 'id-b', name: 'run' })
+  })
 })

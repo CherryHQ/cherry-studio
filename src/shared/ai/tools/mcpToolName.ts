@@ -195,7 +195,18 @@ export function translateMcpToolRulesToRuntimeNames(
       }
     }
     const names = runtimeNameByRule.get(candidate)
-    return names ? [...names] : [candidate]
+    if (names) return [...names]
+    // A denial can be saved under a collision-allocated name from an earlier topology
+    // (`<plain name>_<disambiguator>` — the deterministic pair hash, or any counter depth when
+    // even that was taken). The full string dies with the old allocation, but the stripped
+    // plain name still resolves; mapping it (merged fail-closed like every other ambiguous
+    // form) beats letting an explicitly disabled tool execute.
+    const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+    if (stripped !== candidate) {
+      const baseNames = runtimeNameByRule.get(stripped)
+      if (baseNames) return [...baseNames]
+    }
+    return [candidate]
   })
 }
 

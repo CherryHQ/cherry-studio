@@ -145,18 +145,37 @@ export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWar
   return { completedInTime, warm }
 }
 
+export interface McpToolMetadataOptions {
+  /**
+   * The running connection's server allocation (mounted id or name → runtime record key, as
+   * captured at session build). Metadata must attribute tools under the keys the LIVE
+   * connection registered: until a deferred rebuild replaces the connection, re-allocating
+   * from the current agent.mcps hands a removed server's configured-name key to a same-named
+   * survivor the connection still binds under its own key.
+   */
+  serverAllocation?: ReadonlyMap<string, string>
+}
+
 export async function buildMcpToolMetadata(
-  agent: AgentEntity
+  agent: AgentEntity,
+  options?: McpToolMetadataOptions
 ): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
-  const mcpIds = agent.mcps
-  if (!mcpIds?.length) return undefined
+  const allocation = options?.serverAllocation
+  if (!agent.mcps?.length && !allocation?.size) return undefined
 
   const mcpService = application.get('McpCatalogService')
   // Same allocation the record builder uses: the key a server registers under is the only
-  // authority for which metadata a runtime tool name (`mcp__<key>__<tool>`) resolves to.
-  const mounted = resolveMountedAgentMcpServers(agent).flatMap(({ mcpId, legacyServer, key }) => {
+  // authority for which metadata a runtime tool name (`mcp__<key>__<tool>`) resolves to. With a
+  // frozen allocation the mounted set comes from the map itself — servers since unmounted stay
+  // attributed until the connection is replaced.
+  const mountedEntries: Array<{ mcpId: string; key: string }> = allocation?.size
+    ? [...allocation].map(([mcpId, key]) => ({ mcpId, key }))
+    : resolveMountedAgentMcpServers(agent).map(({ mcpId, key }) => ({ mcpId, key }))
+  const mounted = mountedEntries.flatMap(({ mcpId, key }) => {
     try {
-      return [{ server: legacyServer, key, tools: mcpService.listTools(legacyServer.id) }]
+      const server = mcpServerService.findByIdOrName(mcpId)
+      if (!server) return []
+      return [{ server, key, tools: mcpService.listTools(server.id) }]
     } catch (error) {
       logger.warn('Failed to build MCP tool display metadata', { mcpId, error })
       return []

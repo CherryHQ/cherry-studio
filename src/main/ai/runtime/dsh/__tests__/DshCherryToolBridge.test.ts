@@ -294,6 +294,43 @@ describe('DshCherryToolBridge', () => {
     await after.close()
   })
 
+  it('keeps counter-allocated denials blocking the tool after the colliding neighbor is removed', async () => {
+    // `docs` lists `search__all` and `search__all_353988fff1e9`, claiming both the plain name
+    // and the first-collision candidate, so `docs__search`/`all` falls through to the counter
+    // allocation (hash of `docs__search\0all\01`). Saving that name into disabledTools, then
+    // removing `docs` and reconnecting, re-registers the survivor as the plain name — the saved
+    // denial must still resolve to it (any counter depth), or the exact-match policy lets the
+    // explicitly disabled tool execute.
+    const docs = createServer([tool('search__all'), tool('search__all_353988fff1e9')], async () => ({
+      content: [{ type: 'text', text: 'docs' }]
+    }))
+    const docsSearch = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const both = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docs.connect },
+        docs__search: { name: 'docs__search', connect: docsSearch.connect }
+      },
+      bridgeOptions()
+    )
+    const names = both.tools.map(({ name }) => name)
+    const savedDenial = names[2]
+    expect(savedDenial).toMatch(/^mcp__docs__search__all_[0-9a-f]{12}$/)
+    expect(savedDenial).not.toBe('mcp__docs__search__all_353988fff1e9')
+    await both.close()
+
+    const survivor = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const after = await buildDshCherryToolBridge(
+      { docs__search: { name: 'docs__search', connect: survivor.connect } },
+      bridgeOptions()
+    )
+    const currentName = after.tools.map(({ name }) => name)[0]
+    expect(currentName).toBe('mcp__docs__search__all')
+
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    expect(translateMcpToolRulesToRuntimeNames([savedDenial], new Map(), after.ruleNames)).toEqual([currentName])
+    await after.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],
