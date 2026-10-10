@@ -297,6 +297,8 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
   type LagTestable = {
     selectionHook: HookMock | null
     hooksPausedForMainLag: boolean
+    mainLagSampleInFlight: boolean
+    lastCtrlkeyDownTime: number
     triggerMode: string
     filterMode: string
     filterList: string[]
@@ -306,6 +308,10 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     pauseOsHooksForMainLag(): void
     resumeOsHooksAfterMainLag(): void
     sampleMainLagForHooks(expectedAt?: number): void
+    processTriggerMode(): void
+    handleKeyDownCtrlkeyMode(data: { uniKey: string; vkCode: number }): void
+    handleMouseWheelCtrlkeyMode(): void
+    handleMouseDownCtrlkeyMode(): void
     releaseActivationResources(): void
     isActivated: boolean
   }
@@ -318,7 +324,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     BaseService.resetInstances()
     svc = new SelectionService() as unknown as LagTestable
     hook = {
-      stop: vi.fn(),
+      stop: vi.fn(() => true),
       start: vi.fn(() => true),
       setGlobalFilterMode: vi.fn(() => true),
       setFineTunedList: vi.fn(() => true),
@@ -345,7 +351,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     // Its elapsed time includes the gap, so it pauses the newly started hook.
     platformMock.isWin = true
     let now = 10_000
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
 
     svc.sampleMainLagForHooks()
     svc.releaseActivationResources()
@@ -369,7 +375,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     platformMock.isWin = true
     let now = 10_000
     let tick: (() => void) | undefined
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
     const proto = Object.getPrototypeOf(svc)
     vi.spyOn(proto, 'setHookGlobalFilterMode').mockImplementation(() => {})
     vi.spyOn(proto, 'setHookFineTunedList').mockImplementation(() => {})
@@ -397,12 +403,83 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     svc.stopMainLagHookWatchdog()
   })
 
+  it('uses a monotonic clock for lag samples', async () => {
+    platformMock.isWin = true
+    let monotonicNow = 10_000
+    let wallClockNow = 10_000
+    vi.spyOn(performance, 'now').mockImplementation(() => monotonicNow)
+    vi.spyOn(Date, 'now').mockImplementation(() => wallClockNow)
+
+    svc.sampleMainLagForHooks()
+    wallClockNow += MAIN_LAG_HOOK_PAUSE_MS * 10
+    monotonicNow += 1
+    await flushImmediate()
+
+    expect(hook.stop).not.toHaveBeenCalled()
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('isolates errors thrown by the deferred lag sample', async () => {
+    platformMock.isWin = true
+    let now = 10_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    vi.spyOn(svc, 'pauseOsHooksForMainLag').mockImplementation(() => {
+      throw new Error('pause failed unexpectedly')
+    })
+    const logError = vi
+      .spyOn(Object.getPrototypeOf(svc), 'logError')
+      .mockImplementation(() => undefined)
+
+    svc.sampleMainLagForHooks()
+    now += MAIN_LAG_HOOK_PAUSE_MS
+    await flushImmediate()
+
+    expect(logError).toHaveBeenCalledWith(
+      'Failed to sample main-thread lag for selection hooks:',
+      expect.objectContaining({ message: 'pause failed unexpectedly' })
+    )
+    expect(svc.mainLagSampleInFlight).toBe(false)
+  })
+
   it('stops OS hooks when main-thread lag requires a pause', () => {
     // Real bug: WH_*_LL stay installed while Electron main cannot drain hook callbacks (#20732).
     svc.pauseOsHooksForMainLag()
 
     expect(hook.stop).toHaveBeenCalledOnce()
     expect(svc.hooksPausedForMainLag).toBe(true)
+  })
+
+  it('does not arm the pause latch when stopping hooks fails', () => {
+    hook.stop.mockReturnValue(false)
+
+    svc.pauseOsHooksForMainLag()
+
+    expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('resets an interrupted Ctrl gesture before pausing and after resuming', () => {
+    const ctrlKey = { uniKey: 'Control', vkCode: 162 }
+    vi.spyOn(Date, 'now').mockReturnValue(10_000)
+    svc.triggerMode = 'ctrlkey'
+
+    svc.handleKeyDownCtrlkeyMode(ctrlKey)
+    svc.handleMouseWheelCtrlkeyMode()
+    expect(svc.lastCtrlkeyDownTime).toBe(-1)
+
+    svc.pauseOsHooksForMainLag()
+
+    expect(svc.lastCtrlkeyDownTime).toBe(0)
+    expect(hook.off).toHaveBeenCalledWith('mouse-wheel', svc.handleMouseWheelCtrlkeyMode)
+    expect(hook.off).toHaveBeenCalledWith('mouse-down', svc.handleMouseDownCtrlkeyMode)
+
+    // The physical Ctrl release occurs while hooks are stopped and is never delivered.
+    hook.off.mockClear()
+    svc.resumeOsHooksAfterMainLag()
+    svc.handleKeyDownCtrlkeyMode(ctrlKey)
+
+    expect(hook.off).toHaveBeenCalledWith('mouse-wheel', svc.handleMouseWheelCtrlkeyMode)
+    expect(hook.off).toHaveBeenCalledWith('mouse-down', svc.handleMouseDownCtrlkeyMode)
+    expect(svc.lastCtrlkeyDownTime).toBe(10_000)
   })
 
   it('restarts OS hooks and restores trigger config after lag recovers', () => {
@@ -425,6 +502,15 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
 
     expect(hook.start).not.toHaveBeenCalled()
     expect(svc.hooksPausedForMainLag).toBe(false)
+  })
+
+  it('keeps the pause latch armed when restarting hooks fails', () => {
+    svc.hooksPausedForMainLag = true
+    hook.start.mockReturnValue(false)
+
+    svc.resumeOsHooksAfterMainLag()
+
+    expect(svc.hooksPausedForMainLag).toBe(true)
   })
 
   it('clears the lag-pause latch when activation resources are released', () => {

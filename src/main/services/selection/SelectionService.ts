@@ -1037,10 +1037,10 @@ export class SelectionService extends BaseService implements Activatable {
   private startMainLagHookWatchdog(): void {
     if (!isWin || this.mainLagWatchdogTimer) return
 
-    let nextExpectedAt = Date.now() + MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS
+    let nextExpectedAt = performance.now() + MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS
     this.mainLagWatchdogTimer = setInterval(() => {
       const expectedAt = nextExpectedAt
-      const invokedAt = Date.now()
+      const invokedAt = performance.now()
       nextExpectedAt = invokedAt + MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS
       this.sampleMainLagForHooks(expectedAt)
     }, MAIN_LAG_HOOK_SAMPLE_INTERVAL_MS)
@@ -1053,7 +1053,7 @@ export class SelectionService extends BaseService implements Activatable {
     this.mainLagWatchdogTimer = null
   }
 
-  private sampleMainLagForHooks(expectedAt = Date.now()): void {
+  private sampleMainLagForHooks(expectedAt = performance.now()): void {
     if (!isWin || !this.selectionHook || !this.isActivated || this.mainLagSampleInFlight) return
 
     this.mainLagSampleInFlight = true
@@ -1062,25 +1062,42 @@ export class SelectionService extends BaseService implements Activatable {
       // A sample queued before releaseActivationResources must not pause the next session.
       if (watchEpoch !== this.mainLagWatchEpoch) return
       this.mainLagSampleInFlight = false
-      if (!this.selectionHook || !this.isActivated) return
+      try {
+        if (!this.selectionHook || !this.isActivated) return
 
-      const action = decideMainLagHookAction({
-        paused: this.hooksPausedForMainLag,
-        lagMs: Math.max(0, Date.now() - expectedAt)
-      })
-      if (action === 'pause') {
-        this.pauseOsHooksForMainLag()
-      } else if (action === 'resume') {
-        this.resumeOsHooksAfterMainLag()
+        const action = decideMainLagHookAction({
+          paused: this.hooksPausedForMainLag,
+          lagMs: Math.max(0, performance.now() - expectedAt)
+        })
+        if (action === 'pause') {
+          this.pauseOsHooksForMainLag()
+        } else if (action === 'resume') {
+          this.resumeOsHooksAfterMainLag()
+        }
+      } catch (error) {
+        this.logError('Failed to sample main-thread lag for selection hooks:', error as Error)
       }
     })
+  }
+
+  private resetCtrlkeyGestureState(): void {
+    this.lastCtrlkeyDownTime = 0
+    if (!this.selectionHook) return
+
+    this.selectionHook.off('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
+    this.selectionHook.off('mouse-down', this.handleMouseDownCtrlkeyMode)
   }
 
   private pauseOsHooksForMainLag(): void {
     if (!this.selectionHook || this.hooksPausedForMainLag) return
 
     try {
-      this.selectionHook.stop()
+      // A key-up event can be lost while hooks are stopped. Cancel the in-flight Ctrl gesture
+      // before stopping so stale state cannot block the first gesture after recovery.
+      this.resetCtrlkeyGestureState()
+      if (!this.selectionHook.stop()) {
+        throw new Error('Failed to stop text selection hook')
+      }
       this.hooksPausedForMainLag = true
       this.logInfo('Paused selection OS hooks due to main-thread lag', true)
     } catch (error) {
@@ -1092,6 +1109,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (!this.selectionHook || !this.hooksPausedForMainLag || !this.isActivated) return
 
     try {
+      this.resetCtrlkeyGestureState()
       if (!this.selectionHook.start({ debug: isDev })) {
         throw new Error('Failed to restart text selection hook')
       }
