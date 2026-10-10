@@ -90,6 +90,10 @@ export const appRequestSchemas = {
     }),
     output: notesRelocationInspectionSchema
   }),
+  'app.notes_relocation.resolve_migration_source': defineRoute({
+    input: z.void(),
+    output: z.object({ sourcePath: z.string().min(1) })
+  }),
   'app.notes_relocation.migrate': defineRoute({
     input: z.object({
       sourcePath: z.string().min(1),
