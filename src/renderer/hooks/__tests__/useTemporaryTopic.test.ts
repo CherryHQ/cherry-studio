@@ -50,4 +50,20 @@ describe('useTemporaryTopic', () => {
       }
     })
   })
+
+  it('pins the context message cap in the lease body when the surface sets one', async () => {
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, maxMessages: 3 }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', { body: { maxMessages: 3 } })
+  })
+
+  it('leases the cap-free body when maxMessages is null — follow the general chain', async () => {
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, assistantId: 'asst_1', maxMessages: null }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics', { body: { assistantId: 'asst_1' } })
+  })
 })

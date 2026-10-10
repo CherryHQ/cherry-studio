@@ -82,6 +82,7 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [contextMaxMessages] = usePreference('feature.quick_assistant.context_max_messages')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -117,7 +118,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id, maxMessages: contextMaxMessages })
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()

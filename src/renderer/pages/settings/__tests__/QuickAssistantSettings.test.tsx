@@ -98,6 +98,31 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         )
       ),
+    // Mirrors the real field's contract the component relies on: owns the text
+    // while editing, hands the settled number (or null when emptied) to onBlur.
+    InputNumber: ({
+      value,
+      onBlur,
+      ...props
+    }: {
+      value: number | null
+      onBlur?: (value: number | null) => void
+    } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onBlur'>) => {
+      const [text, setText] = React.useState(value === null ? '' : String(value))
+      return React.createElement('input', {
+        ...props,
+        value: text,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => setText(event.target.value),
+        onBlur: () => {
+          if (text.trim() === '') {
+            onBlur?.(null)
+            return
+          }
+          const parsed = Number(text)
+          onBlur?.(Number.isFinite(parsed) ? parsed : null)
+        }
+      })
+    },
     Switch: ({ checked }: { checked: boolean }) =>
       React.createElement('input', { checked, readOnly: true, type: 'checkbox' })
   }
@@ -250,5 +275,24 @@ describe('QuickAssistantSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.assistant_id')).toBe('assistant-2')
     })
     expect(screen.queryByTestId('assistant-popover')).not.toBeInTheDocument()
+  })
+
+  it('writes the context message count and clears it back to follow-the-general-chain', async () => {
+    render(<QuickAssistantSettings />)
+
+    const input = screen.getByLabelText('settings.quickAssistant.context_max_messages')
+    expect(input).toHaveAttribute('placeholder', 'settings.quickAssistant.context_max_messages_follow_global')
+
+    fireEvent.change(input, { target: { value: '3' } })
+    fireEvent.blur(input)
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.context_max_messages')).toBe(3)
+    })
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.context_max_messages')).toBeNull()
+    })
   })
 })

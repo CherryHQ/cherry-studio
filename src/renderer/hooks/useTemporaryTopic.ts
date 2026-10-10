@@ -45,6 +45,15 @@ export interface UseTemporaryTopicOptions {
    * from the default model preference.
    */
   assistantId?: string
+  /**
+   * Optional cap on how many of the last messages the conversation serves
+   * (Quick Assistant's independent context message count). `null`/`undefined`
+   * = follow the general chain (globals, then the bound assistant). Read
+   * through a ref at lease time: editing the setting mid-conversation must
+   * neither drop the topic nor rewrite its history; the next leased topic
+   * picks the new value.
+   */
+  maxMessages?: number | null
 }
 
 export interface UseTemporaryTopicResult {
@@ -68,6 +77,12 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
    * cleanup path skips DELETE once the topic has migrated to SQLite.
    */
   const activeIdRef = useRef<string | null>(null)
+  /**
+   * Latest context cap without being an effect dependency: pinning it into
+   * the deps would drop the live topic whenever the setting is edited.
+   */
+  const maxMessagesRef = useRef<number | null | undefined>(options.maxMessages)
+  maxMessagesRef.current = options.maxMessages
 
   useEffect(() => {
     if (!enabled) {
@@ -77,7 +92,13 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     let cancelled = false
 
-    const body = assistantId ? { assistantId } : {}
+    const body: { assistantId?: string; maxMessages?: number } = assistantId ? { assistantId } : {}
+    // The transport contract only carries a positive integer; junk the user
+    // may have hand-edited into the preference stays renderer-side.
+    const maxMessages = maxMessagesRef.current
+    if (typeof maxMessages === 'number' && Number.isFinite(maxMessages) && maxMessages >= 1) {
+      body.maxMessages = Math.floor(maxMessages)
+    }
 
     void dataApiService
       .post('/temporary/topics', { body })
