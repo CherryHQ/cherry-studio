@@ -9,6 +9,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
@@ -100,6 +101,7 @@ const mocks = vi.hoisted(() => ({
   validateGitBashPath: vi.fn((shellPath?: string | null) => shellPath ?? null),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
+  getRawShellEnv: vi.fn().mockResolvedValue({}),
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
@@ -193,15 +195,15 @@ vi.mock('./piSdk', async (importOriginal) => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: mocks.getShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+  getRawShellEnv: mocks.getRawShellEnv
 }))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
-const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { buildPiLoginPathPrefix, mergeMiseEnvEntries, PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
@@ -344,6 +346,7 @@ beforeEach(() => {
   mocks.autoDiscoverGitBash.mockReturnValue(null)
   mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) => shellPath ?? null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
+  mocks.getRawShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
   mocks.sessionId = SESSION_ID
@@ -567,19 +570,29 @@ describe('PiRuntimeConnection', () => {
     expect(buildPiLoginPathPrefix('C:\\Users\\tester\\bin', 'win32')).toBeUndefined()
   })
 
-  it('reads a mixed-case Windows Path key', async () => {
-    mocks.getShellEnv.mockResolvedValueOnce({ Path: 'C:\\Users\\tester\\bin;C:\\Windows' })
+  it.skipIf(process.platform !== 'win32')('reads a mixed-case Windows Path key', async () => {
+    const shellEnv = { Path: 'C:\\Users\\tester\\bin;C:\\Windows' }
+    mocks.getShellEnv.mockResolvedValue(shellEnv)
+    mocks.getRawShellEnv.mockResolvedValue(shellEnv)
 
     await new PiRuntimeConnection(input).start()
 
-    if (process.platform === 'win32') {
-      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
-    } else {
-      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
-        'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
-      )
-    }
+    expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'prefers the exact PATH key over a lowercase path variable on POSIX',
+    async () => {
+      mocks.getRawShellEnv.mockResolvedValueOnce({
+        path: '/unrelated-lowercase',
+        PATH: '/opt/homebrew/bin:/usr/bin'
+      })
+
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(`export PATH="$PATH":'/opt/homebrew/bin:/usr/bin'`)
+    }
+  )
 
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
@@ -692,11 +705,13 @@ describe('PiRuntimeConnection', () => {
       env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter), PI_ONLY: 'preserved' }
     })
 
+    const loginShellPathTail = process.platform === 'win32' ? [] : (['/opt/homebrew/bin', '/usr/bin'] as const)
     expect(result.env.PATH?.split(path.delimiter)).toEqual([
       path.join('/cherry/Toolchain/mise', 'shims'),
       '/cherry/bin',
       '/pi/agent/bin',
-      '/system/bin'
+      '/system/bin',
+      ...loginShellPathTail
     ])
     expect(result.env).toMatchObject({
       PI_ONLY: 'preserved',
@@ -729,9 +744,11 @@ describe('PiRuntimeConnection', () => {
       }
     })
 
+    const loginShellPathTail = process.platform === 'win32' ? [] : (['/opt/homebrew/bin', '/usr/bin'] as const)
     expect(result.env.PATH?.split(path.delimiter)).toEqual([
       '/home/user/.local/share/mise/shims',
       '/system/bin',
+      ...loginShellPathTail,
       '/cherry/bin'
     ])
     expect(result.env).toMatchObject({
@@ -740,6 +757,156 @@ describe('PiRuntimeConnection', () => {
     })
     expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
     expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+  })
+
+  it('drops Cherry mise shims and vars for a PATH-only user mise installation', async () => {
+    mocks.getRawShellEnv.mockResolvedValueOnce({
+      PATH: ['/home/user/.local/share/mise/shims', '/usr/bin'].join(path.delimiter)
+    })
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) }
+    })
+
+    expect(result.env.MISE_DATA_DIR).toBeUndefined()
+    expect(result.env.MISE_SHIMS_DIR).toBeUndefined()
+    expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+    expect(result.env.PATH?.split(path.delimiter)).toContain('/pi/agent/bin')
+  })
+
+  it('keeps Cherry shims out of the pi shell prefix when the user owns mise', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    try {
+      mocks.getRawShellEnv.mockResolvedValueOnce({
+        PATH: ['/home/user/.local/share/mise/shims', '/usr/bin'].join(path.delimiter)
+      })
+      await new PiRuntimeConnection(input).start()
+
+      const prefix = mocks.setShellCommandPrefix.mock.calls[0]?.[0] as string
+      expect(prefix).toContain('/home/user/.local/share/mise/shims')
+      expect(prefix).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+      expect(prefix).toContain('/cherry/bin')
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
+  it('prefers the live spawn env mise values over a stale connection snapshot', async () => {
+    mocks.getRawShellEnv.mockResolvedValueOnce({
+      PATH: '/usr/bin',
+      MISE_DATA_DIR: '/snapshot/mise'
+    })
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: {
+        PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter),
+        MISE_DATA_DIR: '/live/mise'
+      }
+    })
+
+    expect(result.env.MISE_DATA_DIR).toBe('/live/mise')
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+  })
+
+  it('layers the login-shell PATH into bash tool spawns, mirroring the shell prefix', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: { PATH: ['/pi/agent/bin'].join(path.delimiter) }
+    })
+
+    if (process.platform === 'win32') {
+      expect(result.env.PATH?.split(path.delimiter)).not.toContain('/opt/homebrew/bin')
+    } else {
+      expect(result.env.PATH?.split(path.delimiter)).toContain('/opt/homebrew/bin')
+    }
+  })
+
+  it('keeps Cherry’s MISE contract when the login PATH carries Cherry’s own shims dir', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    try {
+      const cherryShims = path.join('/cherry/Toolchain/mise', 'shims')
+      mocks.getRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+      mocks.getShellEnv.mockResolvedValue({
+        PATH: [cherryShims, '/cherry/bin', '/usr/bin'].join(path.delimiter),
+        MISE_DATA_DIR: '/cherry/Toolchain/mise',
+        MISE_SHIMS_DIR: cherryShims
+      })
+      await new PiRuntimeConnection(input).start()
+
+      const spawnHook = (
+        mocks.bashToolOptions as {
+          spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+            command: string
+            cwd: string
+            env: NodeJS.ProcessEnv
+          }
+        }
+      ).spawnHook
+      const result = spawnHook({
+        command: 'node --version',
+        cwd: WORKSPACE,
+        env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) }
+      })
+
+      expect(result.env.MISE_DATA_DIR).toBe('/cherry/Toolchain/mise')
+      expect(result.env.PATH?.split(path.delimiter)).toContain(cherryShims)
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
+  it('merges snapshot and live MISE vars with live values winning', () => {
+    expect(
+      mergeMiseEnvEntries({ MISE_DATA_DIR: '/snapshot', MISE_SHIMS_DIR: '/snapshot/shims' }, { MISE_DATA_DIR: '/live' })
+    ).toEqual({ MISE_DATA_DIR: '/live', MISE_SHIMS_DIR: '/snapshot/shims' })
+  })
+
+  it('collapses case-variant MISE keys into the live spelling on Windows', () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    try {
+      expect(mergeMiseEnvEntries({ MISE_DATA_DIR: '/snapshot' }, { mise_data_dir: '/live' })).toEqual({
+        mise_data_dir: '/live'
+      })
+    } finally {
+      platformSpy.mockRestore()
+    }
   })
 
   it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {

@@ -1,5 +1,10 @@
 import type { LoggerService } from '@logger'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import {
+  getBinaryPath,
+  getStandaloneBinaryPath,
+  isBinaryExists,
+  isStandaloneBinaryExists
+} from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutableInEnv } from '@main/utils/commandResolver'
 
 type Runner = {
@@ -62,7 +67,8 @@ export async function resolveLaunchCommand({
   loginShellEnv,
   logger,
   signal,
-  resolutionCache
+  resolutionCache,
+  useStandaloneBundledBinary = false
 }: {
   command: string
   args: string[]
@@ -71,6 +77,8 @@ export async function resolveLaunchCommand({
   logger: LoggerService
   signal?: AbortSignal
   resolutionCache?: LaunchResolutionCache
+  /** When true, bundled fallbacks resolve under `cherry.bin` only (no mise shims). */
+  useStandaloneBundledBinary?: boolean
 }): Promise<LaunchCommand> {
   const normalizedCommand = command.trim()
   signal?.throwIfAborted()
@@ -89,14 +97,17 @@ export async function resolveLaunchCommand({
     if (systemPath) return { command: systemPath, resolution: 'system' }
     if (!runner) return { command: normalizedCommand, resolution: 'unresolved' }
     const bundled = runner.bundled ?? normalizedCommand
-    if (!(await isBinaryExists(bundled))) {
+    const bundledExists = useStandaloneBundledBinary
+      ? await isStandaloneBinaryExists(bundled)
+      : await isBinaryExists(bundled)
+    if (!bundledExists) {
       return {
         command: normalizedCommand,
         resolution: 'unresolved',
         unavailableReason: runner.notFound(normalizedCommand)
       }
     }
-    const command = await getBinaryPath(bundled)
+    const command = useStandaloneBundledBinary ? await getStandaloneBinaryPath(bundled) : await getBinaryPath(bundled)
     signal?.throwIfAborted()
     return { command, resolution: 'bundled' }
   }

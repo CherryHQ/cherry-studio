@@ -21,9 +21,17 @@ import {
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { getBinaryPath } from '@main/utils/binaryResolver'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, getStandaloneBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import {
+  applyUserMiseContract,
+  getMiseEnvEntries,
+  getRawShellEnv,
+  hasUserMiseEnv,
+  refreshRawShellEnv,
+  withCherryShellEnv
+} from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -131,16 +139,30 @@ export function resolveClaudeExecutablePath(): string {
 export async function getClaudeCodeLoginShellEnvironment(
   currentProxyEnvironment: Environment
 ): Promise<Record<string, string | undefined>> {
-  let loginShellEnv = await getShellEnv()
+  // MISE ownership and PATH come from one shell snapshot: separate augmented
+  // and raw reads can straddle a cache refresh and mix ownership from one
+  // capture with PATH from another.
+  let rawShellEnv = await getRawShellEnv()
+  let loginShellEnv = withCherryShellEnv(rawShellEnv)
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
-    loginShellEnv = await refreshShellEnv()
+    rawShellEnv = await refreshRawShellEnv()
+    loginShellEnv = withCherryShellEnv(rawShellEnv)
   }
-  const env = stripInheritedCherryProxyMarkers(loginShellEnv)
+  const stripped = stripInheritedCherryProxyMarkers(loginShellEnv)
   // A login shell can drop the desktop-session bus inherited by packaged Electron.
   if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {
-    env.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
+    stripped.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
   }
-  return env
+  // Restore the user's MISE_* contract over Cherry's isolated values so
+  // system mise shims (e.g. pnpx) inside the agent bash don't get
+  // redirected to Cherry's data dir (#19738). A user mise installation
+  // may be visible only as a shims directory in PATH without MISE_* vars.
+  const rawMiseEntries = getMiseEnvEntries(rawShellEnv)
+  const hasUserMise = hasUserMiseEnv(rawShellEnv)
+  if (hasUserMise) {
+    applyUserMiseContract(stripped, Object.fromEntries(rawMiseEntries), getBinaryExecutionEnv())
+  }
+  return stripped
 }
 
 export async function buildEnvironment(
@@ -150,7 +172,9 @@ export async function buildEnvironment(
   const proxyEnvironment = getProxyEnvironment(process.env)
   const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const bunPath = await getBinaryPath('bun')
+  // User mise ownership comes from the raw login shell, not Cherry's layered contract.
+  const hasUserMise = hasUserMiseEnv(await getRawShellEnv())
+  const bunPath = hasUserMise ? await getStandaloneBinaryPath('bun') : await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.
   // This function only builds agent-specific env vars.
@@ -202,12 +226,8 @@ export async function buildEnvironment(
     CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
     CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
-    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
-    // Identify Cherry Studio in the agent CLI's User-Agent (appends
-    // `client-app/cherry-studio/<version>`) so gateways and analytics can
-    // distinguish agent-mode traffic from a standalone Claude Code CLI.
-    // Documented in the Agent SDK `Options.env` JSDoc.
     CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
+    CHERRY_STUDIO_SKILLS_DIR: application.getPath('feature.agents.skills'),
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }
 
@@ -232,8 +252,8 @@ export async function buildEnvironment(
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
       'CHERRY_STUDIO_BUN_PATH',
-      'CHERRY_STUDIO_SKILLS_DIR',
       'CLAUDE_AGENT_SDK_CLIENT_APP',
+      'CHERRY_STUDIO_SKILLS_DIR',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
