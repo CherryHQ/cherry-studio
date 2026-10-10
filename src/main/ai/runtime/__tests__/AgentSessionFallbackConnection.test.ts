@@ -15,7 +15,12 @@ vi.mock('../aiSdk', () => ({ readRetryPolicy: mocks.readRetryPolicy }))
 
 import { AgentSessionFallbackConnection, classifyRuntimeFallbackError } from '../AgentSessionFallbackConnection'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentSessionRuntimeDriver } from '../types'
+import type {
+  AgentRuntimeConnection,
+  AgentRuntimeEvent,
+  AgentRuntimePermissionPolicy,
+  AgentSessionRuntimeDriver
+} from '../types'
 
 function fakeConnection(usageCapture = 'capture') {
   const events = new AsyncEventQueue<AgentRuntimeEvent>()
@@ -27,7 +32,13 @@ function fakeConnection(usageCapture = 'capture') {
     send,
     usageCapture,
     redirect: vi.fn(() => false),
-    reconcile: vi.fn(async () => 'current' as const)
+    reconcile: vi.fn(async () => 'current' as const),
+    getPermissionPolicy: vi.fn(
+      (): AgentRuntimePermissionPolicy => ({
+        permissionMode: 'default',
+        disabledTools: []
+      })
+    )
   }
 }
 
@@ -99,6 +110,51 @@ describe('Pi/DSH connection fallback', () => {
     expect(fallback.send).toHaveBeenCalledWith(userInput)
     fallback.events.push({ type: 'turn-complete' })
     await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    await wrapper.close()
+  })
+
+  it('replays the turn under the live connection policy, not the re-read agent row', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['bash'] })
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The turn was admitted under default with bash disabled; an agent save during the backoff
+    // (e.g. bypassPermissions, or re-enabling bash) must not re-admit the replay under it.
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        permissionPolicy: { permissionMode: 'default', disabledTools: ['bash'] }
+      })
+    )
+    await wrapper.close()
+  })
+
+  it('declines the replay when the live turn policy cannot be read', async () => {
+    const primary = fakeConnection()
+    const policyless = { ...primary, getPermissionPolicy: undefined }
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      policyless as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    // A policy that cannot be preserved must not be replayed under whatever the agent row says now.
+    expect(driver.connect).not.toHaveBeenCalled()
     await wrapper.close()
   })
 
