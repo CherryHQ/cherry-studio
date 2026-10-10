@@ -27,10 +27,10 @@ export interface DshCherryToolBridge {
    * their candidates merge, fail-closed), the exact pair identity `<server name>\0<raw tool>`,
    * the allocated runtime names themselves (a denial saved at runtime is the registered name,
    * which another pair's name-form rule can flatten onto), each identity's historical
-   * collision-allocated name (a deterministic pair hash, so a saved denial follows the pair
-   * after the colliding neighbor is unmounted), and pre-name runtime aliases rebuilt from
-   * mounted-server ids (wire-safe and hashed forms) so denials saved under uuid-keyed names
-   * follow the server to its current identity.
+   * collision-allocated name (a deterministic pair hash) and its allocator collision base (the
+   * plain name truncated to 50 — any counter depth strips to it after a reconnect), and
+   * pre-name runtime aliases rebuilt from mounted-server ids (wire-safe and hashed forms) so
+   * denials saved under uuid-keyed names follow the server to its current identity.
    */
   readonly ruleNames: ReadonlyMap<string, readonly string[]>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
@@ -206,6 +206,11 @@ function buildDshCherryRuleNameLookup(
     // the pair to its current identity.
     const historical = pairCollisionName(serverKey, rawTool)
     if (historical !== runtimeName) addRule(historical, runtimeName)
+    // Deeper counter allocations (`base + hash(pair\0counter)`, for any counter depth) strip to
+    // this base when the disambiguator suffix is removed — and a plain name longer than 50
+    // chars truncates the base below any parseable form. Indexing the allocator's exact base
+    // lets every stripped historical name resolve to the identity regardless of depth.
+    addRule(buildDshCherryToolName(serverKey, rawTool).slice(0, 50), runtimeName)
     const siblings = rawToolsByKey.get(serverKey)
     if (siblings) siblings.push({ rawTool, runtimeName })
     else rawToolsByKey.set(serverKey, [{ rawTool, runtimeName }])

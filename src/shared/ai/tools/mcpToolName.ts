@@ -195,7 +195,16 @@ export function translateMcpToolRulesToRuntimeNames(
       }
     }
     const names = runtimeNameByRule.get(candidate)
-    if (names) return [...names]
+    if (names) {
+      // An exact hit can also be a historical counter-allocated denial name of another pair: a
+      // reconnect may bake the disambiguator into a real tool's name, so the string now names
+      // the new tool exactly while the originally disabled identity moved to the stripped base.
+      // Merge the stripped-base candidates (fail-closed) instead of short-circuiting.
+      const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+      const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
+      if (!baseNames) return [...names]
+      return [...new Set([...names, ...baseNames])]
+    }
     // A denial can be saved under a collision-allocated name from an earlier topology
     // (`<plain name>_<disambiguator>` — the deterministic pair hash, or any counter depth when
     // even that was taken). The full string dies with the old allocation, but the stripped

@@ -331,6 +331,72 @@ describe('DshCherryToolBridge', () => {
     await after.close()
   })
 
+  it('merges a saved counter denial with a live tool that later claims its exact name', async () => {
+    // Topology 1: `docs`/[`search__all`, `search__all_353988fff1e9`] + `docs__search`/`all`
+    // counter-allocates `mcp__docs__search__all_4e11dd82a154`, which a user saves. Topology 2:
+    // `docs` re-exposes ONLY `search__all_4e11dd82a154` (the disambiguator baked into a real
+    // tool name) while `docs__search`/`all` survives under the plain name. The saved string now
+    // exact-hits the new `docs` tool — the exact lookup must MERGE the stripped-base candidates
+    // so the originally disabled identity stays blocked too.
+    const docs = createServer([tool('search__all'), tool('search__all_353988fff1e9')], async () => ({
+      content: [{ type: 'text', text: 'docs' }]
+    }))
+    const docsSearch = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const both = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docs.connect },
+        docs__search: { name: 'docs__search', connect: docsSearch.connect }
+      },
+      bridgeOptions()
+    )
+    const savedDenial = both.tools.map(({ name }) => name)[2]
+    expect(savedDenial).toMatch(/^mcp__docs__search__all_[0-9a-f]{12}$/)
+    await both.close()
+
+    const docsReborn = createServer([tool('search__all_4e11dd82a154')], async () => ({
+      content: [{ type: 'text', text: 'docs' }]
+    }))
+    const docsSearchAgain = createServer([tool('all')], async () => ({
+      content: [{ type: 'text', text: 'docs__search' }]
+    }))
+    const after = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docsReborn.connect },
+        docs__search: { name: 'docs__search', connect: docsSearchAgain.connect }
+      },
+      bridgeOptions()
+    )
+    const names = after.tools.map(({ name }) => name)
+    expect(names).toContain('mcp__docs__search__all_4e11dd82a154')
+    expect(names).toContain('mcp__docs__search__all')
+
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    expect(translateMcpToolRulesToRuntimeNames([savedDenial], new Map(), after.ruleNames)).toEqual([
+      'mcp__docs__search__all_4e11dd82a154',
+      'mcp__docs__search__all'
+    ])
+    await after.close()
+  })
+
+  it('indexes the allocator collision base so truncated counter names resolve after reconnects', async () => {
+    // The allocator builds collision candidates as the plain name truncated to 50 chars plus a
+    // pair hash; for a plain name longer than 50 the historical counter name strips to the
+    // truncated base, which is not any identity's plain name. The lookup must carry that base
+    // so the stripped denial still resolves.
+    const longKey = 'a'.repeat(46)
+    const server = createServer([tool('run')], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      { long: { id: 'long-id', name: longKey, connect: server.connect } },
+      { ...bridgeOptions(), serverNameById: new Map([['long-id', longKey]]) }
+    )
+
+    const runtimeName = bridge.tools.map(({ name }) => name)[0]
+    expect(runtimeName).toBe(`mcp__${longKey}__run`)
+    expect(runtimeName.length).toBeGreaterThan(50)
+    expect(bridge.ruleNames.get(runtimeName.slice(0, 50))).toEqual([runtimeName])
+    await bridge.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],
