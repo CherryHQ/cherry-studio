@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 
 const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('../linux-native/compat')
+const { installMacAppIcon } = require('./mac-app-icon')
 
 exports.default = async function (context) {
   const platform = context.packager.platform.name
@@ -24,5 +25,11 @@ exports.default = async function (context) {
       `Installed GLIBC-compatible better-sqlite3 for linux-${arch} at ${destination} ` +
         `(ABI ${manifest.electronAbi}, ${JSON.stringify(manifest.requirements)})\n`
     )
+  } else if (platform === 'mac') {
+    installMacAppIcon({
+      projectRoot: path.join(__dirname, '../..'),
+      appOutDir: context.appOutDir,
+      productFilename: context.packager.appInfo.productFilename
+    })
   }
 }
