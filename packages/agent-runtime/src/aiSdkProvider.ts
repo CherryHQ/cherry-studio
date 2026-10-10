@@ -18,7 +18,7 @@ import {
   type Usage
 } from '@earendil-works/pi-ai'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
-import type { FinishReason, LanguageModelUsage, TextStreamPart, ToolSet } from 'ai'
+import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart, ToolSet } from 'ai'
 
 import { toModelMessages, toToolSet } from './modelMessages'
 import type { ModelCallInfo, ModelCallPort, ModelCallRequest, ModelCallSideChannel } from './ports'
@@ -134,6 +134,9 @@ function streamModelCall<TRequestOptions>(
     const thinkings = new Map<string, ThinkingContent>()
     const toolCalls = new Map<string, ToolCall>()
     const indexOf = (block: TextContent | ThinkingContent | ToolCall) => output.content.indexOf(block)
+    // As in the AI SDK, the last metadata on a part's start, delta or end wins (Anthropic signs on a delta).
+    const signature = (current: string | undefined, metadata: ProviderMetadata | undefined) =>
+      encodeProviderMetadata(metadata) ?? current
     let finish: FinishStepPart | undefined
     signal?.addEventListener('abort', cancelRead, { once: true })
     try {
@@ -164,6 +167,7 @@ function streamModelCall<TRequestOptions>(
         switch (part.type) {
           case 'text-start': {
             const block: TextContent = { type: 'text', text: '' }
+            block.textSignature = signature(undefined, part.providerMetadata)
             output.content.push(block)
             texts.set(part.id, block)
             stream.push({ type: 'text_start', contentIndex: indexOf(block), partial: output })
@@ -172,17 +176,19 @@ function streamModelCall<TRequestOptions>(
           case 'text-delta': {
             const block = texts.get(part.id)!
             block.text += part.text
+            block.textSignature = signature(block.textSignature, part.providerMetadata)
             stream.push({ type: 'text_delta', contentIndex: indexOf(block), delta: part.text, partial: output })
             break
           }
           case 'text-end': {
             const block = texts.get(part.id)!
-            block.textSignature = encodeProviderMetadata(part.providerMetadata)
+            block.textSignature = signature(block.textSignature, part.providerMetadata)
             stream.push({ type: 'text_end', contentIndex: indexOf(block), content: block.text, partial: output })
             break
           }
           case 'reasoning-start': {
             const block: ThinkingContent = { type: 'thinking', thinking: '' }
+            block.thinkingSignature = signature(undefined, part.providerMetadata)
             output.content.push(block)
             thinkings.set(part.id, block)
             stream.push({ type: 'thinking_start', contentIndex: indexOf(block), partial: output })
@@ -191,12 +197,13 @@ function streamModelCall<TRequestOptions>(
           case 'reasoning-delta': {
             const block = thinkings.get(part.id)!
             block.thinking += part.text
+            block.thinkingSignature = signature(block.thinkingSignature, part.providerMetadata)
             stream.push({ type: 'thinking_delta', contentIndex: indexOf(block), delta: part.text, partial: output })
             break
           }
           case 'reasoning-end': {
             const block = thinkings.get(part.id)!
-            block.thinkingSignature = encodeProviderMetadata(part.providerMetadata)
+            block.thinkingSignature = signature(block.thinkingSignature, part.providerMetadata)
             stream.push({
               type: 'thinking_end',
               contentIndex: indexOf(block),
