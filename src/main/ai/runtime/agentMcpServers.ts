@@ -71,9 +71,15 @@ export function buildAgentMcpServers(
     model: agent.model ?? undefined,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
-  const servers: Record<string, AgentMcpServer> = {}
+  // Null prototype: a server configured as `__proto__` must become an own enumerable key, not
+  // mutate the record's prototype — every runtime enumerates via Object.entries/values.
+  const servers: Record<string, AgentMcpServer> = Object.create(null)
   // Built-in entries are added after the user loop below; a user server must never take their keys.
   const takenServerNames = new Set<string>(Object.values(CHERRY_MCP_SERVER))
+  // Mounted ids are reserved before any name allocation so the id fallback below can never
+  // collide with another mounted server's configured name (and vice versa): each server keeps
+  // its own key even when names and ids cross-import each other (`mcp_server.name` is not unique).
+  for (const mcpId of agent.mcps ?? []) takenServerNames.add(mcpId)
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
   const hostTools = resolveHostTools(agent, { channelLinked })
