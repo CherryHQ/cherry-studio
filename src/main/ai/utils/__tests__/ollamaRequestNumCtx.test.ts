@@ -68,6 +68,22 @@ describe('resolveOllamaRequestNumCtx', () => {
     expect(resolution?.numCtx).toBe(131_072)
   })
 
+  it('budgets by effective num_ctx when the provider routes through the Ollama adapter family', () => {
+    vi.spyOn(os, 'freemem').mockReturnValue(8_000_000_000)
+    vi.spyOn(os, 'totalmem').mockReturnValue(16_000_000_000)
+
+    const provider = {
+      id: 'custom-ollama-uuid',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://127.0.0.1:11434', adapterFamily: 'ollama' }
+      }
+    } as Provider
+
+    const window = resolveModelRequestContextWindow(model as never, provider, ENDPOINT_TYPE.OLLAMA_CHAT)
+    expect(window).toBeLessThan(131_072)
+  })
+
   it('budgets by effective num_ctx for duplicated Ollama providers routed through the Ollama SDK', () => {
     vi.spyOn(os, 'freemem').mockReturnValue(8_000_000_000)
     vi.spyOn(os, 'totalmem').mockReturnValue(16_000_000_000)

@@ -43,22 +43,18 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
-function ollamaAllocationHintFromNestedErrors(error: Error): string | undefined {
+function ollamaAllocationHintFromTerminalError(error: Error): string | undefined {
   const source = error as unknown as Record<string, unknown>
-  const nested: unknown[] = []
-  if ('lastError' in source) nested.push(source.lastError)
-  if (Array.isArray(source.errors)) nested.push(...source.errors)
+  const errors = Array.isArray(source.errors) ? source.errors : []
+  const terminal = source.lastError ?? (errors.length > 0 ? errors[errors.length - 1] : undefined)
+  if (terminal == null) return undefined
 
-  for (const candidate of nested) {
-    if (candidate == null) continue
-    const record = candidate as Record<string, unknown>
-    const hint = [
-      candidate instanceof Error ? candidate.message : '',
-      typeof record.responseBody === 'string' ? record.responseBody : ''
-    ].join('\n')
-    if (isOllamaKvCacheAllocationError(hint)) return hint
-  }
-  return undefined
+  const record = terminal as Record<string, unknown>
+  const hint = [
+    terminal instanceof Error ? terminal.message : '',
+    typeof record.responseBody === 'string' ? record.responseBody : ''
+  ].join('\n')
+  return isOllamaKvCacheAllocationError(hint) ? hint : undefined
 }
 
 function enrichOllamaAllocationError(
@@ -145,7 +141,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
       serialized.processExitSignal = e.processExitSignal
     }
 
-    const allocationHint = isRetryError ? ollamaAllocationHintFromNestedErrors(error) : undefined
+    const allocationHint = isRetryError ? ollamaAllocationHintFromTerminalError(error) : undefined
     enrichOllamaAllocationError(serialized, context, allocationHint)
     return serialized
   }

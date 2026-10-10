@@ -1699,6 +1699,43 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
   })
 
+  it('preserves a smaller explicit ollama num_ctx when applying the automatic memory cap', async () => {
+    vi.spyOn(os, 'freemem').mockReturnValue(8_000_000_000)
+    vi.spyOn(os, 'totalmem').mockReturnValue(16_000_000_000)
+
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [{ name: 'ollama', type: 'json', value: JSON.stringify({ options: { num_ctx: 8192 } }) }]
+        }
+      })
+    })
+
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 8192 } })
+    expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx?.numCtx).toBe(8192)
+  })
+
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
     const { provider, model } = makeOffCapableSetup()
 

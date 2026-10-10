@@ -30,7 +30,6 @@ import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } fro
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -63,6 +62,7 @@ import {
   readOllamaWireNumCtx,
   resolveModelRequestContextWindow,
   resolveOllamaRequestNumCtx,
+  usesOllamaWirePath,
   writeOllamaWireNumCtx
 } from '../../../utils/ollamaRequestNumCtx'
 import {
@@ -263,10 +263,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
-  const ollamaNumCtxResolution =
-    sdkConfig.providerId === SystemProviderIds.ollama
-      ? resolveOllamaRequestNumCtx(model, provider, endpointType)
-      : undefined
+  const ollamaNumCtxResolution = usesOllamaWirePath(provider, endpointType, sdkConfig.providerId)
+    ? resolveOllamaRequestNumCtx(model, provider, endpointType)
+    : undefined
   const ollamaNumCtx = ollamaNumCtxResolution
     ? {
         uniqueModelId: model.id,
@@ -706,11 +705,14 @@ function buildAgentOptions(
 
   let ollamaNumCtxSnapshot = requestContext.ollamaNumCtx
   let sanitizedProviderOptions = effectiveProviderOptions
-  if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
+  if (usesOllamaWirePath(provider, endpointType, sdkConfig.providerId) && ollamaNumCtxSnapshot) {
     const resolution = resolveOllamaRequestNumCtx(model, provider, endpointType)
     if (resolution) {
-      sanitizedProviderOptions = writeOllamaWireNumCtx(effectiveProviderOptions, resolution.numCtx)
-      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: resolution.numCtx }
+      const existingWireNumCtx = readOllamaWireNumCtx(effectiveProviderOptions)
+      const wireNumCtx =
+        existingWireNumCtx != null ? Math.min(existingWireNumCtx, resolution.numCtx) : resolution.numCtx
+      sanitizedProviderOptions = writeOllamaWireNumCtx(effectiveProviderOptions, wireNumCtx)
+      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }
     }
   }
 
@@ -718,7 +720,7 @@ function buildAgentOptions(
     { standardParams, providerOptions: sanitizedProviderOptions, bodyParams },
     model
   )
-  if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
+  if (usesOllamaWirePath(provider, endpointType, sdkConfig.providerId) && ollamaNumCtxSnapshot) {
     const wireNumCtx = readOllamaWireNumCtx(sanitized.providerOptions)
     if (wireNumCtx != null) {
       ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }

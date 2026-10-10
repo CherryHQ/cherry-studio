@@ -127,6 +127,40 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
+    it('does not tag a RetryError as Ollama OOM when the terminal failure is unrelated', () => {
+      const kvError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: true
+      })
+      const authError = new APICallError({
+        message: 'Unauthorized',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 401,
+        responseHeaders: {},
+        responseBody: 'invalid api key',
+        isRetryable: false
+      })
+      const retryError = new RetryError({
+        message: 'Failed after 3 attempts',
+        reason: 'maxRetriesExceeded',
+        errors: [kvError, authError],
+        lastError: authError
+      })
+
+      const result = serializeError(retryError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaNumCtxModelId).toBeUndefined()
+    })
+
     it('tags Ollama KV-cache allocation failures inside a RetryError with context metadata', () => {
       const providerError = new APICallError({
         message: 'Internal Server Error',

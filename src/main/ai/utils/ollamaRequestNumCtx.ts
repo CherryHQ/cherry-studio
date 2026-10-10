@@ -14,10 +14,21 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { resolveAiSdkProviderId } from '../provider/endpoint'
 import { getBaseUrl } from './provider'
 
 export interface OllamaNumCtxResolution extends ResolveOllamaNumCtxInput {
   numCtx: number
+}
+
+export function usesOllamaWirePath(
+  provider?: Provider,
+  preferredEndpoint?: EndpointType | null,
+  runtimeProviderId?: string | null
+): boolean {
+  if (runtimeProviderId === SystemProviderIds.ollama) return true
+  if (!provider) return false
+  return resolveAiSdkProviderId(provider, preferredEndpoint ?? undefined) === SystemProviderIds.ollama
 }
 
 /** True when Ollama is served on this machine (default host or loopback). */
@@ -71,8 +82,7 @@ export function resolveModelRequestContextWindow(
   preferredEndpoint?: EndpointType | null,
   runtimeProviderId?: string | null
 ): number | undefined {
-  const usesOllamaWire = runtimeProviderId === SystemProviderIds.ollama || provider?.id === SystemProviderIds.ollama
-  if (!usesOllamaWire) {
+  if (!usesOllamaWirePath(provider, preferredEndpoint, runtimeProviderId)) {
     return model.contextWindow
   }
   const resolution = resolveOllamaRequestNumCtx(model, provider, preferredEndpoint)

@@ -45,6 +45,7 @@ import { resolveRequestContextSettings } from '../../contextBuild/resolveRequest
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
@@ -970,7 +971,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // silently disabled compaction instead of triggering it. Serve as-is; the
     // persist lane still bounds tool outputs by the character setting.
     const minContextWindow = resolveMinContextWindow(
-      models.map((m) => resolveModelRequestContextWindow(m, providerService.getByProviderId(m.providerId)))
+      models.map((m) => {
+        const provider = providerService.getByProviderId(m.providerId)
+        if (!provider) return m.contextWindow
+        const { endpointType } = resolveEffectiveEndpoint(provider, m)
+        const runtimeProviderId = resolveAiSdkProviderId(provider, endpointType)
+        return resolveModelRequestContextWindow(m, provider, endpointType, runtimeProviderId)
+      })
     )
     if (minContextWindow === null) {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
