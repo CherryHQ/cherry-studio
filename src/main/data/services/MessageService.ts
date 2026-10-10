@@ -15,7 +15,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
-import { type MessageRow, messageTable } from '@data/db/schemas/message'
+import { type InsertMessageRow, type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -1109,6 +1109,12 @@ export class MessageService {
       .returning({ id: messageTable.id })
       .all()
     return row.id
+  }
+
+  /** Persist a validated temporary message with its resolved parent and file refs in the caller's transaction. */
+  persistTemporaryMessageTx(tx: DbOrTx, input: InsertMessageRow & { id: string; parentId: string }): void {
+    tx.insert(messageTable).values(input).run()
+    replaceChatMessageFileRefsTx(tx, input.id, input.data)
   }
 
   /**
