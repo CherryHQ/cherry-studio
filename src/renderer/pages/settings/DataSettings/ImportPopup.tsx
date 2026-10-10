@@ -13,7 +13,7 @@ interface PopupResult {
   success?: boolean
 }
 
-type ImportSource = 'chatgpt' | 'claude'
+type ImportSource = 'chatgpt' | 'claude' | 'cherry'
 
 interface OwnProps {
   source: ImportSource
@@ -53,6 +53,22 @@ const IMPORT_CONFIG = {
       title: 'import.claude.title',
       unknownError: 'import.claude.error.unknown'
     }
+  },
+  cherry: {
+    loggerName: 'Cherry',
+    translations: {
+      button: 'import.cherry.button',
+      description: 'import.cherry.description',
+      helpStep1: 'import.cherry.help.step1',
+      helpStep2: 'import.cherry.help.step2',
+      helpStep3: 'import.cherry.help.step3',
+      helpTitle: 'import.cherry.help.title',
+      importing: 'import.cherry.importing',
+      selecting: 'import.cherry.selecting',
+      success: 'import.cherry.success',
+      title: 'import.cherry.title',
+      unknownError: 'import.cherry.error.unknown'
+    }
   }
 } as const
 
@@ -85,7 +101,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
       const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
 
       // Import conversations
-      const result = await importService.importConversations(fileContent, source, setImportProgress)
+      const result =
+        source === 'cherry'
+          ? await importService.importNativeTopic(fileContent, setImportProgress)
+          : await importService.importConversations(fileContent, source, setImportProgress)
 
       if (result.success) {
         toast.success(
