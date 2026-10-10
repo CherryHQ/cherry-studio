@@ -319,14 +319,45 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
     // `Old server` is not provider-safe: the executable tool carries the lossy hash suffix,
     // so the translated name-form rule must be replaced by the identity the bridge actually
     // registered — otherwise an exact-match policy misses the denial.
-    const runtimeNames = new Map([['mcp__Old server__run', 'mcp__oldServer__run_4f7413c24ae4']])
+    const runtimeNames = new Map([['mcp__Old server__run', ['mcp__oldServer__run_4f7413c24ae4']]])
     expect(
       translateMcpToolRulesToRuntimeNames([`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run`], byId, runtimeNames)
     ).toEqual(['mcp__oldServer__run_4f7413c24ae4'])
   })
 
+  it('resolves an id-keyed rule onto its own pair when name-form strings collide', () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` both flatten to the
+    // rule string `mcp__docs__search__all`; the id-keyed denial names one pair exactly and
+    // must land on that pair's allocated name, never on the colliding sibling.
+    const byIdPair = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'docs']])
+    const runtimeNames = new Map([
+      ['docs\u0000search__all', ['mcp__docs__search__all']],
+      ['docs__search\u0000all', ['mcp__docs__search__all_353988fff1e9']],
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(
+      translateMcpToolRulesToRuntimeNames(
+        [`mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__search__all`],
+        byIdPair,
+        runtimeNames
+      )
+    ).toEqual(['mcp__docs__search__all'])
+  })
+
+  it('maps a flattened name-form rule onto every candidate identity (fail-closed)', () => {
+    // A saved name-form denial cannot say which colliding pair it meant — denying both
+    // candidates over-blocks instead of letting an explicitly disabled tool execute.
+    const runtimeNames = new Map([
+      ['mcp__docs__search__all', ['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']]
+    ])
+    expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], new Map(), runtimeNames)).toEqual([
+      'mcp__docs__search__all',
+      'mcp__docs__search__all_353988fff1e9'
+    ])
+  })
+
   it('rewrites name-form rules whose rule string matches a registered identity', () => {
-    const runtimeNames = new Map([['mcp__docs__search__all', 'mcp__docs__search__all_353988fff1e9']])
+    const runtimeNames = new Map([['mcp__docs__search__all', ['mcp__docs__search__all_353988fff1e9']]])
     expect(translateMcpToolRulesToRuntimeNames(['mcp__docs__search__all'], byId, runtimeNames)).toEqual([
       'mcp__docs__search__all_353988fff1e9'
     ])

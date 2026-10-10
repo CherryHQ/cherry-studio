@@ -22,11 +22,13 @@ interface DshToolBinding {
 export interface DshCherryToolBridge {
   tools: BridgeToolDescriptor[]
   /**
-   * `mcp__<server name>__<raw tool>` → the runtime name this bridge registered for the pair
-   * (wire-safe plain or lossy hash identity). Policy layers map denial rules onto these
-   * registered identities instead of re-deriving names.
+   * Denial-rule string → the runtime name(s) this bridge registered for it. Keys: the
+   * name-form rule `mcp__<server name>__<raw tool>` (two pairs can flatten to one string —
+   * their candidates merge, fail-closed), the exact pair identity `<server name>\0<raw tool>`,
+   * and pre-name runtime aliases rebuilt from mounted-server ids (wire-safe and hashed forms)
+   * so denials saved under uuid-keyed names follow the server to its current identity.
    */
-  readonly ruleNames: ReadonlyMap<string, string>
+  readonly ruleNames: ReadonlyMap<string, readonly string[]>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
   close(): Promise<void>
 }
@@ -34,6 +36,12 @@ export interface DshCherryToolBridge {
 export interface DshCherryToolBridgeOptions {
   agentsDataRoot: string
   toolResultRoot: string
+  /**
+   * Mounted-server id → runtime record key. Aliases of every known id are rebuilt so a denial
+   * saved while tools were keyed by that id (`mcp__<id>__<tool>`, lossy-hashed when long)
+   * translates onto the name the bridge allocated under the configured server name.
+   */
+  serverNameById?: ReadonlyMap<string, string>
 }
 
 /** Preserve MCP wire names when provider-safe; use a stable hash only after lossy normalization. */
@@ -77,7 +85,7 @@ export async function buildDshCherryToolBridge(
   const tools: BridgeToolDescriptor[] = []
   const bindings = new Map<string, DshToolBinding>()
   const usedNames = new Set<string>()
-  const ruleNames = new Map<string, string>()
+  const identities: Array<{ serverKey: string; rawTool: string; runtimeName: string }> = []
 
   for (const [serverId, server] of Object.entries(servers)) {
     let client: Client | undefined
@@ -93,7 +101,7 @@ export async function buildDshCherryToolBridge(
         let name = buildDshCherryToolName(server.name, raw.name)
         if (usedNames.has(name)) name = disambiguatedDshToolName(server.name, raw.name, usedNames)
         usedNames.add(name)
-        ruleNames.set(`mcp__${server.name}__${raw.name}`, name)
+        identities.push({ serverKey: server.name, rawTool: raw.name, runtimeName: name })
         tools.push({
           name,
           description: raw.description ?? '',
@@ -109,7 +117,7 @@ export async function buildDshCherryToolBridge(
 
   return {
     tools,
-    ruleNames,
+    ruleNames: buildDshCherryRuleNameLookup(identities, options.serverNameById),
     async callTool(name, args, signal) {
       const binding = bindings.get(name)
       if (!binding) throw new Error(`Unknown dsh Cherry tool: ${name}`)
@@ -150,6 +158,42 @@ function disambiguatedDshToolName(serverName: string, toolName: string, taken: R
   throw new Error(
     `No free dsh tool name for ${serverName}/${toolName} after ${DSH_TOOL_NAME_DISAMBIGUATION_LIMIT} candidates`
   )
+}
+
+/**
+ * Index the registered identities for denial-rule translation. A flattened name-form string that
+ * two pairs share maps to every candidate (over-blocking beats letting an explicitly disabled
+ * tool execute); the `\0`-joined pair identity (never a valid `mcp__` string) stays exact for
+ * id-keyed rules; and each known mounted-server id rebuilds the name tools carried before
+ * configured-name registration so old denials follow their server.
+ */
+function buildDshCherryRuleNameLookup(
+  identities: ReadonlyArray<{ serverKey: string; rawTool: string; runtimeName: string }>,
+  serverNameById: ReadonlyMap<string, string> = new Map()
+): ReadonlyMap<string, readonly string[]> {
+  const ruleNames = new Map<string, readonly string[]>()
+  const addRule = (rule: string, runtimeName: string) => {
+    const existing = ruleNames.get(rule)
+    if (existing) {
+      if (!existing.includes(runtimeName)) ruleNames.set(rule, [...existing, runtimeName])
+    } else {
+      ruleNames.set(rule, [runtimeName])
+    }
+  }
+  const rawToolsByKey = new Map<string, Array<{ rawTool: string; runtimeName: string }>>()
+  for (const { serverKey, rawTool, runtimeName } of identities) {
+    addRule(`mcp__${serverKey}__${rawTool}`, runtimeName)
+    addRule(`${serverKey}\u0000${rawTool}`, runtimeName)
+    const siblings = rawToolsByKey.get(serverKey)
+    if (siblings) siblings.push({ rawTool, runtimeName })
+    else rawToolsByKey.set(serverKey, [{ rawTool, runtimeName }])
+  }
+  for (const [serverId, serverKey] of serverNameById) {
+    for (const { rawTool, runtimeName } of rawToolsByKey.get(serverKey) ?? []) {
+      addRule(buildDshCherryToolName(serverId, rawTool), runtimeName)
+    }
+  }
+  return ruleNames
 }
 
 async function connectClient(server: AgentMcpServer, clientName: string): Promise<Client> {

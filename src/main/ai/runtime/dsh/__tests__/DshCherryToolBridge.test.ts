@@ -162,13 +162,59 @@ describe('DshCherryToolBridge', () => {
     // identity the bridge actually registered.
     const server = createServer([tool('run')], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
     const bridge = await buildDshCherryToolBridge(
-      { only: { name: 'Old server', connect: server.connect } },
+      { only: { id: 'only-id', name: 'Old server', connect: server.connect } },
       bridgeOptions()
     )
 
     const runtimeName = bridge.tools.map(({ name }) => name)[0]
     expect(runtimeName).toBe('mcp__oldServer__run_4f7413c24ae4')
-    expect(bridge.ruleNames.get('mcp__Old server__run')).toBe(runtimeName)
+    expect(bridge.ruleNames.get('mcp__Old server__run')).toEqual([runtimeName])
+    await bridge.close()
+  })
+
+  it('keeps colliding name-form rule keys resolvable per pair and by pre-name aliases', async () => {
+    // `docs` exposing `search__all` and `docs__search` exposing `all` flatten to the same
+    // rule string; every registered identity must stay reachable — per (server, raw tool)
+    // pair for id-keyed denials, and under the pre-name uuid-keyed aliases tools were
+    // saved under (wire-safe plain and hashed lossy forms).
+    const uuidA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const uuidB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const longTool = 'this_is_a_long_tool_name_for_search'
+    const docs = createServer([tool('search__all')], async () => ({ content: [{ type: 'text', text: 'docs' }] }))
+    const docsSearch = createServer([tool('all'), tool(longTool)], async () => ({
+      content: [{ type: 'text', text: 'docs__search' }]
+    }))
+    const bridge = await buildDshCherryToolBridge(
+      {
+        docs: { id: uuidA, name: 'docs', connect: docs.connect },
+        docs__search: { id: uuidB, name: 'docs__search', connect: docsSearch.connect }
+      },
+      {
+        ...bridgeOptions(),
+        serverNameById: new Map([
+          [uuidA, 'docs'],
+          [uuidB, 'docs__search']
+        ])
+      }
+    )
+
+    const docsAllName = 'mcp__docs__search__all'
+    const docsSearchAllName = bridge.tools.map(({ name }) => name)[1]
+    expect(docsSearchAllName).toMatch(/^mcp__docs__search__all_[0-9a-f]{6,}$/)
+
+    // The flattened name-form string maps to every candidate (fail-closed)…
+    expect(bridge.ruleNames.get(docsAllName)).toEqual([docsAllName, docsSearchAllName])
+    // …while each pair identity stays exact for id-keyed denials.
+    expect(bridge.ruleNames.get(`docs\u0000search__all`)).toEqual([docsAllName])
+    expect(bridge.ruleNames.get(`docs__search\u0000all`)).toEqual([docsSearchAllName])
+
+    // Pre-name aliases: tools were keyed by the mounted id before configured names, so a
+    // saved denial reads `mcp__<uuid>__<tool>` (wire-safe) or the hashed lossy form.
+    expect(bridge.ruleNames.get(buildDshCherryToolName(uuidA, 'search__all'))).toEqual([docsAllName])
+    const hashedAlias = buildDshCherryToolName(uuidB, longTool)
+    expect(hashedAlias).toMatch(/_[0-9a-f]{12}$/)
+    const longToolName = bridge.tools.map(({ name }) => name)[2]
+    expect(bridge.ruleNames.get(hashedAlias)).toEqual([longToolName])
     await bridge.close()
   })
 

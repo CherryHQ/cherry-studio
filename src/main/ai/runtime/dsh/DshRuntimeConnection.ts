@@ -168,8 +168,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    */
   private runtimePlanActive?: boolean
   private disabledTools = new Set<string>()
-  /** The live bridge's rule-string → registered runtime-name mapping (lossy identities included). */
-  private bridgeRuleNames: ReadonlyMap<string, string> = new Map()
+  /** The live bridge's rule-string → registered runtime-name(s) mapping (lossy identities included). */
+  private bridgeRuleNames: ReadonlyMap<string, readonly string[]> = new Map()
   /**
    * Mounted-server id → runtime record key. Fixed at connect (a mounted-server change rebuilds the
    * connection), and used to translate legacy id-keyed denial rules onto name-keyed tool names.
@@ -409,7 +409,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           this.agentDataPath,
           this.input.knowledgeBaseIds
         ),
-        { agentsDataRoot, toolResultRoot }
+        // The id map rebuilds pre-name runtime aliases so denials saved while tools were
+        // keyed by the mounted id still translate onto the configured-name identities.
+        { agentsDataRoot, toolResultRoot, serverNameById: this.serverNameById }
       )
       // Legacy id-keyed denials must reach the bridge plugin in the current name-keyed form — the
       // plugin matches exact runtime tool names (`mcp__<record key>__<tool>`). Names are resolved

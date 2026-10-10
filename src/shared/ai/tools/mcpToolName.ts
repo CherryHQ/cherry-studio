@@ -167,20 +167,36 @@ export function translateLegacyMcpToolRules(
 }
 
 /**
- * Rewrite denial rules onto the identities a tool bridge actually registered. Runs the
- * legacy id rewrite first, then replaces every rule whose name-form string matches a
- * registered runtime identity (the bridge maps `mcp__<server name>__<raw tool>` to the
- * name it allocated, including lossy normalization and collision suffixes). Rules with
- * no registered identity pass through unchanged.
+ * Rewrite denial rules onto the identities a tool bridge actually registered. An id-keyed rule
+ * (`mcp__<uuid>__<raw tool>`) names one (server, raw tool) pair exactly, so it resolves through
+ * the `<server key>\0<raw tool>` identity entry — a second pair whose name-form string flattens
+ * identically (`docs` + `search__all` vs `docs__search` + `all`) cannot capture the denial.
+ * After the legacy id rewrite, any rule whose name-form string matches a registered identity is
+ * replaced by the allocated runtime name(s); a flattened string maps to every candidate
+ * (fail-closed). Rules with no registered identity pass through unchanged.
  */
 export function translateMcpToolRulesToRuntimeNames(
   rules: readonly string[] | null | undefined,
   serverNameById: ReadonlyMap<string, string> = new Map(),
-  runtimeNameByRule: ReadonlyMap<string, string> = new Map()
+  runtimeNameByRule: ReadonlyMap<string, readonly string[]> = new Map()
 ): string[] {
-  const translated = translateLegacyMcpToolRules(rules, serverNameById)
-  if (runtimeNameByRule.size === 0) return translated
-  return translated.map((rule) => runtimeNameByRule.get(rule) ?? rule)
+  return (rules ?? []).flatMap((rule) => {
+    let candidate = rule
+    if (candidate.startsWith('mcp__')) {
+      const rest = candidate.slice('mcp__'.length)
+      const delimiterIndex = rest.indexOf('__')
+      if (delimiterIndex > 0) {
+        const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
+        if (mapped !== undefined) {
+          const pairNames = runtimeNameByRule.get(`${mapped}\u0000${rest.slice(delimiterIndex + 2)}`)
+          if (pairNames) return [...pairNames]
+          candidate = `mcp__${mapped}${rest.slice(delimiterIndex)}`
+        }
+      }
+    }
+    const names = runtimeNameByRule.get(candidate)
+    return names ? [...names] : [candidate]
+  })
 }
 
 /**
