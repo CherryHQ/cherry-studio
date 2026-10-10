@@ -99,6 +99,12 @@ export interface StreamListener {
   onError(result: StreamErrorResult): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
+  /**
+   * Marks a persistence listener whose backend accepts an empty answer as a success
+   * terminal (agent sessions). AiStreamManager skips the billed-zero-text demotion
+   * for streams carrying such a listener.
+   */
+  readonly allowsEmptySuccessTerminal?: boolean
 }
 
 // ── StreamExecution ─────────────────────────────────────────────────

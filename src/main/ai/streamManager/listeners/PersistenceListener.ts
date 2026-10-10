@@ -22,7 +22,8 @@ import {
   finalizeInterruptedParts,
   hasNoAnswerContent,
   type PersistenceBackend,
-  stripTransientStatusParts
+  stripTransientStatusParts,
+  zeroTextTurnError
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -48,9 +49,11 @@ export interface PersistenceListenerOptions {
 export class PersistenceListener implements StreamListener {
   readonly id: string
   readonly terminalPhase = 'persistence' as const
+  readonly allowsEmptySuccessTerminal: boolean
 
   constructor(private readonly opts: PersistenceListenerOptions) {
     this.id = `persistence:${opts.backend.kind}:${opts.topicId}:${opts.modelId ?? 'default'}`
+    this.allowsEmptySuccessTerminal = opts.backend.canPersistEmptySuccessTerminal === true
   }
 
   /** Backend strategy tag (e.g. "sqlite", "temp", "agents-db"). */
@@ -138,23 +141,16 @@ export class PersistenceListener implements StreamListener {
       finalMessageForPersistence.metadata.stats.outputTokens > 0 &&
       hasNoAnswerContent(finalMessageForPersistence.parts)
     ) {
-      const error = zeroTextTurnError(finalMessageForPersistence.metadata.stats.outputTokens)
-      // Explicit app-owned failure metadata. The prose carries the billed token count, and letting
-      // toExecutionFailure re-parse it (extractHttpStatus) would reclassify e.g. 401 tokens as a
-      // persisted, non-retryable auth failure instead of the retryable runtime gap this is.
-      const failure: ExecutionFailure = {
-        message: error.message ?? '',
-        retryable: true,
-        failure: {
-          version: 1,
-          reasonCode: 'internal',
-          source: { layer: 'runtime', name: 'EmptyResponseError' },
-          ...(this.opts.modelId
-            ? { context: { providerId: this.opts.modelId.split('::')[0], modelId: this.opts.modelId } }
-            : {})
-        }
-      }
-      const withErrorPart = mergeErrorIntoMessage(finalMessageForPersistence, error, failure, result.anchorMessageId)
+      // Shared synthetic error carrying explicit app-owned failure metadata (see
+      // zeroTextTurnError): the prose's billed token count is never re-parsed as an
+      // HTTP status.
+      const error = zeroTextTurnError(finalMessageForPersistence.metadata.stats.outputTokens, this.opts.modelId)
+      const withErrorPart = mergeErrorIntoMessage(
+        finalMessageForPersistence,
+        error,
+        error.executionFailure as ExecutionFailure,
+        result.anchorMessageId
+      )
       return this.persistAssistant(withErrorPart, 'error', runtimeTiming, result)
     }
 
@@ -223,16 +219,6 @@ export class PersistenceListener implements StreamListener {
         })
       })
     }
-  }
-}
-
-/** Synthetic error for a turn the provider billed but streamed no answer content into. */
-function zeroTextTurnError(outputTokens: number): SerializedError {
-  return {
-    name: 'EmptyResponseError',
-    message: `The provider reported ${outputTokens} output tokens but the reply arrived without any content — it was likely truncated upstream. Retry the request.`,
-    stack: null,
-    isRetryable: true
   }
 }
 

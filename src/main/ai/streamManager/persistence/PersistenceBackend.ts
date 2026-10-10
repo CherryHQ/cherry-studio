@@ -8,6 +8,7 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -16,6 +17,7 @@ import {
   readCherryMeta,
   withCherryMeta
 } from '@shared/data/types/uiParts'
+import type { SerializedError } from '@shared/types/error'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
@@ -124,6 +126,49 @@ export function hasNoAnswerContent(parts: CherryMessagePart[]): boolean {
     if (part.type === 'file') return true
     return isToolPart(part)
   })
+}
+
+/**
+ * Synthetic error for a turn the provider billed but streamed no answer content into
+ * (#21315). Carries explicit app-owned failure metadata: `toExecutionFailure` returns a
+ * stored `executionFailure` verbatim instead of re-parsing the prose, so the billed
+ * token count can never be mistaken for an HTTP status (e.g. "401 output tokens").
+ */
+export function zeroTextTurnError(outputTokens: number, modelId?: string): SerializedError {
+  const message = `The provider reported ${outputTokens} output tokens but the reply arrived without any content — it was likely truncated upstream. Retry the request.`
+  const failure: ExecutionFailure = {
+    message,
+    retryable: true,
+    failure: {
+      version: 1,
+      reasonCode: 'internal',
+      source: { layer: 'runtime', name: 'EmptyResponseError' },
+      context: {
+        ...(modelId ? { providerId: modelId.split('::')[0], modelId } : {})
+      }
+    }
+  }
+  return {
+    name: 'EmptyResponseError',
+    message,
+    stack: null,
+    isRetryable: true,
+    executionFailure: failure
+  }
+}
+
+/**
+ * The demotion error for a billed zero-answer terminal snapshot, or undefined when the
+ * turn carries answer content or no billing (#21315).
+ */
+export function zeroTextTurnDemotionError(
+  finalMessage: CherryUIMessage | undefined,
+  modelId?: string
+): SerializedError | undefined {
+  const tokens = finalMessage?.metadata?.stats?.outputTokens
+  if (typeof tokens !== 'number' || tokens <= 0) return undefined
+  if (!hasNoAnswerContent(finalMessage?.parts ?? [])) return undefined
+  return zeroTextTurnError(tokens, modelId)
 }
 
 export interface PersistAssistantInput {
