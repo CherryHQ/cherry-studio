@@ -236,7 +236,8 @@ vi.mock('@renderer/components/notes/NotesFileEditSessionProvider', () => ({
     discard: mocks.discardSession,
     reload: mocks.reloadSession,
     flush: mocks.flushSession,
-    notifyExternalChange: mocks.notifyExternalChange
+    notifyExternalChange: mocks.notifyExternalChange,
+    refreshFromDiskIfIdle: vi.fn(async () => {})
   })
 }))
 
