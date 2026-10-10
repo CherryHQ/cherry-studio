@@ -413,11 +413,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-<<<<<<< HEAD
-  'knowledge.item.file_processing_progress.${itemId}': null
-=======
+  'knowledge.item.file_processing_progress.${itemId}': null,
   'notes.directory_root_transition': undefined
->>>>>>> efef53b820 (fix(notes-relocation): fix CI types and tighten migration handshake)
 }
 
 /**
