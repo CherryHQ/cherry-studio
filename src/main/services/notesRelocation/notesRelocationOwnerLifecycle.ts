@@ -23,13 +23,15 @@ export function bindNotesRelocationSessionOwnerWindow(ownerId: string, onOwnerGo
     return
   }
 
-  const handleClosed = () => {
+  const handleOwnerUnavailable = () => {
     onOwnerGone()
   }
-  window.once('closed', handleClosed)
+  window.once('closed', handleOwnerUnavailable)
+  window.webContents.on('render-process-gone', handleOwnerUnavailable)
   ownerWindowClosedCleanup = () => {
     if (!window.isDestroyed()) {
-      window.removeListener('closed', handleClosed)
+      window.removeListener('closed', handleOwnerUnavailable)
+      window.webContents.removeListener('render-process-gone', handleOwnerUnavailable)
     }
   }
 }

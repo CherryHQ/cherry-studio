@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
+const departingWriteChains = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
@@ -102,6 +103,13 @@ export function registerNotesEditFlush(flush: NotesEditFlush): () => void {
   }
 }
 
+export function trackDepartingNotesFileWrite(chain: Promise<void>): void {
+  departingWriteChains.add(chain)
+  void chain.finally(() => {
+    departingWriteChains.delete(chain)
+  })
+}
+
 export async function flushAllNotesEdits(): Promise<void> {
-  await Promise.all([...flushCallbacks].map((flush) => flush()))
+  await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...[...departingWriteChains]])
 }

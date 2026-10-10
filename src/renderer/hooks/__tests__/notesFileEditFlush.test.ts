@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
+  flushAllNotesEdits,
   lockNotesEditsForRelocation,
+  registerNotesEditFlush,
   runStructuralNotesFilesystemWrite,
+  trackDepartingNotesFileWrite,
   unlockNotesEditsForRelocation,
   waitForStructuralNotesWritesToSettle
 } from '../notesFileEditFlush'
@@ -25,6 +28,26 @@ describe('notesFileEditFlush structural writes', () => {
 
     await Promise.all([writePromise, settlePromise])
     expect(settled).toBe(true)
+  })
+
+  it('waits for departing file writes during flush', async () => {
+    unlockNotesEditsForRelocation()
+
+    let departingFinished = false
+    const departing = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        departingFinished = true
+        resolve()
+      }, 20)
+    })
+    trackDepartingNotesFileWrite(departing)
+
+    const flush = vi.fn().mockResolvedValue(undefined)
+    registerNotesEditFlush(flush)
+
+    await flushAllNotesEdits()
+    expect(departingFinished).toBe(true)
+    expect(flush).toHaveBeenCalledOnce()
   })
 
   it('blocks new structural writes while relocation edits are locked', async () => {

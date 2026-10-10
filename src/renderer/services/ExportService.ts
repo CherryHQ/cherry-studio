@@ -1517,7 +1517,7 @@ async function resolveActiveNotesExportFolder(): Promise<string> {
   return resolved.isFallback && configured ? configured : resolved.path
 }
 
-const saveContentToNotes = async (title: string, content: string, _folderPath: string): Promise<void> => {
+const saveContentToNotes = async (title: string, content: string): Promise<void> => {
   let blocked = false
   await runStructuralNotesFilesystemWrite(
     () => {
@@ -1548,8 +1548,9 @@ const handleNotesExportError = (error: unknown): void => {
  * @param folderPath 目标笔记文件夹
  */
 export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  void folderPath
   try {
-    await saveContentToNotes(title, content, folderPath)
+    await saveContentToNotes(title, content)
   } catch (error) {
     handleNotesExportError(error)
     throw error
@@ -1573,9 +1574,10 @@ export const exportMessageToNotes = async (title: string, content: string, folde
  * @param folderPath
  */
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
+  void folderPath
   try {
     const content = await topicToMarkdown(topic)
-    await saveContentToNotes(topic.name, content, folderPath)
+    await saveContentToNotes(topic.name, content)
   } catch (error) {
     handleNotesExportError(error)
     throw error

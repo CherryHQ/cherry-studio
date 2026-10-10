@@ -17,8 +17,6 @@ import {
   handleNotesRelocationOwnerWindowGone,
   inspectNotesRelocation,
   isNotesRelocationBarrierActive,
-  isNotesRelocationOwnerWindowAlive,
-  isRendererNotesEditsFlushWindowRegistered,
   migrateNotesDirectory,
   registerRendererNotesEditsFlushWindow,
   releaseNotesRelocationSession,
@@ -139,9 +137,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     setNotesRelocationMigrateInFlight(true)
     try {
       const result = await migrateNotesDirectory(sourcePath, targetPath, { merge })
-      if (!isNotesRelocationOwnerWindowAlive(senderId) || !isRendererNotesEditsFlushWindowRegistered(senderId)) {
-        finishNotesRelocationSession(senderId, sessionEpoch)
-      }
+      finishNotesRelocationSession(senderId, sessionEpoch)
       return result
     } catch (error) {
       finishNotesRelocationSession(senderId, sessionEpoch)

@@ -242,6 +242,12 @@ const NotesPage: FC = () => {
   }, [])
 
   useEffect(() => {
+    return () => {
+      diskRefreshTreeIdRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
     if (!activeFilePath || !treeId || fileSession.isDirty) {
       return
     }

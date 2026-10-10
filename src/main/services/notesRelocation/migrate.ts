@@ -32,6 +32,31 @@ async function isDirectoryTreeEmpty(directoryPath: string): Promise<boolean> {
   return true
 }
 
+async function assertCanonicalTargetPath(targetRoot: string, absolutePath: string): Promise<void> {
+  const relative = path.relative(targetRoot, absolutePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target path escapes selected directory')
+  }
+
+  let current = targetRoot
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment)
+    try {
+      const stats = await fs.promises.lstat(current)
+      if (stats.isSymbolicLink()) {
+        throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
+      }
+    } catch (error) {
+      if (error instanceof IpcError) {
+        throw error
+      }
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+}
+
 async function assertNonMergeDestinationAbsent(destinationPath: string): Promise<void> {
   let stats: fs.Stats
   try {
@@ -229,7 +254,10 @@ export async function migrateNotesDirectory(
     }
   }
 
-  const copyOptions = options.merge ? { skipExistingFiles: true as const } : { exclusiveFileCopies: true as const }
+  const copyOptions = {
+    ...(options.merge ? { skipExistingFiles: true as const } : { exclusiveFileCopies: true as const }),
+    allowedBasePath: resolvedTarget
+  }
 
   try {
     for (const entry of entries) {
@@ -238,6 +266,7 @@ export async function migrateNotesDirectory(
       }
       const from = path.join(resolvedSource, entry.name)
       const to = path.join(resolvedTarget, entry.name)
+      await assertCanonicalTargetPath(resolvedTarget, to)
       if (entry.isDirectory()) {
         if (!options.merge) {
           await assertNonMergeDestinationAbsent(to)
