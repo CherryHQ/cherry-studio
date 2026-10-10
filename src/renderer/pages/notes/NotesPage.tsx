@@ -411,7 +411,7 @@ const NotesPage: FC = () => {
           : undefined
       if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
         notesRootTransitionRef.current = null
-        setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath))
+        requestFileTransition(() => setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath)))
         return
       }
       logger.warn('Clearing activeFilePath - node not found in tree', {

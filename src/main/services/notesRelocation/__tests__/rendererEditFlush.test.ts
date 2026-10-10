@@ -159,6 +159,31 @@ describe('RendererEditFlushCoordinator', () => {
     rendererEditFlushCoordinator.clearMigrationLockBroadcast()
   })
 
+  it('locks notes windows that appear after the first migration lock round', async () => {
+    mockWindows([mainWindow], [])
+    const lateWindow = { id: 'sub-late' }
+
+    const prepared = rendererEditFlushCoordinator.prepareForMigration()
+
+    const firstLockBatchId = migrationLockBatchId()
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(firstLockBatchId, 'main', true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    mockWindows([mainWindow], [lateWindow])
+    const secondLockBatchId = ipcApiService.send.mock.calls
+      .filter((entry) => entry[1] === 'app.notes_relocation.migration_started')
+      .at(-1)?.[2]?.batchId as string
+    rendererEditFlushCoordinator.acknowledgeMigrationLock(secondLockBatchId, 'sub-late', true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const flushId = flushBatchId()
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'main', true)
+    rendererEditFlushCoordinator.acknowledgeFlush(flushId, 'sub-late', true)
+
+    await expect(prepared).resolves.toBe(true)
+    rendererEditFlushCoordinator.clearMigrationLockBroadcast()
+  })
+
   it('ignores acknowledgements for unknown batches', () => {
     expect(() => rendererEditFlushCoordinator.acknowledgeMigrationLock('unknown-batch', 'main', true)).not.toThrow()
     expect(() => rendererEditFlushCoordinator.acknowledgeFlush('unknown-batch', 'main', true)).not.toThrow()

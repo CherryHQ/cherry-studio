@@ -21,7 +21,12 @@ const MAX_RECURSION_DEPTH = 1000
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string; skipExistingFiles?: boolean; failOnExistingDestination?: boolean },
+  options?: {
+    allowedBasePath?: string
+    skipExistingFiles?: boolean
+    failOnExistingDestination?: boolean
+    exclusiveCreate?: boolean
+  },
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -106,13 +111,17 @@ export async function copyDirectoryRecursive(
             throw error
           }
         }
-        const copyFlags = options?.failOnExistingDestination ? fsConstants.COPYFILE_EXCL : 0
+        const copyFlags = options?.failOnExistingDestination || options?.exclusiveCreate ? fsConstants.COPYFILE_EXCL : 0
         try {
           await fs.promises.copyFile(sourcePath, destPath, copyFlags)
           await fs.promises.chmod(destPath, entryStats.mode)
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
           const errno = (error as NodeJS.ErrnoException).code
+          if (errno === 'EEXIST' && options?.exclusiveCreate) {
+            logger.debug('Skipping existing destination file during merge', { path: destPath })
+            continue
+          }
           if (options?.failOnExistingDestination && errno === 'EEXIST') {
             throw new Error(`Destination file already exists: ${destPath}`)
           }

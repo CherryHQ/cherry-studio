@@ -117,6 +117,10 @@ export const appRequestSchemas = {
     input: z.object({ sessionId: z.string().uuid() }),
     output: z.void()
   }),
+  'app.notes_relocation.sync_state': defineRoute({
+    input: z.void(),
+    output: z.object({ migrationLocked: z.boolean() })
+  }),
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
