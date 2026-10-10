@@ -211,6 +211,8 @@ export class TranscriptTap {
     if (this.known.has(entry.firstKeptEntryId)) return entry.firstKeptEntryId
     const path = this.sessionManager.getBranch(entry.id)
     const start = path.findIndex((candidate) => candidate.id === entry.firstKeptEntryId)
+    // Off the branch, Pi keeps nothing before the compaction.
+    if (start === -1) return entry.id
     return path.slice(start + 1).find((candidate) => this.known.has(candidate.id))?.id ?? entry.id
   }
 }

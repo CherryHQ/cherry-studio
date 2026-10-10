@@ -12,8 +12,10 @@ import {
   hostStore,
   lastAssistant,
   MODEL,
+  plain,
   scriptedModel,
   streamTextPort,
+  tempDir,
   textParts
 } from './support'
 
@@ -182,6 +184,45 @@ describe('Pi compaction through the port', () => {
     expect(prompt).toMatch(/SUMMARY-MARKER/)
     expect(prompt).not.toMatch(/QUESTION-ONE/)
     expect(prompt).toMatch(/QUESTION-TWO/)
+  })
+
+  it('keeps nothing before a compaction whose boundary is not on the branch, live and rebuilt alike', async () => {
+    const { model, calls } = scriptedModel([
+      [...textParts('a', 'ANSWER-ONE'), finish('stop')],
+      [...textParts('b', 'ANSWER-TWO'), finish('stop')],
+      [...textParts('c', 'ok'), finish('stop')]
+    ])
+    const host = hostStore()
+    const cwd = tempDir('cwd')
+    const { session } = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      compaction: { reserveTokens: 16_384, keepRecentTokens: 1 },
+      // Another extension writes the compaction, keeping from an entry Pi never had.
+      extensionFactories: [
+        (pi) => {
+          pi.on('session_before_compact', (event) => ({
+            compaction: {
+              summary: 'EXTERNAL-SUMMARY',
+              firstKeptEntryId: 'not-on-branch',
+              tokensBefore: event.preparation.tokensBefore
+            }
+          }))
+        }
+      ],
+      onEvent: host.onEvent
+    })
+    await session.prompt('QUESTION-ONE')
+    await session.prompt('QUESTION-TWO')
+    await session.compact()
+
+    const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
+    const transcript = plain(host.entries)
+    const rebuilt = await createTestSession({ cwd, port: streamTextPort(next.model).port, transcript })
+    await session.prompt('Third')
+    await rebuilt.session.prompt('Third')
+    expect(JSON.stringify(calls.at(-1)!.prompt)).not.toMatch(/QUESTION-ONE/)
+    expect(plain(next.calls[0].prompt)).toEqual(plain(calls.at(-1)!.prompt))
   })
 })
 
