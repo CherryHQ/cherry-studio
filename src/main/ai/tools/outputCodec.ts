@@ -15,14 +15,12 @@
  * byte-stable for prefix caching.
  */
 
-import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
+import { citationSnippet } from '@shared/ai/builtinTools'
 
 import type { ToolOutputCodec } from './adapters/aiSdk/types'
 
 function snippet(text: string): string {
-  const trimmed = text.trim()
-  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
+  return citationSnippet(text)
 }
 
 /** Codec for entity-array outputs: `[{…identity, [contentKey]: string}, …]`. */

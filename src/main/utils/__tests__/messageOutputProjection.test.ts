@@ -194,6 +194,17 @@ describe('message tool-output projection', () => {
     })
   })
 
+  it('keeps a surrogate pair intact in a projected kb_read preview', () => {
+    const content = `${'r'.repeat(999)}😀${'r'.repeat(DEFER_TOOL_OUTPUT_BYTES)}`
+    const projected = projectMessagePartForRenderer(
+      partWith({ ...largeKnowledgeRead, content, totalChars: content.length, charEnd: content.length }),
+      TOPIC_ID,
+      MESSAGE_ID
+    ) as unknown as { output: { skeleton?: { content: string } } }
+
+    expect(projected.output.skeleton?.content).toBe(`${'r'.repeat(999)}…`)
+  })
+
   it('keeps ordered kb_read grep matches up to the combined citation preview limit', () => {
     const projected = projectMessagePartForRenderer(partWith(largeKnowledgeGrep), TOPIC_ID, MESSAGE_ID) as unknown as {
       output: { skeleton?: { matches: Array<{ snippet: string }> } }
@@ -204,6 +215,20 @@ describe('message tool-output projection', () => {
     expect(matches).toHaveLength(2)
     expect(joined).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
     expect(joined).toMatch(/^first hit … g+…$/)
+  })
+
+  it('keeps a surrogate pair intact at the projected grep budget boundary', () => {
+    const snippet = `${'g'.repeat(988)}😀${'g'.repeat(DEFER_TOOL_OUTPUT_BYTES)}`
+    const projected = projectMessagePartForRenderer(
+      partWith({
+        ...largeKnowledgeGrep,
+        matches: [largeKnowledgeGrep.matches[0], { ...largeKnowledgeGrep.matches[1], snippet }]
+      }),
+      TOPIC_ID,
+      MESSAGE_ID
+    ) as unknown as { output: { skeleton?: { matches: Array<{ snippet: string }> } } }
+
+    expect(projected.output.skeleton?.matches[1].snippet).toBe(`${'g'.repeat(988)}…`)
   })
 
   it('does not expose a citation skeleton for a third-party MCP lookup', () => {
