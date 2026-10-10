@@ -102,6 +102,7 @@ describe('main i18n', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file', undefined, 'zh-CN')).toBe('保存文件')
       expect(t('dialog.save_file', undefined, 'tr-TR')).toBe('Dosyayı Kaydet')
+      expect(t('dialog.save_file', undefined, 'az-AZ')).toBe('Faylı yadda saxla')
       expect(t('dialog.save_file')).toBe('Save File')
     })
   })
@@ -122,10 +123,11 @@ describe('main i18n', () => {
           'pt-PT',
           'ro-RO',
           'tr-TR',
-          'vi-VN'
+          'vi-VN',
+          'az-AZ'
         ])
       )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(13)
+      expect(SUPPORTED_LANGUAGES).toHaveLength(14)
     })
   })
 })

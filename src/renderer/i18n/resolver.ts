@@ -1,3 +1,4 @@
+import 'dayjs/locale/az'
 import 'dayjs/locale/de'
 import 'dayjs/locale/el'
 import 'dayjs/locale/es'
@@ -38,7 +39,8 @@ const localeLoaders = {
   'ro-RO': () => import('./locales/ro-ro.json'),
   'ru-RU': () => import('./locales/ru-ru.json'),
   'vi-VN': () => import('./locales/vi-vn.json'),
-  'tr-TR': () => import('./locales/tr-tr.json')
+  'tr-TR': () => import('./locales/tr-tr.json'),
+  'az-AZ': () => import('./locales/az-az.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {
@@ -63,7 +65,8 @@ const dayjsLocaleMap: Record<string, string> = {
   'pt-PT': 'pt',
   'ro-RO': 'ro',
   'vi-VN': 'vi',
-  'tr-TR': 'tr'
+  'tr-TR': 'tr',
+  'az-AZ': 'az'
 }
 
 export const setDayjsLocale = (language: string) => {
