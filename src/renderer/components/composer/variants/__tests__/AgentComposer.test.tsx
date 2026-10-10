@@ -1501,6 +1501,46 @@ describe('AgentComposer', () => {
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
   })
 
+  it('drops a session-scoped reasoning pick when the effective model returns to the agent default', () => {
+    const sessionOverrideModel = {
+      ...model,
+      id: 'anthropic::claude-opus-4',
+      apiModelId: 'claude-opus-4',
+      name: 'Claude Opus 4'
+    }
+
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{ ...createControlledSession(), modelId: 'anthropic::claude-opus-4' }}
+        resolvedModel={sessionOverrideModel}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={createControlledSession()}
+        resolvedModel={model}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.speedControlProps?.reasoningEffort).toBe('default')
+  })
+
   it('does not mistake an in-flight session update for a pending reasoning edit', () => {
     mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 

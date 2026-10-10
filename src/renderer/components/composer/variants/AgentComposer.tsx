@@ -812,6 +812,8 @@ const AgentComposerInner = ({
     : configuredReasoningEffort
   const [reasoningOverride, setReasoningOverride] = useState<{
     agentId: string
+    /** When set, the pick applies only while this effective model is selected. */
+    scopedModelId?: string
     value: ThinkingOption
     version: number
     canonicalAtMutationStart?: ThinkingOption
@@ -825,6 +827,7 @@ const AgentComposerInner = ({
   const activeReasoningOverride =
     reasoningOverride &&
     reasoningOverride.agentId === agent?.id &&
+    (reasoningOverride.scopedModelId === undefined || reasoningOverride.scopedModelId === model?.id) &&
     (reasoningOverride.canonicalAtMutationStart === undefined ||
       reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
       ? reasoningOverride
@@ -840,6 +843,10 @@ const AgentComposerInner = ({
     }
     setReasoningOverride((current) => (current === reasoningOverride ? null : current))
   }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
+  useEffect(() => {
+    if (!reasoningOverride?.scopedModelId || reasoningOverride.scopedModelId === model?.id) return
+    setReasoningOverride(null)
+  }, [model?.id, reasoningOverride?.scopedModelId])
   const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
   const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
   const [serviceTierOverride, setServiceTierOverride] = useState<{
@@ -1353,6 +1360,7 @@ const AgentComposerInner = ({
       if (isSessionModelOverride) {
         setReasoningOverride({
           agentId: agent.id,
+          scopedModelId: model?.id,
           value: option,
           version
         })
@@ -1393,7 +1401,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, isSessionModelOverride, updateAgent]
+    [agent, canonicalReasoningEffort, isSessionModelOverride, model?.id, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
