@@ -58,7 +58,7 @@ vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
   gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
 }))
 vi.mock('@main/ai/runtime/pi/modelInjection', () => ({ usesPiGateway: mocks.usesPiGateway }))
-const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
+const { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } = await import('./piConnectionSignature')
 
 const agent = {
   id: 'agent-1',
@@ -94,6 +94,33 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('captures an accepted turn frozen to its agent after the session was re-pointed', async () => {
+    // Top-bar switch re-pointed the session row to agent-2 while the driver materialized the
+    // connection for a turn already accepted under agent-1.
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-2',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
+    })
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).rejects.toBeInstanceOf(
+      PiInvalidConnectionSnapshotError
+    )
+
+    const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', undefined, {
+      servesAcceptedTurn: true
+    })
+    expect(snapshot.agent.id).toBe('agent-1')
+
+    // The flag relaxes session ownership, not the frozen agent's routability.
+    mocks.getAgent.mockReturnValueOnce({ ...agent, model: null })
+    await expect(
+      capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', undefined, {
+        servesAcceptedTurn: true
+      })
+    ).rejects.toBeInstanceOf(PiInvalidConnectionSnapshotError)
+  })
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({
