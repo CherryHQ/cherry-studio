@@ -58,8 +58,8 @@ export function resolveModelNativeImageSupport(uniqueModelId: UniqueModelId): bo
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const model = modelService.getByKey(providerId, modelId)
-    if (isVisionModel(model)) return true
     if (userDisabledVisionInput(providerId, modelId)) return false
+    if (isVisionModel(model)) return true
     return registryVisionForModel(providerId, modelId)
   } catch (error) {
     logger.warn('Failed to resolve model for image support; assuming vision-capable', {

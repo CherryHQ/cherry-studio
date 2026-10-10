@@ -9,7 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -526,7 +526,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
-    mocks.resolveModelNativeImageSupport.mockImplementation((uniqueModelId: string) => {
+    mocks.resolveModelNativeImageSupport.mockImplementation((uniqueModelId: UniqueModelId) => {
       try {
         const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
         const model = mocks.getModelByKey(providerId, modelId)

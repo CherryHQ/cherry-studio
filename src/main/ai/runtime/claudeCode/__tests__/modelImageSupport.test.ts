@@ -90,7 +90,10 @@ describe('resolveModelNativeImageSupport', () => {
   })
 
   it('respects an explicit user disable of image input modalities', () => {
-    mocks.getByKey.mockReturnValue({ capabilities: [], inputModalities: [MODALITY.TEXT] })
+    mocks.getByKey.mockReturnValue({
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: [MODALITY.TEXT]
+    })
     mocks.all.mockReturnValue([{ inputModalities: [MODALITY.TEXT], inputModalitiesExplicit: true }])
 
     expect(resolveModelNativeImageSupport('claude-code::claude-sonnet-5-5')).toBe(false)
