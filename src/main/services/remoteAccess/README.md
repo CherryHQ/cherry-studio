@@ -126,10 +126,11 @@ There is no legacy upload format: desktop computes the final hash after receivin
 Noise data. Mobile uses native bulk crypto; Electron uses Noise's built-in cipher because
 its Node crypto does not expose ChaCha20-Poly1305. The shared transport owns framing and negotiation.
 
-Verified originals enter FileManager before Send. Checkpoints retain them while waiting;
-message references retain accepted originals after submission. Agent tools receive workspace
-copies under `.cherry-studio/attachments/<sessionId>/<fileEntryId>/`, while history retains
-original identity and digest. Command receipts precede staging lookup, so replay survives expiry.
+Verified files enter FileManager before Send. Checkpoints retain them while waiting;
+message references retain accepted files after submission. Agent tools use the same managed
+path and file identity; sending does not create a workspace copy or a second entry.
+Command receipts precede staging lookup, so replay survives expiry. Upload-time digests still
+need a separate preview-revision policy when native tools modify the managed bytes.
 
 File pages require session/message/revision identity; callers cannot choose arbitrary paths or
 entry IDs. The phone reads images for thumbnails and ordinary documents on demand.

@@ -216,9 +216,9 @@ export interface CherryFileMeta {
    * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
-  /** Session-owned editable path; FileManager indexes it as an external file. */
+  /** Previously persisted workspace copy; retained only for existing message references. */
   workingFileEntryId?: string
-  /** Verified attachment original; the file URL may point to its Agent workspace copy. */
+  /** Upload-time integrity metadata for the managed attachment. */
   remoteAttachment?: { sha256: string; byteLength: number }
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string

@@ -41,7 +41,6 @@ import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
-import { prepareAgentAttachmentWorkspace } from '@main/ai/runtime/agentAttachmentWorkspace'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
 import {
@@ -73,7 +72,6 @@ const fake = vi.hoisted(() => {
     files: {
       publishIntake: vi.fn(),
       getById: vi.fn(),
-      ensureExternalEntry: vi.fn(),
       createInternalEntry: vi.fn(),
       getUrl: vi.fn(),
       getPhysicalPath: vi.fn()
@@ -342,7 +340,7 @@ describe('remote agent access', () => {
     await call('connection.authenticate', { deviceId: device.id })
   })
 
-  it('persists a file-only send, reads the original after the agent edits its workspace copy, and deduplicates after staging is removed', async () => {
+  it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
     const paths = vi
       .spyOn(application, 'getPath')
@@ -353,7 +351,6 @@ describe('remote agent access', () => {
     Object.assign(application.get('FileManager'), { intakes: files.intakes })
     fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
     fake.files.getById.mockImplementation((id) => files.getById(id))
-    fake.files.ensureExternalEntry.mockImplementation((input) => files.ensureExternalEntry(input))
     try {
       await mkdir(application.getPath('feature.files.data'), { recursive: true })
       const workspacePath = path.join(root, 'workspace')
@@ -372,7 +369,7 @@ describe('remote agent access', () => {
         return application.getPath('feature.files.data', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
       })
       fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
-      const bytes = Buffer.from('immutable original attachment')
+      const bytes = Buffer.from('managed attachment')
       const uploadId = randomUUID()
       const presence = new AttachmentPresenceService()
       for (const name of ['present', 'submitting', 'list'] as const)
@@ -431,7 +428,9 @@ describe('remote agent access', () => {
       expect(submitted.type).toBe('file')
       if (submitted.type !== 'file') throw new Error('Expected file')
       const working = fileURLToPath(submitted.url)
-      expect(working.startsWith(workspacePath + path.sep)).toBe(true)
+      expect(working).toBe(files.getPhysicalPath(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)))
+      expect(readCherryMeta(submitted)?.workingFileEntryId).toBeUndefined()
+      expect(fileEntryService.findMany().map((entry) => entry.id)).toEqual([readCherryMeta(submitted)?.fileEntryId])
       expect(await readFile(working)).toEqual(bytes)
       expect(
         fileEntryService.getById(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)).cleanupPolicy
@@ -443,13 +442,6 @@ describe('remote agent access', () => {
           .map((ref) => ref.sourceType)
           .sort()
       ).toEqual(['agent_session_message'])
-      const workingId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.workingFileEntryId)
-      expect(fileRefService.findByEntryId(workingId)).toMatchObject([{ sourceType: 'agent_session_message' }])
-      const competing = await prepareAgentAttachmentWorkspace(agentSessionService.getById(sessionId), [submitted])
-      await competing.release()
-      expect(await readFile(working)).toEqual(bytes)
-      await writeFile(working, 'agent edited this copy')
-      expect((await files.getMetadata(workingId)).size).toBe(Buffer.byteLength('agent edited this copy'))
       const read = await call('agent.content.read', {
         sessionId,
         contentId: file.ref.contentId,
@@ -458,6 +450,8 @@ describe('remote agent access', () => {
         maxBytes: 24576
       })
       expect(Buffer.from(read.dataBase64, 'base64')).toEqual(bytes)
+      await writeFile(working, 'agent edited the managed file')
+      expect(await readFile(files.getPhysicalPath(entryId), 'utf8')).toBe('agent edited the managed file')
       await call('agent.uploads.cancel', { uploadId })
       expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
       const before = vi.mocked(startAgentSessionRun).mock.calls.length

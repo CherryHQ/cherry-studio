@@ -9,7 +9,6 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { prepareAgentAttachmentWorkspace } from '@main/ai/runtime/agentAttachmentWorkspace'
 import {
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
@@ -894,15 +893,10 @@ export class ChannelMessageHandler {
       isAlive: () => !abortController.signal.aborted
     }
 
-    const prepared = await prepareAgentAttachmentWorkspace(session, userParts)
-    let persisted = false
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
-        userParts: prepared.parts,
-        onPersist: () => {
-          persisted = true
-        },
+        userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
@@ -912,7 +906,6 @@ export class ChannelMessageHandler {
       if (started.mode === 'not-started') throw new AgentSessionRunNotStartedError(started.reason)
       onStarted?.()
     } finally {
-      if (!persisted) await prepared.release()
       // The write-quiesce admission point: the turn's rows are written and it entered the AI
       // in-flight set (or the run threw) — either way the drain stops waiting on this batch.
       onAdmitted?.()

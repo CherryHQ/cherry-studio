@@ -199,8 +199,7 @@ describe('ChannelMessageHandler', () => {
     Object.assign(application.get('FileManager'), {
       createInternalEntry: manager.createInternalEntry.bind(manager),
       getPhysicalPath: manager.getPhysicalPath.bind(manager),
-      getUrl: manager.getUrl.bind(manager),
-      ensureExternalEntry: manager.ensureExternalEntry.bind(manager)
+      getUrl: manager.getUrl.bind(manager)
     })
     vi.useFakeTimers()
     vi.clearAllMocks()
@@ -512,7 +511,8 @@ describe('ChannelMessageHandler', () => {
   it.each(['images', 'files'] as const)('does not dispatch a turn when saving %s fails', async (kind) => {
     const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
     try {
-      await writeFile(path.join(workDir, '.cherry-studio'), 'blocks attachment directory creation')
+      await rm(path.join(managedRoot, 'files'), { recursive: true })
+      await writeFile(path.join(managedRoot, 'files'), 'blocks managed file creation')
       const adapter = createMockAdapter()
       vi.mocked(agentSessionService.create).mockReturnValueOnce({
         agentId: 'agent-1',

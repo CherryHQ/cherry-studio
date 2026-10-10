@@ -11,7 +11,6 @@ sources:
   - src/main/services/remoteAccess/RemoteUploads.ts
   - src/main/services/remoteAccess/agentHandlers.ts
   - src/main/ai/channels/ChannelMessageHandler.ts
-  - src/main/ai/runtime/agentAttachmentWorkspace.ts
   - src/main/ai/runtime/agentUserContent.ts
   - src/main/ai/messages/agentSessionAttachments.ts
   - src/main/ai/mcp/servers/AssistantFileToolsServer.ts
@@ -277,14 +276,12 @@ metadata；用户附件右对齐且可换行。选择后立即边框 loading，�
 Agent 继续使用 harness 原生 `read/edit/write/bash`，无需专用附件编辑工具或“文件管理 Agent”。
 路径不必天然处于工作区内；是否可访问由 runtime 实际权限决定。受管目录也不是自动获得的沙箱权限。
 
-保留历史原件并允许任意编辑，需要分离历史字节与可变工作字节。宿主准备普通可写路径，支持时
-使用文件系统 clone，否则复制；hard link / symlink 不能冒充内容隔离。只读消费无需强制可写副本。
-现有实现使用 `.cherry-studio/attachments/<session>/<preparation>/<entry>/<filename>`，
-这属于可编辑工作文件，不是另一个入口专属原件库。本轮删表不隐含替换这套 runtime 路径策略。
+发送附件直接使用 FileManager 返回的受管文件路径和原有 fileEntryId；Remote 与 Channel
+都不再创建工作副本或登记第二个 external entry。Agent 的原生工具直接读写这一个文件，
+历史附件也引用同一文件，不承诺保留编辑前的字节。已有副本和消息引用不自动删除。
 
-原生 bash 不经过 FileManager 锁。watcher 只是缓存失效提示，不是可靠操作日志；重新读取/发布
-时核对文件事实，发布结果采用稳定快照。不能自动重跑 bash 来修复登记，也不能让历史下载使用
-已经变化字节的旧 hash。现有产物流程继续负责结果发布，本期不建设通用 VFS、版本树或脚本产物发现器。
+当前 remoteAttachment 仍保存上传时的摘要和长度。原生工具修改文件后，手机远程预览的
+版本与完整性处理仍需单独解决；本次去除复制不新增摘要缓存、读时改写消息或文件同步机制。
 
 ## 8. 错误与通信反例
 
@@ -362,6 +359,6 @@ checkpoint-only 临时所有权、直接附件引用发送和短暂展示已接�
 - 同命令丢 ACK 后重放且上传已过期仍只有一个消息/执行；不同命令不受旧草稿排他消费规则限制。
 - 新连接拒绝旧展示、重连完整快照、手机离线桌面重启、历史与 ACK 两种顺序无重复用户块。
 - 发送清空不取消、卸载不取消、StrictMode 不重复任务，失败恢复不覆盖新草稿。
-- 原生 read/edit/write/bash 后历史原件不变；未发布的可变内容不冒充历史附件。
+- 一次上传只登记一个文件；发送不复制，原生 read/edit/write/bash 访问同一受管路径。
 - Android/iOS 与 Electron 实测 1 GiB 磁盘/内存峰值、源准备、传输、校验各段耗时，
   低磁盘、VPN 切换及前后台恢复；文件测试不替代 native 验收。

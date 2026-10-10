@@ -22,7 +22,6 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { prepareAgentAttachmentWorkspace } from '@main/ai/runtime/agentAttachmentWorkspace'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -259,16 +258,11 @@ export class SessionJournal {
     attachments: CherryMessagePart[] = []
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
-    const prepared = await prepareAgentAttachmentWorkspace(getSession(this.sessionId), [
-      ...(text.trim() ? [{ type: 'text' as const, text }] : []),
-      ...attachments
-    ])
-    let persisted = false
     this.starting += 1
     try {
       const result = await startAgentSessionRun({
         sessionId: this.sessionId,
-        userParts: prepared.parts,
+        userParts: [...(text.trim() ? [{ type: 'text' as const, text }] : []), ...attachments],
         listeners: [listener],
         requireIdle: { expectedAgentId },
         beforePersist,
@@ -278,7 +272,6 @@ export class SessionJournal {
             messageId: messages.assistantMessageId,
             userMessageId: messages.userMessageId
           })
-          persisted = true
         }
       })
       if (result.mode !== 'started') {
@@ -289,7 +282,6 @@ export class SessionJournal {
       if (listener.current) this.ensureExecution(listener.executionId)
       return { started: true, executionId: listener.executionId }
     } finally {
-      if (!persisted) await prepared.release().catch((error) => logger.warn('Unsent attachment cleanup failed', error))
       this.starting -= 1
       this.lastUsedAt = Date.now()
     }
