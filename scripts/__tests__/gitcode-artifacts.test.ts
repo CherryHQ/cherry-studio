@@ -36,7 +36,10 @@ describe('dual-edition release archive', () => {
           productName: 'Cherry Studio',
           version: tag.slice(1)
         })
-        for (const file of contract.files) writeFileSync(path.join(dir, file), `${suffix} signed ${file}`)
+        for (const file of contract.files) {
+          writeFileSync(path.join(dir, file), `${suffix} signed ${file}`)
+          if (file.endsWith('-setup.exe')) writeFileSync(path.join(dir, `${file}.blockmap`), `blockmap for ${file}`)
+        }
         for (const manifest of contract.manifests) {
           const urls =
             platform === 'linux'
@@ -86,6 +89,12 @@ describe('dual-edition release archive', () => {
     const gitcode = path.join(root, 'gitcode')
     stageAssets(options.directory, github, metadata, ['global'])
     stageAssets(options.directory, gitcode, metadata, ['global', 'cn'])
+    for (const arch of ['x64', 'arm64']) {
+      const globalMap = `Cherry-Studio-${tag.slice(1)}-win-${arch}-setup.exe.blockmap`
+      const cnMap = `Cherry-Studio-CN-${tag.slice(1)}-win-${arch}-setup.exe.blockmap`
+      expect(readFileSync(path.join(github, globalMap), 'utf8')).toBe(`blockmap for ${globalMap.slice(0, -9)}`)
+      expect(readFileSync(path.join(gitcode, cnMap), 'utf8')).toBe(`blockmap for ${cnMap.slice(0, -9)}`)
+    }
     expect(readdirSync(github).some((file) => file.includes('-CN-') || file.includes('-cn'))).toBe(false)
     const channel = tag.includes('-') ? 'rc' : 'latest'
     expect(readdirSync(gitcode)).toEqual(
