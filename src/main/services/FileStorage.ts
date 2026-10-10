@@ -1,6 +1,5 @@
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import * as path from 'path'
 
@@ -28,7 +27,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
+import {
+  resolveOutsideManagedStorageEntryMutations,
+  resolveOutsideManagedStorageMutation,
+  safeOpen
+} from '@main/services/file'
 import { getFileType } from '@main/utils/file'
 import {
   checkName,
@@ -51,6 +54,50 @@ function resolveHomeRelativeFilePath(filePath: string): string {
 
 function normalizeTrashPath(filePath: string): string {
   return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
+async function writeOutsideManagedStorage(filePath: string, data: string | Uint8Array): Promise<AbsoluteFilePath> {
+  const safePath = await resolveOutsideManagedStorageMutation(filePath)
+  let pathStat: fs.Stats
+
+  try {
+    pathStat = await fs.promises.lstat(safePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+
+    const handle = await fs.promises.open(safePath, 'wx')
+    try {
+      await handle.writeFile(data)
+    } finally {
+      await handle.close()
+    }
+    return safePath
+  }
+
+  // A hard link can alias a FileManager-owned entry outside its managed path.
+  if (!pathStat.isFile() || pathStat.nlink !== 1) {
+    throw new Error('Cannot overwrite a non-regular file or a hard-linked file')
+  }
+
+  const handle = await fs.promises.open(safePath, fs.constants.O_WRONLY)
+  try {
+    const handleStat = await handle.stat()
+    if (
+      !handleStat.isFile() ||
+      handleStat.dev !== pathStat.dev ||
+      handleStat.ino !== pathStat.ino ||
+      handleStat.nlink !== 1
+    ) {
+      throw new Error('File changed before it could be overwritten')
+    }
+
+    await handle.truncate(0)
+    await handle.writeFile(data)
+  } finally {
+    await handle.close()
+  }
+
+  return safePath
 }
 
 class FileStorage {
@@ -283,13 +330,13 @@ class FileStorage {
       if (!filePath) return
 
       const nativePath = normalizeTrashPath(filePath)
-      await assertOutsideManagedStorageMutation(nativePath)
-      if (!fs.existsSync(nativePath)) {
+      const [safePath] = await resolveOutsideManagedStorageEntryMutations(nativePath)
+      if (!fs.existsSync(safePath)) {
         return
       }
 
-      await shell.trashItem(nativePath)
-      logger.debug(`External file moved to trash successfully: ${nativePath}`)
+      await shell.trashItem(safePath)
+      logger.debug(`External file moved to trash successfully: ${safePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -301,13 +348,13 @@ class FileStorage {
       if (!dirPath) return
 
       const nativePath = normalizeTrashPath(dirPath)
-      await assertOutsideManagedStorageMutation(nativePath)
-      if (!fs.existsSync(nativePath)) {
+      const [safePath] = await resolveOutsideManagedStorageEntryMutations(nativePath)
+      if (!fs.existsSync(safePath)) {
         return
       }
 
-      await shell.trashItem(nativePath)
-      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
+      await shell.trashItem(safePath)
+      logger.debug(`External directory moved to trash successfully: ${safePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
@@ -316,20 +363,20 @@ class FileStorage {
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
-      await assertOutsideManagedStorageMutation(filePath, newPath)
-      if (!fs.existsSync(filePath)) {
+      const [safeFilePath, safeNewPath] = await resolveOutsideManagedStorageEntryMutations(filePath, newPath)
+      if (!fs.existsSync(safeFilePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
 
       // 确保目标目录存在
-      const destDir = path.dirname(newPath)
+      const destDir = path.dirname(safeNewPath)
       if (!fs.existsSync(destDir)) {
         await fs.promises.mkdir(destDir, { recursive: true })
       }
 
       // 移动文件
-      await fs.promises.rename(filePath, newPath)
-      logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
+      await fs.promises.rename(safeFilePath, safeNewPath)
+      logger.debug(`File moved successfully: ${safeFilePath} to ${safeNewPath}`)
     } catch (error) {
       logger.error('Move file failed:', error as Error)
       throw error
@@ -338,20 +385,20 @@ class FileStorage {
 
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
-      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
-      if (!fs.existsSync(dirPath)) {
+      const [safeDirPath, safeNewDirPath] = await resolveOutsideManagedStorageEntryMutations(dirPath, newDirPath)
+      if (!fs.existsSync(safeDirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
       // 确保目标父目录存在
-      const parentDir = path.dirname(newDirPath)
+      const parentDir = path.dirname(safeNewDirPath)
       if (!fs.existsSync(parentDir)) {
         await fs.promises.mkdir(parentDir, { recursive: true })
       }
 
       // 移动目录
-      await fs.promises.rename(dirPath, newDirPath)
-      logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
+      await fs.promises.rename(safeDirPath, safeNewDirPath)
+      logger.debug(`Directory moved successfully: ${safeDirPath} to ${safeNewDirPath}`)
     } catch (error) {
       logger.error('Move directory failed:', error as Error)
       throw error
@@ -360,22 +407,21 @@ class FileStorage {
 
   public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
     try {
-      if (!fs.existsSync(filePath)) {
+      const dirPath = path.dirname(filePath)
+      const newFilePath = path.join(dirPath, newName + '.md')
+      const [safeFilePath, safeNewFilePath] = await resolveOutsideManagedStorageEntryMutations(filePath, newFilePath)
+      if (!fs.existsSync(safeFilePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
 
-      const dirPath = path.dirname(filePath)
-      const newFilePath = path.join(dirPath, newName + '.md')
-      await assertOutsideManagedStorageMutation(filePath, newFilePath)
-
       // 如果目标文件已存在，抛出错误
-      if (fs.existsSync(newFilePath)) {
+      if (fs.existsSync(safeNewFilePath)) {
         throw new Error(`Target file already exists: ${newFilePath}`)
       }
 
       // 重命名文件
-      await fs.promises.rename(filePath, newFilePath)
-      logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
+      await fs.promises.rename(safeFilePath, safeNewFilePath)
+      logger.debug(`File renamed successfully: ${safeFilePath} to ${safeNewFilePath}`)
     } catch (error) {
       logger.error('Rename file failed:', error as Error)
       throw error
@@ -384,22 +430,21 @@ class FileStorage {
 
   public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
     try {
-      if (!fs.existsSync(dirPath)) {
+      const parentDir = path.dirname(dirPath)
+      const newDirPath = path.join(parentDir, newName)
+      const [safeDirPath, safeNewDirPath] = await resolveOutsideManagedStorageEntryMutations(dirPath, newDirPath)
+      if (!fs.existsSync(safeDirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
-      const parentDir = path.dirname(dirPath)
-      const newDirPath = path.join(parentDir, newName)
-      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
-
       // 如果目标目录已存在，抛出错误
-      if (fs.existsSync(newDirPath)) {
+      if (fs.existsSync(safeNewDirPath)) {
         throw new Error(`Target directory already exists: ${newDirPath}`)
       }
 
       // 重命名目录
-      await fs.promises.rename(dirPath, newDirPath)
-      logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
+      await fs.promises.rename(safeDirPath, safeNewDirPath)
+      logger.debug(`Directory renamed successfully: ${safeDirPath} to ${safeNewDirPath}`)
     } catch (error) {
       logger.error('Rename directory failed:', error as Error)
       throw error
@@ -534,8 +579,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
-    await assertOutsideManagedStorageMutation(filePath)
-    await fs.promises.writeFile(filePath, data)
+    await writeOutsideManagedStorage(filePath, data)
   }
 
   public fileNameGuard = async (
@@ -555,9 +599,9 @@ class FileStorage {
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
-      await assertOutsideManagedStorageMutation(dirPath)
-      logger.debug(`Attempting to create directory: ${dirPath}`)
-      await fs.promises.mkdir(dirPath, { recursive: true })
+      const safeDirPath = await resolveOutsideManagedStorageMutation(dirPath)
+      logger.debug(`Attempting to create directory: ${safeDirPath}`)
+      await fs.promises.mkdir(safeDirPath, { recursive: true })
       return dirPath
     } catch (error) {
       logger.error('Failed to create directory:', error as Error)
@@ -789,10 +833,7 @@ class FileStorage {
         return null
       }
 
-      await assertOutsideManagedStorageMutation(result.filePath)
-      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-
-      return result.filePath
+      return await writeOutsideManagedStorage(result.filePath, content)
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
       return Promise.reject('An error occurred saving the file: ' + err?.message)
@@ -807,9 +848,8 @@ class FileStorage {
       })
 
       if (!result.canceled && result.filePath) {
-        await assertOutsideManagedStorageMutation(result.filePath)
         const parseResult = parseDataUrl(data)
-        await fs.promises.writeFile(result.filePath, parseResult?.data ?? data, 'base64')
+        await writeOutsideManagedStorage(result.filePath, Buffer.from(parseResult?.data ?? data, 'base64'))
         return true
       }
     } catch (error) {
@@ -995,8 +1035,7 @@ class FileStorage {
     try {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
-      const basePath = path.resolve(targetPath)
-      await assertOutsideManagedStorageMutation(basePath)
+      const basePath = await resolveOutsideManagedStorageMutation(path.resolve(targetPath))
       const MARKDOWN_EXTS = ['.md', '.markdown']
 
       // Filter markdown files
@@ -1023,7 +1062,7 @@ class FileStorage {
           const relativePath = path.dirname(filePath)
 
           // Determine target directory structure
-          let targetDir = basePath
+          let targetDir: string = basePath
           const folderParts: string[] = []
 
           // Extract folder structure from file path for nested uploads
@@ -1048,8 +1087,9 @@ class FileStorage {
               ? fileName.slice(0, -9)
               : fileName
 
-          const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
-          const finalPath = path.join(targetDir, safeName + '.md')
+          const safeTargetDir = await resolveOutsideManagedStorageMutation(targetDir)
+          const { safeName } = await this.fileNameGuard(_, safeTargetDir, nameWithoutExt, true)
+          const finalPath = path.join(safeTargetDir, safeName + '.md')
 
           fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
         } catch (error) {
@@ -1062,8 +1102,9 @@ class FileStorage {
       const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
       for (const folder of sortedFolders) {
         try {
-          if (!fs.existsSync(folder)) {
-            await fs.promises.mkdir(folder, { recursive: true })
+          const safeFolder = await resolveOutsideManagedStorageMutation(folder)
+          if (!fs.existsSync(safeFolder)) {
+            await fs.promises.mkdir(safeFolder, { recursive: true })
           }
         } catch (error) {
           logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
@@ -1081,7 +1122,7 @@ class FileStorage {
           batch.map(async (op) => {
             // Read from source and write to target in Main process
             const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
-            await fs.promises.writeFile(op.targetPath, content, 'utf-8')
+            await writeOutsideManagedStorage(op.targetPath, content)
             return true
           })
         )
