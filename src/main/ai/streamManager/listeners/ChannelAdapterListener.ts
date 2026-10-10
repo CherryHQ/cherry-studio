@@ -20,6 +20,8 @@ export class ChannelAdapterListener implements StreamListener {
    * arrives on this same listener, and new output re-arms it.
    */
   private delivered = false
+  /** Attempt id of the execution whose terminal was last delivered. */
+  private deliveredAttemptId?: number
 
   constructor(
     private readonly adapter: ChannelAdapter,
@@ -67,19 +69,31 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onDone(result: StreamDoneResult): Promise<void> {
-    await this.finish(result.status, result.isTopicDone)
+    await this.finish(result.status, result.isTopicDone, result.attemptId)
   }
 
   // oxlint-disable-next-line no-unused-vars
   async onPaused(_result: StreamPausedResult): Promise<void> {
-    await this.finish('paused', _result.isTopicDone)
+    await this.finish('paused', _result.isTopicDone, _result.attemptId)
   }
 
-  private async finish(status: 'success' | 'paused', isTopicDone?: boolean): Promise<void> {
-    if (this.delivered) return
+  /**
+   * Whether this terminal owes the channel a delivery. Attempt ids are process-global monotonic,
+   * so a strictly newer one belongs to a successor execution (chain-hold carry-over, background
+   * wake) owing its own delivery even though a prior execution's terminal already fired; a replay
+   * of the settling execution's own id (payload-free held-topic close) stays deduplicated.
+   */
+  private owesDelivery(attemptId: number | undefined): boolean {
+    if (!this.delivered) return true
+    return attemptId !== undefined && (this.deliveredAttemptId === undefined || attemptId > this.deliveredAttemptId)
+  }
+
+  private async finish(status: 'success' | 'paused', isTopicDone?: boolean, attemptId?: number): Promise<void> {
+    if (!this.owesDelivery(attemptId)) return
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
 
     this.delivered = true
+    if (attemptId !== undefined) this.deliveredAttemptId = attemptId
     if (!isTopicDone) {
       // Chain-hold gap: this turn is over but the topic lives on, so the next turn starts its own
       // message rather than re-posting this one alongside it.
@@ -100,8 +114,9 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
-    if (this.delivered) return
+    if (!this.owesDelivery(result.attemptId)) return
     this.delivered = true
+    if (result.attemptId !== undefined) this.deliveredAttemptId = result.attemptId
     if (!result.isTopicDone) {
       // Same chain-hold gap as `finish`: a live sibling keeps the topic alive, so the successor turn
       // must not inherit this turn's un-delivered text.
