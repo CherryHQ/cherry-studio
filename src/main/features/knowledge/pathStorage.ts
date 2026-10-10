@@ -4,14 +4,15 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
-import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { foldKnowledgeRelativePath, nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   knowledgeFileProcessingExts,
   type PosixRelativeFilePath,
-  resolvePosixRelativeSegments
+  resolvePosixRelativeSegments,
+  sanitizeFilename
 } from '@shared/utils/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
@@ -110,8 +111,24 @@ export async function probeKnowledgeSourcePath(absolutePath: string): Promise<Pa
   return probeReadable(AbsoluteFilePathSchema.parse(absolutePath))
 }
 
+/**
+ * The `raw/` slot name for an imported source file.
+ *
+ * Sanitized rather than stored verbatim: a name legal on POSIX but not on Windows
+ * (`CON.txt`, `a<b.txt`, `name.`) survives archiving intact and then makes the whole
+ * backup unrestorable on Windows, and `archiver` folds `\` into a path separator, so
+ * `a\b.txt` comes back as `a/b.txt` and the stored path stops resolving even on the
+ * platform it was created on. This is the same sanitizer the v1→v2 migrator and the
+ * URL/note snapshot paths already run, so all four producers now agree.
+ */
 export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativeFilePath {
-  const fileName = path.basename(sourcePath)
+  const original = path.basename(sourcePath)
+  const fileName = sanitizeFilename(original)
+  // The stored name is also the displayed one, so a rename here is why the list shows
+  // something the user did not pick. Nothing else records it.
+  if (fileName !== original) {
+    logger.info('Renamed knowledge material to a portable name', { original, stored: fileName })
+  }
   assertSafeKnowledgeRelativePath(fileName)
   return fileName
 }
@@ -142,11 +159,16 @@ export function reserveImportedFileRelativePath(
   reserveProcessedArtifact: boolean,
   reservedPaths: Set<string>
 ): PosixRelativeFilePath {
+  // `reservedPaths` stays literal — `deleteKnowledgeItemFiles` reads the same collector's
+  // output as real paths to unlink — so occupancy is tested against a folded copy instead.
+  const occupied = new Set([...reservedPaths].map(foldKnowledgeRelativePath))
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
-    if (reservedPaths.has(candidate)) {
+    if (occupied.has(foldKnowledgeRelativePath(candidate))) {
       return false
     }
-    return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
+    return (
+      !reserveProcessedArtifact || !occupied.has(foldKnowledgeRelativePath(getProcessedMarkdownRelativePath(candidate)))
+    )
   })
 
   // `nextFreeKnowledgeRelativePath` derives the suffixed name itself, so the

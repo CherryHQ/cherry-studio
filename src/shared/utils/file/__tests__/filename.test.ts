@@ -41,6 +41,36 @@ describe('sanitizeFilename', () => {
     expect(result.length).toBe(255)
   })
 
+  it('shortens the stem so the extension survives truncation', () => {
+    // A caller reading the extension back off the result — to pick a reader, or to decide
+    // whether a document processor runs — would otherwise be handed a PDF that looks
+    // extensionless, with no error anywhere to say why.
+    const result = sanitizeFilename(`${'x'.repeat(300)}.pdf`)
+    expect(result).toHaveLength(255)
+    expect(result.endsWith('.pdf')).toBe(true)
+  })
+
+  it('leaves no trailing dot or space when the cut lands on one', () => {
+    // Trailing-character trimming runs before truncation would have re-created one, so the
+    // result is a legal Windows name and feeding it back in is a no-op.
+    const result = sanitizeFilename(`${'a'.repeat(254)}.txt`)
+    expect(result).toHaveLength(255)
+    expect(/[\s.]$/.test(result)).toBe(false)
+    expect(sanitizeFilename(result)).toBe(result)
+  })
+
+  it('is idempotent across every branch', () => {
+    for (const name of ['CON.txt', 'a<b.txt', 'name. ', `${'x'.repeat(300)}.pdf`, `${'a'.repeat(254)}.txt`, '..']) {
+      expect(sanitizeFilename(sanitizeFilename(name))).toBe(sanitizeFilename(name))
+    }
+  })
+
+  it('keeps a leading-dot name intact, having no extension to protect', () => {
+    const result = sanitizeFilename(`.${'g'.repeat(300)}`)
+    expect(result).toHaveLength(255)
+    expect(result.startsWith('.g')).toBe(true)
+  })
+
   it('returns "untitled" when every character was sanitised away', () => {
     expect(sanitizeFilename('...')).toBe('untitled')
     expect(sanitizeFilename('   ')).toBe('untitled')
