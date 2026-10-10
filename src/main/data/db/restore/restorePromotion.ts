@@ -688,11 +688,44 @@ function renameOnceIdempotent(source: string, target: string): void {
  */
 function renameDurable(source: string, target: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.renameSync(source, target)
+  renameWithTransientRetry(source, target)
   fsyncDir(path.dirname(target))
   const sourceDir = path.dirname(source)
   if (sourceDir !== path.dirname(target)) {
     fsyncDir(sourceDir)
+  }
+}
+
+/**
+ * The restore relaunches the app right after flushing resource directories
+ * (Local Storage, IndexedDB, ...), so at preboot those dirs are the freshest
+ * writes on disk — exactly what Windows real-time scanners grab. One open
+ * scanner handle without FILE_SHARE_DELETE fails a same-volume directory
+ * rename with EPERM/EBUSY, and such locks clear in seconds once the scan
+ * ends. POSIX rename errors are permanent (permissions, cross-device), so
+ * the retry is Windows-only and bounded; running out rethrows and the step
+ * failure machinery rolls back as before.
+ */
+const RENAME_RETRY_DELAYS_MS = [250, 500, 1000, 2000]
+
+function renameWithTransientRetry(source: string, target: string): void {
+  if (process.platform !== 'win32') {
+    fs.renameSync(source, target)
+    return
+  }
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(source, target)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      if (attempt >= RENAME_RETRY_DELAYS_MS.length || (code !== 'EPERM' && code !== 'EBUSY')) {
+        throw error
+      }
+      const delay = RENAME_RETRY_DELAYS_MS[attempt]
+      logger.warn('Rename hit a transient Windows handle lock — retrying', { source, target, delay, code })
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
+    }
   }
 }
 
