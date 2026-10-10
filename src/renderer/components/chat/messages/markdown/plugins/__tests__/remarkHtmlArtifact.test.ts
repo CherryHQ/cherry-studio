@@ -50,6 +50,17 @@ describe('remarkHtmlArtifact', () => {
   })
 
   it.each([
+    '<div><style>p { color: red; }</style><!-- <details> --><p>Card</p></div>',
+    '<div title="<details>">Card</div>',
+    "<div title='</summary>'>Card</div>",
+    '<div><script>const tag = "</details>";</script><p>Card</p></div>',
+    '<div><style>p::before { content: "<summary>"; }</style><p>Card</p></div>',
+    '<div><textarea><details>Example</details></textarea></div>'
+  ])('retains HTML artifact source when disclosure syntax is only literal text: %s', (source) => {
+    expect(parse(source).children).toEqual([expect.objectContaining({ type: 'code', lang: 'html', value: source })])
+  })
+
+  it.each([
     '<details><summary>Answer</summary>',
     '<!-- answer -->\n<DETAILS open>\n\n<SUMMARY>Answer</SUMMARY>\n\n**Body**\n\n</DETAILS>',
     '<details><summary>Outer</summary>\n\n<details><summary>Inner</summary>\n\n**Body**\n\n</details>\n\n</details>'
