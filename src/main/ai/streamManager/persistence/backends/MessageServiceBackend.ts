@@ -1,5 +1,6 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
+import { withTerminalErrorPart } from '@main/ai/utils/terminalSentinel'
 import { messageService } from '@main/data/services/MessageService'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
@@ -20,11 +21,13 @@ export interface MessageServiceBackendOptions {
 
 export class MessageServiceBackend implements PersistenceBackend {
   readonly kind = 'sqlite'
+  readonly assistantMessageId: string
   readonly canPersistEmptyTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
   constructor(private readonly opts: MessageServiceBackendOptions) {
     this.afterPersist = opts.afterPersist
+    this.assistantMessageId = opts.assistantMessageId
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
@@ -45,6 +48,9 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
   markTerminalError(): void {
-    messageService.update(this.opts.assistantMessageId, { status: 'error' })
+    messageService.update(this.opts.assistantMessageId, {
+      status: 'error',
+      data: withTerminalErrorPart(messageService.getById(this.opts.assistantMessageId).data, 'turn.persist_failed')
+    })
   }
 }

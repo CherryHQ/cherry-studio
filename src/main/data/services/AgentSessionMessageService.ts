@@ -22,6 +22,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { withTerminalErrorPart, type TerminalSentinelKey } from '@main/ai/utils/terminalSentinel'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -882,21 +883,30 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
-   * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
-   * a runaway execution (#18281) — so the next connection must start without a token.
+   * Resolve orphaned `pending` rows to `error` (with the caller's terminalized
+   * `data`) and discard the affected sessions' resume tokens, atomically. A
+   * crashed turn leaves the external CLI session in an untrusted state — resuming
+   * it can replay a runaway execution (#18281) — so the next connection must start
+   * without a token.
+   *
+   * `sentinelKey` names why the turn was orphaned: callers terminalizing after an
+   * in-process failure must pass `'turn.interrupted'`; the default names the boot
+   * reconcile path, where the process really did restart.
    */
   resolveCrashOrphanedMessages(
     messages: Array<{ id: string; data: AgentSessionMessageEntity['data'] }>,
-    sessionIds: string[]
+    sessionIds: string[],
+    sentinelKey: TerminalSentinelKey = 'turn.orphaned_by_restart'
   ): void {
     if (messages.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
       const updatedAt = Date.now()
       for (const message of messages) {
+        // A crash leaves no error object behind, so the row would otherwise be
+        // marked failed with nothing saying why. The sentinel supplies the truth:
+        // the process died and the unsent text is gone.
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', data: message.data, updatedAt })
+          .set({ status: 'error', data: withTerminalErrorPart(message.data, sentinelKey), updatedAt })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
@@ -911,10 +921,16 @@ export class AgentSessionMessageService {
 
   /** Best-effort terminalization after a live assistant persistence failure. */
   markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+    const database = application.get('DbService').getDb()
+    const row = this.findExistingMessageRow(database, sessionId, messageId)
     const changed = application.get('DbService').withWriteTx((tx) => {
       const result = tx
         .update(sessionMessagesTable)
-        .set({ status: 'error', updatedAt: Date.now() })
+        .set({
+          status: 'error',
+          data: withTerminalErrorPart(row?.data, 'turn.persist_failed'),
+          updatedAt: Date.now()
+        })
         .where(
           and(
             eq(sessionMessagesTable.sessionId, sessionId),

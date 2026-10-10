@@ -7,6 +7,7 @@
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { terminalSentinel } from '@main/ai/utils/terminalSentinel'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   CherryMessagePart,
@@ -23,7 +24,8 @@ import {
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import { hasTurnContent, isRenderedContentPart } from '../persistence/terminalContent'
+import type { EmptyTurnReason, StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('PersistenceListener')
 
@@ -63,6 +65,19 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
+    // A turn that settled clean but produced nothing is a failure, not an empty
+    // answer: the provider was paid and the user was given no reply. Classify it
+    // before it lands as a contentless `success` row.
+    const emptyTurn = diagnoseEmptySuccessTurn(result.finalMessage)
+    if (emptyTurn) {
+      result.finalMessage = classifyEmptyTurn(
+        result.finalMessage,
+        emptyTurn,
+        this.opts.modelId,
+        result.anchorMessageId ?? this.opts.backend.assistantMessageId
+      )
+      result.emptyTurn = emptyTurn
+    }
     return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming, result)
   }
 
@@ -98,10 +113,9 @@ export class PersistenceListener implements StreamListener {
     runtimeTiming: MessageRuntimeTiming | undefined,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult
   ): Promise<void> {
-    const canPersistEmpty =
-      status === 'success'
-        ? this.opts.backend.canPersistEmptySuccessTerminal
-        : this.opts.backend.canPersistEmptyTerminal
+    // `onDone` classifies before persisting, so a successful turn always carries
+    // a finalMessage here; only paused/error can legitimately arrive without one.
+    const canPersistEmpty = this.opts.backend.canPersistEmptyTerminal
     if (!finalMessage && !canPersistEmpty) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
@@ -203,5 +217,90 @@ function mergeErrorIntoMessage(
     role: 'assistant',
     parts: [...baseParts, errorPart],
     ...(base?.metadata ? { metadata: base.metadata } : {})
+  }
+}
+
+/**
+ * Detect the "successful turn with no answer" defect (P2): the turn reached us via
+ * `onDone`, so the stream ended cleanly, but nothing renderable was produced —
+ * often while usage reports real token spend, proving the model did work whose
+ * result never reached the user.
+ *
+ * Only unconditional empty success is diagnosed here. A turn with no parts at all
+ * is the content-discarded case. A turn whose only content is an error part is a
+ * delivery/status artifact of a *previous* turn and is left alone. Turns the user
+ * stopped (`paused`) never reach this path.
+ */
+export function diagnoseEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): EmptyTurnReason | undefined {
+  if (!finalMessage) {
+    return {
+      name: 'no-parts',
+      detail: 'The model finished the request without producing a reply.'
+    }
+  }
+  const parts = (finalMessage.parts ?? []) as CherryMessagePart[]
+  if (parts.length === 0) {
+    return {
+      name: 'no-parts',
+      detail: 'The model finished the request without producing a reply.'
+    }
+  }
+  if (hasTurnContent(parts)) {
+    // `hasTurnContent` only looks at part types, so whitespace-only text/reasoning
+    // counts as content here — but `dropEmptyContentParts` strips those before
+    // storage, which would land another silent empty success. A turn still counts
+    // as answered when any content part survives the blank check: tool parts carry
+    // their answer in `output`, not `text`, so the check must ignore them rather
+    // than read their missing `text` as blank.
+    const blankTextContent = parts.filter(
+      (part): part is CherryMessagePart & { text: string } =>
+        (part.type === 'text' || part.type === 'reasoning') && typeof part.text === 'string'
+    )
+    if (blankTextContent.some((part) => part.text.trim().length > 0)) return undefined
+    if (parts.some((part) => part.type !== 'text' && part.type !== 'reasoning' && isRenderedContentPart(part))) {
+      return undefined
+    }
+  }
+  const hasErrorPart = parts.some((part) => part.type === 'data-error')
+  if (hasErrorPart) return undefined
+  // An *explicit* compaction-only request (`/compact`) legitimately ends with no
+  // answer: the compaction record IS the outcome. An anchor that automatic
+  // compaction attached to an ordinary request does not answer that request —
+  // exempting it here would leave the missing reply unexplained.
+  const isExplicitCompactionTurn = parts.some(
+    (part) => part.type === 'data-compaction-anchor' && part.data?.trigger === 'manual'
+  )
+  if (isExplicitCompactionTurn) return undefined
+  return {
+    name: 'blank-content',
+    detail: 'The model finished the request without producing a reply.'
+  }
+}
+
+/**
+ * Rewrite a contentless successful turn so it carries a classified `data-error`.
+ *
+ * Returns a new message rather than mutating: the accumulated snapshot is shared
+ * with every other listener on the turn, and rewriting it in place would make the
+ * error visible to readers that already rendered the (empty) answer.
+ */
+export function classifyEmptyTurn(
+  finalMessage: CherryUIMessage | undefined,
+  reason: EmptyTurnReason,
+  modelId?: UniqueModelId,
+  anchorMessageId?: string
+): CherryUIMessage {
+  const error = terminalSentinel('turn.no_content', { detail: reason.detail })
+  const failure = toExecutionFailure(error, modelId, 'runtime')
+  const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error, executionFailure: failure } }
+  const baseParts = (finalMessage?.parts ?? []) as CherryMessagePart[]
+  // Fall back to the anchor so the classified error finalizes the *existing*
+  // placeholder row. A fresh id would create a second row and strand the
+  // placeholder as `pending` forever.
+  return {
+    id: finalMessage?.id ?? anchorMessageId ?? crypto.randomUUID(),
+    role: 'assistant',
+    parts: [...baseParts, errorPart],
+    ...(finalMessage?.metadata ? { metadata: finalMessage.metadata } : {})
   }
 }

@@ -19,6 +19,7 @@ import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { withTerminalErrorPart } from '@main/ai/utils/terminalSentinel'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -916,8 +917,17 @@ export class MessageService {
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
+    // Each row needs its own sentinel: it carries no error object of its own, so
+    // without this it lands as a failure with nothing explaining it.
+    application.get('DbService').withWriteTx((tx) => {
+      for (const id of ids) {
+        const [row] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
+        tx.update(messageTable)
+          .set({ status: 'error', data: withTerminalErrorPart(row?.data, 'turn.orphaned_by_restart') })
+          .where(eq(messageTable.id, id))
+          .run()
+      }
+    })
   }
 
   /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
@@ -2314,8 +2324,14 @@ export class MessageService {
         // so attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
-      // A copied pending row has no stream owner; make it terminal.
+      // A copied pending row has no stream owner; make it terminal. It carries no
+      // error of its own, so without the sentinel it lands as a failure with
+      // nothing explaining it.
       const status = sourceMessage.status === 'pending' ? 'error' : sourceMessage.status
+      const copiedData =
+        status === 'error' && sourceMessage.status === 'pending'
+          ? withTerminalErrorPart(sourceMessage.data, 'turn.interrupted')
+          : sourceMessage.data
       const createdAt = Date.now()
       const [copiedMessage] = tx
         .insert(messageTable)
@@ -2323,7 +2339,7 @@ export class MessageService {
           topicId: options.topicId,
           parentId: copiedParentId,
           role: sourceMessage.role,
-          data: sourceMessage.data,
+          data: copiedData,
           status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
