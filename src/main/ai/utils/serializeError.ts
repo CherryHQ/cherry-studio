@@ -1,9 +1,18 @@
 import { APICallError, RetryError } from 'ai'
 
+import {
+  enrichOllamaContextAllocationSerializedError,
+  isOllamaKvCacheAllocationError,
+  type OllamaNumCtxRequestSnapshot
+} from '@shared/ai/ollamaNumCtx'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+
+export interface SerializeErrorContext {
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot
+}
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -34,8 +43,47 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
-export function serializeError(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+function ollamaAllocationHintFromTerminalError(error: Error): string | undefined {
+  const source = error as unknown as Record<string, unknown>
+  const errors = Array.isArray(source.errors) ? source.errors : []
+  const terminal = source.lastError ?? (errors.length > 0 ? errors[errors.length - 1] : undefined)
+  if (terminal == null) return undefined
+
+  const record = terminal as Record<string, unknown>
+  const hint = [
+    terminal instanceof Error ? terminal.message : '',
+    typeof record.responseBody === 'string' ? record.responseBody : ''
+  ].join('\n')
+  return isOllamaKvCacheAllocationError(hint) ? hint : undefined
+}
+
+function enrichOllamaAllocationError(
+  serialized: SerializedError,
+  context?: SerializeErrorContext,
+  providerText?: string
+): void {
+  if (!context?.ollamaNumCtx) return
+  enrichOllamaContextAllocationSerializedError(
+    serialized,
+    {
+      uniqueModelId: context.ollamaNumCtx.uniqueModelId,
+      trainedContextWindow: context.ollamaNumCtx.trainedContextWindow,
+      effectiveNumCtx: context.ollamaNumCtx.numCtx
+    },
+    providerText
+  )
+}
+
+export function serializeError(error: unknown, context?: SerializeErrorContext): SerializedError {
+  if (APICallError.isInstance(error)) {
+    const serialized = serializeNestedProviderError(error) as SerializedError
+    const allocationHint = [
+      typeof error.message === 'string' ? error.message : '',
+      typeof error.responseBody === 'string' ? error.responseBody : ''
+    ].join('\n')
+    enrichOllamaAllocationError(serialized, context, allocationHint)
+    return serialized
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)
@@ -75,7 +123,7 @@ export function serializeError(error: unknown): SerializedError {
     if ('reason' in e) serialized.reason = e.reason as string
     if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
     if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedProviderError)
-    if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
+    if ('originalError' in e) serialized.originalError = serializeError(e.originalError, context)
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
     if ('responses' in e) serialized.responses = e.responses as string[]
@@ -93,6 +141,8 @@ export function serializeError(error: unknown): SerializedError {
       serialized.processExitSignal = e.processExitSignal
     }
 
+    const allocationHint = isRetryError ? ollamaAllocationHintFromTerminalError(error) : undefined
+    enrichOllamaAllocationError(serialized, context, allocationHint)
     return serialized
   }
   const safeMessage = getSafeProviderErrorMessage({ data: error })

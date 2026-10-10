@@ -25,6 +25,7 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
@@ -180,5 +181,11 @@ async function resolveFallback(
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
+  const requestContext = options.context as RequestContext | undefined
+  return {
+    model: resolved,
+    options: pickFallbackCallOptions(options),
+    repairToolCall: options.repairToolCall,
+    streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null
+  }
 }

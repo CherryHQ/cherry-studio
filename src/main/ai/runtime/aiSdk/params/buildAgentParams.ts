@@ -59,6 +59,13 @@ import {
   stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
 import {
+  readOllamaWireNumCtx,
+  resolveModelRequestContextWindow,
+  resolveOllamaRequestNumCtx,
+  usesOllamaWirePath,
+  writeOllamaWireNumCtx
+} from '../../../utils/ollamaRequestNumCtx'
+import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
@@ -185,6 +192,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
+  const requestContextWindow = resolveModelRequestContextWindow(
+    model,
+    provider,
+    resolvedEndpoint.endpointType,
+    sdkConfig.providerId
+  )
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
@@ -195,7 +208,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         webToolRoutes,
         toolSignals,
         hasPersistedOutputs,
-        canOffloadToolOutputs
+        canOffloadToolOutputs,
+        requestContextWindow
       )
     : {
         tools: undefined,
@@ -249,6 +263,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
+  const ollamaNumCtxResolution = usesOllamaWirePath(provider, endpointType, sdkConfig.providerId)
+    ? resolveOllamaRequestNumCtx(model, provider, endpointType)
+    : undefined
+  const ollamaNumCtx = ollamaNumCtxResolution
+    ? {
+        uniqueModelId: model.id,
+        trainedContextWindow: ollamaNumCtxResolution.trainedContextWindow,
+        numCtx: ollamaNumCtxResolution.numCtx
+      }
+    : undefined
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -266,7 +291,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // Frozen with the tool set: `mcp_resource_*` may only ever narrow this at execution time.
     mcpResourceServerIds,
     mcpToolResources: collectMcpToolResources(request.messages ?? []),
-    toolOutputCharCap: contextSettings.truncateThreshold
+    toolOutputCharCap: contextSettings.truncateThreshold,
+    ollamaNumCtx
   }
 
   const scope: RequestScope = {
@@ -419,7 +445,8 @@ export async function resolveTools(
   webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
   signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>,
   hasPersistedOutputs: boolean = false,
-  canOffloadToolOutputs: boolean = false
+  canOffloadToolOutputs: boolean = false,
+  requestContextWindow?: number
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -477,7 +504,7 @@ export async function resolveTools(
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
-  const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
+  const exposed = await applyDeferExposition(tools, requestRegistry, requestContextWindow ?? model.contextWindow)
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
@@ -604,7 +631,8 @@ function buildAgentOptions(
       runtimeProviderId: sdkConfig.providerId,
       providerOptionsKey: sdkConfig.providerOptionsKey,
       endpointType,
-      reasoning
+      reasoning,
+      ollamaNumCtx: requestContext.ollamaNumCtx
     }
   )
   let standardParams: Partial<Record<string, unknown>> = {}
@@ -675,10 +703,29 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
+  let ollamaNumCtxSnapshot = requestContext.ollamaNumCtx
+  let sanitizedProviderOptions = effectiveProviderOptions
+  if (usesOllamaWirePath(provider, endpointType, sdkConfig.providerId) && ollamaNumCtxSnapshot) {
+    const resolution = resolveOllamaRequestNumCtx(model, provider, endpointType)
+    if (resolution) {
+      const existingWireNumCtx = readOllamaWireNumCtx(effectiveProviderOptions)
+      const wireNumCtx =
+        existingWireNumCtx != null ? Math.min(existingWireNumCtx, resolution.numCtx) : resolution.numCtx
+      sanitizedProviderOptions = writeOllamaWireNumCtx(effectiveProviderOptions, wireNumCtx)
+      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }
+    }
+  }
+
   const sanitized = stripRejectedSamplingParams(
-    { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
+    { standardParams, providerOptions: sanitizedProviderOptions, bodyParams },
     model
   )
+  if (usesOllamaWirePath(provider, endpointType, sdkConfig.providerId) && ollamaNumCtxSnapshot) {
+    const wireNumCtx = readOllamaWireNumCtx(sanitized.providerOptions)
+    if (wireNumCtx != null) {
+      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }
+    }
+  }
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
@@ -706,7 +753,7 @@ function buildAgentOptions(
     ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
     ...sanitized.standardParams,
-    context: requestContext,
+    context: ollamaNumCtxSnapshot ? { ...requestContext, ollamaNumCtx: ollamaNumCtxSnapshot } : requestContext,
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,

@@ -331,6 +331,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Session-only caps after an Ollama KV-cache OOM; keyed by UniqueModelId.
+  'ollama.num_ctx_caps': Record<string, number>
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -399,6 +401,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'ollama.num_ctx_caps': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',

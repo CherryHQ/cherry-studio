@@ -1734,6 +1734,48 @@ describe('AiService tool approval', () => {
     expect(primaryRepair).toHaveBeenCalledTimes(2)
   })
 
+  it('clears Ollama stream error context when the primary model is reactivated', async () => {
+    const service = createService()
+    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { context: {} },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+
+    const streamErrorSerialization = {}
+    await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      messages: [],
+      streamErrorSerialization,
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
+      onPrimaryActivated: () => void
+    }
+    retryOptions.onFallbackActivated({
+      streamErrorSerialization: {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3', trainedContextWindow: 131_072, numCtx: 65_536 }
+      }
+    })
+    expect(streamErrorSerialization).toHaveProperty('ollamaNumCtx')
+
+    retryOptions.onPrimaryActivated()
+    expect(streamErrorSerialization).not.toHaveProperty('ollamaNumCtx')
+  })
+
   it('passes an explicit API key override to key-pool resolution', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
@@ -2863,5 +2905,44 @@ describe('AiService.listModels', () => {
 
     mockListModelsFromProvider.mockRejectedValue(new Error('Unauthorized'))
     await expect(service.listModels({ providerId: 'ppio', throwOnError: true })).rejects.toThrow('Unauthorized')
+  })
+})
+
+describe('AiService.lowerOllamaNumCtxCap', () => {
+  const cacheGetSharedMock = vi.fn()
+  const cacheSetSharedMock = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'CacheService' ? { getShared: cacheGetSharedMock, setShared: cacheSetSharedMock } : undefined
+    )
+  })
+
+  it('writes the lowered cap for the failed model while preserving other model caps', () => {
+    cacheGetSharedMock.mockReturnValue({ 'ollama::a': 32_768 })
+
+    createService().lowerOllamaNumCtxCap('ollama::b', 16_384)
+
+    expect(cacheSetSharedMock).toHaveBeenCalledWith('ollama.num_ctx_caps', {
+      'ollama::a': 32_768,
+      'ollama::b': 16_384
+    })
+  })
+
+  it('never raises an already-lowered cap from a stale retry', () => {
+    cacheGetSharedMock.mockReturnValue({ 'ollama::a': 16_384 })
+
+    createService().lowerOllamaNumCtxCap('ollama::a', 32_768)
+
+    expect(cacheSetSharedMock).not.toHaveBeenCalled()
+  })
+
+  it('writes the first cap for a model with none', () => {
+    cacheGetSharedMock.mockReturnValue(undefined)
+
+    createService().lowerOllamaNumCtxCap('ollama::a', 32_768)
+
+    expect(cacheSetSharedMock).toHaveBeenCalledWith('ollama.num_ctx_caps', { 'ollama::a': 32_768 })
   })
 })

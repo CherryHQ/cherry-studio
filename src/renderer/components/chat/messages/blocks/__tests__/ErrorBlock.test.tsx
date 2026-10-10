@@ -4,6 +4,7 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
   language: 'en',
+  ipcRequest: vi.fn(),
   translations: new Map<string, string>()
 }))
 
@@ -56,6 +58,10 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => mocks.actions
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mocks.ipcRequest(...args) }
+}))
+
 import ErrorBlock from '../ErrorBlock'
 
 const message: MessageListItem = {
@@ -76,10 +82,145 @@ describe('ErrorBlock', () => {
     mocks.actions = {}
     mocks.i18nKeys.clear()
     mocks.language = 'en'
+    mocks.ipcRequest = vi.fn().mockResolvedValue(undefined)
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
+  })
+
+  it('offers a reduced-context retry for Ollama memory failures', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessageUsingModel = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { removeMessageErrorPart, regenerateMessageUsingModel }
+
+    const uniqueModelId = createUniqueModelId('ollama', 'qwen3:32b')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaTrainedNumCtx: 131_072,
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          modelId: uniqueModelId,
+          model: { id: 'qwen3:32b', name: 'qwen3:32b', provider: 'ollama' }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() => expect(regenerateMessageUsingModel).toHaveBeenCalled())
+    expect(regenerateMessageUsingModel).toHaveBeenCalledWith('message-1', uniqueModelId)
+    expect(removeMessageErrorPart).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+      uniqueModelId,
+      numCtxCap: 32_768
+    })
+  })
+
+  it('keeps the error part when regeneration fails after lowering the cap', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    const removeMessageErrorPart = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessageUsingModel = vi.fn().mockRejectedValue(new Error('stream busy'))
+    mocks.actions = { removeMessageErrorPart, regenerateMessageUsingModel }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaTrainedNumCtx: 131_072,
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          modelId: createUniqueModelId('ollama', 'qwen3'),
+          model: { id: 'qwen3', name: 'qwen3', provider: 'ollama' }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() => expect(regenerateMessageUsingModel).toHaveBeenCalled())
+    expect(removeMessageErrorPart).not.toHaveBeenCalled()
+  })
+
+  it('keys the cap to the model that actually failed, not the primary model', async () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+    mocks.actions = {
+      removeMessageErrorPart: vi.fn().mockResolvedValue(undefined),
+      regenerateMessage: vi.fn().mockResolvedValue(undefined)
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaNumCtxModelId: 'ollama::fallback-model',
+          ollamaEffectiveNumCtx: 65_536
+        }}
+        message={{
+          ...message,
+          modelId: 'ollama::primary-model',
+          model: { id: 'primary-model', name: 'primary', provider: 'ollama' }
+        }}
+      />
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry smaller' }))
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.ollama.set_num_ctx_cap', {
+        uniqueModelId: 'ollama::fallback-model',
+        numCtxCap: 32_768
+      })
+    )
+  })
+
+  it('hides the reduced-context retry when context is already at the minimum', () => {
+    const i18nKey = 'ollama_context_memory'
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+    mocks.translations.set(`error.${i18nKey}`, 'Ollama OOM')
+    mocks.translations.set('error.ollama_context_retry', 'Retry smaller')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: 'out of memory',
+          stack: null,
+          i18nKey,
+          ollamaEffectiveNumCtx: 4_096
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Retry smaller' })).not.toBeInTheDocument()
   })
 
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
