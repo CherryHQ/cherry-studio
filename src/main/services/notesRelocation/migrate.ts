@@ -34,7 +34,7 @@ async function isDirectoryTreeEmpty(directoryPath: string): Promise<boolean> {
 
 async function assertCanonicalTargetPath(targetRoot: string, absolutePath: string): Promise<void> {
   const relative = path.relative(targetRoot, absolutePath)
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target path escapes selected directory')
   }
 

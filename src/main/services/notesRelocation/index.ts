@@ -13,6 +13,7 @@ export {
 export {
   bindNotesRelocationSessionOwnerWindow,
   clearNotesRelocationSessionOwnerWindowBinding,
+  finalizeNotesRelocationAfterMigrate,
   handleNotesRelocationOwnerWindowGone,
   isNotesRelocationOwnerWindowAlive,
   resetNotesRelocationOwnerLifecycleForTests
