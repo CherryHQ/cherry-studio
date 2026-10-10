@@ -110,7 +110,8 @@ overflow then ends the turn with the provider's error.
 
 `offload: { store, thresholdChars }` keeps one oversized tool result from overflowing the context.
 A `tool_result` hook (after every other extension's) saves text output longer than
-`thresholdChars` through the host's `ToolOutputStore` and gives the model its head and tail around a
+`thresholdChars` (and than 3000 characters, so the marker is always shorter than the output) through
+the host's `ToolOutputStore` and gives the model its head and tail around a
 `<persisted-output>` note with the saved path, to read back with Pi's `read` tool. Names are content
 addressed (`tool-output-<sha256>.txt`), so the same output gives the same marker and prompt caches
 hold. Images and `structuredContent` (for the UI and codemode) are kept. Not offloaded: errors,

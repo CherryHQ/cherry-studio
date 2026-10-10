@@ -13,13 +13,15 @@ export interface ToolOutputStore {
 
 export interface ToolOutputOffload {
   store: ToolOutputStore
-  /** Text results longer than this many characters are saved and replaced by a marker. */
+  /** Text results longer than this many characters (and than 3000) are saved and replaced by a marker. */
   thresholdChars: number
 }
 
 // Same excerpt sizes as Cherry's chat offload.
 const HEAD_CHARS = 500
 const TAIL_CHARS = 1000
+// Twice the excerpts, so the marker (excerpts, note and path) is always shorter than the output.
+const MIN_OFFLOAD_CHARS = 2 * (HEAD_CHARS + TAIL_CHARS)
 const READ_TOOL = 'read'
 
 function snap(content: string, index: number, edge: 'head' | 'tail'): number {
@@ -54,7 +56,7 @@ export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutput
       // results are exempt so reading an offloaded output back cannot offload it again.
       if (event.isError || event.parentToolCallId !== undefined || event.toolName === READ_TOOL) return undefined
       const text = event.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
-      if (text.length <= Math.max(thresholdChars, HEAD_CHARS + TAIL_CHARS)) return undefined
+      if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) return undefined
       const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
       const path = await store.save({ name, content: text, toolCallId: event.toolCallId, toolName: event.toolName })
       return {

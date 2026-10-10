@@ -169,4 +169,34 @@ describe('tool output offload', () => {
     expect(read.output.value).not.toContain('<persisted-output>')
     expect(lastAssistant(session).stopReason).toBe('stop')
   })
+
+  it('sends an output whole when its marker would not be shorter', async () => {
+    const output = 'x'.repeat(2_000)
+    const echo = defineTool({
+      name: 'echo_block',
+      label: 'Echo',
+      description: 'Returns a block of text',
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: [{ type: 'text', text: output }], details: undefined }
+      }
+    })
+    const { model, calls } = windowedModel(100_000, (_prompt, call) =>
+      call === 1
+        ? [toolCall('call_echo', 'echo_block', {}), finish('tool-calls')]
+        : [...textParts('t', 'Done.'), finish('stop')]
+    )
+    const dir = tempDir('offload')
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      model: { ...MODEL, contextWindow: 100_000 },
+      tools: [echo],
+      offload: { store: fileStore(dir), thresholdChars: 1_000 }
+    })
+    await session.prompt('Echo the block')
+
+    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
+    expect(plain(sent.content[0])).toMatchObject({ output: { type: 'text', value: output } })
+    expect(readdirSync(dir)).toEqual([])
+  })
 })
