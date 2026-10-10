@@ -58,7 +58,9 @@ function resolveNewApiModelEndpoint(
 
   if (intent === 'image') {
     const imageEndpoint = endpointTypes.find(
-      (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
+      (endpointType) =>
+        endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION &&
+        provider.endpointConfigs?.[endpointType]
     )
     return imageEndpoint ?? primaryEndpoint
   }
