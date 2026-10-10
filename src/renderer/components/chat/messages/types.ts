@@ -311,6 +311,8 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Transient presentation inside the scroller, excluded from history actions and exports. */
+  afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
