@@ -73,6 +73,17 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /**
+   * The history this connection resumes already folds plan mode inactive (the plan exit was
+   * approved on an earlier connection). A plan-permission agent must not re-arm plan when
+   * reconnecting — the execution follow-up depends on its mutation tools being admitted.
+   */
+  planExitApproved?: boolean
+  /**
+   * Report the runtime's committed plan-mode fold (an approved exit or a `/plan` re-entry) so
+   * the host keeps its session-level plan overlay in sync across connection replacement.
+   */
+  onPlanModeFold?(active: boolean): void
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
