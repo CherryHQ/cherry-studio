@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryMock = vi.hoisted(() => ({
   isBinaryExists: vi.fn<(name: string) => Promise<boolean>>(),
-  getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
+  isStandaloneBinaryExists: vi.fn<(name: string) => Promise<boolean>>(),
+  getBinaryPath: vi.fn<(name?: string) => Promise<string>>(),
+  getStandaloneBinaryPath: vi.fn<(name: string) => Promise<string>>()
 }))
 const commandMock = vi.hoisted(() => ({
   findExecutableInEnv:
@@ -24,7 +26,9 @@ describe('resolveLaunchCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     binaryMock.isBinaryExists.mockResolvedValue(false)
+    binaryMock.isStandaloneBinaryExists.mockResolvedValue(false)
     binaryMock.getBinaryPath.mockImplementation(async (name) => `/bundled/${name}`)
+    binaryMock.getStandaloneBinaryPath.mockImplementation(async (name) => `/standalone/${name}`)
     commandMock.findExecutableInEnv.mockResolvedValue(null)
     commandMock.findCommandInShellEnv.mockResolvedValue(null)
   })
@@ -76,6 +80,22 @@ describe('resolveLaunchCommand', () => {
 
     expect(launch.command).toBe('/bundled/bun')
     expect(launch.args).toEqual(['x', '-y', 'example-mcp'])
+  })
+
+  it('uses standalone cherry.bin for bundled fallbacks when user mise owns the spawn env', async () => {
+    binaryMock.isStandaloneBinaryExists.mockResolvedValue(true)
+
+    const launch = await resolveLaunchCommand({
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      loginShellEnv: { PATH: '/usr/bin', MISE_DATA_DIR: '/home/user/.local/share/mise' },
+      logger,
+      useStandaloneBundledBinary: true
+    })
+
+    expect(launch.command).toBe('/standalone/bun')
+    expect(binaryMock.isBinaryExists).not.toHaveBeenCalled()
+    expect(binaryMock.getBinaryPath).not.toHaveBeenCalled()
   })
 
   it('prefixes `x -y` by position, including when the package itself is named x or -y', async () => {
