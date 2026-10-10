@@ -18,6 +18,7 @@ import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
 import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
 import { MarkdownTable } from './extensions/markdownTable'
+import { ParagraphLayout } from './extensions/paragraphLayout'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
 
@@ -29,6 +30,7 @@ type TableActionHandler<T extends 'rowIndex' | 'colIndex'> = (
 export interface CreateRichEditorExtensionsOptions {
   /** Whether the editor is editable (affects link hover behavior). */
   editable?: boolean
+  paragraphLayout?: 'native' | 'justified'
   /** Placeholder text shown in the empty editor. */
   placeholder?: string
   /** Shiki theme for the code block extension. */
@@ -67,6 +69,7 @@ export interface CreateRichEditorExtensionsOptions {
 export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOptions = {}): Extensions => {
   const {
     editable = true,
+    paragraphLayout = 'native',
     placeholder = '',
     shikiTheme = 'one-light',
     onLinkHover,
@@ -82,6 +85,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
   } = options
 
   return [
+    ParagraphLayout.configure({ enabled: paragraphLayout === 'justified' }),
     // Native Markdown parsing/serialization via the official @tiptap/markdown AST
     // (marked-based). Custom nodes contribute their own parse/render hooks.
     Markdown.configure({

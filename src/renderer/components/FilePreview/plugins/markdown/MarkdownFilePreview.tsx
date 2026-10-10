@@ -143,7 +143,9 @@ function MarkdownPreviewContent({
 
   const markdown = (
     <div className="mx-auto w-full max-w-4xl px-4 pt-4">
-      <StaticMarkdown id={markdownId}>{content}</StaticMarkdown>
+      <StaticMarkdown id={markdownId} paragraphLayout="justified">
+        {content}
+      </StaticMarkdown>
     </div>
   )
 

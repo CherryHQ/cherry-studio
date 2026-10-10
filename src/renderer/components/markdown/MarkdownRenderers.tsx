@@ -2,6 +2,7 @@ import { omit } from 'es-toolkit/compat'
 import { ImageOff } from 'lucide-react'
 import {
   Children,
+  cloneElement,
   isValidElement,
   type CSSProperties,
   type JSX,
@@ -9,8 +10,15 @@ import {
   useMemo,
   useState
 } from 'react'
+import type { ReactNode, ReactElement } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 
+import {
+  JustifiedParagraph,
+  ParagraphAtomic,
+  ParagraphText
+} from '@cherrystudio/ui/components/composites/justified-paragraph'
+import { loggerService } from '@logger'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
@@ -24,6 +32,10 @@ import MarkdownTable from './MarkdownTable'
 import { INLINE_CODE_CLASS, useMarkdownCode } from './useMarkdownCode'
 import { useMarkdownHost, type MarkdownHost } from './useMarkdownHost'
 import { useMarkdownStreaming } from './useMarkdownStreaming'
+import { useParagraphLayout } from './useParagraphLayout'
+
+const paragraphLogger = loggerService.withContext('MarkdownParagraph')
+const reportParagraphError = (error: unknown) => paragraphLogger.error('Paragraph layout failed', { error })
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
 
@@ -121,11 +133,13 @@ export function MarkdownLinkRenderer({
     !Children.toArray(props.children).some((child) => isValidElement(child) && child.type === Favicon) &&
     shouldShowMarkdownLinkFavicon(props.node) ? (
       <>
-        <span
-          className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
-          aria-hidden="true">
-          <Favicon hostname={hostname} alt="" />
-        </span>
+        <ParagraphAtomic>
+          <span
+            className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
+            aria-hidden="true">
+            <Favicon hostname={hostname} alt="" />
+          </span>
+        </ParagraphAtomic>
         {props.children}
       </>
     ) : (
@@ -226,10 +240,31 @@ function MarkdownPreRenderer({ node: _node, ...props }: MarkdownRendererProps<'p
   return <pre style={PRE_STYLE} {...props} />
 }
 
-function MarkdownParagraphRenderer({ node, ...props }: MarkdownRendererProps<'p'>) {
+function paragraphChildren(children: ReactNode): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child === 'string' || typeof child === 'number') return <ParagraphText>{String(child)}</ParagraphText>
+    if (!isValidElement(child)) return child
+    const element = child as ReactElement<{ children?: ReactNode; className?: string; node?: ExtraProps['node'] }>
+    const tag = typeof element.type === 'string' ? element.type : element.props.node?.tagName
+    if (tag === 'code' || element.props.className?.split(' ').includes('katex'))
+      return <ParagraphAtomic>{element}</ParagraphAtomic>
+    if (element.props.children === undefined) return child
+    return cloneElement(element, undefined, paragraphChildren(element.props.children))
+  })
+}
+
+function MarkdownParagraphRenderer({ node, children, ...props }: MarkdownRendererProps<'p'>) {
+  const enabled = useParagraphLayout()
+  const content = useMemo(() => (enabled ? paragraphChildren(children) : children), [children, enabled])
   const hasImage = node?.children.some((child) => child.type === 'element' && child.tagName === 'img')
-  if (hasImage) return <div {...props} />
-  return <p {...props} />
+  if (hasImage) return <div {...props}>{children}</div>
+  return enabled ? (
+    <JustifiedParagraph {...props} onLayoutError={reportParagraphError}>
+      {content}
+    </JustifiedParagraph>
+  ) : (
+    <p {...props}>{children}</p>
+  )
 }
 
 const MARKDOWN_COMPONENTS = {

@@ -33,6 +33,7 @@ export interface UseRichEditorOptions {
   placeholder?: string
   /** Whether the editor is editable */
   editable?: boolean
+  paragraphLayout?: 'native' | 'justified'
   /** Whether to focus the end of the document when the editor mounts or becomes editable */
   autoFocus?: boolean
   /** Whether to enable table of contents functionality */
@@ -96,6 +97,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onPaste,
     placeholder = '',
     editable = true,
+    paragraphLayout = 'native',
     autoFocus = true,
     enableSpellCheck = false,
     ariaLabel,
@@ -157,6 +159,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     () =>
       createRichEditorExtensions({
         editable,
+        paragraphLayout,
         placeholder,
         shikiTheme: activeShikiTheme,
         onLinkHover: handleLinkHover,
@@ -271,7 +274,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [
+      placeholder,
+      activeShikiTheme,
+      handleLinkHover,
+      handleLinkHoverEnd,
+      enableImageInsertion,
+      disabledCommands,
+      paragraphLayout
+    ]
   )
 
   const editor = useEditor({
