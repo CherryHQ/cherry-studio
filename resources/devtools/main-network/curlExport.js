@@ -22,7 +22,9 @@ function buildCurlCommand(event) {
   const body = event.requestBody
   const includeBody = hasReplayableCurlBody(body)
 
-  if (method !== 'GET' || includeBody) {
+  if (method === 'HEAD') {
+    parts.push('--head')
+  } else if (method !== 'GET' || includeBody) {
     parts.push('-X', shellQuoteSingle(method))
   }
 
@@ -31,7 +33,7 @@ function buildCurlCommand(event) {
     parts.push('-H', shellQuoteSingle(`${key}: ${value}`))
   }
 
-  if (includeBody) {
+  if (method !== 'HEAD' && includeBody) {
     parts.push('--data-raw', shellQuoteSingle(body.text))
   } else if (body?.truncated) {
     parts.push(curlComment('request body truncated in capture; omit --data-raw for replay'))

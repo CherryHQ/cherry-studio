@@ -46,6 +46,19 @@ describe('main network cURL export', () => {
     expect(curl).toContain("'payload'")
   })
 
+  it('exports HEAD requests with --head instead of -X HEAD', () => {
+    const curl = buildCurlCommand({
+      method: 'HEAD',
+      url: 'https://api.example/resource',
+      requestHeaders: { Accept: 'application/json', 'Content-Length': '0' }
+    })
+
+    expect(curl).toContain('--head')
+    expect(curl).not.toMatch(/-X\s+'HEAD'/)
+    expect(curl).not.toMatch(/\n\s+--data-raw\b/)
+    expect(curl).toContain('Accept')
+  })
+
   it('does not send FormData display summaries as --data-raw', () => {
     const curl = buildCurlCommand({
       method: 'POST',
