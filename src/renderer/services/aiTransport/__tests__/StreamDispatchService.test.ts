@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
@@ -20,8 +20,16 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-afterEach(() => {
+let previousLanguage: string
+
+beforeEach(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('zh-CN')
+})
+
+afterEach(async () => {
   vi.clearAllMocks()
+  await i18n.changeLanguage(previousLanguage)
 })
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -70,16 +78,20 @@ describe('StreamDispatchService', () => {
     expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
-  it('localizes paused dispatch failures from their reason', async () => {
+  it.each([
+    ['backup', '正在备份；完成前已暂停发送新消息。'],
+    ['restore', '正在恢复备份；完成前已暂停发送新消息。']
+  ] as const)('localizes paused dispatch failures for %s', async (operation, message) => {
     streamOpen.mockResolvedValue({
       mode: 'blocked',
-      reason: 'paused'
+      reason: 'paused',
+      operation
     } satisfies AiStreamOpenResponse)
 
     streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
-    expect(toast.error).toHaveBeenCalledWith(i18n.t('restore.messages_paused'))
+    expect(toast.error).toHaveBeenCalledWith(message)
   })
 
   it('unsubscribe stops further delivery', async () => {

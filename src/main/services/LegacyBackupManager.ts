@@ -347,7 +347,7 @@ class BackupManager {
         const agentJobs = application.get('AgentJobsService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
-          writerHolds.push(aiStreamManager.pause(quiesceReason))
+          writerHolds.push(aiStreamManager.pause('backup', quiesceReason))
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
@@ -1101,7 +1101,7 @@ class BackupManager {
         this.assertWritersDrained([heartbeatVerdict])
         this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
         const aiStreamManager = application.get('AiStreamManager')
-        writerHolds.push(aiStreamManager.pause('backup restore'))
+        writerHolds.push(aiStreamManager.pause('restore', 'backup restore'))
         writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
         this.assertWritersDrained(
           await Promise.all([
