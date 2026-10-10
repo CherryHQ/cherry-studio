@@ -32,6 +32,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
 - Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues.
+- A rejected promoted DB is parked as `restore-staging/<restoreId>/failed.sqlite` until rollback completes, then removed with the staging tree. Historical `work-failed-<UUID>.sqlite` files in the userData root are included in orphaned-data cleanup only when no restore journal remains; deletion rechecks the journal and excludes directories and symbolic links.
 
 ## Ownership
 

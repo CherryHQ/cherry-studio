@@ -951,6 +951,30 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
   }
 
+  it('keeps restore progress monotonic after copying Data', async () => {
+    arrangeDirectRestore(completeDataMetadata)
+    vi.mocked(fs.lstat).mockImplementation(async (entryPath) => {
+      return createStats(String(entryPath) === '/extract/Data' ? 'directory' : 'file') as never
+    })
+    const progress: number[] = []
+    vi.spyOn(backupManager as any, 'onProgress').mockReturnValue((event: { progress: number }) => {
+      progress.push(event.progress)
+    })
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(100)
+    vi.mocked((backupManager as any).stageArchiveDirectory).mockImplementation(async (...args: unknown[]) => {
+      const reportBytes = args[2] as ((bytes: number) => void) | undefined
+      reportBytes?.(60)
+      reportBytes?.(40)
+    })
+    vi.spyOn(backupManager as any, 'createDataJournalResources').mockResolvedValue([])
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    expect(progress).toContain(95)
+    expect(progress.at(-1)).toBe(100)
+    expect(progress.every((value, index) => index === 0 || value >= progress[index - 1])).toBe(true)
+  })
+
   it('refuses restore staging while an admitted heartbeat write has not drained', async () => {
     arrangeDirectRestore()
     mockAgentJobs.drainInFlight.mockResolvedValueOnce({ settled: false })

@@ -632,10 +632,10 @@ describe('runRestorePromotion', () => {
 
     await runRestorePromotion()
 
-    // Old DB is live again; the broken candidate is retained for forensics.
+    // Old DB is live again; the failed candidate is removed after rollback.
     expect(readMarker(livePath())).toBe('old')
     const workFailed = readdirSync(userData).filter((name) => name.includes(`work-failed-${RID}`))
-    expect(workFailed).toHaveLength(1)
+    expect(workFailed).toHaveLength(0)
     // ALL file operations undone — note aside restored, every add removed.
     expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
     expect(existsSync(noteAside())).toBe(false)
@@ -645,6 +645,32 @@ describe('runRestorePromotion', () => {
     // Directory overwrites use the same aside-first rollback as files.
     expect(readFileSync(join(liveClaude, 'old-session.jsonl'), 'utf8')).toBe('OLD')
     expect(existsSync(join(liveClaude, 'new-session.jsonl'))).toBe(false)
+    expect(journalState()).toBe('failed')
+    expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it('keeps the failed candidate until the original database can be restored', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const journal = await buildJournal()
+    renameSync(livePath(), asidePath())
+    rmSync(workPath())
+    const corruptCandidate = 'NOT A SQLITE DATABASE'.repeat(300)
+    writeFileSync(livePath(), corruptCandidate)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
+    renameFailure.source = asidePath()
+
+    await expect(runRestorePromotion()).rejects.toThrow('injected rename lock')
+
+    expect(readMarker(asidePath())).toBe('old')
+    expect(readFileSync(join(stagingDir(), 'failed.sqlite'), 'utf8')).toBe(corruptCandidate)
+    expect(journalState()).toBe('promoting')
+    expect(isLiveDbStranded()).toBe(true)
+
+    renameFailure.source = ''
+    await runRestorePromotion()
+
+    expect(readMarker(livePath())).toBe('old')
     expect(journalState()).toBe('failed')
     expect(existsSync(stagingDir())).toBe(false)
   })
