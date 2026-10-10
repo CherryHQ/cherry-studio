@@ -21,7 +21,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
-import { terminalSentinel } from '@shared/ai/terminalSentinel'
+import { terminalSentinel } from '@main/ai/utils/terminalSentinel'
 // Self-registers in the data-service registry: `messageService.update` resolves
 // TopicService for the assistant activity transition it triggers.
 import '@data/services/TopicService'
