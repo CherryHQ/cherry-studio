@@ -161,7 +161,7 @@ function streamModelCall<TRequestOptions>(
       let request: ModelCallRequest<TRequestOptions> = {
         ...call,
         system: getCurrentSystemPrompt(context.messages) || undefined,
-        messages: toModelMessages(context, model),
+        messages: toModelMessages(context.messages, model),
         tools: toToolSet(context),
         toolChoice: options?.toolChoice,
         // As every built-in Pi provider: Pi's agent passes no cap, so the model's ceiling, fitted to the context.
