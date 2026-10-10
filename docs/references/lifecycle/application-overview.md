@@ -87,6 +87,8 @@ shutdown()
 
 `stopAll()` / `destroyAll()` cap each service at `SERVICE_STOP_TIMEOUT_MS` (5s), so one stuck `onStop()` no longer denies every service behind it its turn. Both return a summary of what timed out or failed, and the `Shutdown complete` line states whether the exit was clean — read it first when diagnosing a bad shutdown.
 
+`shutdown()` returns one shared `Promise<ShutdownReport>` for the process lifetime. Concurrent callers wait for the same cleanup; later callers receive the same report without running cleanup again. The report preserves `stop` and `destroy` as separate `TeardownSummary` values and includes `bootConfigFlushed`. A failed config flush or any teardown timeout/failure makes `clean` false. Repeated `will-quit` events remain prevented until that cleanup finishes.
+
 ### The force-exit fuse
 
 Each entry point arms a `SHUTDOWN_TIMEOUT_MS` (30s) `process.exit(1)` timer around `shutdown()`. It is a last resort, not the working mechanism:

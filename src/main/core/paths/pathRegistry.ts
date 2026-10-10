@@ -9,6 +9,7 @@
  * Helper constants must be primitives; put helper objects in a separate file.
  */
 
+import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -58,6 +59,12 @@ export function buildPathRegistry() {
   const appExtraResources = process.resourcesPath
   // `resources/` inside asar (bundled assets) — distinct from appExtraResources
   const appRootResources = path.join(app.getAppPath(), 'resources')
+  const executableDir = path.dirname(app.getPath('exe'))
+  const updateRoot = isWin
+    ? path.dirname(executableDir)
+    : isMac
+      ? path.resolve(executableDir, '../..')
+      : process.env.APPIMAGE || executableDir
 
   return Object.freeze({
     // -- A. cherry.* — CHERRY_HOME infrastructure --
@@ -99,6 +106,20 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.updater.root': updateRoot,
+    'feature.updater.helper_file': path.join(
+      isWin ? updateRoot : executableDir,
+      isWin ? 'Update.exe' : isMac ? 'UpdateMac' : 'UpdateNix'
+    ),
+    'feature.updater.manifest_file': path.join(executableDir, 'sq.version'),
+    'feature.updater.resources_manifest_file': path.join(appExtraResources, 'sq.version'),
+    'feature.updater.packages': path.join(
+      appUserData,
+      'updates',
+      createHash('sha256').update(updateRoot).digest('hex').slice(0, 16)
+    ),
+    'feature.updater.journal_file': path.join(appUserData, 'updates', 'attempt.json'),
+    'feature.updater.journal_temp_file': path.join(appUserData, 'updates', 'attempt.json.tmp'),
     'feature.selection.native_panel_file': path.join(
       appRootResources,
       'binaries',
@@ -371,6 +392,10 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.updater.root',
+  'feature.updater.helper_file',
+  'feature.updater.manifest_file',
+  'feature.updater.resources_manifest_file',
   // Namespace prefixes
   'sys.',
   'external.',

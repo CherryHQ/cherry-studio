@@ -11,6 +11,8 @@ sources:
 
 # App Update Architecture
 
+Proposed migration: [Velopack 三平台接入方案](./velopack-integration-plan.md). That document is a design proposal; the behavior below describes the current implementation.
+
 ## Overview
 
 Cherry Studio clients check for updates through the managed release service at `https://releases.cherry-ai.com`. The client selects an edition-specific update channel and sends application, edition, client, platform, and region metadata. The release service owns target-version selection, regional mirrors, rollout policy, and required upgrade gateways.
@@ -54,5 +56,7 @@ Before each update check, the client preserves existing updater headers and sets
 The selected electron-updater channel determines which edition-specific manifest the client requests; no separate release-channel header is sent.
 
 ## Check Lifecycle
+
+Velopack installations reuse the same target and mirror selection. After a successful check, the client resolves the selected legacy asset URLs through the existing provider. For managed download URLs, it reads the existing download route's redirect with the original request headers, without downloading the legacy installer. The selected GitHub or GitCode repository and version tag then locate the adjacent Velopack static feed and packages. Client identity headers stay on the managed service. Invalid or conflicting mirror decisions fail the check; there is no silent GitHub fallback and no new Release service endpoint.
 
 Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.

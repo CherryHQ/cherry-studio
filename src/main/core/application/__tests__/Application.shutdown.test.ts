@@ -30,9 +30,8 @@ vi.unmock('@application')
 /**
  * Reset the Application singleton between cases.
  *
- * `Application` has no reset API and `isShuttingDown` is one-way: once true,
- * `shutdown()` early-returns forever, so a second scenario would silently not
- * run at all. The private static is cleared directly — same escape hatch the
+ * `Application` has no reset API and caches its shutdown promise for life.
+ * The private static is cleared directly — same escape hatch the
  * lifecycle tests use for `manager['container']`.
  */
 function resetApplication(): void {
@@ -80,6 +79,232 @@ describe('Application shutdown', () => {
 
   /** An onStop that never settles — the framework has to abandon it. */
   const neverSettles = (): Promise<void> => new Promise<void>(() => {})
+
+  it('runs the reserved action only after cleanup and closes critical-work admission', async () => {
+    const order: string[] = []
+    @Injectable('UpdateCleanupService')
+    class UpdateCleanupService extends BaseService {
+      protected override onStop() {
+        order.push('stop')
+      }
+      protected override onDestroy() {
+        order.push('destroy')
+      }
+    }
+    ServiceContainer.getInstance().register(UpdateCleanupService)
+    const application = Application.getInstance()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const accepted = application.quitWithAction({
+      run: () => {
+        order.push('apply')
+      }
+    })
+    expect(() => application.preventQuit('new-work')).toThrow()
+    const report = await application.shutdown()
+    await accepted
+    expect(report.clean).toBe(true)
+    expect(order).toEqual(['stop', 'destroy', 'apply'])
+    await application.shutdown()
+    expect(order).toEqual(['stop', 'destroy', 'apply'])
+  })
+
+  it('reopens admission after a window veto without retaining the install action', async () => {
+    const application = Application.getInstance()
+    let installed = false
+    const accepted = application.quitWithAction({
+      run: () => {
+        installed = true
+      }
+    })
+    const rejected = expect(accepted).rejects.toThrow('QUIT_BLOCKED')
+    await vi.advanceTimersByTimeAsync(5000)
+    await rejected
+    const hold = application.preventQuit('resumed-work')
+    hold.dispose()
+    await application.shutdown()
+    expect(installed).toBe(false)
+  })
+
+  it('suppresses an accepted update when system shutdown wins', async () => {
+    const application = Application.getInstance()
+    let installed = false
+    const accepted = application.quitWithAction({
+      run: () => {
+        installed = true
+      }
+    })
+    application.markSystemShutdown()
+    await application.shutdown()
+    await accepted
+    expect(installed).toBe(false)
+  })
+
+  it('does not install after failed cleanup', async () => {
+    @Injectable('BrokenUpdateCleanupService')
+    class BrokenUpdateCleanupService extends BaseService {
+      protected override onStop() {
+        throw new Error('cannot release files')
+      }
+    }
+    ServiceContainer.getInstance().register(BrokenUpdateCleanupService)
+    const application = Application.getInstance()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    let installed = false
+    const accepted = application.quitWithAction({
+      run: () => {
+        installed = true
+      }
+    })
+    const report = await application.shutdown()
+    await accepted
+    expect(report.clean).toBe(false)
+    expect(installed).toBe(false)
+  })
+
+  it('shares the pending cleanup and final report across concurrent and later callers', async () => {
+    const stopping = Promise.withResolvers<void>()
+    const releaseStop = Promise.withResolvers<void>()
+    const cleaned: string[] = []
+
+    @Injectable('DeferredService')
+    class DeferredService extends BaseService {
+      protected override async onStop() {
+        stopping.resolve()
+        await releaseStop.promise
+        cleaned.push('stop')
+      }
+      protected override onDestroy() {
+        cleaned.push('destroy')
+      }
+    }
+
+    const application = Application.getInstance()
+    application.register(DeferredService)
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const first = application.shutdown()
+    await stopping.promise
+    const second = application.shutdown()
+    let completed = false
+    void second.then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+    expect(second).toBe(first)
+    expect(cleaned).toEqual([])
+
+    releaseStop.resolve()
+    const report = await second
+    expect(report).toEqual({
+      clean: true,
+      bootConfigFlushed: true,
+      stop: { timedOut: [], failed: [] },
+      destroy: { timedOut: [], failed: [] }
+    })
+    expect(application.shutdown()).toBe(first)
+    expect(await first).toBe(report)
+    expect(cleaned).toEqual(['stop', 'destroy'])
+  })
+
+  it('does not allow a repeated will-quit to bypass pending cleanup', async () => {
+    const stopping = Promise.withResolvers<void>()
+    const releaseStop = Promise.withResolvers<void>()
+    let destroyed = false
+
+    @Injectable('DeferredService')
+    class DeferredService extends BaseService {
+      protected override async onStop() {
+        stopping.resolve()
+        await releaseStop.promise
+      }
+      protected override onDestroy() {
+        destroyed = true
+      }
+    }
+
+    const application = Application.getInstance()
+    application.register(DeferredService)
+    application['setupQuitHandlers']()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const willQuit = appOn.mock.calls.find(([event]) => event === 'will-quit')![1] as QuitListener
+    const first = vi.fn()
+    const second = vi.fn()
+    willQuit({ preventDefault: first })
+    await stopping.promise
+    willQuit({ preventDefault: second })
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).toHaveBeenCalledOnce()
+    expect(appExit).not.toHaveBeenCalled()
+    expect(destroyed).toBe(false)
+
+    releaseStop.resolve()
+    await vi.runAllTimersAsync()
+    expect(destroyed).toBe(true)
+    expect(appExit).toHaveBeenCalledWith(0)
+    expect(exitSpy).not.toHaveBeenCalled()
+  })
+
+  it('publishes the shared promise before synchronous cleanup can re-enter', async () => {
+    const application = Application.getInstance()
+    let reentrant: ReturnType<Application['shutdown']> | undefined
+    vi.mocked(bootConfigService.flush).mockImplementation(() => {
+      reentrant = application.shutdown()
+    })
+    const first = application.shutdown()
+    const report = await first
+    expect(reentrant).toBe(first)
+    expect(report.clean).toBe(true)
+  })
+
+  it('reports a boot config flush failure while still cleaning up services', async () => {
+    vi.mocked(bootConfigService.flush).mockImplementation(() => {
+      throw new Error('disk full')
+    })
+    const report = await Application.getInstance().shutdown()
+    expect(report).toEqual({
+      clean: false,
+      bootConfigFlushed: false,
+      stop: { timedOut: [], failed: [] },
+      destroy: { timedOut: [], failed: [] }
+    })
+  })
+
+  it('reports teardown failures by phase and continues cleanup', async () => {
+    let destroyed = false
+    @Injectable('FailedService')
+    class FailedService extends BaseService {
+      protected override onStop() {
+        throw new Error('stop failed')
+      }
+      protected override onDestroy() {
+        destroyed = true
+      }
+    }
+    const application = Application.getInstance()
+    application.register(FailedService)
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const report = await application.shutdown()
+    expect(report.clean).toBe(false)
+    expect(report.stop.failed).toEqual(['FailedService'])
+    expect(report.destroy).toEqual({ timedOut: [], failed: [] })
+    expect(destroyed).toBe(true)
+  })
+
+  it('does not report a clean shutdown when destroy fails after a successful stop', async () => {
+    @Injectable('FailedDestroyService')
+    class FailedDestroyService extends BaseService {
+      protected override onDestroy() {
+        throw new Error('close failed')
+      }
+    }
+    const application = Application.getInstance()
+    application.register(FailedDestroyService)
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    const report = await application.shutdown()
+    expect(report.clean).toBe(false)
+    expect(report.stop).toEqual({ timedOut: [], failed: [] })
+    expect(report.destroy).toEqual({ timedOut: [], failed: ['FailedDestroyService'] })
+  })
 
   /**
    * Arm the quit handlers, initialize the registered services, and drive the
@@ -132,6 +357,9 @@ describe('Application shutdown', () => {
     expect(exitSpy).not.toHaveBeenCalled()
     expect(appExit).toHaveBeenCalledWith(0)
     expect(stopped).toEqual(['Tail'])
+    const report = await application.shutdown()
+    expect(report.clean).toBe(false)
+    expect(report.stop.timedOut).toEqual(['StuckService'])
     expect(messages('warn')).toContainEqual(expect.stringContaining('Shutdown complete, but not cleanly'))
   })
 

@@ -21,6 +21,8 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!dist/**"
+  - "!.context/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -85,6 +87,7 @@ files:
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
   - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/**"
 asarUnpack:
+  - "node_modules/velopack/**"
   - resources/**
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"

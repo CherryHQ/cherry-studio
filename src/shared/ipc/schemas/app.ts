@@ -1,4 +1,4 @@
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import type { ProgressInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
 import {
@@ -9,6 +9,7 @@ import {
 } from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
 import { defineRoute } from '../define'
+import { updateSnapshotSchema, type UpdateRelease, type UpdateSnapshot } from './updater'
 
 const relocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({ valid: z.literal(true), targetEmpty: z.boolean() }),
@@ -90,6 +91,8 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.get_state': defineRoute({ input: z.void(), output: updateSnapshotSchema }),
+  'app.updater.cancel': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.release_notes.get': defineRoute({
     input: z.void(),
     output: z
@@ -97,13 +100,17 @@ export const appRequestSchemas = {
       .min(1)
       .nullable()
   }),
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
+  'app.updater.quit_and_install': defineRoute({
+    input: z.strictObject({ candidateId: z.string().min(1) }),
+    output: z.void()
+  })
 }
 
 export type AppEventSchemas = {
-  'app.updater.error': Error
-  'app.updater.available': UpdateInfo
+  'app.updater.state_changed': UpdateSnapshot
+  'app.updater.error': { message: string }
+  'app.updater.available': UpdateRelease
   'app.updater.not_available': void
   'app.updater.download_progress': ProgressInfo
-  'app.updater.downloaded': UpdateInfo
+  'app.updater.downloaded': UpdateRelease
 }

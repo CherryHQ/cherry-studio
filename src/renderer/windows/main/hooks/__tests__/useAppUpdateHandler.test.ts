@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import type { ProgressInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AppEventSchemas } from '@shared/ipc/schemas/app'
+import type { UpdateRelease, UpdateSnapshot } from '@shared/ipc/schemas/updater'
 
 const mocks = vi.hoisted(() => ({
   appUpdateState: { manualCheck: false },
@@ -12,12 +13,13 @@ const mocks = vi.hoisted(() => ({
   popupInfo: vi.fn(),
   toastSuccess: vi.fn(),
   updateAppUpdateState: vi.fn(),
-  updateDialogShow: vi.fn()
+  updateDialogShow: vi.fn(),
+  requestState: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ error: mocks.loggerError })
+    withContext: () => ({ error: mocks.loggerError, warn: vi.fn() })
   }
 }))
 
@@ -29,6 +31,13 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    on: (event: string, handler: (payload: unknown) => void) => {
+      mocks.handlers.set(event, handler)
+      return () => mocks.handlers.delete(event)
+    },
+    request: mocks.requestState
+  },
   useIpcOn: (event: string, handler: (payload: unknown) => void) => {
     mocks.handlers.set(event, handler)
   }
@@ -62,11 +71,9 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
 
 import { getManualUpdateErrorMessageKey, useAppUpdateHandler } from '../useAppUpdateHandler'
 
-const releaseInfo: UpdateInfo = {
+const releaseInfo: UpdateRelease = {
+  candidateId: 'candidate',
   version: '2.1.0',
-  files: [],
-  path: 'Cherry-Studio.dmg',
-  sha512: 'checksum',
   releaseDate: '2026-07-30T00:00:00.000Z'
 }
 
@@ -91,6 +98,7 @@ describe('useAppUpdateHandler', () => {
     vi.clearAllMocks()
     mocks.handlers.clear()
     mocks.appUpdateState.manualCheck = false
+    mocks.requestState.mockImplementation(() => new Promise(() => {}))
   })
 
   it('maps available and progress events to the update state and notification', () => {
@@ -114,9 +122,27 @@ describe('useAppUpdateHandler', () => {
       available: true
     })
     expect(mocks.updateAppUpdateState).toHaveBeenNthCalledWith(2, {
-      downloading: false,
       downloadProgress: 100
     })
+  })
+
+  it('keeps the newer ready state when the initial snapshot arrives late', async () => {
+    const response = Promise.withResolvers<UpdateSnapshot>()
+    mocks.requestState.mockReturnValue(response.promise)
+    renderHook(() => useAppUpdateHandler())
+    const ready: UpdateSnapshot = {
+      sessionId: 'session',
+      revision: 2,
+      phase: 'ready',
+      release: releaseInfo,
+      percent: 100,
+      error: null
+    }
+    emit('app.updater.state_changed', ready)
+    await act(async () => response.resolve({ ...ready, revision: 1, phase: 'downloading', percent: 50 }))
+    expect(mocks.updateAppUpdateState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ downloaded: true, downloading: false, downloadProgress: 100 })
+    )
   })
 
   it('uses the latest manual-check state to surface no-update and downloaded results', async () => {

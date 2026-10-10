@@ -80,6 +80,50 @@ describe('dual-edition release archive', () => {
     return { options, metadata: await verifyArchive(options.directory, { repository, sha, tag, runId: '100' }) }
   }
 
+  it('publishes CN Velopack feeds to GitHub without adding the legacy CN installers', async () => {
+    const options = {
+      ...fixture(),
+      directory: path.join(root, 'archive'),
+      baseline: '',
+      repository,
+      sha,
+      runId: '100',
+      platform: 'all'
+    }
+    const directory = path.join(options.selected, 'release-v2.1.2-windows-latest-cn')
+    for (const arch of ['x64', 'arm64']) {
+      const filename = `CherryStudio-cn-2.1.2-win-${arch}-cn-full.nupkg`
+      const contents = Buffer.from(`package-${arch}`)
+      writeFileSync(path.join(directory, filename), contents)
+      writeFileSync(path.join(directory, `CherryStudio-cn-2.1.2-win-${arch}-Velopack.exe`), 'installer')
+      writeFileSync(
+        path.join(directory, `releases.win-${arch}-cn.json`),
+        JSON.stringify({
+          Assets: [
+            {
+              PackageId: 'CherryStudio-cn',
+              Version: '2.1.2',
+              Type: 'Full',
+              FileName: filename,
+              SHA256: createHash('sha256').update(contents).digest('hex'),
+              Size: contents.length
+            }
+          ]
+        })
+      )
+    }
+    await assembleArchive(options)
+    const metadata = await verifyArchive(options.directory, { repository, sha, tag: options.tag })
+    const github = path.join(root, 'github')
+    stageAssets(options.directory, github, metadata, ['global'])
+    expect(readdirSync(github)).toContain('releases.win-x64-cn.json')
+    expect(readdirSync(github)).toContain('CherryStudio-cn-2.1.2-win-arm64-Velopack.exe')
+    expect(readdirSync(github).some((file) => file.startsWith('Cherry-Studio-CN-'))).toBe(false)
+    await expect(
+      verifyGithubAssets(readdirSync(github), metadata, (file: string) => hashFile(path.join(github, file)))
+    ).resolves.toBeUndefined()
+  })
+
   it.each(['v2.1.2', 'v2.2.0-rc.1'])('keeps GitHub Global-only and GitCode complete for %s', async (tag) => {
     const { options, metadata } = await assemble(tag)
     const github = path.join(root, 'github')
@@ -104,7 +148,7 @@ describe('dual-edition release archive', () => {
     writeFileSync(path.join(github, 'unexpected-cn.yml'), '')
     await expect(
       verifyGithubAssets(readdirSync(github), metadata, (file: string) => hashFile(path.join(github, file)))
-    ).rejects.toThrow('exactly the Global')
+    ).rejects.toThrow('GitHub assets must contain')
   })
 
   it('replaces both editions of the selected platform and preserves other platforms from the same SHA', async () => {

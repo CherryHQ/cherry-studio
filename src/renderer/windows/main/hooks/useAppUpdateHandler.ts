@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
+import type { UpdateSnapshot } from '@shared/ipc/schemas/updater'
 
 const logger = loggerService.withContext('useAppUpdateHandler')
 
@@ -39,6 +40,44 @@ export function useAppUpdateHandler() {
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
   // notificationService is imported as a module-level singleton
   const manualCheckRef = useRef(appUpdateState.manualCheck)
+  useEffect(() => {
+    let active = true
+    let last: UpdateSnapshot | null = null
+    const apply = (snapshot: UpdateSnapshot) => {
+      if (!active || (last?.sessionId === snapshot.sessionId && snapshot.revision <= last.revision)) return
+      const restoreFailure = !last && snapshot.error === 'UPDATE_NOT_APPLIED'
+      last = snapshot
+      updateAppUpdateState({
+        info: snapshot.release,
+        checking: snapshot.phase === 'checking',
+        downloading: snapshot.phase === 'downloading' || snapshot.phase === 'cancelling',
+        downloaded: snapshot.phase === 'ready',
+        available: snapshot.release !== null,
+        downloadProgress: snapshot.percent ?? 0
+      })
+      if (restoreFailure) {
+        void notificationService.send({
+          id: `update-recovery-${snapshot.sessionId}`,
+          type: 'warning',
+          title: t('settings.about.updateError'),
+          message: t('settings.about.updateError'),
+          timestamp: Date.now(),
+          source: 'update'
+        })
+      }
+    }
+    const unsubscribe = ipcApi.on('app.updater.state_changed', apply)
+    void ipcApi
+      .request('app.updater.get_state')
+      .then(apply)
+      .catch((error) => {
+        if (active) logger.warn('Could not restore update state', error as Error)
+      })
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [t, updateAppUpdateState])
 
   // Keep ref in sync with current state
   useEffect(() => {
@@ -72,7 +111,6 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.download_progress', (progress) => {
     updateAppUpdateState({
-      downloading: progress.percent < 100,
       downloadProgress: progress.percent
     })
   })

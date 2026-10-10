@@ -1,5 +1,4 @@
-import type { UpdateInfo } from 'builder-util-runtime'
-
+import type { UpdateRelease } from '@shared/ipc/schemas/updater'
 import type { DoctorState } from '@shared/types/doctor'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
@@ -19,7 +18,7 @@ import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
-  info: UpdateInfo | null
+  info: UpdateRelease | null
   checking: boolean
   downloading: boolean
   downloaded: boolean

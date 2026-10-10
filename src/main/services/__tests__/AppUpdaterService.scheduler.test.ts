@@ -109,7 +109,7 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       // onInit subscribes to test_plan changes; return an unsubscribe fn.
       subscribeMultipleChanges: vi.fn(() => vi.fn())
     }
-    const powerStub = { registerShutdownHandler: vi.fn() }
+    const powerStub = { registerShutdownHandler: vi.fn(() => ({ dispose: vi.fn() })) }
     const analyticsStub = { trackAppUpdate: vi.fn() }
     const windowManagerStub = { broadcastToType: vi.fn() }
 
@@ -128,6 +128,8 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
           return analyticsStub
         case 'WindowManager':
           return windowManagerStub
+        case 'IpcApiService':
+          return { broadcastToType: vi.fn() }
         default:
           throw new Error(`unexpected application.get('${name}')`)
       }

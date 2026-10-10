@@ -148,11 +148,11 @@ describe('appHandlers', () => {
     expect(result).toEqual(releases)
   })
 
-  it('quit_and_install delegates to AppUpdaterService and resolves void', async () => {
-    const result = await appHandlers['app.updater.quit_and_install'](undefined, ctx)
-
-    expect(appUpdaterService.quitAndInstall).toHaveBeenCalledTimes(1)
-    expect(result).toBeUndefined()
+  it('rejects an install when the candidate is stale', async () => {
+    appUpdaterService.quitAndInstall.mockRejectedValue(new Error('STALE_CANDIDATE'))
+    await expect(appHandlers['app.updater.quit_and_install']({ candidateId: 'old' }, ctx)).rejects.toThrow(
+      'STALE_CANDIDATE'
+    )
   })
 
   it('delegates data reset requests to the owning domain module', async () => {

@@ -1,4 +1,3 @@
-import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,13 +16,14 @@ import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { UpdateRelease } from '@shared/ipc/schemas/updater'
 
 import { ReleaseNotes } from './ReleaseNotes'
 
 const logger = loggerService.withContext('UpdateDialog')
 
 interface ShowParams {
-  releaseInfo: UpdateInfo | null
+  releaseInfo: UpdateRelease | null
 }
 
 type Props = ShowParams & PopupInjectedProps<Record<string, never>>
@@ -41,14 +41,13 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   const handleInstall = async () => {
     setIsInstalling(true)
     try {
-      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-      // await handleSaveData()
-      await ipcApi.request('app.updater.quit_and_install')
+      if (!releaseInfo) throw new Error('STALE_CANDIDATE')
+      await ipcApi.request('app.updater.quit_and_install', { candidateId: releaseInfo.candidateId })
       resolve({})
     } catch (error) {
-      logger.error('Failed to save data before update', error as Error)
+      logger.error('Could not start installation', error as Error)
       setIsInstalling(false)
-      toast.error(t('update.saveDataError'))
+      toast.error(t('settings.about.updateError'))
     }
   }
 
@@ -74,7 +73,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
       ? releaseNotes
       : Array.isArray(releaseNotes)
         ? releaseNotes
-            .map((note: ReleaseNoteInfo) => note.note)
+            .map((note) => note.note)
             .filter(Boolean)
             .join('\n\n')
         : t('update.noReleaseNotes')

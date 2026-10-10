@@ -24,5 +24,6 @@ export {
   ServiceInitError,
   type ServiceMetadata,
   type ServiceProvider,
-  type ServiceToken
+  type ServiceToken,
+  type TeardownSummary
 } from './types'

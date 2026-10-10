@@ -7,6 +7,7 @@ const { parse } = require('yaml')
 
 const { EDITIONS, getExpectedReleaseArtifacts } = require('./edition')
 const { validateEditionArtifacts } = require('./validate-edition-artifacts')
+const { isVelopackArtifact, validateVelopackArtifacts } = require('./velopack-artifacts')
 
 const PLATFORMS = { windows: 'windows-latest', mac: 'macos-latest', linux: 'ubuntu-latest' }
 
@@ -46,6 +47,7 @@ async function validateFiles(directory, tag) {
       validateEditionArtifacts({ ...options, distDirectory })
       const expected = getExpectedReleaseArtifacts(options)
       const allowed = new Set([
+        ...(await validateVelopackArtifacts(distDirectory, edition, platform, tag.slice(1))),
         ...expected.files,
         ...expected.files.map((file) => `${file}.blockmap`),
         ...expected.manifests.map((manifest) => manifest.file)
@@ -146,7 +148,11 @@ async function assembleArchive({ selected, baseline, directory, repository, tag,
 function stageAssets(directory, destination, metadata, editions) {
   fs.mkdirSync(destination, { recursive: true })
   for (const file of Object.keys(metadata.files)) {
-    if (file.startsWith('common/') || editions.some((edition) => file.startsWith(`${edition}/`))) {
+    if (
+      file.startsWith('common/') ||
+      editions.some((edition) => file.startsWith(`${edition}/`)) ||
+      isVelopackArtifact(file)
+    ) {
       fs.linkSync(path.join(directory, file), path.join(destination, path.basename(file)))
     }
   }
@@ -154,10 +160,10 @@ function stageAssets(directory, destination, metadata, editions) {
 
 async function verifyGithubAssets(assets, metadata, readChecksum) {
   const expected = Object.entries(metadata.files).filter(
-    ([file]) => file.startsWith('global/') || file.startsWith('common/')
+    ([file]) => file.startsWith('global/') || file.startsWith('common/') || isVelopackArtifact(file)
   )
   if (JSON.stringify([...assets].sort()) !== JSON.stringify(expected.map(([file]) => path.basename(file)).sort())) {
-    throw new Error('GitHub assets must contain exactly the Global release files')
+    throw new Error('GitHub assets must contain the Global release files and both editions of Velopack')
   }
   for (const [file, hash] of expected) {
     if ((await readChecksum(path.basename(file))) !== hash)

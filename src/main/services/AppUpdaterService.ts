@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { existsSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
@@ -15,7 +18,10 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { UpdateRelease, UpdateSnapshot } from '@shared/ipc/schemas/updater'
 import type { AppEdition } from '@shared/types/appEdition'
+import type { SupportedPlatform } from '@shared/types/command'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
@@ -24,6 +30,8 @@ import {
   parseReleaseHistory,
   type ReleaseNotesEntry
 } from '@shared/utils/releaseNotes'
+
+import type { VelopackBackend } from './appUpdater/velopackBackend'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
@@ -53,6 +61,29 @@ function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition:
 class ReleaseNotesUpdater extends AppUpdater {
   constructor() {
     super(undefined)
+  }
+
+  async getSelectedDownloadUrls(): Promise<URL[]> {
+    const selected = this.updateInfoAndProvider
+    if (!selected) throw new Error('STALE_CANDIDATE')
+    return Promise.all(
+      selected.provider.resolveFiles(selected.info).map(async ({ url }) => {
+        if (url.origin !== 'https://releases.cherry-ai.com') return url
+        // Resolve the existing mirror decision without downloading the legacy installer.
+        const response = await net.fetch(url.href, {
+          headers: this.requestHeaders as Record<string, string>,
+          redirect: 'manual',
+          signal: AbortSignal.timeout(10_000)
+        })
+        try {
+          const location = response.headers.get('location')
+          if (![301, 302, 303, 307, 308].includes(response.status) || !location) throw new Error('INVALID_PACKAGE')
+          return new URL(location, url)
+        } finally {
+          await response.body?.cancel()
+        }
+      })
+    )
   }
 
   protected doDownloadUpdate(): Promise<string[]> {
@@ -88,25 +119,42 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'SchedulerService'])
+@DependsOn(['WindowManager', 'SchedulerService', 'PowerService'])
 export class AppUpdaterService extends BaseService {
+  private stopping = false
+  private generation = 0
+  private legacyGeneration = 0
+  private physicalOperation: Promise<unknown> | null = null
+  private installation: Promise<void> | null = null
+  private backend: VelopackBackend | null = null
+  private readonly usesVelopack = typeof __VELOPACK__ !== 'undefined' && __VELOPACK__
+  private snapshot: UpdateSnapshot = {
+    sessionId: randomUUID(),
+    revision: 0,
+    phase: 'idle',
+    release: null,
+    percent: null,
+    error: null
+  }
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
 
   protected async onInit(): Promise<void> {
+    this.stopping = false
+    if (this.usesVelopack) this.readPreviousAttempt()
     autoUpdater.logger = logger as Logger
     // Packaged builds use app-update.yml generated from electron-builder.yml;
     // development uses the repository's dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = application.get('PreferenceService').get('app.dist.auto_update.enabled')
+    autoUpdater.autoDownload = false
     // Never auto-install on quit - user must explicitly click "Install Now"
     // Auto-install on quit can cause issues: unexpected updates on restart,
     // corruption if system shuts down during install, or app uninstall on force shutdown
     autoUpdater.autoInstallOnAppQuit = false
 
-    this.registerAutoUpdaterListeners()
+    if (!this.usesVelopack) this.registerAutoUpdaterListeners()
 
     if (isWin) {
       ;(autoUpdater as NsisUpdater).installDirectory = application.getPath('app.install')
@@ -130,9 +178,12 @@ export class AppUpdaterService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    application.get('PowerService').registerShutdownHandler(() => {
-      autoUpdater.autoDownload = false
-    })
+    this.registerDisposable(
+      application.get('PowerService').registerShutdownHandler(() => {
+        autoUpdater.autoDownload = false
+        this.cancelDownload()
+      })
+    )
 
     // Development builds skip automatic checks but still support manual checks.
     // Portable builds do not perform update checks.
@@ -144,34 +195,46 @@ export class AppUpdaterService extends BaseService {
 
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
+      if (!this.isCurrent(this.legacyGeneration)) return
       logger.error('update error', error)
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
+      this.reportFailure(error)
     }
     autoUpdater.on('error', onError)
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
+      if (!this.isCurrent(this.legacyGeneration)) return
       logger.info('update available', releaseInfo)
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      const processedReleaseInfo = this.publicRelease(releaseInfo)
+      this.publish({ phase: 'downloading', release: processedReleaseInfo, percent: null, error: null })
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = () => {
+      if (!this.isCurrent(this.legacyGeneration)) return
+      this.publish({ phase: 'idle', release: null, percent: null })
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
+      if (!this.isCurrent(this.legacyGeneration)) return
+      this.publish({ percent: Math.min(100, Math.max(0, progress.percent)) })
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_progress', progress)
     }
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
     const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      if (!this.isCurrent(this.legacyGeneration) || !this.snapshot.release) return
+      const processedReleaseInfo = {
+        ...this.publicRelease(releaseInfo),
+        candidateId: this.snapshot.release.candidateId
+      }
+      this.publish({ phase: 'ready', release: processedReleaseInfo, percent: 100 })
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)
     }
@@ -308,6 +371,10 @@ export class AppUpdaterService extends BaseService {
   }
 
   public cancelDownload() {
+    if (this.snapshot.phase === 'installing') return
+    this.generation++
+    this.backend = null
+    this.publish({ phase: this.physicalOperation ? 'cancelling' : 'idle', release: null, percent: null, error: null })
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
     if (autoUpdater.autoDownload) {
@@ -328,27 +395,58 @@ export class AppUpdaterService extends BaseService {
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
   private async performUpdateCheck() {
+    if (this.stopping || this.installation) throw new IpcError('UPDATE_BUSY')
+    if (this.physicalOperation) return this.physicalOperation
+    if (this.snapshot.phase === 'ready') return
+    const generation = this.generation
+    this.legacyGeneration = generation
+    this.publish({ phase: 'checking', error: null })
+    const operation = this.runUpdateCheck(generation).catch((error: unknown) => {
+      if (this.isCurrent(generation)) {
+        this.reportFailure(error)
+        throw error
+      }
+    })
+    this.physicalOperation = operation
+    try {
+      return await operation
+    } finally {
+      if (this.physicalOperation === operation) this.physicalOperation = null
+      if (!this.stopping && this.snapshot.phase === 'cancelling') this.publish({ phase: 'idle' })
+    }
+  }
+
+  private async runUpdateCheck(generation: number) {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
+      this.publish({ phase: 'unavailable' })
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
       }
     }
 
+    if (this.usesVelopack && process.env.CHERRY_VELOPACK_UNAVAILABLE === '1') {
+      this.publish({ phase: 'unavailable', error: 'SDK_UNAVAILABLE' })
+      application
+        .get('IpcApiService')
+        .broadcastToType(WindowType.Main, 'app.updater.error', { message: 'SDK_UNAVAILABLE' })
+      return
+    }
+    if (this.usesVelopack) return this.checkVelopack(generation)
     await this.configureUpdaterForCheck()
+    if (!this.isCurrent(generation)) return
 
     this.updateCheckResult = await autoUpdater.checkForUpdates()
+    if (!this.isCurrent(generation)) return
     logger.info(
       `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${autoUpdater.channel}, currentVersion: ${autoUpdater.currentVersion}`
     )
 
     if (this.updateCheckResult?.isUpdateAvailable && !autoUpdater.autoDownload) {
-      // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
-      // do not use await, because it will block the return of this function
       logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
-      void autoUpdater.downloadUpdate(this.cancellationToken)
+      await autoUpdater.downloadUpdate(this.cancellationToken)
     }
 
     return {
@@ -361,7 +459,8 @@ export class AppUpdaterService extends BaseService {
     try {
       return await this.performUpdateCheck()
     } catch (error) {
-      logger.error('Failed to check for update:', error as Error)
+      if (!(error instanceof IpcError) && !this.stopping && this.snapshot.phase !== 'cancelling')
+        this.reportFailure(error)
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
@@ -377,6 +476,7 @@ export class AppUpdaterService extends BaseService {
    * discarded; cleanup is the single `unregister` registered in `onInit`.
    */
   private scheduleNextUpdateCheck(delayMs: number): void {
+    if (this.stopping) return
     application
       .get('SchedulerService')
       .registerSchedule(AUTO_UPDATE_SCHEDULE_ID, { kind: 'once', at: Date.now() + delayMs }, () =>
@@ -386,17 +486,14 @@ export class AppUpdaterService extends BaseService {
 
   private async runScheduledUpdateCheck(): Promise<void> {
     try {
-      // Gate per tick rather than subscribing to the preference: when disabled
-      // the loop keeps ticking (harmless no-op) and resumes automatically once
-      // re-enabled. Only the detection failure of `performUpdateCheck` drives
-      // backoff — the manual download trigger is fire-and-forget and surfaces
-      // its own errors via the `UpdateError` event.
+      // Keep the schedule alive while automatic checks are disabled.
       if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
         await this.performUpdateCheck()
       }
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
     } catch {
+      if (this.stopping) return
       this.updateCheckFailures++
       const backoffMs = computeBackoff(CHECK_RETRY_POLICY, this.updateCheckFailures)
       logger.warn(`scheduled update check failed, backing off for ${backoffMs}ms`)
@@ -408,9 +505,186 @@ export class AppUpdaterService extends BaseService {
     return Math.round(CHECK_INTERVAL_MS * (1 + (Math.random() * 2 - 1) * CHECK_JITTER_RATIO))
   }
 
-  public quitAndInstall() {
-    application.markQuitting()
-    setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  public quitAndInstall(candidateId: string): Promise<void> {
+    if (this.stopping || candidateId !== this.snapshot.release?.candidateId)
+      return Promise.reject(new IpcError('STALE_CANDIDATE'))
+    if (this.installation) return this.installation
+    if (this.snapshot.phase !== 'ready' || this.physicalOperation) return Promise.reject(new IpcError('UPDATE_BUSY'))
+    const generation = this.generation
+    this.installation = this.install(generation).finally(() => {
+      this.installation = null
+    })
+    return this.installation
+  }
+
+  private async install(generation: number): Promise<void> {
+    const backend = this.backend
+    let verified = !backend
+    let writtenJournal: string | undefined
+    try {
+      if (backend) await backend.verify()
+      verified = true
+      if (!this.isCurrent(generation)) throw new IpcError('STALE_CANDIDATE')
+      const release = this.snapshot.release!
+      const handoff = backend ? backend.createHandoff() : () => autoUpdater.quitAndInstall(true, true)
+      const journal = application.getPath('feature.updater.journal_file')
+      const temporary = application.getPath('feature.updater.journal_temp_file')
+      const record = {
+        schemaVersion: 1,
+        targetVersion: release.version,
+        attemptId: release.candidateId
+      }
+      writeFileSync(temporary, JSON.stringify({ ...record, stage: 'shutdown-requested' }), { mode: 0o600 })
+      renameSync(temporary, journal)
+      writtenJournal = journal
+      this.publish({ phase: 'installing' })
+      await application.quitWithAction({
+        run: () => {
+          writeFileSync(temporary, JSON.stringify({ ...record, stage: 'handoff-requested' }), { mode: 0o600 })
+          renameSync(temporary, journal)
+          handoff()
+        }
+      })
+    } catch (error) {
+      if (writtenJournal) {
+        try {
+          unlinkSync(writtenJournal)
+        } catch (cause) {
+          logger.warn('Could not clear cancelled update attempt', cause as Error)
+        }
+      }
+      if (this.isCurrent(generation)) {
+        if (!verified) this.backend = null
+        this.publish(
+          verified ? { phase: 'ready' } : { phase: 'idle', release: null, percent: null, error: 'INVALID_PACKAGE' }
+        )
+      }
+      throw new IpcError(error instanceof IpcError ? error.code : 'UPDATE_INSTALL_FAILED')
+    }
+  }
+
+  public getSnapshot(): UpdateSnapshot {
+    return this.snapshot
+  }
+
+  private readPreviousAttempt(): void {
+    const journal = application.getPath('feature.updater.journal_file')
+    if (!existsSync(journal)) return
+    try {
+      if (statSync(journal).size > 4096) throw new Error('Invalid update journal')
+      const record = JSON.parse(readFileSync(journal, 'utf8'))
+      if (record.schemaVersion !== 1 || typeof record.targetVersion !== 'string')
+        throw new Error('Invalid update journal')
+      if (record.targetVersion === app.getVersion()) {
+        logger.info('Updated version is running', { version: record.targetVersion })
+        unlinkSync(journal)
+      } else {
+        logger.warn('Previous update was not observed; a fresh check is required', {
+          targetVersion: record.targetVersion
+        })
+        this.publish({ error: 'UPDATE_NOT_APPLIED' })
+      }
+    } catch (error) {
+      logger.warn('Could not read update attempt', error as Error)
+    }
+  }
+
+  private publish(change: Partial<UpdateSnapshot>): void {
+    if (this.stopping) return
+    this.snapshot = { ...this.snapshot, ...change, revision: this.snapshot.revision + 1 }
+    try {
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.state_changed', this.snapshot)
+    } catch (error) {
+      logger.warn('Could not broadcast update state', error as Error)
+    }
+  }
+
+  private isCurrent(generation: number): boolean {
+    return !this.stopping && generation === this.generation
+  }
+
+  private publicRelease(info: UpdateInfo): UpdateRelease {
+    const localized = this.processReleaseInfo(info)
+    return {
+      candidateId: randomUUID(),
+      version: localized.version,
+      releaseNotes: localized.releaseNotes ?? undefined,
+      releaseDate: localized.releaseDate
+    }
+  }
+
+  private reportFailure(error: unknown): void {
+    logger.error('Update operation failed', error as Error)
+    if (this.snapshot.error) return
+    this.publish({ phase: 'idle', release: null, percent: null, error: 'UPDATE_FAILED' })
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', { message: 'UPDATE_FAILED' })
+  }
+
+  private async checkVelopack(generation: number): Promise<void> {
+    const { getVelopackChannel, VelopackBackend } = await import('./appUpdater/velopackBackend')
+    const { updateChannel, updateHeaders, edition } = await this.getUpdateRequest()
+    if (!this.isCurrent(generation)) return
+    const selector = new ReleaseNotesUpdater()
+    selector.logger = logger as Logger
+    selector.autoDownload = false
+    selector.autoInstallOnAppQuit = false
+    selector.requestHeaders = updateHeaders
+    selector.channel = updateChannel
+    selector.allowDowngrade = false
+    const result = await selector.checkForUpdates()
+    if (!this.isCurrent(generation)) return
+    if (!result) throw new Error('UPDATE_FAILED')
+    if (!result.isUpdateAvailable) {
+      this.publish({ phase: 'idle', release: null })
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
+      return
+    }
+    const downloadUrls = await selector.getSelectedDownloadUrls()
+    if (!this.isCurrent(generation)) return
+    const manifest = application.getPath('feature.updater.manifest_file')
+    const backend = new VelopackBackend(
+      {
+        RootAppDir: application.getPath('feature.updater.root'),
+        CurrentBinaryDir: application.getPath('app.install'),
+        UpdateExePath: application.getPath('feature.updater.helper_file'),
+        ManifestPath: existsSync(manifest) ? manifest : application.getPath('feature.updater.resources_manifest_file'),
+        PackagesDir: application.getPath('feature.updater.packages'),
+        IsPortable: process.platform !== 'win32'
+      },
+      edition,
+      getVelopackChannel(process.platform as SupportedPlatform, process.arch, edition),
+      app.getVersion()
+    )
+    await backend.resolve(result.updateInfo.version, downloadUrls)
+    if (!this.isCurrent(generation)) return
+    const release = this.publicRelease(result.updateInfo)
+    this.publish({ phase: 'downloading', release, percent: null })
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', release)
+    await backend.prepare((percent) => {
+      if (this.isCurrent(generation)) this.publish({ percent: Math.min(100, Math.max(0, percent)) })
+    })
+    if (!this.isCurrent(generation)) return
+    this.backend = backend
+    this.publish({ phase: 'ready', percent: 100 })
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', release)
+  }
+
+  protected async onStop(): Promise<void> {
+    this.stopping = true
+    this.generation++
+    this.cancellationToken.cancel()
+    this.updateCheckResult?.cancellationToken?.cancel()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.allSettled([this.physicalOperation, this.installation]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Updater drain timed out')), 3000)
+        })
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   /**

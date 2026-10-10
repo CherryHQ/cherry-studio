@@ -186,6 +186,7 @@ export class PowerService extends BaseService {
 
   /** Run all handlers serially, error-isolated, capped by a hard timeout. */
   private async executeShutdownHandlers(): Promise<void> {
+    application.markSystemShutdown()
     logger.info('Executing shutdown handlers', { count: this.shutdownHandlers.length })
     const run = (async () => {
       for (const handler of this.shutdownHandlers) {

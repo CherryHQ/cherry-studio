@@ -31,6 +31,16 @@ describe('packaged dependency contents', () => {
     ['win32', 'x64', 'win32-x64-msvc']
   ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch, nativeBindingTarget) => {
     const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
+    for (const [file, keep] of [
+      ['velopack_nodeffi_osx.node', platform === 'darwin'],
+      ['velopack_nodeffi_win_x64_msvc.node', platform === 'win32' && arch === 'x64'],
+      ['velopack_nodeffi_win_arm64_msvc.node', platform === 'win32' && arch === 'arm64'],
+      ['velopack_nodeffi_win_x86_msvc.node', false],
+      ['velopack_nodeffi_linux_x64_gnu.node', platform === 'linux' && arch === 'x64'],
+      ['velopack_nodeffi_linux_arm64_gnu.node', platform === 'linux' && arch === 'arm64']
+    ] as const) {
+      expect(includesFile(`node_modules/velopack/lib/native/${file}`, patterns), file).toBe(keep)
+    }
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
       for (const targetPlatform of ['darwin', 'linux', 'win32']) {
         for (const targetArch of ['arm64', 'x64']) {

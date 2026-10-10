@@ -158,7 +158,10 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
-    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
+    define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
+      __VELOPACK__: JSON.stringify(process.env.CHERRY_UPDATE_BACKEND === 'velopack')
+    },
     plugins: [
       {
         name: 'cherry-selection-panel',
@@ -178,7 +181,7 @@ export default defineConfig({
       externalizeDeps: {
         include: mainExternalModules
       },
-      lib: { entry: resolve(__dirname, 'src/main/main.ts') },
+      lib: { entry: { main: resolve(__dirname, 'src/main/services/appUpdater/startup.ts') } },
       rolldownOptions: {
         output: {
           manualChunks: (id) => {

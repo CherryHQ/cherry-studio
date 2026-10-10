@@ -14,6 +14,8 @@
 | [Linux Packaging](./contrib/linux-packaging.md) | Linux packaging flow using pinned better-sqlite3 prebuilds, with build commands and prebuild update steps |
 | [Release Workflow Operations](./contrib/release-workflow.md) | Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches |
 | [Test Plan](./contrib/test-plan.md) | The Test Plan process for beta and rc testing, covering user participation and maintainer PR workflow |
+| [Velopack 实施设计](./contrib/velopack-implementation-design.md) | Velopack 实施细节，定义依赖与 ownership、状态机、异步竞态、退出事务、接口、错误及测试契约 |
+| [Velopack 三平台接入方案](./contrib/velopack-integration-plan.md) | Velopack 三平台接入设计，覆盖更新策略、GitHub 发布、旧安装迁移、故障恢复和性能验收 |
 
 ## References
 

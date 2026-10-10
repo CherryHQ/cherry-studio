@@ -12,7 +12,8 @@ import {
   type ServiceConstructor,
   ServiceContainer,
   ServiceInitError,
-  SHUTDOWN_TIMEOUT_MS
+  SHUTDOWN_TIMEOUT_MS,
+  type TeardownSummary
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
@@ -29,6 +30,17 @@ interface QuitPreventionHold extends Disposable {
   readonly id: string
 }
 
+export interface ShutdownReport {
+  readonly clean: boolean
+  readonly bootConfigFlushed: boolean
+  readonly stop: TeardownSummary
+  readonly destroy: TeardownSummary
+}
+
+export interface ShutdownAction {
+  run(): void
+}
+
 /**
  * Application
  * Main application class that orchestrates the entire application lifecycle
@@ -39,7 +51,10 @@ export class Application {
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
-  private isShuttingDown = false
+  private shutdownPromise: Promise<ShutdownReport> | null = null
+  private shutdownAction: ShutdownAction | null = null
+  private systemShutdown = false
+  private quitActionStarted: (() => void) | null = null
   private _isQuitting = false
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
@@ -248,22 +263,27 @@ export class Application {
    * shutdown was clean is stated on the `Shutdown complete` line — that is the
    * first line to read when diagnosing one.
    */
-  public async shutdown(): Promise<void> {
-    if (this.isShuttingDown) {
-      logger.warn('Already shutting down')
-      return
-    }
-
-    this.isShuttingDown = true
+  public shutdown(): Promise<ShutdownReport> {
+    if (this.shutdownPromise) return this.shutdownPromise
     this._isQuitting = true
+    this.quitActionStarted?.()
+    this.quitActionStarted = null
+    // Publish the promise before cleanup can synchronously re-enter shutdown().
+    this.shutdownPromise = Promise.resolve().then(() => this.performShutdown())
+    return this.shutdownPromise
+  }
+
+  private async performShutdown(): Promise<ShutdownReport> {
     logger.info('Shutting down...')
 
     const start = performance.now()
+    let bootConfigFlushed = true
 
     // Flush boot config first (save pending debounced writes)
     try {
       bootConfigService.flush()
     } catch (e) {
+      bootConfigFlushed = false
       logger.warn('bootConfig flush error:', e as Error)
     }
 
@@ -277,15 +297,26 @@ export class Application {
     // is then skipped in destroy, so a flat list would carry its name twice with
     // no way to tell which pass each entry came from.
     const elapsed = `${(performance.now() - start).toFixed(3)}ms`
-    const unclean = [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
+    const unclean =
+      !bootConfigFlushed || [stopSummary, destroySummary].some((s) => s.timedOut.length > 0 || s.failed.length > 0)
     if (unclean) {
       logger.warn(`Shutdown complete, but not cleanly (${elapsed})`, { stop: stopSummary, destroy: destroySummary })
     } else {
       logger.info(`Shutdown complete (${elapsed})`)
     }
 
-    // Close logger LAST — after this point, no more logging
-    loggerService.finish()
+    const action = this.shutdownAction
+    this.shutdownAction = null
+    try {
+      if (action && !unclean && !this.systemShutdown && performance.now() - start < SHUTDOWN_TIMEOUT_MS) {
+        action.run()
+      }
+    } catch (error) {
+      logger.error('Shutdown action failed; it will not be retried', error as Error)
+    } finally {
+      loggerService.finish()
+    }
+    return { clean: !unclean, bootConfigFlushed, stop: stopSummary, destroy: destroySummary }
   }
 
   /**
@@ -447,6 +478,7 @@ export class Application {
     }
 
     process.on('SIGINT', async () => {
+      this.markSystemShutdown()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -459,6 +491,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
+      this.markSystemShutdown()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -491,8 +524,6 @@ export class Application {
 
     // will-quit: all windows closed, perform actual cleanup
     app.on('will-quit', (event) => {
-      if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
-
       event.preventDefault()
 
       // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
@@ -606,6 +637,9 @@ export class Application {
    * Used for critical operations (e.g. data migration) where quitting would cause corruption.
    */
   public preventQuit(reason: string): QuitPreventionHold {
+    if (this.shutdownAction || this.shutdownPromise || this._isQuitting) {
+      throw new Error('Application is quitting; critical work cannot start')
+    }
     const id = uuidv4()
     this.quitPreventionHolds.set(id, reason)
     logger.info(`Quit prevention hold added: "${reason}" (id: ${id})`)
@@ -620,6 +654,43 @@ export class Application {
 
   private canQuit(): boolean {
     return this.quitPreventionHolds.size === 0
+  }
+
+  public markSystemShutdown(): void {
+    this.systemShutdown = true
+  }
+
+  /** Reserves critical-work admission and runs the action only after clean teardown. */
+  public quitWithAction(action: ShutdownAction): Promise<void> {
+    if (!this.canQuit() || this._isQuitting || this.shutdownPromise || this.shutdownAction || this.systemShutdown) {
+      return Promise.reject(new Error('QUIT_BLOCKED'))
+    }
+    this.shutdownAction = action
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.shutdownAction !== action || this.shutdownPromise) return
+        this.shutdownAction = null
+        this.quitActionStarted = null
+        this._isQuitting = false
+        reject(new Error('QUIT_BLOCKED'))
+      }, 5000)
+      this.quitActionStarted = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+      setImmediate(() => {
+        if (this.shutdownAction !== action || this.shutdownPromise) return
+        try {
+          this.quit()
+        } catch (error) {
+          clearTimeout(timer)
+          this.shutdownAction = null
+          this.quitActionStarted = null
+          this._isQuitting = false
+          reject(error)
+        }
+      })
+    })
   }
 
   /**

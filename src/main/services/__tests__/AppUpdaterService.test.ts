@@ -1,5 +1,9 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
 import type { UpdateInfo } from 'builder-util-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
   vi.hoisted(() => ({
@@ -9,6 +13,19 @@ const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdate
     releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
     trackAppUpdateMock: vi.fn()
   }))
+
+const backendMock = vi.hoisted(() => ({ resolve: vi.fn(), prepare: vi.fn(), verify: vi.fn() }))
+vi.mock('../appUpdater/velopackBackend', () => ({
+  getVelopackChannel: () => 'win-x64-global',
+  VelopackBackend: class {
+    resolve = backendMock.resolve
+    prepare = backendMock.prepare
+    verify = backendMock.verify
+    createHandoff() {
+      return () => {}
+    }
+  }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -76,6 +93,7 @@ vi.mock('electron', () => ({
 
 vi.mock('electron-updater', () => {
   class MockAppUpdater {
+    updateInfoAndProvider: unknown = null
     allowDowngrade = false
     autoDownload = true
     autoInstallOnAppQuit = true
@@ -88,8 +106,22 @@ vi.mock('electron-updater', () => {
       releaseNotesUpdaterInstances.push(this as unknown as Record<string, unknown>)
     }
 
-    checkForUpdates() {
-      return releaseNotesCheckMock()
+    async checkForUpdates() {
+      const result = await releaseNotesCheckMock()
+      if (result?.isUpdateAvailable) {
+        this.updateInfoAndProvider = {
+          info: result.updateInfo,
+          provider: {
+            resolveFiles: (info: UpdateInfo) =>
+              (
+                info.files ?? [
+                  { url: `https://github.com/CherryHQ/cherry-studio/releases/download/v${info.version}/setup.exe` }
+                ]
+              ).map((file) => ({ url: new URL(file.url, 'https://releases.cherry-ai.com/') }))
+          }
+        }
+      }
+      return result
     }
   }
 
@@ -129,6 +161,9 @@ import { AppUpdaterService } from '../AppUpdaterService'
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -147,6 +182,152 @@ describe('AppUpdaterService', () => {
     autoUpdater.allowDowngrade = false
     autoUpdater.disableDifferentialDownload = false
     appUpdater = new AppUpdaterService()
+  })
+
+  it.each([
+    ['US', 'gitcode.com'],
+    ['CN', 'github.com']
+  ])('uses the managed mirror decision for %s even when it selects %s', async (country, host) => {
+    vi.stubGlobal('__VELOPACK__', true)
+    appUpdater = new AppUpdaterService()
+    vi.mocked(regionService.getCountry).mockResolvedValue(country)
+    backendMock.resolve.mockResolvedValue(undefined)
+    backendMock.prepare.mockResolvedValue(undefined)
+    releaseNotesCheckMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.0.0', files: [{ url: 'setup.exe', sha512: 'checksum' }] }
+    })
+    const selected = `https://${host}/CherryHQ/cherry-studio/releases/download/v2.0.0/setup.exe`
+    netFetchMock.mockResolvedValue(new Response(null, { status: 302, headers: { location: selected } }))
+    await appUpdater.checkForUpdates()
+    expect(appUpdater.getSnapshot()).toMatchObject({ phase: 'ready', release: { version: '2.0.0' }, error: null })
+    expect(backendMock.resolve).toHaveBeenCalledWith('2.0.0', [new URL(selected)])
+    expect(netFetchMock).toHaveBeenCalledExactlyOnceWith(
+      'https://releases.cherry-ai.com/setup.exe',
+      expect.objectContaining({
+        redirect: 'manual',
+        headers: expect.objectContaining({
+          'X-Region': country === 'CN' ? 'cn' : 'global',
+          'Client-Id': 'test-client-id'
+        })
+      })
+    )
+  })
+
+  it.each([200, 404, 503])(
+    'does not download from a fallback host when mirror resolution returns %s',
+    async (status) => {
+      vi.stubGlobal('__VELOPACK__', true)
+      appUpdater = new AppUpdaterService()
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { version: '2.0.0', files: [{ url: 'setup.exe', sha512: 'checksum' }] }
+      })
+      netFetchMock.mockResolvedValue(new Response(null, { status }))
+      await appUpdater.checkForUpdates()
+      expect(appUpdater.getSnapshot()).toMatchObject({ phase: 'idle', release: null, error: 'UPDATE_FAILED' })
+      expect(backendMock.prepare).not.toHaveBeenCalled()
+    }
+  )
+
+  it('discards a mirror response that arrives after cancellation', async () => {
+    vi.stubGlobal('__VELOPACK__', true)
+    appUpdater = new AppUpdaterService()
+    const response = Promise.withResolvers<Response>()
+    const started = Promise.withResolvers<void>()
+    releaseNotesCheckMock.mockResolvedValue({
+      isUpdateAvailable: true,
+      updateInfo: { version: '2.0.0', files: [{ url: 'setup.exe', sha512: 'checksum' }] }
+    })
+    netFetchMock.mockImplementation(() => {
+      started.resolve()
+      return response.promise
+    })
+    const checking = appUpdater.checkForUpdates()
+    await started.promise
+    appUpdater.cancelDownload()
+    response.resolve(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://gitcode.com/CherryHQ/cherry-studio/releases/download/v2.0.0/setup.exe'
+        }
+      })
+    )
+    await checking
+    expect(appUpdater.getSnapshot()).toMatchObject({ phase: 'idle', release: null })
+    expect(backendMock.prepare).not.toHaveBeenCalled()
+  })
+
+  it('does not make a cancelled download installable when the SDK finishes late', async () => {
+    vi.stubGlobal('__VELOPACK__', true)
+    appUpdater = new AppUpdaterService()
+    const prepared = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    backendMock.resolve.mockResolvedValue(undefined)
+    backendMock.prepare.mockImplementation(() => {
+      started.resolve()
+      return prepared.promise
+    })
+    releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })
+    const checking = appUpdater.checkForUpdates()
+    await started.promise
+    const candidate = appUpdater.getSnapshot().release!.candidateId
+    appUpdater.cancelDownload()
+    expect(appUpdater.getSnapshot().phase).toBe('cancelling')
+    const duplicate = appUpdater.checkForUpdates()
+    prepared.resolve()
+    await Promise.all([checking, duplicate])
+    expect(appUpdater.getSnapshot()).toMatchObject({ phase: 'idle', release: null })
+    await expect(appUpdater.quitAndInstall(candidate)).rejects.toMatchObject({ code: 'STALE_CANDIDATE' })
+    expect(backendMock.prepare).toHaveBeenCalledTimes(1)
+  })
+
+  it('revokes installation eligibility when the cached package fails verification', async () => {
+    vi.stubGlobal('__VELOPACK__', true)
+    appUpdater = new AppUpdaterService()
+    backendMock.resolve.mockResolvedValue(undefined)
+    backendMock.prepare.mockResolvedValue(undefined)
+    backendMock.verify.mockRejectedValue(new Error('CHECKSUM_MISMATCH'))
+    releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })
+    await appUpdater.checkForUpdates()
+    expect(appUpdater.getSnapshot().phase).toBe('ready')
+    const candidate = appUpdater.getSnapshot().release!.candidateId
+    await expect(appUpdater.quitAndInstall(candidate)).rejects.toThrow()
+    expect(appUpdater.getSnapshot()).toMatchObject({ phase: 'idle', release: null, error: 'INVALID_PACKAGE' })
+  })
+
+  it('keeps a valid package after quit rejection and can install it offline with a durable attempt', async () => {
+    vi.stubGlobal('__VELOPACK__', true)
+    appUpdater = new AppUpdaterService()
+    backendMock.resolve.mockResolvedValue(undefined)
+    backendMock.prepare.mockResolvedValue(undefined)
+    backendMock.verify.mockResolvedValue(undefined)
+    releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } })
+    await appUpdater.checkForUpdates()
+    const candidateId = appUpdater.getSnapshot().release!.candidateId
+    releaseNotesCheckMock.mockRejectedValue(new Error('offline'))
+    const root = mkdtempSync(path.join(tmpdir(), 'cherry-update-attempt-'))
+    const journal = path.join(root, 'attempt.json')
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key) => (key.endsWith('temp_file') ? path.join(root, 'attempt.tmp') : journal))
+    try {
+      vi.mocked(application.quitWithAction).mockRejectedValueOnce(new Error('QUIT_BLOCKED'))
+      await expect(appUpdater.quitAndInstall(candidateId)).rejects.toThrow()
+      expect(appUpdater.getSnapshot().phase).toBe('ready')
+      expect(existsSync(journal)).toBe(false)
+      await appUpdater.quitAndInstall(candidateId)
+      expect(JSON.parse(readFileSync(journal, 'utf8'))).toMatchObject({
+        targetVersion: '2.0.0',
+        stage: 'shutdown-requested',
+        attemptId: candidateId
+      })
+      expect(releaseNotesCheckMock).toHaveBeenCalledTimes(1)
+    } finally {
+      paths.mockRestore()
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   describe('read-only update query', () => {

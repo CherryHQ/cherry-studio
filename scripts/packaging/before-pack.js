@@ -184,11 +184,16 @@ exports.keepPackages = keepPackages
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
   const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
+  const velopackTarget =
+    platform === 'darwin'
+      ? 'osx'
+      : `${platform === 'win32' ? 'win' : 'linux'}_${arch}_${platform === 'win32' ? 'msvc' : 'gnu'}`
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
     `!**/node_modules/@mariozechner/clipboard-!(${nativeBindingTarget})/**`,
     `!**/node_modules/@koromix/koffi-!(${platform}-${arch})/**`,
     `!**/node_modules/node-addon-require-builtin-!(${nativeBindingTarget})/**`,
+    `!**/node_modules/velopack/lib/native/!(velopack_nodeffi_${velopackTarget}.node)`,
     `!**/node_modules/{node-pty,selection-hook}/prebuilds/!(${platform}-${arch})/**`
   ]
 }

@@ -292,6 +292,37 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
+      - name: Set up Velopack build runtime
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install pinned Velopack CLI
+        shell: bash
+        run: |
+          dotnet tool install --tool-path "$RUNNER_TEMP/cherry-velopack" vpk --version 1.2.161
+          echo "$RUNNER_TEMP/cherry-velopack" >> "$GITHUB_PATH"
+
+      - name: Build Velopack packages
+        run: node scripts/packaging/velopack.js "${{ matrix.edition }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          WIN_SIGN: ${{ matrix.os == 'windows-latest' && 'true' || '' }}
+          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
+          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
+          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
       - name: Validate edition release artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
 
@@ -336,6 +367,8 @@ jobs:
           path: |
             dist/*.exe
             dist/*.zip
+            dist/*.nupkg
+            dist/releases.*.json
             dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
@@ -350,6 +383,8 @@ jobs:
           path: |
             dist/*.zip
             dist/*.dmg
+            dist/*.nupkg
+            dist/releases.*.json
             dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
@@ -363,6 +398,8 @@ jobs:
           name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.AppImage
+            dist/*.nupkg
+            dist/releases.*.json
             dist/*.snap
             dist/*.deb
             dist/*.rpm
