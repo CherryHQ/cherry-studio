@@ -45,6 +45,7 @@ const defaultMockDb = {
   insert: vi.fn(() => makeQueryBuilderMock()),
   update: vi.fn(() => makeQueryBuilderMock()),
   delete: vi.fn(() => makeQueryBuilderMock()),
+  all: vi.fn(() => []),
   run: vi.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
   transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(defaultMockDb))
 }

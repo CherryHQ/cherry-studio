@@ -4,12 +4,12 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { probeKnowledgeFile, probeKnowledgeSourcePath } from './pathStorage'
 
-export type IndexableKnowledgeItem = KnowledgeItemOf<'file' | 'url' | 'note'>
+export type IndexableKnowledgeItem = KnowledgeItemOf<'file' | 'url' | 'note' | 'external'>
 
 export type ContainerKnowledgeItem = KnowledgeItemOf<'directory'>
 
 export function isIndexableKnowledgeItem(item: KnowledgeItem): item is IndexableKnowledgeItem {
-  return item.type === 'file' || item.type === 'url' || item.type === 'note'
+  return item.type === 'file' || item.type === 'url' || item.type === 'note' || item.type === 'external'
 }
 
 export function isContainerKnowledgeItem(item: KnowledgeItem): item is ContainerKnowledgeItem {
@@ -28,6 +28,7 @@ export type MaterialFieldSource =
   | Pick<KnowledgeItemOf<'file'>, 'id' | 'type' | 'data'>
   | Pick<KnowledgeItemOf<'url'>, 'id' | 'type' | 'data'>
   | Pick<KnowledgeItemOf<'note'>, 'id' | 'type' | 'data'>
+  | Pick<KnowledgeItemOf<'external'>, 'id' | 'type' | 'data'>
 
 /**
  * A material's stable relative path. A file uses its stored path (the processed
@@ -39,6 +40,9 @@ export type MaterialFieldSource =
 export function toMaterialRelativePath(item: MaterialFieldSource): string {
   if (item.type === 'file') {
     return item.data.indexedRelativePath ?? item.data.relativePath
+  }
+  if (item.type === 'external') {
+    return item.data.relativePath
   }
   if (!item.data.relativePath) {
     throw new Error(`Knowledge ${item.type} item ${item.id} has no captured snapshot relativePath for its material`)
@@ -72,6 +76,9 @@ export async function classifyKnowledgeItemRestoreSource(
   if (item.type === 'file') {
     return toSourceState(await probeKnowledgeFile(baseId, toMaterialRelativePath(item)))
   }
+  if (item.type === 'external') {
+    return toSourceState(await probeKnowledgeFile(baseId, item.data.relativePath))
+  }
   return 'rebuildable'
 }
 
@@ -86,6 +93,9 @@ export async function classifyKnowledgeItemRestoreSource(
  * delete-and-re-add, and a raw parse error would surface as an opaque reindex failure instead.
  */
 export async function classifyKnowledgeItemReacquireSource(item: KnowledgeItem): Promise<KnowledgeItemSourceState> {
+  if (item.type === 'external') {
+    return toSourceState(await probeKnowledgeFile(item.baseId, item.data.relativePath))
+  }
   if (item.type !== 'file' && item.type !== 'directory') {
     return 'rebuildable'
   }

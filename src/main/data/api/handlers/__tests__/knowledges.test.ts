@@ -5,13 +5,21 @@ const {
   getKnowledgeBaseByIdMock,
   updateKnowledgeBaseMock,
   listKnowledgeItemsMock,
-  getKnowledgeItemByIdMock
+  getKnowledgeItemByIdMock,
+  getKnowledgeItemIdsWithActiveOwnedSubtreeMock
 } = vi.hoisted(() => ({
   listKnowledgeBasesCursorMock: vi.fn(),
   getKnowledgeBaseByIdMock: vi.fn(),
   updateKnowledgeBaseMock: vi.fn(),
   listKnowledgeItemsMock: vi.fn(),
-  getKnowledgeItemByIdMock: vi.fn()
+  getKnowledgeItemByIdMock: vi.fn(),
+  getKnowledgeItemIdsWithActiveOwnedSubtreeMock: vi.fn()
+}))
+
+vi.mock('@data/services/ExternalKnowledgeDocumentService', () => ({
+  externalKnowledgeDocumentService: {
+    getKnowledgeItemIdsWithActiveOwnedSubtree: getKnowledgeItemIdsWithActiveOwnedSubtreeMock
+  }
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
@@ -44,6 +52,7 @@ const ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 describe('knowledgeHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getKnowledgeItemIdsWithActiveOwnedSubtreeMock.mockReturnValue(new Set())
   })
 
   describe('/knowledge-bases', () => {
@@ -264,8 +273,31 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases/:id/items', () => {
+    it('projects subtree-aware deletion capability without changing item ownership data', async () => {
+      listKnowledgeItemsMock.mockReturnValueOnce({
+        items: [{ id: 'managed-external' }, { id: 'static-external' }],
+        total: 2,
+        nextCursor: undefined
+      })
+      getKnowledgeItemIdsWithActiveOwnedSubtreeMock.mockReturnValueOnce(new Set(['managed-external']))
+
+      const result = await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
+        params: { id: 'kb-1' }
+      })
+      const payload = 'data' in result ? result.data : result
+
+      expect(payload.items).toEqual([
+        { id: 'managed-external', canDelete: false },
+        { id: 'static-external', canDelete: true }
+      ])
+      expect(getKnowledgeItemIdsWithActiveOwnedSubtreeMock).toHaveBeenCalledWith('kb-1', [
+        'managed-external',
+        'static-external'
+      ])
+    })
+
     it('should apply the default limit when query is missing', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
+      listKnowledgeItemsMock.mockReturnValueOnce({
         items: [],
         total: 0,
         nextCursor: undefined
@@ -281,7 +313,7 @@ describe('knowledgeHandlers', () => {
     })
 
     it('should pass cursor and type/group filters to knowledge item listing', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
+      listKnowledgeItemsMock.mockReturnValueOnce({
         items: [],
         total: 0,
         nextCursor: undefined
@@ -306,7 +338,7 @@ describe('knowledgeHandlers', () => {
     })
 
     it('should pass null groupId root filters to knowledge item listing', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
+      listKnowledgeItemsMock.mockReturnValueOnce({
         items: [],
         total: 0,
         nextCursor: undefined
