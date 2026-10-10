@@ -397,6 +397,57 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('merges a pair-match denial with the historical owner whose plain name it strips to', async () => {
+    // A's configured name `skills` is a builtin, so A registers under its UUID U, and B named
+    // `${U}__x` flattens onto A's `x__y` (`mcp__U__x__y`), counter-allocating
+    // `mcp__U__x__y_<hash>` which a user saves. After A re-exposes `x__y_<hash>` and both
+    // reconnect, the saved string pair-matches A's NEW tool through its UUID prefix — the
+    // early return must not hide B, whose plain name is the stripped candidate.
+    const uuidA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const bKey = `${uuidA}__x`
+    const a1 = createServer([tool('x__y')], async () => ({ content: [{ type: 'text', text: 'a' }] }))
+    const b1 = createServer([tool('y')], async () => ({ content: [{ type: 'text', text: 'b' }] }))
+    const both = await buildDshCherryToolBridge(
+      {
+        a: { id: uuidA, name: uuidA, connect: a1.connect },
+        b: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: bKey, connect: b1.connect }
+      },
+      bridgeOptions()
+    )
+    const names1 = both.tools.map(({ name }) => name)
+    expect(names1[0]).toBe(`mcp__${uuidA}__x__y`)
+    const savedDenial = names1[1]
+    expect(savedDenial).toMatch(new RegExp(`^mcp__${uuidA}__x__y_[0-9a-f]{12}$`))
+    await both.close()
+
+    const tail = savedDenial.slice(-12)
+    const a2 = createServer([tool(`x__y_${tail}`)], async () => ({ content: [{ type: 'text', text: 'a' }] }))
+    const b2 = createServer([tool('y')], async () => ({ content: [{ type: 'text', text: 'b' }] }))
+    const after = await buildDshCherryToolBridge(
+      {
+        a: { id: uuidA, name: uuidA, connect: a2.connect },
+        b: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: bKey, connect: b2.connect }
+      },
+      bridgeOptions()
+    )
+    const names2 = after.tools.map(({ name }) => name)
+    expect(names2).toContain(savedDenial)
+    expect(names2).toContain(`mcp__${uuidA}__x__y`)
+
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    expect(
+      translateMcpToolRulesToRuntimeNames(
+        [savedDenial],
+        new Map([
+          [uuidA, uuidA],
+          ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', bKey]
+        ]),
+        after.ruleNames
+      )
+    ).toEqual([savedDenial, `mcp__${uuidA}__x__y`])
+    await after.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],

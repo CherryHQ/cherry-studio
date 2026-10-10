@@ -189,7 +189,16 @@ export function translateMcpToolRulesToRuntimeNames(
         const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
         if (mapped !== undefined) {
           const pairNames = runtimeNameByRule.get(`${mapped}\u0000${rest.slice(delimiterIndex + 2)}`)
-          if (pairNames) return [...pairNames]
+          if (pairNames) {
+            // The saved string can simultaneously be another pair's historical collision/counter
+            // name: a reconnect may bake the disambiguator into a real tool's name (so this pair
+            // match names the NEW tool exactly) while the originally disabled identity moved to
+            // the stripped plain name. Merge the stripped-base candidates instead of
+            // short-circuiting; rules without a disambiguator tail keep their exact pair match.
+            const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
+            const baseNames = stripped !== candidate ? runtimeNameByRule.get(stripped) : undefined
+            return baseNames ? [...new Set([...pairNames, ...baseNames])] : [...pairNames]
+          }
           candidate = `mcp__${mapped}${rest.slice(delimiterIndex)}`
         }
       }
