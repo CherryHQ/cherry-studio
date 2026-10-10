@@ -1,6 +1,8 @@
 import { isIPv4 } from 'node:net'
 import os from 'node:os'
 
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+
 import { application } from '@application'
 import {
   OLLAMA_NUM_CTX_CAPS_SHARED_CACHE_KEY,
@@ -78,7 +80,7 @@ export function resolveModelRequestContextWindow(
   return resolveEffectiveRequestContextWindow(model.contextWindow, resolution.numCtx)
 }
 
-export function readOllamaWireNumCtx(providerOptions: Record<string, unknown>): number | undefined {
+export function readOllamaWireNumCtx(providerOptions: ProviderOptions): number | undefined {
   const ollama = providerOptions.ollama
   if (!ollama || typeof ollama !== 'object' || Array.isArray(ollama)) return undefined
   const options = (ollama as Record<string, unknown>).options
@@ -87,11 +89,8 @@ export function readOllamaWireNumCtx(providerOptions: Record<string, unknown>): 
   return typeof numCtx === 'number' && Number.isFinite(numCtx) ? numCtx : undefined
 }
 
-export function writeOllamaWireNumCtx(
-  providerOptions: Record<string, Record<string, unknown>>,
-  numCtx: number
-): Record<string, Record<string, unknown>> {
-  const ollama = providerOptions.ollama ?? {}
+export function writeOllamaWireNumCtx(providerOptions: ProviderOptions, numCtx: number): ProviderOptions {
+  const ollama = (providerOptions.ollama ?? {}) as Record<string, unknown>
   const options =
     ollama.options && typeof ollama.options === 'object' && !Array.isArray(ollama.options)
       ? (ollama.options as Record<string, unknown>)
