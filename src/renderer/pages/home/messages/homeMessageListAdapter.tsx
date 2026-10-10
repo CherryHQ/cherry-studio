@@ -587,11 +587,11 @@ export function useHomeMessageListProviderValue({
             return
           }
           const filtered = freshParts.filter((_, index) => index !== freshResolved.index)
-          // A removed persisted no-response error would recreate itself through the
-          // display fallback, so record the dismissal like the synthetic fallback.
-          const removedData = (freshResolved.part as unknown as { data?: { name?: unknown } }).data
-          const durableParts =
-            removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
+          // Removing the last visible error from an otherwise empty failed turn would
+          // recreate a synthetic no-response block on the next render.
+          const wouldReshowFallback =
+            !filtered.some((part) => part.type === 'data-error') && !hasRenderableContent(filtered)
+          const durableParts = wouldReshowFallback ? [...filtered, createDismissedNoResponsePart()] : filtered
 
           if (liveMessageIdsRef.current?.includes(messageId)) {
             logger.warn('Skipping error dismissal for a live message', { messageId })

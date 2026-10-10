@@ -608,7 +608,13 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('agent-session:s1')?.status).toBe('pending')
 
       current.close()
-      await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+      await vi.waitFor(() => expect(currentListener.errorResults).toHaveLength(1))
+
+      expect(currentListener.doneResults).toEqual([])
+      expect(currentListener.errorResults[0]).toMatchObject({
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('agent-session:s1')?.status).toBe('error')
     })
 
     it('converts an empty successful ordinary turn into a no-response error', async () => {
@@ -1853,10 +1859,14 @@ describe('AiStreamManager', () => {
       feed.close()
       await suspended
 
-      expect(renderer.doneResults).toHaveLength(1)
-      expect(renderer.doneResults[0].isTopicDone).toBe(false)
+      expect(renderer.errorResults).toHaveLength(1)
+      expect(renderer.errorResults[0]).toMatchObject({ error: { name: 'NoResponseError' } })
+      expect(renderer.errorResults[0].isTopicDone).toBe(true)
+      expect(renderer.doneResults).toEqual([])
       expect(persistence.doneResults).toEqual([])
       expect(runtime.doneResults).toEqual([])
+      expect(persistence.errorResults).toEqual([])
+      expect(runtime.errorResults).toEqual([])
     })
 
     it('does not let trace flush failure block terminal completion', async () => {

@@ -628,6 +628,59 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(displayParts.some((part) => part.type === 'data-error')).toBe(false)
   })
 
+  it('keeps a dismissed provider error dismissed on re-render', async () => {
+    const persistedParts = [
+      {
+        type: 'data-error',
+        data: { name: 'ProviderError', message: 'rate limited', stack: null }
+      }
+    ] as CherryMessagePart[]
+    const errorMessage = {
+      id: 'provider-error-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: persistedParts
+    } as CherryUIMessage
+
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: persistedParts } })
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'provider-error-message',
+      part: persistedParts[0]
+    })
+    let value: MessageListProviderValue | undefined
+    const { rerender } = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[errorMessage]}
+        partsByMessageId={{ 'provider-error-message': persistedParts }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({
+      messageId: 'provider-error-message',
+      partId: 'provider-error-message:0'
+    })
+
+    const written = vi.mocked(chatWriteMock.editMessage).mock.calls.at(-1)?.[1] ?? []
+    expect(written.some((part) => part.type === 'data-no-response-dismissed')).toBe(true)
+    expect(written.some((part) => part.type === 'data-error')).toBe(false)
+
+    rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[{ ...errorMessage, parts: written }]}
+        partsByMessageId={{ 'provider-error-message': written }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    const displayParts = value?.state.partsByMessageId['provider-error-message'] ?? []
+    expect(displayParts.some((part) => part.type === 'data-error')).toBe(false)
+    vi.mocked(resolvePartFromParts).mockReset()
+  })
+
   it('drops a synthetic error dismissal when an in-place retry replaced the parts', async () => {
     const retryMessage = {
       id: 'retry-message',
