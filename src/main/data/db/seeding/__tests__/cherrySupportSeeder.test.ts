@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq, sql } from 'drizzle-orm'
+import { app } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -7,10 +12,6 @@ import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeede
 import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq, sql } from 'drizzle-orm'
-import { app } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db'], role: string) {
   return db

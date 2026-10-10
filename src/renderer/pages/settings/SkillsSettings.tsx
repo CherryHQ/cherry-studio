@@ -1,15 +1,25 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+
+type SkillScopeTab = 'all' | 'system' | 'builtin'
 
 export function SkillsSettings() {
   const { t } = useTranslation()
-  const [scope, setScope] = useState('all')
+  const navigate = useNavigate()
+  const launchSkill = useSkillLauncher()
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
+  // The tab lives in the route search so it survives the round-trip through the detail route.
+  const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
+  const scope = search.scope ?? 'all'
+  const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
   const filterResource = useCallback(
     (resource: ResourceItem) =>
       resource.type === 'skill' &&
@@ -28,6 +38,10 @@ export function SkillsSettings() {
             variant="settings"
             title={t('settings.skills.title')}
             className="min-h-0 flex-1"
+            onOpenSkill={(skill) =>
+              void navigate({ to: '/settings/skills/$skillId', params: { skillId: skill.id }, search: { scope } })
+            }
+            onLaunchSkill={launchSkill}
             filterResource={filterResource}
             allowColumnToggle
             toolbarLeading={

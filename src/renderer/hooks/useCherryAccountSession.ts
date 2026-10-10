@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type CherryCloudStatusLoadState = 'error' | 'loading' | 'ready'
 
@@ -62,14 +63,18 @@ export function useCherryAccountSession(enabled = true) {
         if (requestId === requestRef.current) applyStatus(nextStatus)
       } catch (error) {
         if (requestId !== requestRef.current) return
-        const message =
+        let message = t(
           action === 'revoke'
-            ? t('settings.provider.cherry_cloud.logout_failed')
-            : action === 'login' &&
-                error instanceof IpcError &&
-                error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE
-              ? t('error.http.503')
-              : t('settings.provider.cherry_cloud.sign_in_failed')
+            ? 'settings.provider.cherry_cloud.logout_failed'
+            : 'settings.provider.cherry_cloud.sign_in_failed'
+        )
+        if (action === 'login' && error instanceof IpcError) {
+          if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED) {
+            message = t('settings.provider.cherry_cloud.upgrade_required')
+          } else if (error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE) {
+            message = t('error.http.503')
+          }
+        }
         toast.error(message)
       } finally {
         setPendingAction((current) => (current === action ? null : current))

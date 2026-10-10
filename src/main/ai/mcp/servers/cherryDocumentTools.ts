@@ -2,15 +2,15 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
+import type { McpServer } from '@modelcontextprotocol/server'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
-import { isAbortError } from '@main/utils/error'
 import { isSameOrInside, realpath } from '@main/utils/file'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   TO_MARKDOWN_DESCRIPTION,
   TO_MARKDOWN_TOOL_NAME,
@@ -18,7 +18,6 @@ import {
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 export interface CherryDocumentContext {
   agentDataPath: string
@@ -38,23 +37,6 @@ let anydocModulePromise: Promise<AnydocModule> | undefined
 
 function loadAnydocModule(): Promise<AnydocModule> {
   return (anydocModulePromise ??= import('@firecrawl/anydoc'))
-}
-
-function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
-  const json = z.toJSONSchema(schema) as Record<string, unknown>
-  delete json.$schema
-  return json as Tool['inputSchema']
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason ?? Object.assign(new Error('aborted'), { name: 'AbortError' })
-  }
-}
-
-function errorResult(error: unknown): CallToolResult {
-  const message = error instanceof Error ? error.message : String(error)
-  return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
 }
 
 /**
@@ -107,36 +89,22 @@ async function cleanupStaleOutputs(directory: string): Promise<void> {
   )
 }
 
-export class CherryDocumentTools {
-  constructor(private readonly context: CherryDocumentContext) {}
-
-  tools(): Tool[] {
-    return [
-      {
-        name: TO_MARKDOWN_TOOL_NAME,
-        description: TO_MARKDOWN_DESCRIPTION,
-        inputSchema: toMcpInputSchema(toMarkdownInputSchema)
-      }
-    ]
-  }
-
-  handles(toolName: string): boolean {
-    return toolName === TO_MARKDOWN_TOOL_NAME
-  }
-
-  async call(args: unknown, signal: AbortSignal): Promise<CallToolResult> {
-    try {
-      const { path: sourcePath } = toMarkdownInputSchema.parse(args)
-      const source = await resolveDocumentSource(this.context, sourcePath)
-      throwIfAborted(signal)
+export function registerDocumentTools(server: McpServer, context: CherryDocumentContext): void {
+  server.registerTool(
+    TO_MARKDOWN_TOOL_NAME,
+    { description: TO_MARKDOWN_DESCRIPTION, inputSchema: toMarkdownInputSchema },
+    async ({ path: sourcePath }, ctx) => {
+      const signal = ctx.mcpReq.signal
+      const source = await resolveDocumentSource(context, sourcePath)
+      signal.throwIfAborted()
 
       const anydoc = await loadAnydocModule()
       const format = anydoc.formatFromExtension(path.extname(source.filename)) ?? undefined
       const markdown = (await anydoc.toMarkdownBytes(Buffer.from(source.data, 'base64'), format)).trim()
       if (!markdown) throw new Error('Document conversion produced no text')
-      throwIfAborted(signal)
+      signal.throwIfAborted()
 
-      const outputDirectory = path.join(this.context.agentDataPath, 'tmp', 'to-markdown')
+      const outputDirectory = path.join(context.agentDataPath, 'tmp', 'to-markdown')
       await mkdir(outputDirectory, { recursive: true })
       await cleanupStaleOutputs(outputDirectory).catch((error) => {
         logger.warn('Failed to clean stale document conversion outputs', error as Error)
@@ -146,11 +114,6 @@ export class CherryDocumentTools {
       await writeFile(outputPath, markdown, { encoding: 'utf-8', flag: 'wx' })
       const output = toMarkdownOutputSchema.parse({ path: outputPath, chars: markdown.length })
       return { content: [{ type: 'text', text: JSON.stringify(output) }] }
-    } catch (error) {
-      if (signal.aborted || isAbortError(error)) throw error
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('cherry-tools document conversion failed', normalizedError)
-      return errorResult(normalizedError)
     }
-  }
+  )
 }

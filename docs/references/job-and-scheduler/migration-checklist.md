@@ -34,7 +34,6 @@ Use this checklist when migrating an existing background-work owner to JobManage
 - [ ] Map existing rows → `jobTable` / `jobScheduleTable` rows
 - [ ] If the SQLite schema changes, update `src/main/data/db/schemas/` and append a generated migration with `pnpm db:migrations:generate`
 - [ ] If v1 source data must enter v2, update the owning migrator under `src/main/data/migration/v2/migrators/`; do not add a runtime v1 fallback
-- [ ] Add a `v2-refactor-temp/docs/breaking-changes/` entry if user-visible behavior changes (e.g., agent task: per-attempt log → single row per enqueue)
 - [ ] Delete or thin-facade the legacy service (keep IPC entry points; redirect to JobManager)
 
 ## Validation per handler

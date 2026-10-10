@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from '@storybook/react'
+
 import {
   Button,
   Dialog,
@@ -9,7 +11,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
 
 const meta: Meta<typeof Dialog> = {
   title: 'Components/Primitives/Dialog',

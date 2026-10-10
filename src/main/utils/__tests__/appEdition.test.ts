@@ -1,10 +1,11 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
-import { APP_EDITIONS } from '@shared/types/appEdition'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
+
+import { APP_EDITIONS } from '@shared/types/appEdition'
 
 import createChinaEditionConfig from '../../../../electron-builder.cn.config.cjs'
 

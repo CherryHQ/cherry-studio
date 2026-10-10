@@ -1,7 +1,13 @@
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { Search } from 'lucide-react'
+import type { CSSProperties, FC, MouseEvent } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { settingsMenu } from '@renderer/components/settingsMenu'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { settingsMenu } from '@renderer/pages/settings/settingsMenu'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
 import SettingsFocusUrl from '@renderer/pages/settings/settingsSearch/SettingsFocusUrl'
 import SettingsSearchBox from '@renderer/pages/settings/settingsSearch/SettingsSearchBox'
@@ -13,12 +19,8 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
-import { Fragment, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SettingsPage: FC = () => {
   const location = useLocation()
@@ -38,11 +40,22 @@ const SettingsPage: FC = () => {
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
 
+  const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.type === 'auxclick' && event.button !== 1) return
+    const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
+    if (!anchor || !/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) return
+    event.preventDefault()
+    event.stopPropagation()
+    void openExternalWebsite(anchor.href)
+  }
+
   return (
     <SettingsSearchDomIdsProvider>
       <div
         style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
         data-ui="settings.view"
+        onClickCapture={openExternalLink}
+        onAuxClickCapture={openExternalLink}
         className={cn(
           'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
@@ -50,7 +63,7 @@ const SettingsPage: FC = () => {
         <div className="flex min-h-0 flex-1 flex-row">
           <div
             data-ui="settings.navigation"
-            className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
+            className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-r-[0.5px] border-border">
             {searchOpen ? (
               // Expanded: the field covers the whole header row at the standing
               // box's width; mt-2.5 top-aligns it with the provider column's
@@ -67,7 +80,7 @@ const SettingsPage: FC = () => {
                     type="button"
                     aria-label={t('settings.search.placeholder')}
                     onClick={() => setSearchOpen(true)}
-                    className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
+                    className="text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 hover:text-foreground">
                     <Search className="size-4" />
                   </button>
                 }

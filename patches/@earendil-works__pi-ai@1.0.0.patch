@@ -1,0 +1,57 @@
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -21,7 +21,7 @@
+ export type KnownProvider = "amazon-bedrock" | "ant-ling" | "anthropic" | "google" | "google-vertex" | "openai" | "azure-openai-responses" | "openai-codex" | "radius" | "typesafe" | "nvidia" | "deepseek" | "github-copilot" | "xai" | "groq" | "cerebras" | "openrouter" | "vercel-ai-gateway" | "zai" | "zai-coding-cn" | "mistral" | "minimax" | "minimax-cn" | "moonshotai" | "moonshotai-cn" | "huggingface" | "fireworks" | "together" | "baseten" | "opencode" | "opencode-go" | "kimi-coding" | "meta" | "cloudflare-workers-ai" | "cloudflare-ai-gateway" | "qwen-token-plan" | "qwen-token-plan-cn" | "qwen-token-plan-individual" | "xiaomi" | "xiaomi-token-plan-cn" | "xiaomi-token-plan-ams" | "xiaomi-token-plan-sgp";
+ export type ProviderId = KnownProvider | string;
+ export type ToolChoice = "auto" | "none";
+-export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+ export type ModelThinkingLevel = "off" | ThinkingLevel;
+ export type ThinkingLevelMap = Partial<Record<ModelThinkingLevel, string | null>>;
+ export type ChatTemplateKwargValue = string | number | boolean | null | {
+diff --git a/dist/models.js b/dist/models.js
+--- a/dist/models.js
++++ b/dist/models.js
+@@ -677,7 +677,7 @@
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+     return usage.cost;
+ }
+-const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export function getSupportedThinkingLevels(model) {
+     if (!model.reasoning)
+         return ["off"];
+@@ -685,7 +685,7 @@
+         const mapped = model.thinkingLevelMap?.[level];
+         if (mapped === null)
+             return false;
+-        if (level === "xhigh" || level === "max")
++        if (level === "xhigh" || level === "max" || level === "ultra")
+             return mapped !== undefined;
+         return true;
+     });
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
+diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
+--- a/dist/api/openai-codex-responses.d.ts
++++ b/dist/api/openai-codex-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAICodexResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     textVerbosity?: "low" | "medium" | "high";

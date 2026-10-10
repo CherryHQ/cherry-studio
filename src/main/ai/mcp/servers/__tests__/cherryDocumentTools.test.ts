@@ -2,8 +2,12 @@ import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } fr
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import type { Client } from '@modelcontextprotocol/client'
+import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 const {
   formatFromExtensionMock,
@@ -40,10 +44,11 @@ vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
   listAgentSessionAttachments: listAgentSessionAttachmentsMock
 }))
 
-const { CherryDocumentTools } = await import('../cherryDocumentTools')
+const { registerDocumentTools } = await import('../cherryDocumentTools')
 
+type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
 const roots: string[] = []
-const signal = new AbortController().signal
+const clients: Client[] = []
 
 async function makeTools() {
   const root = await mkdtemp(path.join(tmpdir(), 'cherry-to-markdown-'))
@@ -51,19 +56,24 @@ async function makeTools() {
   const workspacePath = path.join(root, 'workspace')
   const agentDataPath = path.join(root, 'agent-data')
   await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
-  return {
-    agentDataPath,
-    tools: new CherryDocumentTools({ agentDataPath, sessionId: 'session-1', workspacePath }),
-    workspacePath
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
+    return server
+  })
+  clients.push(client)
+  const tools = {
+    call: (args: { path: string }) => client.callTool({ name: 'to_markdown', arguments: args }) as Promise<Result>
   }
+  return { agentDataPath, tools, workspacePath }
 }
 
-function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
+function textOf(result: Result): string {
   const part = result.content[0]
   return part.type === 'text' ? (part.text ?? '') : ''
 }
 
-describe('CherryDocumentTools', () => {
+describe('cherry-tools to_markdown', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     formatFromExtensionMock.mockReturnValue('docx')
@@ -71,6 +81,7 @@ describe('CherryDocumentTools', () => {
   })
 
   afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
 
@@ -79,7 +90,7 @@ describe('CherryDocumentTools', () => {
     await writeFile(path.join(workspacePath, 'report.docx'), Buffer.from([1, 2, 3]))
     toMarkdownBytesMock.mockResolvedValue('# Secret title\n\nbody\n')
 
-    const result = await tools.call({ path: 'report.docx' }, signal)
+    const result = await tools.call({ path: 'report.docx' })
     const output = JSON.parse(textOf(result))
 
     expect(result.isError).toBeFalsy()
@@ -100,7 +111,7 @@ describe('CherryDocumentTools', () => {
     const outside = path.join(path.dirname(workspacePath), 'outside.pdf')
     await writeFile(outside, Buffer.from([1, 2, 3]))
 
-    const result = await tools.call({ path: outside }, signal)
+    const result = await tools.call({ path: outside })
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('outside the workspace')
@@ -113,8 +124,8 @@ describe('CherryDocumentTools', () => {
     await writeFile(outside, 'document')
     await symlink(outside, path.join(workspacePath, 'link.docx'))
 
-    const traversal = await tools.call({ path: '../outside.docx' }, signal)
-    const symlinkResult = await tools.call({ path: 'link.docx' }, signal)
+    const traversal = await tools.call({ path: '../outside.docx' })
+    const symlinkResult = await tools.call({ path: 'link.docx' })
 
     expect(traversal.isError).toBe(true)
     expect(symlinkResult.isError).toBe(true)
@@ -131,7 +142,7 @@ describe('CherryDocumentTools', () => {
     formatFromExtensionMock.mockReturnValue('pdf')
     toMarkdownBytesMock.mockResolvedValue('# Converted report')
 
-    const result = await tools.call({ path: managed }, signal)
+    const result = await tools.call({ path: managed })
 
     expect(result.isError).toBeFalsy()
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(bytes, 'pdf')
@@ -147,7 +158,7 @@ describe('CherryDocumentTools', () => {
     getPhysicalPathMock.mockReturnValue(mine)
 
     // Sharing a parent directory with an authorized attachment must not authorize a sibling.
-    const result = await tools.call({ path: someoneElses }, signal)
+    const result = await tools.call({ path: someoneElses })
 
     expect(result.isError).toBe(true)
     expect(toMarkdownBytesMock).not.toHaveBeenCalled()
@@ -162,7 +173,7 @@ describe('CherryDocumentTools', () => {
     formatFromExtensionMock.mockReturnValue('pdf')
     toMarkdownBytesMock.mockResolvedValue('converted')
 
-    const result = await tools.call({ path: downloaded }, signal)
+    const result = await tools.call({ path: downloaded })
 
     expect(result.isError).toBeFalsy()
   })
@@ -173,7 +184,7 @@ describe('CherryDocumentTools', () => {
     await writeFile(oversize, '')
     await truncate(oversize, MAX_FILE_SIZE_BYTES + 1)
 
-    const result = await tools.call({ path: 'oversize.pdf' }, signal)
+    const result = await tools.call({ path: 'oversize.pdf' })
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('byte limit')
@@ -185,7 +196,7 @@ describe('CherryDocumentTools', () => {
     await writeFile(path.join(workspacePath, 'empty.pdf'), Buffer.from([1]))
     toMarkdownBytesMock.mockResolvedValue(' \n ')
 
-    const result = await tools.call({ path: 'empty.pdf' }, signal)
+    const result = await tools.call({ path: 'empty.pdf' })
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Document conversion produced no text')
@@ -206,7 +217,7 @@ describe('CherryDocumentTools', () => {
     await writeFile(path.join(workspacePath, 'report.docx'), Buffer.from([1]))
     toMarkdownBytesMock.mockResolvedValue('converted')
 
-    await tools.call({ path: 'report.docx' }, signal)
+    await tools.call({ path: 'report.docx' })
 
     await expect(readFile(stale)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(recent, 'utf-8')).resolves.toBe('new')

@@ -1,3 +1,7 @@
+import { FolderOpen, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InputGroup,
@@ -17,9 +21,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { FolderOpen, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()

@@ -1,9 +1,10 @@
+import type { BrowserWindow } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import type { BrowserWindow } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The global main test setup mocks `electron` without `screen.getDisplayMatching`.
 // Override it file-locally with a configurable matcher (vi.hoisted avoids the

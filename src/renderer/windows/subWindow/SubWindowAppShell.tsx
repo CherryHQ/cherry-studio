@@ -1,17 +1,25 @@
+import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 'react'
+
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
-import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
+import {
+  LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH,
+  useHasWindowControls,
+  WindowControls
+} from '@renderer/components/WindowControls'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
+import { isLinux } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, type CSSProperties, useEffect, useRef } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -21,7 +29,7 @@ const WINDOW_FRAME: WindowFrame = { mode: 'window' }
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
   <Activity mode={isActive ? 'visible' : 'hidden'}>
     <div className="flex h-full w-full flex-col items-center justify-center bg-background">
-      <div className="mb-2 font-bold text-lg">Webview App</div>
+      <div className="mb-2 text-lg font-bold">Webview App</div>
       <code className="rounded bg-muted p-2">{url}</code>
     </div>
   </Activity>
@@ -32,6 +40,14 @@ export const SubWindowAppShell = () => {
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
+
+  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
+  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
+  const handleCloseTab = useCallback(() => {
+    void ipcApi.request('window.close')
+  }, [])
+
+  useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -68,10 +84,9 @@ export const SubWindowAppShell = () => {
     })
   }
 
-  // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
-  // ourselves in the top-right corner and publish their width as --window-controls-width so
-  // the standalone title bar can reserve that corner. macOS keeps its native traffic lights,
-  // so there are no controls and the var stays 0.
+  // Windows sub-windows are frameless, so draw min/max/close in the top-right corner. Linux
+  // gets them from Electron's overlay, macOS from traffic lights. --window-controls-width lets
+  // the standalone title bar reserve the corner either way.
   const hasWindowControls = useHasWindowControls()
 
   return (
@@ -81,7 +96,15 @@ export const SubWindowAppShell = () => {
       <div
         data-ui="app.detached-window"
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
-        style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
+        style={
+          {
+            '--window-controls-width': hasWindowControls
+              ? '138px'
+              : isLinux
+                ? LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH
+                : '0px'
+          } as CSSProperties
+        }>
         <SubWindowTitleBar isFullscreen={isFullscreen} />
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
@@ -114,8 +137,8 @@ export const SubWindowAppShell = () => {
         </main>
 
         {/* OS window controls overlay — flush in the corner, above the title bar (z-[9999]),
-            sitting in the space it reserves via --window-controls-width. Self-gated to
-            Win/Linux, so this branch never renders on macOS. */}
+            sitting in the space it reserves via --window-controls-width. Gated to
+            Windows, the only platform where the renderer draws them. */}
         {hasWindowControls && (
           <div
             className={cn('absolute top-0 right-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>

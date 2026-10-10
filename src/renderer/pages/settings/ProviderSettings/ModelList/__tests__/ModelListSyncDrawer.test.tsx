@@ -1,8 +1,9 @@
-import type * as ModelModule from '@renderer/utils/model'
-import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ModelModule from '@renderer/utils/model'
+import type { Model } from '@shared/data/types/model'
 
 import ModelListSyncDrawer from '../ModelListSyncDrawer'
 

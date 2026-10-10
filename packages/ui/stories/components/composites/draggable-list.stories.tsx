@@ -1,7 +1,8 @@
-import { DraggableList } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { GripVertical } from 'lucide-react'
 import { useState } from 'react'
+
+import { DraggableList } from '@cherrystudio/ui'
 
 const meta: Meta<typeof DraggableList> = {
   title: 'Components/Composites/draggable-list',

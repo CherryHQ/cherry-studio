@@ -1,10 +1,11 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('JobScheduleService', () => {
   const dbh = setupTestDatabase()

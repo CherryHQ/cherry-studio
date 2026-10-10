@@ -1,8 +1,9 @@
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { PromptSettings } from '../PromptSettings'
 

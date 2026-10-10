@@ -1,9 +1,10 @@
-import type { ExternalOpenTargetResult } from '@shared/types/externalApp'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ExternalOpenTargetResult } from '@shared/types/externalApp'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),

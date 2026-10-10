@@ -18,8 +18,9 @@
  *   returning `undefined`.
  */
 
-import type { FileEntryId } from '@shared/data/types/file'
 import { LRUCache } from 'lru-cache'
+
+import type { FileEntryId } from '@shared/data/types/file'
 
 import type { FileVersion } from './FileManager'
 

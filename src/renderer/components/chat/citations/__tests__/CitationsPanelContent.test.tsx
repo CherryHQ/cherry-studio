@@ -1,9 +1,10 @@
-import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { Cache } from 'swr'
 import { SWRConfig, unstable_serialize } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Citation } from '@renderer/types/message'
 
 import { CitationsPanelContent } from '../CitationsPanel'
 
@@ -13,9 +14,9 @@ const mocks = vi.hoisted(() => ({
   notifyError: vi.fn(),
   messageListActions: undefined as
     | {
-        openCitationsPanel?: ReturnType<typeof vi.fn>
-        copyText?: ReturnType<typeof vi.fn>
-        notifyError?: ReturnType<typeof vi.fn>
+        openCitationsPanel?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        copyText?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        notifyError?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
       }
     | undefined
 }))
@@ -99,18 +100,17 @@ describe('CitationsPanelContent', () => {
     }
   })
 
-  it('opens panel web citations through the supplied external URL action', async () => {
+  it('opens panel web citations through the supplied browser action', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
-    const openExternalUrl = vi.fn()
+    const openBrowserUrl = vi.fn()
 
-    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn(), openExternalUrl }} />, {
+    render(<CitationsPanelContent citations={citations} actions={{ openBrowserUrl }} />, {
       wrapper
     })
 
     fireEvent.click(screen.getByRole('link', { name: 'Example' }))
 
-    expect(openExternalUrl).toHaveBeenCalledTimes(1)
-    expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
+    expect(openBrowserUrl).toHaveBeenCalledExactlyOnceWith('https://example.com')
     await waitFor(() => expect(ipcRequest).toHaveBeenCalled())
   })
 

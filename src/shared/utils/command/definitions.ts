@@ -71,6 +71,20 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.window.close',
+    titleKey: 'settings.shortcuts.close_window',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      // Registered (not editable) so the fixed accelerator participates in the
+      // shared conflict model; the native close role performs the action.
+      defaultBinding: ['CommandOrControl', 'Shift', 'W'],
+      editable: false,
+      // The app menu that owns this accelerator exists on macOS only.
+      supportedPlatforms: ['darwin']
+    }
+  }),
+  defineCommand({
     id: 'app.zoom.in',
     titleKey: 'settings.shortcuts.zoom_in',
     categoryKey: 'settings.shortcuts.general',
@@ -248,6 +262,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'tab.close',
+    titleKey: 'settings.shortcuts.close_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'W']
+    }
+  }),
+  defineCommand({
     id: 'tab.next',
     titleKey: 'settings.shortcuts.next_tab',
     categoryKey: 'settings.shortcuts.general',
@@ -271,7 +294,7 @@ export const COMMAND_DEFINITIONS = [
 export type CommandId = (typeof COMMAND_DEFINITIONS)[number]['id']
 
 export const commandShortcutPreferenceKey = (command: CommandId): CommandShortcutPreferenceKey<CommandId> =>
-  `shortcut.${command}` as CommandShortcutPreferenceKey<CommandId>
+  `shortcut.${command}`
 
 export const KEYBINDING_RULES = COMMAND_DEFINITIONS.flatMap((definition) =>
   definition.keybinding

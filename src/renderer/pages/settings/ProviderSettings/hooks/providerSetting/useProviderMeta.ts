@@ -1,9 +1,10 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useProvider } from '@renderer/hooks/useProvider'
 import { hasVisibleProviderApiOptions } from '@renderer/pages/settings/ProviderSettings/utils/providerApiOptions'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { isAwsBedrockProvider, isAzureOpenAIProvider, isVertexProvider, matchesPreset } from '@shared/utils/provider'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /** Exposes read-only provider presentation metadata used across provider settings. */
 export function useProviderMeta(providerId: string) {

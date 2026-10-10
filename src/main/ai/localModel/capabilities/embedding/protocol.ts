@@ -1,6 +1,5 @@
 /**
- * Text-embedding requests (transformers.js / Qwen3-Embedding) and what each answers with.
- * Paired with `./worker.ts`, which implements them.
+ * Text-embedding payloads shared by the main process and the inference utility process.
  */
 
 /**
@@ -28,18 +27,3 @@ export interface EmbeddingCountTokensPayload {
   dtype: string
   texts: string[]
 }
-
-export type EmbeddingRequestPayloads = {
-  embed: EmbeddingEmbedPayload
-  countTokens: EmbeddingCountTokensPayload
-}
-
-export type EmbeddingResultPayloads = {
-  embed: { embeddings: number[][] }
-  countTokens: { tokenCounts: number[] }
-}
-
-export const EMBEDDING_RESULT_KEYS = {
-  embed: ['embeddings'],
-  countTokens: ['tokenCounts']
-} as const
