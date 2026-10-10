@@ -2,6 +2,7 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { resolvedImageGenerationSupportSchema } from '@shared/ai/imageGeneration'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -205,6 +206,10 @@ export const aiRequestSchemas = {
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiRequestShape, values: z.array(z.string()) }),
     output: z.object({ embeddings: z.array(z.array(z.number())), usage: z.custom<EmbeddingModelUsage>().optional() })
+  }),
+  'ai.image.support.get': defineRoute({
+    input: z.strictObject({ uniqueModelId: UniqueModelIdSchema }),
+    output: resolvedImageGenerationSupportSchema
   }),
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).

@@ -143,6 +143,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.embedding.embed_many': (request) =>
     exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
+  'ai.image.support.get': ({ uniqueModelId }) =>
+    exposeAiError('ai.image.support.get', () => application.get('AiService').getImageGenerationSupport(uniqueModelId)),
   'ai.image.generate': ({ requestId, payload }) =>
     exposeAiError('ai.image.generate', () => application.get('AiService').runImageRequest(requestId, payload)),
   'ai.image.abort': async ({ requestId }) => {

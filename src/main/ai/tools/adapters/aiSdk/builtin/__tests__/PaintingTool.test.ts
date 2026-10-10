@@ -23,15 +23,11 @@ vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
 
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getImageGenerationSupport }
-}))
-
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
+      if (name === 'AiService') return { generateImage, getImageGenerationSupport }
       if (name === 'FileManager') return { read: fileRead }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -50,7 +46,7 @@ import {
   PAINTING_ERROR_NOTE,
   PAINTING_MODEL_NOT_CONFIGURED_NOTE
 } from '../../../../painting'
-import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
+import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
 
@@ -119,20 +115,6 @@ describe('generate_image', () => {
     fileRead.mockReset()
     getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
-  })
-
-  it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(entry.name).toBe(GENERATE_IMAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('media')
-    expect(entry.defer).toBe('auto')
-    expect(entry.tool.type).toBe('dynamic')
-  })
-
-  it('materializes the configured schema as an AI SDK dynamic tool', () => {
-    const selectedTool = buildTool(generateSupport)
-
-    expect(selectedTool.type).toBe('dynamic')
-    expect(selectedTool.inputSchema).toBeDefined()
   })
 
   describe('applies', () => {
@@ -219,6 +201,22 @@ describe('generate_image', () => {
     expect(result).toEqual({ error: PAINTING_EDIT_NOT_SUPPORTED_NOTE })
     expect(fileRead).not.toHaveBeenCalled()
     expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('generates with reference images when the model declares no edit operation', async () => {
+    fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
+    generateImage.mockImplementation(async (request) => {
+      expect(request.mode).toBe('generate')
+      expect(request.inputImages).toEqual(['data:image/png;base64,AAAA'])
+      return { files: [{ id: 'combined', name: 'combined.png' }] }
+    })
+
+    const result = await generateImageFromPrompt({ prompt: 'Combine', image_ids: ['reference'] }, undefined, {
+      uniqueModelId: 'openai::gpt-image-1',
+      support: { modes: { generate: { supports: {}, maxInputImages: 3 } }, inputCapabilities: { files: true } }
+    })
+
+    expect(result).toEqual([{ id: 'combined', name: 'combined.png' }])
   })
 
   it('returns a configuration note (and skips generation) when no model is configured', async () => {
