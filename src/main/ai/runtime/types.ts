@@ -62,6 +62,13 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /**
+   * The connection serves a turn that was already accepted and frozen to `agentId`; the session row
+   * may since have been re-pointed to another agent (top-bar switch). Snapshot capture then
+   * validates the frozen agent itself (exists, has a model) instead of requiring the session to
+   * still reference it — the accepted turn keeps its captured configuration until it settles.
+   */
+  servesAcceptedTurn?: boolean
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
