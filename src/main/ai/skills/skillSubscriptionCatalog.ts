@@ -1,9 +1,9 @@
 ﻿import { createHash } from 'node:crypto'
 
-import { net } from 'electron'
 import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import * as z from 'zod'
 
+import { fetchRemoteBytesWithUrl } from '@main/utils/remoteFetch'
 import type {
   MarketplaceSkillDetail,
   SkillSubscriptionSnapshot,
@@ -12,7 +12,7 @@ import type {
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
 import { normalizeSubscriptionUrl, skillInstallIdentity } from '@shared/utils/skillSubscription'
 
-import { readGithubSkillCatalog } from './skillRemoteSource'
+import { readGithubSkillCatalog, resolveGithubSkillSourceUrl } from './skillRemoteSource'
 
 const MAX_FEED_BYTES = 16 * 1024 * 1024
 const record = (value: unknown): Record<string, unknown> =>
@@ -67,25 +67,15 @@ function installTarget(value: unknown, base: string, mime = '') {
   return null
 }
 
-async function readFeed(url: string, signal: AbortSignal) {
-  const response = await net.fetch(url, { signal, credentials: 'omit' })
-  if (!response.ok) throw new Error('HTTP ' + response.status)
-  if (!response.body) throw new Error('Empty subscription response')
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > MAX_FEED_BYTES) throw new Error('Subscription response exceeds size limit')
-      chunks.push(value)
-    }
-    return { body: new TextDecoder().decode(Buffer.concat(chunks)), url: response.url || url, size }
-  } finally {
-    await reader.cancel()
-  }
+async function readFeed(url: string, signal: AbortSignal, byteBudget: { remaining: number }) {
+  const response = await fetchRemoteBytesWithUrl(url, {
+    signal,
+    timeoutMs: 15_000,
+    maxBytes: MAX_FEED_BYTES,
+    byteBudget,
+    maxRedirects: 5
+  })
+  return { body: new TextDecoder().decode(response.body), url: response.url }
 }
 
 const jsonFeedSchema = z.object({
@@ -123,13 +113,12 @@ export async function readSkillSubscription(
   let sourceName = ''
   let kind: 'json' | 'rss' | undefined
   let skipped = 0
-  let totalBytes = 0
+  const byteBudget = { remaining: MAX_FEED_BYTES }
+  const githubUrls = new Map<string, string>()
   while (next) {
     if (visited.has(next) || visited.size >= 100) throw new Error('Invalid subscription pagination')
     visited.add(next)
-    const page = await readFeed(next, AbortSignal.any([signal, AbortSignal.timeout(15_000)]))
-    totalBytes += page.size
-    if (totalBytes > MAX_FEED_BYTES) throw new Error('Subscription catalog exceeds size limit')
+    const page = await readFeed(next, signal, byteBudget)
     let entries: unknown[]
     const json = page.body.trimStart().startsWith('{')
     if (kind && kind !== (json ? 'json' : 'rss')) throw new Error('Subscription format changed between pages')
@@ -179,7 +168,13 @@ export async function readSkillSubscription(
         const name =
           plainText(entry.title) ||
           decodeURIComponent(new URL(target.url).pathname.split('/').filter(Boolean).at(-1) ?? '')
-        const item = skillItem(source.id, target.url, target.kind, name)
+        let installUrl = target.url
+        if (target.kind === 'github') {
+          installUrl = githubUrls.get(target.url) ?? (await resolveGithubSkillSourceUrl(target.url))
+          githubUrls.set(target.url, installUrl)
+          signal.throwIfAborted()
+        }
+        const item = skillItem(source.id, installUrl, target.kind, name)
         item.description = localized(
           plainText(json ? (entry.summary ?? entry.content_text ?? entry.content_html) : entry.description)
         )
@@ -193,6 +188,7 @@ export async function readSkillSubscription(
         item.releaseDate = text(json ? (entry.date_modified ?? entry.date_published) : entry.pubDate)
         items.set(item.id, item)
       } catch {
+        signal.throwIfAborted()
         skipped++
       }
     }

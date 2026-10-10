@@ -23,7 +23,7 @@ export function skillInstallIdentity(url: string): string {
   const github = parseGithubSkillUrl(url)
   if (github) {
     const { owner, repo, refNamespace, refAndPath } = github
-    return ['github', owner.toLowerCase(), repo.toLowerCase(), refNamespace ?? 'heads', ...refAndPath].join('/')
+    return ['github', owner.toLowerCase(), repo.toLowerCase(), refNamespace ?? 'unresolved', ...refAndPath].join('/')
   }
   return url
 }

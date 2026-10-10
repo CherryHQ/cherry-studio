@@ -80,6 +80,7 @@ import { getMarketplaceSkill, listMarketplaceSkills } from '../cherrySkillMarket
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
+import { resolveGithubSkillSourceUrl } from '../skillRemoteSource'
 import { SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -1062,18 +1063,21 @@ describe('SkillService', () => {
       )
     })
 
-    it('uses an explicit tag namespace when a branch has the same name', async () => {
+    it.each([true, false])('resolves tag identity consistently with installation (explicit: %s)', async (explicit) => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
         refs: [
-          { name: 'v1', oid: 'a'.repeat(40) },
+          ...(explicit ? [{ name: 'v1', oid: 'a'.repeat(40) }] : []),
           { name: 'v1', oid: tagOid, namespace: 'tags' }
         ]
       })
 
-      await skillService.install({
-        installSource: 'github:https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
-      })
+      const url = explicit
+        ? 'https://github.com/owner/repo/raw/refs/tags/v1/skills/demo/SKILL.md'
+        : 'https://github.com/owner/repo/blob/v1/skills/demo/SKILL.md'
+      const resolvedUrl = await resolveGithubSkillSourceUrl(url)
+      expect(resolvedUrl).toBe('https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md')
+      await skillService.install({ installSource: `github:${resolvedUrl}` })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([tagOid]))
       expect(installSpy).toHaveBeenCalledWith(

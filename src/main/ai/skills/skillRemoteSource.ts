@@ -188,10 +188,7 @@ async function fetchFromClaudePlugins(
  * name again: a branch that moves in between would otherwise hand over different content than the
  * one whose tree was inspected.
  */
-async function fetchFromGithub(
-  identifier: string,
-  openTempDir: () => Promise<string>
-): Promise<Omit<FetchedSkill, 'tempDir'>> {
+async function resolveGithubSkillTarget(identifier: string) {
   const location = parseGithubSkillUrl(identifier)
   if (!location) {
     throw new Error(`Invalid GitHub skill URL: ${identifier}`)
@@ -201,12 +198,25 @@ async function fetchFromGithub(
   const repoUrl = `https://github.com/${owner}/${repo}`
   const transportRepoUrl = getGithubTransportUrl(repoUrl)
   const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
-  logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+
+  return { transportRepoUrl, oid, target, sourceUrl, descriptorFileName }
+}
+
+/** Resolve ambiguous branch/tag URLs with the same rules used by installation. */
+export async function resolveGithubSkillSourceUrl(identifier: string): Promise<string> {
+  return (await resolveGithubSkillTarget(identifier)).sourceUrl
+}
+
+async function fetchFromGithub(
+  identifier: string,
+  openTempDir: () => Promise<string>
+): Promise<Omit<FetchedSkill, 'tempDir'>> {
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGithubSkillTarget(identifier)
 
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
