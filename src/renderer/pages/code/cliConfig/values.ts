@@ -49,9 +49,9 @@ export function omitKeysByPrefix<T>(record: Record<string, T>, prefix: string): 
 export function isCherryManagedModel(item: unknown): boolean {
   return Boolean(
     item &&
-      typeof item === 'object' &&
-      typeof (item as any).envKey === 'string' &&
-      (item as any).envKey.startsWith('CHERRY_')
+    typeof item === 'object' &&
+    typeof (item as any).envKey === 'string' &&
+    (item as any).envKey.startsWith('CHERRY_')
   )
 }
 

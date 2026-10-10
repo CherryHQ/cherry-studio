@@ -82,28 +82,44 @@ both reference sets for stages 4–5.
 First inspect the semantics actually expressed or constrained by the change,
 then decide whether it affects **product semantics, user-visible behavior, or
 product direction**. Change labels are not sufficient evidence: internal
-refactors and non-user-facing fixes often have no product impact, while docs,
-tests, or tooling can record, lock, or alter product behavior. Skip this stage
-entirely, in both interactive and automated runs, only after semantic review
-confirms that the change is implementation-only; say nothing about the skipped
-gate.
+refactors and non-user-facing fixes often have no product impact, while
+user-facing fixes, docs, tests, or tooling can record, lock, or alter product
+behavior.
 
-When there is product impact:
+When there is product impact, determine whether the direction is already
+established in the current review context. Treat it as established only when
+the current user explicitly decided it or an authoritative project artifact
+explicitly records the accepted behavior and its approval by the responsible
+project authority, such as a specification, an ADR, or an issue containing a
+maintainer decision that settles the expected behavior. Do not infer acceptance
+from issue state, labels, milestone, assignment, or a link from the PR. A change
+label, PR body, implementation, or test demonstrates author intent or current
+behavior but does not establish product approval on its own.
 
-- **Interactive session (default)**: summarize the change's effect on product
-  functionality and semantics, and ask the current user for the product
-  decision. Do not infer automation from PR authorship, review ownership, or
-  whether the user authored the decision. If the user judges the direction
-  wrong, **stop the whole review immediately** — do not run Consumer,
-  Architecture, Implementation, or Style stages, and do not report code
-  findings. If the user approves the direction, continue with the remaining
-  stages.
-- **Automated session (explicit only)**: use this mode only when the invocation
-  prompt or workflow context explicitly identifies a headless, CI, batch, or
-  other automated run. Make **no** product decision on the user's behalf. Run
-  the remaining stages, and in the final report summarize the product impact,
-  the direction the change takes, and the points needing human confirmation.
-  Never phrase this as product approval having been obtained.
+Classify the gate into exactly one state:
+
+- **No product impact**: skip this stage entirely in both interactive and
+  automated runs; say nothing about the skipped gate.
+- **Established direction**: compare the change with the recorded decision. If
+  it aligns, continue without asking for another product decision. If it
+  conflicts, report the product-direction mismatch and **stop the whole review
+  immediately** — do not run Consumer, Architecture, Implementation, or Style
+  stages, and do not report code findings. Applying an existing decision is
+  not making a new one.
+- **Open product decision**:
+  - **Interactive session (default)**: summarize the change's effect on
+    product functionality and semantics, and ask the current user for the
+    unresolved product decision. Do not infer automation from PR authorship,
+    review ownership, or whether the user authored the change. If the user
+    rejects the direction, stop the whole review as above; if the user
+    approves it, continue with the remaining stages.
+  - **Automated session (explicit only)**: use this mode only when the
+    invocation prompt or workflow context explicitly identifies a headless,
+    CI, batch, or other automated run. Make no product decision on the user's
+    behalf. Run the remaining stages, and in the final report summarize the
+    product impact, the direction the change takes, and the points needing
+    human confirmation. Never phrase this as product approval having been
+    obtained.
 
 ## Authority model
 
@@ -254,4 +270,3 @@ Print this list when the resolved scope is empty:
 /gh-pr-review checklist            adopt this session's proposed checklist items
 /gh-pr-review diag                 diagnose gaps in this skill
 ```
-

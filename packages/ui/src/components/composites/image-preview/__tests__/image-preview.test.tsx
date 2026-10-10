@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -9,6 +8,7 @@ import {
   ImagePreviewContextMenu,
   ImagePreviewDialog,
   type ImagePreviewItem,
+  type ImagePreviewTransform,
   ImagePreviewTrigger,
   useImagePreviewTransform
 } from '../index'
@@ -36,7 +36,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
 
   if (!HTMLElement.prototype.hasPointerCapture) {
     HTMLElement.prototype.hasPointerCapture = () => false
@@ -55,6 +55,46 @@ afterEach(() => {
 })
 
 describe('useImagePreviewTransform', () => {
+  // Track an asymmetric point relative to the image center in screen coordinates.
+  const screenPoint = ({ rotation, flipX, flipY }: ImagePreviewTransform) => {
+    const angle = (rotation * Math.PI) / 180
+    const x = flipX ? -2 : 2
+    const y = flipY ? -1 : 1
+    return { x: x * Math.cos(angle) - y * Math.sin(angle), y: x * Math.sin(angle) + y * Math.cos(angle) }
+  }
+
+  it.each([0, 90, 180, 270, 30])('flips along screen axes at %s degrees', (rotation) => {
+    const { result } = renderHook(() => useImagePreviewTransform({ initialTransform: { rotation } }))
+    const before = screenPoint(result.current.transform)
+
+    act(() => result.current.flipHorizontal())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(-before.x)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(before.y)
+
+    act(() => result.current.flipVertical())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(-before.x)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(-before.y)
+
+    act(() => result.current.flipHorizontal())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(before.x)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(-before.y)
+
+    act(() => result.current.flipVertical())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(before.x)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(before.y)
+  })
+
+  it('keeps rotation directions after a horizontal flip', () => {
+    const { result } = renderHook(() => useImagePreviewTransform())
+    act(() => result.current.flipHorizontal())
+    act(() => result.current.rotateRight())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(-1)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(-2)
+    act(() => result.current.rotateLeft())
+    expect(screenPoint(result.current.transform).x).toBeCloseTo(-2)
+    expect(screenPoint(result.current.transform).y).toBeCloseTo(1)
+  })
+
   it('clamps zoom and resets transform state', () => {
     const { result } = renderHook(() => useImagePreviewTransform({ maxZoom: 2, minZoom: 1, zoomStep: 0.5 }))
 
@@ -252,6 +292,35 @@ describe('ImagePreviewDialog', () => {
     expect(image).toHaveStyle({
       transform: 'translate3d(0px, 0px, 0) rotate(0deg) scale(1) scaleX(1) scaleY(1)'
     })
+  })
+
+  it('pinch-zooms with two touch points instead of panning', () => {
+    // jsdom has no PointerEvent, so fired pointer events would carry neither pointerId nor pointerType.
+    class TestPointerEvent extends MouseEvent {
+      readonly pointerId: number
+      readonly pointerType: string
+      constructor(type: string, init: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) {
+        super(type, init)
+        this.pointerId = init.pointerId ?? 1
+        this.pointerType = init.pointerType ?? 'mouse'
+      }
+    }
+    vi.stubGlobal('PointerEvent', TestPointerEvent)
+    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
+
+    const viewport = screen.getByTestId('image-preview-viewport')
+    const image = screen.getByAltText('One')
+    const touch = (pointerId: number, clientX: number) => ({ pointerId, pointerType: 'touch', clientX, clientY: 0 })
+    fireEvent.pointerDown(viewport, touch(1, -50))
+    fireEvent.pointerDown(viewport, touch(2, 50))
+    fireEvent.pointerMove(viewport, touch(2, 150))
+
+    expect(image.style.transform).toContain('scale(2)')
+
+    fireEvent.pointerUp(viewport, touch(2, 150))
+    fireEvent.pointerMove(viewport, touch(1, 300))
+    expect(image.style.transform).toContain('scale(2)')
+    vi.unstubAllGlobals()
   })
 
   it('stops navigation at the first and last image', () => {

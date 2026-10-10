@@ -1,6 +1,7 @@
+import fs from 'fs/promises'
+
 import { TraceMethod } from '@main/ai/observability'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
-import fs from 'fs/promises'
 
 export default class FileService {
   @TraceMethod({ spanName: 'readFile', tag: 'FileService' })

@@ -1,5 +1,6 @@
-import { CURRENCY, type Currency, objectValues } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { CURRENCY, type Currency, objectValues } from '@shared/data/types/model'
 
 const finiteNonnegativeCost = z.number().nonnegative().refine(Number.isFinite)
 

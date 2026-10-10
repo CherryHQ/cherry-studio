@@ -1071,7 +1071,7 @@ describe('ExtensionRegistry', () => {
       const factory = registry.getToolFactory('anthropic', 'urlContext')
       expect(factory).toBeDefined()
 
-      const innerFactory = factory!(mockProvider as any)
+      const innerFactory = factory!(mockProvider)
       const result = innerFactory({})
       expect(result.tools).toHaveProperty('urlContext')
       expect(result.tools).not.toHaveProperty('webSearch')

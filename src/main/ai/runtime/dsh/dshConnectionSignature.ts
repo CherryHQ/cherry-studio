@@ -6,6 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
@@ -13,13 +14,17 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
+import { usesDshGateway } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { createAgentProxyEnvironmentFingerprint } from '@main/services/proxy/agentProxyEnvironment'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+
+import { buildDshProxyEnvironment } from './dshProxyEnvironment'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -43,6 +48,8 @@ export interface DshConnectionSnapshot {
   /** Entity snapshot per agent MCP id used to construct the host-side in-memory bridge. */
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
+  mcpInstructions?: string
   signature: string
 }
 
@@ -52,6 +59,12 @@ export class DshInvalidConnectionSnapshotError extends Error {}
  * Capture every reconcilable fact consumed while constructing a dsh connection.
  * The live permission gate (permission_mode, disabledTools) is excluded — it is
  * hot-patched over the bridge, never spawn-frozen.
+ * The effective agent language is a rebuild fact: changing it rebuilds the
+ * connection so the new language instruction is baked into the next prompt.
+ * This trades cache preservation for prompt correctness — the first turn after
+ * a language change pays full input-token cost until the new prefix is cached,
+ * but the user sees the new language on the next reconcile rather than only on
+ * the next natural connection.
  */
 export async function captureDshConnectionSnapshot(
   sessionId: string,
@@ -67,9 +80,9 @@ export async function captureDshConnectionSnapshot(
 
   const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
-  const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
-    providerService.getByProviderId(parsed.providerId),
-    modelService.getByKey(parsed.providerId, parsed.modelId),
+  const provider = providerService.getByProviderId(parsed.providerId)
+  const model = modelService.getByKey(parsed.providerId, parsed.modelId)
+  const [skills, workspaceSkillPaths] = await Promise.all([
     skillService.list({ agentId: agent.id }),
     skillService.listLocalSkillPaths(session.workspace.path)
   ])
@@ -81,6 +94,9 @@ export async function captureDshConnectionSnapshot(
     return server ?? { idOrName }
   })
   const catalog = application.get('McpCatalogService')
+  const mcpInstructions = buildMcpInstructionsContext(
+    mcpServers.flatMap((server) => ('id' in server ? [server.id] : []))
+  )
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
@@ -88,6 +104,11 @@ export async function captureDshConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
+  const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  // Spawn-frozen proxy routing: a proxy endpoint/bypass change must rebuild
+  // the connection, computed from the same material the child receives.
+  const proxyEnvironmentFingerprint = createAgentProxyEnvironmentFingerprint(buildDshProxyEnvironment(provider, model))
 
   const signature = createHash('sha256')
     .update(
@@ -103,13 +124,14 @@ export async function captureDshConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
+          mcpInstructions,
           linkedChannel,
           notificationContext,
+          browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          effectiveLanguage,
+          gatewayCredentials,
+          proxyEnvironmentFingerprint
         })
       )
     )
@@ -121,6 +143,8 @@ export async function captureDshConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
+    effectiveLanguage,
+    mcpInstructions,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths

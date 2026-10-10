@@ -10,13 +10,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc, eq } from 'drizzle-orm'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
-import { setupTestDatabase } from '@test-helpers/db'
-import { asc, eq } from 'drizzle-orm'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { ChatMigrator } from '../ChatMigrator'

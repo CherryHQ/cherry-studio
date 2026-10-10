@@ -2,13 +2,14 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+import { app } from 'electron'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { RelocationProgress } from '@shared/types/userDataRelocation'
-import { app } from 'electron'
-import * as z from 'zod'
 
 import type { FailedRelocation, PendingRelocation, RelocationState } from './types'
 import {

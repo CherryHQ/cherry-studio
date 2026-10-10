@@ -1,5 +1,6 @@
-import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
 import type { MessageListItem, MessageUiState } from '../../types'
 import {

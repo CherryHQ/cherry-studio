@@ -14,6 +14,9 @@ const runtimeMockState = vi.hoisted(() => ({
   markUserInput: vi.fn(),
   beginScrollbarDrag: vi.fn(),
   endScrollbarDrag: vi.fn(),
+  armAutoscrollCandidate: vi.fn(),
+  confirmAutoscroll: vi.fn(),
+  dismissAutoscroll: vi.fn(),
   onWheel: vi.fn(),
   shift: false,
   scrollerRef: { current: null as HTMLDivElement | null }
@@ -91,6 +94,9 @@ vi.mock('../chatVirtualizerRuntime', async () => {
       markUserInput: runtimeMockState.markUserInput,
       beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
       endScrollbarDrag: runtimeMockState.endScrollbarDrag,
+      armAutoscrollCandidate: runtimeMockState.armAutoscrollCandidate,
+      confirmAutoscroll: runtimeMockState.confirmAutoscroll,
+      dismissAutoscroll: runtimeMockState.dismissAutoscroll,
       shift: runtimeMockState.shift,
       wrappedItems: items,
       wrappedRenderItem: (item: unknown, index: number) =>
@@ -128,6 +134,9 @@ describe('MessageVirtualList', () => {
     runtimeMockState.markUserInput.mockClear()
     runtimeMockState.beginScrollbarDrag.mockClear()
     runtimeMockState.endScrollbarDrag.mockClear()
+    runtimeMockState.armAutoscrollCandidate.mockClear()
+    runtimeMockState.confirmAutoscroll.mockClear()
+    runtimeMockState.dismissAutoscroll.mockClear()
     runtimeMockState.onWheel.mockClear()
     runtimeMockState.shift = false
     runtimeMockState.scrollerRef.current = null
@@ -555,6 +564,87 @@ describe('MessageVirtualList', () => {
 
     fireEvent.pointerUp(document)
     expect(runtimeMockState.endScrollbarDrag).toHaveBeenCalledTimes(1)
+  })
+
+  it('arms candidate on middle press and confirms only after outer scroller moves', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    fireEvent.mouseDown(scroller, { button: 1 })
+    expect(runtimeMockState.armAutoscrollCandidate).toHaveBeenCalledTimes(1)
+    expect(runtimeMockState.confirmAutoscroll).not.toHaveBeenCalled()
+
+    scroller.scrollTop = 100
+    fireEvent.scroll(scroller)
+    expect(runtimeMockState.confirmAutoscroll).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards dismiss on other clicks, Escape, blur and unmount', () => {
+    const { unmount } = render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={(item) => <span>{item}</span>}
+      />
+    )
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    fireEvent.mouseDown(scroller, { button: 1 })
+    expect(runtimeMockState.armAutoscrollCandidate).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.armAutoscrollCandidate.mockClear()
+    fireEvent.mouseDown(scroller, { button: 1 })
+    expect(runtimeMockState.armAutoscrollCandidate).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.dismissAutoscroll.mockClear()
+    fireEvent.mouseDown(document.body, { button: 0 })
+    expect(runtimeMockState.dismissAutoscroll).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.dismissAutoscroll.mockClear()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(runtimeMockState.dismissAutoscroll).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.dismissAutoscroll.mockClear()
+    fireEvent.blur(window)
+    expect(runtimeMockState.dismissAutoscroll).toHaveBeenCalledTimes(1)
+
+    runtimeMockState.dismissAutoscroll.mockClear()
+    unmount()
+    expect(runtimeMockState.dismissAutoscroll).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirms autoscroll only from the outer scroller, not nested regions', () => {
+    render(
+      <MessageVirtualList
+        items={['message-1']}
+        getItemKey={(item) => item}
+        renderItem={() => (
+          <div data-testid="nested-scroll-region" style={{ overflowY: 'auto' }}>
+            <span data-testid="nested-scroll-content">content</span>
+          </div>
+        )}
+      />
+    )
+
+    const region = screen.getByTestId('nested-scroll-region')
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(region, 'scrollHeight', { configurable: true, value: 300 })
+
+    fireEvent.mouseDown(screen.getByTestId('nested-scroll-content'), { button: 1 })
+    region.scrollTop = 50
+    fireEvent.scroll(region)
+    expect(runtimeMockState.confirmAutoscroll).not.toHaveBeenCalled()
+
+    const scroller = document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
+    scroller.scrollTop = 20
+    fireEvent.scroll(scroller)
+    expect(runtimeMockState.confirmAutoscroll).toHaveBeenCalledTimes(1)
   })
 
   it('records only scroll intent from ordinary input and removes the listeners on unmount', () => {

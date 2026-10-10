@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
+import type { Key } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Button,
@@ -15,23 +21,11 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
-import dayjs from 'dayjs'
-import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
-import type { Key } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface BackupFile {
   fileName: string
   modifiedTime: string
   size: number
-}
-
-interface WebdavConfig {
-  webdavHost: string
-  webdavUser?: string
-  webdavPass?: string
-  webdavPath?: string
 }
 
 interface WebdavBackupManagerProps {
@@ -43,6 +37,7 @@ interface WebdavBackupManagerProps {
     webdavPass?: string
     webdavPath?: string
     webdavDisableStream?: boolean
+    allowSelfSignedTls?: boolean
   }
   restoreMethod?: (fileName: string) => Promise<void>
   customLabels?: {
@@ -50,6 +45,8 @@ interface WebdavBackupManagerProps {
     restoreConfirmContent?: string
     invalidConfigMessage?: string
   }
+  /** WebDAV transport only — surfaces self-signed TLS guidance; Nutstore reuse must not pass it. */
+  tlsCertificateHint?: boolean
 }
 
 const PAGE_SIZE = 5
@@ -59,7 +56,8 @@ export function WebdavBackupManager({
   onClose,
   webdavConfig,
   restoreMethod,
-  customLabels
+  customLabels,
+  tlsCertificateHint = false
 }: WebdavBackupManagerProps) {
   const { t } = useTranslation()
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
@@ -69,7 +67,7 @@ export function WebdavBackupManager({
   const [restoring, setRestoring] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath } = webdavConfig
+  const { webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls } = webdavConfig
 
   const fetchBackupFiles = useCallback(async () => {
     if (!webdavHost) {
@@ -83,15 +81,20 @@ export function WebdavBackupManager({
         webdavHost,
         webdavUser,
         webdavPass,
-        webdavPath
-      } as WebdavConfig)
+        webdavPath,
+        allowSelfSignedTls
+      })
       setBackupFiles(files)
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.fetch.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.fetch.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setLoading(false)
     }
-  }, [webdavHost, webdavUser, webdavPass, webdavPath, t])
+  }, [webdavHost, webdavUser, webdavPass, webdavPath, allowSelfSignedTls, tlsCertificateHint, t])
 
   useEffect(() => {
     if (visible) {
@@ -157,14 +160,19 @@ export function WebdavBackupManager({
           webdavHost,
           webdavUser,
           webdavPass,
-          webdavPath
-        } as WebdavConfig)
+          webdavPath,
+          allowSelfSignedTls
+        })
       }
       toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.delete.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setDeleting(false)
     }
@@ -192,12 +200,17 @@ export function WebdavBackupManager({
         webdavHost,
         webdavUser,
         webdavPass,
-        webdavPath
-      } as WebdavConfig)
+        webdavPath,
+        allowSelfSignedTls
+      })
       toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
       await fetchBackupFiles()
-    } catch {
-      toast.error(t('settings.data.webdav.backup.manager.delete.error'))
+    } catch (error) {
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.delete.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setDeleting(false)
     }
@@ -225,7 +238,11 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error'))
+      toast.error(
+        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
+          tlsCertificateHint
+        })
+      )
     } finally {
       setRestoring(false)
     }
@@ -307,7 +324,7 @@ export function WebdavBackupManager({
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
+            <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>

@@ -2,14 +2,15 @@ import { access, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } fr
 import os from 'node:os'
 import path from 'node:path'
 
-import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { claudeProjectDirectoryName, legacyAgentWorkspacePath } from '../agentsFilesystemMigration'

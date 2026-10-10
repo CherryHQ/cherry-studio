@@ -15,9 +15,21 @@ export interface MessagePerformanceViewModel {
   startedAt?: number
   completedAt?: number
   totalDurationMs?: number
+  timeFirstTokenMs?: number
   modelTokensPerSecond?: number
   endToEndTokensPerSecond?: number
   intervals: MessagePerformanceInterval[]
+}
+
+export function getMessageTokenUsage(stats: MessageStats) {
+  const inputTokens = stats.inputTokens
+  const outputTokens = stats.outputTokens
+  const componentTotal =
+    inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined
+  const totalTokens = stats.totalTokens !== undefined && stats.totalTokens > 0 ? stats.totalTokens : componentTotal
+
+  if (![inputTokens, outputTokens, totalTokens].some((value) => value !== undefined && value > 0)) return {}
+  return { inputTokens, outputTokens, totalTokens }
 }
 
 function intervalFromRuntimeSpan(span: MessageRuntimeSpan, rangeEnd: number): MessagePerformanceInterval | undefined {
@@ -108,15 +120,23 @@ function buildRuntimeViewModel(
 
   const measuredOutputTokens = stats.providerPerformance?.measuredOutputTokens
   const generationDuration = stats.providerPerformance?.generationDurationMs
+  const firstTokenRecord = records.find(
+    (record) => record.recordKind === 'invocation' && record.timeFirstTokenMs !== null
+  )
+  const timeFirstTokenMs = firstTokenRecord?.timeFirstTokenMs ?? undefined
   const modelTokensPerSecond =
-    measuredOutputTokens !== undefined && generationDuration !== undefined && generationDuration > 0
+    measuredOutputTokens !== undefined &&
+    measuredOutputTokens > 0 &&
+    generationDuration !== undefined &&
+    generationDuration > 0
       ? measuredOutputTokens / (generationDuration / 1000)
       : undefined
   const totalDurationMs =
     runtime.completedAt !== undefined ? Math.max(0, runtime.completedAt - runtime.startedAt) : undefined
+  const outputTokens = getMessageTokenUsage(stats).outputTokens
   const endToEndTokensPerSecond =
-    totalDurationMs !== undefined && totalDurationMs > 0 && stats.outputTokens !== undefined
-      ? stats.outputTokens / (totalDurationMs / 1000)
+    totalDurationMs !== undefined && totalDurationMs > 0 && outputTokens !== undefined && outputTokens > 0
+      ? outputTokens / (totalDurationMs / 1000)
       : undefined
   const measuredIntervals = [...modelIntervals, ...runtimeIntervals]
 
@@ -124,6 +144,7 @@ function buildRuntimeViewModel(
     startedAt: runtime.startedAt,
     completedAt: rangeEnd,
     totalDurationMs,
+    ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals: [...measuredIntervals, ...complementIntervals(runtime.startedAt, rangeEnd, measuredIntervals)]
@@ -134,7 +155,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
   const completion = stats.timeCompletionMs
   if (completion === undefined || completion <= 0) return { intervals: [] }
 
-  const firstToken = Math.min(stats.timeFirstTokenMs ?? 0, completion)
+  const firstToken = Math.min(Math.max(stats.timeFirstTokenMs ?? 0, 0), completion)
   const reasoning = Math.min(Math.max(stats.timeThinkingMs ?? 0, 0), completion)
   const waiting = Math.max(0, firstToken - Math.min(reasoning, firstToken))
   const outputTokens = stats.outputTokens
@@ -179,6 +200,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
     startedAt: 0,
     completedAt: completion,
     totalDurationMs: completion,
+    ...(stats.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: firstToken } : {}),
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals
@@ -197,7 +219,7 @@ export function getMessageModelTokensPerSecond(stats: MessageStats): number | un
   if (stats.runtimeTiming) {
     const outputTokens = stats.providerPerformance?.measuredOutputTokens
     const durationMs = stats.providerPerformance?.generationDurationMs
-    return outputTokens !== undefined && durationMs !== undefined && durationMs > 0
+    return outputTokens !== undefined && outputTokens > 0 && durationMs !== undefined && durationMs > 0
       ? outputTokens / (durationMs / 1000)
       : undefined
   }

@@ -33,12 +33,23 @@ function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
       `Release ${tag} was published while its tag was being prepared; refusing any post-publication tag mutation`
     )
   }
+  if (release && release.tag_name !== tag) {
+    throw new Error(`Draft release ${release.tag_name} does not match ${tag}`)
+  }
+  if (release && release.target_commitish !== workflowSha) {
+    throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
+  }
+  if (release && (!Array.isArray(release.assets) || release.assets.length === 0)) {
+    throw new Error(`Draft release ${tag} has no artifacts`)
+  }
 }
 
 function validatePublishState({
   branchSha,
+  controlSha,
   buildRun,
   expectedBuildTitle,
+  jobResults,
   openReleasePullRequests,
   pendingHotfixes,
   release,
@@ -48,6 +59,9 @@ function validatePublishState({
 }) {
   if (!release || release.draft !== true) {
     throw new Error(`Release ${tag} must exist and still be a draft before publication`)
+  }
+  if (release.target_commitish !== workflowSha) {
+    throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
   }
   if (tagSha !== workflowSha || branchSha !== workflowSha) {
     throw new Error('Tag, release branch, and selected workflow commit must be identical before publication')
@@ -61,15 +75,20 @@ function validatePublishState({
   if (
     !buildRun ||
     buildRun.display_title !== expectedBuildTitle ||
-    buildRun.head_sha !== workflowSha ||
+    buildRun.head_sha !== controlSha ||
+    buildRun.head_branch !== 'main' ||
+    buildRun.path !== '.github/workflows/release.yml' ||
     buildRun.event !== 'workflow_dispatch' ||
-    buildRun.status !== 'completed' ||
-    buildRun.conclusion !== 'success'
+    !jobResults ||
+    ['prepare', 'release', 'finalize-build', 'approve'].some((job) => jobResults[job]?.result !== 'success')
   ) {
     throw new Error(`No successful all-platform Release build exists for ${workflowSha}`)
   }
   if (!Array.isArray(release.assets) || release.assets.length === 0) {
     throw new Error(`Draft release ${tag} has no artifacts`)
+  }
+  if (!release.body?.trim()) {
+    throw new Error(`Draft release ${tag} has no release notes`)
   }
 }
 
@@ -95,7 +114,8 @@ function main() {
 
   if (phase === 'prepare') {
     validatePreparationState({
-      releasePages: parseOptionalJson(fs.readFileSync(0, 'utf8'), 'release list'),
+      // Avoid Node 24.21.0's UTF-8 pipe-read overflow: https://github.com/nodejs/node/issues/66341.
+      releasePages: parseOptionalJson(fs.readFileSync(0).toString('utf8'), 'release list'),
       tag
     })
     return
@@ -123,8 +143,10 @@ function main() {
   if (phase === 'publish') {
     validatePublishState({
       branchSha: requiredEnvironment('BRANCH_SHA'),
+      controlSha: requiredEnvironment('CONTROL_SHA'),
       buildRun: parseOptionalJson(process.env.BUILD_RUN_JSON, 'BUILD_RUN_JSON'),
       expectedBuildTitle: requiredEnvironment('EXPECTED_BUILD_TITLE'),
+      jobResults: parseOptionalJson(process.env.RELEASE_JOB_RESULTS, 'RELEASE_JOB_RESULTS'),
       openReleasePullRequests: process.env.OPEN_RELEASE_PULL_REQUESTS || '',
       pendingHotfixes: process.env.PENDING_HOTFIXES || '',
       release,

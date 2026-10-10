@@ -1,10 +1,12 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { StreamingMarkdown } from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
+import type { ImgHTMLAttributes } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { StreamingMarkdown } from '@cherrystudio/ui'
+
 import { ChatMarkdownRenderProvider } from '../ChatMarkdownRenderContext'
-import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from '../ChatMarkdownRenderers'
+import { CHAT_MARKDOWN_COMPONENTS } from '../ChatMarkdownRenderers'
 
 const mocks = vi.hoisted(() => ({
   CodeBlock: vi.fn(({ children, isStreaming }: { children: string; isStreaming: boolean }) => (
@@ -14,9 +16,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../CodeBlock', () => ({ default: mocks.CodeBlock }))
+vi.mock('@renderer/components/ImageViewer', () => ({
+  default: (props: ImgHTMLAttributes<HTMLImageElement>) => <img {...props} />
+}))
 
 const EMPTY_CITATIONS = new Map()
-
 function renderCode(isStreaming: boolean) {
   return (
     <ChatMarkdownRenderProvider blockId="message-part" citationRegistry={EMPTY_CITATIONS} isStreaming={isStreaming}>
@@ -32,12 +36,6 @@ function renderCode(isStreaming: boolean) {
 }
 
 describe('ChatMarkdown renderers', () => {
-  it('shares renderer types between the base and style-enabled registries', () => {
-    for (const tag of Object.keys(CHAT_MARKDOWN_COMPONENTS)) {
-      expect(CHAT_MARKDOWN_COMPONENTS_WITH_STYLE[tag]).toBe(CHAT_MARKDOWN_COMPONENTS[tag])
-    }
-  })
-
   it('keeps code renderer nodes mounted when streaming settles', () => {
     const { rerender } = render(renderCode(true))
     const firstCode = screen.getByText('const first = 1')

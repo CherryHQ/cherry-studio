@@ -1,4 +1,19 @@
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  RowFlex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -16,11 +31,8 @@ import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
+import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
-import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
@@ -46,6 +58,7 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
   const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
     () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
   )
@@ -294,7 +307,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-backup-restore" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
             <Button onClick={() => BackupPopup.show()} variant="outline">
@@ -308,7 +321,7 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
         </SettingRow>
@@ -319,7 +332,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -338,7 +351,7 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-logs" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -354,7 +367,26 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
+        <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.log_retention.label')}</SettingRowTitle>
+          <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
+            <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LOG_RETENTION_DAYS.map((days) => (
+                <SelectItem key={days} value={String(days)}>
+                  {t('settings.data.log_retention.days', { days })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingRow>
         <SettingRow>
+          <SettingHelpText>{t('settings.data.log_retention.help')}</SettingHelpText>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">
           <SettingRowTitle>
             {t('settings.data.clear_cache.title')}
             {cacheSize !== undefined && (
@@ -393,7 +425,7 @@ const BasicDataSettings: React.FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-reset" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
             <Button onClick={handleDataReset} variant="destructive">
@@ -405,7 +437,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-privacy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
             checked={enableDataCollection}

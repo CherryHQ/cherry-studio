@@ -1,5 +1,6 @@
-import { definePlugin } from '@cherrystudio/ai-core'
 import { simulateStreamingMiddleware } from 'ai'
+
+import { definePlugin } from '@cherrystudio/ai-core'
 
 /**
  * Simulate Streaming Plugin

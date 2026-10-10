@@ -1,7 +1,7 @@
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { AssistantMessage, CallId, ContentBlock, MessageId, ToolResultMessage } from '@deepseek-ai/dsh-llm'
+import type { AssistantMessage, ContentBlock, MessageId, ToolCallId, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
-import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
+import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,7 +57,7 @@ const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T])
   ({ type, seq: ++seq, time: 0, data }) as SessionEvent
 type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
 type DshRetryId = SessionEventMap['llm/retry']['retryId']
-const callId = (id: string) => id as CallId
+const callId = (id: string) => id as ToolCallId
 const approvalId = (id: string) => id as ApprovalRequestId
 const assistantMessage = (model = 'deepseek-chat-0711'): AssistantMessage => ({
   id: 'msg-1' as MessageId,
@@ -67,15 +67,10 @@ const assistantMessage = (model = 'deepseek-chat-0711'): AssistantMessage => ({
 })
 const toolResultMessage = (id: string, isError?: boolean): ToolResultMessage => ({
   id: `msg-${id}` as MessageId,
-  role: 'user',
-  content: [
-    {
-      type: 'tool-result',
-      toolCallId: callId(id),
-      content: [] as ContentBlock[],
-      ...(isError !== undefined ? { isError } : {})
-    }
-  ],
+  role: 'tool',
+  toolCallId: callId(id),
+  content: [] as ContentBlock[],
+  ...(isError !== undefined ? { isError } : {}),
   source: { kind: 'tool', callId: callId(id) }
 })
 
@@ -94,6 +89,7 @@ describe('DshTraceRecorder', () => {
     recorder.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     recorder.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage(),
@@ -160,6 +156,7 @@ describe('DshTraceRecorder', () => {
     )
     recorder.handleEvent(
       envelope('assistant/message', {
+        stream: [],
         turn: 1,
         step: 1,
         message: assistantMessage(),
@@ -224,8 +221,8 @@ describe('DshTraceRecorder', () => {
       envelope('compaction/summary', {
         compactionId: 'c-1' as DshCompactionId,
         summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
-        shadowedRange: { start: 2, end: 10 },
-        shadowedSeqs: [2, 6, 10],
+        shadowedRange: { start: SessionSeq(2), end: SessionSeq(10) },
+        shadowedSeqs: [SessionSeq(2), SessionSeq(6), SessionSeq(10)],
         shadowedTokenCount: 4200,
         provider: 'deepseek',
         model: 'deepseek-chat-0711',

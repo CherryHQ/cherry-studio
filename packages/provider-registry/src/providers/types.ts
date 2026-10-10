@@ -25,9 +25,11 @@ type ProviderConnection = Omit<
   | 'authOptional'
   | 'serverTools'
   | 'reportsActualCost'
+  | 'availableInEditions'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
+  availableInEditions: NonNullable<ProviderConfig['availableInEditions']>
   /** Defaults to `api`; only registry-backed providers need to declare it. */
   modelListSource?: ProviderConfig['modelListSource']
   /** Defaults to `false`; only credential-free local providers declare it. */
@@ -90,6 +92,7 @@ export function openaiCompatible(
     baseUrl: string
     anthropic?: string
     website: ProviderWebsite
+    availableInEditions: ProviderConnection['availableInEditions']
     /** Dialect deviations of this host's chat-completions implementation. */
     dialect?: EndpointDialect
     presetProviderId?: string
@@ -99,6 +102,7 @@ export function openaiCompatible(
      */
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
+    supplementModelsFromRegistry?: ProviderConfig['supplementModelsFromRegistry']
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
@@ -117,7 +121,11 @@ export function openaiCompatible(
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs,
     metadata: { website: p.website },
+    availableInEditions: p.availableInEditions,
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
+    ...(p.supplementModelsFromRegistry !== undefined
+      ? { supplementModelsFromRegistry: p.supplementModelsFromRegistry }
+      : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),

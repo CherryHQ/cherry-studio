@@ -1,6 +1,7 @@
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 
 const { mockUseAssistant, mockUsePreference, mockUpdateAssistant } = vi.hoisted(() => ({
   mockUseAssistant: vi.fn(),

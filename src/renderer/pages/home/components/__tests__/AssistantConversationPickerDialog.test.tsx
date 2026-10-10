@@ -1,6 +1,7 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 // Use the real Popover/MenuList/MenuItem (renderer.setup stubs them globally) so the filter
 // popover actually opens/closes.
@@ -18,8 +19,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({ default: () => null }))
 
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   ConversationPickerDialog: (props: any) => {
@@ -86,7 +85,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   // Radix Popover needs these in jsdom to open.
   if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}

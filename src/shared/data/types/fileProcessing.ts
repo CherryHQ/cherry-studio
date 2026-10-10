@@ -1,5 +1,6 @@
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
 

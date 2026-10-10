@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'baichuan',
   name: 'BAICHUAN AI',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.baichuan-ai.com',
   website: {
     apiKey: 'https://platform.baichuan-ai.com/console/apikey',

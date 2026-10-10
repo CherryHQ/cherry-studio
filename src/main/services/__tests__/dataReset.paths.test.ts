@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { describe, expect, it, vi } from 'vitest'
+
+import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 
 import { USER_DATA_KEPT, USER_DATA_WIPE } from '../dataReset'
 
@@ -54,6 +55,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
+    expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.cherry_account.credentials_file'], userData))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['app.session.cache']))
     expect(USER_DATA_WIPE).toContain('cache.json')

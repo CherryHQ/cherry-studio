@@ -1,6 +1,7 @@
+import { useMemo } from 'react'
+
 import ImageBlock from '@renderer/components/chat/messages/blocks/ImageBlock'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { useMemo } from 'react'
 
 import { getChannelAuthQrResult } from '../channelConfigTool'
 import { AgentExecutionTimeline } from './AgentExecutionTimeline'
