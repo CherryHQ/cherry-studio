@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SecretInput } from '@renderer/components/SecretInput'
 import {
   SettingDivider,
   SettingGroup,
@@ -119,13 +120,11 @@ const YuqueSettings: FC = () => {
         </SettingRowTitle>
         <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
-            <Input
-              type="password"
+            <SecretInput
               value={yuqueToken || ''}
               onChange={handleYuqueTokenChange}
               onBlur={handleYuqueTokenChange}
               placeholder={t('settings.data.yuque.token_placeholder')}
-              style={{ width: '100%' }}
             />
             <Button onClick={handleYuqueConnectionCheck} variant="outline" className="h-9 shrink-0">
               {t('settings.data.yuque.check.button')}

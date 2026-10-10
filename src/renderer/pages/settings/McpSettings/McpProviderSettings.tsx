@@ -3,10 +3,11 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { SecretInput } from '@renderer/components/SecretInput'
 import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
@@ -135,8 +136,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
         <div className="mb-2 flex items-center justify-between gap-3">
           <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
         </div>
-        <Input
-          type="password"
+        <SecretInput
           value={token}
           placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
           onChange={(e) => handleTokenChange(e.target.value)}

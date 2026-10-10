@@ -29,13 +29,14 @@ vi.mock('@renderer/components/CollapsibleSearchBar', () => ({
   default: () => <div data-testid="search-bar" />
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
   Button: ({ children, onClick, disabled }: { children?: ReactNode; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" onClick={onClick} disabled={disabled}>
       {children}
     </button>
   ),
-  Input: (props: Record<string, unknown>) => <input {...props} />
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+  SecretInput: (await import('@test-mocks/renderer/CherrystudioUI')).MockSecretInput
 }))
 
 vi.mock('react-i18next', () => ({

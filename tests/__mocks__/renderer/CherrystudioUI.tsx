@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { ComponentProps, InputHTMLAttributes, ReactNode } from 'react'
 import React from 'react'
 
 const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
@@ -10,6 +10,33 @@ const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Reco
 })
 
 const SelectContext = React.createContext<{ onValueChange?: (value: string) => void; value?: string }>({})
+
+type MockSecretInputProps = Omit<ComponentProps<'input'>, 'className' | 'size' | 'type'> & {
+  className?: string
+  hideLabel: string
+  inputClassName?: string
+  showLabel: string
+  size?: 'sm' | 'default' | 'lg'
+}
+
+export function MockSecretInput(secretInputProps: MockSecretInputProps) {
+  const { className, hideLabel, inputClassName, showLabel, size, spellCheck, value, ...props } = secretInputProps
+  const isControlled = Object.hasOwn(secretInputProps, 'value')
+  void className
+  void hideLabel
+  void showLabel
+  void size
+
+  return (
+    <input
+      {...props}
+      value={isControlled ? (value ?? '') : undefined}
+      type="password"
+      spellCheck={spellCheck ?? false}
+      className={inputClassName}
+    />
+  )
+}
 
 export const MockCherrystudioUI = {
   Badge: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
@@ -203,6 +230,7 @@ export const MockCherrystudioUI = {
       {onClear && clearLabel && value ? <button type="button" aria-label={clearLabel} onClick={onClear} /> : null}
     </div>
   ),
+  SecretInput: MockSecretInput,
   SegmentedControl: ({ options, value, onValueChange, ...props }: any) => (
     <div role="radiogroup" {...props}>
       {options.map((option: { value: string; label: ReactNode }) => (
