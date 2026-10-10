@@ -67,11 +67,12 @@ export async function capturePiConnectionSnapshot(
   sessionId: string,
   agentId: string,
   requestedModelId?: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
+  selectedKnowledgeBaseIds?: readonly string[],
+  opts?: { servesAcceptedTurn?: boolean }
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  if (!session || !agent?.model || (!opts?.servesAcceptedTurn && (!session.agentId || session.agentId !== agentId))) {
     throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
 

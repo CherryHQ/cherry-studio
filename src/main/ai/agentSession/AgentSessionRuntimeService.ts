@@ -822,7 +822,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile(this.connectionTarget(entry, agent))
+      verdict = await connection.reconcile({
+        ...this.connectionTarget(entry, agent),
+        ...this.acceptedTurnScope(entry)
+      })
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -847,6 +850,10 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
       case 'invalid':
+        // An ownership-only rejection (top-bar switch) must not tear down a connection serving an
+        // accepted turn — the frozen agent is still runnable and the turn boundary adopts the
+        // session's new agent anyway.
+        if (this.invalidVerdictIsReassignmentOnly(entry)) return
         // Desired config no longer derivable (agent/session/model rows gone) — same full
         // invalidation as a cleared model.
         this.invalidateModelClearedEntry(entry)
@@ -944,6 +951,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return
 
     this.clearIdleTimer(entry)
+    // A top-bar switch can re-point the session while the previous agent's turn still executes.
+    // Never fold input into that execution: it queues as the next turn and runs under the
+    // session's current agent once the old execution ends and the connection is replaced.
+    const session = agentSessionService.getById(sessionId)
+    const agentReassigned = !!session?.agentId && session.agentId !== entry.agentId
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
     const headless = opts.headless === true
@@ -978,6 +990,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.isTurnLive(entry, turn) &&
       turn.headless !== true &&
       !headless &&
+      !agentReassigned &&
       canRedirectOnCurrentConfig &&
       this.currentConnection(entry)?.redirect?.({
         message,
@@ -1632,6 +1645,52 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
+  /**
+   * A top-bar switch re-points the session row while the runtime entry keeps the previous agent.
+   * Adopt the session's current agent identity at a turn boundary — even an unrunnable one, whose
+   * failure the drain/connect paths already surface — but never mid-turn: the running turn's
+   * attribution (naming, telemetry, author snapshot) stays with the agent that started it.
+   */
+  private adoptSessionAgent(entry: AgentSessionRuntimeEntry): void {
+    const turn = this.currentTurn(entry)
+    if (
+      isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
+      isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
+      (turn && this.isTurnLive(entry, turn))
+    ) {
+      return
+    }
+    const session = agentSessionService.getById(entry.sessionId)
+    if (!session?.agentId || session.agentId === entry.agentId) return
+    const agent = agentService.getAgent(session.agentId)
+    entry.agentId = session.agentId
+    entry.agentType = agent?.type ?? entry.agentType
+    entry.modelId = agent?.model ?? entry.modelId
+  }
+
+  /**
+   * A live turn is frozen to `entry.agentId` (adoption never runs mid-turn), so a connect or
+   * reconcile serving it validates the frozen agent itself instead of the session row, which a
+   * top-bar switch may have re-pointed meanwhile.
+   */
+  private acceptedTurnScope(entry: AgentSessionRuntimeEntry): { servesAcceptedTurn?: boolean } {
+    return this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}
+  }
+
+  /**
+   * An 'invalid' reconcile verdict that fired only because the session row was re-pointed away
+   * from the agent a live turn froze to (top-bar switch): the frozen agent is still runnable, so
+   * the accepted turn keeps its connection until the turn boundary — where adoption picks up the
+   * session's new agent. A verdict from an actually unroutable owner (row gone, model cleared)
+   * returns false and keeps the full-invalidation handling.
+   */
+  private invalidVerdictIsReassignmentOnly(entry: AgentSessionRuntimeEntry): boolean {
+    if (!this.liveTurn(entry)) return false
+    const session = agentSessionService.getById(entry.sessionId)
+    if (!session?.agentId || session.agentId === entry.agentId) return false
+    return Boolean(agentService.getAgent(entry.agentId)?.model)
+  }
+
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
@@ -1643,6 +1702,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         continue
       }
+
+      this.adoptSessionAgent(entry)
 
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
@@ -1662,13 +1723,29 @@ export class AgentSessionRuntimeService extends BaseService {
           return true
         }
 
+        // A warm connection is frozen to the agent it was spawned under. After a top-bar switch to
+        // a same-runtime agent, reconciling it would re-derive an unchanged configuration from the
+        // old owner (Pi/Dsh signatures, Claude's captured request) while servesAcceptedTurn
+        // suppresses the ownership check — the new turn would run the old agent's instructions and
+        // tool policy while being attributed to the new agent. Replace the connection and let the
+        // loop reconnect under the entry's agent; background work on the old owner releases first,
+        // exactly like a rebuild verdict.
+        if (connection.agentId && connection.agentId !== entry.agentId) {
+          if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) {
+            await this.waitForBackgroundWorkRelease(entry, connection, target)
+          } else {
+            this.closeConnectionAsync(entry)
+          }
+          continue
+        }
+
         // TOCTOU discipline: reconcile acts on the CAPTURED connection (its live patches land on
         // the right object even if the entry moves on), and every close decision below re-validates
         // that the captured connection is still the entry's current one. A thrown reconcile fails
         // closed like the push path: the suspect connection is replaced by a fresh one.
         let verdict: AgentRuntimeReconcileResult
         try {
-          verdict = await connection.reconcile(target)
+          verdict = await connection.reconcile({ ...target, ...this.acceptedTurnScope(entry) })
         } catch (error) {
           logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
           verdict = 'failed'
@@ -1715,9 +1792,24 @@ export class AgentSessionRuntimeService extends BaseService {
             // and the loop reconnects from the latest config.
             this.closeConnectionAsync(entry)
             continue
-          case 'invalid':
+          case 'invalid': {
+            // The turn already accepted under the frozen agent outranks the reassignment until
+            // its boundary: an ownership-only rejection (see invalidVerdictIsReassignmentOnly)
+            // must not close the session and strand the accepted input.
+            if (this.invalidVerdictIsReassignmentOnly(entry)) return true
+            // 'invalid' also fires for a warm connection frozen to an agent the session no longer
+            // points at (top-bar reassignment; Pi/Dsh capture against the frozen id). The session
+            // row is still runnable, so replace the connection instead of closing the session —
+            // an input already admitted for this turn must survive the transition.
+            const session = agentSessionService.getById(entry.sessionId)
+            const sessionAgent = session?.agentId ? agentService.getAgent(session.agentId) : null
+            if (session && sessionAgent?.model && session.agentId === entry.agentId) {
+              this.closeConnectionAsync(entry)
+              continue
+            }
             void this.closeSession(entry.sessionId)
             return false
+          }
         }
       }
 
@@ -1768,6 +1860,7 @@ export class AgentSessionRuntimeService extends BaseService {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
+      ...this.acceptedTurnScope(entry),
       reasoningEffort: target.reasoningEffort,
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
@@ -2766,6 +2859,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     if (entry.runtimeState.execution.kind !== 'idle') return
 
+    // A queued follow-up can equally outlive the session's agent: a top-bar switch re-pointed the
+    // session while this input sat queued, so drain it under the session's current agent.
+    this.adoptSessionAgent(entry)
+
     const pendingTurn = entry.runtimeState.queue[0]
     if (!pendingTurn) {
       this.refreshIdleTimer(entry)
@@ -2800,12 +2897,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const rootSpan = this.startRuntimeRootSpan(entry)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
-    // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
-    // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
-    // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
-    // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
+    // set) so a mid-session agent change can't stamp the queued reply with a stale author — but when the
+    // executor itself changed (top-bar switch before the drain), the new reply's author follows the
+    // executor; completed rows keep their own frozen snapshots. The nested model is reconciled to the
+    // running model either way, so `messageSnapshot.model` never disagrees with the row's `modelId`.
     const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
-    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
+    const messageSnapshot = reconcileSnapshotForExecution(frozenSnapshot, liveAgent, entry.modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -3442,20 +3539,25 @@ function isAbortError(error: unknown): boolean {
 }
 
 /**
- * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
- * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
- * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
- * stays frozen. No-op when the frozen model already is the running model.
+ * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it
+ * under the session's current agent. Reconcile the snapshot to the identity and model that actually
+ * execute: when a top-bar switch moved execution to another agent, the new reply's author
+ * (id/name/emoji) follows the executor; otherwise only the nested model is reconciled so
+ * `messageSnapshot.model` never disagrees with the row's `modelId`.
  */
-function reconcileSnapshotModel(
+function reconcileSnapshotForExecution(
   snapshot: MessageSnapshot | undefined,
-  modelId: UniqueModelId,
-  modelName: string | null | undefined
+  agent: AgentEntity,
+  modelId: UniqueModelId
 ): MessageSnapshot | undefined {
   if (!snapshot) return undefined
-  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
-  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+  let model = snapshot.model
+  if (createUniqueModelId(model.provider, model.id) !== modelId) {
+    const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+    model = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+  }
+  if (snapshot.id === agent.id) return model === snapshot.model ? snapshot : { ...snapshot, model }
+  return { id: agent.id, name: agent.name, emoji: agent.configuration?.avatar?.trim() || '🤖', model }
 }
 
 function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {

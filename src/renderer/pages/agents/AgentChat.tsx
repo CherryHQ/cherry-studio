@@ -29,19 +29,23 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
+import { prefetch, useReadCache } from '@renderer/data/hooks/useDataApi'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { canReassignSessionAgent } from '@shared/ai/agentSessionRuntimeSwitch'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -189,6 +193,9 @@ const AgentChat = ({
   const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
     'agent.model_switch_confirmation.skipped'
   )
+  const [skipAgentSwitchConfirmationsForAppRun, setSkipAgentSwitchConfirmationsForAppRun] = useSharedCache(
+    'agent.agent_switch_confirmation.skipped'
+  )
   const currentSessionId = conversationBootstrap.session?.id
   const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
@@ -196,6 +203,10 @@ const AgentChat = ({
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
+  const [agentSwitchTarget, setAgentSwitchTarget] = useState<string | undefined>()
+  const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | undefined>()
+  const [agentSwitchConfirmOpen, setAgentSwitchConfirmOpen] = useState(false)
+  const [skipAgentSwitchConfirmation, setSkipAgentSwitchConfirmation] = useState(false)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -211,6 +222,7 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
+  const readAgentsCache = useReadCache()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -292,6 +304,37 @@ const AgentChat = ({
   const handleSessionAgentChange = useCallback(
     async (nextAgentId: string | null) => {
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
+      // An established conversation cannot cross runtimes: each keeps its own native history and
+      // cannot replay the other's, so switching needs a new conversation (empty ones switch freely).
+      if (!isEmptyConversation && activeAgent?.type) {
+        const cachedAgents = readAgentsCache<{ items: Pick<AgentEntity, 'id' | 'type'>[] }>('/agents', {
+          limit: AGENTS_MAX_LIMIT
+        })?.items
+        // A just-created agent can be absent from the pin-first list refresh (the cached window is
+        // bounded), so resolve the authoritative row instead of treating the miss as consent.
+        const targetAgent =
+          cachedAgents?.find((agent) => agent.id === nextAgentId) ??
+          (await prefetch('/agents/:agentId', { params: { agentId: nextAgentId } }).catch(() => undefined))
+        if (
+          !canReassignSessionAgent({
+            hasMessages: true,
+            currentRuntime: activeAgent.type,
+            nextRuntime: targetAgent?.type
+          })
+        ) {
+          toast.error(t('agent.session.agent_switch.runtime_mismatch'))
+          return
+        }
+      }
+      // Re-pointing an established conversation swaps the prompt/tools/model for
+      // subsequent messages — confirm first, like mid-conversation model switches.
+      if (!isEmptyConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
+        setAgentSwitchTarget(nextAgentId)
+        setAgentSwitchSessionId(sessionSnapshot.id)
+        setSkipAgentSwitchConfirmation(false)
+        setAgentSwitchConfirmOpen(true)
+        return
+      }
       setSessionAgentChanging(true)
       try {
         await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
@@ -299,8 +342,25 @@ const AgentChat = ({
         setSessionAgentChanging(false)
       }
     },
-    [sessionAgentChanging, sessionSnapshot, updateSession]
+    [
+      sessionAgentChanging,
+      sessionSnapshot,
+      updateSession,
+      isEmptyConversation,
+      activeAgent,
+      readAgentsCache,
+      skipAgentSwitchConfirmationsForAppRun,
+      t
+    ]
   )
+  // The retained target belongs to the session the dialog was opened for: a global new-session
+  // shortcut can swap the mounted session under an open dialog, so dismiss rather than reassign
+  // whatever session is latest.
+  useEffect(() => {
+    if (agentSwitchConfirmOpen && agentSwitchSessionId && currentSessionId !== agentSwitchSessionId) {
+      setAgentSwitchConfirmOpen(false)
+    }
+  }, [currentSessionId, agentSwitchConfirmOpen, agentSwitchSessionId])
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
       if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
@@ -457,7 +517,7 @@ const AgentChat = ({
               selectModelLabel={t('button.select_model')}
               selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
               shouldAutoSelectCreatedAgent
-              agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+              agentTriggerMode="selector"
               canChangeModel
               onAgentChange={handleSessionAgentChange}
               onModelSelect={handleAgentModelChange}
@@ -579,6 +639,42 @@ const AgentChat = ({
           )
           if (updatedAgent && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={agentSwitchConfirmOpen}
+        onOpenChange={setAgentSwitchConfirmOpen}
+        title={t('agent.session.agent_switch_confirm.title')}
+        description={t('agent.session.agent_switch_confirm.description')}
+        content={
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="skip-agent-switch-confirmation"
+              size="sm"
+              checked={skipAgentSwitchConfirmation}
+              onCheckedChange={(checked) => setSkipAgentSwitchConfirmation(checked === true)}
+            />
+            <label
+              htmlFor="skip-agent-switch-confirmation"
+              className="cursor-pointer text-sm leading-none text-foreground">
+              {t('agent.session.agent_switch_confirm.skip_for_app_run')}
+            </label>
+          </div>
+        }
+        confirmText={t('agent.session.agent_switch_confirm.confirm')}
+        cancelText={t('common.cancel')}
+        onConfirm={async () => {
+          if (!sessionSnapshot || !agentSwitchTarget || agentSwitchTarget === sessionSnapshot.agentId) return
+          // Guard the same race the dismissal effect covers: confirm must never apply a target
+          // retained for another session to whichever session is current.
+          if (agentSwitchSessionId !== sessionSnapshot.id) return
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, agentId: agentSwitchTarget },
+            { showSuccessToast: false }
+          )
+          if (updatedSession && skipAgentSwitchConfirmation) {
+            setSkipAgentSwitchConfirmationsForAppRun(true)
           }
         }}
       />

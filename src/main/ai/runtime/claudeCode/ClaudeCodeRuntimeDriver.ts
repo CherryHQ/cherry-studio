@@ -355,13 +355,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
+  get agentId(): string | undefined {
+    return this.input.agentId
+  }
+
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
   }
 
   async start(): Promise<this> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
-    // the model captured when that turn was created, even if the agent was edited since.
+    // the model captured when that turn was created, even if the agent was edited since. The same
+    // holds for the agent identity — a turn already accepted under this connection's agent keeps
+    // that agent's instructions/tools even if the session row was re-pointed meanwhile.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
     // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
@@ -370,7 +376,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.agentId
     ).catch((error) => {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
@@ -527,12 +534,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
+    // Derive the desired config for THIS connection's agent (frozen across a mid-session
+    // reassignment), not the session row's current one — the connection serves the turn that
+    // was accepted under this agent until the host rebuilds at a turn boundary.
     const derived = await deriveConnectionConfig(
       this.input.sessionId,
       input.modelId,
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      this.input.agentId
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig

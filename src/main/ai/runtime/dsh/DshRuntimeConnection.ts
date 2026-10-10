@@ -175,6 +175,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
+  get agentId(): string | undefined {
+    return this.input.agentId
+  }
+
   constructor(
     private readonly input: AgentRuntimeConnectInput,
     private readonly onClosed: () => void = () => undefined
@@ -294,11 +298,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       }
     }
 
+    // A turn already accepted and frozen to this connection's agent keeps its captured
+    // configuration through startup even if the session row was re-pointed mid-materialization.
+    const captureOpts = { servesAcceptedTurn: this.input.servesAcceptedTurn === true }
     const discoverySnapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.
@@ -308,11 +316,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     const { agent, session } = snapshot
     const workspacePath = session.workspace?.path
-    if (!session.agentId || !workspacePath) {
+    if (!workspacePath || (!session.agentId && !captureOpts.servesAcceptedTurn)) {
       throw new Error(`dsh agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
 
@@ -403,7 +412,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         this.input.modelId,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        captureOpts
       )
       if (finalSnapshot.signature !== snapshot.signature) {
         throw new Error(`dsh connection materialization changed during startup: ${this.input.sessionId}`)
@@ -552,6 +562,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -565,6 +576,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     modelId: UniqueModelId
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -572,7 +584,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        { servesAcceptedTurn: input.servesAcceptedTurn === true }
       )
     } catch (error) {
       if (error instanceof DshInvalidConnectionSnapshotError) return 'invalid'

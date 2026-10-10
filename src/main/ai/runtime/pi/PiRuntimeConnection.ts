@@ -198,6 +198,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
+  get agentId(): string | undefined {
+    return this.input.agentId
+  }
+
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
@@ -220,6 +224,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
     }
 
+    // A turn already accepted and frozen to this connection's agent keeps its captured
+    // configuration through startup even if the session row was re-pointed mid-materialization.
+    const captureOpts = { servesAcceptedTurn: this.input.servesAcceptedTurn === true }
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
     // the final snapshot check below.
@@ -227,7 +234,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
@@ -239,11 +247,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     const { agent, session } = initialSnapshot
     const workspacePath = session?.workspace?.path
-    if (!session?.agentId || !workspacePath) {
+    if (!workspacePath || (!session?.agentId && !captureOpts.servesAcceptedTurn)) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
 
@@ -407,7 +416,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         this.input.modelId,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        captureOpts
       )
       if (finalSnapshot.signature !== initialSnapshot.signature) {
         throw new Error(`Pi connection materialization changed during startup: ${this.input.sessionId}`)
@@ -549,6 +559,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -561,6 +572,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -568,7 +580,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        { servesAcceptedTurn: input.servesAcceptedTurn === true }
       )
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'

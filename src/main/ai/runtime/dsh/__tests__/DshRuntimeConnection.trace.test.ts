@@ -236,6 +236,8 @@ afterEach(() => {
 describe('DshRuntimeConnection tracing', () => {
   it('records the exact completed turn without a separate checkpoint request', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
+    // The host's agent-switch gate keys off this: the connection declares the agent it serves.
+    expect(connection.agentId).toBe('agent-1')
     const events: AgentRuntimeEvent[] = []
     const consume = (async () => {
       for await (const event of connection.events) events.push(event)

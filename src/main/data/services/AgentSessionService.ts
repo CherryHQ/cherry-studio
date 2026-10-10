@@ -24,8 +24,10 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { canReassignSessionAgent } from '@shared/ai/agentSessionRuntimeSwitch'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { AgentType } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
@@ -356,6 +358,43 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  /**
+   * Backend boundary of the renderer's runtime-switch guard: an established conversation cannot
+   * cross runtime types (each keeps its own native transcript and admission does not replay
+   * history), so a reassignment that would orphan the visible history is rejected here — a stale
+   * renderer agent cache must not be able to bypass the check. Empty conversations switch freely.
+   */
+  private assertRuntimeCompatibleReassignmentTx(
+    tx: DbOrTx,
+    sessionId: string,
+    currentAgentId: string | null,
+    nextAgentId: string
+  ): void {
+    if (!currentAgentId) return
+    const [firstMessage] = tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .limit(1)
+      .all()
+    if (!firstMessage) return
+    const runtimeTypes = tx
+      .select({ id: agentsTable.id, type: agentsTable.type })
+      .from(agentsTable)
+      .where(and(inArray(agentsTable.id, [currentAgentId, nextAgentId]), isNull(agentsTable.deletedAt)))
+      .all()
+    // The raw column is plain text; the API layer owns the enum narrowing.
+    const runtimeById = new Map<string, AgentType>(runtimeTypes.map((row) => [row.id, row.type as AgentType]))
+    const currentRuntime = runtimeById.get(currentAgentId)
+    const nextRuntime = runtimeById.get(nextAgentId)
+    if (!canReassignSessionAgent({ hasMessages: true, currentRuntime, nextRuntime })) {
+      throw DataApiErrorFactory.invalidOperation(
+        'reassign session agent',
+        `switching the conversation from ${currentRuntime} to ${nextRuntime} would orphan its history`
+      )
+    }
   }
 
   getConversationById(id: string): AgentSessionEntity {
@@ -849,6 +888,9 @@ export class AgentSessionService {
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    if (reassigned) {
+      this.assertRuntimeCompatibleReassignmentTx(tx, id, current.agentId, patch.agentId!)
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.updateTaskScheduleRelationTx(tx, null, eq(sessionsTable.id, id))

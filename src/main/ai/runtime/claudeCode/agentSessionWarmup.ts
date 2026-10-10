@@ -296,13 +296,18 @@ export async function deriveConnectionConfig(
   connectionModelId?: UniqueModelId,
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** Connection-scoped agent override: the reconcile derives the desired config for the agent the
+   *  connection was spawned under (a live turn freezes it across a mid-session reassignment),
+   *  which may no longer be the session row's current agent. Defaults to the session row. */
+  connectionAgentId?: string
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return unroutable
-  const agent = agentService.getAgent(session.agentId)
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return unroutable
+  const agent = agentService.getAgent(agentId)
   if (!agent?.model) return unroutable
   try {
     return {
@@ -474,12 +479,18 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** Connection-scoped agent override: a live turn is frozen to the agent it was accepted under
+   *  (adoption never runs mid-turn), so after a mid-session reassignment the request must be
+   *  built from that agent — not the session row's current one — for configuration and
+   *  attribution to stay consistent. Defaults to the session row. */
+  connectionAgentId?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return undefined
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(agentId)
   if (!agent?.model) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)

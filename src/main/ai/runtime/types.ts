@@ -62,6 +62,13 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /**
+   * The connection serves a turn that was already accepted and frozen to `agentId`; the session row
+   * may since have been re-pointed to another agent (top-bar switch). Snapshot capture then
+   * validates the frozen agent itself (exists, has a model) instead of requiring the session to
+   * still reference it — the accepted turn keeps its captured configuration until it settles.
+   */
+  servesAcceptedTurn?: boolean
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -189,6 +196,12 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /**
+   * The agent this connection was spawned under — the owner of its frozen instructions, tools,
+   * and restrictions. The host replaces (never reconciles) a warm connection whose owner is not
+   * the agent a new turn runs under, so a config re-derived from the old owner cannot serve it.
+   */
+  readonly agentId?: string
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
@@ -212,7 +225,10 @@ export interface AgentRuntimeConnection {
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
-   * pinning the host uses for `connect`.
+   * pinning the host uses for `connect`. `servesAcceptedTurn` mirrors the connect flag: the
+   * reconcile serves a turn already accepted and frozen to this connection's agent, so snapshot
+   * capture validates that agent itself instead of requiring the session row to still point at
+   * it.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
@@ -221,6 +237,7 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
