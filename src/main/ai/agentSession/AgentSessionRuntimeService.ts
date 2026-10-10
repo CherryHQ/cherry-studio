@@ -2241,8 +2241,9 @@ export class AgentSessionRuntimeService extends BaseService {
         part.type === kind && part.state === 'streaming'
     )
     const owned = streaming.filter((part) => getPartParentToolCallId(part) === rootToolCallId)
+    const hasLiveContinuation = [...accumulator.openParts].some((key) => key.startsWith(`${kind}:`))
     let match: (typeof streaming)[number] | undefined
-    if (owned.length === 1) {
+    if (owned.length === 1 && !hasLiveContinuation && streaming.length === 1) {
       match = owned[0]
     } else if (owned.length === 0) {
       // Id-less seed parts: close only when no sibling flow owns a streaming part of this kind.
