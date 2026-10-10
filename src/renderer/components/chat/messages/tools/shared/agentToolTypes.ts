@@ -55,7 +55,7 @@ import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { getPartParentToolCallId } from '../toolParentMetadata'
+import { getPartCherryString, getPartParentToolCallId } from '../toolParentMetadata'
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
 export const AgentToolsType = {
@@ -297,6 +297,16 @@ export type SendMessageToolOutput =
       pin?: { id?: string } & Record<string, unknown>
       messageId?: string
     }
+
+/** The launch root tool-call id stamped onto a SendMessage receipt by the adapter. */
+export function getPartLaunchToolCallId(part: object): string | undefined {
+  return getPartCherryString(part, 'launchToolCallId')
+}
+
+/** The SendMessage call id that resumed this part's round, when the runtime tagged it. */
+export function getPartResumeMarker(part: CherryMessagePart): string | undefined {
+  return getPartCherryString(part, 'resumedViaCallId')
+}
 
 /** The background agent a SendMessage receipt points at: `resumedAgentId` when it woke a stopped
  *  agent, or `pin.id` when the target was still running and the message was queued for delivery. */

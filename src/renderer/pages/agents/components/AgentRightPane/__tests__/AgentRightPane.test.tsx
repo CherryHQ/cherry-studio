@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -24,7 +25,10 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import {
+  AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
+  type AgentSessionBackgroundTask
+} from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot } from '@shared/utils/file'
@@ -48,6 +52,7 @@ const {
   useDirectoryTreeMock,
   ipcRequestMock,
   toastErrorMock,
+  toastWarningMock,
   webviewBrowserMock,
   uiMockState,
   useAgentMessageListProviderValueMock
@@ -82,6 +87,7 @@ const {
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  toastWarningMock: vi.fn(),
   webviewBrowserMock: vi.fn(),
   uiMockState: { useRealHoverCard: false },
   useAgentMessageListProviderValueMock: vi.fn()
@@ -169,6 +175,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>,
+  Alert: ({ message }: { message?: string }) => <div>{message}</div>,
   TooltipSurface: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
@@ -241,7 +248,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: toastErrorMock }
+  toast: { error: toastErrorMock, warning: toastWarningMock }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -474,6 +481,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: stableT })
 }))
 
+import { useAgentLaunchIndex } from '@renderer/components/chat/messages/tools/agent'
+
 import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
@@ -523,6 +532,11 @@ function TestAgentRightPane({
       {children}
     </AgentRightPane.Scope>
   )
+}
+
+function LaunchIndexProbe() {
+  const index = useAgentLaunchIndex()
+  return <div data-testid="launch-index-roots">{[...(index?.dshTaskRootCallIds ?? [])].join(',')}</div>
 }
 
 function OpenFlowButton({
@@ -650,6 +664,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
@@ -2039,6 +2054,373 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
   })
 
+  it('pages older history in when a receipt root is outside the window, then opens it', async () => {
+    const loadOlder = vi.fn()
+    // dsh's receipt carries its target in the input and the rendered text; the launch names the same
+    // child, which is how the pane joins the two.
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    // The launch root is paged out, so the click loads history instead of doing nothing at all.
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // Once the launch row is in the window the flow opens on its own, at the launch identity.
+    view.rerender(pane({ m1: [receipt], m2: [launch] }))
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
+  })
+
+  // A page fetch that failed leaves the window unchanged, so the chase would wait forever: it must
+  // report the failure and let the next click start a fresh attempt.
+  it('reports a failed page fetch and retries on the next click', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>, loadOlderError?: Error) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder
+        loadOlderError={loadOlderError}>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane({ m1: [receipt] }, new Error('history fetch failed')))
+    await waitFor(() => expect(toastWarningMock).toHaveBeenCalledWith('agent.right_pane.flow.history_load_failed'))
+
+    // The intent is gone, so the next click arms a fresh attempt instead of being deduped away.
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(2))
+  })
+
+  // A chase that pages to the very beginning and still finds no root has nowhere left to look: the
+  // click must say so instead of dying silently.
+  it('reports an absent root when history is exhausted', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{ m1: [receipt] }}>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    await waitFor(() => expect(toastWarningMock).toHaveBeenCalledWith('agent.right_pane.flow.root_not_found'))
+    expect(loadOlder).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // The chase belongs to the session that asked for it: switching sessions must not page or open a
+  // flow in the one the user moved to.
+  it('does not chase a paged-out root into another session', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (sessionId: string, partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane('session-a', { m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // Session b holds the receipt and its launch root under the same call ids, so only the session
+    // gate stops the chase from opening a flow there.
+    view.rerender(pane('session-b', { m1: [receipt], m2: [launch] }))
+
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // A chased receipt can become a flow root while the chase waits — the runtime's live cache then
+  // binds its call — and paging for a launch root that will never exist would end in a dead click.
+  it('opens the flow when the chased receipt becomes its own root', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open flow" title="Inspect flow" toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    // The runtime binds the receipt's call to a task while the chase is still paging.
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a'), {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+    view.rerender(pane({ m1: [receipt] }))
+
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+  })
+
+  // The pane's own index feeds the rows inside its flow panel, so it has to see the same live edges
+  // the message list does — otherwise a receipt there still falls back to the launch root.
+  it('publishes live task edges through the pane launch index', () => {
+    const eventsKey = AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a')
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{ m1: [receipt] }}>
+        <LaunchIndexProbe />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByTestId('launch-index-roots').textContent).toBe('call-send')
+  })
+
+  // The resume edge can exist only in the runtime's live task-event cache, and the click must still
+  // root the flow at the resume call the child streams under rather than page for the launch root.
+  it('opens a dsh task-bound receipt at its own call from the live task-event cache', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const eventsKey = AGENT_SESSION_TASK_EVENTS_CACHE_KEY('session-a')
+    MockUseCacheUtils.setSharedCacheValue(eventsKey, {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent'
+      }
+    })
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={{ m1: [receipt] }}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open flow" title="Inspect flow" toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow'))
+    expect(loadOlder).not.toHaveBeenCalled()
+  })
+
+  // The click belonged to the session it was made in: coming back later must not resurrect it and
+  // page history for a flow the user has long moved on from.
+  it('abandons a deferred flow click when the pane leaves its session', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (sessionId: string, partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton toolCallId="call-send" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane('session-a', { m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane('session-b', { m1: [receipt] }))
+    view.rerender(pane('session-a', { m1: [receipt], m2: [launch] }))
+
+    expect(loadOlder).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+  })
+
+  // A deferred open is still the nested open the caller asked for: the flow it was opened from
+  // stays underneath, reachable through the pane's back affordance.
+  it('keeps the nesting of a deferred flow open', async () => {
+    const loadOlder = vi.fn()
+    const receipt = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-send',
+      toolName: 'send_message',
+      state: 'output-available',
+      input: { agent_id: 'dsh-child-1' },
+      output: 'message delivered to agent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1',
+      callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+    } as unknown as CherryMessagePart
+    const pane = (partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[]}
+        partsByMessageId={partsByMessageId}
+        loadOlder={loadOlder}
+        hasOlder>
+        <OpenFlowButton label="open parent" title="Parent flow" toolCallId="call-parent" />
+        <OpenFlowButton label="open nested" title="Nested flow" toolCallId="call-send" nested />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const view = render(pane({ m1: [receipt] }))
+    fireEvent.click(screen.getByRole('button', { name: 'open parent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open nested' }))
+    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+
+    view.rerender(pane({ m1: [receipt], m2: [launch] }))
+    await waitFor(() => expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Audit the renderer'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Parent flow')
+  })
+
   it('resolves a dynamic flow panel from the declared flow capability', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
@@ -2073,6 +2455,8 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent(title)
   })
 
+  // The resolved output feeds resume-round splitting (the receipt carries the agent id), even
+  // though its text is no longer rendered in the flow.
   it('resolves a deferred selected flow output by its stored address', async () => {
     const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {

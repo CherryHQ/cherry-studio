@@ -6,10 +6,14 @@ import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePa
 import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
-import { AgentToolsType, isAskUserQuestionToolName, resolveResumeReceiptState } from '../shared/agentToolTypes'
+import {
+  AgentToolsType,
+  getPartLaunchToolCallId,
+  isAskUserQuestionToolName,
+  resolveResumeReceiptState
+} from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
-import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval } from '../toolResponse'
 import { useAgentLaunchIndex } from './AgentLaunchIndexContext'
 import { buildResumeToolHeader } from './agentResumeHeader'

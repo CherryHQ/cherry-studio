@@ -64,8 +64,13 @@ import {
 } from '../tools/agent'
 import { useAgentLaunchIndex, resolveAgentToolFlowTarget } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
-import { AgentToolsType, getResumedAgentId, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
-import { getPartLaunchToolCallId, hasPartParentToolCallId } from '../tools/toolParentMetadata'
+import {
+  AgentToolsType,
+  getPartLaunchToolCallId,
+  getResumedAgentId,
+  isAskUserQuestionToolName
+} from '../tools/shared/agentToolTypes'
+import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import AgentSessionForkBlock from './AgentSessionForkBlock'

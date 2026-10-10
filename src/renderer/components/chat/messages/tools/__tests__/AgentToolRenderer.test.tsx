@@ -46,7 +46,6 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 vi.mock('../agent/AgentLaunchIndexContext', async () => {
   const agentToolTypes = await import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
   const { buildResumeToolHeader } = await import('../agent/agentResumeHeader')
-  const { getPartLaunchToolCallId } = await import('../toolParentMetadata')
   const { useTranslation } = await import('react-i18next')
   const index = () => agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   return {
@@ -59,7 +58,7 @@ vi.mock('../agent/AgentLaunchIndexContext', async () => {
         renderResumeHeader: (toolResponse: Record<string, unknown>, canNavigate: boolean) => {
           const state = agentToolTypes.resolveResumeReceiptState(
             toolResponse.response,
-            getPartLaunchToolCallId(toolResponse),
+            agentToolTypes.getPartLaunchToolCallId(toolResponse),
             index(),
             canNavigate
           )
