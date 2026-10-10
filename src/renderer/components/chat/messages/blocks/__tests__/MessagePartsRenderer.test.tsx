@@ -210,6 +210,18 @@ vi.mock('../ErrorBlock', () => ({
   default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
 }))
 
+// Rendered through the real components (they only need `useTranslation`, already mocked below), so the
+// test exercises the renderPart switch rather than re-asserting each block's internals.
+vi.mock('../AgentApiRetryBlock', () => ({
+  __esModule: true,
+  default: ({ data }: any) => <div data-testid="mock-agent-api-retry-block" data-attempt={String(data?.attempt)} />
+}))
+
+vi.mock('../AgentPausedBlock', () => ({
+  __esModule: true,
+  default: () => <div data-testid="mock-agent-paused-block" />
+}))
+
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
   ThinkingBlockContent: ({ content, isStreaming }: any) => (
@@ -2552,6 +2564,28 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    // A paused turn can carry no assistant text at all — the marker part is the ONLY thing left in
+    // history. If these two switch cases regress, a paused/retrying turn renders as a blank card and
+    // nothing in CI notices, because the blocks' own tests render them directly and never go through
+    // the renderPart switch. Both are in ASSOCIATED_RESULT_PART_TYPES, so they group with the
+    // adjacent result rather than scrolling as a separate block.
+    it('renders the paused and api-retry markers through the part switch', () => {
+      renderParts([
+        { type: 'text', text: 'partial answer' },
+        { type: 'data-error', data: { name: 'Err', message: 'interrupted' } },
+        { type: 'data-agent-paused', data: {} },
+        { type: 'data-agent-api-retry', data: { attempt: 2, maxRetries: 5, errorStatus: 429 } }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'interrupted')
+      // Not a `null` return: a paused turn with no text must still show its state in history.
+      expect(screen.getByTestId('mock-agent-paused-block')).toBeInTheDocument()
+      // Durable by design — only `data-retry` is stripped as transient before persistence, so this
+      // marker must survive a completed message and still render after a reload.
+      expect(screen.getByTestId('mock-agent-api-retry-block')).toHaveAttribute('data-attempt', '2')
+      expect(screen.getByTestId('mock-markdown').textContent).toContain('partial answer')
     })
 
     it('removes this message translation through the inline delete when the action is available', () => {

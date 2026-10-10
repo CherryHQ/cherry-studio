@@ -42,14 +42,124 @@ describe('AgentSessionMessageBackend', () => {
     expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).status).toBe('error')
   })
 
-  it('terminalizes an empty successful Agent reply on its reserved placeholder', async () => {
-    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+  it('downgrades an empty successful reply and skips the success hook', async () => {
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
     await listener.onDone({ status: 'success', finalMessage: undefined })
-    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
+    const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))
+    expect(afterPersist).not.toHaveBeenCalled()
+  })
+
+  it('runs the success hook for a reply that has a visible part', async () => {
+    // The negative case above also holds when `persistedSuccess` never gets set at all, so only
+    // this direction proves the assignment actually runs.
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
       status: 'success',
-      data: { parts: [] }
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: 'done' }]
+      } as never
     })
+
+    expect(afterPersist).toHaveBeenCalledWith(expect.objectContaining({ id: assistantMessageId }))
+  })
+
+  it('keeps an empty paused turn paused and persists a visible resume hint', async () => {
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onPaused({ status: 'paused', finalMessage: undefined })
+    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
+      status: 'paused',
+      data: { parts: [{ type: 'data-agent-paused', data: {} }] }
+    })
+  })
+
+  it('downgrades hidden-only success to a terminal error', async () => {
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [{ type: 'step-start' }, { type: 'text', text: '   ' }]
+      } as never
+    })
+    const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))
+  })
+
+  it('downgrades a success turn whose only content is a cardless dynamic provider tool', async () => {
+    // Claude Code emits native tools (EnterPlanMode) as dynamic provider calls
+    // (`dynamic: true`, `providerExecuted: true`, `cherry.tool.type: 'provider'`) that
+    // chooseTool gives no card — the turn succeeded but renders nothing without the downgrade.
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [
+          { type: 'step-start' },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'toolu_01-plan',
+            toolName: 'EnterPlanMode',
+            state: 'output-available',
+            input: {},
+            output: 'Plan mode entered',
+            providerExecuted: true,
+            callProviderMetadata: {
+              cherry: { transport: 'claude-agent', tool: { type: 'provider', name: 'EnterPlanMode' } }
+            }
+          }
+        ]
+      } as never
+    })
+    const saved = agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'data-error' }))
+    expect(afterPersist).not.toHaveBeenCalled()
+  })
+
+  it('keeps a success turn whose dynamic MCP tool renders a card', async () => {
+    const afterPersist = vi.fn().mockResolvedValue(undefined)
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, afterPersist })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: assistantMessageId,
+        role: 'assistant',
+        parts: [
+          { type: 'step-start' },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'toolu_01-mcp',
+            toolName: 'mcp__cherry-tools__web_fetch',
+            state: 'output-available',
+            input: { url: 'https://example.com' },
+            output: 'content',
+            providerExecuted: true,
+            callProviderMetadata: {
+              cherry: { transport: 'claude-agent', tool: { type: 'mcp', serverId: 'cherry-tools' } }
+            }
+          }
+        ]
+      } as never
+    })
+    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).status).toBe('success')
+    expect(afterPersist).toHaveBeenCalledWith(expect.objectContaining({ id: assistantMessageId }))
   })
 
   it('persists an unknown runtime checkpoint intact without exposing it in public messages', async () => {

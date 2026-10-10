@@ -696,24 +696,121 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_failed_no_detail' })
+      })
     ])
     expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
     expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_failed_no_detail' })
+      })
     ])
     expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
     ])
     expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
+  })
+
+  it('falls back on success turns holding only cardless dynamic provider tools, not dynamic MCP tools', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    // Claude Code emits native tools (EnterPlanMode) as dynamic provider calls
+    // (`providerExecuted: true`, `cherry.tool.type: 'provider'`) that chooseTool gives no
+    // card; the fallback must still explain the empty-looking success turn.
+    const enterPlanModeOnly: CherryMessagePart[] = [
+      { type: 'step-start' },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'toolu_01-plan',
+        toolName: 'EnterPlanMode',
+        state: 'output-available',
+        input: {},
+        output: 'Plan mode entered',
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'claude-agent', tool: { type: 'provider', name: 'EnterPlanMode' } }
+        }
+      }
+    ] as CherryMessagePart[]
+    const mcpToolOnly: CherryMessagePart[] = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'toolu_01-mcp',
+        toolName: 'mcp__cherry-tools__web_fetch',
+        state: 'output-available',
+        input: { url: 'https://example.com' },
+        output: 'content',
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: { transport: 'claude-agent', tool: { type: 'mcp', serverId: 'cherry-tools' } }
+        }
+      }
+    ] as CherryMessagePart[]
+    const messages = [
+      {
+        id: 'assistant-plan-only',
+        role: 'assistant',
+        parts: enterPlanModeOnly,
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-mcp-only',
+        role: 'assistant',
+        parts: mcpToolOnly,
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'success' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.partsByMessageId?.['assistant-plan-only']).toEqual([
+      ...enterPlanModeOnly,
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ message: 'error.agent_turn_no_output' })
+      })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-mcp-only']).toEqual(mcpToolOnly)
   })
 
   it('preserves sealed MessageListItem identities when only the active agent message changes', () => {
