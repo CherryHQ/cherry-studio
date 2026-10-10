@@ -5,7 +5,10 @@ import {
   isNotesRelocationMigrateInFlight,
   releaseNotesRelocationSession
 } from './notesRelocationSession'
-import { unregisterRendererNotesEditsFlushWindow } from './requestRendererNotesEditsFlush'
+import {
+  isRendererNotesEditsFlushWindowRegistered,
+  unregisterRendererNotesEditsFlushWindow
+} from './requestRendererNotesEditsFlush'
 
 let ownerWindowClosedCleanup: (() => void) | null = null
 let ownerUnavailableDuringMigrate = false
@@ -24,15 +27,44 @@ export function bindNotesRelocationSessionOwnerWindow(ownerId: string, onOwnerGo
     return
   }
 
-  const handleOwnerUnavailable = () => {
+  let notified = false
+  const notifyOwnerGone = () => {
+    if (notified) {
+      return
+    }
+    notified = true
     onOwnerGone()
   }
-  window.once('closed', handleOwnerUnavailable)
-  window.webContents.on('render-process-gone', handleOwnerUnavailable)
+
+  window.once('closed', notifyOwnerGone)
+
+  const { webContents } = window
+  const handleRenderProcessGone = () => {
+    notifyOwnerGone()
+  }
+  const handleMainFrameNavigation = (
+    _event: Electron.Event,
+    _url: string,
+    isInPlace: boolean,
+    isMainFrame: boolean
+  ) => {
+    if (isMainFrame && !isInPlace) {
+      notifyOwnerGone()
+    }
+  }
+
+  if (webContents != null && !webContents.isDestroyed()) {
+    webContents.on('render-process-gone', handleRenderProcessGone)
+    webContents.on('did-start-navigation', handleMainFrameNavigation)
+  }
+
   ownerWindowClosedCleanup = () => {
     if (!window.isDestroyed()) {
-      window.removeListener('closed', handleOwnerUnavailable)
-      window.webContents.removeListener('render-process-gone', handleOwnerUnavailable)
+      window.removeListener('closed', notifyOwnerGone)
+    }
+    if (webContents != null && !webContents.isDestroyed()) {
+      webContents.removeListener('render-process-gone', handleRenderProcessGone)
+      webContents.removeListener('did-start-navigation', handleMainFrameNavigation)
     }
   }
 }
@@ -64,7 +96,10 @@ export function finalizeNotesRelocationAfterMigrate(ownerId: string, onSessionRe
     return
   }
 
-  const ownerUnavailable = ownerUnavailableDuringMigrate || !isNotesRelocationOwnerWindowAlive(ownerId)
+  const ownerUnavailable =
+    ownerUnavailableDuringMigrate ||
+    !isNotesRelocationOwnerWindowAlive(ownerId) ||
+    !isRendererNotesEditsFlushWindowRegistered(ownerId)
   ownerUnavailableDuringMigrate = false
   if (!ownerUnavailable) {
     return

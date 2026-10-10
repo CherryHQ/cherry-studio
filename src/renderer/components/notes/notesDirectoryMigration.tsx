@@ -136,7 +136,7 @@ export async function migrateNotesDirectoryWithUi(options: {
       }
 
       await ipcApi.request('app.notes_relocation.migrate', {
-        sourcePath,
+        sourcePath: authoritativeSourcePath,
         targetPath,
         merge,
         sessionEpoch
