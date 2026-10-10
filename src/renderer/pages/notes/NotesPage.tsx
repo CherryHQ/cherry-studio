@@ -108,6 +108,15 @@ const NotesPage: FC = () => {
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
+  const reloadedNotesSurfaceRef = useRef(false)
+
+  useEffect(() => {
+    if (reloadedNotesSurfaceRef.current || !activeFilePath || fileSession.isDirty || fileSession.status !== 'ready') {
+      return
+    }
+    reloadedNotesSurfaceRef.current = true
+    void reloadFileDraft()
+  }, [activeFilePath, fileSession.isDirty, fileSession.status, reloadFileDraft])
 
   // Tell the session when the watcher reports an external `change` on the file
   // being viewed — it reloads if idle, or flags a conflict if the user has

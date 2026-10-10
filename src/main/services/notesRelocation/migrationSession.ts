@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import type { WindowId } from '@shared/ipc/types'
 
-import { realPath } from './validation'
+import { realPath, resolveExistingAncestor } from './validation'
 
 const logger = loggerService.withContext('NotesRelocation:Session')
 
@@ -36,8 +36,12 @@ function normalizeForCompare(value: string): string {
   return isWin || isMac ? resolved.toLowerCase() : resolved
 }
 
+function effectiveFilesystemPath(filePath: string): string {
+  return resolveExistingAncestor(path.resolve(filePath)).effectivePath
+}
+
 function pathUnderRoot(filePath: string, root: string): boolean {
-  const file = normalizeForCompare(realPath(filePath))
+  const file = normalizeForCompare(effectiveFilesystemPath(filePath))
   const base = normalizeForCompare(realPath(root))
   if (file === base) {
     return true
@@ -93,7 +97,7 @@ export function assertNotesPathNotMutatingDuringMigration(filePath: string): voi
   if (!blockedRoots) {
     return
   }
-  const resolved = realPath(filePath)
+  const resolved = effectiveFilesystemPath(filePath)
   if (pathUnderRoot(resolved, blockedRoots.source) || pathUnderRoot(resolved, blockedRoots.target)) {
     throw new NotesMigrationWriteBlockedError()
   }

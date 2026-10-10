@@ -219,12 +219,19 @@ export async function migrateNotesDirectory(
       if (entry.isDirectory()) {
         await copyDirectoryRecursive(from, to, copyOptions)
       } else if (entry.isFile()) {
-        if (fs.existsSync(to)) {
-          const targetEntry = fs.lstatSync(to)
+        let targetEntry: fs.Stats | undefined
+        try {
+          targetEntry = fs.lstatSync(to)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+          }
+        }
+        if (targetEntry) {
           if (targetEntry.isSymbolicLink()) {
             throw new IpcError(notesRelocationErrorCodes.NOTES_RELOCATION_INVALID, 'target contains a symlink')
           }
-          if (copyOptions?.skipExistingFiles) {
+          if (copyOptions?.skipExistingFiles && targetEntry.isFile()) {
             continue
           }
           if (copyOptions?.failOnExistingDestination) {

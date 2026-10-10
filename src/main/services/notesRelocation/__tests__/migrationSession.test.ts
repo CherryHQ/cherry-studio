@@ -26,6 +26,20 @@ describe('notes migration session', () => {
     releaseNotesMigrationSession()
   })
 
+  it('blocks writes through a symlink alias into the source root', () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-alias-'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-alias-'))
+    const aliasRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-alias-'))
+    const alias = path.join(aliasRoot, 'notes-alias')
+    fs.symlinkSync(source, alias)
+
+    setNotesMigrationBlockedRoots(source, target)
+
+    expect(() => assertNotesPathNotMutatingDuringMigration(path.join(alias, 'new.md'))).toThrow(
+      /migration is in progress/
+    )
+  })
+
   it('blocks filesystem mutations under source and target roots during copy', () => {
     const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-'))
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-'))

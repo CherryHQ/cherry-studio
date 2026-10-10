@@ -14,11 +14,13 @@ export function resolveConfiguredNotesDirectoryPath(): string {
 
   const normalized = path.resolve(preference)
   try {
-    if (fs.statSync(normalized).isDirectory()) {
-      return normalized
+    if (!fs.statSync(normalized).isDirectory()) {
+      return defaultPath
     }
+    fs.accessSync(normalized, fs.constants.W_OK)
+    return normalized
   } catch {
-    // Preference points at a missing path — match renderer fallback to default.
+    // Missing or non-writable — match renderer resolveNotesPath fallback to default.
   }
   return defaultPath
 }
