@@ -230,9 +230,10 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
 
   /**
    * `/compact` is the documented false-positive: a successful turn whose only
-   * part is a compaction anchor legitimately carries no answer.
+   * part is a manually triggered compaction anchor legitimately carries no
+   * answer.
    */
-  it('leaves a compaction-only success turn alone', async () => {
+  it('leaves an explicit compaction-only success turn alone', async () => {
     const finalMessage = {
       id: 'msg-5',
       role: 'assistant',
@@ -240,7 +241,7 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
         {
           type: 'data-compaction-anchor',
           id: 'anchor-1',
-          data: { status: 'done', phase: 'agent-session', trigger: 'auto', completedAt: '2026-10-05T00:00:00.000Z' }
+          data: { status: 'done', phase: 'agent-session', trigger: 'manual', completedAt: '2026-10-05T00:00:00.000Z' }
         }
       ]
     } as unknown as CherryUIMessage
@@ -249,6 +250,37 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
 
     expect(errorPartOf(ctx.captured[0])).toBeUndefined()
     expect(partsOf(ctx.captured[0])).toHaveLength(1)
+  })
+
+  /**
+   * Fails pre-fix: an anchor that *automatic* compaction attached to an
+   * ordinary request exempted the turn, so a request that compacted context and
+   * then produced only blank text persisted as silent empty success. Only
+   * explicit compaction-only turns are exempt (persistent-chat anchors carry no
+   * `trigger`; every runtime marks a user-initiated fold `manual`).
+   */
+  it('explains a turn that auto-compacted and still produced no answer', async () => {
+    const finalMessage = {
+      id: 'msg-5b',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-compaction-anchor',
+          id: 'anchor-2',
+          data: { status: 'done', phase: 'turn-start', completedAt: '2026-10-05T00:00:00.000Z' }
+        },
+        { type: 'text', text: '   ' }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ status: 'success', finalMessage, modelId: 'openai::gpt-4o' })
+
+    expect(ctx.captured).toHaveLength(1)
+    const part = errorPartOf(ctx.captured[0])
+    expect(part).toBeDefined()
+    expect(part?.data?.i18nKey).toBe('turn.no_content')
+    // The anchor stays: it is real timeline state, not the missing answer.
+    expect(partsOf(ctx.captured[0]).some((p) => p.type === 'data-compaction-anchor')).toBe(true)
   })
 
   /** A user-stopped turn is `paused`, never `success` — it must not be reclassified. */
