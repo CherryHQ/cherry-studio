@@ -1,10 +1,8 @@
-import mime from 'mime-types'
-
 import { ipcApi } from '@renderer/ipc'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
+import type { FileMetadata } from '@renderer/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { GB, KB, MB } from '@shared/utils/constants'
-import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { createFilePathHandle, textExts } from '@shared/utils/file'
 
 /**
  * 从文件路径中提取目录路径。
@@ -118,30 +116,4 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
     }))
   )
   return validationResults.filter((result) => result.isValid).map((result) => result.file)
-}
-
-export const mime2type = (mimeStr: string): FileType => {
-  const mimeType = mimeStr.toLowerCase()
-  const ext = mime.extension(mimeType)
-  if (ext) {
-    if (textExts.includes(ext)) {
-      return FILE_TYPE.TEXT
-    } else if (imageExts.includes(ext)) {
-      return FILE_TYPE.IMAGE
-    } else if (documentExts.includes(ext)) {
-      return FILE_TYPE.DOCUMENT
-    } else if (audioExts.includes(ext)) {
-      return FILE_TYPE.AUDIO
-    } else if (videoExts.includes(ext)) {
-      return FILE_TYPE.VIDEO
-    }
-  }
-  return FILE_TYPE.OTHER
-}
-
-export function parseFileTypes(str: string): FileType | null {
-  if (Object.values(FILE_TYPE).some((type) => type === str)) {
-    return str as FileType
-  }
-  return null
 }
