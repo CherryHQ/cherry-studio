@@ -87,20 +87,13 @@ async function convert(bytes: Buffer): Promise<Error | string> {
   }
 }
 
-/**
- * `isScannedPdfError` decides whether a PDF gets handed to the local OCR model, and it
- * can only go on anydoc's rejection message: the Rust `ConvertError` variant is flattened
- * to `code: 'GenericFailure'` crossing the napi boundary. These cases feed the real
- * binding's own errors back through the predicate, so an anydoc upgrade that rewords a
- * message — silently turning every scan into a hard failure, or every broken file into a
- * pointless multi-minute OCR run — fails here instead of in the field.
- */
+// Exercise the native error contract so upgrades cannot silently break OCR routing.
 describe.skipIf(!hasNativeBinding)('anydoc scanned-PDF detection', () => {
   it('routes a text-free PDF to OCR', async () => {
     const result = await convert(createScannedPdf())
 
     expect(result).toBeInstanceOf(Error)
-    expect((result as Error).message).toContain('OCR is required')
+    expect(result).toMatchObject({ code: 'needsOcr', pages: [1], pageCount: 1 })
     expect(isScannedPdfError(result)).toBe(true)
   })
 

@@ -224,6 +224,9 @@ vi.mock('@renderer/components/doctor', async (importOriginal) => ({
   ...(await importOriginal<typeof DoctorComponents>()),
   DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ value }: { value: string }) => <pre>{value}</pre>
+}))
 
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
@@ -475,6 +478,24 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(writeText).toHaveBeenCalledWith(
       ['Error name: ProviderError', 'Error message: failed', 'Stack: private stack'].join('\n')
     )
+  })
+
+  it('shows a non-JSON error cause as text instead of parsing it as HTML', async () => {
+    const user = userEvent.setup()
+    const htmlCause = '<img src="x" onerror="alert(1)">'
+    render(<PopupHost />)
+
+    act(() => {
+      showErrorDetailPopup({
+        subject: { kind: 'global' },
+        error: { ...providerError, name: 'AI_InvalidArgumentError', cause: htmlCause }
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+
+    const causeText = await screen.findByText(htmlCause)
+    expect(causeText.closest('[role="dialog"]')?.querySelector('img')).toBeNull()
   })
 
   it('shows only Doctor results and hides the empty fixed summary', () => {

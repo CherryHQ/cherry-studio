@@ -91,6 +91,7 @@ export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from 
 export {
   canonicalizePathForContainment,
   canWrite,
+  foldPathSegment,
   isNotEmptyDir,
   isOutsidePath,
   isPathInside,

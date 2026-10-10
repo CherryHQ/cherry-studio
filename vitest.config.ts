@@ -77,6 +77,21 @@ export default defineConfig({
           }
         }
       },
+      {
+        extends: true,
+        resolve: {
+          alias: [
+            { find: /^@cherrystudio\/ui$/, replacement: resolve('packages/file-preview/src/bundledUi.ts') },
+            { find: '@cherrystudio/ui', replacement: resolve('packages/ui/src') }
+          ]
+        },
+        test: {
+          name: 'file-preview',
+          environment: 'jsdom',
+          setupFiles: ['@vitest/web-worker', 'tests/file-preview.setup.ts'],
+          include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
+        }
+      },
       // 脚本单元测试配置
       {
         extends: true,
@@ -180,7 +195,20 @@ export default defineConfig({
             'packages/ui/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
         }
-      }
+      },
+      ...[
+        ['ai-sdk-provider', 'src'],
+        ['dsh-bridge', '__tests__'],
+        ['remote-protocol', 'tests'],
+        ['remote-transport', 'tests']
+      ].map(([name, directory]) => ({
+        extends: true as const,
+        test: {
+          name,
+          environment: 'node' as const,
+          include: [`packages/${name}/${directory}/**/*.{test,spec}.{ts,tsx}`]
+        }
+      }))
     ],
     // 全局共享配置
     globals: true,
@@ -212,6 +240,6 @@ export default defineConfig({
     pool: 'threads',
     // Vitest 4 uses all available parallelism by default. Cap workers so the
     // full suite does not starve subprocess, worker-thread, and timing tests.
-    maxWorkers: '50%'
+    maxWorkers: process.env.CI ? '50%' : 2
   }
 })

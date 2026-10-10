@@ -99,7 +99,7 @@ def normalize_text(text: str) -> str:
     """Mirror of the renderer's normalizeSelectionText: NFC, collapse whitespace, trim.
 
     SELECTION_WHITESPACE is the character-for-character counterpart of the class in
-    `src/renderer/components/FilePreview/selectionReference.ts`. Both sides must collapse exactly
+    `packages/file-preview/src/selection.ts`. Both sides must collapse exactly
     the same set, because the text normalized here is compared against text the renderer normalized
     there. `\\s` cannot carry that contract: Python counts U+0085 and U+001C-U+001F in it,
     JavaScript counts U+FEFF, and neither is a superset of the other.

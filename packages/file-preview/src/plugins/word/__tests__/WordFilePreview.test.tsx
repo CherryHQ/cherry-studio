@@ -1,0 +1,426 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import type { PropsWithChildren } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+import { dispatchTouch } from '../../../__tests__/touchEvents'
+
+const mocks = vi.hoisted(() => {
+  const createValidDocxBytes = () => {
+    const bytes = new Uint8Array(22)
+    new DataView(bytes.buffer).setUint32(0, 0x06054b50, true)
+    return bytes
+  }
+
+  class MockIntersectionObserver {
+    constructor() {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return []
+    }
+  }
+
+  return {
+    createValidDocxBytes,
+    fsRead: vi.fn(),
+    failDocument: vi.fn(),
+    renderAsync: vi.fn(),
+    MockIntersectionObserver
+  }
+})
+
+vi.mock('docx-preview', () => ({
+  renderAsync: mocks.renderAsync
+}))
+
+vi.mock('../../../previewContext', () => ({
+  usePreviewHost: () => ({ failDocument: mocks.failDocument })
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
+  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+    <div data-testid="empty-state">
+      <span>{title}</span>
+      <span>{description}</span>
+    </div>
+  ),
+  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+    <div {...props}>{children}</div>
+  )
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
+import WordFilePreview from '../WordFilePreview'
+
+const filePath = '/tmp/documents/report.docx'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
+  mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+    body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
+  })
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+  vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+describe('WordFilePreview', () => {
+  /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
+  function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
+    const bodyContainer = screen.getByTestId('docx-preview-content')
+    const paragraph = document.createElement('p')
+    for (const [name, value] of Object.entries(attributes)) paragraph.setAttribute(name, value)
+    paragraph.appendChild(document.createTextNode(text))
+    bodyContainer.appendChild(paragraph)
+    return paragraph
+  }
+
+  function renderWithCapture(onSelectionReference?: (reference: unknown) => void) {
+    return render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, 0)}
+        onSelection={onSelectionReference as never}
+      />
+    )
+  }
+
+  it('reports the clicked body paragraph as a reference and marks it as picked', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked sentence', {
+      'data-docx-part': 'body',
+      'data-docx-index': '3',
+      'data-para-id': '1A2B3C4D'
+    })
+
+    fireEvent.click(paragraph)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith({
+      sourceId: filePath,
+      anchor: { format: 'docx', paragraph: 3, paraId: '1A2B3C4D' },
+      excerpt: 'picked sentence',
+      revision: JSON.stringify({ size: 22, mtimeMs: 7 })
+    })
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+    expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-picker', 'true')
+  })
+
+  it('moves the pick to the next clicked paragraph and clears it when the same one is clicked again', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const first = renderParagraph('first', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    const second = renderParagraph('second', { 'data-docx-part': 'body', 'data-docx-index': '1' })
+
+    fireEvent.click(first)
+    fireEvent.click(second)
+    expect(first).not.toHaveAttribute('data-docx-picked')
+    expect(second).toHaveAttribute('data-docx-picked', 'true')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(expect.objectContaining({ excerpt: 'second' }))
+
+    fireEvent.click(second)
+    expect(second).not.toHaveAttribute('data-docx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('reports null for a paragraph the docx-preview patch left unnumbered', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('text box paragraph', { 'data-docx-part': 'body' })
+
+    fireEvent.click(paragraph)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('does not mark an empty paragraph as picked and reports null', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const picked = renderParagraph('picked sentence', { 'data-docx-part': 'body', 'data-docx-index': '3' })
+    fireEvent.click(picked)
+    expect(picked).toHaveAttribute('data-docx-picked', 'true')
+
+    const empty = renderParagraph('', { 'data-docx-part': 'body', 'data-docx-index': '12' })
+    fireEvent.click(empty)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(empty).not.toHaveAttribute('data-docx-picked')
+    expect(picked).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('prevents a hyperlink from navigating when the click is a pick', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const link = document.createElement('a')
+    link.href = 'https://example.com/'
+    link.textContent = 'ref'
+    paragraph.appendChild(link)
+
+    let observed: boolean | undefined
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ excerpt: expect.stringContaining('ref') })
+    )
+
+    cleanup()
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
+    const plainParagraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const plainLink = document.createElement('a')
+    plainLink.href = 'https://example.com/'
+    plainLink.textContent = 'ref'
+    plainParagraph.appendChild(plainLink)
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('neither marks the body nor reacts to clicks when the host is not capturing', async () => {
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('plain reading', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+
+    fireEvent.click(paragraph)
+
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('drops the picked marker when the host stops capturing', async () => {
+    const onSelectionReference = vi.fn()
+    const view = renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    fireEvent.click(paragraph)
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+
+    view.rerender(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, 0)}
+      />
+    )
+
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
+  })
+
+  it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+
+    expect(mocks.renderAsync).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      expect.any(HTMLElement),
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        breakPages: true,
+        renderHeaders: true,
+        renderFooters: true,
+        renderAltChunks: false,
+        useBase64URL: true
+      })
+    )
+    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
+    expect(toolbar).not.toHaveClass('bg-background')
+    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('2 / 2'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('110%')
+    expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '1.1')
+  })
+
+  it('pinch-zooms the document within its zoom bounds', async () => {
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    const content = screen.getByTestId('docx-preview-content')
+
+    dispatchTouch(region, 'touchstart', [
+      [0, 0],
+      [100, 0]
+    ])
+    const pinch = dispatchTouch(region, 'touchmove', [
+      [0, 0],
+      [150, 0]
+    ])
+    await waitFor(() => expect(content).toHaveAttribute('data-zoom', '1.5'))
+    expect(pinch.defaultPrevented).toBe(true)
+
+    dispatchTouch(region, 'touchmove', [
+      [0, 0],
+      [600, 0]
+    ])
+    await waitFor(() => expect(content).toHaveAttribute('data-zoom', '2'))
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('200%')
+  })
+
+  it('keeps the same long-document content beneath the fingers when centered pages zoom and reach the limit', async () => {
+    renderWithCapture()
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    const content = screen.getByTestId('docx-preview-content')
+    region.scrollTop = 10000
+    // jsdom has no layout; provide the geometry of a centered 1000px document in a 1200px viewport.
+    vi.spyOn(content, 'getBoundingClientRect').mockImplementation(() => {
+      const scale = Number(content.style.zoom)
+      return DOMRect.fromRect({
+        x: 50 + Math.max(0, (1200 - 1000 * scale) / 2) - region.scrollLeft,
+        y: 70 - region.scrollTop,
+        width: 1000 * scale,
+        height: 30000 * scale
+      })
+    })
+    const contentUnderFingers = () => {
+      const rect = content.getBoundingClientRect()
+      const scale = Number(content.style.zoom)
+      return [(950 - rect.left) / scale, (270 - rect.top) / scale]
+    }
+    expect(contentUnderFingers()).toEqual([800, 10200])
+    dispatchTouch(region, 'touchstart', [
+      [900, 270],
+      [1000, 270]
+    ])
+    act(() => {
+      dispatchTouch(region, 'touchmove', [
+        [850, 270],
+        [1050, 270]
+      ])
+    })
+    expect(content).toHaveAttribute('data-zoom', '2')
+    expect(contentUnderFingers()).toEqual([800, 10200])
+    act(() => {
+      dispatchTouch(region, 'touchmove', [
+        [550, 270],
+        [1350, 270]
+      ])
+    })
+    expect(content).toHaveAttribute('data-zoom', '2')
+    expect(contentUnderFingers()).toEqual([800, 10200])
+  })
+
+  it('sanitizes unsafe hyperlinks rendered by docx-preview', async () => {
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML =
+        '<section><a href="javascript:alert(1)">unsafe</a><a href="https://example.com">safe</a></section>'
+    })
+
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    const unsafeLink = await screen.findByText('unsafe')
+    expect(unsafeLink).not.toHaveAttribute('href')
+    expect(unsafeLink).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getByText('safe')).toHaveAttribute('href', 'https://example.com')
+  })
+
+  it('contains read failures inside the preview and reports the cause to the host', async () => {
+    const error = new Error('corrupt docx')
+    mocks.fsRead.mockRejectedValueOnce(error)
+
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.failDocument).toHaveBeenCalledWith(error)
+  })
+
+  it('reloads the file when refreshKey changes', async () => {
+    const view = render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 0)}
+      />
+    )
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
+
+    view.rerender(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 1, mocks.fsRead, 1)}
+      />
+    )
+
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
+  })
+})
