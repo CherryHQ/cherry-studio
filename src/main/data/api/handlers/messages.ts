@@ -67,6 +67,12 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     }
   },
 
+  '/topics/:topicId/export-tree': {
+    GET: async ({ params }) => {
+      return messageService.getExportTree(params.topicId)
+    }
+  },
+
   '/messages/:id': {
     GET: async ({ params }) => {
       return messageService.getById(params.id)
