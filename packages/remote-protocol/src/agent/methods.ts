@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { remoteFailureSchema } from '../errors'
 import { decimal, digest, opaqueId, pageOf, pageParams, timestamp, unicodeText } from '../values'
+import { attachmentSelectionSchema, attachmentDraftSubmissionSchema } from './attachmentDrafts'
 import { agentCheckpointDescriptorSchema, agentCheckpointPageSchema } from './checkpoints'
 import {
   agentCursorSchema,
@@ -20,7 +21,6 @@ import {
   uploadReferencesSchema,
   uploadStateSchema,
   uploadResumeSchema,
-  uploadWriteSchema,
   uploadWriterSchema
 } from './uploads'
 
@@ -98,10 +98,10 @@ export const agentMethods = {
       sha256: digest
     })
   ),
+  'agent.attachments.present': method(attachmentSelectionSchema, z.strictObject({ accepted: z.boolean() })),
   'agent.uploads.prepare': method(uploadMetadataSchema, uploadStateSchema),
   'agent.uploads.get': method(uploadReferenceSchema, uploadStateSchema),
   'agent.uploads.resume': method(uploadResumeSchema, uploadStateSchema),
-  'agent.uploads.write': method(uploadWriteSchema, uploadStateSchema),
   'agent.uploads.complete': method(uploadWriterSchema, uploadStateSchema),
   'agent.uploads.cancel': method(uploadReferenceSchema, z.looseObject({ cancelled: z.literal(true) })),
   'agent.messages.send': method(
@@ -110,9 +110,14 @@ export const agentMethods = {
         ...command,
         text: unicodeText.max(32_768),
         expectedIdleRevision: decimal,
-        attachments: uploadReferencesSchema.optional()
+        attachments: uploadReferencesSchema.optional(),
+        selectionId: opaqueId.optional(),
+        attachmentDraft: attachmentDraftSubmissionSchema.optional()
       })
-      .refine((input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length)),
+      .refine(
+        (input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length) || Boolean(input.attachmentDraft)
+      )
+      .refine((input) => !(input.attachments && input.attachmentDraft)),
     commandReceiptSchema
   ),
   'agent.executions.cancel': method(

@@ -63,7 +63,7 @@ export function registerAgentMethods(
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
   ) =>
     rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, agentMethods[name] as never, (params) =>
-      handler(params, access.requireAgent())
+      Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
 
   const summaryOf = (sessionId: string) => {
@@ -191,38 +191,54 @@ export function registerAgentMethods(
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
+  const presence = application.get('AttachmentPresenceService')
+  const generation = presence.connection()
+  on('agent.attachments.present', (params, auth) => {
+    getSession(params.sessionId)
+    return presence.present(hub.uploads.scope(auth), auth, generation, params)
+  })
   on('agent.uploads.prepare', (params, auth) => hub.uploads.prepare(auth, params))
   on('agent.uploads.get', ({ uploadId }, auth) => hub.uploads.get(auth, uploadId))
   on('agent.uploads.resume', (params, auth) => hub.uploads.resume(auth, params))
-  on('agent.uploads.write', (params, auth) => hub.uploads.write(auth, params))
   on('agent.uploads.complete', (params, auth) => hub.uploads.complete(auth, params))
-  on('agent.uploads.cancel', ({ uploadId }, auth) => hub.uploads.cancel(auth, uploadId))
+  on('agent.uploads.cancel', ({ uploadId }, auth) => {
+    return hub.uploads.cancel(auth, uploadId)
+  })
   on('agent.messages.send', (params, auth) => {
-    return command(auth, 'agent.messages.send', params, params.sessionId, () =>
-      hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
-        const started = await hub.journal(params.sessionId).startRun(
-          params.text,
-          summaryOf(params.sessionId).agentId,
-          (tx, reservation) =>
-            remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation),
-          () => {
-            access.requireAgent()
-            if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
-              throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
-          },
-          attachments
-        )
-        if (!started.started)
-          return {
-            status: 'rejected',
-            error:
-              started.reason === 'busy'
-                ? { reason: 'CONFLICT', message: 'Session is busy' }
-                : { reason: 'NOT_FOUND', message: 'Session is not available' }
-          }
-        return { status: 'applied', executionId: started.executionId }
-      })
-    )
+    return command(auth, 'agent.messages.send', params, params.sessionId, async () => {
+      if (params.attachmentDraft)
+        throw new RemoteRpcError('NOT_FOUND', 'Previous attachment draft is no longer available; prepare a new send')
+      const scope = hub.uploads.scope(auth)
+      presence.submitting(scope, params.selectionId, params.commandId)
+      try {
+        return await hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
+          const started = await hub.journal(params.sessionId).startRun(
+            params.text,
+            summaryOf(params.sessionId).agentId,
+            (tx, reservation) => {
+              remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation)
+            },
+            () => {
+              access.requireAgent()
+              if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
+                throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
+            },
+            attachments
+          )
+          if (!started.started)
+            return {
+              status: 'rejected',
+              error:
+                started.reason === 'busy'
+                  ? { reason: 'CONFLICT', message: 'Session is busy' }
+                  : { reason: 'NOT_FOUND', message: 'Session is not available' }
+            }
+          return { status: 'applied', executionId: started.executionId }
+        })
+      } finally {
+        presence.submitting(scope, params.selectionId, params.commandId)
+      }
+    })
   })
   on('agent.executions.cancel', (params, auth) => {
     getSession(params.sessionId)

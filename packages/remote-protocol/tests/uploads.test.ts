@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { agentMethods, agentUploadLimits, encodeAgentCommand } from '../src/agent'
-import { remoteLimits } from '../src/connection'
 
 describe('Agent attachments', () => {
   const send = { commandId: 'command', sessionId: 'session', expectedIdleRevision: '0', text: '' }
@@ -20,13 +19,33 @@ describe('Agent attachments', () => {
       encodeAgentCommand('agent.messages.send', { ...send, attachments: [{ uploadId: 'b' }] })
     )
   })
-  it('bounds staging metadata, names and encoded chunks below a secure record', () => {
+  it('validates draft manifests with the same hash-free metadata as prepare', () => {
+    const item = {
+      attachmentId: 'a',
+      uploadId: 'u',
+      filename: 'report.pdf',
+      mediaType: 'application/pdf',
+      byteLength: 1048576
+    }
+    const schema = agentMethods['agent.attachments.present'].params
+    expect(schema.parse({ selectionId: 'draft', sessionId: 'session', sequence: '1', items: [item] }).items).toEqual([
+      item
+    ])
+    expect(
+      schema.safeParse({
+        selectionId: 'draft',
+        sessionId: 'session',
+        sequence: '1',
+        items: [{ ...item, uploadId: undefined }]
+      }).success
+    ).toBe(false)
+  })
+  it('bounds staging metadata without requiring client digests', () => {
     const metadata = {
       uploadId: 'u',
       filename: '报告.pdf',
       mediaType: 'application/pdf',
-      byteLength: 0,
-      sha256: 'a'.repeat(64)
+      byteLength: 0
     }
     expect(agentMethods['agent.uploads.prepare'].params.safeParse(metadata).success).toBe(true)
     for (const filename of ['../test', '..', 'a\\b', 'a\u0000b', '图'.repeat(100)])
@@ -37,19 +56,8 @@ describe('Agent attachments', () => {
         byteLength: agentUploadLimits.fileBytes + 1
       }).success
     ).toBe(false)
-    const params = agentMethods['agent.uploads.write'].params.parse({
-      uploadId: 'u'.repeat(256),
-      offset: '0',
-      writerEpoch: '0',
-      chunkSha256: 'a'.repeat(64),
-      dataBase64: Buffer.alloc(agentUploadLimits.chunkBytes).toString('base64')
-    })
     expect(
-      Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: 'i'.repeat(256), method: 'agent.uploads.write', params }))
-    ).toBeLessThan(remoteLimits.recordBytes)
-    expect(
-      agentMethods['agent.uploads.write'].params.safeParse({ ...params, dataBase64: params.dataBase64 + 'AAAA' })
-        .success
+      agentMethods['agent.uploads.prepare'].params.safeParse({ ...metadata, sha256: 'a'.repeat(64) }).success
     ).toBe(false)
   })
 })

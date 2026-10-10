@@ -5,6 +5,8 @@ import {
   pairingMethods,
   remoteAuthorizationSchema,
   remoteLimits,
+  uploadTransferLimits,
+  type UploadChunk,
   type DirectEndpoint,
   type RemoteAuthorization,
   type RemoteCapability
@@ -39,7 +41,7 @@ export class RemoteConnection {
     pairing: RemotePairing,
     tokens: RemoteTokens,
     onClaim: () => void,
-    hub: RemoteAgentHub,
+    private readonly hub: RemoteAgentHub,
     getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[] }>
   ) {
     this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification))
@@ -65,14 +67,15 @@ export class RemoteConnection {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
         agentUploadsVersion: 1,
+        agentAttachmentSelections: true,
         connectionEndpointsVersion: 1,
         limits: {
           ...remoteLimits,
           agentUploadFileBytes: agentUploadLimits.fileBytes,
           agentUploadMessageBytes: agentUploadLimits.messageBytes,
           agentUploadFiles: agentUploadLimits.files,
-          agentUploadChunkBytes: agentUploadLimits.chunkBytes,
-          agentUploadWindow: agentUploadLimits.window
+          agentUploadChunkBytes: uploadTransferLimits.chunkBytes,
+          agentUploadWindow: uploadTransferLimits.window
         },
         heartbeatMs: remoteLimits.heartbeatMs
       }
@@ -152,6 +155,44 @@ export class RemoteConnection {
         }
       }
     )
+  }
+
+  private readonly incomingUploads = new Set<string>()
+  private incomingUploadBytes = 0
+
+  async receiveUpload(input: UploadChunk): Promise<void> {
+    if (
+      this.incomingUploads.has(input.requestId) ||
+      this.incomingUploads.size >= uploadTransferLimits.window ||
+      this.incomingUploadBytes + input.bytes.length > uploadTransferLimits.chunkBytes * uploadTransferLimits.window
+    )
+      throw new Error('Upload window exceeded')
+    this.incomingUploads.add(input.requestId)
+    this.incomingUploadBytes += input.bytes.length
+    let params
+    try {
+      const owner = { ...this.requireCapability('agent'), peerIdentity: this.channel.remoteIdentity }
+      const state = await this.hub.uploads.write(owner, input)
+      this.requireCapability('agent')
+      params = {
+        ok: true,
+        requestId: input.requestId,
+        uploadId: state.uploadId,
+        writerEpoch: state.writerEpoch,
+        committedOffset: state.committedOffset
+      }
+    } catch (error) {
+      if (!(error instanceof RemoteRpcError)) logger.warn('Binary upload failed', { error })
+      params = {
+        ok: false,
+        requestId: input.requestId,
+        error: error instanceof RemoteRpcError ? error.data : { reason: 'INTERNAL', message: 'Upload write failed' }
+      }
+    } finally {
+      this.incomingUploads.delete(input.requestId)
+      this.incomingUploadBytes -= input.bytes.length
+    }
+    await this.send({ jsonrpc: '2.0', method: 'agent.uploads.ack', params })
   }
 
   requireCapability(domain: RemoteCapability): { deviceId: string; grantId: string } {

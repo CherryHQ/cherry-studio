@@ -23,6 +23,13 @@ class TestWindowManager {
   }
 }
 
+@Injectable('FileManager')
+class TestFileManager {
+  constructor() {
+    Object.assign(this, defaultServiceInstances.FileManager)
+  }
+}
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -121,6 +128,7 @@ describe('ChannelManager', () => {
     })
     const container = ServiceContainer.getInstance()
     container.register(TestWindowManager)
+    container.register(TestFileManager)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)
   })

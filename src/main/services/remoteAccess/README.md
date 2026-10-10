@@ -109,21 +109,30 @@ ignores responses superseded by later pairing events or a stopped LAN listener.
 
 ## Attachment ownership
 
-`RemoteUploads` owns durable staging under `feature.remote_access.uploads`. File data is synced
-before the atomically replaced checkpoint is acknowledged. Recovery truncates uncommitted tails;
-a shorter file fails verification. Shutdown drains active work and retains resumable records.
-Each upload is serialized independently, with one writer epoch and bounded quotas.
+The [checkpoint-based design](../../../../docs/references/file/managed-attachments-design.md)
+owns recovery/retention in the file module. Selection is disposable presentation; new sends carry
+explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
 
-A verified upload becomes a managed FileManager original when its send command is admitted.
-`prepareAgentAttachmentWorkspace` copies it into the session workspace under
-`.cherry-studio/attachments/<sessionId>/<fileEntryId>/`. Runtime file paths target that working
-copy; persisted file metadata retains the original entry ID and SHA-256 for mobile readback.
-Rejected preparation removes newly created workspace files. Unreferenced managed originals use
-FileManager's orphan grace period. Accepted working copies remain workspace-owned.
+`FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
+binds its operations to the current device grant and migrates older remote-owned checkpoints.
+File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
+truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
+retains resumable records. Each upload is serialized independently and fenced by writer epoch.
 
-Command deduplication precedes staging lookup, so receipt replay survives staging expiration.
+Upload capability 1 exposes a single `agent.uploads.prepare` without draft membership;
+binary DATA carries at most 1 MiB per record with two outstanding blocks. ACK notifications
+report durable offsets independently of RPC admission. JSON control remains limited to 64 KiB.
+There is no legacy upload format: desktop computes the final hash after receiving authenticated
+Noise data. Mobile uses native bulk crypto; Electron uses Noise's built-in cipher because
+its Node crypto does not expose ChaCha20-Poly1305. The shared transport owns framing and negotiation.
+
+Verified originals enter FileManager before Send. Checkpoints retain them while waiting;
+message references retain accepted originals after submission. Agent tools receive workspace
+copies under `.cherry-studio/attachments/<sessionId>/<fileEntryId>/`, while history retains
+original identity and digest. Command receipts precede staging lookup, so replay survives expiry.
+
 File pages require session/message/revision identity; callers cannot choose arbitrary paths or
-managed entry IDs. The phone reads bytes only when opening an attachment.
+entry IDs. The phone reads images for thumbnails and ordinary documents on demand.
 
 Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running the
 `RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.

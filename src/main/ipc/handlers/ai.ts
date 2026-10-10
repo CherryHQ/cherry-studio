@@ -211,6 +211,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAgentSessionArchiveError(() =>
       application.get('AgentLifecycleService').deleteActiveAgentPermanently(agentId, deleteSessions)
     ),
+  'ai.agent.attachment_selections.list': ({ sessionId }) =>
+    application.get('AttachmentPresenceService').list(sessionId),
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),

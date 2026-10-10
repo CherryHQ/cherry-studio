@@ -21,7 +21,7 @@ const logger = loggerService.withContext('ChannelManager')
 
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'FileManager'])
 export class ChannelManager extends BaseService {
   readonly registration = new ChannelRegistration()
   private readonly runtimes = new Map<string, ChannelRuntime>()

@@ -76,13 +76,14 @@ or requires the receiving device to have the model installed.
 
 ## Resumable Agent attachments
 
-`connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/write/complete/cancel.
+`connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/complete/cancel and binary DATA/ACK records.
 Upload identity is scoped to device and Agent grant, independent of sockets and sessions.
 A durable `committedOffset` is the only resume position. `resume` uses an idempotent resume ID
-and expected writer epoch; old writers cannot advance a replaced upload. Each bounded chunk
-has a SHA-256 digest. Completion verifies the full-file digest before exposing a ready reference.
+and expected writer epoch; old writers cannot advance a replaced upload. DATA carries raw bytes authenticated by Noise AEAD, with a durable ACK after each block.
+Desktop computes the full-file SHA-256 before publishing a ready managed reference.
+The mobile reuses an immutable source snapshot on resume; it does not pre-scan the file.
 
-Limits: 1 GiB/file, 2 GiB/message, eight files, 24 KiB chunks and an eight-request window.
+Limits: 1 GiB/file, 2 GiB/message, eight files, 1 MiB blocks and two outstanding blocks.
 Staging expires after 24 hours idle or seven days total, with 4 GiB/device and 8 GiB/global
 reservations. Upload permission and expiry are rechecked independently of message receipts.
 Send accepts text, files, or both. Clients freeze the upload references in the durable send

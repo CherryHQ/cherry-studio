@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,6 +41,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
+import { prepareAgentAttachmentWorkspace } from '@main/ai/runtime/agentAttachmentWorkspace'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
 import {
@@ -49,6 +51,7 @@ import {
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
+import { FileManager, FileIntakeService } from '@main/services/file'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -57,6 +60,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
+import { AttachmentPresenceService } from '../AttachmentPresenceService'
 import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
@@ -66,7 +70,14 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
-    files: { createInternalEntry: vi.fn(), getUrl: vi.fn(), getPhysicalPath: vi.fn() },
+    files: {
+      publishIntake: vi.fn(),
+      getById: vi.fn(),
+      ensureExternalEntry: vi.fn(),
+      createInternalEntry: vi.fn(),
+      getUrl: vi.fn(),
+      getPhysicalPath: vi.fn()
+    },
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
@@ -200,7 +211,8 @@ describe('remote agent access', () => {
       { jsonrpc: '2.0', id: randomUUID(), method, params },
       undefined
     )) as { result?: unknown; error?: unknown }
-    if (response.error) throw response.error
+    if (response.error)
+      throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
     return response.result
   }
   it('returns a durable target rejection with the admission reason and never resends it', async () => {
@@ -332,12 +344,16 @@ describe('remote agent access', () => {
 
   it('persists a file-only send, reads the original after the agent edits its workspace copy, and deduplicates after staging is removed', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
-    const originalPath = application.getPath.bind(application)
-    const paths = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
-      if (key === 'feature.files.data' || key === 'feature.remote_access.uploads')
-        return path.join(root, key, filename ?? '')
-      return originalPath(key, filename)
-    })
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    fake.files.ensureExternalEntry.mockImplementation((input) => files.ensureExternalEntry(input))
     try {
       await mkdir(application.getPath('feature.files.data'), { recursive: true })
       const workspacePath = path.join(root, 'workspace')
@@ -358,19 +374,37 @@ describe('remote agent access', () => {
       fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
       const bytes = Buffer.from('immutable original attachment')
       const uploadId = randomUUID()
+      const presence = new AttachmentPresenceService()
+      for (const name of ['present', 'submitting', 'list'] as const)
+        Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
+      const selectionId = randomUUID()
+      await call('agent.attachments.present', {
+        selectionId,
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'report.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
       await call('agent.uploads.prepare', {
         uploadId,
         filename: 'report.txt',
         mediaType: 'text/plain',
-        byteLength: bytes.length,
-        sha256: sha256(bytes)
+        byteLength: bytes.length
       })
-      await call('agent.uploads.write', {
+      await connection.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
         uploadId,
         writerEpoch: '0',
         offset: '0',
-        dataBase64: bytes.toString('base64'),
-        chunkSha256: sha256(bytes)
+        bytes
       })
       await call('agent.uploads.complete', { uploadId, writerEpoch: '0' })
       await expect.poll(async () => (await call('agent.uploads.get', { uploadId })).state).toBe('ready')
@@ -380,13 +414,15 @@ describe('remote agent access', () => {
         sessionId,
         text: '',
         expectedIdleRevision: session.idleRevision,
-        attachments: [{ uploadId }]
+        attachments: [{ uploadId }],
+        selectionId
       }
       const receipt = await call('agent.messages.send', params)
       expect(receipt.status).toBe('applied')
       const { session: current } = await call('agent.sessions.get', { sessionId })
       const history = await call('agent.messages.list', { sessionId, historyRevision: current.historyRevision })
       const message = history.items.find((item: { role: string }) => item.role === 'user')
+      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
       const file = (
         await call('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: message.revision })
       ).items[0]
@@ -401,8 +437,19 @@ describe('remote agent access', () => {
         fileEntryService.getById(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)).cleanupPolicy
       ).toBe('delete_when_unreferenced')
       const entryId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)
-      expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
+      expect(
+        fileRefService
+          .findByEntryId(entryId)
+          .map((ref) => ref.sourceType)
+          .sort()
+      ).toEqual(['agent_session_message'])
+      const workingId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.workingFileEntryId)
+      expect(fileRefService.findByEntryId(workingId)).toMatchObject([{ sourceType: 'agent_session_message' }])
+      const competing = await prepareAgentAttachmentWorkspace(agentSessionService.getById(sessionId), [submitted])
+      await competing.release()
+      expect(await readFile(working)).toEqual(bytes)
       await writeFile(working, 'agent edited this copy')
+      expect((await files.getMetadata(workingId)).size).toBe(Buffer.byteLength('agent edited this copy'))
       const read = await call('agent.content.read', {
         sessionId,
         contentId: file.ref.contentId,
@@ -412,11 +459,13 @@ describe('remote agent access', () => {
       })
       expect(Buffer.from(read.dataBase64, 'base64')).toEqual(bytes)
       await call('agent.uploads.cancel', { uploadId })
+      expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
       const before = vi.mocked(startAgentSessionRun).mock.calls.length
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
     } finally {
       await hub.uploads.dispose()
+      await intake.drain()
       paths.mockRestore()
       await rm(root, { recursive: true, force: true })
     }

@@ -216,7 +216,9 @@ export interface CherryFileMeta {
    * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
-  /** Verified remote original; the file URL may point to its Agent workspace copy. */
+  /** Session-owned editable path; FileManager indexes it as an external file. */
+  workingFileEntryId?: string
+  /** Verified attachment original; the file URL may point to its Agent workspace copy. */
   remoteAttachment?: { sha256: string; byteLength: number }
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
@@ -312,6 +314,7 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
+  workingFileEntryId: z.string().optional(),
   fileEntryId: z.string().optional(),
   remoteAttachment: z
     .object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), byteLength: z.number().int().nonnegative() })

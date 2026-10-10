@@ -146,6 +146,7 @@
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
+| [统一受管附件：checkpoint、发送与展示边界](./references/file/managed-attachments-design.md) | Approved checkpoint-based attachment ownership, desktop file recovery, direct-reference sends, and migration boundaries |
 
 ### i18n
 
