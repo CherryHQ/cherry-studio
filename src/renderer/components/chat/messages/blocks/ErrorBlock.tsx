@@ -70,7 +70,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (i18n.exists(i18nKey)) {
     if (i18nKey === 'error.ollama_context_memory') {
       const detail = providerErrorText(error)
-      return detail || t(i18nKey, { trained: '—', effective: '—' })
+      return detail ? detail : null
     }
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined

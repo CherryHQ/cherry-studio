@@ -91,7 +91,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     scope.model,
     scope.provider,
     scope.endpointType,
-    scope.sdkConfig.providerId
+    scope.sdkConfig?.providerId
   )
   const contextWindow = resolveContextWindow(requestContextWindow)
   if (contextWindow === null) {
