@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { popup } from '@renderer/services/popup'
+import { speechPlaybackService } from '@renderer/services/voice'
 
 import TranslateOutputPane from '../TranslateOutputPane'
 
@@ -124,5 +126,66 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByText('partial output')).toBeInTheDocument()
     expect(screen.getByText('14')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
+  })
+
+  it('calls onExportToNotes from the footer button', () => {
+    const props = baseProps()
+    props.translatedContent = 'translated output'
+
+    render(<TranslateOutputPane {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    expect(props.onExportToNotes).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays only a completed, nonempty result after a manual click', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({ status: 'started' })
+    const props = { ...baseProps(), translatedContent: 'translated output', translating: true }
+    const view = render(<TranslateOutputPane {...props} />)
+
+    const readButton = screen.getByRole('button', { name: 'chat.message.read_aloud.label' })
+    expect(readButton).toBeDisabled()
+    expect(start).not.toHaveBeenCalled()
+
+    view.rerender(<TranslateOutputPane {...props} translating={false} />)
+    fireEvent.click(readButton)
+    await waitFor(() =>
+      expect(start).toHaveBeenCalledWith({
+        text: 'translated output',
+        trigger: 'manual',
+        mode: 'document',
+        confirmed: false,
+        sourceLabel: 'document',
+        sourceEntityId: 'translate-page-result'
+      })
+    )
+    start.mockRestore()
+  })
+
+  it('keeps the read control disabled for whitespace output', () => {
+    render(<TranslateOutputPane {...baseProps()} translatedContent="   " />)
+    expect(screen.getByRole('button', { name: 'chat.message.read_aloud.label' })).toBeDisabled()
+  })
+
+  it('does not confirm playback of a result replaced while the long-text dialog is open', async () => {
+    const start = vi.spyOn(speechPlaybackService, 'start').mockResolvedValue({
+      status: 'confirmation_required',
+      normalizedLength: 5_001
+    })
+    let resolveConfirm: (confirmed: boolean) => void = () => undefined
+    vi.mocked(popup.confirm).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConfirm = resolve
+        })
+    )
+    const view = render(<TranslateOutputPane {...baseProps()} translatedContent="old result" />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
+    view.rerender(<TranslateOutputPane {...baseProps()} translatedContent="new result" />)
+    await act(async () => resolveConfirm(true))
+    expect(start).toHaveBeenCalledTimes(1)
+    start.mockRestore()
   })
 })

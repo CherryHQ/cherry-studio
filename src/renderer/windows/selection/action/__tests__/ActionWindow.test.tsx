@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -8,7 +7,7 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 
 import ActionWindow from '../ActionWindow'
 
-const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = vi.hoisted(() => ({
+const { actionState, ipcRequest, opacityPreference, platform, stopPlayback } = vi.hoisted(() => ({
   actionState: {
     value: {
       id: 'test-action',
@@ -17,11 +16,17 @@ const { actionState, generalMounts, ipcRequest, opacityPreference, platform } = 
       isBuiltIn: false
     } as SelectionActionItem
   },
-  generalMounts: { count: 0 },
   ipcRequest: vi.fn(),
   opacityPreference: { value: 100 },
-  platform: { isMac: false }
+  platform: { isMac: false },
+  stopPlayback: vi.fn(async () => undefined)
 }))
+
+vi.mock('@renderer/services/voice', () => ({
+  speechPlaybackService: { getSnapshot: () => ({ phase: 'playing', sourceLabel: 'preview' }), stop: stopPlayback }
+}))
+
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 vi.mock('@renderer/components/selection/SelectionActionIcon', () => ({
   default: ({ size }: { size: number }) => <span data-testid="action-icon" data-size={size} />
@@ -62,15 +67,7 @@ vi.mock('@renderer/utils/platform', () => ({
   }
 }))
 
-vi.mock('../components/ActionGeneral', () => {
-  const MockActionGeneral = () => {
-    useEffect(() => {
-      generalMounts.count += 1
-    }, [])
-    return null
-  }
-  return { default: MockActionGeneral }
-})
+vi.mock('../components/ActionGeneral', () => ({ default: () => null }))
 vi.mock('../components/ActionTranslate', () => ({ default: () => null }))
 
 describe('ActionWindow surface', () => {
@@ -83,18 +80,16 @@ describe('ActionWindow surface', () => {
     } as SelectionActionItem
     opacityPreference.value = 100
     platform.isMac = false
-    generalMounts.count = 0
+    stopPlayback.mockClear()
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('remounts the chat subtree on reuse so the previous selection is not carried over', async () => {
-    const { rerender } = render(<ActionWindow />)
-    await waitFor(() => expect(generalMounts.count).toBe(1))
-
-    actionState.value = { ...actionState.value, selectedText: 'next selection' }
-    rerender(<ActionWindow />)
-
-    await waitFor(() => expect(generalMounts.count).toBe(2))
+  it('stops result playback when the selection window is reused', async () => {
+    actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_1' }
+    const view = render(<ActionWindow />)
+    actionState.value = { ...actionState.value, selectedText: 'PRIVATE_SELECTION_2' }
+    view.rerender(<ActionWindow />)
+    await waitFor(() => expect(stopPlayback).toHaveBeenCalledTimes(1))
   })
 
   it('uses an opaque popover surface at 100% window opacity', () => {
