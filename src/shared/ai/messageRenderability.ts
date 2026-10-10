@@ -12,7 +12,10 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
-import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+
+/** pi code-mode wire name; not in `PI_BUILTIN_TOOLS` because it is transport-layer only. */
+const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { tryFileUrlToPath } from '@shared/utils/file'
 

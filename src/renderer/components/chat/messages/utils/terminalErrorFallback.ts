@@ -37,8 +37,8 @@ export function withTerminalErrorFallback(
 
 /**
  * Ordinary-chat display fallback for historical empty `success` turns with no
- * visible content. Agent Sessions keep empty turns as legitimate success, so
- * only Home composes this alongside `withTerminalErrorFallback`.
+ * visible content. Agent Sessions rely on `withTerminalErrorFallback` alone;
+ * only Home composes this alongside it for legacy ordinary-chat rows.
  */
 export function withEmptySuccessFallback(
   messages: CherryUIMessage[],

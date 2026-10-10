@@ -234,16 +234,13 @@ function error(msg: string): SerializedError {
 
 function req(topicId: string): AiStreamRequest {
   const request: AiStreamRequest = { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
-  // Production agent-session turns carry their runtime identity on the
-  // request (AgentSessionRuntimeService) plus the empty-success opt-in the
-  // terminal classification reads.
+  // Production agent-session turns carry their runtime identity on the request.
   if (topicId.startsWith('agent-session:')) {
     request.runtime = {
       kind: 'agent-session',
       sessionId: topicId.slice('agent-session:'.length),
       turnId: 'turn-test'
     }
-    request.allowEmptySuccess = true
   }
   return request
 }
@@ -726,7 +723,7 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('gateway-static-tools')?.status).toBe('done')
     })
 
-    it('keeps an empty successful agent-session turn as success', async () => {
+    it('converts an empty successful agent-session turn into a no-response error', async () => {
       vi.useRealTimers()
       const feed = controlledStream()
       mockStreamText.mockResolvedValueOnce(feed.stream)
@@ -740,10 +737,13 @@ describe('AiStreamManager', () => {
       await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
 
       feed.close()
-      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults).toEqual([])
-      expect(mgr.inspect('agent-session:s-empty')?.status).toBe('done')
+      expect(listener.doneResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('agent-session:s-empty')?.status).toBe('error')
     })
   })
 

@@ -5963,8 +5963,7 @@ describe('AgentSessionRuntimeService', () => {
           { id: 'generated-message-id', role: 'assistant', parts: [] }
         ],
         reasoningEffort: 'high',
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) },
-        allowEmptySuccess: true
+        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
       abortController: expect.any(AbortController),
       listeners: [
