@@ -801,6 +801,12 @@ describe('edit dialogs', () => {
       <AssistantEditDialog open resource={ASSISTANT} requireConfirmation onOpenChange={onOpenChange} />
     )
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Discard this edit' } })
+    selectTab('Prompts')
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    expect(bindPromptMock).not.toHaveBeenCalled()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+    selectTab('Basic')
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 650))
     })
@@ -815,13 +821,24 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} requireConfirmation onOpenChange={onOpenChange} />)
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved name' } })
+    selectTab('Prompts')
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+    expect(bindPromptMock).not.toHaveBeenCalled()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+    selectTab('Basic')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Saved name'))
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
     expect(onOpenChange).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Saved name' } })
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
+      body: { name: 'Saved name', promptBindings: { ids: [promptCatalogState.current.all[0].id], expectedIds: [] } }
+    })
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { name: 'Saved name', promptBindings: { ids: [promptCatalogState.current.all[0].id], expectedIds: [] } }
+    })
   })
 
   it('keeps a new Assistant draft local and discards it on cancel without auto-saving', async () => {
@@ -887,10 +904,6 @@ describe('edit dialogs', () => {
 
     selectTab('Prompts')
     expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
-    expect(useQueryMock).toHaveBeenCalledWith('/prompt-bindings/:targetType/:targetId', {
-      enabled: true,
-      params: { targetType: 'assistant', targetId: ASSISTANT.id }
-    })
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
 
