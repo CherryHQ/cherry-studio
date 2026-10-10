@@ -70,17 +70,28 @@ describe('isRenderablePart tool names', () => {
     expect(isRenderablePart(part({ type: 'dynamic-tool', toolName: 'myGatewayTool' }))).toBe(false)
   })
 
-  it('treats dsh runtime-native builtins as visible agent content', () => {
-    for (const name of [
-      'read_image',
-      'get_goal',
-      'create_goal',
-      'update_goal',
-      'send_message',
-      'interrupt_agent',
-      'list_agents'
-    ]) {
+  it('treats mapped dsh runtime builtins as visible agent content', () => {
+    for (const name of ['read', 'bash', 'edit', 'skill', 'todo_write', 'subagent']) {
       expect(isRenderablePart(part({ type: `tool-${name}`, toolCallId: 'call-1', ...cherryTransport }))).toBe(true)
+    }
+  })
+
+  it('treats unmapped dsh orchestration builtins as visible only without builtin metadata', () => {
+    const dshTransport = { callProviderMetadata: { cherry: { transport: 'dsh-agent' } } }
+    for (const name of ['get_goal', 'create_goal', 'update_goal', 'list_agents']) {
+      expect(isRenderablePart(part({ type: `tool-${name}`, toolCallId: 'call-1', ...dshTransport }))).toBe(true)
+      expect(
+        isRenderablePart(
+          part({
+            type: 'dynamic-tool',
+            toolCallId: 'call-1',
+            toolName: name,
+            callProviderMetadata: {
+              cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name } }
+            }
+          })
+        )
+      ).toBe(false)
     }
   })
 

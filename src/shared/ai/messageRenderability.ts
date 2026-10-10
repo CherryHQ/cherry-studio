@@ -5,14 +5,14 @@
 // - `src/renderer/components/chat/messages/tools/toolResponse.ts` (`getCanonicalToolName`, `resolveToolType`)
 // - `src/renderer/components/chat/messages/blocks/messagePartLayouts.ts` (`isHiddenPart`, `isEmptyContentPart`)
 // Canonical sources are imported wherever possible (`AGENT_RUNTIME_CAPABILITIES`,
-// session-delivery names, `reportArtifactsInputSchema`, `DSH_BUILTIN_TOOLS`, pi builtins);
+// session-delivery names, `reportArtifactsInputSchema`, pi builtins);
 // only the card-name set itself is mirrored. Unifying the taxonomy (e.g. moving
 // `AgentToolsType` to shared) is a broader refactor deliberately left out of this PR.
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
-import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 /** pi code-mode wire name; not in `PI_BUILTIN_TOOLS` because it is transport-layer only. */
 const PI_TOOL_DESCRIBE_TOOL_NAME = 'tool_describe'
@@ -100,6 +100,47 @@ const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
 )
 
+const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set(
+  Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
+)
+
+// Mirrors `AgentToolsType` in renderer `chooseTool.tsx` (`isAgentTool`).
+const AGENT_TOOL_CARD_NAMES: ReadonlySet<string> = new Set([
+  'Skill',
+  'Agent',
+  'Read',
+  'Task',
+  'TaskOutput',
+  'TaskStop',
+  'Bash',
+  'Search',
+  'Glob',
+  'TodoWrite',
+  'WebSearch',
+  'Grep',
+  'Write',
+  'WebFetch',
+  'Edit',
+  'MultiEdit',
+  'BashOutput',
+  'NotebookEdit',
+  'ExitPlanMode',
+  'AskUserQuestion',
+  'ToolSearch',
+  'ListMcpResources',
+  'ReadMcpResource',
+  'TaskCreate',
+  'TaskGet',
+  'TaskUpdate',
+  'TaskList',
+  'SendMessage',
+  'TeamCreate',
+  'TeamDelete',
+  'EnterWorktree',
+  'ExitWorktree',
+  'Workflow'
+])
+
 // Runtime-native wire names the cherry agent runtimes stamp onto tool parts
 // (providerMetadata.cherry.transport); the renderer maps them onto the
 // canonical AgentToolsType names before choosing a card (see
@@ -126,10 +167,73 @@ function hasCherryTransport(part: CherryMessagePart): boolean {
   return typeof transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(transport)
 }
 
-// dsh runtime-native builtins the renderer renders through the standard agent
-// tool-call card (see chooseTool's runtime-builtin branch). `pwsh` is dsh's
-// Windows identity for `bash`; the renderer maps both, so both count here.
-const DSH_RUNTIME_TOOL_NAMES: ReadonlySet<string> = new Set([...DSH_BUILTIN_TOOLS.map((tool) => tool.name), 'pwsh'])
+function hasProviderMetadata(part: CherryMessagePart, provider: string): boolean {
+  const metadata = (part as unknown as { callProviderMetadata?: unknown }).callProviderMetadata
+  return typeof metadata === 'object' && metadata !== null && provider in (metadata as Record<string, unknown>)
+}
+
+function readCherryToolMetadata(part: CherryMessagePart): {
+  type?: string
+  serverId?: string
+} {
+  const metadata = (part as unknown as { callProviderMetadata?: unknown }).callProviderMetadata
+  if (typeof metadata !== 'object' || metadata === null) return {}
+  const cherry = (metadata as Record<string, unknown>).cherry
+  if (typeof cherry !== 'object' || cherry === null) return {}
+  const tool = (cherry as Record<string, unknown>).tool
+  if (typeof tool !== 'object' || tool === null) return {}
+  const record = tool as Record<string, unknown>
+  return {
+    type: typeof record.type === 'string' ? record.type : undefined,
+    serverId: typeof record.serverId === 'string' ? record.serverId : undefined
+  }
+}
+
+function isAgentToolCardName(name: string): boolean {
+  return AGENT_TOOL_CARD_NAMES.has(name) || name.startsWith('mcp__')
+}
+
+function getCanonicalWireToolName(part: CherryMessagePart, wireName: string): string {
+  if (!hasCherryTransport(part)) return wireName
+  return CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(wireName) ?? wireName
+}
+
+// Mirrors `resolveToolType` in renderer `toolResponse.ts` for visibility decisions.
+function resolveToolVisibilityType(
+  part: CherryMessagePart,
+  wireName: string,
+  canonicalName: string
+): 'mcp' | 'provider' | 'builtin' {
+  if (isAgentToolCardName(canonicalName) && hasCherryTransport(part)) return 'provider'
+  if ((wireName === PI_TOOL_CALL_TOOL_NAME || wireName === PI_TOOL_DESCRIBE_TOOL_NAME) && hasCherryTransport(part)) {
+    return 'provider'
+  }
+  const cherryTool = readCherryToolMetadata(part)
+  if (cherryTool.type === 'mcp' || cherryTool.type === 'provider' || cherryTool.type === 'builtin') {
+    return cherryTool.type
+  }
+  if (parseFunctionCallToolName(wireName) || parseFunctionCallToolName(canonicalName)) return 'mcp'
+  if ('providerExecuted' in part && (part as { providerExecuted?: boolean }).providerExecuted) return 'provider'
+  if (hasProviderMetadata(part, 'claude-code')) return 'provider'
+  if (hasCherryTransport(part)) return 'provider'
+  if (part.type === 'dynamic-tool' && isAgentToolCardName(canonicalName)) return 'provider'
+  if (part.type === 'dynamic-tool') return 'mcp'
+  if (wireName.startsWith('builtin_')) return 'builtin'
+  return 'builtin'
+}
+
+function isRenderableDynamicTool(part: CherryMessagePart, wireName: string): boolean {
+  const canonical = getCanonicalWireToolName(part, wireName)
+  const toolType = resolveToolVisibilityType(part, wireName, canonical)
+  if (toolType === 'mcp') {
+    const serverId = readCherryToolMetadata(part).serverId
+    if (serverId === 'cherry-tools' || serverId === 'agent-memory') {
+      return isRenderableToolName(part, canonical)
+    }
+    return true
+  }
+  return isRenderableToolName(part, canonical)
+}
 
 // Mirrors the completed renderer's file contract: `isPotentiallyVisibleEntry`
 // requires a URL while the `file` render case needs a handle
@@ -168,9 +272,11 @@ function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
   }
   if (hasCherryTransport(part)) {
     const canonical = CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(trimmed) ?? trimmed
-    if (canonical !== trimmed) return KNOWN_RENDERABLE_TOOL_NAMES.has(canonical)
+    if (canonical !== trimmed && KNOWN_RENDERABLE_TOOL_NAMES.has(canonical)) return true
     if (trimmed === PI_TOOL_CALL_TOOL_NAME || trimmed === PI_TOOL_DESCRIBE_TOOL_NAME) return true
-    if (DSH_RUNTIME_TOOL_NAMES.has(trimmed)) return true
+    if (isAgentToolCardName(canonical)) return true
+    const toolType = resolveToolVisibilityType(part, trimmed, canonical)
+    if (toolType === 'provider' && CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(trimmed)) return true
   }
   return KNOWN_RENDERABLE_TOOL_NAMES.has(trimmed)
 }
@@ -208,9 +314,7 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
     if (!p.toolCallId?.trim()) return false
     const candidate = (part.type === 'dynamic-tool' ? (p.toolName ?? '') : part.type.slice(5)).trim()
     if (candidate && isReportArtifactsName(candidate)) return isValidReportArtifactsCall(part)
-    // Caller-defined (API-gateway) tools stream as `dynamic-tool` and render
-    // through the generic MCP card, so any identified call counts as visible.
-    if (part.type === 'dynamic-tool') return true
+    if (part.type === 'dynamic-tool') return isRenderableDynamicTool(part, candidate)
     return isRenderableToolName(part, candidate)
   }
   return true
