@@ -160,8 +160,15 @@ export type AgentRuntimeEvent =
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
-   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
-  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
+   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn.
+   *  `flowOwnerToolCallId` is the immediate subagent owner for parent linkage (nested flows may
+   *  route via a root spawn id while content belongs to a descendant). */
+  | {
+      type: 'background-flow-chunk'
+      rootToolCallId: string
+      flowOwnerToolCallId?: string
+      chunk: UIMessageChunk
+    }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
    *  transfers generation ownership and asks the host to open a receive-only transcript turn,
    *  carrying why the runtime opened it so the transcript can say so; `finished` releases

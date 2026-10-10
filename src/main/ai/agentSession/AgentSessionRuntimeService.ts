@@ -241,6 +241,8 @@ type BackgroundFlowAccumulator = {
   openToolCallIds: Set<string>
   /** Seed indexes closed by orphan ends, reapplied after each snapshot so later chunks cannot reopen them. */
   closedSeedIndexes?: Set<number>
+  /** Indexes of parts from the initial seed snapshot — orphan ends may only close these, not SDK continuations. */
+  seedPartIndexes?: Set<number>
   /** Bounds poisoned-stream warnings to one per accumulator. */
   errorLogged?: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
@@ -293,7 +295,10 @@ type AgentSessionRuntimeEntry = {
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
-  pendingBackgroundFlowChunks?: Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string }>>
+  pendingBackgroundFlowChunks?: Map<
+    string,
+    Array<{ chunk: UIMessageChunk; rootToolCallId: string; flowOwnerToolCallId: string }>
+  >
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
@@ -335,21 +340,31 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   }
 }
 
+function getParentToolCallIdFromMetadata(metadata: unknown): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = (metadata as Record<string, unknown>)[namespace]
+    if (typeof entry !== 'object' || entry === null) continue
+    const parentId =
+      (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
+    if (typeof parentId === 'string' && parentId) return parentId
+  }
+  return undefined
+}
+
 function getPartParentToolCallId(part: CherryMessagePart): string | undefined {
   const direct = (part as { parentToolUseId?: unknown }).parentToolUseId
   if (typeof direct === 'string' && direct) return direct
   for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
-    const metadata = (part as Record<string, unknown>)[field]
-    if (typeof metadata !== 'object' || metadata === null) continue
-    for (const namespace of ['claude-code', 'cherry'] as const) {
-      const entry = (metadata as Record<string, unknown>)[namespace]
-      if (typeof entry !== 'object' || entry === null) continue
-      const parentId =
-        (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
-      if (typeof parentId === 'string' && parentId) return parentId
-    }
+    const parentId = getParentToolCallIdFromMetadata((part as Record<string, unknown>)[field])
+    if (parentId) return parentId
   }
   return undefined
+}
+
+function getChunkParentToolCallId(chunk: UIMessageChunk): string | undefined {
+  if (!('providerMetadata' in chunk)) return undefined
+  return getParentToolCallIdFromMetadata(chunk.providerMetadata)
 }
 
 @Injectable('AgentSessionRuntimeService')
@@ -1779,7 +1794,13 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTaskEvent(entry, event.data, connection)
         break
       case 'background-flow-chunk':
-        this.handleBackgroundFlowChunk(entry, event.rootToolCallId, event.chunk, connection)
+        this.handleBackgroundFlowChunk(
+          entry,
+          event.rootToolCallId,
+          event.chunk,
+          event.flowOwnerToolCallId ?? event.rootToolCallId,
+          connection
+        )
         break
       case 'autonomous-turn-state': {
         if (event.state === 'finished') {
@@ -2058,6 +2079,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     rootToolCallId: string,
     chunk: UIMessageChunk,
+    flowOwnerToolCallId: string,
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
@@ -2078,15 +2100,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
       const pending =
-        entry.pendingBackgroundFlowChunks ?? new Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string }>>()
+        entry.pendingBackgroundFlowChunks ??
+        new Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string; flowOwnerToolCallId: string }>>()
       entry.pendingBackgroundFlowChunks = pending
       const chunks = pending.get(messageId) ?? []
-      chunks.push({ chunk, rootToolCallId })
+      chunks.push({ chunk, rootToolCallId, flowOwnerToolCallId })
       pending.set(messageId, chunks)
       return
     }
 
-    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId)
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2095,8 +2118,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending?.length) return
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const { chunk, rootToolCallId } of pending)
-      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId)
+    for (const { chunk, rootToolCallId, flowOwnerToolCallId } of pending)
+      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
@@ -2104,7 +2127,8 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     messageId: string,
     chunk: UIMessageChunk,
-    rootToolCallId: string
+    rootToolCallId: string,
+    flowOwnerToolCallId: string
   ): void {
     let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
     accumulator.openParts ??= new Set()
@@ -2145,10 +2169,11 @@ export class AgentSessionRuntimeService extends BaseService {
           // Like `buildCompactReplay`: synthesize the start and reattach parentToolCallId.
           accumulator.openParts.add(key)
           const startType = kind === 'text' ? 'text-start' : 'reasoning-start'
+          const parentToolCallId = getChunkParentToolCallId(chunk) ?? flowOwnerToolCallId
           queue.push({
             type: startType,
             id: chunk.id,
-            providerMetadata: chunk.providerMetadata ?? { cherry: { parentToolCallId: rootToolCallId } }
+            providerMetadata: chunk.providerMetadata ?? { cherry: { parentToolCallId } }
           })
         }
         queue.push(chunk)
@@ -2161,7 +2186,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!accumulator.openParts.has(key)) {
           // The start raced persistence: the seed still holds this part as streaming.
           // Close it in place (the orphan end itself is spent) and converge the overlay.
-          if (this.completeSeedStreamingPart(accumulator, kind, rootToolCallId))
+          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId))
             this.publishBackgroundFlowSnapshot(entry, accumulator)
           break
         }
@@ -2232,26 +2257,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private completeSeedStreamingPart(
     accumulator: BackgroundFlowAccumulator,
     kind: 'text' | 'reasoning',
-    rootToolCallId: string
+    flowOwnerToolCallId: string
   ): boolean {
     const parts = accumulator.latest?.parts
-    if (!parts) return false
-    const streaming = parts.filter(
-      (part): part is Extract<CherryMessagePart, { type: 'text' | 'reasoning' }> =>
-        part.type === kind && part.state === 'streaming'
-    )
-    const owned = streaming.filter((part) => getPartParentToolCallId(part) === rootToolCallId)
+    const seedIndexes = accumulator.seedPartIndexes
+    if (!parts || !seedIndexes?.size) return false
     const hasLiveContinuation = [...accumulator.openParts].some((key) => key.startsWith(`${kind}:`))
-    let match: (typeof streaming)[number] | undefined
-    if (owned.length === 1 && !hasLiveContinuation && streaming.length === 1) {
-      match = owned[0]
-    } else if (owned.length === 0) {
-      // Id-less seed parts: close only when no sibling flow owns a streaming part of this kind.
-      const unowned = streaming.filter((part) => !getPartParentToolCallId(part))
-      if (unowned.length === 1 && streaming.length === 1) match = unowned[0]
-    }
-    if (!match) return false
-    const index = parts.indexOf(match)
+    if (hasLiveContinuation) return false
+
+    const seedStreaming = parts
+      .map((part, index) => ({ part, index }))
+      .filter(({ part, index }) => seedIndexes.has(index) && part.type === kind && part.state === 'streaming')
+    if (seedStreaming.length !== 1) return false
+
+    const { part: match, index } = seedStreaming[0]
+    const parent = getPartParentToolCallId(match)
+    if (parent && parent !== flowOwnerToolCallId) return false
     parts[index] = { ...match, state: 'done' as const }
     accumulator.closedSeedIndexes ??= new Set()
     accumulator.closedSeedIndexes.add(index)
@@ -2302,10 +2323,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (existing) return existing
 
     const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    const initialParts = seedParts ? structuredClone(seedParts) : structuredClone(persisted.data.parts ?? [])
     const seed: CherryUIMessage = {
       id: persisted.id,
       role: 'assistant',
-      parts: seedParts ? structuredClone(seedParts) : structuredClone(persisted.data.parts ?? [])
+      parts: initialParts
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2322,7 +2344,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // can recover from it and the flush still persists it when every chunk was dropped.
       latest: structuredClone(seed),
       openParts: new Set(),
-      openToolCallIds: new Set()
+      openToolCallIds: new Set(),
+      seedPartIndexes: new Set(initialParts.map((_, index) => index))
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)

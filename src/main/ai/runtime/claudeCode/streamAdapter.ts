@@ -146,6 +146,9 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** SDK `parent_tool_use_id` for the message currently being handled in this flow stream. */
+  messageParentToolUseId?: string
+  streamPartParentMetadata: Map<string, Record<string, JSONObject>>
 }
 
 /**
@@ -547,7 +550,9 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      messageParentToolUseId: undefined,
+      streamPartParentMetadata: new Map()
     }
   }
 
@@ -626,6 +631,7 @@ export class ClaudeCodeStreamAdapter {
       (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user')
     ) {
       const flow = this.getOrCreateFlowContext(parentToolUseId)
+      flow.stream.messageParentToolUseId = parentToolUseId
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
@@ -728,23 +734,50 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext()
+    }
+    if (!this.turnActive) {
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow)))
     }
     this.flowContexts.push(flow)
     return flow
   }
 
-  private createFlowSink(rootToolCallId: string): StreamSink {
+  private createFlowSink(flow: FlowContext): StreamSink {
     return {
       enqueue: (chunk) => {
-        this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId, chunk })
+        const enriched = this.enrichFlowChunkWithPartParent(chunk, flow.stream)
+        const flowOwnerToolCallId = flow.stream.messageParentToolUseId ?? flow.rootToolCallId
+        this.statusSink.emit({
+          type: 'background-flow-chunk',
+          rootToolCallId: flow.rootToolCallId,
+          flowOwnerToolCallId,
+          chunk: enriched
+        })
       }
     }
   }
 
+  private enrichFlowChunkWithPartParent(chunk: CherryUIMessageChunk, ctx: StreamContext): CherryUIMessageChunk {
+    const partId =
+      chunk.type === 'text-delta' || chunk.type === 'text-end' || chunk.type === 'text-start'
+        ? chunk.id
+        : chunk.type === 'reasoning-delta' || chunk.type === 'reasoning-end' || chunk.type === 'reasoning-start'
+          ? chunk.id
+          : undefined
+    if (!partId) return chunk
+    if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
+      if (chunk.providerMetadata) ctx.streamPartParentMetadata.set(partId, chunk.providerMetadata)
+      return chunk
+    }
+    if (chunk.providerMetadata) return chunk
+    const parentMetadata = ctx.streamPartParentMetadata.get(partId)
+    return parentMetadata ? { ...chunk, providerMetadata: parentMetadata } : chunk
+  }
+
   private detachFlowContexts(): void {
     for (const flow of this.flowContexts) {
-      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId)))
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow)))
     }
   }
 

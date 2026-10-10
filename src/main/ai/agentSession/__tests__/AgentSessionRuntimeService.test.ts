@@ -2537,6 +2537,94 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('keeps nested subagent ownership when routing uses the root spawn id', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      for (const toolCallId of ['task-root', 'task-nested']) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: 'Agent',
+            input: { prompt: `Run ${toolCallId}` }
+          }
+        })
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Run task-root' }
+            },
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-nested',
+              state: 'input-available',
+              input: { prompt: 'Run task-nested' }
+            },
+            {
+              type: 'text',
+              text: 'prefix',
+              state: 'streaming',
+              providerMetadata: { 'claude-code': { parentToolCallId: 'task-nested' } }
+            }
+          ]
+        }
+      })
+      entry.persistedFlowMessageIds?.add('assistant-1')
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        flowOwnerToolCallId: 'task-nested',
+        chunk: { type: 'text-delta', id: 'orphan-text', delta: 'suffix' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        flowOwnerToolCallId: 'task-nested',
+        chunk: { type: 'text-end', id: 'orphan-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalled()
+      })
+      const persistedParts = mocks.replaceMessageParts.mock.calls.at(-1)?.[2] as Array<{
+        type: string
+        text?: string
+        providerMetadata?: Record<string, unknown>
+      }>
+      const continuation = persistedParts.find((part) => part.type === 'text' && part.text?.includes('suffix'))
+      expect(continuation?.providerMetadata).toEqual(
+        expect.objectContaining({
+          cherry: expect.objectContaining({ parentToolCallId: 'task-nested' })
+        })
+      )
+      expect(
+        persistedParts.some(
+          (part) => part.type === 'text' && part.text?.includes('prefix') && part.text?.includes('suffix')
+        )
+      ).toBe(false)
+      expect(persistedParts.some((part) => part.type === 'text' && part.text === 'prefix')).toBe(true)
+      expect(continuation?.text).toBe('suffix')
+    })
+
     it('keeps the subagent association on orphan detached deltas that arrive without a start chunk', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
