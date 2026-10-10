@@ -17,7 +17,6 @@ contracts.
 |---|---|
 | [File Module Architecture](./architecture.md) | Ownership, current shared types, DataApi/IpcApi split, legacy preload surface, and business references |
 | [FileManager Architecture](./file-manager-architecture.md) | Storage, entry lifecycle, atomic writes, external liveness, watcher, caches, and orphan sweeps |
-| [Managed Attachments Design](./managed-attachments-design.md) | Approved checkpoint-based simplification: mobile draft ownership, direct-reference sends, cleanup/recovery, and implementation/acceptance boundaries |
 | [Directory Tree Architecture](./directory-tree.md) | Builder/manager ownership, snapshot activation, mutation stream, renderer mirror, and cleanup |
 | [File Entry Cleanup](./file-entry-cleanup.md) | Policy-based scan that reclaims old unreferenced automatic entries |
 | [Fuzzy Search for Directory Listings](./fuzzy-search.md) | Legacy listing modes, ripgrep-backed fuzzy matching, ranking, exclusions, and errors |

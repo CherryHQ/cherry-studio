@@ -113,8 +113,7 @@ ignores responses superseded by later pairing events or a stopped LAN listener.
 
 ## Attachment ownership
 
-The [checkpoint-based design](../../../../docs/references/file/managed-attachments-design.md)
-owns recovery/retention in the file module. Selection is disposable presentation; new sends carry
+The file module owns checkpoint-based recovery and retention. Selection is disposable presentation; new sends carry
 explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
 
 `FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
