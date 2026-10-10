@@ -1,5 +1,11 @@
 # @cherrystudio/remote-protocol
 
+## 0.4.0
+
+### Minor Changes
+
+- [#21399](https://github.com/CherryHQ/cherry-studio/pull/21399) [`5485d7e`](https://github.com/CherryHQ/cherry-studio/commit/5485d7ef2974c2ac193a55427f6419461cb4cbd5) Thanks [@DeJeune](https://github.com/DeJeune)! - Add negotiated, bounded Agent attachment uploads and file-only messages with opaque upload references, resumable transfers, and revisioned attachment drafts for upload-before-send.
+
 ## 0.3.0
 
 ### Minor Changes
