@@ -75,6 +75,7 @@ import {
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
+  CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
   HEADLESS_INTERACTIVE_TOOL_DENIAL
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
@@ -527,7 +528,15 @@ async function buildToolPermissions(
       !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+      return {
+        behavior: 'deny',
+        // Mirror the guard table's per-rule wording so both denial layers tell delegation tools
+        // why there is no responder and where the reply actually goes.
+        message:
+          policy?.approval === 'required' && policy.bypassApproval === 'enforce'
+            ? CROSS_SESSION_DELEGATION_HEADLESS_DENIAL
+            : HEADLESS_INTERACTIVE_TOOL_DENIAL
+      }
     }
 
     const access = snapshot.resolve(toolName, input)
