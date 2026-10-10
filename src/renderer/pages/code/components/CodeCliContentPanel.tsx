@@ -19,6 +19,8 @@ interface CodeCliContentPanelProps {
   versionStatus: VersionStatus
   versionCard: {
     visible: boolean
+    statusPending: boolean
+    updatesPending: boolean
     canLaunch: boolean
     launching: boolean
     running: boolean
@@ -111,6 +113,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             toolId={selectedCliTool}
             toolName={activeMeta.label}
             status={versionStatus}
+            statusPending={versionCard.statusPending}
+            updatesPending={versionCard.updatesPending}
             onInstall={onInstall}
             onUpgrade={onUpgrade}
             onRemove={onRemove}
