@@ -686,6 +686,39 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Cancel only the main session's current turn; child sessions and the bridge remain live. */
+  async abortTurn(): Promise<boolean> {
+    if (this.closed || !this.bridge) return false
+    // A warm connection with no active turn has nothing to interrupt: report success so the
+    // stop keeps the preserved runtime instead of falling back to the teardown.
+    if (!this.turnActive) return true
+    try {
+      // A resumed or edited session lives on the wire under its resume/native identity —
+      // cancelling by the host id would miss the live session and fall back to teardown.
+      await this.bridge.request('session/cancel', { sessionId: this.runtimeSessionId }, { timeoutMs: 5_000 })
+      // A graceful cancel keeps this connection (and its registrations) alive, so
+      // approvals still awaiting a renderer decision must be denied here, not just
+      // at close(), or they outlive the cancelled turn.
+      toolApprovalRegistry.abort(this.input.sessionId, 'dsh-turn-cancelled')
+      if (!this.turnActive) return true
+      return await new Promise<boolean>((resolve) => {
+        const poll = setInterval(() => {
+          if (this.turnActive && !this.closed) return
+          clearInterval(poll)
+          clearTimeout(timeout)
+          resolve(!this.closed)
+        }, 25)
+        const timeout = setTimeout(() => {
+          clearInterval(poll)
+          resolve(false)
+        }, 5_000)
+      })
+    } catch (error) {
+      logger.warn('dsh turn cancel failed', { sessionId: this.input.sessionId, error })
+      return false
+    }
+  }
+
   async flushForFork(signal?: AbortSignal): Promise<void> {
     if (this.startPromise) await this.waitForForkTransition(this.startPromise, signal)
     signal?.throwIfAborted()
