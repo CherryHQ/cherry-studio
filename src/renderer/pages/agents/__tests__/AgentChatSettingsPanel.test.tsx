@@ -826,6 +826,25 @@ describe('AgentChat settings panel', () => {
     await waitFor(() => expect(agentSwitchConfirmationCacheMock.set).toHaveBeenCalledWith(true))
   })
 
+  it('dismisses the agent-switch confirmation when the session changes underneath it', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    const view = renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // Global new-session shortcut: the mounted session swaps under the open dialog, so the
+    // retained target must never reassign whichever session is latest.
+    view.rerender(
+      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, id: 'session-2' })} />
+    )
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+  })
+
   it('skips agent confirmations when the app-run shared cache is enabled', async () => {
     partsByMessageIdMock.value = {
       'message-1': [{ type: 'text', text: 'hello' }]

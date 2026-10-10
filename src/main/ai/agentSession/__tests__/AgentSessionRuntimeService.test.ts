@@ -2131,6 +2131,105 @@ describe('AgentSessionRuntimeService', () => {
     ])
   })
 
+  it('queues a steer instead of redirecting it into the turn of a reassigned agent', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true)
+    }
+    entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    // A top-bar switch re-pointed the session mid-execution; every ancillary setting matches, so
+    // only the reassignment gate can keep the input out of the previous agent's run.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    expect(connection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toEqual([
+      {
+        message: userMessage('user-2'),
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        knowledgeBaseIds: [],
+        fastMode: false,
+        steer: true
+      }
+    ])
+  })
+
+  it('replaces a warm connection instead of closing the session when the agent was reassigned', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const staleConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid')
+    }
+    const freshConnection = { close: vi.fn(), send: vi.fn(), events: createAsyncQueue<any>().iterable }
+    const connect = vi.fn().mockResolvedValue(freshConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    entry.currentTurn = null
+    entry.connection = staleConnection
+
+    // Top-bar switch: the session points at agent-2 with identical ancillary settings, so only
+    // the identity moved and the warm connection is the one stale fact.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', model: baseTurnInput.modelId })
+
+    await expect((service as any).ensureConnection(entry)).resolves.toBe(true)
+
+    expect(staleConnection.reconcile).toHaveBeenCalled()
+    expect(staleConnection.close).toHaveBeenCalled()
+    expect(connect).toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(freshConnection)
+    // The session survived the transition — the input already persisted for this turn is not stranded.
+    expect(service.inspect('session-1')).toBeDefined()
+  })
+
+  it('still closes the session when an invalid verdict has no runnable replacement agent', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const staleConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid')
+    }
+    const connect = vi.fn()
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    entry.currentTurn = null
+    entry.connection = staleConnection
+
+    // The session points at a deleted agent: nothing runnable to reconnect under.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-gone' })
+    mocks.getAgent.mockReturnValue(undefined)
+
+    await expect((service as any).ensureConnection(entry)).resolves.toBe(false)
+    expect(connect).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+  })
+
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, fastMode: true })

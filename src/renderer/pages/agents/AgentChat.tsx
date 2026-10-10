@@ -200,6 +200,7 @@ const AgentChat = ({
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
   const [agentSwitchTarget, setAgentSwitchTarget] = useState<string | undefined>()
+  const [agentSwitchSessionId, setAgentSwitchSessionId] = useState<string | undefined>()
   const [agentSwitchConfirmOpen, setAgentSwitchConfirmOpen] = useState(false)
   const [skipAgentSwitchConfirmation, setSkipAgentSwitchConfirmation] = useState(false)
 
@@ -302,6 +303,7 @@ const AgentChat = ({
       // subsequent messages — confirm first, like mid-conversation model switches.
       if (!isEmptyConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
         setAgentSwitchTarget(nextAgentId)
+        setAgentSwitchSessionId(sessionSnapshot.id)
         setSkipAgentSwitchConfirmation(false)
         setAgentSwitchConfirmOpen(true)
         return
@@ -322,6 +324,14 @@ const AgentChat = ({
       skipAgentSwitchConfirmationsForAppRun
     ]
   )
+  // The retained target belongs to the session the dialog was opened for: a global new-session
+  // shortcut can swap the mounted session under an open dialog, so dismiss rather than reassign
+  // whatever session is latest.
+  useEffect(() => {
+    if (agentSwitchConfirmOpen && agentSwitchSessionId && currentSessionId !== agentSwitchSessionId) {
+      setAgentSwitchConfirmOpen(false)
+    }
+  }, [currentSessionId, agentSwitchConfirmOpen, agentSwitchSessionId])
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
       if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
@@ -627,6 +637,9 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (!sessionSnapshot || !agentSwitchTarget || agentSwitchTarget === sessionSnapshot.agentId) return
+          // Guard the same race the dismissal effect covers: confirm must never apply a target
+          // retained for another session to whichever session is current.
+          if (agentSwitchSessionId !== sessionSnapshot.id) return
           const updatedSession = await updateSession(
             { id: sessionSnapshot.id, agentId: agentSwitchTarget },
             { showSuccessToast: false }

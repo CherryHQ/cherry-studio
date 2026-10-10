@@ -944,6 +944,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return
 
     this.clearIdleTimer(entry)
+    // A top-bar switch can re-point the session while the previous agent's turn still executes.
+    // Never fold input into that execution: it queues as the next turn and runs under the
+    // session's current agent once the old execution ends and the connection is replaced.
+    const session = agentSessionService.getById(sessionId)
+    const agentReassigned = !!session?.agentId && session.agentId !== entry.agentId
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
     const headless = opts.headless === true
@@ -978,6 +983,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.isTurnLive(entry, turn) &&
       turn.headless !== true &&
       !headless &&
+      !agentReassigned &&
       canRedirectOnCurrentConfig &&
       this.currentConnection(entry)?.redirect?.({
         message,
@@ -1632,6 +1638,29 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
+  /**
+   * A top-bar switch re-points the session row while the runtime entry keeps the previous agent.
+   * Adopt the session's current agent identity at a turn boundary — even an unrunnable one, whose
+   * failure the drain/connect paths already surface — but never mid-turn: the running turn's
+   * attribution (naming, telemetry, author snapshot) stays with the agent that started it.
+   */
+  private adoptSessionAgent(entry: AgentSessionRuntimeEntry): void {
+    const turn = this.currentTurn(entry)
+    if (
+      isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
+      isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
+      (turn && this.isTurnLive(entry, turn))
+    ) {
+      return
+    }
+    const session = agentSessionService.getById(entry.sessionId)
+    if (!session?.agentId || session.agentId === entry.agentId) return
+    const agent = agentService.getAgent(session.agentId)
+    entry.agentId = session.agentId
+    entry.agentType = agent?.type ?? entry.agentType
+    entry.modelId = agent?.model ?? entry.modelId
+  }
+
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
@@ -1643,6 +1672,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         continue
       }
+
+      this.adoptSessionAgent(entry)
 
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
@@ -1715,9 +1746,20 @@ export class AgentSessionRuntimeService extends BaseService {
             // and the loop reconnects from the latest config.
             this.closeConnectionAsync(entry)
             continue
-          case 'invalid':
+          case 'invalid': {
+            // 'invalid' also fires for a warm connection frozen to an agent the session no longer
+            // points at (top-bar reassignment; Pi/Dsh capture against the frozen id). The session
+            // row is still runnable, so replace the connection instead of closing the session —
+            // an input already admitted for this turn must survive the transition.
+            const session = agentSessionService.getById(entry.sessionId)
+            const sessionAgent = session?.agentId ? agentService.getAgent(session.agentId) : null
+            if (session && sessionAgent?.model && session.agentId === entry.agentId) {
+              this.closeConnectionAsync(entry)
+              continue
+            }
             void this.closeSession(entry.sessionId)
             return false
+          }
         }
       }
 
@@ -2765,6 +2807,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     if (entry.runtimeState.execution.kind !== 'idle') return
+
+    // A queued follow-up can equally outlive the session's agent: a top-bar switch re-pointed the
+    // session while this input sat queued, so drain it under the session's current agent.
+    this.adoptSessionAgent(entry)
 
     const pendingTurn = entry.runtimeState.queue[0]
     if (!pendingTurn) {
