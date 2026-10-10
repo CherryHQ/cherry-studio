@@ -162,7 +162,8 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
       })
     }
     const formats = hasAbsoluteTargetPath ? getDocumentConversionFormats(targetPath) : []
-    if (formats.length)
+    if (formats.length) {
+      if (items.length > 0) items.push({ type: 'separator' })
       items.push({
         type: 'submenu',
         id: 'artifact.convert',
@@ -181,6 +182,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
             })
         }))
       })
+    }
     if (copyText) {
       if (items.length > 0) items.push({ type: 'separator' })
       items.push({
