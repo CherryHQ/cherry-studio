@@ -30,7 +30,7 @@ export async function storeNativeImageOutput(output: unknown, messageId: string)
       cleanupPolicy: 'delete_when_unreferenced'
     })
   )
-  retainArtifact(application.get('FileManager').retainEntry(entry.id))
+  retainArtifact(application.get('FileManager').retainEntry(entry.id), entry.id)
   return {
     nativeImage: true,
     files: [{ id: entry.id, name: entry.name }],

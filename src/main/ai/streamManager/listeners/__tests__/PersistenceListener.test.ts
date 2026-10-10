@@ -539,6 +539,31 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 })
 
 describe('message artifact ownership handoff', () => {
+  // Regression: stopping a temporary stream must close reservations absent from the saved message.
+  it.each(['paused', 'error'] as const)(
+    'releases late and unmatched temporary images after %s persistence',
+    async (status) => {
+      const releaseLate = vi.fn()
+      const releaseUnmatched = vi.fn()
+      const retainLate = messageArtifactRetentionService.createMessageArtifactRetainer('temporary-stopped')
+      messageArtifactRetentionService.retainMessageArtifact('temporary-stopped', releaseUnmatched, 'unpublished-file')
+      const listener = new PersistenceListener({
+        topicId: 'temporary-artifacts',
+        backend: { kind: 'temp', persistAssistant: () => {} },
+        onPersistFailed: vi.fn()
+      })
+      const result = { finalMessage: { id: 'temporary-stopped', role: 'assistant' as const, parts: [] } }
+      if (status === 'paused') await listener.onPaused({ ...result, status })
+      else await listener.onError({ ...result, status, error: { name: 'Error', message: 'idle timeout' } })
+      retainLate(releaseLate, 'late-file')
+      expect(releaseLate).toHaveBeenCalledOnce()
+      expect(releaseUnmatched).toHaveBeenCalledOnce()
+      messageArtifactRetentionService.releaseMessageArtifacts('temporary-stopped')
+      expect(releaseLate).toHaveBeenCalledOnce()
+      expect(releaseUnmatched).toHaveBeenCalledOnce()
+    }
+  )
+
   it.each(['success', 'paused', 'error'] as const)('holds artifacts until %s persistence finishes', async (status) => {
     const release = vi.fn()
     messageArtifactRetentionService.retainMessageArtifact('artifact-message', release)
@@ -593,13 +618,28 @@ describe('message artifact ownership handoff', () => {
 
   it('keeps temporary-chat artifacts after terminal persistence until their in-memory owner is discarded', async () => {
     const release = vi.fn()
-    messageArtifactRetentionService.retainMessageArtifact('temporary-image', release)
+    messageArtifactRetentionService.retainMessageArtifact('temporary-image', release, 'persisted-image')
     const listener = new PersistenceListener({
       topicId: 'temporary-artifacts',
       backend: { kind: 'temp', persistAssistant: () => {} },
       onPersistFailed: vi.fn()
     })
-    await listener.onDone({ status: 'success', finalMessage: { id: 'temporary-image', role: 'assistant', parts: [] } })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: 'temporary-image',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-imageGeneration',
+            toolCallId: 'image',
+            state: 'output-available',
+            input: {},
+            output: { nativeImage: true, files: [{ id: 'persisted-image', name: 'image' }] }
+          }
+        ]
+      }
+    })
     expect(release).not.toHaveBeenCalled()
     messageArtifactRetentionService.releaseMessageArtifacts('temporary-image')
     expect(release).toHaveBeenCalledOnce()

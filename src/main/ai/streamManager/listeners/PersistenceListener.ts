@@ -4,11 +4,14 @@
  * delegates the write to a `PersistenceBackend`.
  */
 
+import { isToolUIPart } from 'ai'
+
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { isNativeImageOutput } from '@shared/ai/nativeImageGeneration'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -180,9 +183,20 @@ export class PersistenceListener implements StreamListener {
       }
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     } finally {
-      if (!persisted || this.opts.backend.kind !== 'temp') {
-        for (const id of new Set([finalMessage?.id, result.anchorMessageId])) {
-          if (id) messageArtifactRetentionService.releaseMessageArtifacts(id)
+      const persistedFileIds = new Set<string>()
+      if (persisted && this.opts.backend.kind === 'temp') {
+        for (const part of finalMessageForPersistence?.parts ?? []) {
+          if (isToolUIPart(part) && part.state === 'output-available' && isNativeImageOutput(part.output)) {
+            for (const file of part.output.files) persistedFileIds.add(file.id)
+          }
+        }
+      }
+      for (const id of new Set([finalMessage?.id, result.anchorMessageId])) {
+        if (!id) continue
+        if (persisted && this.opts.backend.kind === 'temp') {
+          messageArtifactRetentionService.reconcileMessageArtifacts(id, persistedFileIds)
+        } else {
+          messageArtifactRetentionService.releaseMessageArtifacts(id)
         }
       }
     }
