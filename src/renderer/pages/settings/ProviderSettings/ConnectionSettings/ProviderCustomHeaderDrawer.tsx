@@ -357,9 +357,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     // mid-flight; let them land, pull their result, and join the same write lock
     // so this snapshot can't erase a concurrent field.
     await awaitEndpointConfigWrites(providerId)
-    const freshProvider = await mutate()
-    const current = freshProvider ?? provider
-    if (!current) return
 
     // Validate the selected default baseUrl — non-empty + URL-shape, unless
     // this is Vertex (whose text endpoints are account-managed). A provider with
@@ -369,7 +366,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const defaultEndpointDraft = defaultEndpointIsImage
       ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
       : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
-    const isAccountManagedProvider = current.authType === 'iam-gcp'
+    const isAccountManagedProvider = provider.authType === 'iam-gcp'
     if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
@@ -389,16 +386,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const endpointDraftsForSave = sanitizeEndpointDraftsForSave(
-      endpointDrafts,
-      reasoningFormatTouchedRef.current,
-      openReasoningFormatRef.current,
-      current.endpointConfigs
-    )
-
-    const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDraftsForSave)
-    const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
-    const previousDefaultBaseUrl = trim(current.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
     const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
@@ -413,9 +401,28 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       parsedHeaders = rowsToHeadersObject(rows)
     }
 
+    let savedProvider = provider
+    let savedEndpointConfigs = provider.endpointConfigs
+
     try {
-      await withEndpointConfigWriteLock(providerId, () =>
-        updateProvider({
+      await withEndpointConfigWriteLock(providerId, async () => {
+        const freshProvider = await mutate()
+        const current = freshProvider ?? provider
+        if (!current) return
+
+        const endpointDraftsForSave = sanitizeEndpointDraftsForSave(
+          endpointDrafts,
+          reasoningFormatTouchedRef.current,
+          openReasoningFormatRef.current,
+          current.endpointConfigs
+        )
+
+        const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDraftsForSave)
+        const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
+        savedProvider = current
+        savedEndpointConfigs = nextEndpointConfigs
+
+        await updateProvider({
           endpointConfigs: nextEndpointConfigs,
           // `defaultChatEndpoint` names a text endpoint; an image-only provider
           // keeps the value it already has instead of recording an image one.
@@ -425,7 +432,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
             extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
           }
         })
-      )
+      })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
       // instead of silently losing their edits.
@@ -436,8 +443,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
       syncProviderModels({
-        ...current,
-        endpointConfigs: nextEndpointConfigs,
+        ...savedProvider,
+        endpointConfigs: savedEndpointConfigs,
         defaultChatEndpoint
       }).catch((error) => {
         logger.error('Background model sync after endpoint change failed', error as Error, { providerId })
