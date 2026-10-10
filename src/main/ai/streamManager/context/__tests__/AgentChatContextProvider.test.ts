@@ -80,6 +80,22 @@ function openReq(overrides: Partial<MainDispatchRequest> = {}): MainDispatchRequ
   } as MainDispatchRequest
 }
 
+function makeDeliveryEnvelope(overrides: { replyPolicy?: 'none' | 'completion' } = {}): Record<string, unknown> {
+  return {
+    status: 'accepted',
+    version: 1,
+    sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+    receiver: { agentId: 'agent-1', sessionId: 'session-1' },
+    senderSnapshot: { agentName: 'Sender Agent', sessionName: 'Sender Session' },
+    receiverSnapshot: { agentName: 'My Agent', sessionName: 'session-1' },
+    replyPolicy: overrides.replyPolicy ?? 'none',
+    sourceMessageId: null,
+    outcome: null,
+    error: null,
+    statusAt: '2026-10-09T00:00:00.000Z'
+  }
+}
+
 describe('AgentChatContextProvider', () => {
   let provider: InstanceType<typeof AgentChatContextProvider>
 
@@ -404,13 +420,59 @@ describe('AgentChatContextProvider', () => {
       sessionId: 'session-1',
       role: 'user',
       data: { parts: [{ type: 'text', text: 'delegated work' }] },
-      delivery: { status: 'accepted' }
+      delivery: makeDeliveryEnvelope()
     }
 
     await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
 
     expect(mocks.hasSessionMessages).toHaveBeenCalledWith('session-1', 'delivery-1')
     expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
+  })
+
+  it('prepends the delivery-turn context to the runtime user message of a delivery dispatch', async () => {
+    const deliveryMessage = {
+      id: 'delivery-1',
+      sessionId: 'session-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'delegated work' }] },
+      delivery: makeDeliveryEnvelope({ replyPolicy: 'completion' })
+    }
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ agentDeliveryMessage: deliveryMessage as never }))
+
+    // Naming still reads the sender's raw content, and the persisted row keeps it verbatim.
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', deliveryMessage.data)
+    expect(mocks.saveMessagesTx.mock.calls[0][1].messages[0]).toMatchObject({
+      id: 'delivery-1',
+      data: { parts: [{ type: 'text', text: 'delegated work' }] }
+    })
+
+    // The runtime message teaches the receiver the delivery contract ahead of the sender's content.
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledTimes(1)
+    const turnUserMessage = mocks.runtimeBeginTurn.mock.calls[0][0].userMessage
+    expect(turnUserMessage.data.parts).toHaveLength(2)
+    const [contextPart, originalPart] = turnUserMessage.data.parts
+    expect(originalPart).toEqual({ type: 'text', text: 'delegated work' })
+    expect(contextPart.type).toBe('text')
+    expect(contextPart.text).toContain('<system-reminder>')
+    expect(contextPart.text).toContain('cross-Session delivery')
+    expect(contextPart.text).toContain('Sender: Agent "Sender Agent" / Session "Sender Session"')
+    expect(contextPart.text).toContain('sessionId sender-session')
+    expect(contextPart.text).toContain('returned to the sender')
+    expect(contextPart.text).toContain('session_send, session_create')
+  })
+
+  it('keeps a plain interactive turn user message unwrapped', async () => {
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ userMessageParts: [{ type: 'text', text: 'plain hello' }] })
+    )
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMessage: expect.objectContaining({ data: { parts: [{ type: 'text', text: 'plain hello' }] } })
+      })
+    )
   })
 
   it('does not auto-name a busy follow-up turn', async () => {

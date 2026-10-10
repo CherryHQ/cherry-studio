@@ -29,7 +29,12 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
-import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
+import {
+  approvalRequiredRuntimeNames,
+  CLAUDE_TOOL_GUARD_RULES,
+  CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
+  HEADLESS_INTERACTIVE_TOOL_DENIAL
+} from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
