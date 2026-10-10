@@ -13,7 +13,6 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
@@ -39,12 +38,11 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
-import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -68,6 +66,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { resolveModelNativeImageSupport } from './modelImageSupport'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -478,7 +477,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages: resolveModelNativeImageSupport(this.input.modelId)
     })
     this.sdkInputQueue.push(sdkMessage)
   }
@@ -1089,23 +1088,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private invocationLane(parentToolUseId: string | null | undefined): string {
     return parentToolUseId == null ? 'top-level' : `tool:${parentToolUseId}`
-  }
-}
-
-/**
- * Whether the turn's model accepts native image input. Unresolvable models keep the
- * legacy always-native behavior instead of silently degrading images to OCR text.
- */
-function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
-  try {
-    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    return isVisionModel(modelService.getByKey(providerId, modelId))
-  } catch (error) {
-    logger.warn('Failed to resolve model for image support; assuming vision-capable', {
-      uniqueModelId,
-      error
-    })
-    return true
   }
 }
 

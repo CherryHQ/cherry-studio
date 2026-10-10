@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const mocks = vi.hoisted(() => ({
@@ -32,7 +32,8 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn(),
+  resolveModelNativeImageSupport: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -53,6 +54,10 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.getModelByKey }
+}))
+
+vi.mock('../modelImageSupport', () => ({
+  resolveModelNativeImageSupport: mocks.resolveModelNativeImageSupport
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -199,6 +204,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       env: {},
       ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
     }))
+    mocks.resolveModelNativeImageSupport.mockReturnValue(true)
   })
 
   it('uses the explicit effectiveResume token and ignores the persisted one', async () => {
@@ -256,11 +262,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('passes native image support from the captured connection model into settings', async () => {
-    mocks.getModelByKey.mockReturnValue({
-      id: 'model-1',
-      apiModelId: 'claude-sonnet',
-      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
-    })
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(true)
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -271,7 +273,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
 
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(false)
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -281,6 +283,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.objectContaining({ supportsImages: false }),
       expect.anything()
     )
+  })
+
+  it('flags a stale connection when native image support is restored after a modality-only disable', async () => {
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(false)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(true)
+    const current = await deriveConnectionConfig('session-1')
+
+    if (!request || !current.ok) throw new Error('expected materialized request and current config')
+    expect(request.connectionConfig.rebuildFactFingerprints.supportsImages).not.toBe(
+      current.config.rebuildFactFingerprints.supportsImages
+    )
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
   it('pins the rebuild baseline to the context window used to materialize settings', async () => {
@@ -1302,6 +1318,15 @@ describe('deriveConnectionConfig', () => {
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
+
+  it('includes native image support in rebuild facts', async () => {
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(false)
+    const disabled = await deriveSignature()
+    mocks.resolveModelNativeImageSupport.mockReturnValueOnce(true)
+    const enabled = await deriveSignature()
+
+    expect(disabled.rebuildFactFingerprints.supportsImages).not.toBe(enabled.rebuildFactFingerprints.supportsImages)
+  })
 
   it('is a pure read: no rotation advance, no gateway effects, no settings materialization', async () => {
     const result = await deriveConnectionConfig('session-1')

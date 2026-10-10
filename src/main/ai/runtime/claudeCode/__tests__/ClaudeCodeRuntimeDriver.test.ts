@@ -9,7 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -167,6 +167,7 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  resolveModelNativeImageSupport: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -197,6 +198,10 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.getModelByKey }
+}))
+
+vi.mock('../modelImageSupport', () => ({
+  resolveModelNativeImageSupport: mocks.resolveModelNativeImageSupport
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
@@ -521,6 +526,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
+    mocks.resolveModelNativeImageSupport.mockImplementation((uniqueModelId: UniqueModelId) => {
+      try {
+        const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+        const model = mocks.getModelByKey(providerId, modelId)
+        return Boolean(model?.capabilities?.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION))
+      } catch {
+        return true
+      }
+    })
     mocks.deriveConfig.mockResolvedValue({
       ok: true,
       config: {
@@ -1539,10 +1553,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Failed to resolve model for image support; assuming vision-capable',
-      expect.objectContaining({ uniqueModelId: 'claude-code::sonnet' })
-    )
     void connection.close()
   })
 
