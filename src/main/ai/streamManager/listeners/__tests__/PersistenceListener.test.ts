@@ -554,7 +554,7 @@ describe('message artifact ownership handoff', () => {
       })
       const result = { finalMessage: { id: 'temporary-stopped', role: 'assistant' as const, parts: [] } }
       if (status === 'paused') await listener.onPaused({ ...result, status })
-      else await listener.onError({ ...result, status, error: { name: 'Error', message: 'idle timeout' } })
+      else await listener.onError({ ...result, status, error: { name: 'Error', message: 'idle timeout', stack: null } })
       retainLate(releaseLate, 'late-file')
       expect(releaseLate).toHaveBeenCalledOnce()
       expect(releaseUnmatched).toHaveBeenCalledOnce()
