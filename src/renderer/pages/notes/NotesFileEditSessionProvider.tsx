@@ -38,6 +38,17 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
 
   useEffect(() => notesEditFlushService.register(session.flush), [session.flush])
 
+  useEffect(() => {
+    void ipcApi
+      .request('app.notes_relocation.sync_state', undefined)
+      .then(({ migrationLocked }) => {
+        if (migrationLocked && !notesEditFlushService.getMigrationLocked()) {
+          notesEditFlushService.beginMigrationLock()
+        }
+      })
+      .catch((error) => logger.warn('Failed to sync notes migration lock state', error as Error))
+  }, [])
+
   const pendingMigrationLockAckRef = useRef<string | null>(null)
 
   useIpcOn('app.notes_relocation.migration_started', ({ batchId }) => {
@@ -56,7 +67,7 @@ export const NotesFileEditSessionProvider: FC<{ children: ReactNode }> = ({ chil
       .catch((error) => logger.warn('Failed to acknowledge notes migration lock', error as Error))
   }, [migrationLocked])
   useIpcOn('app.notes_relocation.migration_finished', () => {
-    notesEditFlushService.endMigrationLock()
+    notesEditFlushService.resetMigrationLock()
   })
 
   // Main asks every notes-capable window to persist drafts before a directory

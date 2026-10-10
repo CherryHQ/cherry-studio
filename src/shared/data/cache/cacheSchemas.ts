@@ -371,7 +371,7 @@ export type SharedCacheSchema = {
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
   /** Set after a successful directory migration so selection can follow the new root. */
-  'notes.directory_root_transition': { from: string; to: string } | undefined
+  'notes.directory_root_transition': { id: string; from: string; to: string } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -488,6 +488,8 @@ export type RendererPersistCacheSchema = {
   'ui.screenshot.annotation_color': string
   'ui.screenshot.annotation_stroke_width': number
   'ui.screenshot.annotation_font_size': number
+  /** Last notes root-transition id applied in this renderer window (per-window consumption). */
+  'notes.directory_root_transition_consumed_id': string | null
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -536,7 +538,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   // or the overlay opens with no swatch, width or size marked as current.
   'ui.screenshot.annotation_color': '#F54A45',
   'ui.screenshot.annotation_stroke_width': 4,
-  'ui.screenshot.annotation_font_size': 20
+  'ui.screenshot.annotation_font_size': 20,
+  'notes.directory_root_transition_consumed_id': null
 }
 
 /**

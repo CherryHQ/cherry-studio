@@ -131,14 +131,31 @@ class RendererEditFlushCoordinator {
     }
   }
 
+  private async lockAllNotesWindows(): Promise<boolean> {
+    const locked = new Set<WindowId>()
+    while (true) {
+      const pending = this.listNotesWindowIds().filter((id) => !locked.has(id))
+      if (pending.length === 0) {
+        return true
+      }
+      const ok = await this.waitForAcks(this.lockPending, pending, 'edit lock')
+      if (!ok) {
+        return false
+      }
+      for (const id of pending) {
+        locked.add(id)
+      }
+    }
+  }
+
   async prepareForMigration(): Promise<boolean> {
     registerNotesWindowMigrationLockListener()
-    const allWindowIds = this.listNotesWindowIds()
-    const locked = await this.waitForAcks(this.lockPending, allWindowIds, 'edit lock')
+    const locked = await this.lockAllNotesWindows()
     if (!locked) {
       this.clearMigrationLockBroadcast()
       return false
     }
+    const allWindowIds = this.listNotesWindowIds()
     if (allWindowIds.length === 0) {
       return true
     }

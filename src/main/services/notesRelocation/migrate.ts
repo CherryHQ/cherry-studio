@@ -34,6 +34,22 @@ export function inspectNotesRelocation(sourcePath: string, targetPath: string): 
   }
 }
 
+function fileDigest(filePath: string): Buffer {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest()
+}
+
+function filesMatch(sourcePath: string, targetPath: string): boolean {
+  const sourceStat = fs.statSync(sourcePath)
+  const targetStat = fs.lstatSync(targetPath)
+  if (targetStat.isSymbolicLink() || !targetStat.isFile()) {
+    return false
+  }
+  if (sourceStat.size !== targetStat.size) {
+    return false
+  }
+  return crypto.timingSafeEqual(fileDigest(sourcePath), fileDigest(targetPath))
+}
+
 function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[] {
   const conflicts: string[] = []
 
@@ -73,15 +89,7 @@ function listMergePathConflicts(sourceRoot: string, targetRoot: string): string[
         continue
       }
 
-      const sourceSize = fs.statSync(sourceEntryPath).size
-      if (targetEntry.size !== sourceSize) {
-        conflicts.push(relativePath)
-        continue
-      }
-
-      const sourceDigest = crypto.createHash('sha256').update(fs.readFileSync(sourceEntryPath)).digest()
-      const targetDigest = crypto.createHash('sha256').update(fs.readFileSync(targetEntryPath)).digest()
-      if (!crypto.timingSafeEqual(sourceDigest, targetDigest)) {
+      if (!filesMatch(sourceEntryPath, targetEntryPath)) {
         conflicts.push(relativePath)
       }
     }
@@ -116,7 +124,6 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
         continue
       }
 
-      const sourceSize = fs.statSync(sourceEntryPath).size
       let targetEntry: fs.Stats
       try {
         targetEntry = fs.lstatSync(targetEntryPath)
@@ -127,11 +134,7 @@ function verifySourceCopied(sourceRoot: string, targetRoot: string): void {
         }
         throw error
       }
-      if (targetEntry.isSymbolicLink() || !targetEntry.isFile()) {
-        unresolved.push(relativePath)
-        continue
-      }
-      if (targetEntry.size !== sourceSize) {
+      if (!filesMatch(sourceEntryPath, targetEntryPath)) {
         unresolved.push(relativePath)
         continue
       }
@@ -213,7 +216,7 @@ export async function migrateNotesDirectory(
   }
 
   const copyOptions = options.merge
-    ? { skipExistingFiles: true as const }
+    ? { skipExistingFiles: true as const, exclusiveCreate: true as const }
     : { failOnExistingDestination: true as const }
 
   try {
@@ -248,11 +251,16 @@ export async function migrateNotesDirectory(
             )
           }
         }
-        const copyFlags = copyOptions?.failOnExistingDestination ? fs.constants.COPYFILE_EXCL : 0
+        const copyFlags =
+          copyOptions?.failOnExistingDestination || copyOptions?.exclusiveCreate ? fs.constants.COPYFILE_EXCL : 0
         try {
           await fs.promises.copyFile(from, to, copyFlags)
         } catch (error) {
-          if (copyOptions?.failOnExistingDestination && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+          const errno = (error as NodeJS.ErrnoException).code
+          if (errno === 'EEXIST' && copyOptions?.exclusiveCreate) {
+            continue
+          }
+          if (copyOptions?.failOnExistingDestination && errno === 'EEXIST') {
             throw new IpcError(
               notesRelocationErrorCodes.NOTES_RELOCATION_TARGET_NOT_EMPTY,
               'target already contains files'

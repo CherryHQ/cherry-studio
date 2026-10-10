@@ -689,7 +689,11 @@ describe('NotesPage print payloads', () => {
     expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
 
     const newNode = { ...mocks.noteNode, externalPath: '/new/notes/note.md', treePath: '/note' }
-    cacheService.setShared('notes.directory_root_transition', { from: '/old/notes', to: '/new/notes' })
+    cacheService.setShared('notes.directory_root_transition', {
+      id: 'transition-1',
+      from: '/old/notes',
+      to: '/new/notes'
+    })
     mocks.notesPath = '/new/notes'
     mocks.projectedNodes = [newNode]
     rerender(<NotesPage />)

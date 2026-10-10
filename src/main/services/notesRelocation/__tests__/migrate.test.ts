@@ -287,6 +287,28 @@ describe('notesRelocation', () => {
     expect(() => assertNotesRelocationPaths(source, nestedTarget)).toThrow()
   })
 
+  it('rejects merge when an external file lands before copy with same-sized different content', async () => {
+    const source = path.join(tempRoot, 'source-notes-merge-late')
+    const target = path.join(tempRoot, 'target-notes-merge-late')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'new-note.md'), 'aaaa')
+    fs.writeFileSync(path.join(target, 'existing.md'), '# Existing')
+
+    const originalCopyFile = fs.promises.copyFile.bind(fs.promises)
+    vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (from, to, mode?) => {
+      if (String(from).endsWith('new-note.md')) {
+        fs.writeFileSync(String(to), 'bbbb')
+      }
+      return originalCopyFile(from, to, mode)
+    })
+
+    await expect(migrateNotes(source, target, true)).rejects.toMatchObject({
+      code: 'NOTES_RELOCATION_VERIFY_FAILED'
+    })
+    expect(fs.readFileSync(path.join(target, 'new-note.md'), 'utf8')).toBe('bbbb')
+  })
+
   it('rejects non-merge migration when the target gains a file during copying', async () => {
     const source = path.join(tempRoot, 'source-notes-late-target')
     const target = path.join(tempRoot, 'target-notes-late-target')

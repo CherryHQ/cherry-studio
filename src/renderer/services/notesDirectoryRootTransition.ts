@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto'
+
 import { cacheService } from '@renderer/data/CacheService'
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 
 export function recordNotesDirectoryRootTransition(from: string, to: string): void {
   cacheService.setShared('notes.directory_root_transition', {
+    id: randomUUID(),
     from: normalizePathValue(from),
     to: normalizePathValue(to)
   })
@@ -14,6 +17,10 @@ export function consumeNotesDirectoryRootTransition(expectedTo: string): { from:
   if (!pending || normalizePathValue(pending.to) !== normalizedTo) {
     return null
   }
-  cacheService.deleteShared('notes.directory_root_transition')
-  return pending
+  const consumedId = cacheService.getPersist('notes.directory_root_transition_consumed_id')
+  if (consumedId === pending.id) {
+    return null
+  }
+  cacheService.setPersist('notes.directory_root_transition_consumed_id', pending.id)
+  return { from: pending.from, to: pending.to }
 }

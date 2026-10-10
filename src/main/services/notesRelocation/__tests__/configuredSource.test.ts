@@ -35,6 +35,8 @@ describe('resolveConfiguredNotesDirectoryPath', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-configured-'))
     defaultNotes = path.join(tempDir, 'default-notes')
     fs.mkdirSync(defaultNotes)
+    fs.mkdirSync(path.join(tempDir, 'appdata'))
+    fs.mkdirSync(path.join(tempDir, 'files'))
     getPath.mockImplementation((key: string) => {
       if (key === 'feature.notes.data') {
         return defaultNotes

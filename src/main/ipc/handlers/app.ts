@@ -11,6 +11,7 @@ import {
   completeNotesMigrationCommit,
   getNotesMigrationSessionId,
   inspectNotesRelocation,
+  isNotesDirectoryMigrationInFlight,
   migrateNotesDirectory,
   releaseNotesMigrationSession,
   rendererEditFlushCoordinator,
@@ -56,6 +57,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     requestUserDataRelocation(path, copy)
   },
   'app.notes_relocation.inspect': async ({ sourcePath, targetPath }) => inspectNotesRelocation(sourcePath, targetPath),
+  'app.notes_relocation.sync_state': async () => ({
+    migrationLocked: isNotesDirectoryMigrationInFlight()
+  }),
   'app.notes_relocation.migrate': async ({ sourcePath, targetPath, merge, expectedSourceRealPath }, ctx) => {
     if (!tryBeginNotesDirectoryMigration()) {
       throw new IpcError(

@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -14,16 +13,12 @@ export function resolveConfiguredNotesDirectoryPath(): string {
 
   const normalized = path.resolve(preference)
   try {
-    if (!fs.statSync(normalized).isDirectory()) {
-      return defaultPath
-    }
-    fs.accessSync(normalized, fs.constants.W_OK)
     if (!isAllowedNotesDirectory(normalized)) {
       return defaultPath
     }
     return normalized
   } catch {
-    // Missing or non-writable — match renderer resolveNotesPath fallback to default.
+    // Missing or invalid — match renderer resolveNotesPath fallback to default.
   }
   return defaultPath
 }

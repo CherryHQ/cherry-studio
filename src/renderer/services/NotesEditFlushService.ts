@@ -53,6 +53,16 @@ export class NotesEditFlushService {
       }
     }
   }
+
+  resetMigrationLock(): void {
+    if (this.migrationLockDepth === 0) {
+      return
+    }
+    this.migrationLockDepth = 0
+    for (const listener of this.migrationLockListeners) {
+      listener()
+    }
+  }
 }
 
 export const notesEditFlushService = new NotesEditFlushService()
