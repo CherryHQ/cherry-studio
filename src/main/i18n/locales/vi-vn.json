@@ -65,6 +65,8 @@
   "appMenu.zoom": "Thu phóng",
   "appMenu.zoomIn": "Phóng to",
   "appMenu.zoomOut": "Thu nhỏ",
+  "backup.restore.failed": "Khôi phục thất bại",
+  "backup.restore.retry": "Không thể khôi phục bản sao lưu. Dữ liệu trước đó của bạn đã được giữ lại. Vui lòng thử khôi phục lại.",
   "chat.conversation.new": "Cuộc trò chuyện mới",
   "common.channel_available_commands": "Các lệnh có sẵn:",
   "common.channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",

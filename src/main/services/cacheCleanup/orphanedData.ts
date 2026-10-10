@@ -3,6 +3,7 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 
+import { collectFailedRestoreTargets, removeFailedRestoreTarget } from './failedRestore'
 import {
   type CacheCleanupIssue,
   type CleanupStepResult,
@@ -80,16 +81,19 @@ function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: Ca
 }
 
 export async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
-  const [fileReport, knowledgePlan, restorePlan] = await Promise.all([
+  const [fileReport, knowledgePlan, restorePlan, failedRestorePlan] = await Promise.all([
     application.get('FileManager').inspectOrphanFiles(),
     collectOrphanKnowledgeTargets(),
-    collectRestoreTargets()
+    collectRestoreTargets(),
+    collectFailedRestoreTargets()
   ])
   const targetMeasurement = await measurePaths(
-    [...knowledgePlan.targets, ...restorePlan.targets].map(({ item, path: targetPath }) => ({
-      item,
-      path: targetPath
-    }))
+    [...knowledgePlan.targets, ...restorePlan.targets, ...failedRestorePlan.targets].map(
+      ({ item, path: targetPath }) => ({
+        item,
+        path: targetPath
+      })
+    )
   )
   const fileIssues: CacheCleanupIssue[] = []
   if (fileReport.outcome !== 'completed' || fileReport.statFailedCount > 0) {
@@ -100,7 +104,13 @@ export async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
   return toSizeSnapshot(
     {
       bytes: reclaimableFileBytes + targetMeasurement.bytes,
-      issues: [...fileIssues, ...knowledgePlan.issues, ...restorePlan.issues, ...targetMeasurement.issues]
+      issues: [
+        ...fileIssues,
+        ...knowledgePlan.issues,
+        ...restorePlan.issues,
+        ...failedRestorePlan.issues,
+        ...targetMeasurement.issues
+      ]
     },
     'exact'
   )
@@ -129,14 +139,16 @@ async function removeOrphanKnowledgeTarget(target: OrphanKnowledgeTarget): Promi
 }
 
 export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
-  const [fileReport, knowledgePlan, restorePlan] = await Promise.all([
+  const [fileReport, knowledgePlan, restorePlan, failedRestorePlan] = await Promise.all([
     application.get('FileManager').cleanupOrphanFiles(),
     collectOrphanKnowledgeTargets(),
-    collectRestoreTargets()
+    collectRestoreTargets(),
+    collectFailedRestoreTargets()
   ])
   const steps = await Promise.all([
     ...knowledgePlan.targets.map(removeOrphanKnowledgeTarget),
-    ...restorePlan.targets.map(removeCleanupTarget)
+    ...restorePlan.targets.map(removeCleanupTarget),
+    ...failedRestorePlan.targets.map(removeFailedRestoreTarget)
   ])
 
   if (fileReport.outcome === 'completed') {
@@ -151,6 +163,10 @@ export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   } else {
     steps.push({ state: 'failed' })
   }
-  steps.push(...[...knowledgePlan.issues, ...restorePlan.issues].map(() => ({ state: 'skipped' as const })))
+  steps.push(
+    ...[...knowledgePlan.issues, ...restorePlan.issues, ...failedRestorePlan.issues].map(() => ({
+      state: 'skipped' as const
+    }))
+  )
   return resultFromSteps('orphaned_data', steps)
 }
