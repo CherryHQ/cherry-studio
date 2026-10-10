@@ -178,7 +178,11 @@ export const FileList = memo(function FileList({
                       onSelect(file.id, !selected, e.shiftKey)
                     }}
                     data-file-selection-checkbox
-                    aria-label={t('files.select_file', { name: file.name })}
+                    aria-label={
+                      file.sourcePath
+                        ? t('files.select_file_with_path', { name: file.name, path: file.sourcePath })
+                        : t('files.select_file', { name: file.name })
+                    }
                   />
                 </label>
               </div>
@@ -195,7 +199,9 @@ export const FileList = memo(function FileList({
                   />
                 ) : (
                   <>
-                    <span className="truncate text-sm text-foreground">{file.name}</span>
+                    <span className="truncate text-sm text-foreground" title={file.sourcePath ?? file.name}>
+                      {file.name}
+                    </span>
                     {file.isMissing && (
                       <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}

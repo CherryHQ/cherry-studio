@@ -1540,6 +1540,7 @@
   "files.select_all": "Görünür dosyaları seç",
   "files.select_all_short": "Tümünü Seç",
   "files.select_file": "{{name}} öğesini seç",
+  "files.select_file_with_path": "{{name}} ({{path}}) öğesini seç",
   "files.show_in_folder": "Klasörde göster",
   "files.size": "Boyut",
   "files.text": "Metin",
