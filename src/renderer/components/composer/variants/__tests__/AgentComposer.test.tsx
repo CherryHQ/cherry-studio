@@ -1383,6 +1383,35 @@ describe('AgentComposer', () => {
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })
 
+  it('keeps the service tier pick composer-local while a session model override is active', async () => {
+    mocks.modelResult = {
+      ...model,
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] } }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{ ...createControlledSession(), modelId: 'anthropic::claude-opus-4' }}
+        resolvedModel={{
+          ...model,
+          id: 'anthropic::claude-opus-4',
+          apiModelId: 'claude-opus-4',
+          name: 'Claude Opus 4'
+        }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onServiceTierChange('flex'))
+
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+    expect(mocks.speedControlProps?.serviceTier).toBe('flex')
+  })
+
   it('persists and snapshots the selected Agent service tier', async () => {
     mocks.modelResult = {
       ...model,
