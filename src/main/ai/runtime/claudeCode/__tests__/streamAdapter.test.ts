@@ -1491,6 +1491,67 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     })
 
+    it('keeps the nested flow owner on text-end when the envelope parent advances to the root', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'task-nested', name: 'Agent', input: { prompt: 'nested' } }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' }
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'tail' }
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'task-nested', content: 'done' }]
+        }
+      } as any)
+
+      const textEnd = statusEvents.find(
+        (event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-end'
+      )
+      expect(textEnd).toEqual(
+        expect.objectContaining({
+          rootToolCallId: 'task-root',
+          flowOwnerToolCallId: 'task-nested',
+          chunk: expect.objectContaining({
+            providerMetadata: expect.objectContaining({
+              'claude-code': expect.objectContaining({ parentToolCallId: 'task-nested' })
+            })
+          })
+        })
+      )
+    })
+
     it('reattaches nested owner metadata on detached deltas after foreground stream start', () => {
       const { adapter, parts, statusEvents } = createAdapter()
 

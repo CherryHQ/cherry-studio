@@ -223,6 +223,26 @@ function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
+function getParentToolCallIdFromChunkMetadata(metadata: unknown): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = (metadata as Record<string, unknown>)[namespace]
+    if (typeof entry !== 'object' || entry === null) continue
+    const parentId =
+      (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
+    if (typeof parentId === 'string' && parentId) return parentId
+  }
+  return undefined
+}
+
+function getFlowOwnerToolCallIdFromChunk(chunk: CherryUIMessageChunk, envelopeOwner: string): string {
+  if ('providerMetadata' in chunk) {
+    const fromMetadata = getParentToolCallIdFromChunkMetadata(chunk.providerMetadata)
+    if (fromMetadata) return fromMetadata
+  }
+  return envelopeOwner
+}
+
 function getToolParentId(
   toolName: string,
   sdkParentToolUseId: SdkParentToolUseId,
@@ -747,7 +767,8 @@ export class ClaudeCodeStreamAdapter {
     return {
       enqueue: (chunk) => {
         const enriched = this.enrichFlowChunkWithPartParent(chunk, flow.stream)
-        const flowOwnerToolCallId = flow.stream.messageParentToolUseId ?? flow.rootToolCallId
+        const envelopeOwner = flow.stream.messageParentToolUseId ?? flow.rootToolCallId
+        const flowOwnerToolCallId = getFlowOwnerToolCallIdFromChunk(enriched, envelopeOwner)
         this.statusSink.emit({
           type: 'background-flow-chunk',
           rootToolCallId: flow.rootToolCallId,
