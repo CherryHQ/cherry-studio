@@ -89,7 +89,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     }
   )
 
-  it.each(['github', 'yi'])(
+  it.each(['github', 'yi', 'hunyuan', 'tencent-cloud-ti'])(
     'makes retired %s providers and copies unavailable without deleting data',
     async (retiredId) => {
       await dbh.db.insert(userProviderTable).values([
