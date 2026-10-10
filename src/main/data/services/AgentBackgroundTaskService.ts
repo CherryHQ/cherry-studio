@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, notInArray } from 'drizzle-orm'
 
 import { application } from '@application'
 import { agentBackgroundTaskTable } from '@data/db/schemas/agentBackgroundTask'
@@ -15,14 +15,21 @@ export class AgentBackgroundTaskService {
   /**
    * Index a whole reconciliation in one transaction. The panel polls every three seconds, so one
    * transaction per record turned a steady-state poll into a write burst that grew with the number
-   * of finished tasks, all of it re-writing rows that had not changed.
+   * of finished tasks, all of it re-writing rows that had not changed. Rows whose disk records are
+   * gone — every row, when the snapshot is empty — are swept in the same transaction, so the
+   * index can never keep serving a task the disk no longer holds.
    */
   saveRecords(agentId: string, records: BackgroundTaskRecord[]): void {
-    if (records.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
       for (const record of records) {
         this.upsertTx(tx, agentId, record)
       }
+      const ids = records.map((record) => record.id)
+      const staleRows =
+        ids.length === 0
+          ? eq(agentBackgroundTaskTable.agentId, agentId)
+          : and(eq(agentBackgroundTaskTable.agentId, agentId), notInArray(agentBackgroundTaskTable.id, ids))
+      tx.delete(agentBackgroundTaskTable).where(staleRows).run()
     })
   }
 
