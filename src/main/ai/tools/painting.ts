@@ -20,7 +20,6 @@ import * as z from 'zod'
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
@@ -32,7 +31,13 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 
-import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
+import {
+  type GenerateImageToolInput,
+  type PaintingModelSupport,
+  editInputImageLimit,
+  limitGenerateImageInputIds,
+  supportsImageInputs
+} from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
@@ -79,7 +84,7 @@ export const PAINTING_INPUT_IMAGE_ERROR_NOTE =
 
 export interface ConfiguredPaintingModel {
   uniqueModelId: UniqueModelId
-  support: ImageGenerationSupport | null
+  support: PaintingModelSupport | null
 }
 
 export function isPaintingError(output: PaintingResult): output is PaintingError {
@@ -99,7 +104,7 @@ export function paintingModelOutput(output: PaintingResult): { type: 'text'; val
   return { type: 'text', value: `Generated ${output.length} image(s): ${list}` }
 }
 
-export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
+export async function resolveConfiguredPaintingModel(): Promise<ConfiguredPaintingModel | null> {
   const uniqueModelId = application
     .get('PreferenceService')
     .get('feature.paintings.default_model_id') as UniqueModelId | null
@@ -115,12 +120,12 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
 
   return {
     uniqueModelId,
-    support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
+    support: await application.get('AiService').getImageGenerationSupport(uniqueModelId)
   }
 }
 
-function resolveMode(input: GenerateImageToolInput): ImageGenerationMode {
-  return input.image_ids && input.image_ids.length > 0 ? 'edit' : 'generate'
+function resolveMode(input: GenerateImageToolInput, support: ImageGenerationSupport | null): ImageGenerationMode {
+  return input.image_ids?.length && support?.modes.edit ? 'edit' : 'generate'
 }
 
 function extractParamValues(
@@ -168,18 +173,23 @@ async function resolveInputImages(
 export async function generateImageFromPrompt(
   input: GenerateImageToolInput,
   signal?: AbortSignal,
-  configuredModel: ConfiguredPaintingModel | null = resolveConfiguredPaintingModel()
+  configuredModel?: ConfiguredPaintingModel | null
 ): Promise<PaintingResult> {
+  if (configuredModel === undefined) configuredModel = await resolveConfiguredPaintingModel()
   if (!configuredModel) return { error: PAINTING_MODEL_NOT_CONFIGURED_NOTE }
 
   const { uniqueModelId, support } = configuredModel
-  const mode = resolveMode(input)
-  if ((mode === 'edit' && !support?.modes.edit) || (mode === 'generate' && support && !support.modes.generate)) {
-    return { error: mode === 'edit' ? PAINTING_EDIT_NOT_SUPPORTED_NOTE : PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
+  const mode = resolveMode(input, support)
+  const hasInputImages = !!input.image_ids?.length
+  if (hasInputImages && !supportsImageInputs(support)) {
+    return { error: PAINTING_EDIT_NOT_SUPPORTED_NOTE }
+  }
+  if (mode === 'generate' && support && !support.modes.generate) {
+    return { error: PAINTING_GENERATE_NOT_SUPPORTED_NOTE }
   }
 
   let inputImages: string[] | undefined
-  if (mode === 'edit') {
+  if (hasInputImages) {
     try {
       inputImages = await resolveInputImages(input.image_ids ?? [], support)
     } catch (error) {

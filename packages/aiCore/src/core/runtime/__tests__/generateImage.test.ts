@@ -56,7 +56,7 @@ describe('RuntimeExecutor.generateImage provider boundary', () => {
     })
     const executor = RuntimeExecutor.create('openai', provider, {})
     const result = await executor.generateImage({
-      model: 'gpt-image-1',
+      model: executor.imageModel('gpt-image-1'),
       prompt: { text: 'Make it blue', images: [bytes], mask: bytes }
     })
     expect(endpoint).toBe('https://api.openai.com/v1/images/edits')

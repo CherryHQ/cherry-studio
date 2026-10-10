@@ -6,6 +6,7 @@ interface TransportRegistration {
   load: (providerSettings: unknown) => Promise<ImageGenerationTransport>
   poll?: boolean
   cancel?: boolean
+  supportsMaskInputs?: (modelId: string) => boolean
 }
 
 function createLazyTransport(registration: TransportRegistration, providerSettings: unknown): ImageGenerationTransport {
@@ -40,6 +41,7 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
   },
   dashscope: {
     supports: () => true,
+    supportsMaskInputs: (modelId) => modelId === 'wanx2.1-imageedit',
     poll: true,
     cancel: true,
     load: async (settings) => {
@@ -86,6 +88,10 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
 
 export function hasImageTransport(providerId: string, modelId: string): boolean {
   return TRANSPORTS[providerId]?.supports(modelId) ?? false
+}
+
+export function imageTransportInputCapabilities(providerId: string, modelId: string) {
+  return { supportsMaskInputs: TRANSPORTS[providerId]?.supportsMaskInputs?.(modelId) ?? false }
 }
 
 export function resolveImageTransport(

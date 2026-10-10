@@ -5,8 +5,9 @@ import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/mo
 import { computeModelFieldReset } from '../computeModelFieldReset'
 
 const prefetchMock = vi.fn<(path: string, options?: unknown) => Promise<ImageGenerationSupport | null>>()
-vi.mock('@data/hooks/useDataApi', () => ({
-  prefetch: (path: string, options?: unknown) => prefetchMock(path, options)
+vi.mock('../../model/imageGenerationSupport', () => ({
+  fetchImageGenerationSupport: (providerId: string, modelId: string) =>
+    prefetchMock(providerId, { params: { modelId } })
 }))
 
 interface PrefetchCallOptions {

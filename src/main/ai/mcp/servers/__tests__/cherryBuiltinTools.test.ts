@@ -27,10 +27,6 @@ vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: getModelByKey }
 }))
 
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getImageGenerationSupport }
-}))
-
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: loggerWarn, debug: vi.fn(), silly: vi.fn() })
@@ -55,7 +51,7 @@ vi.mock('@application', () => ({
         }
       }
       if (name === 'PreferenceService') return { get: getPreference }
-      if (name === 'AiService') return { generateImage }
+      if (name === 'AiService') return { generateImage, getImageGenerationSupport }
       if (name === 'FileManager') return { read: fileRead }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -97,8 +93,8 @@ const makeUnrestrictedKnowledgeTools = () =>
   })
 const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
   KB_TOOL_NAMES.has(name) ? makeKnowledgeTools(allowedIds).call(name, args) : callCherryBuiltinToolRaw(name, args, sig)
-const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => [
-  ...listCherryBuiltinToolsRaw(),
+const listCherryBuiltinTools = async (allowedIds: string[] = KB_SCOPE) => [
+  ...(await listCherryBuiltinToolsRaw()),
   ...makeKnowledgeTools(allowedIds).tools()
 ]
 
@@ -139,8 +135,8 @@ describe('cherryBuiltinTools', () => {
     loggerWarn.mockReset()
   })
 
-  it('advertises builtin tools with object input schemas and no $schema marker', () => {
-    const tools = listCherryBuiltinTools(['kb-1'])
+  it('advertises builtin tools with object input schemas and no $schema marker', async () => {
+    const tools = await listCherryBuiltinTools(['kb-1'])
     expect(tools.map((t) => t.name).sort()).toEqual([
       'generate_image',
       'kb_list',
@@ -158,10 +154,8 @@ describe('cherryBuiltinTools', () => {
     }
   })
 
-  it('omits the kb_* tools from the listing when the knowledge scope is empty', () => {
-    const names = listCherryBuiltinTools([])
-      .map((t) => t.name)
-      .sort()
+  it('omits the kb_* tools from the listing when the knowledge scope is empty', async () => {
+    const names = (await listCherryBuiltinTools([])).map((t) => t.name).sort()
     expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
   })
 
@@ -644,7 +638,7 @@ describe('cherryBuiltinTools', () => {
     expect(result.content[1]).toEqual({ type: 'image', data: 'BASE64DATA', mimeType: 'image/png' })
   })
 
-  it('advertises provider-accurate generate_image params from the configured model', () => {
+  it('advertises provider-accurate generate_image params from the configured model', async () => {
     const support = {
       modes: {
         generate: {
@@ -658,7 +652,7 @@ describe('cherryBuiltinTools', () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     getImageGenerationSupport.mockReturnValue(support)
 
-    const tool = listCherryBuiltinTools(['kb-1']).find(({ name }) => name === 'generate_image')!
+    const tool = (await listCherryBuiltinTools(['kb-1'])).find(({ name }) => name === 'generate_image')!
     const schema = tool.inputSchema as {
       properties: Record<string, { enum?: string[]; maximum?: number }>
     }
@@ -753,7 +747,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown']))
-    expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
+    expect(names).toEqual(expect.arrayContaining((await listCherryBuiltinTools(['kb-1'])).map((t) => t.name)))
   })
 
   it('hides the kb_* tools when the agent has no bound knowledge base', async () => {

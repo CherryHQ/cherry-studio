@@ -52,7 +52,7 @@ discovery/execution have focused plans linked below.
 | 1. SDK/V4 upgrade | [Dependencies, patches, codemods and SDK-01–12](./sdk-upgrade-plan.md); preserve all existing callers | Implemented in draft [PR #21310](https://github.com/CherryHQ/cherry-studio/pull/21310); real-account and packaged-matrix validation remains open |
 | Agent controls and reasoning | Existing caller after the SDK baseline; adoption contracts below | Decision pending; native V4 does not expose every new control |
 | Files and provider skills | [F/S plan](./large-file-upload-port.md); provider reference and lifecycle decisions after existing attachment parity | Files planned; remote skills decision pending |
-| Images, tool media and recovery | [I/R work](#images-recovery-and-media); capability/result ownership and partial-output/effect policies | Planned; multipart content, retries and restart recovery require explicit adoption |
+| Images, tool media and recovery | [I/R work](#images-recovery-and-media); capability/result ownership and partial-output/effect policies | I2 input capability integration implemented locally; provider-account acceptance pending. Multipart content, retries and restart recovery remain separate |
 | 2. Tool Search | [TS plan](./tool-discovery-plan.md#phase-2--native-tool-search-on-the-aisdk-path); SDK baseline accepted | Planned on the aiSdk path |
 | 3. Core Code Mode | [CM plan](./tool-discovery-plan.md#phase-3--core-code-mode-adoption-and-native-pi-parity); SDK baseline and search integration where consumed | Decision pending; retain Pi's existing native route |
 | Batch/audio/video/Realtime/evaluation | [M/Q work](#m--batch-audio-video-and-realtime); named consumer and relevant file/result/approval contracts | New features decision pending; existing structured output remains mandatory |
@@ -128,6 +128,12 @@ replacement references are proven; do not switch cleanup policy as incidental mi
    adapter before changing behavior. Test native SDK and custom transport routes independently.
    Unknown is not confirmed support and must not silently become supported or disable an already
    verified custom route. Choose and document the unknown/conflict policy before cutover.
+   Local I2 implementation now shares effective file/mask capability resolution across the painting
+   page, image tools and Main validation. See [the capability policy](../image-generation-parameters.md#effective-image-input-capabilities)
+   for precedence, unknown values and custom transport retention. Installed-adapter protocol fixtures
+   cover OpenAI edit bytes and Gemini mask rejection. Native Electron smoke verifies capability IPC,
+   reference-image composer availability, and rejection of unsupported files/masks and orphan masks;
+   real-provider acceptance remains open.
 3. **I3 — Preserve operation and input semantics.** Inventory text-to-image, reference-image generation,
    editing, masks, and any currently exposed remix/upscale/background operations per provider/model.
    Do not infer a distinct edit operation merely from the presence of input images. Verify count,

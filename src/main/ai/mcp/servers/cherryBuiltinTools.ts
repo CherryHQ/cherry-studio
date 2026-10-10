@@ -138,16 +138,16 @@ function createGenerateImageHandler(configuredModel: ConfiguredPaintingModel | n
   }
 }
 
-function resolveHandlers(): Record<string, ToolHandler> {
+async function resolveHandlers(): Promise<Record<string, ToolHandler>> {
   return {
     ...HANDLERS,
-    [GENERATE_IMAGE_TOOL_NAME]: createGenerateImageHandler(resolveConfiguredPaintingModel())
+    [GENERATE_IMAGE_TOOL_NAME]: createGenerateImageHandler(await resolveConfiguredPaintingModel())
   }
 }
 
-function resolveHandler(name: string): ToolHandler | undefined {
+async function resolveHandler(name: string): Promise<ToolHandler | undefined> {
   return name === GENERATE_IMAGE_TOOL_NAME
-    ? createGenerateImageHandler(resolveConfiguredPaintingModel())
+    ? createGenerateImageHandler(await resolveConfiguredPaintingModel())
     : HANDLERS[name]
 }
 
@@ -194,8 +194,8 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
 }
 
 /** List the stateless builtin tools (web / report / image); domain tools live in their providers. */
-export function listCherryBuiltinTools(): Tool[] {
-  return Object.entries(resolveHandlers()).map(([name, handler]) => ({
+export async function listCherryBuiltinTools(): Promise<Tool[]> {
+  return Object.entries(await resolveHandlers()).map(([name, handler]) => ({
     name,
     description: handler.description,
     inputSchema: toMcpInputSchema(handler.inputSchema)
@@ -203,7 +203,7 @@ export function listCherryBuiltinTools(): Tool[] {
 }
 
 export async function callCherryBuiltinTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
-  const handler = resolveHandler(name)
+  const handler = await resolveHandler(name)
   if (!handler) {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
@@ -229,7 +229,7 @@ export class CherryBuiltinToolsServer {
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
-        ...listCherryBuiltinTools(),
+        ...(await listCherryBuiltinTools()),
         ...knowledge.tools(),
         ...autonomy.tools(),
         ...cli.tools(),

@@ -1,4 +1,3 @@
-import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'
@@ -6,6 +5,7 @@ import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/t
 
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { canonicalGenerate } from './canonicalGenerate'
+import { fetchImageGenerationSupport } from './imageGenerationSupport'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
 
@@ -38,7 +38,7 @@ export function createDefaultPainting({ providerId, modelId }: PaintingDraftDefa
  * Generic painting generate dispatch — the same flow for every provider:
  *
  *   1. Look up the model's `imageGeneration` block (support + effective mode +
- *      `requirePrompt`) via DataApi.
+ *      `requirePrompt`) via IpcApi.
  *   2. Hand off to `canonicalGenerate`, which validates/coerces `painting.params`
  *      against that support + the central catalog. Backend routing data
  *      (`modelDescriptor` — per-model transport endpoint/isSync) is derived in
@@ -59,10 +59,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
 
   if (modelId) {
     try {
-      support =
-        (await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
-          params: { providerId: input.provider.id, modelId }
-        })) ?? undefined
+      support = await fetchImageGenerationSupport(input.provider.id, modelId)
       const modes = support?.modes
       effectiveMode =
         canonicalMode && modes?.[canonicalMode]

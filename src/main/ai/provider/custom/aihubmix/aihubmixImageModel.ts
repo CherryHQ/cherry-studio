@@ -168,6 +168,8 @@ function withAihubmixGoogleImageOptions(model: ImageModelV4, isGeminiImage: bool
     provider: model.provider,
     modelId: model.modelId,
     maxImagesPerCall: model.maxImagesPerCall,
+    supportsFileInputs: model.supportsFileInputs,
+    supportsMaskInputs: model.supportsMaskInputs,
     doGenerate(options) {
       const providerOptions = options.providerOptions ?? {}
       const aihubmixOptions = (providerOptions.aihubmix ?? {}) as Record<string, unknown>
