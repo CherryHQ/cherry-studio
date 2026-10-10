@@ -1,10 +1,8 @@
 import { type MouseEvent as ReactMouseEvent, useCallback, useRef, useState } from 'react'
 
-import { useMutation, useInvalidateCache } from '@data/hooks/useDataApi'
-import { useGroupReorder } from '@renderer/hooks/useGroups'
+import { useReorder } from '@data/hooks/useReorder'
+import { useKnowledgeBaseReorder } from '@renderer/hooks/useKnowledgeBase'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 
 import { BaseNavigator } from '../components/navigator'
 import { useKnowledgePage } from '../KnowledgePageProvider'
@@ -29,31 +27,10 @@ const KnowledgePageNavigatorSection = () => {
     deleteGroup,
     deleteBase
   } = useKnowledgePage()
-  const { trigger: reorderBase } = useMutation('PATCH', '/knowledge-bases/:id/order', { refresh: ['/knowledge-bases'] })
-  const { reorderGroup } = useGroupReorder()
-  const invalidateCache = useInvalidateCache()
-  const handleReorderBase = useCallback(
-    async (id: string, request: ReorderKnowledgeBaseDto) => {
-      try {
-        await reorderBase({ params: { id }, body: request })
-      } catch (error) {
-        await invalidateCache('/knowledge-bases')
-        throw error
-      }
-    },
-    [reorderBase, invalidateCache]
-  )
-  const handleReorderGroup = useCallback(
-    async (id: string, anchor: OrderRequest) => {
-      try {
-        await reorderGroup(id, anchor)
-      } catch (error) {
-        await invalidateCache('/groups')
-        throw error
-      }
-    },
-    [reorderGroup, invalidateCache]
-  )
+  const { move: reorderBase, isPending: isReorderingBase } = useKnowledgeBaseReorder()
+  const { move: reorderGroup, isPending: isReorderingGroup } = useReorder('/groups', {
+    query: { entityType: 'knowledge' }
+  })
 
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const contentLeftRef = useRef(0)
@@ -75,8 +52,9 @@ const KnowledgePageNavigatorSection = () => {
 
   return (
     <BaseNavigator
-      onReorderBase={handleReorderBase}
-      onReorderGroup={handleReorderGroup}
+      onReorderBase={reorderBase}
+      onReorderGroup={reorderGroup}
+      isReordering={isReorderingBase || isReorderingGroup}
       bases={bases}
       groups={groups}
       isLoading={isLoading}

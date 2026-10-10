@@ -49,7 +49,8 @@ const mockRestoreDialogModuleLoad = vi.fn()
 const mockChunkDetailPanelModuleLoad = vi.fn()
 const mockNoteContentPanelModuleLoad = vi.fn()
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/hooks/useKnowledgeBase')>()),
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useRestoreKnowledgeBase: () => mockUseRestoreKnowledgeBase(),

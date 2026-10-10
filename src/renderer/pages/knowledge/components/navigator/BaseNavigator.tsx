@@ -20,6 +20,7 @@ import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 interface BaseNavigatorProps {
   onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
   onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
+  isReordering?: boolean
   bases: KnowledgeBaseListItem[]
   groups: Group[]
   isLoading: boolean
@@ -39,6 +40,7 @@ interface BaseNavigatorProps {
 const BaseNavigator = ({
   onReorderBase,
   onReorderGroup,
+  isReordering,
   bases,
   groups,
   isLoading,
@@ -93,6 +95,7 @@ const BaseNavigator = ({
         <BaseNavigatorContent
           onReorderBase={onReorderBase}
           onReorderGroup={onReorderGroup}
+          isReordering={isReordering}
           isLoading={isLoading}
           sections={knowledgeBaseGroupSections}
           groups={groups}

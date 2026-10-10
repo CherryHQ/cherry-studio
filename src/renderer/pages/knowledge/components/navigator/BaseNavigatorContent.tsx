@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core'
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,8 +33,9 @@ const logger = loggerService.withContext('KnowledgeBaseNavigator')
 const BaseNavigatorContent = ({
   onReorderBase,
   onReorderGroup,
+  isReordering = false,
   isLoading,
-  sections: serverSections,
+  sections,
   groups,
   groupById,
   selectedBaseId,
@@ -49,12 +50,10 @@ const BaseNavigatorContent = ({
   onDeleteBase
 }: BaseNavigatorContentProps) => {
   const { t } = useTranslation()
-  const [pendingSections, setPendingSections] = useState<typeof serverSections | null>(null)
-  const sections = pendingSections ?? serverSections
   const [activeLabel, setActiveLabel] = useState<string | null>(null)
   const [indicator, setIndicator] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
   const savingRef = useRef(false)
-  const dragDisabled = !onReorderBase || !onReorderGroup || Boolean(pendingSections)
+  const dragDisabled = !onReorderBase || !onReorderGroup || isReordering
   const sensors = useSensors(
     useSensor(BlurCancelPointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -141,13 +140,11 @@ const BaseNavigatorContent = ({
     const over = event.over?.data.current
     if (!active || !over) return
     let persist: () => Promise<void>
-    let nextSections = sections
     if (active.type === 'group') {
       if (!active.groupId || !over.groupId || over.type !== 'group') return
       const from = sections.findIndex((section) => section.groupId === active.groupId)
       const to = sections.findIndex((section) => section.groupId === over.groupId)
       if (from < 0 || to < 0 || from === to) return
-      nextSections = arrayMove(sections, from, to)
       persist = () => onReorderGroup(active.groupId, from < to ? { after: over.groupId } : { before: over.groupId })
     } else {
       const base = active.base as KnowledgeBaseListItem
@@ -158,22 +155,12 @@ const BaseNavigatorContent = ({
             ? { before: over.base.id }
             : { after: over.base.id }
           : { position: 'last' }
-      nextSections = sections.map((section) => ({
-        ...section,
-        items: section.items.filter((item) => item.id !== base.id)
-      }))
-      const targetSection = nextSections.find((section) => section.groupId === targetGroupId)
+      const targetSection = sections.find((section) => section.groupId === targetGroupId)
       if (!targetSection) return
-      const index =
-        over.type === 'base'
-          ? targetSection.items.findIndex((item) => item.id === over.base.id) + (target.position === 'after' ? 1 : 0)
-          : targetSection.items.length
-      targetSection.items.splice(index, 0, { ...base, groupId: targetGroupId })
       setCollapsedValues((values) => values.filter((value) => value !== (targetGroupId ?? UNGROUPED_SECTION_VALUE)))
       persist = () => onReorderBase(base.id, { groupId: targetGroupId, anchor })
     }
     savingRef.current = true
-    setPendingSections(nextSections)
     try {
       await persist()
     } catch (error) {
@@ -181,7 +168,6 @@ const BaseNavigatorContent = ({
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_reorder')))
     } finally {
       savingRef.current = false
-      setPendingSections(null)
     }
   }
 

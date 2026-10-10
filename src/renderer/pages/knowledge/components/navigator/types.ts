@@ -10,6 +10,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 export interface BaseNavigatorContentProps {
   onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
   onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
+  isReordering?: boolean
   isLoading: boolean
   sections: KnowledgePageBaseGroupSection[]
   groups: Group[]
