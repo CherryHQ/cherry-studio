@@ -66,10 +66,13 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, undefined, 'image')
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+      resolvedEndpoint
+    })
     const sdkConfig = {
       ...config,
-      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
     }
     // Built fresh every execution and held in memory only. Upstream persists this
     // to job metadata so a resumed run can still attribute its cost; with
