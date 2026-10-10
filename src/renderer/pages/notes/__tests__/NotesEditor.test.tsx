@@ -62,8 +62,9 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ settings: mocks.settings })
 }))
 
-import i18n from '@renderer/i18n/resolver'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+
+import i18n from '@renderer/i18n/resolver'
 
 import NotesEditor from '../NotesEditor'
 
