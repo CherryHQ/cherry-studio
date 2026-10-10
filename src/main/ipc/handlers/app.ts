@@ -101,6 +101,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       )
     }
     const sessionEpoch = acquireNotesRelocationSession(senderId)
+    application.get('IpcApiService').broadcast('app.notes_relocation.barrier_engaged', undefined)
     bindNotesRelocationSessionOwnerWindow(senderId, () => {
       handleNotesRelocationOwnerWindowGone(senderId, broadcastNotesRelocationMigrateComplete)
     })

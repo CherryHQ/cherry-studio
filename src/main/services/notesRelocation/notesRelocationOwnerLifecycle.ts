@@ -1,6 +1,10 @@
 import { application } from '@application'
 
-import { getActiveNotesRelocationSession, releaseNotesRelocationSession } from './notesRelocationSession'
+import {
+  getActiveNotesRelocationSession,
+  isNotesRelocationMigrateInFlight,
+  releaseNotesRelocationSession
+} from './notesRelocationSession'
 import { unregisterRendererNotesEditsFlushWindow } from './requestRendererNotesEditsFlush'
 
 let ownerWindowClosedCleanup: (() => void) | null = null
@@ -42,6 +46,9 @@ export function handleNotesRelocationOwnerWindowGone(ownerId: string, onSessionR
     return
   }
   unregisterRendererNotesEditsFlushWindow(ownerId)
+  if (isNotesRelocationMigrateInFlight()) {
+    return
+  }
   if (releaseNotesRelocationSession(ownerId, session.epoch)) {
     onSessionReleased()
   }

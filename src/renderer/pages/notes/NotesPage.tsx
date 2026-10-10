@@ -240,14 +240,14 @@ const NotesPage: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!activeFilePath || fileSession.isDirty) {
+    if (!activeFilePath || !treeId || fileSession.isDirty) {
       return
     }
     void reloadFileDraft().catch((error) => {
       logger.error('Failed to refresh note after reopening Notes', error as Error)
     })
-    // Re-read disk when the Notes view remounts; the edit session outlives the page.
-  }, [])
+    // Re-read disk when the directory tree reconnects; the edit session outlives the page.
+  }, [activeFilePath, fileSession.isDirty, reloadFileDraft, treeId])
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {

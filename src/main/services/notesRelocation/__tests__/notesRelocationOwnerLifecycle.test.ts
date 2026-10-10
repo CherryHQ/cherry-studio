@@ -21,7 +21,11 @@ import {
   isNotesRelocationOwnerWindowAlive,
   resetNotesRelocationOwnerLifecycleForTests
 } from '../notesRelocationOwnerLifecycle'
-import { acquireNotesRelocationSession, resetNotesRelocationSessionForTests } from '../notesRelocationSession'
+import {
+  acquireNotesRelocationSession,
+  resetNotesRelocationSessionForTests,
+  setNotesRelocationMigrateInFlight
+} from '../notesRelocationSession'
 import {
   registerRendererNotesEditsFlushWindow,
   unregisterRendererNotesEditsFlushWindow
@@ -64,5 +68,27 @@ describe('notesRelocationOwnerLifecycle', () => {
     ownerWindow.emit('closed')
 
     expect(released).toBe(true)
+  })
+
+  it('keeps the session when the owner window closes during migration copy', () => {
+    const ownerWindow = new EventEmitter() as EventEmitter & { isDestroyed: () => boolean }
+    ownerWindow.isDestroyed = () => false
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    registerRendererNotesEditsFlushWindow('owner-window')
+    setNotesRelocationMigrateInFlight(true)
+
+    let released = false
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => {
+        released = true
+      })
+    })
+
+    ownerWindow.emit('closed')
+
+    expect(released).toBe(false)
+    setNotesRelocationMigrateInFlight(false)
   })
 })

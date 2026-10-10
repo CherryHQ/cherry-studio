@@ -23,6 +23,10 @@ export const NotesRelocationFlushListener: FC = () => {
     }
   }, [])
 
+  useIpcOn('app.notes_relocation.barrier_engaged', () => {
+    lockNotesEditsForRelocation()
+  })
+
   useIpcOn('app.notes_relocation.migrate_complete', () => {
     unlockNotesEditsForRelocation()
   })

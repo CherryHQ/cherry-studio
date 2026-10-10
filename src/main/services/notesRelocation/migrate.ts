@@ -51,7 +51,7 @@ export async function inspectNotesRelocation(
       source,
       target,
       targetHasMarkdown: target.markdownFileCount > 0,
-      targetHasFiles: target.fileCount > 0
+      targetHasFiles: target.fileCount > 0 || target.folderCount > 0
     }
   } catch (error) {
     if (error instanceof NotesRelocationValidationError) {
