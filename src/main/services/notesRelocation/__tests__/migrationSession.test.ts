@@ -40,6 +40,17 @@ describe('notes migration session', () => {
     )
   })
 
+  it('blocks child filenames that start with double dots but stay inside the root', () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-dotdot-'))
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-dotdot-'))
+    const edgeCase = path.join(source, '..draft.md')
+    fs.writeFileSync(edgeCase, '# draft')
+
+    setNotesMigrationBlockedRoots(source, target)
+
+    expect(() => assertNotesPathNotMutatingDuringMigration(edgeCase)).toThrow(/migration is in progress/)
+  })
+
   it('blocks filesystem mutations under source and target roots during copy', () => {
     const source = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-src-'))
     const target = fs.mkdtempSync(path.join(os.tmpdir(), 'notes-tgt-'))

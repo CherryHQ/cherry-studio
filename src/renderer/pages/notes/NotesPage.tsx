@@ -82,6 +82,7 @@ const NotesPage: FC = () => {
     discard: discardFileDraft,
     flush: flushFileDraft,
     notifyExternalChange,
+    refreshFromDiskIfClean,
     reload: reloadFileDraft,
     setDraft: setFileDraft
   } = fileSession
@@ -108,15 +109,6 @@ const NotesPage: FC = () => {
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
-  const reloadedNotesSurfaceRef = useRef(false)
-
-  useEffect(() => {
-    if (reloadedNotesSurfaceRef.current || !activeFilePath || fileSession.isDirty || fileSession.status !== 'ready') {
-      return
-    }
-    reloadedNotesSurfaceRef.current = true
-    void reloadFileDraft()
-  }, [activeFilePath, fileSession.isDirty, fileSession.status, reloadFileDraft])
 
   // Tell the session when the watcher reports an external `change` on the file
   // being viewed — it reloads if idle, or flags a conflict if the user has
@@ -159,6 +151,13 @@ const NotesPage: FC = () => {
     logger.error('Failed to load notes directory tree', treeError, { notesPath, treeId })
     toast.error(t('notes.tree_load_failed'))
   }, [treeError, notesPath, treeId, t])
+
+  useEffect(() => {
+    if (!activeFilePath || fileSession.isDirty || fileSession.status !== 'ready') {
+      return
+    }
+    void refreshFromDiskIfClean()
+  }, [activeFilePath, fileSession.isDirty, fileSession.status, treeVersion, refreshFromDiskIfClean])
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
@@ -222,6 +221,11 @@ const NotesPage: FC = () => {
           ? migrationTransition
           : null
       lastSeenNotesPathRef.current = notesPath
+    } else if (notesPath && !notesRootTransitionRef.current) {
+      const migrationTransition = consumeNotesDirectoryRootTransition(notesPath)
+      if (migrationTransition) {
+        notesRootTransitionRef.current = migrationTransition
+      }
     }
     if (!treeRoot || !notesPath) {
       setNotesTree([])

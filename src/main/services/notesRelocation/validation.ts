@@ -66,6 +66,15 @@ export function resolveExistingAncestor(value: string): { path: string; effectiv
   return { path: cursor, effectivePath: path.join(realPath(cursor), ...missingParts) }
 }
 
+export function isAllowedNotesDirectory(dirPath: string): boolean {
+  try {
+    assertNotesTargetDirectory(dirPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function assertNotesTargetDirectory(dirPath: string): void {
   if (!dirPath || typeof dirPath !== 'string') {
     invalid('invalid_target', 'target path is required')

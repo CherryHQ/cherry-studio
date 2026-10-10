@@ -79,6 +79,8 @@ export interface FileEditSession {
   discard: () => void
   /** Discard local edits, load disk content, resume autosave. */
   reload: () => Promise<void>
+  /** Load disk content only when the model is still clean; skips if edits land during the read. */
+  refreshFromDiskIfClean: () => Promise<void>
   /** Rebase the current draft onto the latest disk version, then save it. */
   keepDraft: () => Promise<void>
   /**
@@ -375,6 +377,32 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     void mutate(model.key, disk, { revalidate: false })
   }, [debouncedWrite, mutate, syncFromModel])
 
+  const refreshFromDiskIfClean = useCallback(async () => {
+    const model = modelRef.current
+    if (!model || model.draft !== model.snapshot.content) return
+    debouncedWrite.cancel()
+    await model.chain
+    if (model.draft !== model.snapshot.content) return
+    const draftBeforeRead = model.draft
+    try {
+      const disk = await readFile(model.handle)
+      if (modelRef.current !== model) return
+      if (model.draft !== draftBeforeRead || model.draft !== model.snapshot.content) return
+      if (disk.version.mtime < model.snapshot.version.mtime) return
+      if (disk.content === model.snapshot.content) {
+        model.snapshot = disk
+        syncFromModel(model)
+        return
+      }
+      model.snapshot = disk
+      model.draft = disk.content
+      syncFromModel(model)
+      void mutate(model.key, disk, { revalidate: false })
+    } catch (reloadError) {
+      logger.error('Guarded disk refresh failed', reloadError as Error)
+    }
+  }, [debouncedWrite, mutate, syncFromModel])
+
   const keepDraft = useCallback(async () => {
     const model = modelRef.current
     if (!model) return
@@ -477,6 +505,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       setDraft,
       discard,
       reload,
+      refreshFromDiskIfClean,
       keepDraft,
       flush,
       notifyExternalChange
@@ -495,6 +524,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     setDraft,
     discard,
     reload,
+    refreshFromDiskIfClean,
     keepDraft,
     flush,
     notifyExternalChange
