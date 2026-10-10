@@ -144,7 +144,7 @@ handles.
   todo may be `in_progress`. Invalid lists come back as error results. `details` is
   `{ todos, counts }`. The extension keeps no state: the latest list is the last successful
   `todo_write` on the transcript's active path, so it follows forks and edits and the model sees it in
-  the rebuilt history.
+  the rebuilt history, until a compaction folds that call into the summary.
 - **`createAskUserExtension(port)`** – `AskUserQuestion` with Claude Code's input schema (1–4
   questions, each with a `header`, 2–4 options and `multiSelect`; question texts must differ, since
   answers are keyed by them, and so must the option labels of a question, since answers name them).
