@@ -14,7 +14,7 @@ import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceServ
 import { application } from '@application'
 
 import { inspectNotesRelocation, migrateNotesDirectory } from '../migrate'
-import { assertNotesRelocationPaths, realPath } from '../validation'
+import { assertNotesRelocationPaths, isAllowedNotesDirectory, realPath } from '../validation'
 
 function bindConfiguredNotesPath(dirPath: string): void {
   MockMainPreferenceServiceExport.preferenceService.get.mockImplementation((key: string) =>
@@ -267,6 +267,14 @@ describe('notesRelocation', () => {
     fs.writeFileSync(path.join(source, 'note.md'), '# Note')
 
     expect(() => assertNotesRelocationPaths(source, filesRoot)).toThrow()
+  })
+
+  it('allows a notes directory whose path only shares a prefix with app data', () => {
+    const siblingTarget = path.join(tempRoot, 'appdata-notes')
+    fs.mkdirSync(siblingTarget)
+
+    expect(isAllowedNotesDirectory(siblingTarget)).toBe(true)
+    expect(isAllowedNotesDirectory(path.join(tempRoot, 'appdata'))).toBe(false)
   })
 
   it('rejects a target nested inside the application data directory', () => {

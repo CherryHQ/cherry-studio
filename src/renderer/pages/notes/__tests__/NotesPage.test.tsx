@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
     discardSession: vi.fn(),
     flushSession: vi.fn().mockResolvedValue(undefined),
     reloadSession: vi.fn().mockResolvedValue(undefined),
+    refreshFromDiskIfCleanSession: vi.fn().mockResolvedValue(undefined),
     notifyExternalChange: vi.fn(),
     ipcRequest: vi.fn(),
     commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
@@ -243,6 +244,7 @@ vi.mock('@renderer/pages/notes/NotesFileEditSessionProvider', () => ({
     setDraft: mocks.setDraft,
     discard: mocks.discardSession,
     reload: mocks.reloadSession,
+    refreshFromDiskIfClean: mocks.refreshFromDiskIfCleanSession,
     flush: mocks.flushSession,
     notifyExternalChange: mocks.notifyExternalChange
   })

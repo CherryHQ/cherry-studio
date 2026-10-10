@@ -19,3 +19,4 @@ export {
   withNotesFilesystemMutation
 } from './migrationSession'
 export { rendererEditFlushCoordinator } from './rendererEditFlush'
+export { isAllowedNotesDirectory } from './validation'

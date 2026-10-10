@@ -47,7 +47,10 @@ function pathUnderRoot(filePath: string, root: string): boolean {
     return true
   }
   const relative = path.relative(base, file)
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+  if (relative === '' || relative === '..' || path.isAbsolute(relative)) {
+    return false
+  }
+  return !relative.startsWith(`..${path.sep}`)
 }
 
 function clearCommitWatch(): void {
