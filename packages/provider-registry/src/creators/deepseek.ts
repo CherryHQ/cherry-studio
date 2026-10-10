@@ -22,6 +22,7 @@ export default defineCreator({
   modelsDevProviders: ['deepseek'],
   idPrefixes: ['deepseek'],
   models: [
+    // DeepSeek publishes one V4 effort table; keep it authoritative over stale upstream vocabularies.
     {
       id: 'deepseek-v4-flash',
       name: 'DeepSeek V4 Flash',
