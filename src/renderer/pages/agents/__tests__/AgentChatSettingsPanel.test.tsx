@@ -59,6 +59,7 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 const agentsCacheMock = vi.hoisted(() => ({
   value: undefined as { items: Array<{ id: string; type: string }> } | undefined
 }))
+const agentsPrefetchMock = vi.hoisted(() => vi.fn())
 const toastMock = vi.hoisted(() => ({ error: vi.fn() }))
 
 // Tool-approval responses now go through ipcApi.request('ai.tool.respond_approval', …).
@@ -151,6 +152,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn(),
   useReadCache: () => (path: string) => (path === '/agents' ? agentsCacheMock.value : undefined),
+  prefetch: agentsPrefetchMock,
   useMutation: () => ({
     trigger: vi.fn(),
     isLoading: false
@@ -414,6 +416,7 @@ describe('AgentChat settings panel', () => {
       agentSwitchConfirmationCacheMock.value = value
     })
     agentsCacheMock.value = undefined
+    agentsPrefetchMock.mockReset().mockResolvedValue(undefined)
     toastMock.error.mockReset()
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
@@ -865,6 +868,45 @@ describe('AgentChat settings panel', () => {
       )
     )
     expect(toastMock.error).not.toHaveBeenCalled()
+  })
+
+  it('blocks the switch on the authoritative type when the agent list cache missed the target', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = { id: 'agent-1', type: 'claude-code', model: 'provider::model-1' }
+    // A freshly created agent is absent from the pin-first list refresh (bounded window), so only
+    // the per-id fetch knows its runtime — the miss itself must not read as "compatible".
+    agentsCacheMock.value = { items: [{ id: 'agent-1', type: 'claude-code' }] }
+    agentsPrefetchMock.mockResolvedValue({ id: 'agent-2', type: 'pi' })
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    await waitFor(() =>
+      expect(agentsPrefetchMock).toHaveBeenCalledWith('/agents/:agentId', { params: { agentId: 'agent-2' } })
+    )
+    expect(toastMock.error).toHaveBeenCalledWith('agent.session.agent_switch.runtime_mismatch')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('proceeds when the authoritative type resolves to the same runtime', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = { id: 'agent-1', type: 'claude-code', model: 'provider::model-1' }
+    agentsCacheMock.value = undefined
+    agentsPrefetchMock.mockResolvedValue({ id: 'agent-2', type: 'claude-code' })
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    expect(toastMock.error).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
   })
 
   it('shares the agent confirmation opt-out for the current app run when requested', async () => {
