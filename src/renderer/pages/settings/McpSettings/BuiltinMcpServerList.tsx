@@ -16,7 +16,7 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
 import { toCreateMcpServerDto } from './utils'
-import { ZONEFOUNDRY_SETUP_GUIDE_URL } from './ZoneFoundrySetupGuide'
+import { ZONEFOUNDRY_SETUP_GUIDE_URL } from './zoneFoundrySetupGuide'
 
 const BuiltinMcpServerList: FC = () => {
   const { t } = useTranslation()
