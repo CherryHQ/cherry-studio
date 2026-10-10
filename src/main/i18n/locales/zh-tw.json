@@ -23,6 +23,7 @@
   "apiGateway.docs.operations.list_knowledge_bases": "列出目前 Cherry Studio 執行個體中可用的知識庫。",
   "apiGateway.docs.operations.list_mcp_servers": "列出 Cherry Studio 中已啟用的 MCP 伺服器，以及各自的連線 URL。",
   "apiGateway.docs.operations.list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
+  "apiGateway.docs.operations.manage_knowledge_bases": "透過持久化知識工作流程建立或刪除知識庫，並列出或變更其中的純文字文件。",
   "apiGateway.docs.operations.mcp_proxy": "MCP 伺服器的 Model Context Protocol 端點 (Streamable HTTP)。將任何 MCP 用戶端指向此 URL，即可透過 Cherry Studio 使用該伺服器。",
   "apiGateway.docs.operations.messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
   "apiGateway.docs.operations.responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",

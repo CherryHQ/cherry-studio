@@ -99,7 +99,17 @@ describe('API gateway routes (integration)', () => {
       const { status, body } = await read(await get(app, '/', {}))
       expect(status).toBe(200)
       expect(body.name).toBe('Cherry Studio API')
-      expect(body.endpoints).toBeDefined()
+      expect(body.endpoints).toMatchObject({
+        knowledge_bases: 'GET /v1/knowledge-bases',
+        knowledge_base: 'GET /v1/knowledge-bases/{id}',
+        knowledge_base_create: 'POST /v1/knowledge-bases',
+        knowledge_base_delete: 'DELETE /v1/knowledge-bases/{id}',
+        knowledge_documents: 'GET /v1/knowledge-bases/{id}/documents',
+        knowledge_documents_add: 'POST /v1/knowledge-bases/{id}/documents',
+        knowledge_document_delete: 'DELETE /v1/knowledge-bases/{id}/documents/{documentId}',
+        knowledge_document_reindex: 'POST /v1/knowledge-bases/{id}/documents/{documentId}/reindex',
+        knowledge_search: 'POST /v1/knowledge-bases/search'
+      })
     })
 
     it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
@@ -113,6 +123,26 @@ describe('API gateway routes (integration)', () => {
       // loopback the curl example can actually reach.
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
       expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
+    })
+
+    it('OpenAPI spec includes the knowledge write request invariants', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      const createSchema = body.paths['/v1/knowledge-bases/'].post.requestBody.content['application/json'].schema
+      const embeddingPair = createSchema.anyOf.find((schema: any) => schema.required?.includes('embedding_model_id'))
+
+      expect(embeddingPair.required).toEqual(['name', 'embedding_model_id', 'dimensions'])
+
+      const addDocumentsSchema =
+        body.paths['/v1/knowledge-bases/{id}/documents'].post.requestBody.content['application/json'].schema
+      expect(addDocumentsSchema.properties.documents.description).toContain(
+        'combined UTF-8 byte length of every document title, content, and group_id must not exceed 10000000'
+      )
+      const unavailableResponse =
+        body.paths['/v1/knowledge-bases/{id}/documents'].post.responses['503'].content['application/json'].schema
+      expect(unavailableResponse.properties.error.properties.code.const).toBe('SERVICE_UNAVAILABLE')
+      expect(
+        unavailableResponse.properties.error.properties.details.properties.documents.items.properties
+      ).toHaveProperty('id')
     })
   })
 
