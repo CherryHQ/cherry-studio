@@ -35,7 +35,8 @@ vi.mock('@cherrystudio/ui', () => {
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => {
     const result = useProviderMock(...args)
-    return { ...result, mutate: vi.fn().mockResolvedValue(result?.provider) }
+    const mutate = result?.mutate ?? vi.fn().mockResolvedValue(result?.provider)
+    return { ...result, mutate }
   }
 }))
 

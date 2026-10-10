@@ -178,6 +178,10 @@ const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_RESPONSES
 ])
 
+function reasoningFormatSelectorEqual(left?: { type: string } | null, right?: { type: string } | null): boolean {
+  return (left?.type ?? null) === (right?.type ?? null)
+}
+
 /**
  * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
@@ -185,6 +189,34 @@ const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
  * stripped from the draft; other configured fields on the entry are kept.
  * An empty entry is dropped.
  */
+export function sanitizeEndpointDraftsForSave(
+  endpointDrafts: Record<string, EndpointDraft>,
+  touched: Set<EndpointType>,
+  openReasoningSnapshot: Partial<Record<EndpointType, { type: string } | undefined>>,
+  currentEndpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | undefined
+): Record<string, EndpointDraft> {
+  const endpointDraftsForSave: Record<string, EndpointDraft> = { ...endpointDrafts }
+  for (const [type, draft] of Object.entries(endpointDraftsForSave) as [EndpointType, EndpointDraft][]) {
+    if (!touched.has(type) && draft && 'reasoningFormat' in draft) {
+      const rest = { ...draft }
+      delete rest.reasoningFormat
+      endpointDraftsForSave[type] = rest
+      continue
+    }
+    if (
+      touched.has(type) &&
+      draft &&
+      'reasoningFormat' in draft &&
+      !reasoningFormatSelectorEqual(currentEndpointConfigs?.[type]?.reasoningFormat, openReasoningSnapshot[type])
+    ) {
+      const rest = { ...draft }
+      delete rest.reasoningFormat
+      endpointDraftsForSave[type] = rest
+    }
+  }
+  return endpointDraftsForSave
+}
+
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
   drafts: Record<string, EndpointDraft>
@@ -262,6 +294,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
   const reasoningFormatTouchedRef = useRef<Set<EndpointType>>(new Set())
+  const openReasoningFormatRef = useRef<Partial<Record<EndpointType, { type: string } | undefined>>>({})
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -272,8 +305,12 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
 
     reasoningFormatTouchedRef.current.clear()
+    openReasoningFormatRef.current = {}
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
+      if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
+        openReasoningFormatRef.current[type] = provider?.endpointConfigs?.[type]?.reasoningFormat
+      }
       drafts[type] = {
         baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
       }
@@ -352,14 +389,12 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const endpointDraftsForSave: Record<string, EndpointDraft> = { ...endpointDrafts }
-    for (const [type, draft] of Object.entries(endpointDraftsForSave) as [EndpointType, EndpointDraft][]) {
-      if (!reasoningFormatTouchedRef.current.has(type) && draft && 'reasoningFormat' in draft) {
-        const rest = { ...draft }
-        delete rest.reasoningFormat
-        endpointDraftsForSave[type] = rest
-      }
-    }
+    const endpointDraftsForSave = sanitizeEndpointDraftsForSave(
+      endpointDrafts,
+      reasoningFormatTouchedRef.current,
+      openReasoningFormatRef.current,
+      current.endpointConfigs
+    )
 
     const textEndpointConfigs = mergeEndpointConfigs(current.endpointConfigs, endpointDraftsForSave)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
