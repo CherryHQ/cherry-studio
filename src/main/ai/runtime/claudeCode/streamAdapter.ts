@@ -971,7 +971,7 @@ export class ClaudeCodeStreamAdapter {
   private classifyScratchpadProbe(
     probe: string,
     atBlockEnd = false
-  ): { action: 'pending' } | { action: 'suppress' } | { action: 'emit'; visible: string } {
+  ): { action: 'pending'; rewriteProbe?: string } | { action: 'suppress' } | { action: 'emit'; visible: string } {
     if (!probe) return { action: 'pending' }
 
     const trimmed = probe.trimStart()
@@ -998,8 +998,15 @@ export class ClaudeCodeStreamAdapter {
       }
       const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
       if (stripped.length < probe.length) {
-        if (stripped.trim().length > 0) {
-          return { action: 'emit', visible: stripped }
+        const remainder = stripped
+        if (
+          textStartsWithModelScratchpadTag(remainder) ||
+          (!atBlockEnd && remainder.trimStart().startsWith('<') && !textStartsWithNonScratchpadOpeningTag(remainder))
+        ) {
+          return { action: 'pending', rewriteProbe: remainder }
+        }
+        if (remainder.trim().length > 0) {
+          return { action: 'emit', visible: this.trimAfterScratchpadStrip(probe, remainder) }
         }
         return { action: 'suppress' }
       }
@@ -1024,14 +1031,19 @@ export class ClaudeCodeStreamAdapter {
     if (!pending) return
 
     const classified = this.classifyScratchpadProbe(pending, true)
-    if (classified.action === 'pending' || classified.action === 'suppress') {
-      if (classified.action === 'suppress') {
-        ctx.suppressActiveTextPart = true
+    if (classified.action === 'pending') {
+      if (classified.rewriteProbe !== undefined) {
+        ctx.scratchpadTextProbe = classified.rewriteProbe
+        ctx.textStartDeferred = true
       }
       return
     }
+    if (classified.action === 'suppress') {
+      ctx.suppressActiveTextPart = true
+      return
+    }
 
-    const visible = this.trimLeadingAssistantVisible(classified.visible)
+    const visible = this.trimAfterScratchpadStrip(pending, classified.visible)
     ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: visible })
     ctx.textPartStarted = true
@@ -1069,7 +1081,12 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.filterParentlessScratchpadText && ctx.textStartDeferred) {
       ctx.scratchpadTextProbe += text
       const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
-      if (classified.action === 'pending') return
+      if (classified.action === 'pending') {
+        if (classified.rewriteProbe !== undefined) {
+          ctx.scratchpadTextProbe = classified.rewriteProbe
+        }
+        return
+      }
       if (classified.action === 'suppress') {
         ctx.scratchpadTextProbe = ''
         return
@@ -1081,7 +1098,7 @@ export class ClaudeCodeStreamAdapter {
         ...(providerMetadata ? { providerMetadata } : {})
       })
       ctx.textPartStarted = true
-      text = this.trimLeadingAssistantVisible(classified.visible)
+      text = classified.visible
       ctx.scratchpadTextProbe = ''
     }
 
@@ -1234,7 +1251,13 @@ export class ClaudeCodeStreamAdapter {
     if (!ctx.filterParentlessScratchpadText || !textStartsWithModelScratchpadTag(blockText)) {
       return blockText
     }
-    return stripKnownModelScratchpadBlocksPreservingCodeFences(blockText).trimStart()
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
+    return this.trimAfterScratchpadStrip(blockText, stripped)
+  }
+
+  /** Trim separator whitespace only when scratchpad stripping actually changed the text. */
+  private trimAfterScratchpadStrip(original: string, stripped: string): string {
+    return stripped.length < original.length ? stripped.trimStart() : stripped
   }
 
   private handleAssistantToolUse(
@@ -1302,10 +1325,6 @@ export class ClaudeCodeStreamAdapter {
     if (state.inputClosed && !state.callEmitted) {
       this.emitToolInputAvailable(toolId, state, ctx)
     }
-  }
-
-  private trimLeadingAssistantVisible(visible: string): string {
-    return visible.trimStart()
   }
 
   private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
@@ -1702,6 +1721,8 @@ export class ClaudeCodeStreamAdapter {
   private handleStatusSystemMessage(message: SDKStatusMessage, ctx: StreamContext): void {
     if (message.status === 'compacting') {
       this.closeActiveTextPart(ctx)
+      ctx.accumulatedText = ''
+      ctx.streamedTextLength = 0
       this.runtimeCompactionActive = true
       this.statusSink.emit({ type: 'compaction-start' })
       return

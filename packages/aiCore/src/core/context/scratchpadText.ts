@@ -28,10 +28,10 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
   const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
   const prefix = text.slice(lineStart, markerStart)
-  if (/^(?:> ?)*$/.test(prefix)) {
+  if (/^(?:(?: {1,3})|(?:> ?)*)*$/.test(prefix)) {
     return true
   }
-  return /<\/[a-z][a-z0-9-]*\s*>$/i.test(prefix)
+  return /<\/(?:analysis|assessment|thinking)\s*>$/i.test(prefix)
 }
 
 function maskCodeFences(text: string): { text: string; fences: string[] } {

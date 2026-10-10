@@ -159,6 +159,20 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
   })
 
+  it('preserves scratchpad literals in a two-space-indented XML fence', () => {
+    const input = `<summary>
+  \`\`\`xml
+  <thinking>literal</thinking>
+  \`\`\`
+</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal</thinking>')
+  })
+
+  it('strips slash-prefixed analysis when inline code mentions a closing-tag and tilde run', () => {
+    const input = '<analysis>The docs use `</div>~~~` as a closing marker.</analysis><summary>Keep this</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep this')
+  })
+
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
     const input = `<summary>
 1. Task Overview: user wants the syntax for a reasoning tag
