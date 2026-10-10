@@ -79,8 +79,7 @@ async function renderSubWindowAppShell({
     SubWindowTitle: () => <div data-testid="sub-window-title" />
   }))
   vi.doMock('@renderer/components/WindowControls', () => ({
-    WindowControls: () => <div data-testid="window-controls" />,
-    useHasWindowControls: () => false
+    WINDOW_CONTROLS_OVERLAY_WIDTH: '0px'
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
     SubWindowTitleBar: ({ isFullscreen }: { isFullscreen: boolean }) => (
