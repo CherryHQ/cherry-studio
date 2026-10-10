@@ -197,6 +197,7 @@ export default defineConfig({
         }
       },
       ...[
+        ['agent-runtime', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],

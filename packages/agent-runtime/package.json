@@ -1,0 +1,35 @@
+{
+  "name": "@cherrystudio/agent-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pi agent runtime driven through host-provided AI SDK model calls.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.1.0"
+  },
+  "devDependencies": {
+    "@ai-sdk/openai-compatible": "2.0.72",
+    "@ai-sdk/provider": "^3.0.18",
+    "@types/node": "^24.10.4",
+    "ai": "6.0.185",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1"
+  },
+  "peerDependencies": {
+    "ai": "^6.0.185"
+  }
+}
