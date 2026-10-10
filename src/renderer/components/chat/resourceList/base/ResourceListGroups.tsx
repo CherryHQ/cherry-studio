@@ -150,6 +150,34 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
   )
 }
 
+type GroupLabelRowProps = ComponentProps<'div'> & {
+  label: string
+  ref?: Ref<HTMLDivElement>
+}
+
+/**
+ * A super-group boundary label: a stateless small-gray-text row that names the custom group the
+ * entity headers below it belong to. Pure presentation — no collapse, click, drag, count or
+ * context menu — and it stays on the shared row rhythm (36px) like every other chrome row.
+ */
+export function GroupLabelRow({ label, className, ref, style, ...props }: GroupLabelRowProps) {
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        'flex w-full items-center text-foreground text-sm',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        className
+      )}
+      {...props}>
+      <div className={cn('min-w-0 truncate px-2.5 text-xs text-foreground-tertiary', RESOURCE_LIST_VISUAL_ROW_CLASS)}>
+        {label}
+      </div>
+    </div>
+  )
+}
+
 export function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
   const { t } = useTranslation()
   const actions = useResourceListActions()

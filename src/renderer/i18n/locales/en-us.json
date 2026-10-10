@@ -213,6 +213,7 @@
   "agent.session.delete.error.failed": "Failed to delete the session",
   "agent.session.delete.title": "Delete session",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "Group",
   "agent.session.display.time": "Time",
   "agent.session.display.title": "Display mode",
   "agent.session.display.workdir": "Work directory",

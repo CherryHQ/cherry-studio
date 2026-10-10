@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Nu s-a putut șterge sesiunea",
   "agent.session.delete.title": "Șterge sesiunea",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "Grup",
   "agent.session.display.time": "Timp",
   "agent.session.display.title": "Mod de afișare",
   "agent.session.display.workdir": "Director de lucru",

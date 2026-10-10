@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Sitzung löschen fehlgeschlagen",
   "agent.session.delete.title": "Sitzung löschen",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "Gruppe",
   "agent.session.display.time": "Zeit",
   "agent.session.display.title": "Anzeigemodus",
   "agent.session.display.workdir": "Arbeitsverzeichnis",

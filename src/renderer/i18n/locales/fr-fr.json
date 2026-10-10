@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Échec de la suppression de la session",
   "agent.session.delete.title": "Supprimer la session",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "Groupe",
   "agent.session.display.time": "Temps",
   "agent.session.display.title": "Mode d'affichage",
   "agent.session.display.workdir": "Répertoire de travail",

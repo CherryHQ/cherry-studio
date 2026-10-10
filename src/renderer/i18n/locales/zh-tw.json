@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "無法刪除工作階段",
   "agent.session.delete.title": "刪除工作階段",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "分組",
   "agent.session.display.time": "時間",
   "agent.session.display.title": "顯示模式",
   "agent.session.display.workdir": "工作目錄",

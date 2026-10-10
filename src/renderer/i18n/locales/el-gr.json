@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Αποτυχία διαγραφής της συνεδρίας",
   "agent.session.delete.title": "Διαγραφή συνεδρίας",
   "agent.session.display.agent": "Πράκτορας",
+  "agent.session.display.group": "Ομάδα",
   "agent.session.display.time": "Χρόνος",
   "agent.session.display.title": "Λειτουργία προβολής",
   "agent.session.display.workdir": "Κατάλογος εργασίας",

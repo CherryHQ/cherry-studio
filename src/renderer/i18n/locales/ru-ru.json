@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Не удалось удалить сеанс",
   "agent.session.delete.title": "Удалить сеанс",
   "agent.session.display.agent": "Агент",
+  "agent.session.display.group": "Группа",
   "agent.session.display.time": "Время",
   "agent.session.display.title": "Режим отображения",
   "agent.session.display.workdir": "Рабочий каталог",

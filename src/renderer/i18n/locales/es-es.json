@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Error al eliminar la sesión",
   "agent.session.delete.title": "Eliminar sesión",
   "agent.session.display.agent": "Agente",
+  "agent.session.display.group": "Grupo",
   "agent.session.display.time": "Tiempo",
   "agent.session.display.title": "Modo de visualización",
   "agent.session.display.workdir": "Carpeta de trabajo",

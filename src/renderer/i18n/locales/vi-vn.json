@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Không xóa được phiên",
   "agent.session.delete.title": "Xóa phiên",
   "agent.session.display.agent": "Agent",
+  "agent.session.display.group": "Nhóm",
   "agent.session.display.time": "Thời gian",
   "agent.session.display.title": "Chế độ hiển thị",
   "agent.session.display.workdir": "Thư mục làm việc",

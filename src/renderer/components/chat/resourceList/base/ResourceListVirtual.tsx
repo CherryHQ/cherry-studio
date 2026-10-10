@@ -29,6 +29,7 @@ import {
 import {
   GroupEmpty,
   GroupHeader,
+  GroupLabelRow,
   GroupShowMore,
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
@@ -95,7 +96,7 @@ type ResourceListVirtualFooter = {
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
   __resourceListBoundaryId?: string
-  __resourceListKind?: 'section'
+  __resourceListKind?: 'section' | 'group-label'
 }
 
 type ResourceListVirtualHeader =
@@ -106,6 +107,10 @@ type ResourceListVirtualHeader =
   | {
       type: 'section'
       section: ResourceListSection
+    }
+  | {
+      type: 'group-label'
+      label: string
     }
 
 type ResourceListVirtualGroup<T extends ResourceListItemBase> = GroupedVirtualListGroup<
@@ -125,6 +130,7 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 
 function renderResourceListGroupHeader(header: ResourceListVirtualHeader) {
+  if (header.type === 'group-label') return <GroupLabelRow label={header.label} />
   return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
 }
 
@@ -134,6 +140,18 @@ function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtua
 
 function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
   return group.__resourceListKind === 'section'
+}
+
+/**
+ * The synthetic header-only group that carries a {@link GroupLabelRow}. Its id is derived from the
+ * group it labels (unique, so dnd ids never collide) and it opts out of drag and drop entirely.
+ */
+function toGroupLabelVirtualGroup(group: ResourceListGroup): ResourceListVirtualGroupData {
+  return { ...group, id: `${group.id}:label`, __resourceListKind: 'group-label' }
+}
+
+function isGroupLabelVirtualGroup(group: ResourceListVirtualGroupData) {
+  return group.__resourceListKind === 'group-label'
 }
 
 function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
@@ -228,7 +246,8 @@ function VirtualItemRow({
 
 function buildVirtualGroups<T extends ResourceListItemBase>(
   view: ResourceListContextValue<T>['view'],
-  showEmptyGroups: boolean
+  showEmptyGroups: boolean,
+  meta: ResourceListContextValue<T>['meta']
 ) {
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
@@ -239,6 +258,16 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
     for (const item of group.items) {
       items.push({ group: group.group, groupCollapsed: group.collapsed, item, itemIndex })
       itemIndex += 1
+    }
+
+    // A label row only ever names a group whose own header renders; a label above nothing is noise.
+    const labelAbove = group.group.label ? meta.getGroupLabelAbove?.(group.group) : undefined
+    if (labelAbove) {
+      groups.push({
+        group: toGroupLabelVirtualGroup(group.group),
+        header: { type: 'group-label', label: labelAbove },
+        items: []
+      })
     }
 
     groups.push({
@@ -286,7 +315,9 @@ function getResourceListVirtualRowKey<T extends ResourceListItemBase>(
   row: ResourceListVirtualRow<T>,
   getItemId: (item: T) => string
 ) {
-  if (row.type === 'group-header') return `group-header:${row.group.id}`
+  if (row.type === 'group-header') {
+    return row.header.type === 'group-label' ? `group-label:${row.group.id}` : `group-header:${row.group.id}`
+  }
   if (row.type === 'group-footer') return `group-footer:${row.group.id}`
   return `item:${getItemId(row.item.item)}`
 }
@@ -538,7 +569,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const { estimateItemSize, getItemId, revealRequest } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel), meta), [meta, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -656,7 +687,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   } = meta
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
-  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
+  const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel), meta), [meta, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
@@ -715,6 +746,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   )
   const canDragGroup = useCallback(
     (group: ResourceListVirtualGroupData, groupIndex: number) => {
+      if (isGroupLabelVirtualGroup(group)) return false
+
       if (isSectionVirtualGroup(group)) {
         return canDragGroupMeta?.(group, groupIndex) ?? false
       }
@@ -752,6 +785,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     }) => {
       const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
       const overIsSection = isSectionVirtualGroup(payload.overGroup)
+      if (isGroupLabelVirtualGroup(payload.activeGroup) || isGroupLabelVirtualGroup(payload.overGroup)) return false
       if (activeIsSection !== overIsSection) return false
 
       return (
@@ -780,7 +814,14 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       sourceIndex: number
       targetIndex: number
     }) => {
-      if (isSectionVirtualGroup(payload.sourceGroup) || isSectionVirtualGroup(payload.overGroup)) return false
+      if (
+        isSectionVirtualGroup(payload.sourceGroup) ||
+        isSectionVirtualGroup(payload.overGroup) ||
+        isGroupLabelVirtualGroup(payload.sourceGroup) ||
+        isGroupLabelVirtualGroup(payload.overGroup)
+      ) {
+        return false
+      }
 
       return (
         canDropItemMeta?.({

@@ -302,6 +302,7 @@ const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'w
 
 const dataApiMocks = vi.hoisted(() => ({
   dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
+  groups: [] as Array<{ id: string; entityType: string; name: string; orderKey: string }>,
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -520,6 +521,17 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
         isLoading: agentResult.isLoading,
         isRefreshing: false,
         error: agentResult.error,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    }
+
+    if (path === '/groups') {
+      return {
+        data: dataApiMocks.groups,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
         refetch: vi.fn(),
         mutate: vi.fn()
       }
@@ -928,6 +940,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
+    dataApiMocks.groups = []
     dataApiMocks.dataChangeSubscriptions.length = 0
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
@@ -1231,35 +1244,38 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it.each(['time', 'agent', 'workdir'])('expands all sessions in %s groups with one click', async (displayMode) => {
-    const user = userEvent.setup()
-    preferenceMocks.values.set('agent.session.display_mode', displayMode)
-    setupSessions({
-      sessions: [
-        ...Array.from({ length: 56 }, (_, index) =>
-          createSession({
-            id: `session-${index + 1}`,
-            name: `Session ${index + 1}`,
-            orderKey: String(index + 1).padStart(3, '0'),
-            updatedAt: CURRENT_SESSION_ISO
-          })
-        ),
-        createSession({ id: 'session-old', name: 'Older session', orderKey: 'zzz', updatedAt: EARLIER_SESSION_ISO })
-      ]
-    })
+  it.each(['time', 'agent', 'workdir', 'group'])(
+    'expands all sessions in %s groups with one click',
+    async (displayMode) => {
+      const user = userEvent.setup()
+      preferenceMocks.values.set('agent.session.display_mode', displayMode)
+      setupSessions({
+        sessions: [
+          ...Array.from({ length: 56 }, (_, index) =>
+            createSession({
+              id: `session-${index + 1}`,
+              name: `Session ${index + 1}`,
+              orderKey: String(index + 1).padStart(3, '0'),
+              updatedAt: CURRENT_SESSION_ISO
+            })
+          ),
+          createSession({ id: 'session-old', name: 'Older session', orderKey: 'zzz', updatedAt: EARLIER_SESSION_ISO })
+        ]
+      })
 
-    render(<SessionsForTest />)
+      render(<SessionsForTest />)
 
-    expect(screen.getByText('Session 1')).toBeInTheDocument()
-    expect(screen.getByText(displayMode === 'time' ? 'Session 50' : 'Session 5')).toBeInTheDocument()
-    expect(screen.queryByText(displayMode === 'time' ? 'Session 51' : 'Session 6')).not.toBeInTheDocument()
-    expect(screen.queryByText('Session 56')).not.toBeInTheDocument()
+      expect(screen.getByText('Session 1')).toBeInTheDocument()
+      expect(screen.getByText(displayMode === 'time' ? 'Session 50' : 'Session 5')).toBeInTheDocument()
+      expect(screen.queryByText(displayMode === 'time' ? 'Session 51' : 'Session 6')).not.toBeInTheDocument()
+      expect(screen.queryByText('Session 56')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Expand display' }))
+      await user.click(screen.getByRole('button', { name: 'Expand display' }))
 
-    expect(screen.getByText('Session 56')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
-  })
+      expect(screen.getByText('Session 56')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
+    }
+  )
 
   it('creates a first-agent session from the header when there are agents but no sessions', async () => {
     const onCreateSession = vi.fn()
@@ -1528,6 +1544,95 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_PINNED_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_AGENT_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+  })
+
+  it('renders group display mode with custom-group labels, ungrouped tail and skipped empty groups', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'group')
+    dataApiMocks.groups = [
+      { id: 'group-research', entityType: 'agent', name: 'Research', orderKey: 'b' },
+      { id: 'group-writing', entityType: 'agent', name: 'Writing', orderKey: 'a' },
+      { id: 'group-solo', entityType: 'agent', name: 'Solo', orderKey: 'c' }
+    ]
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', groupId: 'group-research' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', groupId: 'group-writing' },
+        { id: 'agent-c', model: 'model-c', name: 'Gamma agent', groupId: 'group-writing' },
+        { id: 'agent-d', model: 'model-d', name: 'Delta agent' },
+        { id: 'agent-e', model: 'model-e', name: 'Epsilon agent', groupId: 'group-solo' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-c', name: 'Gamma session', agentId: 'agent-c', orderKey: 'c' }),
+        createSession({ id: 'session-d', name: 'Delta session', agentId: 'agent-d', orderKey: 'd' }),
+        createSession({ id: 'session-orphan', name: 'Orphan session', agentId: 'deleted-agent', orderKey: 'z' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    // Custom groups order by group orderKey (Writing before Research); each label rides above its
+    // first agent header as its own stateless row, then the ungrouped agent, then the unlinked
+    // bucket — and a custom group without sessions (Solo) gets its agent header but no label row.
+    const order = [
+      screen.getByText('Writing'),
+      screen.getByRole('button', { name: 'Beta agent' }),
+      screen.getByRole('button', { name: 'Gamma agent' }),
+      screen.getByText('Gamma session'),
+      screen.getByText('Research'),
+      screen.getByRole('button', { name: 'Alpha agent' }),
+      screen.getByText('Alpha session'),
+      screen.getByRole('button', { name: 'Epsilon agent' }),
+      screen.getByRole('button', { name: 'Delta agent' }),
+      screen.getByText('Delta session'),
+      screen.getByRole('button', { name: 'Unlinked Agent' }),
+      screen.getByText('Orphan session')
+    ]
+    for (let index = 1; index < order.length; index += 1) {
+      expect(order[index - 1].compareDocumentPosition(order[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+
+    // The label row is pure presentation: not a button, and it stays on the shared row rhythm.
+    expect(screen.getByText('Writing').closest('button')).not.toBeInTheDocument()
+    expect(screen.getByText('Writing').closest('.h-9')).not.toBeNull()
+    expect(screen.getByText('Research').closest('button')).not.toBeInTheDocument()
+    expect(screen.queryByText('Solo')).not.toBeInTheDocument()
+    // Only one label per custom group: Gamma (second Writing agent) carries no second label.
+    expect(screen.getAllByText('Writing')).toHaveLength(1)
+  })
+
+  it('keeps agent group collapse state shared between agent and group display modes', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'group')
+    dataApiMocks.groups = [{ id: 'group-writing', entityType: 'agent', name: 'Writing', orderKey: 'a' }]
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', groupId: 'group-writing' },
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    const view = render(<SessionsForTest />)
+
+    fireEvent.click(groupChevron(screen.getByRole('button', { name: 'Beta agent' })))
+
+    // Group mode writes the same agent-group expansion cache that agent mode reads, because the
+    // buckets (and their ids) are identical in both modes.
+    expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
+    view.rerender(<SessionsForTest key="collapsed-beta-in-group-mode" />)
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta agent' }))).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
   it('keeps a pinned session in its expanded agent group', () => {

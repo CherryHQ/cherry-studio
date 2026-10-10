@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "Oturum silinemedi",
   "agent.session.delete.title": "Oturumu Sil",
   "agent.session.display.agent": "Ajan",
+  "agent.session.display.group": "Grup",
   "agent.session.display.time": "Zaman",
   "agent.session.display.title": "Görüntüleme modu",
   "agent.session.display.workdir": "Çalışma dizini",

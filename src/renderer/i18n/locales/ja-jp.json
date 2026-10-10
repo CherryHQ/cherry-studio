@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "セッションの削除に失敗しました",
   "agent.session.delete.title": "セッションを削除",
   "agent.session.display.agent": "エージェント",
+  "agent.session.display.group": "グループ",
   "agent.session.display.time": "時間",
   "agent.session.display.title": "表示モード",
   "agent.session.display.workdir": "作業フォルダー",

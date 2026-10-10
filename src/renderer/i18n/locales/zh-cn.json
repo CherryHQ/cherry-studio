@@ -212,6 +212,7 @@
   "agent.session.delete.error.failed": "删除会话失败",
   "agent.session.delete.title": "删除会话",
   "agent.session.display.agent": "智能体",
+  "agent.session.display.group": "分组",
   "agent.session.display.time": "时间",
   "agent.session.display.title": "展示方式",
   "agent.session.display.workdir": "工作目录",
