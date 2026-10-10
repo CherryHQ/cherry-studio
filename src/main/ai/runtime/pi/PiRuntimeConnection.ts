@@ -560,6 +560,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -572,6 +573,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    servesAcceptedTurn?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -579,7 +581,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        { servesAcceptedTurn: input.servesAcceptedTurn === true }
       )
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
