@@ -17,4 +17,5 @@ indexes; durable ingestion jobs; renderer IPC; and agent retrieval tools.
 | [Knowledge Service](./knowledge-service.md) | Current backend shape: service split, external authorization, IPC, storage, item status, retrieval, and agent tools |
 | [Knowledge Operation Guards](./operation-guards.md) | Guard and recovery semantics for `addItems`, `deleteItems`, and `reindexItems` |
 | [Knowledge Workflow Architecture](./workflow-architecture.md) | The workflow model: scheduling, durable JobManager jobs, per-base mutation lock, crash semantics |
+| [External Knowledge Feishu Read Adapter](./external-knowledge-feishu-read-adapter.md) | Trusted Feishu URL resolution, metadata preview, traversal, Markdown reads, endpoint budgets, and error boundaries |
 | [Knowledge Storage and Retrieval](./experiment/knowledge-technical-design.md) | Current raw-file layout, per-base index schema, retrieval, and migration validation |

@@ -179,6 +179,7 @@
 | Document | Description |
 |----------|-------------|
 | [Knowledge Reference](./references/knowledge/README.md) | Entry point for the current Knowledge backend, ingestion workflow, retrieval, and operation guards |
+| [External Knowledge Feishu Read Adapter](./references/knowledge/external-knowledge-feishu-read-adapter.md) | Contracts for trusted Feishu scope resolution, metadata preview, Wiki traversal, and Docx Markdown reads |
 | [Knowledge Service](./references/knowledge/knowledge-service.md) | Current Knowledge backend - persistence, external authorization, IPC, ingestion, retrieval, Concept IDs, and agent tools |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |
