@@ -120,4 +120,18 @@ describe('buildMcpToolMetadata', () => {
     expect(metadata?.['mcp__id-b__run']).toMatchObject({ serverId: 'id-b', name: 'run' })
     expect(metadata?.['mcp__id-a__run']).toMatchObject({ serverId: 'id-a', name: 'run' })
   })
+
+  it('registers every exact runtime tool name before adding camelized aliases', async () => {
+    // One server listing `search_docs` before `searchDocs`: the first tool's camelized alias
+    // flattens onto the second tool's exact runtime name, so the exact entry must be claimed
+    // first — otherwise `searchDocs` calls display `search_docs` metadata.
+    const servers = new Map([['id-a', server('id-a', 'docs')]])
+    mockFindByIdOrName.mockImplementation((idOrName: string) => servers.get(idOrName))
+    mockListTools.mockImplementation(() => [tool('id-a-1', 'search_docs'), tool('id-a-2', 'searchDocs')])
+
+    const metadata = await buildMcpToolMetadata({ id: 'agent-1', mcps: ['id-a'] } as unknown as AgentEntity)
+
+    expect(metadata?.['mcp__docs__searchDocs']).toMatchObject({ serverId: 'id-a', name: 'searchDocs' })
+    expect(metadata?.['mcp__docs__search_docs']).toMatchObject({ serverId: 'id-a', name: 'search_docs' })
+  })
 })

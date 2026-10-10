@@ -261,6 +261,39 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('keeps a saved collision-allocated denial blocking the tool after the colliding neighbor is removed', async () => {
+    // Topology 1: `docs`/`search__all` mounted before `docs__search`/`all`, so the second
+    // pair allocates the suffixed `mcp__docs__search__all_353988fff1e9` and a user saves it
+    // into disabledTools. Removing the first server and reconnecting re-registers the
+    // survivor as the plain `mcp__docs__search__all` — the saved denial must follow the pair
+    // via its deterministic disambiguator, or the exact-match policy lets the explicitly
+    // disabled tool execute under bypassPermissions.
+    const docs = createServer([tool('search__all')], async () => ({ content: [{ type: 'text', text: 'docs' }] }))
+    const docsSearch = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const both = await buildDshCherryToolBridge(
+      {
+        docs: { name: 'docs', connect: docs.connect },
+        docs__search: { name: 'docs__search', connect: docsSearch.connect }
+      },
+      bridgeOptions()
+    )
+    const savedDenial = both.tools.map(({ name }) => name)[1]
+    expect(savedDenial).toBe('mcp__docs__search__all_353988fff1e9')
+    await both.close()
+
+    const survivor = createServer([tool('all')], async () => ({ content: [{ type: 'text', text: 'docs__search' }] }))
+    const after = await buildDshCherryToolBridge(
+      { docs__search: { name: 'docs__search', connect: survivor.connect } },
+      bridgeOptions()
+    )
+    const currentName = after.tools.map(({ name }) => name)[0]
+    expect(currentName).toBe('mcp__docs__search__all')
+
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    expect(translateMcpToolRulesToRuntimeNames([savedDenial], new Map(), after.ruleNames)).toEqual([currentName])
+    await after.close()
+  })
+
   it('skips one unavailable server without hiding the remaining tool catalog', async () => {
     const unavailable = createServer(
       [],

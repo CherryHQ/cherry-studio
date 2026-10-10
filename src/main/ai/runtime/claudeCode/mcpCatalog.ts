@@ -72,6 +72,16 @@ function addMcpToolMetadataAlias(
   metadataByName[key] = metadata
 }
 
+function toMcpToolMetadata(server: McpServer, tool: McpTool): McpToolDisplayMetadata {
+  return {
+    type: 'mcp',
+    serverId: server.id,
+    serverName: server.name,
+    name: tool.name,
+    description: tool.description
+  }
+}
+
 /**
  * Compatibility aliases the CLI may use to name a tool (catalog id, uuid-keyed forms, raw and
  * camelized configured-name forms). Never overwrite: the authoritative runtime-key entries are
@@ -82,13 +92,7 @@ function addMcpToolMetadataAliases(
   server: McpServer,
   tool: McpTool
 ): void {
-  const metadata: McpToolDisplayMetadata = {
-    type: 'mcp',
-    serverId: server.id,
-    serverName: server.name,
-    name: tool.name,
-    description: tool.description
-  }
+  const metadata = toMcpToolMetadata(server, tool)
 
   addMcpToolMetadataAlias(metadataByName, tool.id, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${tool.name}`, metadata)
@@ -160,22 +164,20 @@ export async function buildMcpToolMetadata(
   })
 
   const metadataByName: Record<string, McpToolDisplayMetadata> = {}
-  // Authoritative pass: the allocated runtime key claims its tool names before any alias.
+  // Exact runtime names claim first: every tool gets its own `mcp__<key>__<tool>` entry
+  // before any alias exists, so one tool's camelized alias can never take another tool's
+  // exact name (`search_docs` + `searchDocs` on one server).
   for (const { server, key, tools } of mounted) {
     for (const tool of tools) {
-      const metadata: McpToolDisplayMetadata = {
-        type: 'mcp',
-        serverId: server.id,
-        serverName: server.name,
-        name: tool.name,
-        description: tool.description
-      }
-      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${tool.name}`, metadata)
-      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${toCamelCase(tool.name)}`, metadata)
+      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${tool.name}`, toMcpToolMetadata(server, tool))
     }
   }
-  for (const { server, tools } of mounted) {
+  // Compatibility aliases: camelized key forms, catalog id, uuid forms, raw/camel name forms.
+  // First claim wins, so no alias can overwrite an exact entry or another server's identity.
+  for (const { server, key, tools } of mounted) {
     for (const tool of tools) {
+      const metadata = toMcpToolMetadata(server, tool)
+      addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${toCamelCase(tool.name)}`, metadata)
       addMcpToolMetadataAliases(metadataByName, server, tool)
     }
   }

@@ -26,9 +26,11 @@ export interface DshCherryToolBridge {
    * name-form rule `mcp__<server name>__<raw tool>` (two pairs can flatten to one string —
    * their candidates merge, fail-closed), the exact pair identity `<server name>\0<raw tool>`,
    * the allocated runtime names themselves (a denial saved at runtime is the registered name,
-   * which another pair's name-form rule can flatten onto), and pre-name runtime aliases
-   * rebuilt from mounted-server ids (wire-safe and hashed forms) so denials saved under
-   * uuid-keyed names follow the server to its current identity.
+   * which another pair's name-form rule can flatten onto), each identity's historical
+   * collision-allocated name (a deterministic pair hash, so a saved denial follows the pair
+   * after the colliding neighbor is unmounted), and pre-name runtime aliases rebuilt from
+   * mounted-server ids (wire-safe and hashed forms) so denials saved under uuid-keyed names
+   * follow the server to its current identity.
    */
   readonly ruleNames: ReadonlyMap<string, readonly string[]>
   callTool(name: string, args: unknown, signal?: AbortSignal): Promise<BridgeToolCallResult>
@@ -147,9 +149,14 @@ export async function buildDshCherryToolBridge(
  * prefix stays, and a fixed-width sha256 head of the raw pair keeps the extra name deterministic
  * (the same pair always resolves to the same identity) within the 63-char provider-safe cap.
  */
+function pairCollisionName(serverName: string, toolName: string): string {
+  const base = buildDshCherryToolName(serverName, toolName).slice(0, 50)
+  return `${base}_${createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 12)}`
+}
+
 function disambiguatedDshToolName(serverName: string, toolName: string, taken: ReadonlySet<string>): string {
   const base = buildDshCherryToolName(serverName, toolName).slice(0, 50)
-  let name = `${base}_${createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 12)}`
+  let name = pairCollisionName(serverName, toolName)
   // The counter must reach the retained suffix: re-hashing with it produces a fresh candidate,
   // and the bound turns a pathological config into a thrown error instead of a frozen main
   // process (a synchronous loop here blocks Electron startup).
@@ -192,6 +199,13 @@ function buildDshCherryRuleNameLookup(
     // claim its own name too — otherwise translation rewrites A's denial onto B's allocation
     // and the exact-match policy lets the explicitly disabled tool execute.
     addRule(runtimeName, runtimeName)
+    // A denial can also be saved under this pair's collision-allocated name from an earlier
+    // topology whose colliding neighbor has since been unmounted: the survivor re-registers
+    // under the plain name and the saved string matches nothing. The disambiguator is a
+    // deterministic hash of the pair, so the historical name is reconstructible and follows
+    // the pair to its current identity.
+    const historical = pairCollisionName(serverKey, rawTool)
+    if (historical !== runtimeName) addRule(historical, runtimeName)
     const siblings = rawToolsByKey.get(serverKey)
     if (siblings) siblings.push({ rawTool, runtimeName })
     else rawToolsByKey.set(serverKey, [{ rawTool, runtimeName }])
