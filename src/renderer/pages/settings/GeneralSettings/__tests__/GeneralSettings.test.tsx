@@ -134,6 +134,14 @@ describe('GeneralSettings', () => {
     ])
   })
 
+  it('shows the TUN explanation in the proxy settings group', () => {
+    render(<GeneralSettings />)
+
+    const proxyGroup = screen.getByRole('heading', { name: 'settings.proxy.mode.title' }).closest('section')
+    expect(proxyGroup).not.toBeNull()
+    expect(within(proxyGroup!).getByText('settings.proxy.mode.description')).toBeVisible()
+  })
+
   it('renders model retry settings in General and persists changes', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.retry.enabled': true,

@@ -154,4 +154,9 @@ describe('settings search index aliases', () => {
     const focusIds = rankEntries(query, settingsSearchSections, tEnUs).map((r) => r.focusId)
     expect(focusIds).toContain(focusIdOf(anchorId))
   })
+
+  it('finds Proxy Mode from the TUN explanation', () => {
+    const focusIds = rankEntries('tun', settingsSearchSections, tEnUs).map((result) => result.focusId)
+    expect(focusIds).toContain(focusIdOf('proxy-mode'))
+  })
 })
