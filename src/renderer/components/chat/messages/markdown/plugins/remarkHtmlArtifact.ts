@@ -51,7 +51,13 @@ function isHtmlArtifact(node: Html): boolean {
   const onTagName = (start: number, end: number) => {
     const name = content.slice(start, end).toLowerCase()
     if (name === 'details' || name === 'summary') hasDisclosureTag = true
+const onTagName = (start: number, end: number) => {
+  const name = content.slice(start, end).toLowerCase()
+  if (name === 'details' || name === 'summary') {
+    hasDisclosureTag = true
+    tokenizer.end() // Early exit - no need to continue tokenizing
   }
+}
   // The tokenizer preserves unmatched closing tags; the DOM parser would discard
   // disclosure boundaries whose opening tag lives in an earlier Markdown node.
   const tokenizer = new Tokenizer(
