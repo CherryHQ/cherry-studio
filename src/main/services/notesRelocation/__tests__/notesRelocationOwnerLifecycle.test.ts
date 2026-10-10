@@ -51,8 +51,12 @@ describe('notesRelocationOwnerLifecycle', () => {
   })
 
   it('releases the session when the bound owner window closes', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & { isDestroyed: () => boolean }
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter
+    }
     ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')
@@ -70,9 +74,37 @@ describe('notesRelocationOwnerLifecycle', () => {
     expect(released).toBe(true)
   })
 
-  it('keeps the session when the owner window closes during migration copy', () => {
-    const ownerWindow = new EventEmitter() as EventEmitter & { isDestroyed: () => boolean }
+  it('releases the session when the owner renderer process exits', () => {
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter
+    }
     ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    registerRendererNotesEditsFlushWindow('owner-window')
+
+    let released = false
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => {
+        released = true
+      })
+    })
+
+    ownerWindow.webContents.emit('render-process-gone')
+
+    expect(released).toBe(true)
+  })
+
+  it('keeps the session when the owner window closes during migration copy', () => {
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter
+    }
+    ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter()
     getWindowMock.mockReturnValue(ownerWindow)
 
     acquireNotesRelocationSession('owner-window')

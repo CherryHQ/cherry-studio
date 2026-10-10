@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
 import { loggerService } from '@logger'
+import { trackDepartingNotesFileWrite } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
@@ -323,7 +324,8 @@ export function useFileEditSession(
       debouncedWrite.cancel()
       const model = modelRef.current
       if (model && !model.conflict && model.draft !== model.snapshot.content) {
-        requestWrite(model)
+        requestWrite(model, { force: true })
+        trackDepartingNotesFileWrite(model.chain)
       }
       modelRef.current = null
       setDraftState('')
