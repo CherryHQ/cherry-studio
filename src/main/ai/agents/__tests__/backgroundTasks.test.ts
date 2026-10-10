@@ -291,6 +291,73 @@ describe('backgroundTasks', () => {
     })
   })
 
+  describe('leaderless group controllability', () => {
+    // A worker that outlives its shell: it installs a SIGTERM handler, prints its pid, and
+    // keeps running inside the detached group after the shell exits.
+    const orphanWorkerCommand = `${nodeBin} -e "process.on('SIGTERM', () => {}); process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
+    // A real group member that exits before its leader, so the group is empty at the leader's close.
+    const memberDiesFirstCommand = `${nodeBin} -e "require('child_process').spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 300)'])"`
+
+    /** Waits for the shell (group leader) to exit and returns the surviving worker's pid. */
+    async function waitForOrphanedWorker(record: BackgroundTaskRecord): Promise<number> {
+      await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+      await vi.waitFor(
+        async () => {
+          expect((await readFile(record.logFile, 'utf8')).trim()).toMatch(/^\d+$/)
+        },
+        { timeout: 10_000 }
+      )
+      const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
+      expect(isPidAlive(workerPid)).toBe(true)
+      return workerPid
+    }
+
+    it.skipIf(process.platform === 'win32')(
+      'keeps a task controllable while its group holds a live member after the leader exits',
+      async () => {
+        const record = await startDetachedBackgroundTask({ storageDir, command: orphanWorkerCommand, cwd: storageDir })
+        const workerPid = await waitForOrphanedWorker(record)
+
+        try {
+          // The leader is gone but the work is not: the record must not read as terminal,
+          // or every control path (kill, UI, purge) would turn its back on the survivor.
+          const task = await getDetachedBackgroundTask(storageDir, record.id)
+          expect(task?.status).toBe('running')
+
+          // A plain stop reaches the group; the member ignoring SIGTERM keeps the task running.
+          const afterStop = await stopDetachedBackgroundTask(storageDir, record.id)
+          expect(afterStop?.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          // Kill stays reachable and closes the task only once the survivor is gone.
+          const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(stopped?.status).toBe('stopped')
+          await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+          expect(await stopDetachedBackgroundTask(storageDir, record.id, true)).toBeUndefined()
+        } finally {
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'finalizes a task whose group empties together with its leader',
+      async () => {
+        const onExit = vi.fn()
+        await startDetachedBackgroundTask({ storageDir, command: memberDiesFirstCommand, cwd: storageDir, onExit })
+
+        await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+        const completion = onExit.mock.calls[0][0]
+        expect(completion.record.status).toBe('completed')
+        expect(completion.record.exitCode).toBe(0)
+      }
+    )
+  })
+
   describe('isPidAlive', () => {
     it('sees the current process as alive', () => {
       expect(isPidAlive(process.pid)).toBe(true)

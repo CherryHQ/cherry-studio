@@ -8,9 +8,8 @@ import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
 /** Owns the durable index of detached task status; task log and exit sentinel remain on disk. */
 export class AgentBackgroundTaskService {
   saveRecord(agentId: string, record: BackgroundTaskRecord): void {
-    application.get('DbService').withWriteTx((tx) => {
-      this.upsertTx(tx, agentId, record)
-    })
+    // One already-atomic upsert; only the batch below needs a wrapping transaction.
+    this.upsertTx(application.get('DbService').getDb(), agentId, record)
   }
 
   /**

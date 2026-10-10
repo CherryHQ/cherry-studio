@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -30,10 +30,34 @@ import {
   stopAllAgentBackgroundTasks
 } from '../backgroundTaskActions'
 import * as tasks from '../backgroundTasks'
-import { getDetachedBackgroundTask, startDetachedBackgroundTask, stopDetachedBackgroundTask } from '../backgroundTasks'
+import {
+  getDetachedBackgroundTask,
+  isPidAlive,
+  startDetachedBackgroundTask,
+  stopDetachedBackgroundTask,
+  type BackgroundTaskRecord
+} from '../backgroundTasks'
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
+
+// A worker that outlives its shell: it installs a SIGTERM handler, prints its pid, and keeps
+// running inside the detached group after the shell (group leader) exits.
+const orphanWorkerCommand = `${nodeBin} -e "process.on('SIGTERM', () => {}); process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
+
+/** Waits for the shell (group leader) to exit and returns the surviving worker's pid. */
+async function waitForOrphanedWorker(record: BackgroundTaskRecord): Promise<number> {
+  await vi.waitFor(() => expect(isPidAlive(record.pid)).toBe(false), { timeout: 10_000 })
+  await vi.waitFor(
+    async () => {
+      expect((await readFile(record.logFile, 'utf8')).trim()).toMatch(/^\d+$/)
+    },
+    { timeout: 10_000 }
+  )
+  const workerPid = Number((await readFile(record.logFile, 'utf8')).trim())
+  expect(isPidAlive(workerPid)).toBe(true)
+  return workerPid
+}
 
 /** A disk record that reconciles as running: live pid, no start stamp, no completion evidence. */
 async function writeRunningRecord(storageDir: string, id: string): Promise<void> {
@@ -168,6 +192,63 @@ describe('stopAllAgentBackgroundTasks', () => {
       )
     }
   )
+
+  it.skipIf(process.platform === 'win32')(
+    'kills a leaderless task through its surviving group before the purge deletes it',
+    async () => {
+      // The shell (group leader) is gone and a SIGTERM-immune worker keeps running in its
+      // group: the sweep must not mistake the dead leader for a finished task and delete the
+      // agent's records while the survivor lives.
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: orphanWorkerCommand,
+        cwd: storageDir
+      })
+      const workerPid = await waitForOrphanedWorker(record)
+
+      try {
+        await stopAllAgentBackgroundTasks('agent-1')
+
+        await vi.waitFor(() => expect(isPidAlive(workerPid)).toBe(false), { timeout: 10_000 })
+        const settled = await getDetachedBackgroundTask(storageDir, record.id)
+        expect(settled?.status).toBe('stopped')
+      } finally {
+        try {
+          process.kill(-record.pid, 'SIGKILL')
+        } catch {
+          // the group is already gone
+        }
+      }
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses the purge while a leaderless task keeps working in its group',
+    async () => {
+      // Same leaderless survivor, but a sweep whose kill takes no effect: the task still
+      // reads as running, so the permanent delete must refuse rather than skip it.
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: orphanWorkerCommand,
+        cwd: storageDir
+      })
+      await waitForOrphanedWorker(record)
+      const stopSpy = vi.spyOn(tasks, 'stopDetachedBackgroundTask')
+      stopSpy.mockImplementation(async () => undefined)
+      try {
+        await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+          `Cannot permanently delete Agent agent-1 while background task ${record.id} is running`
+        )
+      } finally {
+        stopSpy.mockRestore()
+        try {
+          process.kill(-record.pid, 'SIGKILL')
+        } catch {
+          // the group is already gone
+        }
+      }
+    }
+  )
 })
 
 describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {
@@ -278,4 +359,30 @@ describe('stopAgentBackgroundTask', () => {
 
     expect(sendMessageMock).not.toHaveBeenCalled()
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'redacts credential-shaped task names before they reach a channel',
+    async () => {
+      // The task name is unrestricted input and the summary interpolates it verbatim; the
+      // delivery boundary must redact what ordinary notify redacts, not hand it to the chat.
+      getAgentAdaptersMock.mockReturnValue([
+        { channelId: 'channel-1', notifyChatIds: ['chat-1'], sendMessage: sendMessageMock }
+      ])
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir,
+        name: 'token=syntheticCredential123456',
+        notifyChannelIds: ['channel-1']
+      })
+
+      await stopAgentBackgroundTask('agent-1', record.id, true)
+
+      expect(sendMessageMock).toHaveBeenCalledTimes(1)
+      const summary = sendMessageMock.mock.calls[0][1]
+      expect(summary).toContain(record.id)
+      expect(summary).toContain('[REDACTED]')
+      expect(summary).not.toContain('syntheticCredential123456')
+    }
+  )
 })
