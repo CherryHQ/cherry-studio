@@ -62,8 +62,11 @@
   --cs-primary-foreground: oklch(0.985 0 0);
   --cs-destructive-foreground: var(--cs-white);
 
-  /* Input border */
-  --cs-input: oklch(0.922 0 0);
+  /* Input border — shares the neutral border role so it composites against
+   * whatever surface it sits on (DESIGN.md: neutral surface tints are
+   * black/white + alpha). In light mode this resolves to the same pixel the
+   * old fixed oklch(0.922) produced on white. */
+  --cs-input: var(--cs-border);
 
   /* Sidebar sub-palette */
   --cs-sidebar-foreground: oklch(0.145 0 0);
@@ -142,8 +145,10 @@
   --cs-primary-foreground: oklch(0.205 0 0);
   --cs-destructive-foreground: var(--cs-white);
 
-  /* Input border */
-  --cs-input: oklch(0.269 0 0);
+  /* Input border — see the light-mode note. The old fixed oklch(0.269) was
+   * stock Shadcn: it did not react to the surface, so it vanished entirely on
+   * popovers (identical lightness) and read weaker than every other border. */
+  --cs-input: var(--cs-border);
 
   /* Sidebar sub-palette */
   --cs-sidebar-foreground: oklch(0.985 0 0);
