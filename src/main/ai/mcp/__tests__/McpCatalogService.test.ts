@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const { loggerDebug, loggerWarn } = vi.hoisted(() => ({ loggerDebug: vi.fn(), loggerWarn: vi.fn() }))
 const getById = vi.fn()
@@ -195,6 +196,35 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
   })
 
+  it('withdraws stale tools and backs off when server lookup fails unexpectedly', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    const error = new Error('database busy')
+    getById.mockImplementation(() => {
+      throw error
+    })
+    const service = new McpCatalogService()
+
+    await expect(service.refreshTools('server-1')).rejects.toThrow('database busy')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.has('mcp:tools-failed-backoff:server-1')).toBe(true)
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
+  })
+
+  it('withdraws stale tools for a confirmed missing row without marking a connection failure', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('McpServer', 'server-1')
+    })
+    const service = new McpCatalogService()
+
+    await expect(service.refreshTools('server-1')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.has('mcp:tools-failed-backoff:server-1')).toBe(false)
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+  })
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
     listTools.mockResolvedValue([sdkTool('search')])
@@ -305,7 +335,7 @@ describe('McpCatalogService', () => {
     const service = new McpCatalogService()
 
     await service.warmToolsCache('server-1')
-    service.clearSharedToolsCache('server-1')
+    service.invalidateTools('server-1', 'restart')
     await service.warmToolsCache('server-1')
 
     expect(service.listTools('server-1').map((tool) => tool.name)).toEqual(['search'])
@@ -415,11 +445,90 @@ describe('McpCatalogService', () => {
     service.onToolsCacheUpdated(listener)
 
     await service.refreshTools('server-1')
-    service.clearSharedToolsCache('server-1')
+    service.invalidateTools('server-1', 'restart')
     await service.refreshTools('server-1')
 
     expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['fetch'])
     expect(listener).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not publish tools or connected status when a refresh succeeds after invalidation', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let resolveList: ((tools: ReturnType<typeof sdkTool>[]) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise<ReturnType<typeof sdkTool>[]>((resolve) => {
+          resolveList = resolve
+        })
+    )
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    await vi.waitFor(() => expect(listTools).toHaveBeenCalledTimes(1))
+    service.invalidateTools('server-1', 'restart')
+    runtimeService.setServerStatus.mockClear()
+    const sharedWrites = cacheService.setShared.mock.calls.length
+
+    resolveList?.([sdkTool('stale')])
+    await refresh
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.setShared).toHaveBeenCalledTimes(sharedWrites)
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+  })
+
+  it('does not publish failure state when a refresh rejects after invalidation', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let rejectList: ((error: Error) => void) | undefined
+    listTools.mockImplementationOnce(
+      () =>
+        new Promise<ReturnType<typeof sdkTool>[]>((_resolve, reject) => {
+          rejectList = reject
+        })
+    )
+    const service = new McpCatalogService()
+
+    const refresh = service.refreshTools('server-1')
+    await vi.waitFor(() => expect(listTools).toHaveBeenCalledTimes(1))
+    service.invalidateTools('server-1', 'stop')
+    runtimeService.setServerStatus.mockClear()
+    const sharedWrites = cacheService.setShared.mock.calls.length
+
+    rejectList?.(new Error('closed during invalidation'))
+    await expect(refresh).rejects.toThrow('closed during invalidation')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(cacheService.setShared).toHaveBeenCalledTimes(sharedWrites)
+    expect(cacheService.has('mcp:tools-failed-backoff:server-1')).toBe(false)
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalled()
+  })
+
+  it('keeps tools withdrawn when a stale refresh resolves and the reconnect refresh fails', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'old-tool' }])
+    getById.mockReturnValue(server())
+    let resolveList: ((tools: ReturnType<typeof sdkTool>[]) => void) | undefined
+    listTools
+      .mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof sdkTool>[]>((resolve) => {
+            resolveList = resolve
+          })
+      )
+      .mockRejectedValueOnce(new Error('restart failed'))
+    const service = new McpCatalogService()
+
+    const staleRefresh = service.refreshTools('server-1')
+    await vi.waitFor(() => expect(listTools).toHaveBeenCalledTimes(1))
+    service.invalidateTools('server-1', 'restart')
+    resolveList?.([sdkTool('stale')])
+    await staleRefresh
+    await expect(service.refreshTools('server-1')).rejects.toThrow('restart failed')
+
+    expect(service.listTools('server-1', { includeDisabled: true })).toEqual([])
+    expect(runtimeService.setServerStatus).not.toHaveBeenCalledWith('server-1', 'connected')
+    expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', expect.any(Error))
   })
 
   it('onToolsCacheUpdated does not fire when a refresh rewrites identical content', async () => {

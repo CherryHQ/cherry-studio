@@ -1146,15 +1146,18 @@ export class McpRuntimeService extends BaseService {
 
   public async stopServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
-    await this.closeConnectionsForServer(server.id)
-    application.get('McpCatalogService').clearSharedToolsCache(server.id)
-    this.setServerStatus(server.id, 'disabled')
+    application.get('McpCatalogService').invalidateTools(server.id, 'stop')
+    try {
+      await this.closeConnectionsForServer(server.id)
+    } finally {
+      this.setServerStatus(server.id, 'disabled')
+    }
   }
 
   public async restartServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
+    application.get('McpCatalogService').invalidateTools(server.id, 'restart')
     await this.closeConnectionsForServer(server.id)
-    application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
       await this.getOrCreateConnection(server)
       await application.get('McpCatalogService').refreshTools(server.id)
@@ -1189,6 +1192,11 @@ export class McpRuntimeService extends BaseService {
     this.removedServerIds.add(serverId)
     let rowDeleted = false
     try {
+      application.get('McpCatalogService').invalidateTools(server.id, 'removal')
+    } catch (error) {
+      getServerLogger(server).error('Pre-removal tools cache cleanup failed', error as Error)
+    }
+    try {
       await this.closeConnectionsForServer(server.id)
       mcpServerService.delete(serverId)
       rowDeleted = true
@@ -1196,11 +1204,6 @@ export class McpRuntimeService extends BaseService {
       if (this.serverRowMayExist(serverId)) this.removedServerIds.delete(serverId)
       throw error
     } finally {
-      try {
-        application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      } catch (error) {
-        getServerLogger(server).error('Post-removal tools cache cleanup failed', error as Error)
-      }
       try {
         if (rowDeleted) application.get('CacheService').deleteShared(mcpStatusCacheKey(server.id))
         else this.setServerStatus(server.id, 'disabled')

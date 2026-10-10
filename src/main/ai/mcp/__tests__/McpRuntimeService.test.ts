@@ -8,7 +8,7 @@ import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 const mcpCatalogMock = vi.hoisted(() => ({
-  clearSharedToolsCache: vi.fn(),
+  invalidateTools: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
 const interactionMocks = vi.hoisted(() => ({
@@ -261,6 +261,7 @@ describe('McpRuntimeService connection ownership', () => {
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReturnValue(server)
     deleteServerMock.mockReset()
+    mcpCatalogMock.invalidateTools.mockReset()
   })
 
   it('exposes instructions only while the current active configuration owns its connection', async () => {
@@ -357,7 +358,12 @@ describe('McpRuntimeService connection ownership', () => {
     await Promise.all([closing, cancelled])
     expect((service as any).pendingConnections.size).toBe(0)
     expect((service as any).connections.size).toBe(0)
-    if (operation === 'remove') expect(deleteServerMock).toHaveBeenCalledWith(server.id)
+    if (operation === 'stop') {
+      expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith(server.id, 'stop')
+    } else if (operation === 'remove') {
+      expect(deleteServerMock).toHaveBeenCalledWith(server.id)
+      expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith(server.id, 'removal')
+    }
   })
 
   it('removes a server without waiting for its pending health probe or reconnecting afterward', async () => {
@@ -692,7 +698,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
-    mcpCatalogMock.clearSharedToolsCache.mockReset()
+    mcpCatalogMock.invalidateTools.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
     getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
@@ -705,7 +711,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     await expect(service.restartServer('server-1')).rejects.toThrow('bad config')
 
-    expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith('server-1', 'restart')
     expect(mcpCatalogMock.refreshTools).not.toHaveBeenCalled()
   })
 
@@ -715,7 +721,17 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     await service.restartServer('server-1')
 
-    expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledWith('server-1', 'restart')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
+  })
+
+  it('invalidates before waiting for the old connection to close', async () => {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'closeConnectionsForServer').mockRejectedValue(new Error('close failed'))
+
+    await expect(service.restartServer('server-1')).rejects.toThrow('close failed')
+
+    expect(mcpCatalogMock.invalidateTools).toHaveBeenCalledExactlyOnceWith('server-1', 'restart')
+    expect(mcpCatalogMock.refreshTools).not.toHaveBeenCalled()
   })
 })
