@@ -14,7 +14,6 @@ import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
 import {
   type AssistantModelMessage,
   jsonSchema,
-  type ModelMessage,
   type ProviderMetadata,
   tool,
   type ToolModelMessage,
@@ -107,8 +106,8 @@ export function toModelMessage(message: Message): ConversationModelMessage | und
  * Pi's `transformMessages` first applies its replay rules: signatures and reasoning survive only for
  * the same provider/api/model, orphan tool calls get synthetic results, failed turns are skipped.
  */
-export function toModelMessages(context: TranscriptContext, model: Model<Api>): ModelMessage[] {
-  return transformMessages(context.messages, model).flatMap((piMessage) => {
+export function toModelMessages(messages: Message[], model: Model<Api>): ConversationModelMessage[] {
+  return transformMessages(messages, model).flatMap((piMessage) => {
     const message = toModelMessage(piMessage)
     if (!message || (message.role === 'assistant' && message.content.length === 0)) return []
     return [message]

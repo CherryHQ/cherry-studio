@@ -1,11 +1,14 @@
 import { convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
-import { type ConversationModelMessage, toModelMessage } from './modelMessages'
+import { type ConversationModelMessage, toModelMessages } from './modelMessages'
 import type { CompactionReason } from './transcriptTap'
 
 export interface CompactionSummaryRequest {
   reason: CompactionReason
-  /** The messages being folded, as the model saw them. */
+  /**
+   * The messages being folded, as the session model saw them: failed replies are left out and tool
+   * calls without a result get one, so they can go to the AI SDK as they are.
+   */
   messages: ConversationModelMessage[]
   /** Summary of the previous compaction, to carry forward. */
   previousSummary?: string
@@ -37,13 +40,14 @@ export function compactionSummaryExtension(
   onFailure: (message: string) => void
 ): ExtensionFactory {
   return (pi) => {
-    pi.on('session_before_compact', async (event) => {
+    pi.on('session_before_compact', async (event, ctx) => {
       const { preparation, signal } = event
       try {
         const summary = await summarize({
           reason: event.reason,
-          messages: convertToLlm([...preparation.messagesToSummarize, ...preparation.turnPrefixMessages]).flatMap(
-            (message) => toModelMessage(message) ?? []
+          messages: toModelMessages(
+            convertToLlm([...preparation.messagesToSummarize, ...preparation.turnPrefixMessages]),
+            ctx.model!
           ),
           ...(preparation.previousSummary === undefined ? {} : { previousSummary: preparation.previousSummary }),
           ...(event.customInstructions === undefined ? {} : { instructions: event.customInstructions }),

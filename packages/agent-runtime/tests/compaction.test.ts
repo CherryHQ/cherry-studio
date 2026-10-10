@@ -1,7 +1,7 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { simulateReadableStream } from 'ai'
+import { generateText, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
@@ -222,6 +222,54 @@ describe('host summarizer', () => {
     expect(lastPrompt).toContain('compacted into the following summary')
     expect(lastPrompt).toContain('HOST-SUMMARY-2')
     expect(lastPrompt).not.toContain('My name is Li')
+  })
+
+  it('hands the summarizer messages the AI SDK accepts, even after a reply that failed mid tool call', async () => {
+    const { model } = scriptedModel([
+      [
+        { type: 'tool-call', toolCallId: 'call_lost', toolName: 'fetch_page', input: '{"page":1}' },
+        { type: 'error', error: new Error('connection reset') }
+      ],
+      [...textParts('a', 'Noted.'), finish('stop')]
+    ])
+    const summaryModel = new MockLanguageModelV3({
+      doGenerate: async () => ({
+        content: [{ type: 'text', text: 'HOST-SUMMARY' }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: undefined }
+        },
+        warnings: []
+      })
+    })
+    // A host summarizer that sends the messages as they are, with its own instruction.
+    const summarize: CompactionSummarizer = async ({ messages, signal }) =>
+      (
+        await generateText({
+          model: summaryModel,
+          messages: [...messages, { role: 'user', content: 'Summarize the conversation.' }],
+          abortSignal: signal,
+          maxRetries: 0
+        })
+      ).text
+    const host = hostStore()
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [fetchPage],
+      compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize },
+      onEvent: host.onEvent
+    })
+    await session.prompt('Fetch page 1').catch(() => {})
+    await session.prompt('Never mind')
+    await session.compact().catch(() => {})
+
+    expect(host.events.filter((event) => event.type === 'compaction-end')).toEqual([
+      { type: 'compaction-end', reason: 'manual', entryId: expect.any(String) }
+    ])
+    expect(host.entries.flatMap((entry) => (entry.kind === 'compaction' ? [entry.summary] : []))).toEqual([
+      'HOST-SUMMARY'
+    ])
   })
 
   it('cancels a threshold compaction whose summarizer fails, without the session model, and finishes the turn', async () => {

@@ -101,7 +101,8 @@ mid-turn, before the next model request) and compacts and retries once when a re
 The host computes both numbers from its own settings. Without `summarize`, Pi's default summarizer
 runs on the session model through the port. With it, the host summarizes with its own prompt and
 model: `summarize({ reason, messages, previousSummary, instructions, signal })` receives the folded
-messages as AI SDK messages and returns the summary text, which is stored as is; Pi frames it when it
+messages as AI SDK messages, after the session model's replay rules (failed replies left out, tool
+calls without a result answered), so they can be sent as they are, and returns the summary text, which is stored as is; Pi frames it when it
 builds the context. A failing summarizer cancels that compaction (it never falls back to the session
 model) and `compaction-end` carries the error: a threshold compaction leaves the turn running, an
 overflow then ends the turn with the provider's error.
