@@ -20,10 +20,12 @@ const KnowledgePageNavigatorSection = () => {
     openCreateGroupDialog,
     openCreateBaseDialog,
     moveBase,
+    moveBases,
     openRenameBaseDialog,
     openRenameGroupDialog,
     deleteGroup,
-    deleteBase
+    deleteBase,
+    deleteBases
   } = useKnowledgePage()
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const contentLeftRef = useRef(0)
@@ -54,10 +56,12 @@ const KnowledgePageNavigatorSection = () => {
       onCreateGroup={openCreateGroupDialog}
       onCreateBase={openCreateBaseDialog}
       onMoveBase={moveBase}
+      onMoveBases={moveBases}
       onRenameBase={openRenameBaseDialog}
       onRenameGroup={openRenameGroupDialog}
       onDeleteGroup={deleteGroup}
       onDeleteBase={deleteBase}
+      onDeleteBases={deleteBases}
       onResizeStart={startNavigatorResize}
     />
   )
