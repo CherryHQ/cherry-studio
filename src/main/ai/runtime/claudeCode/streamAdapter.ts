@@ -146,6 +146,9 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** SDK `parent_tool_use_id` for the message currently being handled in this flow stream. */
+  messageParentToolUseId?: string
+  streamPartParentMetadata: Map<string, Record<string, JSONObject>>
 }
 
 /**
@@ -218,6 +221,26 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
 
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
+}
+
+function getParentToolCallIdFromChunkMetadata(metadata: unknown): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = (metadata as Record<string, unknown>)[namespace]
+    if (typeof entry !== 'object' || entry === null) continue
+    const parentId =
+      (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
+    if (typeof parentId === 'string' && parentId) return parentId
+  }
+  return undefined
+}
+
+function getFlowOwnerToolCallIdFromChunk(chunk: CherryUIMessageChunk, envelopeOwner: string): string {
+  if ('providerMetadata' in chunk) {
+    const fromMetadata = getParentToolCallIdFromChunkMetadata(chunk.providerMetadata)
+    if (fromMetadata) return fromMetadata
+  }
+  return envelopeOwner
 }
 
 function getToolParentId(
@@ -548,7 +571,9 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      messageParentToolUseId: undefined,
+      streamPartParentMetadata: new Map()
     }
   }
 
@@ -627,6 +652,7 @@ export class ClaudeCodeStreamAdapter {
       (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user')
     ) {
       const flow = this.getOrCreateFlowContext(parentToolUseId)
+      flow.stream.messageParentToolUseId = parentToolUseId
       this.handleContentMessage(message, flow.stream)
       return { type: 'continue' }
     }
@@ -740,23 +766,70 @@ export class ClaudeCodeStreamAdapter {
 
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext()
+    }
+    if (!this.turnActive) {
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow)))
     }
     this.flowContexts.push(flow)
     return flow
   }
 
-  private createFlowSink(rootToolCallId: string): StreamSink {
+  private createFlowSink(flow: FlowContext): StreamSink {
     return {
       enqueue: (chunk) => {
-        this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId, chunk })
+        const enriched = this.enrichFlowChunkWithPartParent(chunk, flow.stream)
+        const envelopeOwner = flow.stream.messageParentToolUseId ?? flow.rootToolCallId
+        const flowOwnerToolCallId = getFlowOwnerToolCallIdFromChunk(enriched, envelopeOwner)
+        this.statusSink.emit({
+          type: 'background-flow-chunk',
+          rootToolCallId: flow.rootToolCallId,
+          flowOwnerToolCallId,
+          chunk: enriched
+        })
       }
     }
   }
 
+  private rememberStreamPartParent(
+    ctx: StreamContext,
+    partId: string,
+    providerMetadata?: Record<string, JSONObject>
+  ): void {
+    const metadata =
+      providerMetadata ??
+      (ctx.messageParentToolUseId ? this.buildParentProviderMetadata(ctx.messageParentToolUseId) : undefined)
+    if (metadata) ctx.streamPartParentMetadata.set(partId, metadata)
+  }
+
+  private enrichFlowChunkWithPartParent(chunk: CherryUIMessageChunk, ctx: StreamContext): CherryUIMessageChunk {
+    const partId =
+      chunk.type === 'text-delta' || chunk.type === 'text-end' || chunk.type === 'text-start'
+        ? chunk.id
+        : chunk.type === 'reasoning-delta' || chunk.type === 'reasoning-end' || chunk.type === 'reasoning-start'
+          ? chunk.id
+          : undefined
+    if (!partId) return chunk
+    if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
+      this.rememberStreamPartParent(ctx, partId, chunk.providerMetadata)
+      return chunk
+    }
+    if (
+      chunk.type === 'text-delta' ||
+      chunk.type === 'text-end' ||
+      chunk.type === 'reasoning-delta' ||
+      chunk.type === 'reasoning-end'
+    ) {
+      if (chunk.providerMetadata) return chunk
+      const parentMetadata = ctx.streamPartParentMetadata.get(partId)
+      return parentMetadata ? { ...chunk, providerMetadata: parentMetadata } : chunk
+    }
+    return chunk
+  }
+
   private detachFlowContexts(): void {
     for (const flow of this.flowContexts) {
-      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId)))
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow)))
     }
   }
 
@@ -886,10 +959,12 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    this.rememberStreamPartParent(ctx, partId, providerMetadata)
     ctx.sink.enqueue({
       type: 'text-start',
       id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata
     })
     ctx.textStreamedViaContentBlock = true
   }
@@ -904,10 +979,12 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = generateId()
     ctx.reasoningBlocksByIndex.set(event.index, reasoningPartId)
     ctx.currentReasoningPartId = reasoningPartId
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    this.rememberStreamPartParent(ctx, reasoningPartId, providerMetadata)
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata
     })
   }
 
@@ -940,7 +1017,9 @@ export class ClaudeCodeStreamAdapter {
 
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      const providerMetadata = this.buildParentProviderMetadata(ctx.messageParentToolUseId ?? null)
+      this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
+      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.accumulatedText += text
@@ -953,7 +1032,9 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.options.responseFormat?.type === 'json') {
       if (!ctx.textPartId) {
         ctx.textPartId = generateId()
-        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        const providerMetadata = this.buildParentProviderMetadata(ctx.messageParentToolUseId ?? null)
+        this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
+        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
       }
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: partialJson })
       ctx.accumulatedText += partialJson
@@ -1138,6 +1219,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
+          this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
           ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
@@ -1148,6 +1230,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json') {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
+          this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
           ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })

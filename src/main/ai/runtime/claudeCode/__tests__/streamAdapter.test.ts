@@ -1523,6 +1523,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toContainEqual({
         type: 'background-flow-chunk',
         rootToolCallId: 'task-root',
+        flowOwnerToolCallId: 'task-root',
         chunk: expect.objectContaining({
           type: 'tool-output-available',
           toolCallId: 'read-1'
@@ -1546,14 +1547,191 @@ describe('ClaudeCodeStreamAdapter', () => {
         expect.objectContaining({
           type: 'background-flow-chunk',
           rootToolCallId: 'task-9',
+          flowOwnerToolCallId: 'task-9',
           chunk: expect.objectContaining({ type: 'text-start' })
         }),
         expect.objectContaining({
           type: 'background-flow-chunk',
           rootToolCallId: 'task-9',
-          chunk: expect.objectContaining({ type: 'text-delta', delta: 'background result' })
+          flowOwnerToolCallId: 'task-9',
+          chunk: expect.objectContaining({
+            type: 'text-delta',
+            delta: 'background result',
+            providerMetadata: expect.objectContaining({
+              'claude-code': expect.objectContaining({ parentToolCallId: 'task-9' })
+            })
+          })
         })
       ])
+    })
+
+    it('keeps the immediate nested owner on detached chunks routed via the root spawn id', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'task-nested', name: 'Agent', input: { prompt: 'nested' } }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { content: [{ type: 'text', text: 'nested suffix' }] }
+      } as any)
+
+      const delta = statusEvents.find(
+        (event) =>
+          event.type === 'background-flow-chunk' &&
+          event.chunk.type === 'text-delta' &&
+          event.chunk.delta === 'nested suffix'
+      )
+      expect(delta).toEqual(
+        expect.objectContaining({
+          rootToolCallId: 'task-root',
+          flowOwnerToolCallId: 'task-nested',
+          chunk: expect.objectContaining({
+            providerMetadata: expect.objectContaining({
+              'claude-code': expect.objectContaining({ parentToolCallId: 'task-nested' })
+            })
+          })
+        })
+      )
+    })
+
+    it('keeps the nested flow owner on text-end when the envelope parent advances to the root', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'task-nested', name: 'Agent', input: { prompt: 'nested' } }]
+        }
+      } as any)
+      adapter.handleMessage(successResult())
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' }
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'tail' }
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'task-nested', content: 'done' }]
+        }
+      } as any)
+
+      const textEnd = statusEvents.find(
+        (event) => event.type === 'background-flow-chunk' && event.chunk.type === 'text-end'
+      )
+      expect(textEnd).toEqual(
+        expect.objectContaining({
+          rootToolCallId: 'task-root',
+          flowOwnerToolCallId: 'task-nested',
+          chunk: expect.objectContaining({
+            providerMetadata: expect.objectContaining({
+              'claude-code': expect.objectContaining({ parentToolCallId: 'task-nested' })
+            })
+          })
+        })
+      )
+    })
+
+    it('reattaches nested owner metadata on detached deltas after foreground stream start', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'task-root',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'task-nested', name: 'Agent', input: { prompt: 'nested' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' }
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'prefix' }
+        }
+      } as any)
+      expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'prefix')).toBe(true)
+
+      adapter.handleMessage(successResult())
+
+      adapter.handleMessage({
+        type: 'stream_event',
+        parent_tool_use_id: 'task-nested',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'suffix' }
+        }
+      } as any)
+
+      const delta = statusEvents.find(
+        (event) =>
+          event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' && event.chunk.delta === 'suffix'
+      )
+      expect(delta).toEqual(
+        expect.objectContaining({
+          rootToolCallId: 'task-root',
+          flowOwnerToolCallId: 'task-nested',
+          chunk: expect.objectContaining({
+            providerMetadata: expect.objectContaining({
+              'claude-code': expect.objectContaining({ parentToolCallId: 'task-nested' })
+            })
+          })
+        })
+      )
     })
 
     it('advances the resume token but reports no turn to complete for a stray result', () => {

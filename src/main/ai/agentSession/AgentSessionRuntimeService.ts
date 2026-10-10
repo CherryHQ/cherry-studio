@@ -243,6 +243,16 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  /** Kind:id pairs already started in this stream, so orphan deltas can synthesize their start. */
+  openParts: Set<string>
+  /** Tool call ids already started in this stream (orphan input deltas are dropped until then). */
+  openToolCallIds: Set<string>
+  /** Seed indexes closed by orphan ends, reapplied after each snapshot so later chunks cannot reopen them. */
+  closedSeedIndexes?: Set<number>
+  /** Indexes of parts from the initial seed snapshot — orphan ends may only close these, not SDK continuations. */
+  seedPartIndexes?: Set<number>
+  /** Bounds poisoned-stream warnings to one per accumulator. */
+  errorLogged?: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
@@ -294,7 +304,10 @@ type AgentSessionRuntimeEntry = {
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
-  pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
+  pendingBackgroundFlowChunks?: Map<
+    string,
+    Array<{ chunk: UIMessageChunk; rootToolCallId: string; flowOwnerToolCallId: string }>
+  >
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
@@ -334,6 +347,43 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   isAlive(): boolean {
     return true
   }
+}
+
+function getParentToolCallIdFromMetadata(metadata: unknown): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = (metadata as Record<string, unknown>)[namespace]
+    if (typeof entry !== 'object' || entry === null) continue
+    const parentId =
+      (entry as Record<string, unknown>).parentToolCallId ?? (entry as Record<string, unknown>).parentToolUseId
+    if (typeof parentId === 'string' && parentId) return parentId
+  }
+  return undefined
+}
+
+function getPartParentToolCallId(part: CherryMessagePart): string | undefined {
+  const direct = (part as { parentToolUseId?: unknown }).parentToolUseId
+  if (typeof direct === 'string' && direct) return direct
+  for (const field of ['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'] as const) {
+    const parentId = getParentToolCallIdFromMetadata((part as Record<string, unknown>)[field])
+    if (parentId) return parentId
+  }
+  return undefined
+}
+
+function getChunkParentToolCallId(chunk: UIMessageChunk): string | undefined {
+  if (!('providerMetadata' in chunk)) return undefined
+  return getParentToolCallIdFromMetadata(chunk.providerMetadata)
+}
+
+function getBackgroundFlowAnchorToolCallId(parts: CherryMessagePart[]): string | undefined {
+  for (const part of parts) {
+    if ((part.type.startsWith('tool-') || part.type === 'dynamic-tool') && 'toolCallId' in part) {
+      const toolCallId = part.toolCallId
+      if (typeof toolCallId === 'string' && toolCallId) return toolCallId
+    }
+  }
+  return undefined
 }
 
 @Injectable('AgentSessionRuntimeService')
@@ -1912,7 +1962,13 @@ export class AgentSessionRuntimeService extends BaseService {
         this.publishBackgroundTaskEvent(entry, event.data, connection)
         break
       case 'background-flow-chunk':
-        this.handleBackgroundFlowChunk(entry, event.rootToolCallId, event.chunk, connection)
+        this.handleBackgroundFlowChunk(
+          entry,
+          event.rootToolCallId,
+          event.chunk,
+          event.flowOwnerToolCallId ?? event.rootToolCallId,
+          connection
+        )
         break
       case 'autonomous-turn-state': {
         if (event.state === 'finished') {
@@ -2206,6 +2262,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     rootToolCallId: string,
     chunk: UIMessageChunk,
+    flowOwnerToolCallId: string,
     connection = this.currentConnection(entry)
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
@@ -2231,15 +2288,17 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
-      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
+      const pending =
+        entry.pendingBackgroundFlowChunks ??
+        new Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string; flowOwnerToolCallId: string }>>()
       entry.pendingBackgroundFlowChunks = pending
       const chunks = pending.get(messageId) ?? []
-      chunks.push(chunk)
+      chunks.push({ chunk, rootToolCallId, flowOwnerToolCallId })
       pending.set(messageId, chunks)
       return
     }
 
-    this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2248,27 +2307,215 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending?.length) return
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    for (const { chunk, rootToolCallId, flowOwnerToolCallId } of pending)
+      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId, flowOwnerToolCallId)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
-  private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
-    const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
-    try {
-      accumulator.controller.enqueue(chunk)
-    } catch (error) {
-      logger.warn('Failed to enqueue detached subagent flow chunk', {
-        sessionId: entry.sessionId,
-        messageId,
-        chunkType: chunk.type,
-        error
-      })
+  private enqueueBackgroundFlowChunk(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk,
+    routedRootToolCallId: string,
+    flowOwnerToolCallId: string
+  ): void {
+    let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    accumulator.openParts ??= new Set()
+    accumulator.openToolCallIds ??= new Set()
+    if (accumulator.closed) {
+      if (entry.backgroundFlowFlush) {
+        if (!accumulator.errorLogged) {
+          accumulator.errorLogged = true
+          logger.warn('Dropping detached subagent flow chunk during finalization', {
+            sessionId: entry.sessionId,
+            messageId,
+            chunkType: chunk.type
+          })
+        }
+        return
+      }
+      // Reuse flush finalization so the complete parent anchor (`input-available`) survives the rebuild.
+      const seedParts = accumulator.latest?.parts
+        ? this.closeStreamingFlowParts(structuredClone(accumulator.latest.parts))
+        : undefined
+      this.evictBackgroundFlowAccumulator(entry, messageId)
+      accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId, seedParts)
     }
+    // The seed carries id-less persisted parts, so a delta whose start raced
+    // persistence would poison the stream. Synthesize the start instead.
+    const queue: UIMessageChunk[] = []
+    switch (chunk.type) {
+      case 'text-start':
+      case 'reasoning-start':
+        accumulator.openParts.add(`${chunk.type === 'text-start' ? 'text' : 'reasoning'}:${chunk.id}`)
+        queue.push(chunk)
+        break
+      case 'text-delta':
+      case 'reasoning-delta': {
+        const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
+        const key = `${kind}:${chunk.id}`
+        if (!accumulator.openParts.has(key)) {
+          // Like `buildCompactReplay`: synthesize the start and reattach parentToolCallId.
+          accumulator.openParts.add(key)
+          const startType = kind === 'text' ? 'text-start' : 'reasoning-start'
+          const parentToolCallId = getChunkParentToolCallId(chunk) ?? flowOwnerToolCallId
+          queue.push({
+            type: startType,
+            id: chunk.id,
+            providerMetadata: chunk.providerMetadata ?? { cherry: { parentToolCallId } }
+          })
+        }
+        queue.push(chunk)
+        break
+      }
+      case 'text-end':
+      case 'reasoning-end': {
+        const kind = chunk.type === 'text-end' ? 'text' : 'reasoning'
+        const key = `${kind}:${chunk.id}`
+        if (!accumulator.openParts.has(key)) {
+          // The start raced persistence: the seed still holds this part as streaming.
+          // Close it in place (the orphan end itself is spent) and converge the overlay.
+          if (this.completeSeedStreamingPart(accumulator, kind, flowOwnerToolCallId, routedRootToolCallId))
+            this.publishBackgroundFlowSnapshot(entry, accumulator)
+          break
+        }
+        accumulator.openParts.delete(key)
+        queue.push(chunk)
+        break
+      }
+      case 'tool-input-start':
+        accumulator.openToolCallIds.add(chunk.toolCallId)
+        queue.push(chunk)
+        break
+      case 'tool-input-delta': {
+        if (!accumulator.openToolCallIds.has(chunk.toolCallId)) {
+          // Start raced persistence: drop suffix deltas until `tool-input-available`.
+          break
+        }
+        queue.push(chunk)
+        break
+      }
+      default:
+        queue.push(chunk)
+        break
+    }
+    if (queue.length === 0) return
+    try {
+      for (const item of queue) accumulator.controller.enqueue(item)
+    } catch (error) {
+      // Retire instead of evicting so `finishBackgroundFlows` can still persist
+      // the last-good snapshot when no later chunk rebuilds the stream.
+      this.retireBackgroundFlowAccumulator(entry, accumulator)
+      if (!accumulator.errorLogged) {
+        accumulator.errorLogged = true
+        logger.warn('Failed to enqueue detached subagent flow chunk', {
+          sessionId: entry.sessionId,
+          messageId,
+          chunkType: chunk.type,
+          error
+        })
+      }
+    }
+  }
+
+  private retireBackgroundFlowAccumulator(
+    entry: AgentSessionRuntimeEntry,
+    accumulator: BackgroundFlowAccumulator
+  ): void {
+    if (accumulator.closed) return
+    if (accumulator.publishTimer) {
+      clearTimeout(accumulator.publishTimer)
+      accumulator.publishTimer = undefined
+    }
+    this.publishBackgroundFlowParts(entry, accumulator)
+    accumulator.closed = true
+    try {
+      accumulator.controller.close()
+    } catch {
+      // Already closed by the accumulator reader.
+    }
+  }
+
+  private evictBackgroundFlowAccumulator(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
+    if (!accumulator) return
+    entry.backgroundFlowAccumulators?.delete(messageId)
+    this.retireBackgroundFlowAccumulator(entry, accumulator)
+  }
+
+  private completeSeedStreamingPart(
+    accumulator: BackgroundFlowAccumulator,
+    kind: 'text' | 'reasoning',
+    flowOwnerToolCallId: string,
+    routedRootToolCallId: string
+  ): boolean {
+    const parts = accumulator.latest?.parts
+    const seedIndexes = accumulator.seedPartIndexes
+    if (!parts || !seedIndexes?.size) return false
+    const hasLiveContinuation = [...accumulator.openParts].some((key) => key.startsWith(`${kind}:`))
+    if (hasLiveContinuation) return false
+
+    const seedStreaming = parts
+      .map((part, index) => ({ part, index }))
+      .filter(({ part, index }) => seedIndexes.has(index) && part.type === kind && part.state === 'streaming')
+    if (seedStreaming.length !== 1) return false
+
+    const { part: match, index } = seedStreaming[0]
+    const parent = getPartParentToolCallId(match)
+    if (parent && parent !== flowOwnerToolCallId) return false
+    const anchorToolCallId = getBackgroundFlowAnchorToolCallId(parts)
+    if (
+      routedRootToolCallId !== flowOwnerToolCallId &&
+      parent === flowOwnerToolCallId &&
+      anchorToolCallId &&
+      flowOwnerToolCallId === anchorToolCallId
+    ) {
+      return false
+    }
+    if (match.type !== 'text' && match.type !== 'reasoning') return false
+    parts[index] = { ...match, state: 'done' }
+    accumulator.closedSeedIndexes ??= new Set()
+    accumulator.closedSeedIndexes.add(index)
+    return true
+  }
+
+  private reapplyClosedSeedParts(accumulator: BackgroundFlowAccumulator): void {
+    const indexes = accumulator.closedSeedIndexes
+    const parts = accumulator.latest?.parts
+    if (!indexes?.size || !parts) return
+    for (const index of indexes) {
+      const part = parts[index]
+      if (part && (part.type === 'text' || part.type === 'reasoning') && part.state === 'streaming')
+        parts[index] = { ...part, state: 'done' as const }
+    }
+  }
+
+  private closeStreamingFlowParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+    let changed = false
+    const next = parts.map((part) => {
+      if ((part.type === 'text' || part.type === 'reasoning') && part.state === 'streaming') {
+        changed = true
+        return { ...part, state: 'done' as const }
+      }
+      // Only `input-streaming` tools are stuck: `input-available` is complete
+      // input awaiting execution, so the flush must leave it alone.
+      if (
+        (part.type.startsWith('tool-') || part.type === 'dynamic-tool') &&
+        'state' in part &&
+        part.state === 'input-streaming'
+      ) {
+        changed = true
+        return { ...part, state: 'output-error' as const, errorText: 'Stream errored before tool completed' }
+      }
+      return part
+    })
+    return changed ? next : parts
   }
 
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
-    messageId: string
+    messageId: string,
+    seedParts?: CherryMessagePart[]
   ): BackgroundFlowAccumulator {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
@@ -2276,10 +2523,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (existing) return existing
 
     const persisted = agentSessionMessageService.getSessionMessage(entry.sessionId, messageId)
+    const initialParts = seedParts ? structuredClone(seedParts) : structuredClone(persisted.data.parts ?? [])
     const seed: CherryUIMessage = {
       id: persisted.id,
       role: 'assistant',
-      parts: structuredClone(persisted.data.parts ?? [])
+      parts: initialParts
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2291,7 +2539,13 @@ export class AgentSessionRuntimeService extends BaseService {
       messageId,
       controller,
       done: Promise.resolve(),
-      closed: false
+      closed: false,
+      // The seed is the current view until the first snapshot arrives, so orphan chunks
+      // can recover from it and the flush still persists it when every chunk was dropped.
+      latest: structuredClone(seed),
+      openParts: new Set(),
+      openToolCallIds: new Set(),
+      seedPartIndexes: new Set(initialParts.map((_, index) => index))
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
@@ -2305,26 +2559,26 @@ export class AgentSessionRuntimeService extends BaseService {
     seed: CherryUIMessage
   ): Promise<void> {
     try {
+      // terminateOnError resolves the reader instead of wedging it, so finishBackgroundFlows unblocks.
       for await (const snapshot of readUIMessageStream<CherryUIMessage>({
         stream,
         message: seed,
-        terminateOnError: false,
-        onError: (error) =>
-          logger.warn('Detached subagent flow accumulator reported an error', {
-            sessionId: entry.sessionId,
-            messageId: accumulator.messageId,
-            error
-          })
+        terminateOnError: true
       })) {
         accumulator.latest = snapshot
+        this.reapplyClosedSeedParts(accumulator)
         this.publishBackgroundFlowSnapshot(entry, accumulator)
       }
     } catch (error) {
-      logger.warn('Detached subagent flow accumulator failed', {
-        sessionId: entry.sessionId,
-        messageId: accumulator.messageId,
-        error
-      })
+      accumulator.closed = true
+      if (!accumulator.errorLogged) {
+        accumulator.errorLogged = true
+        logger.warn('Detached subagent flow accumulator failed', {
+          sessionId: entry.sessionId,
+          messageId: accumulator.messageId,
+          error
+        })
+      }
     } finally {
       // The reader is done — flush the trailing snapshot now so `finishBackgroundFlows` (which
       // awaits `accumulator.done`) always sees the final overlay in the cache before its TTL write.
@@ -2357,6 +2611,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishBackgroundFlowParts(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
     const parts = accumulator.latest?.parts
     if (!parts || !this.isCurrentEntry(entry)) return
+    const current = entry.backgroundFlowAccumulators?.get(accumulator.messageId)
+    if (current && current !== accumulator) return
     accumulator.lastPublishedAt = Date.now()
     application
       .get('CacheService')
@@ -2386,8 +2642,10 @@ export class AgentSessionRuntimeService extends BaseService {
           const parts = accumulator.latest?.parts
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
-          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          completedFlows.push({ messageId: accumulator.messageId, parts })
+          // Terminal flush converges streaming parts via `closeStreamingFlowParts`.
+          const finalized = this.closeStreamingFlowParts(parts)
+          agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, finalized)
+          completedFlows.push({ messageId: accumulator.messageId, parts: finalized })
         }
 
         entry.backgroundFlowAccumulators?.clear()
