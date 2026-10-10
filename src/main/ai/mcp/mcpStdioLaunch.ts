@@ -1,6 +1,7 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getRawShellEnv, hasUserMiseEnv, resolveCherryPathTailDirs } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import {
@@ -49,7 +50,15 @@ export async function resolveStdioLaunch({
     }
   }
 
-  const loginShellEnv = await getShellEnv(signal)
+  // Preserve the user's MISE contract when they have one so system mise shims
+  // (e.g. pnpx) aren't redirected to Cherry's isolated data dir (#19738).
+  // When no MISE_* is present, inject Cherry's execution env so shims from
+  // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
+  // instead of the default user location, matching DSH/Pi branching.
+  const rawShellEnv = await getRawShellEnv(signal)
+  const hasUserMise = hasUserMiseEnv(rawShellEnv)
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, resolveCherryPathTailDirs(hasUserMise))
+  const loginShellEnv = hasUserMise ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
   const launch = await resolveLaunchCommand({
     command,
     args: launchArgs,
