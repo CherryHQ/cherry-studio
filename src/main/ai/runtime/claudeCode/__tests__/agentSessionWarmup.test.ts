@@ -247,6 +247,41 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
+  it('builds the request from the frozen agent when the session row was re-pointed', async () => {
+    // A top-bar switch re-pointed the session to agent-2 while the connection (and the turn it
+    // already accepted) stays frozen to agent-1 — the spawned request must keep agent-1's
+    // instructions/tools instead of mixing them with the session row's current agent.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1'
+        ? { id: 'agent-1', model: 'provider-1::model-1', instructions: 'Agent one instructions' }
+        : { id: 'agent-2', model: 'provider-1::model-1', instructions: 'Agent two instructions' }
+    )
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      'agent-1'
+    )
+
+    expect(request).toBeDefined()
+    expect(mocks.getAgent).toHaveBeenCalledWith('agent-1')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ id: 'agent-1', instructions: 'Agent one instructions' })
+    )
+  })
+
   it('passes the connection rebuild signature into the warm query request', async () => {
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -1866,5 +1901,24 @@ describe('deriveConnectionConfig', () => {
       throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+
+  it('derives the desired config from the connection-scoped agent, not the session row', async () => {
+    // The session was re-pointed to agent-2 mid-turn, so a reconcile on the connection frozen to
+    // agent-1 must derive agent-1's facts (policy tightening, rebuild checks); without the
+    // override the session row's agent would leak into the running turn's policy.
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, agentId: 'agent-2' })
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1'
+        ? { id: 'agent-1', model: 'provider-1::model-1', disabledTools: ['Bash'], mcps: [], configuration: {} }
+        : { id: 'agent-2', model: 'provider-1::model-1', disabledTools: [], mcps: [], configuration: {} }
+    )
+
+    const frozen = await deriveConnectionConfig('session-1', undefined, 'default', false, [], 'agent-1')
+    expect(frozen).toMatchObject({ ok: true, config: { live: { toolPolicy: { disabledTools: ['Bash'] } } } })
+
+    // Without the override the session row's agent is still the default target.
+    const fromSessionRow = await deriveConnectionConfig('session-1')
+    expect(fromSessionRow).toMatchObject({ ok: true, config: { live: { toolPolicy: { disabledTools: [] } } } })
   })
 })

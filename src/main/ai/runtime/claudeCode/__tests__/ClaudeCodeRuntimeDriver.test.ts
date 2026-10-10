@@ -689,14 +689,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
-    // the model captured at its creation even if the agent was edited since.
+    // the model captured at its creation even if the agent was edited since; the same pinning
+    // applies to the agent identity the request is built from.
     expect(mocks.buildRequest).toHaveBeenCalledWith(
       'session-1',
       'resume-1',
       'claude-code::sonnet',
       'default',
       false,
-      undefined
+      undefined,
+      'agent-1'
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -4007,7 +4009,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith(
+        'session-1',
+        'claude-code::sonnet',
+        'default',
+        false,
+        ['kb-1'],
+        'agent-1'
+      )
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
