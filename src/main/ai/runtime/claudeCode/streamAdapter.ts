@@ -758,6 +758,17 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  private rememberStreamPartParent(
+    ctx: StreamContext,
+    partId: string,
+    providerMetadata?: Record<string, JSONObject>
+  ): void {
+    const metadata =
+      providerMetadata ??
+      (ctx.messageParentToolUseId ? this.buildParentProviderMetadata(ctx.messageParentToolUseId) : undefined)
+    if (metadata) ctx.streamPartParentMetadata.set(partId, metadata)
+  }
+
   private enrichFlowChunkWithPartParent(chunk: CherryUIMessageChunk, ctx: StreamContext): CherryUIMessageChunk {
     const partId =
       chunk.type === 'text-delta' || chunk.type === 'text-end' || chunk.type === 'text-start'
@@ -767,7 +778,7 @@ export class ClaudeCodeStreamAdapter {
           : undefined
     if (!partId) return chunk
     if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
-      if (chunk.providerMetadata) ctx.streamPartParentMetadata.set(partId, chunk.providerMetadata)
+      this.rememberStreamPartParent(ctx, partId, chunk.providerMetadata)
       return chunk
     }
     if (
@@ -915,10 +926,12 @@ export class ClaudeCodeStreamAdapter {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    this.rememberStreamPartParent(ctx, partId, providerMetadata)
     ctx.sink.enqueue({
       type: 'text-start',
       id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata
     })
     ctx.textStreamedViaContentBlock = true
   }
@@ -933,10 +946,12 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = generateId()
     ctx.reasoningBlocksByIndex.set(event.index, reasoningPartId)
     ctx.currentReasoningPartId = reasoningPartId
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+    this.rememberStreamPartParent(ctx, reasoningPartId, providerMetadata)
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata
     })
   }
 
@@ -969,7 +984,9 @@ export class ClaudeCodeStreamAdapter {
 
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+      const providerMetadata = this.buildParentProviderMetadata(ctx.messageParentToolUseId ?? null)
+      this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
+      ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
     }
     ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
     ctx.accumulatedText += text
@@ -982,7 +999,9 @@ export class ClaudeCodeStreamAdapter {
     if (ctx.options.responseFormat?.type === 'json') {
       if (!ctx.textPartId) {
         ctx.textPartId = generateId()
-        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        const providerMetadata = this.buildParentProviderMetadata(ctx.messageParentToolUseId ?? null)
+        this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
+        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
       }
       ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: partialJson })
       ctx.accumulatedText += partialJson
@@ -1167,6 +1186,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
+          this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
           ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
@@ -1177,6 +1197,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json') {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
+          this.rememberStreamPartParent(ctx, ctx.textPartId, providerMetadata)
           ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
