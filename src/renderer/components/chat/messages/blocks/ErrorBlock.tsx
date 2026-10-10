@@ -117,7 +117,8 @@ const MessageErrorInfo: React.FC<{
     navigateErrorTarget,
     notifyError,
     notifyInfo,
-    regenerateMessage
+    regenerateMessage,
+    regenerateMessageUsingModel
   } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
@@ -243,12 +244,14 @@ const MessageErrorInfo: React.FC<{
         async () => {
           try {
             await ipcApi.request('ai.ollama.set_num_ctx_cap', { uniqueModelId, numCtxCap: cap })
-            if (regenerateMessage) {
+            if (regenerateMessageUsingModel) {
+              await regenerateMessageUsingModel(message.id, uniqueModelId)
+            } else if (regenerateMessage) {
               await regenerateMessage(message.id)
             } else {
               notifyInfo?.(t('error.ollama_context_retry_toast'))
+              await removeMessageErrorPart?.({ messageId: message.id, partId })
             }
-            await removeMessageErrorPart?.({ messageId: message.id, partId })
           } catch (retryError) {
             logger.error('Failed to retry with reduced Ollama context', retryError as Error, {
               messageId: message.id,
@@ -269,6 +272,7 @@ const MessageErrorInfo: React.FC<{
       notifyInfo,
       partId,
       regenerateMessage,
+      regenerateMessageUsingModel,
       removeMessageErrorPart,
       setTimeoutTimer,
       t

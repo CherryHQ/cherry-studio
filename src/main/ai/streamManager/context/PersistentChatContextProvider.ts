@@ -48,6 +48,7 @@ import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observabil
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import type { AiStreamRequest } from '../../types'
+import { resolveModelRequestContextWindow } from '../../utils/ollamaRequestNumCtx'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
@@ -968,7 +969,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // and an `as number` cast here made every derived budget `NaN`, which
     // silently disabled compaction instead of triggering it. Serve as-is; the
     // persist lane still bounds tool outputs by the character setting.
-    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    const minContextWindow = resolveMinContextWindow(
+      models.map((m) => resolveModelRequestContextWindow(m, providerService.getByProviderId(m.providerId)))
+    )
     if (minContextWindow === null) {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)

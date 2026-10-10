@@ -59,7 +59,12 @@ import {
   getTopP,
   stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
-import { resolveOllamaRequestNumCtx } from '../../../utils/ollamaRequestNumCtx'
+import {
+  readOllamaWireNumCtx,
+  resolveModelRequestContextWindow,
+  resolveOllamaRequestNumCtx,
+  writeOllamaWireNumCtx
+} from '../../../utils/ollamaRequestNumCtx'
 import {
   applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
@@ -492,7 +497,7 @@ export async function resolveTools(
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
-  const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
+  const exposed = await applyDeferExposition(tools, requestRegistry, resolveModelRequestContextWindow(model))
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
@@ -691,10 +696,29 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
+  let ollamaNumCtxSnapshot = requestContext.ollamaNumCtx
+  let sanitizedProviderOptions = effectiveProviderOptions
+  if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
+    const resolution = resolveOllamaRequestNumCtx(model, provider, endpointType)
+    if (resolution) {
+      sanitizedProviderOptions = writeOllamaWireNumCtx(
+        effectiveProviderOptions as Record<string, Record<string, unknown>>,
+        resolution.numCtx
+      ) as ProviderOptions
+      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: resolution.numCtx }
+    }
+  }
+
   const sanitized = stripRejectedSamplingParams(
-    { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
+    { standardParams, providerOptions: sanitizedProviderOptions, bodyParams },
     model
   )
+  if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
+    const wireNumCtx = readOllamaWireNumCtx(sanitized.providerOptions as Record<string, unknown>)
+    if (wireNumCtx != null) {
+      ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }
+    }
+  }
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
@@ -722,7 +746,7 @@ function buildAgentOptions(
     ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
     ...sanitized.standardParams,
-    context: requestContext,
+    context: ollamaNumCtxSnapshot ? { ...requestContext, ollamaNumCtx: ollamaNumCtxSnapshot } : requestContext,
     repairToolCall: createAiRepair({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
