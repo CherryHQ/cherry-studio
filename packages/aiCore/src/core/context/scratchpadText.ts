@@ -25,6 +25,15 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
   return /^(?:> ?)+$/.test(prefix) ? lineStart : fenceMarkerIndex
 }
 
+function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
+  const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
+  const prefix = text.slice(lineStart, markerStart)
+  if (/^(?:> ?)*$/.test(prefix)) {
+    return true
+  }
+  return /<\/[a-z][a-z0-9-]*\s*>$/i.test(prefix)
+}
+
 function maskCodeFences(text: string): { text: string; fences: string[] } {
   const fences: string[] = []
   let out = ''
@@ -37,6 +46,11 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
       break
     }
     const markerStart = pos + rel
+    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+      out += text.slice(pos, markerStart + 1)
+      pos = markerStart + 1
+      continue
+    }
     const fenceStart = fenceLinePrefixStart(text, markerStart)
     out += text.slice(pos, fenceStart)
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
@@ -81,6 +95,10 @@ export function textHasUnclosedCodeFence(text: string): boolean {
     const rel = text.slice(pos).search(/[`~]{3,}/)
     if (rel === -1) return false
     const markerStart = pos + rel
+    if (!isCodeFenceMarkerAtLineStart(text, markerStart)) {
+      pos = markerStart + 1
+      continue
+    }
     const openMatch = text.slice(markerStart).match(/^([`~])\1{2,}/)
     if (!openMatch) {
       pos = markerStart + 1

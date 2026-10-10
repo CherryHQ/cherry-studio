@@ -2597,6 +2597,83 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('internal')
     })
 
+    it('suppresses consecutive scratchpad wrappers split across stream deltas in one block', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>one</thinking>' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<analysis>two</analysis>Visible' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Visible')
+      expect(text).not.toContain('two')
+    })
+
+    it('resumes assistant snapshots after terminal compaction success without a boundary', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before' } })
+      )
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        isSynthetic: true,
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'user', content: [{ type: 'text', text: 'context reset' }] }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('before')
+      expect(text).toContain('after')
+    })
+
     it('keeps visible reply text after a scratchpad wrapper in a later stream delta', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'
