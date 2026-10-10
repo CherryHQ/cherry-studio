@@ -11,6 +11,7 @@ interface ImagePreviewLayoutProps {
   children: React.ReactNode
   ref?: React.RefObject<BasicPreviewHandles | null>
   imageRef: React.RefObject<HTMLDivElement | null>
+  previewBackgroundColor?: string
   source: string
   loading?: boolean
   error?: string | null
@@ -26,6 +27,7 @@ const ImagePreviewLayout = ({
   children,
   ref,
   imageRef,
+  previewBackgroundColor,
   source,
   loading,
   error,
@@ -38,6 +40,7 @@ const ImagePreviewLayout = ({
   const { pan, zoom, copy, download, dialog } = useImageTools(imageRef, {
     imgSelector: 'svg',
     prefix: source ?? 'svg',
+    previewBackgroundColor,
     enableDrag,
     enableWheelZoom
   })
