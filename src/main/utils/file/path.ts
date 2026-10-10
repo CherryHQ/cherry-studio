@@ -115,13 +115,12 @@ export async function canonicalizePathForContainment(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (!allowMissing) return undefined
-    if (code === 'ENOENT') {
-      try {
-        await lstat(target)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
+    if (code !== 'ENOENT') return undefined
+    try {
+      await lstat(target)
+      return undefined
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
     }
   }
 

@@ -1,4 +1,6 @@
+import { execFile } from 'node:child_process'
 import * as fs from 'node:fs/promises'
+import { promisify } from 'node:util'
 import path from 'path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -397,6 +399,16 @@ describe('filesystem MCP security', () => {
       await handleEditTool({ file_path: 'link.txt', old_string: 'before', new_string: 'after' }, workspaceRoot)
 
       await expect(fs.readFile(targetPath, 'utf-8')).resolves.toBe('after')
+    })
+
+    it.skipIf(process.platform === 'win32')('rejects editing a FIFO before reading', async () => {
+      const workspaceRoot = await createTempDir('edit-fifo-root-')
+      const fifoPath = path.join(workspaceRoot, 'pipe.fifo')
+      await promisify(execFile)('mkfifo', [fifoPath])
+
+      await expect(
+        handleEditTool({ file_path: 'pipe.fifo', old_string: 'x', new_string: 'y' }, workspaceRoot)
+      ).rejects.toThrow('Path is not a file')
     })
 
     it('serializes concurrent edits for the same file so both changes land', async () => {
