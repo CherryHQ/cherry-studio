@@ -17,28 +17,16 @@ dependency and imports no Cherry application code.
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
-The owner of a model runtime can require things of every session built on it with
-`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
-extension factories ahead of the session's own and applies those settings over the session's,
-whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
-keep Pi's retry off.
-
 The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
-Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
-built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
-load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
 `dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
 Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
-
-Known gap: Pi's resource loader still resolves its discovery directories while it loads; the
-`no*` flags and prompt overrides discard everything it finds there.
 
 ## Cherry integration
 
 Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
-native model configuration and, through session requirements, its tool-call guard ahead of approval
-handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
+native model configuration and installs its tool-call guard before approval handlers. AI SDK
+conversion, retries, provider metadata and request side channels stay in Cherry.
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
 bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
@@ -68,58 +56,27 @@ existence and verify the native session ID instead of silently replacing it.
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
 
-## Compaction
+## Context features
 
-Pi's native compaction runs, configured by `compaction: { reserveTokens, keepRecentTokens,
-enabled?, summarize? }`: it compacts once the context passes `contextWindow - reserveTokens`, and
-compacts and retries once when a request overflows; `enabled: false` turns both off and leaves
-`session.compact()` working. The host computes both numbers from its own settings. Without
-`summarize`, Pi's default summarizer runs on the session model through its native model runtime.
+- `compaction` sets Pi's reserve/recent token budgets. Its optional summarizer receives native Pi
+  messages after replay rules, the session/model identity, previous summary, instructions and an
+  abort signal. Cherry converts those messages only when calling its summarization model. A failed
+  custom summarizer cancels compaction instead of falling back to an unintended model.
+- `offload` saves oversized tool output through a host-supplied store and replaces it with a marker.
+  Pi persists that marker because it is what the model saw. Errors and `read` results stay whole;
+  several individually small results can still exceed the total context window.
+- `recall` exposes `vcc_recall` over the native active branch, including messages folded into a
+  compaction summary. Message positions remain stable after reopen. Regex, touched-file and lineage
+  search beyond that branch are not implemented.
 
-With `summarize`, the host summarizes with its own prompt and model:
-`summarize({ reason, sessionId, model, messages, previousSummary?, instructions?, signal })` gets
-the compacting session's id and model and the folded native messages after the session model's
-replay rules (failed replies left out, tool calls without a result answered); Cherry converts them
-only when it calls its summarization model. The text it returns is stored as the summary as is; Pi
-frames it when it builds the next context. A summarizer that fails, or returns an empty summary,
-cancels that compaction (it never falls back to the session model), and `compaction-end` carries
-the error.
+## Interaction extensions
 
-## Tool output offload
+`createTodoExtension()` registers `todo_write`. Each call replaces the full list; content must be
+non-empty and unique, with at most one item in progress. Read the latest list from the last
+successful native tool result. Compaction can fold that result into the summary.
 
-`offload: { store, thresholdChars }` keeps one oversized tool result from overflowing the context.
-A `tool_result` hook, after every other extension's, saves text output longer than
-`thresholdChars` (and than 3,000 characters, so the marker is always shorter than the output)
-through the host's `ToolOutputStore` and gives the model its head and tail around a
-`<persisted-output>` note with the saved path, to read back with Pi's `read` tool. If the store
-throws, the note gives its error instead and the model keeps only the head and tail. Names are
-content addressed (`tool-output-<first 16 hex digits of its sha256>.txt`), so the same output gives
-the same marker and prompt caches hold. Images and `structuredContent` are kept. Not offloaded:
-errors, `read` results (reading an offloaded file back must not offload it again) and nested tool
-calls, which reach the model only through their caller. Pi persists the marker, which is what the
-model saw.
-
-Host obligation: let `read` open the store's paths without an approval prompt.
-
-## Recall
-
-`recall: true` registers `vcc_recall`, with pi-vcc's tool name and parameters (`query`, `range`,
-`expand`, `page`, `scope`, `mode`), so existing tool settings and approvals apply; the host
-disables it by name like any tool. It reads the native active branch, including messages a
-compaction folded into its summary and the running turn. `#N` is an entry's position among the
-branch's user, assistant, tool-result and custom messages, so it stays the same once the session
-is reopened.
-`query` is a keyword search (entries matching more of the words first, 5 per page), `range:
-[from, to]` lists entries in order (20 per page), `expand: [N]` returns full text, and no argument
-lists the latest entries. `scope: 'all'` is the same as `'lineage'`.
-
-## Known gaps
-
-- `vcc_recall` has no regex search, `mode: 'touched'` (files worked on) or `#N:path` file
-  drill-down; compaction summaries do not cite `#N` entries.
-- `read` results are never offloaded, and Pi caps them at 2,000 lines or 50 KB, which can still
-  overflow a small context window.
-- A parallel tool batch whose results together exceed the context window, each below the
-  threshold, still overflows; offloading at `turn_end` is deferred.
-- Pi's `bash` tool saves the full output of a truncated command to a temp file and names it in the
-  result; that file is not moved into the offload store and may be gone when read later.
+`createAskUserExtension(port)` registers `AskUserQuestion`. The host answers, declines, or reports
+that no one is available. Questions and option labels must be distinct. Aborting the turn aborts
+the host request and ignores a late answer. Every completed result includes the questions,
+answers and outcome in native tool-result details. A pending question is not resumed after a
+restart. The question itself is the interaction, so the host should not add a second approval.
