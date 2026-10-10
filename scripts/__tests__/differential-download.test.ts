@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { CancellationToken } from 'builder-util-runtime'
+import { type BlockMap, CancellationToken } from 'builder-util-runtime'
 import { GenericDifferentialDownloader } from 'electron-updater/out/differentialDownloader/GenericDifferentialDownloader'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -77,7 +77,7 @@ describe('native differential downloads', () => {
           logger: { info() {}, warn() {}, error() {} }
         }
       )
-      const blockMap = (checksums: string[]) => ({
+      const blockMap = (checksums: string[]): BlockMap => ({
         version: '2',
         files: [{ name: 'file', offset: 0, sizes: [4, 4, 4, 4], checksums }]
       })
