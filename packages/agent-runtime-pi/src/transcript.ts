@@ -44,7 +44,10 @@ export interface TranscriptMessageEntry extends TranscriptEntryBase {
   kind: 'message'
   /** A `tool` message holds exactly one `tool-result` part. */
   message: UserModelMessage | AssistantModelMessage | ToolModelMessage
-  /** Assistant: key of the producing model; reasoning and signatures replay only to the same key. */
+  /**
+   * Assistant: key of the producing model. Its reasoning replays as reasoning, with signatures, only
+   * to the same key; other models get it as plain text.
+   */
   modelKey?: string
   /** Assistant. */
   usage?: TranscriptUsage
