@@ -9,7 +9,6 @@ export type {
   ModelCallSideChannel,
   UnmappedStreamPart
 } from './ports'
-export { encodeProviderMetadata } from './providerMetadata'
 export {
   type AgentRuntimeModel,
   type AgentRuntimeSession,

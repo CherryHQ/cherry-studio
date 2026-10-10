@@ -25,7 +25,7 @@ accounting, retries) applies to Pi's requests unchanged.
 3. The host runs one single-step `streamText` (in Cherry: ai-core's executor). With no `execute`,
    the AI SDK returns tool calls instead of running them, and Pi stays the loop owner.
 4. The bridge maps `fullStream` back into Pi events: text, reasoning (provider metadata is kept in Pi's
-   signature slots via `encodeProviderMetadata`), tool calls, usage, stop reason, errors and abort.
+   signature slots), tool calls, usage, stop reason, errors and abort.
 
 ## Host-facing contracts
 
