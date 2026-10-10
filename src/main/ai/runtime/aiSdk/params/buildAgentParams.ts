@@ -192,6 +192,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
+  const requestContextWindow = resolveModelRequestContextWindow(
+    model,
+    provider,
+    resolvedEndpoint.endpointType,
+    sdkConfig.providerId
+  )
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
@@ -202,7 +208,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         webToolRoutes,
         toolSignals,
         hasPersistedOutputs,
-        canOffloadToolOutputs
+        canOffloadToolOutputs,
+        requestContextWindow
       )
     : {
         tools: undefined,
@@ -439,7 +446,8 @@ export async function resolveTools(
   webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
   signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>,
   hasPersistedOutputs: boolean = false,
-  canOffloadToolOutputs: boolean = false
+  canOffloadToolOutputs: boolean = false,
+  requestContextWindow?: number
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -497,7 +505,7 @@ export async function resolveTools(
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
-  const exposed = await applyDeferExposition(tools, requestRegistry, resolveModelRequestContextWindow(model))
+  const exposed = await applyDeferExposition(tools, requestRegistry, requestContextWindow ?? model.contextWindow)
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
@@ -701,10 +709,7 @@ function buildAgentOptions(
   if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
     const resolution = resolveOllamaRequestNumCtx(model, provider, endpointType)
     if (resolution) {
-      sanitizedProviderOptions = writeOllamaWireNumCtx(
-        effectiveProviderOptions as Record<string, Record<string, unknown>>,
-        resolution.numCtx
-      ) as ProviderOptions
+      sanitizedProviderOptions = writeOllamaWireNumCtx(effectiveProviderOptions, resolution.numCtx)
       ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: resolution.numCtx }
     }
   }
@@ -714,7 +719,7 @@ function buildAgentOptions(
     model
   )
   if (sdkConfig.providerId === SystemProviderIds.ollama && ollamaNumCtxSnapshot) {
-    const wireNumCtx = readOllamaWireNumCtx(sanitized.providerOptions as Record<string, unknown>)
+    const wireNumCtx = readOllamaWireNumCtx(sanitized.providerOptions)
     if (wireNumCtx != null) {
       ollamaNumCtxSnapshot = { ...ollamaNumCtxSnapshot, numCtx: wireNumCtx }
     }

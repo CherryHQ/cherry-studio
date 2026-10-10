@@ -158,7 +158,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     // `estimate <= NaN` is false, so the hook fired on EVERY step. With no
     // window, contribute no hook at all.
     const contextWindow = resolveContextWindow(
-      resolveModelRequestContextWindow(scope.model, scope.provider, scope.endpointType)
+      resolveModelRequestContextWindow(scope.model, scope.provider, scope.endpointType, scope.sdkConfig.providerId)
     )
     if (contextWindow === null) {
       logger.warn('model declares no contextWindow — in-loop compaction disabled for this request', {

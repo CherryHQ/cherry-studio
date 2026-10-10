@@ -647,6 +647,8 @@ export class AiService extends BaseService {
           ? ((await resolveAttachmentBudget({
               provider,
               model,
+              endpointType: resolveEffectiveEndpoint(provider, model).endpointType,
+              runtimeProviderId: sdkConfig.providerId,
               system,
               tools,
               maxOutputTokens: options.maxOutputTokens,

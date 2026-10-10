@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { isLocalOllamaApiHost, resolveOllamaRequestNumCtx } from '../ollamaRequestNumCtx'
+import {
+  isLocalOllamaApiHost,
+  resolveModelRequestContextWindow,
+  resolveOllamaRequestNumCtx
+} from '../ollamaRequestNumCtx'
 
 describe('isLocalOllamaApiHost', () => {
   it('treats loopback and empty hosts as local', () => {
@@ -62,6 +66,22 @@ describe('resolveOllamaRequestNumCtx', () => {
     expect(resolution?.freeMemoryBytes).toBe(0)
     expect(resolution?.totalMemoryBytes).toBe(0)
     expect(resolution?.numCtx).toBe(131_072)
+  })
+
+  it('budgets by effective num_ctx for duplicated Ollama providers routed through the Ollama SDK', () => {
+    vi.spyOn(os, 'freemem').mockReturnValue(8_000_000_000)
+    vi.spyOn(os, 'totalmem').mockReturnValue(16_000_000_000)
+
+    const provider = {
+      id: 'custom-ollama-uuid',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://127.0.0.1:11434' }
+      }
+    } as Provider
+
+    const window = resolveModelRequestContextWindow(model as never, provider, ENDPOINT_TYPE.OLLAMA_CHAT, 'ollama')
+    expect(window).toBeLessThan(131_072)
   })
 
   it('classifies local vs remote using the same endpoint as the active request', () => {

@@ -87,7 +87,12 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
 
   // Optional on `Model` and optional here: a window-less model gets no
   // window-derived budget rather than a `NaN` one (see resolveContextWindow).
-  const requestContextWindow = resolveModelRequestContextWindow(scope.model, scope.provider, scope.endpointType)
+  const requestContextWindow = resolveModelRequestContextWindow(
+    scope.model,
+    scope.provider,
+    scope.endpointType,
+    scope.sdkConfig.providerId
+  )
   const contextWindow = resolveContextWindow(requestContextWindow)
   if (contextWindow === null) {
     logger.warn('model declares no contextWindow — window-relative budgets disabled for this request', {

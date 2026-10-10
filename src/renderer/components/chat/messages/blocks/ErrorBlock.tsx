@@ -69,10 +69,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
 
   if (i18n.exists(i18nKey)) {
     if (i18nKey === 'error.ollama_context_memory') {
-      const bag = error as Record<string, unknown> | undefined
-      const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
-      const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
-      return t(i18nKey, { trained, effective, detail: providerErrorText(error) })
+      const detail = providerErrorText(error)
+      return detail || t(i18nKey, { trained: '—', effective: '—' })
     }
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
@@ -137,7 +135,7 @@ const MessageErrorInfo: React.FC<{
       const bag = error as Record<string, unknown> | undefined
       const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
       const effective = typeof bag?.ollamaEffectiveNumCtx === 'number' ? bag.ollamaEffectiveNumCtx : '—'
-      return t('error.ollama_context_memory', { trained, effective, detail: providerErrorText(error) })
+      return t('error.ollama_context_memory', { trained, effective })
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [classification.i18nKey, error, errorI18nKey, i18n, providerId, t])
