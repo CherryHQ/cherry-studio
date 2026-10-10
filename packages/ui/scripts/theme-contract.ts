@@ -133,6 +133,7 @@ export const CHERRY_PRODUCT_COLOR_TOKENS = [
   'error-subtle',
   'error-subtle-foreground',
   'error-border',
+  'chat-user',
   'resource-list-row-hover',
   'resource-list-row-active',
   'resource-list-row-active-foreground',
