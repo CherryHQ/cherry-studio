@@ -38,7 +38,13 @@ const logger = loggerService.withContext('writeCliConfigDraft')
  * an anthropic-messages endpoint (see CLI_TOOL_PROVIDER_MAP), so Codex/Gemini
  * CLI/Qwen Code/Kimi CLI never offer it as a provider option.
  */
-const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE, CodeCli.PI, CodeCli.MINIMAX_CODE]
+const OLLAMA_FALLBACK_TOOLS: string[] = [
+  CodeCli.CLAUDE_CODE,
+  CodeCli.OPEN_CODE,
+  CodeCli.PI,
+  CodeCli.MINIMAX_CODE,
+  CodeCli.COMMAND_CODE
+]
 
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null

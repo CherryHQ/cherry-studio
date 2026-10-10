@@ -11,6 +11,8 @@ import {
   buildClaudeConfig,
   buildCodexAuthConfig,
   buildCodexConfig,
+  buildCommandCodeConfig,
+  buildCommandCodeProvidersConfig,
   buildGeminiEnvConfig,
   buildGeminiSettingsConfig,
   buildHermesEnvConfig,
@@ -23,6 +25,7 @@ import {
 } from './builders'
 import {
   CHERRY_PROVIDER_PREFIX,
+  COMMANDCODE_ENDPOINTS,
   HERMES_ENDPOINTS,
   MINIMAX_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
@@ -74,6 +77,7 @@ import {
   isOpenCodePermissionMode
 } from './permissionModes'
 import {
+  type CommandCodeApi,
   HERMES_API_MODES,
   type HermesApiMode,
   type MinimaxApi,
@@ -81,6 +85,7 @@ import {
   openCodeNpmInfoFromNpmPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
+  resolveCommandCodeProviderInfo,
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
@@ -1175,6 +1180,124 @@ const minimaxAdapter: CliConfigAdapter = {
   }
 }
 
+/** Read the wire of the Cherry-managed provider entry, defaulting like the CLI does. */
+function commandCodeManagedApi(providers: Record<string, any>, providerKey: string): CommandCodeApi {
+  const api = asRecord(asRecord(providers.provider)[providerKey]).api
+  return api === 'anthropic-messages' || api === 'openai-responses' ? api : 'openai-completions'
+}
+
+const commandCodeAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.COMMAND_CODE),
+  providerBaseUrls: (provider) =>
+    COMMANDCODE_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolveCommandCodeProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    // The key never enters the file (providers.json only accepts references);
+    // assertCredentials below checks it is present for the launch env.
+    const { model, modelRecord, provider } = context
+    const providerInfo = resolveCommandCodeProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const providers = readAndParseDraftFile('commandcode-providers', parseJsonOrThrow, args.files, read)
+    const config = readAndParseDraftFile('commandcode-config', parseJsonOrThrow, args.files, read)
+    return [
+      makeDraftFile(
+        'commandcode-providers',
+        renderJsonFile(
+          buildCommandCodeProvidersConfig(providers, {
+            api: providerInfo.api,
+            baseUrl: providerInfo.baseUrl,
+            model,
+            providerKey
+          })
+        ),
+        read
+      ),
+      makeDraftFile(
+        'commandcode-config',
+        renderJsonFile(buildCommandCodeConfig(config, { defaultModel: `${providerKey}/${model}` })),
+        read
+      )
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolveCommandCodeProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) {
+      throw new Error('Command Code config is missing required fields (apiKey/baseUrl)')
+    }
+  },
+  updateDraftConfig(files, connection) {
+    const providers = parseDraftFileOrThrow('commandcode-providers', files, parseJsonOrThrow)
+    const config = parseDraftFileOrThrow('commandcode-config', files, parseJsonOrThrow)
+    const providerKey = requireDraftValue(
+      findCherryProviderKey(asRecord(providers.provider)),
+      'Command Code provider key'
+    )
+    const model = requireDraftValue(connection.model, 'Command Code model')
+    return [
+      ...replaceDraftContent(
+        files,
+        'commandcode-providers',
+        renderJsonFile(
+          buildCommandCodeProvidersConfig(providers, {
+            api: commandCodeManagedApi(providers, providerKey),
+            baseUrl: requireDraftValue(connection.baseUrl, 'Command Code base URL'),
+            model,
+            providerKey
+          })
+        )
+      ),
+      ...replaceDraftContent(
+        files,
+        'commandcode-config',
+        renderJsonFile(buildCommandCodeConfig(config, { defaultModel: `${providerKey}/${model}` }))
+      )
+    ]
+  },
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const providers = readValidatedJsonOrNull('commandcode-providers', read, 'Command Code providers config')
+    if (providers && findCherryProviderKey(asRecord(providers.provider))) {
+      const providerMap = omitKeysByPrefix(asRecord(providers.provider), CHERRY_PROVIDER_PREFIX)
+      const next = { ...providers }
+      if (Object.keys(providerMap).length > 0) next.provider = providerMap
+      else delete next.provider
+      files.push({ target: 'commandcode-providers', content: renderJsonFile(next) })
+    }
+    const config = readValidatedJsonOrNull('commandcode-config', read, 'Command Code config')
+    if (config && typeof config.model === 'string' && config.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
+      const next = { ...config }
+      delete next.model
+      files.push({ target: 'commandcode-config', content: renderJsonFile(next) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const providers = parseJsonOrThrow(getDraftFile(files, 'commandcode-providers')?.content ?? '')
+    const providerKey = findCherryProviderKey(asRecord(providers.provider))
+    if (!providerKey) return null
+    const entry = asRecord(asRecord(providers.provider)[providerKey])
+    // providers.json only ever holds the env reference, never the secret — an
+    // undefined apiKey keeps provider matching on "use the configured key".
+    const model = stringValue(
+      asRecord(parseJsonOrThrow(getDraftFile(files, 'commandcode-config')?.content ?? '')).model
+    )
+    return {
+      baseUrl: stringValue(entry.baseURL),
+      apiKey: undefined,
+      model: model?.startsWith(`${providerKey}/`) ? model.slice(providerKey.length + 1) : undefined
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 /**
  * The file-based CLI tools, one adapter each. Typed as a **total** record over
  * `FileConfiguredCli` (the key set of `CLI_CONFIG_TARGETS`), so omitting an adapter
@@ -1189,7 +1312,8 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.KIMI_CODE]: kimiAdapter,
   [CodeCli.PI]: piAdapter,
   [CodeCli.HERMES]: hermesAdapter,
-  [CodeCli.MINIMAX_CODE]: minimaxAdapter
+  [CodeCli.MINIMAX_CODE]: minimaxAdapter,
+  [CodeCli.COMMAND_CODE]: commandCodeAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {

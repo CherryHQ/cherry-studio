@@ -31,3 +31,9 @@ export const MINIMAX_ENDPOINTS: readonly EndpointType[] = [
   'openai-responses',
   'openai-chat-completions'
 ]
+
+export const COMMANDCODE_ENDPOINTS: readonly EndpointType[] = [
+  'anthropic-messages',
+  'openai-responses',
+  'openai-chat-completions'
+]

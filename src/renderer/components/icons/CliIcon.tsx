@@ -4,6 +4,7 @@ import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
   AntigravityCli,
   ClaudeCode,
+  CommandCode,
   GeminiCli,
   GithubCopilotCli,
   KimiCli as KimiCode,
@@ -32,7 +33,8 @@ export const CLI_TOOLS = [
   { value: CodeCli.HERMES, label: 'code.cli_tools.hermes', icon: Nousresearch },
   { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
   { value: CodeCli.DEEPSEEK_HARNESS, label: 'code.cli_tools.deepseek_harness', icon: Deepseek },
-  { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax }
+  { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax },
+  { value: CodeCli.COMMAND_CODE, label: 'code.cli_tools.command_code', icon: CommandCode }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>

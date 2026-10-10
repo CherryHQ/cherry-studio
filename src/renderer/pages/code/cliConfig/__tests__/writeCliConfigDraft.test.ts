@@ -13,11 +13,14 @@ import {
   updateCliConfigDraftConfig,
   writeCliConfigDraft
 } from '../index'
+import type { CliConfigFileDraft } from '../types'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 const resolvedSpecPath = (target: CliConfigTarget) => `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`
 const hermesConfigPath = resolvedSpecPath('hermes-config')
 const minimaxConfigPath = resolvedSpecPath('minimax-config')
+const commandcodeProvidersPath = resolvedSpecPath('commandcode-providers')
+const commandcodeConfigPath = resolvedSpecPath('commandcode-config')
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
@@ -402,6 +405,143 @@ describe('writeCliConfigDraft', () => {
       await expect(
         writeCliConfigDraft({ cliTool: CodeCli.MINIMAX_CODE, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/Failed to parse MiniMax Code config\.yaml/)
+    })
+  })
+
+  describe('command-code (~/.commandcode/providers.json + config.json)', () => {
+    it('writes both files with an env-reference key and the cherry-addressed default model', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.COMMAND_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+        cliTool: CodeCli.COMMAND_CODE,
+        files: [
+          { target: 'commandcode-providers', content: expect.any(String) },
+          { target: 'commandcode-config', content: expect.any(String) }
+        ]
+      })
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const providers = JSON.parse(files[0].content!)
+      expect(providers).toEqual({
+        provider: {
+          'cherry-DeepSeek': {
+            name: 'DeepSeek',
+            baseURL: 'https://api.deepseek.com/v1',
+            apiKey: '$CHERRY_COMMAND_CODE_API_KEY',
+            models: { 'deepseek-chat': {} }
+          }
+        }
+      })
+      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-DeepSeek/deepseek-chat' })
+    })
+
+    it('writes the anthropic wire explicitly for an Anthropic-compatible provider', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.COMMAND_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const providers = JSON.parse(files[0].content!)
+      expect(providers.provider['cherry-Anthropic']).toMatchObject({
+        api: 'anthropic-messages',
+        baseURL: 'https://api.anthropic.com'
+      })
+    })
+
+    it('preserves user providers and strips stale cherry entries whatever their position', async () => {
+      existing[commandcodeProvidersPath] = JSON.stringify({
+        provider: {
+          // The exact incoming key sits BEFORE another stale one so an
+          // early-stopping sweep would leave `cherry-older` behind.
+          'cherry-DeepSeek': { baseURL: 'https://stale.example', models: { old: {} } },
+          'cherry-older': { baseURL: 'https://older.example', models: { elder: {} } },
+          'user-relay': { baseURL: 'https://relay.example', models: { relay: {} } }
+        }
+      })
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.COMMAND_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const providers = JSON.parse(files[0].content!)
+      expect(Object.keys(providers.provider)).toEqual(['user-relay', 'cherry-DeepSeek'])
+      expect(providers.provider['user-relay']).toEqual({
+        baseURL: 'https://relay.example',
+        models: { relay: {} }
+      })
+    })
+
+    it('accepts a keyless Ollama provider and injects the placeholder token', async () => {
+      mockGet({
+        '/providers/ollama': () => ollamaProvider,
+        '/providers/ollama/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.COMMAND_CODE, modelId: 'ollama::llama3' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const providers = JSON.parse(files[0].content!)
+      expect(providers.provider['cherry-Ollama']).toMatchObject({
+        baseURL: 'http://localhost:11434',
+        apiKey: '$CHERRY_COMMAND_CODE_API_KEY'
+      })
+      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-Ollama/llama3' })
+    })
+
+    it('round-trips the connection through extract and update without drift', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.COMMAND_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
+      const [providers, config] = files
+      if (!providers || typeof providers.content !== 'string' || !config || typeof config.content !== 'string') {
+        throw new Error('Expected Command Code providers and config files')
+      }
+      const draft = [
+        {
+          target: 'commandcode-providers',
+          label: 'Command Code providers.json',
+          path: commandcodeProvidersPath,
+          language: 'json',
+          content: providers.content
+        } as const,
+        {
+          target: 'commandcode-config',
+          label: 'Command Code config.json',
+          path: commandcodeConfigPath,
+          language: 'json',
+          content: config.content
+        } as const
+      ] satisfies CliConfigFileDraft[]
+      // The key never lives in the files, so the extracted connection carries none.
+      expect(extractConnectionFromCliConfigDraft(CodeCli.COMMAND_CODE, [...draft])).toEqual({
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: undefined,
+        model: 'deepseek-chat'
+      })
+
+      const updated = updateCliConfigDraftConfig(CodeCli.COMMAND_CODE, [...draft], {})
+      expect(JSON.parse(updated[0].content)).toEqual(JSON.parse(draft[0].content))
+      expect(JSON.parse(updated[1].content)).toEqual(JSON.parse(draft[1].content))
     })
   })
 

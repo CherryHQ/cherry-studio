@@ -17,7 +17,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
-import type { OpenCodeNpmInfo, PiApi } from './resolvers'
+import type { CommandCodeApi, OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
@@ -381,4 +381,35 @@ export function buildPiSettingsConfig(
   resolved: { model: string; providerKey: string }
 ): Record<string, any> {
   return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
+}
+
+/**
+ * Command Code never stores a raw secret in providers.json — the field only
+ * accepts references. The real key is injected into the launch environment by
+ * CodeCliService under this fixed variable name.
+ */
+export const COMMAND_CODE_API_KEY_ENV_REF = '$CHERRY_COMMAND_CODE_API_KEY'
+
+export function buildCommandCodeProvidersConfig(
+  existing: Record<string, any>,
+  resolved: { api: CommandCodeApi; baseUrl: string; model: string; providerKey: string }
+): Record<string, any> {
+  const providerMap = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
+  const entry: Record<string, any> = {
+    name: resolved.providerKey.slice(CHERRY_PROVIDER_PREFIX.length),
+    baseURL: resolved.baseUrl,
+    apiKey: COMMAND_CODE_API_KEY_ENV_REF,
+    models: { [resolved.model]: {} }
+  }
+  // `api` is the wire and defaults to openai-completions; omit it there like /connect does.
+  if (resolved.api !== 'openai-completions') entry.api = resolved.api
+  providerMap[resolved.providerKey] = entry
+  return { ...existing, provider: providerMap }
+}
+
+export function buildCommandCodeConfig(
+  existing: Record<string, any>,
+  resolved: { defaultModel: string }
+): Record<string, any> {
+  return { ...existing, model: resolved.defaultModel }
 }
