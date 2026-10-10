@@ -2780,6 +2780,7 @@
   "notes.open_outside": "从外部打开",
   "notes.print": "打印",
   "notes.print_failed": "打印笔记失败",
+  "notes.relocation_edits_locked": "正在另一个窗口中迁移笔记。迁移完成前将暂停编辑。",
   "notes.rename": "重命名",
   "notes.rename_failed": "重命名笔记失败",
   "notes.save": "保存到笔记",

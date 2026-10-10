@@ -2780,6 +2780,7 @@
   "notes.open_outside": "Abrir externamente",
   "notes.print": "Imprimir",
   "notes.print_failed": "Falha ao imprimir nota",
+  "notes.relocation_edits_locked": "As notas estão a ser migradas noutra janela. A edição está em pausa até a migração terminar.",
   "notes.rename": "renomear",
   "notes.rename_failed": "Falha ao renomear a nota",
   "notes.save": "guardar em notas",

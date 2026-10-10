@@ -13,7 +13,11 @@ const logger = loggerService.withContext('NotesRelocationFlushListener')
 
 export const NotesRelocationFlushListener: FC = () => {
   useEffect(() => {
-    void ipcApi.request('app.notes_relocation.flush_edits_register')
+    void ipcApi.request('app.notes_relocation.flush_edits_register').then((result) => {
+      if (result.barrierActive) {
+        lockNotesEditsForRelocation()
+      }
+    })
     return () => {
       void ipcApi.request('app.notes_relocation.flush_edits_unregister')
     }

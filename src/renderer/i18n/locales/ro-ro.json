@@ -2780,6 +2780,7 @@
   "notes.open_outside": "Deschide extern",
   "notes.print": "Tipărire",
   "notes.print_failed": "Nu s-a putut imprima nota",
+  "notes.relocation_edits_locked": "Notele sunt migrate în altă fereastră. Editarea este întreruptă până la finalizarea migrării.",
   "notes.rename": "Redenumește",
   "notes.rename_failed": "Nu s-a putut redenumi nota",
   "notes.save": "Salvează în Notițe",

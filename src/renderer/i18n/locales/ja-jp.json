@@ -2780,6 +2780,7 @@
   "notes.open_outside": "外部から開く",
   "notes.print": "印刷",
   "notes.print_failed": "ノートの印刷に失敗しました",
+  "notes.relocation_edits_locked": "別のウィンドウでノートを移行中です。移行が完了するまで編集は一時停止されます。",
   "notes.rename": "名前の変更",
   "notes.rename_failed": "ノートの名前を変更できませんでした",
   "notes.save": "メモに保存する",

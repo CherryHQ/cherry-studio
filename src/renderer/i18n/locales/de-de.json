@@ -2780,6 +2780,7 @@
   "notes.open_outside": "Extern öffnen",
   "notes.print": "Drucken",
   "notes.print_failed": "Drucken der Notiz fehlgeschlagen",
+  "notes.relocation_edits_locked": "Notizen werden in einem anderen Fenster migriert. Die Bearbeitung ist pausiert, bis die Migration abgeschlossen ist.",
   "notes.rename": "Umbenennen",
   "notes.rename_failed": "Fehler beim Umbenennen der Notiz",
   "notes.save": "In Notizen speichern",

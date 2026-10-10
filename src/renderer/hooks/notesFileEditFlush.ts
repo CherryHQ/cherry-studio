@@ -1,10 +1,26 @@
+import { useSyncExternalStore } from 'react'
+
 type NotesEditFlush = () => Promise<void>
 
 const flushCallbacks = new Set<NotesEditFlush>()
 const autosaveCancelCallbacks = new Set<() => void>()
+const relocationEditLockListeners = new Set<() => void>()
 let relocationEditLockDepth = 0
 let inFlightStructuralWrites = 0
 const structuralWriteIdleWaiters: Array<() => void> = []
+
+function notifyRelocationEditLockChanged(): void {
+  for (const listener of relocationEditLockListeners) {
+    listener()
+  }
+}
+
+function subscribeNotesRelocationEditLock(listener: () => void): () => void {
+  relocationEditLockListeners.add(listener)
+  return () => {
+    relocationEditLockListeners.delete(listener)
+  }
+}
 
 function notifyStructuralWriteIdleWaiters(): void {
   if (inFlightStructuralWrites > 0) {
@@ -23,6 +39,7 @@ export function lockNotesEditsForRelocation(): void {
     }
   }
   relocationEditLockDepth += 1
+  notifyRelocationEditLockChanged()
 }
 
 export function registerNotesRelocationAutosaveCancel(cancel: () => void): () => void {
@@ -33,11 +50,23 @@ export function registerNotesRelocationAutosaveCancel(cancel: () => void): () =>
 }
 
 export function unlockNotesEditsForRelocation(): void {
+  if (relocationEditLockDepth === 0) {
+    return
+  }
   relocationEditLockDepth = 0
+  notifyRelocationEditLockChanged()
 }
 
 export function areNotesEditsLockedForRelocation(): boolean {
   return relocationEditLockDepth > 0
+}
+
+export function useNotesEditsLockedForRelocation(): boolean {
+  return useSyncExternalStore(
+    subscribeNotesRelocationEditLock,
+    areNotesEditsLockedForRelocation,
+    areNotesEditsLockedForRelocation
+  )
 }
 
 export async function waitForStructuralNotesWritesToSettle(): Promise<void> {

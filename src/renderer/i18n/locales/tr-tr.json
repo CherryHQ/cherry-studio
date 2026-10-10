@@ -2780,6 +2780,7 @@
   "notes.open_outside": "Hariciden aç",
   "notes.print": "Yazdır",
   "notes.print_failed": "Not yazdırılamadı",
+  "notes.relocation_edits_locked": "Notlar başka bir pencerede taşınıyor. Taşıma bitene kadar düzenleme duraklatıldı.",
   "notes.rename": "Yeniden adlandır",
   "notes.rename_failed": "Not yeniden adlandırılamadı",
   "notes.save": "Notlara Kaydet",

@@ -2780,6 +2780,7 @@
   "notes.open_outside": "Mở từ bên ngoài",
   "notes.print": "In ấn",
   "notes.print_failed": "Không thể in ghi chú",
+  "notes.relocation_edits_locked": "Ghi chú đang được di chuyển trong cửa sổ khác. Chỉnh sửa tạm dừng cho đến khi di chuyển hoàn tất.",
   "notes.rename": "Đổi tên",
   "notes.rename_failed": "Không đổi được tên ghi chú",
   "notes.save": "Lưu vào Ghi chú",
