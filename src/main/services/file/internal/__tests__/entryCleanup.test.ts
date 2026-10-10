@@ -178,6 +178,19 @@ describe('entryCleanup', () => {
     expect(fileEntryService.findById(id)).toBeNull()
   })
 
+  // Regression: a full page of retained images must not starve newer orphan entries.
+  it('scans past retained pages while preserving protected artifacts', async () => {
+    for (let i = 1; i <= ENTRY_CLEANUP_BATCH_LIMIT; i++) {
+      await seedInternal(nthId(i), 'delete_when_unreferenced', { ageMs: 3 * HOUR, withBlob: false })
+    }
+    const orphanId = nthId(ENTRY_CLEANUP_BATCH_LIMIT + 1)
+    await seedInternal(orphanId, 'delete_when_unreferenced')
+    const deps = { ...makeDeps(), isEntryRetained: (id: string) => id !== orphanId }
+    expect((await runEntryCleanup(deps)).deleted).toBe(1)
+    expect(fileEntryService.findById(orphanId)).toBeNull()
+    expect(fileEntryService.findById(nthId(1))).not.toBeNull()
+  })
+
   it('reclaims an auto zero-ref entry past grace: row deleted, blob unlinked', async () => {
     const id = nthId(1)
     await seedInternal(id, 'delete_when_unreferenced')

@@ -1,16 +1,48 @@
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { withNativeImageOutput } from '../nativeImageOutput'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 
-const { createImageEntry } = vi.hoisted(() => ({ createImageEntry: vi.fn() }))
+import { storeNativeImageOutput, withNativeImageOutput } from '../nativeImageOutput'
+
+const { createImageEntry, releaseEntry } = vi.hoisted(() => ({ createImageEntry: vi.fn(), releaseEntry: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ FileManager: { createInternalEntry: createImageEntry, retainEntry: () => () => {} } })
+  return mockApplicationFactory({
+    FileManager: { createInternalEntry: createImageEntry, retainEntry: () => releaseEntry }
+  })
 })
 
 describe('native image message output', () => {
   beforeEach(() => vi.clearAllMocks())
+  // Regression: terminal cleanup must release a file created after its message has stopped.
+  it('releases a late-created artifact after terminal cleanup', async () => {
+    let complete!: (entry: { id: string; name: string }) => void
+    let started!: () => void
+    const creationStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    createImageEntry.mockImplementation(() => {
+      started()
+      return new Promise((resolve) => {
+        complete = resolve
+      })
+    })
+    const output = storeNativeImageOutput(
+      {
+        result: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1e0AAAAASUVORK5CYII='
+      },
+      'stopped-message'
+    )
+    await creationStarted
+    messageArtifactRetentionService.releaseMessageArtifacts('stopped-message')
+    complete({ id: 'late-image', name: 'Grok image' })
+    await output
+    expect(releaseEntry).toHaveBeenCalledTimes(1)
+    messageArtifactRetentionService.releaseMessageArtifacts('stopped-message')
+    expect(releaseEntry).toHaveBeenCalledTimes(1)
+  })
+
   // Regression: repeated terminal provider chunks must store one image and never publish raw base64.
   it('persists a native image once before forwarding the tool result', async () => {
     createImageEntry.mockResolvedValue({ id: 'image-file', name: 'Grok image' })

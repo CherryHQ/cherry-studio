@@ -17,6 +17,7 @@ export async function storeNativeImageOutput(output: unknown, messageId: string)
   ) {
     throw new Error('Native image generation returned no image.')
   }
+  const retainArtifact = messageArtifactRetentionService.createMessageArtifactRetainer(messageId)
   const bytes = Buffer.from(output.result, 'base64')
   const fileType = await fileTypeFromBuffer(bytes)
   if (!fileType?.mime.startsWith('image/')) throw new Error('Native image generation returned invalid image data.')
@@ -29,7 +30,7 @@ export async function storeNativeImageOutput(output: unknown, messageId: string)
       cleanupPolicy: 'delete_when_unreferenced'
     })
   )
-  messageArtifactRetentionService.retainMessageArtifact(messageId, application.get('FileManager').retainEntry(entry.id))
+  retainArtifact(application.get('FileManager').retainEntry(entry.id))
   return {
     nativeImage: true,
     files: [{ id: entry.id, name: entry.name }],

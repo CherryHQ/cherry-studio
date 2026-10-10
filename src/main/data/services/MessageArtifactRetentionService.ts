@@ -8,6 +8,19 @@ class MessageArtifactRetentionService {
     this.releasesByMessage.set(messageId, releases)
   }
 
+  createMessageArtifactRetainer(messageId: string): (release: () => void) => void {
+    let released = false
+    let releaseArtifact: (() => void) | undefined
+    this.retainMessageArtifact(messageId, () => {
+      released = true
+      releaseArtifact?.()
+    })
+    return (release) => {
+      if (released) release()
+      else releaseArtifact = release
+    }
+  }
+
   releaseMessageArtifacts(messageId: string): void {
     const releases = this.releasesByMessage.get(messageId)
     this.releasesByMessage.delete(messageId)
