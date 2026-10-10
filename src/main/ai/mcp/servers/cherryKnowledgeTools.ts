@@ -54,6 +54,8 @@ export interface KnowledgeAccess {
   allKnowledgeBases: boolean
   /** `resolveKnowledgeBaseScope(binding, composerSelection)`; empty means neither source granted access. */
   baseIds: readonly string[]
+  /** Live per-binding write grants; absent only in legacy/internal contexts. */
+  accessByBaseId?: Readonly<Record<string, 'read' | 'read-write'>>
 }
 
 export interface KnowledgeToolsContext {
@@ -89,8 +91,8 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
 
   // Fail-closed: an unscoped lookup must never reach the shared core with an empty `allowedIds`,
   // which that core would treat as "all bases".
-  const allowedIds = (tool: string): readonly string[] => {
-    const scope = resolveKnowledgeScope(getKnowledgeAccess())
+  const allowedIds = (tool: string, access = getKnowledgeAccess()): readonly string[] => {
+    const scope = resolveKnowledgeScope(access)
     if (scope.kind === 'none') {
       logger.warn('Rejected knowledge tool call with an empty knowledge scope', { tool })
       // "in scope", not "bound": naming only the binding would point the model at the wrong remedy.
@@ -127,7 +129,17 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
   server.registerTool(
     KB_MANAGE_TOOL_NAME,
     { description: KNOWLEDGE_MANAGE_DESCRIPTION, inputSchema: kbManageInputSchema },
-    async (input) =>
-      modelOutputToMcpResult(knowledgeManageModelOutput(await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME))))
+    async (input) => {
+      const access = getKnowledgeAccess()
+      return modelOutputToMcpResult(
+        knowledgeManageModelOutput(
+          await manageKnowledge(
+            input,
+            allowedIds(KB_MANAGE_TOOL_NAME, access),
+            access.allKnowledgeBases ? undefined : access.accessByBaseId
+          )
+        )
+      )
+    }
   )
 }

@@ -187,13 +187,15 @@ function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
   mcps: string[],
-  knowledgeBaseIds: string[]
+  knowledgeBaseIds: string[],
+  knowledgeBaseAccess: Record<string, 'read' | 'read-write'> = {}
 ): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     mcps,
     knowledgeBaseIds,
+    knowledgeBaseAccess,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -260,6 +262,29 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
   return map
 }
 
+function fetchKnowledgeBaseAccessForAgents(
+  tx: DbOrTx,
+  agentIds: string[]
+): Map<string, Record<string, 'read' | 'read-write'>> {
+  if (agentIds.length === 0) return new Map()
+  const rows = tx
+    .select({
+      agentId: agentKnowledgeBaseTable.agentId,
+      id: agentKnowledgeBaseTable.knowledgeBaseId,
+      access: agentKnowledgeBaseTable.access
+    })
+    .from(agentKnowledgeBaseTable)
+    .where(inArray(agentKnowledgeBaseTable.agentId, agentIds))
+    .all()
+  const result = new Map<string, Record<string, 'read' | 'read-write'>>()
+  for (const row of rows) {
+    const access = result.get(row.agentId) ?? {}
+    access[row.id] = row.access
+    result.set(row.agentId, access)
+  }
+  return result
+}
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -307,6 +332,7 @@ export class AgentService {
     }
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
+    const knowledgeBaseAccess = req.knowledgeBaseAccess ?? {}
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
@@ -355,7 +381,13 @@ export class AgentService {
           // Insert junction rows for knowledge base associations
           if (knowledgeBaseIds.length > 0) {
             tx.insert(agentKnowledgeBaseTable)
-              .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+              .values(
+                knowledgeBaseIds.map((knowledgeBaseId) => ({
+                  agentId: id,
+                  knowledgeBaseId,
+                  access: knowledgeBaseAccess[knowledgeBaseId] ?? 'read'
+                }))
+              )
               .run()
           }
           // Enable the selected global skills for the new agent. DB-only: workspace
@@ -372,7 +404,13 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    const agent = rowToAgent(
+      row.agent,
+      row.modelName || null,
+      mcps,
+      knowledgeBaseIds,
+      Object.fromEntries(knowledgeBaseIds.map((baseId) => [baseId, knowledgeBaseAccess[baseId] ?? 'read']))
+    )
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
@@ -503,7 +541,13 @@ export class AgentService {
         ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
         : null
       return {
-        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        agent: rowToAgent(
+          existing,
+          modelName,
+          mcps,
+          knowledgeBaseIds,
+          fetchKnowledgeBaseAccessForAgents(tx, [existing.id]).get(existing.id)
+        ),
         created: false,
         restored
       }
@@ -583,7 +627,13 @@ export class AgentService {
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
       : null
-    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
+    return rowToAgent(
+      agent,
+      modelName,
+      mcpsMap.get(id) ?? [],
+      knowledgeBasesMap.get(id) ?? [],
+      fetchKnowledgeBaseAccessForAgents(database, [id]).get(id)
+    )
   }
 
   listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
@@ -656,6 +706,7 @@ export class AgentService {
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const knowledgeBaseAccessMap = fetchKnowledgeBaseAccessForAgents(database, agentIds)
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       result.map((row) => row.agent.model)
@@ -666,7 +717,8 @@ export class AgentService {
         row.agent,
         row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
-        knowledgeBasesMap.get(row.agent.id) ?? []
+        knowledgeBasesMap.get(row.agent.id) ?? [],
+        knowledgeBaseAccessMap.get(row.agent.id)
       )
     )
 
@@ -713,6 +765,7 @@ export class AgentService {
     // Handle mcps + knowledgeBaseIds separately — they live in junction tables, not the agent row.
     const newMcps = updates.mcps
     const newKnowledgeBaseIds = updates.knowledgeBaseIds
+    const newKnowledgeBaseAccess = updates.knowledgeBaseAccess
     const newSkillUpdates = updates.skillUpdates
 
     // Same two-step validation as createAgent: pre-check each id outside the write
@@ -751,7 +804,13 @@ export class AgentService {
           // literal NULL when the DTO omits a field would violate the constraint.
           // Configuration is handled separately as a first-level JSON PATCH.
           for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
-            if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
+            if (
+              field === 'mcps' ||
+              field === 'knowledgeBaseIds' ||
+              field === 'knowledgeBaseAccess' ||
+              field === 'configuration'
+            )
+              continue
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
             const value = updates[field as keyof typeof updates]
             if (value === undefined) continue
@@ -804,11 +863,34 @@ export class AgentService {
           }
           // Replace knowledge base associations if provided
           if (newKnowledgeBaseIds !== undefined) {
+            const currentAccess = fetchKnowledgeBaseAccessForAgents(tx, [id]).get(id) ?? {}
             tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()
             if (newKnowledgeBaseIds.length > 0) {
               tx.insert(agentKnowledgeBaseTable)
-                .values(newKnowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+                .values(
+                  newKnowledgeBaseIds.map((knowledgeBaseId) => ({
+                    agentId: id,
+                    knowledgeBaseId,
+                    access: newKnowledgeBaseAccess?.[knowledgeBaseId] ?? currentAccess[knowledgeBaseId] ?? 'read'
+                  }))
+                )
                 .run()
+            }
+          } else if (newKnowledgeBaseAccess !== undefined) {
+            const boundIds = fetchKnowledgeBasesForAgents(tx, [id]).get(id) ?? []
+            for (const knowledgeBaseId of boundIds) {
+              const access = newKnowledgeBaseAccess[knowledgeBaseId]
+              if (access !== undefined) {
+                tx.update(agentKnowledgeBaseTable)
+                  .set({ access })
+                  .where(
+                    and(
+                      eq(agentKnowledgeBaseTable.agentId, id),
+                      eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId)
+                    )
+                  )
+                  .run()
+              }
             }
           }
           if (newSkillUpdates !== undefined) {
@@ -991,7 +1073,8 @@ export class AgentService {
       row,
       modelName,
       fetchMcpsForAgents(database, [id]).get(id) ?? [],
-      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
+      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? [],
+      fetchKnowledgeBaseAccessForAgents(database, [id]).get(id)
     )
     logger.info('Restored agent', { id })
     return { agent, restoredSessionIds }
@@ -1110,6 +1193,7 @@ export class AgentService {
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const knowledgeBaseAccessMap = fetchKnowledgeBaseAccessForAgents(database, agentIds)
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       rows.map((row) => row.model)
@@ -1119,7 +1203,8 @@ export class AgentService {
         row,
         row.model ? (modelNames.get(row.model) ?? null) : null,
         mcpsMap.get(row.id) ?? [],
-        knowledgeBasesMap.get(row.id) ?? []
+        knowledgeBasesMap.get(row.id) ?? [],
+        knowledgeBaseAccessMap.get(row.id)
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }

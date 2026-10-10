@@ -30,6 +30,7 @@ export interface AgentFormState {
   mcps: string[]
   /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
   knowledgeBaseIds: string[]
+  knowledgeBaseAccess: Record<string, 'read' | 'read-write'>
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
@@ -102,6 +103,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
+    knowledgeBaseAccess: { ...agent?.knowledgeBaseAccess },
     skillIds: [...skillIds],
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
@@ -182,6 +184,15 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
     dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
+  const accessChanged = next.knowledgeBaseIds.some(
+    (id) => (baseline.knowledgeBaseAccess[id] ?? 'read') !== (next.knowledgeBaseAccess[id] ?? 'read')
+  )
+  if (accessChanged || dto.knowledgeBaseIds !== undefined) {
+    dto.knowledgeBaseAccess = Object.fromEntries(
+      next.knowledgeBaseIds.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
+    )
     dirty = true
   }
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)

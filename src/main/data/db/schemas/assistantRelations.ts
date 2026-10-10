@@ -85,6 +85,10 @@ export const agentKnowledgeBaseTable = sqliteTable(
     knowledgeBaseId: text()
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
+    // Existing bindings retain their prior write capability; the service gives new bindings read access.
+    access: text({ enum: ['read', 'read-write'] })
+      .notNull()
+      .default('read-write'),
     ...createUpdateTimestamps
   },
   (t) => [primaryKey({ columns: [t.agentId, t.knowledgeBaseId] })]

@@ -46,7 +46,7 @@ const kbManageTool = tool({
   needsApproval: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return manageKnowledge(input, request.knowledgeBaseIds ?? [])
+    return manageKnowledge(input, request.knowledgeBaseIds ?? [], request.knowledgeBaseAccess)
   },
   toModelOutput: ({ output }) => knowledgeManageModelOutput(output)
 })
