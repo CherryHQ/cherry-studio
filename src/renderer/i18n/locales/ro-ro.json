@@ -230,6 +230,7 @@
   "agent.session.agent.delete.content": "Vor fi șterse toate sesiunile asociate acestui agent. Agentul în sine nu va fi șters.",
   "agent.session.agent.delete.title": "Șterge toate sesiunile",
   "agent.session.agent.delete.trigger": "Șterge toate sesiunile",
+  "agent.session.agent_switch.runtime_mismatch": "Această conversație nu poate comuta la un agent cu un alt mod de rulare. Începeți o conversație nouă pentru a folosi acel agent.",
   "agent.session.agent_switch_confirm.confirm": "Comută agentul",
   "agent.session.agent_switch_confirm.description": "Comutarea agentului modifică promptul de sistem, instrumentele și modelul utilizate pentru mesajele următoare. Mesajele existente rămân neschimbate. Doriți să continuați?",
   "agent.session.agent_switch_confirm.skip_for_app_run": "Nu mă mai întreba până închid aplicația",

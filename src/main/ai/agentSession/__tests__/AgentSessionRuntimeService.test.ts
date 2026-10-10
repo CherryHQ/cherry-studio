@@ -1151,6 +1151,53 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingTurns).toHaveLength(0)
     })
 
+    it('reauthors a queued follow-up on the agent that executes it after a mid-queue switch', async () => {
+      const service = new AgentSessionRuntimeService()
+      const submissionSnapshot = {
+        id: 'agent-1',
+        name: 'Agent A',
+        emoji: '🅰️',
+        model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
+      } as any
+
+      service.beginTurn(baseTurnInput)
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { messageSnapshot: submissionSnapshot })
+      mocks.saveMessage.mockClear()
+
+      // The top-bar switch lands before the queue drains: the follow-up executes under agent B, so
+      // the new assistant row must be authored by B (id/name/emoji) on B's model — completed rows
+      // keep their own frozen snapshots and are not rewritten.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-2',
+        name: 'Agent B',
+        type: 'test-runtime',
+        model: switchedModelId,
+        modelName: 'Claude Opus',
+        configuration: { avatar: '🅱️' }
+      })
+
+      service.markTurnTerminal('session-1', 'success')
+      await vi.waitFor(() => expect(mocks.saveMessage).toHaveBeenCalledTimes(1))
+
+      expect(mocks.saveMessage).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        message: {
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: switchedModelId,
+          messageSnapshot: {
+            id: 'agent-2',
+            name: 'Agent B',
+            emoji: '🅱️',
+            model: { id: 'claude-opus-4-5', name: 'Claude Opus', provider: 'claude-code' }
+          }
+        }
+      })
+      void service.closeSession('session-1')
+    })
+
     it('freezes a redirected steer-boundary continuation with the follow-up snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {
@@ -2228,6 +2275,45 @@ describe('AgentSessionRuntimeService', () => {
     await expect((service as any).ensureConnection(entry)).resolves.toBe(false)
     expect(connect).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+  })
+
+  it('runs the accepted turn on its frozen agent when a switch lands mid-startup', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = { events: events.iterable, send: vi.fn(), close: vi.fn() }
+    const midStartup = createDeferred<void>()
+    // Emulates the Pi/Dsh snapshot contract: the driver rejects a connect whose frozen agent no
+    // longer matches the session row, unless the host marked the connection as serving a turn
+    // already accepted under that agent.
+    const connect = vi.fn().mockImplementation(async (input: any) => {
+      await midStartup.promise
+      const session = mocks.getSessionById()
+      if (session.agentId !== input.agentId && input.servesAcceptedTurn !== true) {
+        throw new Error(`Invalid snapshot: session points at ${session.agentId}`)
+      }
+      return connection
+    })
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+
+    // The top-bar switch lands while the driver is still materializing the connection for the
+    // already-accepted turn — the rejection may not fail that turn before admission.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    midStartup.resolve()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-1', servesAcceptedTurn: true }))
+    void service.closeSession('session-1')
   })
 
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
@@ -4823,6 +4909,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        servesAcceptedTurn: true,
         reasoningEffort: 'default',
         serviceTier: 'standard',
         knowledgeBaseIds: [],
@@ -4940,6 +5027,7 @@ describe('AgentSessionRuntimeService', () => {
         sessionId: 'session-1',
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
+        servesAcceptedTurn: true,
         reasoningEffort: 'default',
         serviceTier: 'standard',
         knowledgeBaseIds: [],

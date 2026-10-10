@@ -230,6 +230,7 @@
   "agent.session.agent.delete.content": "Будут удалены все сеансы, связанные с этим агентом. Сам агент не будет удалён.",
   "agent.session.agent.delete.title": "Удалить все сеансы",
   "agent.session.agent.delete.trigger": "Удалить все сеансы",
+  "agent.session.agent_switch.runtime_mismatch": "Этот диалог нельзя переключить на агента с другим режимом выполнения. Начните новый диалог, чтобы использовать этого агента.",
   "agent.session.agent_switch_confirm.confirm": "Переключить агента",
   "agent.session.agent_switch_confirm.description": "При переключении агента изменяются системный промпт, инструменты и модель для последующих сообщений. Существующие сообщения останутся без изменений. Продолжить?",
   "agent.session.agent_switch_confirm.skip_for_app_run": "Больше не спрашивать до выхода из приложения",

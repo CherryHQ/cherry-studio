@@ -220,6 +220,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
     }
 
+    // A turn already accepted and frozen to this connection's agent keeps its captured
+    // configuration through startup even if the session row was re-pointed mid-materialization.
+    const captureOpts = { servesAcceptedTurn: this.input.servesAcceptedTurn === true }
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
     // the final snapshot check below.
@@ -227,7 +230,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
@@ -239,11 +243,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      captureOpts
     )
     const { agent, session } = initialSnapshot
     const workspacePath = session?.workspace?.path
-    if (!session?.agentId || !workspacePath) {
+    if (!workspacePath || (!session?.agentId && !captureOpts.servesAcceptedTurn)) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
 
@@ -407,7 +412,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         this.input.modelId,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        captureOpts
       )
       if (finalSnapshot.signature !== initialSnapshot.signature) {
         throw new Error(`Pi connection materialization changed during startup: ${this.input.sessionId}`)

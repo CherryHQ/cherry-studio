@@ -56,6 +56,10 @@ const conversationShellPropsMock = vi.hoisted(() => ({
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
+const agentsCacheMock = vi.hoisted(() => ({
+  value: undefined as { items: Array<{ id: string; type: string }> } | undefined
+}))
+const toastMock = vi.hoisted(() => ({ error: vi.fn() }))
 
 // Tool-approval responses now go through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
@@ -146,10 +150,15 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn(),
+  useReadCache: () => (path: string) => (path === '/agents' ? agentsCacheMock.value : undefined),
   useMutation: () => ({
     trigger: vi.fn(),
     isLoading: false
   })
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: toastMock
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -404,6 +413,8 @@ describe('AgentChat settings panel', () => {
     agentSwitchConfirmationCacheMock.set.mockImplementation((value: boolean) => {
       agentSwitchConfirmationCacheMock.value = value
     })
+    agentsCacheMock.value = undefined
+    toastMock.error.mockReset()
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -810,6 +821,50 @@ describe('AgentChat settings panel', () => {
         { showSuccessToast: false }
       )
     )
+  })
+
+  it('blocks switching an established conversation to an agent on a different runtime', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = { id: 'agent-1', type: 'claude-code', model: 'provider::model-1' }
+    // The selector's /agents list is warm from the open picker; agent-2 runs on another runtime.
+    agentsCacheMock.value = {
+      items: [
+        { id: 'agent-1', type: 'claude-code' },
+        { id: 'agent-2', type: 'pi' }
+      ]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    expect(toastMock.error).toHaveBeenCalledWith('agent.session.agent_switch.runtime_mismatch')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('still switches across runtimes when the conversation is empty', async () => {
+    activeAgentMock.value = { id: 'agent-1', type: 'claude-code', model: 'provider::model-1' }
+    agentsCacheMock.value = {
+      items: [
+        { id: 'agent-1', type: 'claude-code' },
+        { id: 'agent-2', type: 'pi' }
+      ]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'change topbar agent' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', agentId: 'agent-2' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(toastMock.error).not.toHaveBeenCalled()
   })
 
   it('shares the agent confirmation opt-out for the current app run when requested', async () => {

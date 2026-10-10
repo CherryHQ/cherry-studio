@@ -29,11 +29,13 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
+import { useReadCache } from '@renderer/data/hooks/useDataApi'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
@@ -42,6 +44,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { AGENTS_MAX_LIMIT, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -218,6 +221,7 @@ const AgentChat = ({
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
+  const readAgentsCache = useReadCache()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -299,6 +303,17 @@ const AgentChat = ({
   const handleSessionAgentChange = useCallback(
     async (nextAgentId: string | null) => {
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
+      // An established conversation cannot cross runtimes: each keeps its own native history and
+      // cannot replay the other's, so switching needs a new conversation (empty ones switch freely).
+      if (!isEmptyConversation && activeAgent?.type) {
+        const targetAgent = readAgentsCache<{ items: Pick<AgentEntity, 'id' | 'type'>[] }>('/agents', {
+          limit: AGENTS_MAX_LIMIT
+        })?.items.find((agent) => agent.id === nextAgentId)
+        if (targetAgent && targetAgent.type !== activeAgent.type) {
+          toast.error(t('agent.session.agent_switch.runtime_mismatch'))
+          return
+        }
+      }
       // Re-pointing an established conversation swaps the prompt/tools/model for
       // subsequent messages — confirm first, like mid-conversation model switches.
       if (!isEmptyConversation && activeAgent && !skipAgentSwitchConfirmationsForAppRun) {
@@ -321,7 +336,9 @@ const AgentChat = ({
       updateSession,
       isEmptyConversation,
       activeAgent,
-      skipAgentSwitchConfirmationsForAppRun
+      readAgentsCache,
+      skipAgentSwitchConfirmationsForAppRun,
+      t
     ]
   )
   // The retained target belongs to the session the dialog was opened for: a global new-session

@@ -1810,6 +1810,10 @@ export class AgentSessionRuntimeService extends BaseService {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
+      // A live turn is frozen to entry.agentId (adoption never runs mid-turn), so this connect
+      // serves an already-accepted input: the driver's snapshot must not reject it just because
+      // the session row was re-pointed while the connection materialized.
+      ...(this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}),
       reasoningEffort: target.reasoningEffort,
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
@@ -2846,12 +2850,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const rootSpan = this.startRuntimeRootSpan(entry)
     // Use the snapshot frozen when THIS follow-up was submitted (not the entry's, which the last beginTurn
-    // set) so a mid-session agent change can't stamp the queued reply with a stale author. The queue drains
-    // on the LATEST model (`entry.modelId`), so reconcile the snapshot's nested model to the model that
-    // actually runs — otherwise a mid-queue model switch leaves `messageSnapshot.model` disagreeing with the
-    // row's `modelId`, and the header/exports (which prefer the snapshot model) would show the wrong model.
+    // set) so a mid-session agent change can't stamp the queued reply with a stale author — but when the
+    // executor itself changed (top-bar switch before the drain), the new reply's author follows the
+    // executor; completed rows keep their own frozen snapshots. The nested model is reconciled to the
+    // running model either way, so `messageSnapshot.model` never disagrees with the row's `modelId`.
     const frozenSnapshot = pendingTurn.messageSnapshot ?? entry.messageSnapshot
-    const messageSnapshot = reconcileSnapshotModel(frozenSnapshot, entry.modelId, liveAgent.modelName)
+    const messageSnapshot = reconcileSnapshotForExecution(frozenSnapshot, liveAgent, entry.modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -3488,20 +3492,25 @@ function isAbortError(error: unknown): boolean {
 }
 
 /**
- * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it on the
- * LATEST agent model (`entry.modelId`). Reconcile the snapshot's nested model to the model that actually
- * runs so `messageSnapshot.model` never disagrees with the row's `modelId`; the author (id/name/emoji)
- * stays frozen. No-op when the frozen model already is the running model.
+ * A queued/steered follow-up freezes its author snapshot at submit time, but the runtime drains it
+ * under the session's current agent. Reconcile the snapshot to the identity and model that actually
+ * execute: when a top-bar switch moved execution to another agent, the new reply's author
+ * (id/name/emoji) follows the executor; otherwise only the nested model is reconciled so
+ * `messageSnapshot.model` never disagrees with the row's `modelId`.
  */
-function reconcileSnapshotModel(
+function reconcileSnapshotForExecution(
   snapshot: MessageSnapshot | undefined,
-  modelId: UniqueModelId,
-  modelName: string | null | undefined
+  agent: AgentEntity,
+  modelId: UniqueModelId
 ): MessageSnapshot | undefined {
   if (!snapshot) return undefined
-  if (createUniqueModelId(snapshot.model.provider, snapshot.model.id) === modelId) return snapshot
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
-  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+  let model = snapshot.model
+  if (createUniqueModelId(model.provider, model.id) !== modelId) {
+    const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+    model = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+  }
+  if (snapshot.id === agent.id) return model === snapshot.model ? snapshot : { ...snapshot, model }
+  return { id: agent.id, name: agent.name, emoji: agent.configuration?.avatar?.trim() || '🤖', model }
 }
 
 function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {
