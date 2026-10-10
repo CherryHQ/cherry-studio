@@ -581,11 +581,15 @@ describe('McpRuntimeService.callTool tool-result images', () => {
 
     const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
 
-    expect(content[0].type).toBe('image')
-    expect(content[0].mimeType).toBe('image/png')
-    const meta = await sharp(Buffer.from(content[0].data!, 'base64')).metadata()
+    const imageBlock = content[0]
+    expect(imageBlock).toMatchObject({ type: 'image', mimeType: 'image/png' })
+    if (imageBlock.type !== 'image') {
+      throw new Error('expected image block')
+    }
+    const meta = await sharp(Buffer.from(imageBlock.data, 'base64')).metadata()
     expect(meta.format).toBe('png')
-    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(2000)
+    const maxDimension = Math.max(meta.width ?? 0, meta.height ?? 0)
+    expect(maxDimension).toBeLessThanOrEqual(2000)
   })
 
   it('degrades an undecodable image to text instead of failing the tool call', async () => {
