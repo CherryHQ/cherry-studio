@@ -426,9 +426,7 @@ describe('SelectionService main-lag OS hook pause/resume', () => {
     vi.spyOn(svc, 'pauseOsHooksForMainLag').mockImplementation(() => {
       throw new Error('pause failed unexpectedly')
     })
-    const logError = vi
-      .spyOn(Object.getPrototypeOf(svc), 'logError')
-      .mockImplementation(() => undefined)
+    const logError = vi.spyOn(Object.getPrototypeOf(svc), 'logError').mockImplementation(() => undefined)
 
     svc.sampleMainLagForHooks()
     now += MAIN_LAG_HOOK_PAUSE_MS
