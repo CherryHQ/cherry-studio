@@ -29,8 +29,8 @@ function snap(content: string, index: number, edge: 'head' | 'tail'): number {
   return newline === -1 ? index : newline + 1
 }
 
-/** The head and tail of the output around a note saying where the rest is and how to read it. */
-function offloadMarker(content: string, path: string): string {
+/** The head and tail of the output around a note saying where the rest is, or why it is gone. */
+function offloadMarker(content: string, note: string[]): string {
   const head = content.slice(0, snap(content, HEAD_CHARS, 'head'))
   const tail = content.slice(snap(content, content.length - TAIL_CHARS, 'tail'))
   const lines = content.split('\n').length
@@ -38,11 +38,24 @@ function offloadMarker(content: string, path: string): string {
     head,
     '<persisted-output>',
     `output truncated (${lines} lines, ${content.length} chars total; first ${head.length} chars shown above, last ${tail.length} chars shown below)`,
-    `Full output saved to: ${path}`,
-    `Read the full content with the ${READ_TOOL} tool (pass the path above; page with offset/limit).`,
+    ...note,
     '</persisted-output>',
     tail
   ].join('\n')
+}
+
+async function saveNote(store: ToolOutputStore, file: Parameters<ToolOutputStore['save']>[0]): Promise<string[]> {
+  try {
+    const path = await store.save(file)
+    return [
+      `Full output saved to: ${path}`,
+      `Read the full content with the ${READ_TOOL} tool (pass the path above; page with offset/limit).`
+    ]
+  } catch (error) {
+    // Pi would drop a throwing handler's result and send the whole output.
+    const reason = error instanceof Error ? error.message : String(error)
+    return [`The full output could not be saved (${reason}); only the excerpts shown here are available.`]
+  }
 }
 
 /**
@@ -58,10 +71,15 @@ export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutput
       const text = event.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
       if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) return undefined
       const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
-      const path = await store.save({ name, content: text, toolCallId: event.toolCallId, toolName: event.toolName })
+      const note = await saveNote(store, {
+        name,
+        content: text,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName
+      })
       return {
         content: [
-          { type: 'text', text: offloadMarker(text, path) },
+          { type: 'text', text: offloadMarker(text, note) },
           ...event.content.filter((part) => part.type === 'image')
         ],
         ...(event.structuredContent === undefined ? {} : { structuredContent: event.structuredContent })
