@@ -482,6 +482,9 @@ function userMessage() {
   } as any
 }
 
+/** Valid 1×1 PNG (`QUJD` is not image data — decodable fixtures must be real PNG bytes). */
+const PNG_1X1_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -866,7 +869,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.materializeNativeFilePart.mockResolvedValueOnce({
       type: 'file',
-      url: 'data:image/png;base64,QUJD',
+      url: `data:image/png;base64,${PNG_1X1_B64}`,
       mediaType: 'image/png'
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -900,7 +903,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
               type: 'text',
               text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${fileURLToPath(externalFileUrl('spec.pdf'))}`
             },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1X1_B64 } }
           ]
         }
       },
@@ -966,7 +969,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.materializeNativeFilePart.mockResolvedValueOnce({
       type: 'file',
-      url: 'data:image/png;base64,QUJD',
+      url: `data:image/png;base64,${PNG_1X1_B64}`,
       mediaType: 'image/png',
       filename: 'pixel.png',
       providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -1003,7 +1006,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           role: 'user',
           content: [
             { type: 'text', text: 'describe this' },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1X1_B64 } }
           ]
         }
       },
@@ -1075,7 +1078,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     ])
     mocks.materializeNativeFilePart.mockImplementation(async (part) =>
       part.filename === 'mislabelled.png'
-        ? { ...part, url: 'data:image/png;base64,QUJD', mediaType: 'image/png' }
+        ? { ...part, url: `data:image/png;base64,${PNG_1X1_B64}`, mediaType: 'image/png' }
         : null
     )
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -1129,7 +1132,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
               type: 'text',
               text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
             },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1X1_B64 } }
           ]
         }
       },
@@ -1510,7 +1513,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.materializeNativeFilePart.mockResolvedValueOnce({
       type: 'file',
-      url: 'data:image/png;base64,QUJD',
+      url: `data:image/png;base64,${PNG_1X1_B64}`,
       mediaType: 'image/png'
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -1534,7 +1537,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }]
+          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1X1_B64 } }]
         }
       },
       done: false
@@ -1552,7 +1555,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.materializeNativeFilePart.mockResolvedValueOnce({
       type: 'file',
-      url: 'data:image/png;base64,QUJD',
+      url: `data:image/png;base64,${PNG_1X1_B64}`,
       mediaType: 'image/png'
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -1580,7 +1583,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           role: 'user',
           content: [
             { type: 'text', text: expect.stringContaining('<system-reminder>') },
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1X1_B64 } }
           ]
         }
       },

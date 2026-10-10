@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import { SseError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -551,6 +552,83 @@ describe('McpRuntimeService.closeConnectionsForServer', () => {
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
     expect((service as any).connections.has(serverKeyFor('server-2'))).toBe(true)
+  })
+})
+
+describe('McpRuntimeService.callTool tool-result images', () => {
+  const server = { id: 'server-1', name: 'srv', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+  })
+
+  function serviceReturning(content: unknown[], isError?: boolean) {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'createConnection').mockResolvedValue({
+      callTool: vi.fn().mockResolvedValue({ content, isError })
+    })
+    return service
+  }
+
+  it('shrinks an oversized image before any runtime sees it, preserving format and mime type', async () => {
+    const tall = await sharp({ create: { width: 100, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const service = serviceReturning([{ type: 'image', data: tall.toString('base64'), mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    const imageBlock = content[0]
+    expect(imageBlock).toMatchObject({ type: 'image', mimeType: 'image/png' })
+    if (imageBlock.type !== 'image') {
+      throw new Error('expected image block')
+    }
+    const meta = await sharp(Buffer.from(imageBlock.data, 'base64')).metadata()
+    expect(meta.format).toBe('png')
+    const maxDimension = Math.max(meta.width ?? 0, meta.height ?? 0)
+    expect(maxDimension).toBeLessThanOrEqual(2000)
+  })
+
+  it('degrades an undecodable image to text instead of failing the tool call', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content).toEqual([{ type: 'text', text: '[image (image/png) could not be processed]' }])
+  })
+
+  it('degrades a truncated PNG to text instead of passing it through', async () => {
+    const png = await sharp({ create: { width: 120, height: 50, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const broken = png.subarray(0, Math.floor(png.length / 2))
+    const service = serviceReturning([{ type: 'image', data: broken.toString('base64'), mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content).toEqual([{ type: 'text', text: '[image (image/png) could not be processed]' }])
+  })
+
+  it('degrades an image block with empty data to text', async () => {
+    const service = serviceReturning([{ type: 'image', data: '', mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content).toEqual([{ type: 'text', text: '[image (image/png) could not be processed]' }])
+  })
+
+  it('leaves error results untouched, even when they carry image-typed content', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }], true)
+
+    const result = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(result).toEqual({
+      content: [{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }],
+      isError: true
+    })
   })
 })
 
