@@ -1490,6 +1490,7 @@
   "file_preview.markdown.mode.label": "Markdown表示モード",
   "file_preview.markdown.mode.preview": "プレビュー",
   "file_preview.markdown.mode.source": "ソース",
+  "file_preview.markdown.plain_fallback.description": "このファイルは、レンダリングするとアプリの動作が遅くなるため、プレーンテキストで表示されます。",
   "file_preview.markdown.read_error.title": "このファイルを読み込めませんでした",
   "file_preview.markdown.too_large.description": "{{limit}} MiBを超えるMarkdownファイルはプレビューできません。",
   "file_preview.markdown.too_large.title": "ファイルが大きすぎます",

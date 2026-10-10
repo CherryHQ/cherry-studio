@@ -1490,6 +1490,7 @@
   "file_preview.markdown.mode.label": "Modo de visualização Markdown",
   "file_preview.markdown.mode.preview": "Pré-visualização",
   "file_preview.markdown.mode.source": "Fonte",
+  "file_preview.markdown.plain_fallback.description": "Este ficheiro é apresentado como texto simples porque renderizá-lo tornaria a aplicação mais lenta.",
   "file_preview.markdown.read_error.title": "Não foi possível ler este ficheiro",
   "file_preview.markdown.too_large.description": "Ficheiros Markdown maiores que {{limit}} MiB não podem ser visualizados.",
   "file_preview.markdown.too_large.title": "O ficheiro é muito grande",

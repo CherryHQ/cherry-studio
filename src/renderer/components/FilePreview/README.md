@@ -69,7 +69,9 @@ access policy. Without this capability, previews retain Streamdown's default saf
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
 stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
-so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
+so generated applications can run scripts. Markdown keeps one exception: a document that cannot be windowed drops to
+the plain-text source even on an artifact, since the fallback exists to keep the renderer responsive. This does not
+hide format-specific controls such as PDF zoom or image
 transforms.
 
 All other callers default to `type="file"`. That type treats local HTML as untrusted, renders it with the
@@ -284,6 +286,20 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
+- Markdown and text previews window their expensive passes instead of dropping them: Markdown renders chunk by chunk and
+  shiki highlights up to the last visible row in a worker, so a large document costs nothing up front. Only input that
+  cannot be windowed — very long lines, or one Markdown block too large to split — falls back to the virtualized
+  plain-text source. Markdown then locks its preview/source switch and says so through
+  `file_preview.markdown.plain_fallback.description`.
+- A Markdown chunk is its own document, so `splitMarkdownChunks` may only break on a blank line where no construct spans
+  it (fenced code, display math, raw HTML, indented code) and outside every list, which is one block: the pieces of a cut
+  list renumber its ordered items and parse a loose list as a tight one. Reference definitions are carried into every
+  chunk whole, even when a link's destination or title sits on a line of its own, because a link or footnote used in one
+  chunk may be defined in another; only a footnote definition owns the indented lines that follow its blank ones. A link
+  definition is carried without the block quote or list marker it was written behind, since that container is a block of
+  its own and carrying it would render an empty one in every chunk that does not use the definition. Lines
+  are compared without their terminator, so a CRLF source windows exactly like the same source with LF endings. The
+  source is split once, and that one split decides both what is windowed and what cannot be.
 - Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
   opened document changes. Do not request metadata again inside a format plugin.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
@@ -301,7 +317,9 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Build new UI with `@cherrystudio/ui` and Tailwind CSS, following the repository [DESIGN.md](../../../../DESIGN.md).
 - Use Lucide icons in toolbars. Icon buttons require an accessible name and a tooltip.
 - Put plugin-specific copy under `file_preview.*` i18n keys, reuse existing `common.*` or `preview.*` keys for shared controls, and update `en-us` and `zh-cn`.
-- Keep the toolbar at a stable height. Only `FilePreviewLayout.Content` should own content scrolling.
+- Keep the toolbar at a stable height. A preview has exactly one scroll owner: `FilePreviewLayout.Content` when the
+  plugin's content scrolls as a whole, or the virtualized viewer a plugin embeds when that viewer needs its own bounded
+  viewport to window rows. Never both — a second unbounded scroller defeats virtualization.
 
 ## Verification
 

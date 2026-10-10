@@ -1490,6 +1490,7 @@
   "file_preview.markdown.mode.label": "Chế độ xem Markdown",
   "file_preview.markdown.mode.preview": "Xem trước",
   "file_preview.markdown.mode.source": "Nguồn",
+  "file_preview.markdown.plain_fallback.description": "Tệp này được hiển thị dưới dạng văn bản thuần vì việc kết xuất nó sẽ làm chậm ứng dụng.",
   "file_preview.markdown.read_error.title": "Không thể đọc tệp này",
   "file_preview.markdown.too_large.description": "Các tệp Markdown lớn hơn {{limit}} MiB không thể được xem trước.",
   "file_preview.markdown.too_large.title": "Tệp quá lớn",

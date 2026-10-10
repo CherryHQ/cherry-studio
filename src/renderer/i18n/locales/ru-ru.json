@@ -1490,6 +1490,7 @@
   "file_preview.markdown.mode.label": "Режим просмотра Markdown",
   "file_preview.markdown.mode.preview": "Предпросмотр",
   "file_preview.markdown.mode.source": "Источник",
+  "file_preview.markdown.plain_fallback.description": "Этот файл отображается как обычный текст, поскольку его отрисовка замедлила бы работу приложения.",
   "file_preview.markdown.read_error.title": "Не удалось прочитать этот файл",
   "file_preview.markdown.too_large.description": "Файлы Markdown размером более {{limit}} МиБ не могут быть предпросмотрены.",
   "file_preview.markdown.too_large.title": "Файл слишком большой",

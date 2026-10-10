@@ -22,6 +22,17 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
 }))
 
+// jsdom has no real layout, so the chunk virtualizer reports every chunk here; windowing itself is
+// covered in MarkdownChunkPreview.test.tsx.
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({ key: String(index), index, start: index * 30, size: 30 })),
+    getTotalSize: () => options.count * 30,
+    measureElement: () => {}
+  })
+}))
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
@@ -128,6 +139,26 @@ describe('MarkdownFilePreview links', () => {
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noreferrer')
     expect(openFile).not.toHaveBeenCalled()
+  })
+
+  it('jumps to a heading that lives in another chunk of the same preview', async () => {
+    // A document larger than the chunk budget splits into several independently rendered
+    // `.markdown` containers, so the anchor has to resolve against the preview rather than the
+    // chunk that holds the link.
+    const padding = 'x'.repeat(15_000)
+    mocks.readText.mockResolvedValue(
+      [`# Alpha`, '', '[jump](#target)', '', padding, '', padding, '', '## Target', '', 'body'].join('\n')
+    )
+    const scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+
+    renderArtifactPreview(vi.fn())
+
+    const heading = await screen.findByRole('heading', { name: 'Target' })
+    heading.scrollIntoView = scrollIntoView
+    await user.click(await screen.findByRole('link', { name: 'jump' }))
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
   })
 
   it('keeps passive fenced-code actions without chat execution or HTML artifact controls', async () => {

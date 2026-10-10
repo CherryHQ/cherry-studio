@@ -42,6 +42,17 @@ export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean
   )
 }
 
+/** The element a `#fragment` names inside `root`, tolerating the heading-id prefix. */
+export function findMarkdownAnchorTarget(
+  root: HTMLElement | null | undefined,
+  fragment: string
+): HTMLElement | undefined {
+  return Array.from(root?.querySelectorAll<HTMLElement>('[id]') ?? []).find(
+    (element) =>
+      element.id === fragment || element.id === `user-content-${fragment}` || element.id.endsWith(`--${fragment}`)
+  )
+}
+
 export function scrollToMarkdownAnchor(event: ReactMouseEvent<HTMLAnchorElement>): void {
   event.stopPropagation()
 
@@ -56,11 +67,7 @@ export function scrollToMarkdownAnchor(event: ReactMouseEvent<HTMLAnchorElement>
   }
   if (!fragment) return
 
-  const markdown = event.currentTarget.closest('.markdown')
-  const target = Array.from(markdown?.querySelectorAll<HTMLElement>('[id]') ?? []).find(
-    (element) =>
-      element.id === fragment || element.id === `user-content-${fragment}` || element.id.endsWith(`--${fragment}`)
-  )
+  const target = findMarkdownAnchorTarget(event.currentTarget.closest('.markdown'), fragment)
   if (!target) return
 
   event.preventDefault()

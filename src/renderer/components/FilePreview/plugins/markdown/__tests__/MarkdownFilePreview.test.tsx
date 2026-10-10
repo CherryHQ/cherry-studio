@@ -7,6 +7,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
+import { MARKDOWN_MAX_BLOCK_CHARS } from '../markdownChunks'
 import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
@@ -15,10 +16,22 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+  default: (props: { language: string; options?: { highlight?: boolean }; value: string; wrapped: boolean }) => {
     mocks.codeViewer(props)
     return <div data-testid="code-viewer">{props.value}</div>
   }
+}))
+
+// jsdom has no real layout, so the chunk virtualizer reports every chunk and these tests cover the
+// Markdown rendering and fallback decisions; windowing itself is covered in
+// MarkdownChunkPreview.test.tsx.
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({ key: String(index), index, start: index * 30, size: 30 })),
+    getTotalSize: () => options.count * 30,
+    measureElement: () => {}
+  })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
@@ -149,6 +162,57 @@ describe('MarkdownFilePreview', () => {
     expect(screen.getByRole('heading')).toBeInTheDocument()
   })
 
+  // Every block is windowed now, so only input windowing cannot handle falls back to the
+  // virtualized plain-text source.
+  it('shows plain source for a document dominated by very long lines', async () => {
+    mocks.readText.mockResolvedValueOnce(`# File preview\n\n${'a'.repeat(60_000)}`)
+
+    renderPreview({ size: 60_000 })
+
+    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('file_preview.markdown.plain_fallback.description')
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ options: { highlight: false } }))
+  })
+
+  it('shows plain source when one block is too large to window', async () => {
+    mocks.readText.mockResolvedValueOnce(`# File preview\n\n${'a'.repeat(MARKDOWN_MAX_BLOCK_CHARS + 1)}`)
+
+    renderPreview({ size: 2 * 1024 * 1024 - 1 })
+
+    expect(await screen.findByTestId('code-viewer')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('renders the plain fallback in a viewer with a bounded scroll viewport', async () => {
+    mocks.readText.mockResolvedValueOnce('a'.repeat(60_000))
+
+    renderPreview({ size: 60_000, type: 'artifact' })
+
+    await screen.findByTestId('code-viewer')
+    // The viewer's virtualizer windows rows against its own scroller, so it must own a bounded
+    // viewport — an unbounded wrapper hands it the whole document and materializes every row.
+    expect(mocks.codeViewer).toHaveBeenLastCalledWith(expect.objectContaining({ expanded: false, height: '100%' }))
+  })
+
+  it('locks the view switch so a plain-text document cannot be forced through rendering', async () => {
+    mocks.readText.mockResolvedValueOnce('a'.repeat(60_000))
+
+    renderPreview({ size: 60_000 })
+
+    await screen.findByTestId('code-viewer')
+    expect(screen.getByRole('button', { name: 'file_preview.markdown.mode.preview' })).toBeDisabled()
+  })
+
+  it('keeps rendering a large document whose blocks are each small enough to window', async () => {
+    mocks.readText.mockResolvedValueOnce('# File preview')
+
+    renderPreview({ size: 2 * 1024 * 1024 - 1 })
+
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
   it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
     mocks.readText.mockResolvedValueOnce(
       '---\r\nname: Writer\r\ndescription: Draft clear prose\r\n---\r\n# File preview'
@@ -160,6 +224,19 @@ describe('MarkdownFilePreview', () => {
     expect(screen.getByRole('heading')).not.toHaveTextContent('description: Draft clear prose')
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
+  })
+
+  it('keeps artifact frontmatter hidden when the document falls back to plain source', async () => {
+    mocks.readText.mockResolvedValueOnce(
+      `---\nname: Writer\ndescription: Draft clear prose\n---\n# File preview\n\n${'a'.repeat(60_000)}`
+    )
+
+    renderPreview({ size: 60_000, type: 'artifact' })
+
+    const source = await screen.findByTestId('code-viewer')
+    expect(source).toHaveTextContent('# File preview')
+    expect(source).not.toHaveTextContent('name: Writer')
+    expect(source).not.toHaveTextContent('description: Draft clear prose')
   })
 
   it('reloads when the path or refresh key changes', async () => {

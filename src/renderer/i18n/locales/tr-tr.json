@@ -1490,6 +1490,7 @@
   "file_preview.markdown.mode.label": "Markdown görüntüleme modu",
   "file_preview.markdown.mode.preview": "Önizleme",
   "file_preview.markdown.mode.source": "Kaynak",
+  "file_preview.markdown.plain_fallback.description": "Bu dosya, işlenmesi uygulamayı yavaşlatacağı için düz metin olarak gösteriliyor.",
   "file_preview.markdown.read_error.title": "Bu dosya okunamadı",
   "file_preview.markdown.too_large.description": "{{limit}} MiB boyutundan büyük Markdown dosyaları önizlenemez.",
   "file_preview.markdown.too_large.title": "Dosya çok büyük",
