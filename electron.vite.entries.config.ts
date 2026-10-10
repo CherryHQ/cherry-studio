@@ -29,7 +29,8 @@ export default {
             __dirname,
             'src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts'
           ),
-          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts')
+          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts'),
+          'voice-audio': resolve(__dirname, 'src/main/ai/voice/localAdapters/utilityEntries/voiceAudio.ts')
         }
       },
       rolldownOptions: {

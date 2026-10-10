@@ -70,7 +70,7 @@ const tasks = plan.tasks.filter(
 )
 const projects =
   values.group === 'platform' && plan.projects.includes('main')
-    ? ['main', 'shared', 'dsh-bridge']
+    ? ['main', 'shared', 'dsh-bridge', 'system-speech']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true
         if (values.group === 'main') return ['main', 'preload'].includes(project)
@@ -99,10 +99,14 @@ if (projects.length) {
   if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
-      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/dsh-bridge'], {
-          cwd: root,
-          encoding: 'utf8'
-        })
+      ? execFileSync(
+          'git',
+          ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/dsh-bridge', 'packages/system-speech'],
+          {
+            cwd: root,
+            encoding: 'utf8'
+          }
+        )
           .split('\0')
           .filter(
             (file) =>

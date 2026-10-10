@@ -181,6 +181,30 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
+function prepareSystemSpeechHelper(
+  context,
+  buildNativeHelper = require('../../packages/system-speech/scripts/build-native.cjs').buildNativeHelper
+) {
+  const platform = platformToArch[context.packager.platform.name]
+  const arch = Arch[context.arch]
+  if (platform === 'darwin') {
+    buildNativeHelper(arch, platform)
+  } else if (platform === 'win32') {
+    const config = context.packager.config.win
+    const destination = 'system-speech/cherry-system-speech.exe'
+    const resources = (config.extraResources ?? []).filter((resource) => resource.to !== destination)
+    if (arch === 'x64') {
+      buildNativeHelper(arch, platform)
+      resources.push({
+        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        to: destination
+      })
+    }
+    config.extraResources = resources
+  }
+}
+exports.prepareSystemSpeechHelper = prepareSystemSpeechHelper
+
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
   const nativeBindingTarget = `${platform}-${arch}${platform === 'win32' ? '-msvc' : platform === 'linux' ? '-gnu' : ''}`
@@ -198,6 +222,8 @@ exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
+
+  prepareSystemSpeechHelper(context)
 
   await prepareNativeModulesForElectron(context)
   buildSelectionPanel({ platform, arch })

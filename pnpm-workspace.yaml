@@ -303,3 +303,4 @@ minimumReleaseAgeExclude:
   - "@deepseek-ai/node-addon-system-linux-x64@0.1.2"
   - "@deepseek-ai/schemastery@3.18.4"
   - "@earendil-works/pi-ai@0.87.1"
+  - "mediabunny@1.58.0"

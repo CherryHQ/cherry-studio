@@ -5,6 +5,7 @@
 - `before-pack.js`: prepares target native dependencies and bundled binaries, then filters foreign platform files.
 - `after-pack.js`: adjusts packaged license files and installs the pinned Linux SQLite artifact.
 - `notarize.js`: notarizes the signed macOS application when credentials are configured.
+- `mac-sign.js`: preserves the Electron signing policy and assigns empty entitlements to the system speech helper.
 - `win-sign.js`: validates and signs Windows artifacts.
 - `artifact-build-completed.js`: normalizes public release artifact names.
 
