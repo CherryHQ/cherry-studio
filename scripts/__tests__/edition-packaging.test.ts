@@ -92,7 +92,7 @@ describe('edition packaging', () => {
       nsisGuid: '41a4ccd8-bcc0-5710-9eee-0e164da68057',
       productName: 'Cherry Studio',
       protocol: 'cherrystudio',
-      publish: { provider: 'generic', url: 'https://releases.cherry-ai.com' },
+      publish: expect.objectContaining({ provider: 'generic', url: 'https://releases.cherry-ai.com' }),
       windowsArtifactName: '${productName}-${version}-${arch}-setup.${ext}'
     })
   })
@@ -108,7 +108,11 @@ describe('edition packaging', () => {
       extraMetadata: {
         cherryEdition: CHINA_EDITION
       },
-      publish: { provider: 'generic', url: 'https://releases.cherry-ai.com', channel: 'latest-cn' }
+      publish: expect.objectContaining({
+        provider: 'generic',
+        url: 'https://releases.cherry-ai.com',
+        channel: 'latest-cn'
+      })
     })
   })
 

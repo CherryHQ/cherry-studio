@@ -1,7 +1,7 @@
 import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
-import { isLinux, isMac } from '@renderer/utils/platform'
+import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 /**
@@ -11,6 +11,7 @@ import { cn } from '@renderer/utils/style'
  */
 export const SubWindowTitleBar = ({ isFullscreen }: { isFullscreen: boolean }) => (
   <header
+    style={isWin && !isFullscreen ? { minHeight: 'env(titlebar-area-height, 0px)' } : undefined}
     className={cn(
       'relative flex w-full shrink-0 items-center gap-2 border-b border-border-subtle bg-background select-none [-webkit-app-region:drag]',
       TITLE_BAR_HEIGHT_CLASS,

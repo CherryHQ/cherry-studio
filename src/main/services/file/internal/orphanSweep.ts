@@ -45,6 +45,8 @@ import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
+import type { IntakeStore } from './IntakeStore'
+
 const logger = loggerService.withContext('FileManager:orphanSweep')
 
 function assertNever(x: never): never {
@@ -214,6 +216,7 @@ const ABORT_FRACTION = 0.5
 const MAX_FAILED_SAMPLES = 5
 
 export interface RunFileSweepDeps {
+  readonly intakeProtection?: Pick<IntakeStore, 'load' | 'isProtected'>
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
   /** Test seam — defaults to `Date.now`. */
   readonly now?: () => number
@@ -353,6 +356,7 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
       }
     }
 
+    await deps.intakeProtection?.load()
     const now = (deps.now ?? Date.now)()
     const planned: CandidatePlan[] = []
     let candidatesCount = 0
@@ -376,6 +380,8 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
       // does, attempting to unlink would just throw and silently succeed-fail
       // forever; explicit guard makes the contract clear.
       if (!st.isFile()) continue
+      const identity = isUuidFileName(name)
+      if (identity && deps.intakeProtection?.isProtected(identity.id)) continue
 
       // Tmp residue MUST be checked first: atomicWriteFile produces names of
       // the form `<entryUUID>.<ext>.tmp-<randomUUID>` whose leading stem is
@@ -466,6 +472,13 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
     const failedSamples: string[] = []
     for (const target of planned) {
       try {
+        const identity = isUuidFileName(path.basename(target.path))
+        if (
+          identity &&
+          (deps.intakeProtection?.isProtected(identity.id) ||
+            (!isTmpResidueName(path.basename(target.path)) && deps.fileEntryService.listAllIds().has(identity.id)))
+        )
+          continue
         await unlink(target.path)
         actualDeleted++
         actualBytes += target.bytes

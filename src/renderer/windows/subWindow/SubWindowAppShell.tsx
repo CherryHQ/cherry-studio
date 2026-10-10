@@ -2,23 +2,17 @@ import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 're
 
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
-import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
-import {
-  LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH,
-  useHasWindowControls,
-  WindowControls
-} from '@renderer/components/WindowControls'
+import { WINDOW_CONTROLS_OVERLAY_WIDTH } from '@renderer/components/WindowControls'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
-import { isLinux } from '@renderer/utils/platform'
+import { isLinux, isWin } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
@@ -84,11 +78,6 @@ export const SubWindowAppShell = () => {
     })
   }
 
-  // Windows sub-windows are frameless, so draw min/max/close in the top-right corner. Linux
-  // gets them from Electron's overlay, macOS from traffic lights. --window-controls-width lets
-  // the standalone title bar reserve the corner either way.
-  const hasWindowControls = useHasWindowControls()
-
   return (
     // The window frame keeps detached-page behavior scoped to this window. The standalone
     // title bar stays outside every route so hosted pages can keep their normal page chrome.
@@ -98,11 +87,7 @@ export const SubWindowAppShell = () => {
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
         style={
           {
-            '--window-controls-width': hasWindowControls
-              ? '138px'
-              : isLinux
-                ? LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH
-                : '0px'
+            '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
           } as CSSProperties
         }>
         <SubWindowTitleBar isFullscreen={isFullscreen} />
@@ -135,16 +120,6 @@ export const SubWindowAppShell = () => {
               list independently of the main window. */}
           <MiniAppTabsPool />
         </main>
-
-        {/* OS window controls overlay — flush in the corner, above the title bar (z-[9999]),
-            sitting in the space it reserves via --window-controls-width. Gated to
-            Windows, the only platform where the renderer draws them. */}
-        {hasWindowControls && (
-          <div
-            className={cn('absolute top-0 right-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>
-            <WindowControls />
-          </div>
-        )}
       </div>
     </WindowFrameProvider>
   )
