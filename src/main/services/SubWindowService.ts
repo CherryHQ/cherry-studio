@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
+import { syncLinuxTitleBarOverlayWithTheme } from '@main/core/window/linuxTitleBarOverlay'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
@@ -57,6 +58,14 @@ export class SubWindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerZoomTracking()
+    if (isLinux) {
+      // Registry gives Linux sub-windows WCO; covers pre-warmed standbys like registerZoomTracking.
+      this.registerDisposable(
+        application
+          .get('WindowManager')
+          .onWindowCreatedByType(WindowType.SubWindow, ({ window }) => syncLinuxTitleBarOverlayWithTheme(window))
+      )
+    }
   }
 
   /**

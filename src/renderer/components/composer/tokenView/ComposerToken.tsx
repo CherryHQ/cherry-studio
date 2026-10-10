@@ -1,4 +1,4 @@
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import { MousePointer2 } from 'lucide-react'
 import {
   type ComponentType,
@@ -58,7 +58,8 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
   webviewAnnotation: <MousePointer2 className={tokenIconClassName} />,
-  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
+  messagePart: <Blocks className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -77,6 +78,7 @@ export interface ComposerTokenProps {
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
   onRemove?: () => void
+  onOpenLink?: (url: string) => void | Promise<void>
   removeLabel?: string
 }
 
@@ -267,18 +269,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     })
   }
 
-  const openLink = () => {
-    void ipcApi.request('system.shell.open_website', link.url)
+  const openLink = (modified: boolean) => {
+    if (!modified && props.onOpenLink) void props.onOpenLink(link.url)
+    else void ipcApi.request('system.shell.open_website', link.url)
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     event.stopPropagation()
-    openLink()
+    openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
 
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
@@ -1022,6 +1025,13 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
 }
 
+export function MessagePartComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.messagePart
+  })
+}
+
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
   link: LinkComposerToken,
@@ -1031,7 +1041,8 @@ export const composerInputTokenComponentByKind = {
   reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
   webviewAnnotation: WebviewAnnotationComposerToken,
-  promptVariable: PromptVariableComposerToken
+  promptVariable: PromptVariableComposerToken,
+  messagePart: MessagePartComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {

@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { AssistantMessage, Context, Model, Usage } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 
@@ -40,7 +41,7 @@ const model: Model<'openai-responses'> = {
 
 async function outputBudget(context: Context) {
   const { buildBaseOptions } = await import('@earendil-works/pi-ai/api/simple-options')
-  return buildBaseOptions(model, context).maxTokens
+  return buildBaseOptions(model, normalizeContext(context)).maxTokens
 }
 
 describe('pi-ai compaction output budget', () => {

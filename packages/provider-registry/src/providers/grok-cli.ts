@@ -24,8 +24,49 @@ export default defineProvider({
     }
   },
   overrides: [
-    // grok-4-5 / grok-4-3 resolve to base-catalog models; override only the
+    // grok-4-7 / grok-4-6 / grok-4-5 / grok-4-3 resolve to base-catalog models; override only the
     // CLI-proxy specifics (30k output cap, flat CLI-side pricing).
+    {
+      modelId: 'grok-4-7',
+      apiModelId: 'grok-4.7',
+      limits: { contextWindow: 500000, maxOutputTokens: 30000 },
+      endpointTypes: ['openai-responses'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.5 }
+      }
+    },
+    {
+      modelId: 'grok-4-7-build-fast',
+      apiModelId: 'grok-4.7-build-fast',
+      name: 'Grok 4.7 Fast',
+      description:
+        'Grok 4.7 Fast is the low-latency variant of Grok 4.7 billed at twice the standard rate, available through the SuperGrok subscription via the Grok CLI proxy.',
+      family: 'grok',
+      ownedBy: 'xai',
+      capabilities: { force: ['function-call', 'reasoning', 'image-recognition'] },
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      limits: { contextWindow: 500000, maxOutputTokens: 30000 },
+      endpointTypes: ['openai-responses'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 4 },
+        output: { currency: 'USD', perMillionTokens: 12 },
+        cacheRead: { currency: 'USD', perMillionTokens: 1 }
+      }
+    },
+    {
+      modelId: 'grok-4-6',
+      apiModelId: 'grok-4.6',
+      limits: { contextWindow: 500000, maxOutputTokens: 30000 },
+      endpointTypes: ['openai-responses'],
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.5 }
+      }
+    },
     {
       modelId: 'grok-4-5',
       apiModelId: 'grok-4.5',

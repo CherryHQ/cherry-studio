@@ -1,7 +1,7 @@
 import { SubWindowControls } from '@renderer/components/layout/SubWindowControls'
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
-import { isMac } from '@renderer/utils/platform'
+import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 /**
@@ -18,7 +18,12 @@ export const SubWindowTitleBar = ({ isFullscreen }: { isFullscreen: boolean }) =
       'pr-[calc(0.5rem+var(--window-controls-width,0px))]',
       // macOS native traffic lights are hidden in fullscreen, so `env(titlebar-area-x)`
       // collapses to 0 — fall back to the plain inset instead of hugging the left edge.
-      isMac && !isFullscreen ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
+      // Linux WCO controls may sit on the left (x > 0) or right (x = 0).
+      isMac && !isFullscreen
+        ? 'pl-[env(titlebar-area-x)]'
+        : isLinux
+          ? 'pl-[calc(0.5rem+env(titlebar-area-x,0px))]'
+          : 'pl-2'
     )}>
     <SubWindowTitle className="min-w-0 flex-1" />
     <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">

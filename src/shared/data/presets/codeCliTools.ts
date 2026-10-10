@@ -139,6 +139,15 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     packageName: 'hermes-agent',
     install: 'pipx',
     pipxExtras: ['web']
+  }),
+  defineCodeCliTool({
+    id: CodeCli.MINIMAX_CODE,
+    executable: 'mcode',
+    skillFolderName: 'code-mate-minimax-code',
+    packageName: '@minimax-ai/code',
+    install: 'npm',
+    // The optional better-sqlite3 dependency builds from source via lifecycle scripts.
+    npmAllowBuilds: ['@minimax-ai/code', 'better-sqlite3']
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
