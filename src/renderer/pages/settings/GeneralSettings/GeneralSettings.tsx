@@ -246,18 +246,14 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.agent.language.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 items-start gap-6">
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle className="gap-1">
-              {t('settings.agent.language.label')}
-              <InfoTooltip content={t('settings.agent.language.description')} />
-            </SettingRowTitle>
-            <SettingDescription className="mt-1.5 leading-5">
-              {t('settings.agent.language.description')}
-            </SettingDescription>
-          </div>
-          <div className="w-[220px] shrink-0">
+        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 gap-x-6">
+          <SettingRowTitle className="gap-1">
+            {t('settings.agent.language.label')}
+            <InfoTooltip content={t('settings.agent.language.description')} />
+          </SettingRowTitle>
+          <div className="w-[448px] max-w-full min-w-0">
             <AgentLanguageField
+              className="grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]"
               value={agentLanguage}
               onChange={(next) => void setAgentLanguage(next)}
               nullOptionLabel={t('settings.agent.language.follow_conversation')}
