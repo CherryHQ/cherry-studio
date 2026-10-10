@@ -476,10 +476,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.adapter?.beginTurn()
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      input.message,
+      this.resumeToken,
+      input.systemReminder,
+      input.backgroundTasksNote,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     this.sdkInputQueue.push(sdkMessage)
   }
 
@@ -1113,6 +1119,7 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
+  backgroundTasksNote?: string,
   {
     supportsAttachmentReads = false,
     supportsImages = true
@@ -1120,7 +1127,7 @@ async function toSdkUserMessage(
 ): Promise<SDKUserMessage> {
   let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
-    content = applySteerReminder(content)
+    content = applySteerReminder(content, backgroundTasksNote)
   }
 
   return {
@@ -1136,17 +1143,20 @@ async function toSdkUserMessage(
  * prompt before its next action. Handles both string and array (text+image)
  * content shapes.
  */
-function applySteerReminder(content: SDKUserMessage['message']['content']): SDKUserMessage['message']['content'] {
+function applySteerReminder(
+  content: SDKUserMessage['message']['content'],
+  backgroundTasksNote?: string
+): SDKUserMessage['message']['content'] {
   if (Array.isArray(content)) {
     let wrappedText = false
     const wrapped = content.map((part) => {
       if (part.type !== 'text' || !part.text.trim()) return part
       wrappedText = true
-      return { ...part, text: wrapSteerReminder(part.text) }
+      return { ...part, text: wrapSteerReminder(part.text, backgroundTasksNote) }
     })
-    return wrappedText ? wrapped : [{ type: 'text', text: wrapSteerReminder('') }, ...wrapped]
+    return wrappedText ? wrapped : [{ type: 'text', text: wrapSteerReminder('', backgroundTasksNote) }, ...wrapped]
   }
-  return content.trim() ? wrapSteerReminder(content) : content
+  return content.trim() ? wrapSteerReminder(content, backgroundTasksNote) : content
 }
 
 /**

@@ -89,6 +89,90 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished', undefined)
   })
 
+  it('delivers only once when a held topic settles again (chain hold + close)', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('the reply'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // A later topic close (held stream whose wake never came) settles the same listener again —
+    // the reply must not be re-delivered to the channel.
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers the background wake turn that a held topic carries into the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // Background work keeps the topic stream alive across the inter-turn gap precisely so the wake
+    // carries this listener (willContinueTopic) — the wake's own output must reach the channel, and
+    // must not re-post the turn that already settled.
+    listener.onChunk(delta('Found it: 42'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual(['On it.', 'Found it: 42'])
+  })
+
+  it('delivers a carried-in wake’s channel error even when it fails before any output', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    await listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    // The wake is a new execution on the carried listener (its completion sentinel already resolved),
+    // and it dies before emitting a single text delta — nothing re-arms delivery except execution
+    // identity, so the error must still reach the channel.
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'wake exploded' },
+      isTopicDone: true,
+      attemptId: 2
+    })
+
+    expect(adapter.onStreamError).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual([
+      'On it.',
+      t('common.channel_error', { error: 'wake exploded' })
+    ])
+  })
+
+  it('still deduplicates a payload-free held-topic close that replays the settled execution', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('the reply'))
+    await listener.onDone({ status: 'success', isTopicDone: false, attemptId: 3 })
+    // `finalizeHeldTopicStream` closes the held topic with a payload-free done carrying the SAME
+    // execution identity — the already-delivered reply must not be re-delivered.
+    await listener.onDone({ status: 'success', isTopicDone: true, attemptId: 3 })
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not carry an errored turn’s partial text into the successor turn on the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('Half a reply that'))
+    // A live sibling execution keeps the topic out of the terminal broadcast, so an error can land
+    // with isTopicDone:false — a successor turn then arrives on this same listener.
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'boom' },
+      isTopicDone: false
+    })
+    listener.onChunk(delta('the successor continues'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.at(-1)?.[1]).toBe('the successor continues')
+  })
+
   it('finalizes an empty turn without sending an empty fallback', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')

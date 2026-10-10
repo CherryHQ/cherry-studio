@@ -1629,7 +1629,7 @@ describe('ClaudeCodeStreamAdapter', () => {
           type: 'background-tasks',
           tasks: [{ id: 'bg-1', type: 'local_bash', description: 'sleep 300' }]
         },
-        { type: 'background-work-state', active: true, awaitingReply: false },
+        { type: 'background-work-state', active: true },
         { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
       ])
       // Status is not turn content, so nothing reaches the message stream.
@@ -1940,8 +1940,12 @@ describe('ClaudeCodeStreamAdapter', () => {
         state: 'idle'
       } as any)
       expect(adapter.isTurnActive).toBe(false)
-      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true, awaitingReply: false })
-      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+      // The remaining detached server keeps the occupancy active after the reply-relevant agents
+      // drained: only session idle (with an empty task set) releases the connection hold, so no
+      // `active: false` is ever emitted here.
+      const workStates = statusEvents.filter((event) => event.type === 'background-work-state')
+      expect(workStates.at(-1)).toEqual({ type: 'background-work-state', active: true })
+      expect(workStates).not.toContainEqual({ type: 'background-work-state', active: false })
     })
 
     it('keeps background work alive through a terminal bookend and parentless wake until idle', () => {

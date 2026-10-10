@@ -39,6 +39,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -926,7 +927,12 @@ export class AgentSessionMessageService {
         .run()
       return result
     })
-    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
+    if (changed.changes > 0) {
+      // Earlier live flow publishes for this row carry no TTL; the error status must
+      // evict them or the renderer keeps projecting frozen stream content under it.
+      application.get('CacheService').deleteShared(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId))
+      this.publishDeliveryChange(sessionId, messageId, 'projection')
+    }
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -2018,6 +2024,13 @@ export class AgentSessionMessageService {
     const saved = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) throw DataApiErrorFactory.notFound('Message', messageId)
+      // A terminal `error` row has already been explained to the user (delivery settled it as
+      // failed); flushing accumulated parts onto it would resurrect success-shaped content
+      // under a failure status. The flush's overlay convergence only targets rows still open.
+      if (existingRow.status === 'error') {
+        logger.warn('Skipping background flow flush onto a terminal error row', { sessionId, messageId })
+        return this.rowToEntity(existingRow)
+      }
 
       const updatedAt = Date.now()
       const data = { ...existingRow.data, parts }

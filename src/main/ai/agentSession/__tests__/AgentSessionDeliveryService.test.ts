@@ -39,6 +39,8 @@ const mocks = vi.hoisted(() => ({
   hasTerminalPersistenceInFlight: vi.fn(),
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
+  pendingBackgroundWork: vi.fn(),
+  lastBackgroundFlowActivity: vi.fn(),
   closeSession: vi.fn(),
   getPath: vi.fn(),
   removeAgentStorageSubdirectory: vi.fn(),
@@ -136,6 +138,8 @@ const runtime = {
   listActiveWork: () => [],
   drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
+  hasPendingBackgroundWork: mocks.pendingBackgroundWork,
+  lastBackgroundFlowActivityAt: mocks.lastBackgroundFlowActivity,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {
     mocks.terminalListeners.add(listener)
@@ -234,6 +238,8 @@ describe('AgentSessionDeliveryService', () => {
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(false)
+    mocks.lastBackgroundFlowActivity.mockReturnValue(0)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.removeAgentStorageSubdirectory.mockResolvedValue(undefined)
@@ -458,6 +464,95 @@ describe('AgentSessionDeliveryService', () => {
       assistantMessageId: 'assistant-1',
       outcome: 'success'
     })
+  })
+
+  it('does not repair a pending placeholder while background work can still write it', async () => {
+    // The turn settles as soon as its generation ends, so the terminal path reports idle while
+    // detached subagents are still running. Those chunks target this very assistant row, and
+    // `markFlowMessagePersisted` admits them once the row persists — so an idle kick must not
+    // conclude that no writer remains and error the placeholder out from under them.
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(assistant)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(true)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).not.toHaveBeenCalled()
+    expect(mocks.finalize).not.toHaveBeenCalled()
+
+    mocks.pendingBackgroundWork.mockReturnValue(false)
+    mocks.getMessage.mockReturnValue({ ...assistant, status: 'success' })
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'success'
+    })
+  })
+
+  it('settles a placeholder that background work has stopped writing to', async () => {
+    // Detached work reports occupancy but never reports finishing, so a wedged subagent leaves the
+    // predicate set for the life of the process — and holding this reconciliation on it strands
+    // every delivery queued behind this one, not just this one. The bound is observable writer
+    // activity: the row's `updatedAt` (flushes) or the flow's own last publish, whichever is
+    // fresher — both silent past the grace period means no writer is left to wait for.
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    const stale = { ...assistant, updatedAt: new Date(Date.now() - 24 * 60 * 60_000).toISOString() }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(stale)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(true)
+    mocks.markTerminalError.mockImplementation(() => {
+      mocks.getMessage.mockReturnValue({ ...stale, status: 'error' })
+    })
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).toHaveBeenCalledWith('target', 'assistant-1')
+    expect(mocks.finalize).toHaveBeenCalledWith({
+      requestSessionId: 'target',
+      requestMessageId: 'delivery-1',
+      assistantMessageId: 'assistant-1',
+      outcome: 'failed'
+    })
+  })
+
+  it('keeps waiting on a placeholder whose background flow is still publishing', async () => {
+    // The flow chunks into the shared cache and writes the row only at flush, so the row's
+    // `updatedAt` can be stale while its writer is plainly alive — an actively streaming
+    // subagent must not be failed on the row's age alone.
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    const stale = { ...assistant, updatedAt: new Date(Date.now() - 24 * 60 * 60_000).toISOString() }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(stale)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.pendingBackgroundWork.mockReturnValue(true)
+    mocks.lastBackgroundFlowActivity.mockReturnValue(Date.now())
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(mocks.markTerminalError).not.toHaveBeenCalled()
+    expect(mocks.finalize).not.toHaveBeenCalled()
   })
 
   it('ignores row-roll terminal events', async () => {

@@ -17,7 +17,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { TrashService } from '../TrashService'
 
-const mocks = vi.hoisted(() => ({ busy: false, runtimeBusy: false }))
+const mocks = vi.hoisted(() => ({ busy: false, runtimeBusy: false, pendingBackgroundWork: false }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -29,6 +29,7 @@ vi.mock('@application', async () => {
     },
     AgentSessionRuntimeService: {
       isSessionBusy: () => mocks.runtimeBusy,
+      hasPendingBackgroundWork: () => mocks.pendingBackgroundWork,
       closeSession: vi.fn(),
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
       recoverSessionForks: vi.fn().mockResolvedValue(undefined)

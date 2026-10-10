@@ -15,6 +15,13 @@ const logger = loggerService.withContext('AgentSessionDeliveryService')
 // Filesystem availability has no app event (for example, an external workspace volume remount).
 // Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
 const DELIVERY_RETRY_SWEEP_MS = 60_000
+/**
+ * How long a `pending` placeholder waits for background work that might still be completing it.
+ * Detached work reports occupancy but has no completion signal of its own, so a wedged subagent
+ * leaves it set for the life of the process — and holding the reconciliation on it strands every
+ * delivery queued behind this one too.
+ */
+const DELIVERY_PENDING_WRITER_GRACE_MS = 5 * 60_000
 
 class DeliveryClaimLostError extends Error {}
 
@@ -445,14 +452,27 @@ export class AgentSessionDeliveryService extends BaseService {
     if (assistant.status === 'pending') {
       const topicId = buildAgentSessionTopicId(sessionId)
       const manager = application.get('AiStreamManager')
+      const runtime = application.get('AgentSessionRuntimeService')
+      // Background work targets this very assistant row: a turn that settles while detached
+      // subagents run reports idle, and `markFlowMessagePersisted` admits their chunks once the row
+      // persists. Those chunks publish to the shared cache — the row itself is written only at
+      // flush — so the grace anchors on whichever is fresher: the row's `updatedAt` or the
+      // flow's own last publish. A streaming writer keeps renewing the latter; silence for the
+      // grace period leaves no observable writer left to wait for.
+      const backgroundWriter =
+        runtime.hasPendingBackgroundWork(sessionId) &&
+        Date.now() - Math.max(Date.parse(assistant.updatedAt), runtime.lastBackgroundFlowActivityAt(sessionId)) <
+          DELIVERY_PENDING_WRITER_GRACE_MS
       if (
-        application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
+        runtime.isSessionBusy(sessionId) ||
+        backgroundWriter ||
         manager.hasLiveStream(topicId) ||
         manager.hasTerminalPersistenceInFlight(topicId)
       ) {
         return true
       }
-      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
+      // Runtime, background work and stream persistence are all idle, so no writer can still
+      // complete this placeholder.
       // A transient repair failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)

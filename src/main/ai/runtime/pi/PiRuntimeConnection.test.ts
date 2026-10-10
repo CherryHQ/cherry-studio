@@ -1201,6 +1201,26 @@ describe('PiRuntimeConnection', () => {
     )
   })
 
+  it('embeds the background-tasks note in the steer reminder wrapper', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send({ ...userInput('continue', true), backgroundTasksNote: '2 background tasks are still running' })
+    await Promise.resolve()
+
+    expect(mocks.prompt).toHaveBeenCalledWith(
+      [
+        '<system-reminder>',
+        'The user sent the following message:',
+        'continue',
+        '',
+        'Please address this message and continue with your tasks.',
+        '',
+        '2 background tasks are still running',
+        '</system-reminder>'
+      ].join('\n'),
+      undefined
+    )
+  })
+
   it('completes the host turn after a manual compact succeeds', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact'))
