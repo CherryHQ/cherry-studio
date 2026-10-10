@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 
@@ -18,7 +18,25 @@ const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessio
   model: 'claude-opus-4-8'
 })
 
+const toLocaleString = Number.prototype.toLocaleString
+
 describe('AgentContextUsageSummary', () => {
+  // Token counts are formatted with the runtime default locale; pin it so the
+  // grouping separators asserted below do not depend on the machine's LANG.
+  beforeEach(() => {
+    vi.spyOn(Number.prototype, 'toLocaleString').mockImplementation(function (
+      this: number,
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      return toLocaleString.call(this, locales ?? 'en-US', options)
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('translates known category names', () => {
     render(<AgentContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
 
