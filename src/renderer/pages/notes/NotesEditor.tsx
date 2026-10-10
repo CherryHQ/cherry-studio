@@ -145,7 +145,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   ref={editorRef}
                   initialContent={currentContent}
                   onMarkdownChange={editorEditable ? onMarkdownChange : undefined}
-                  showToolbar={tmpViewMode === 'preview'}
+                  showToolbar={editorEditable}
                   editable={editorEditable}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}

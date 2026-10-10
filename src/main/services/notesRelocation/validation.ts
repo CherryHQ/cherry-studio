@@ -52,7 +52,7 @@ function pathEntryExists(value: string): boolean {
   }
 }
 
-function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
+export function resolveExistingAncestor(value: string): { path: string; effectivePath: string } {
   let cursor = path.resolve(value)
   const missingParts: string[] = []
   while (!pathEntryExists(cursor)) {
