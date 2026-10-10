@@ -1,12 +1,13 @@
 import { win32 } from 'node:path'
 
 import type { MenuItemConstructorOptions } from 'electron'
-import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 import { v5 as uuidv5 } from 'uuid'
 
 import { application } from '@application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
+import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { t } from '@main/i18n'
 import { getApplicationId } from '@main/utils/appEdition'
 
@@ -14,8 +15,9 @@ import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
 
+/** Stable notification-area identity for Explorer (see #21294, #21484). */
 function getWindowsTrayGuid(): string {
-  const executablePath = win32.resolve(app.getPath('exe')).toLowerCase()
+  const executablePath = win32.resolve(getNormalizedExecutablePath()).toLowerCase()
   return uuidv5(`${getApplicationId()}:${executablePath}`, uuidv5.URL)
 }
 
@@ -37,8 +39,7 @@ export class TrayService extends BaseService implements Activatable {
 
   onActivate(): void {
     const iconPath = isMac ? (nativeTheme.shouldUseDarkColors ? iconLight : iconDark) : icon
-    // Portable builds run from a fresh executable path on each launch.
-    const tray = isWin && !isPortable ? new Tray(iconPath, getWindowsTrayGuid()) : new Tray(iconPath)
+    const tray = isWin ? new Tray(iconPath, getWindowsTrayGuid()) : new Tray(iconPath)
 
     if (isWin) {
       tray.setImage(iconPath)

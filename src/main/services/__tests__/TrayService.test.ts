@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   appGetPath: vi.fn(() => 'C:\\Program Files\\Cherry Studio\\Cherry Studio.exe'),
   applicationId: vi.fn(() => 'com.kangfenmao.CherryStudio'),
+  normalizedExecutablePath: vi.fn(() => 'C:\\Program Files\\Cherry Studio\\Cherry Studio.exe'),
   platform: { isLinux: false, isMac: false, isPortable: false, isWin: true },
   preferenceGet: vi.fn(() => false),
   trayConstructor: vi.fn()
@@ -43,6 +44,9 @@ vi.mock('@main/core/lifecycle', () => ({
 }))
 
 vi.mock('@main/core/platform', () => mocks.platform)
+vi.mock('@main/core/preboot/userDataLocation', () => ({
+  getNormalizedExecutablePath: mocks.normalizedExecutablePath
+}))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 vi.mock('@main/utils/appEdition', () => ({ getApplicationId: mocks.applicationId }))
 
@@ -57,6 +61,7 @@ describe('TrayService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.appGetPath.mockReturnValue('C:\\Program Files\\Cherry Studio\\Cherry Studio.exe')
+    mocks.normalizedExecutablePath.mockReturnValue('C:\\Program Files\\Cherry Studio\\Cherry Studio.exe')
     mocks.applicationId.mockReturnValue('com.kangfenmao.CherryStudio')
     mocks.platform.isWin = true
     mocks.platform.isMac = false
@@ -85,22 +90,45 @@ describe('TrayService', () => {
     const firstGuid = mocks.trayConstructor.mock.calls[0][1]
 
     mocks.appGetPath.mockReturnValue('D:\\Portable Apps\\Cherry Studio.exe')
+    mocks.normalizedExecutablePath.mockReturnValue('D:\\Portable Apps\\Cherry Studio.exe')
     activateTray()
 
     expect(mocks.trayConstructor.mock.calls[1][1]).not.toBe(firstGuid)
   })
 
-  it('keeps portable Windows builds on Electron path-based tray identity', () => {
-    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'C:\\Portable Apps')
+  it('uses a stable tray identity for portable Windows when the runtime exe path changes', () => {
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'C:\\Users\\alice\\scoop\\apps\\cherry-studio\\current')
     mocks.platform.isPortable = true
+    mocks.normalizedExecutablePath.mockReturnValue(
+      'C:\\Users\\alice\\scoop\\apps\\cherry-studio\\current\\cherry-studio-portable.exe'
+    )
     mocks.appGetPath
-      .mockReturnValueOnce('C:\\Temp\\app-1\\Cherry Studio.exe')
-      .mockReturnValueOnce('C:\\Temp\\app-2\\Cherry Studio.exe')
+      .mockReturnValueOnce('C:\\Temp\\updater-cache\\app-1\\Cherry Studio.exe')
+      .mockReturnValueOnce('C:\\Temp\\updater-cache\\app-2\\Cherry Studio.exe')
 
     activateTray()
+    const firstGuid = mocks.trayConstructor.mock.calls[0][1]
+
+    activateTray()
+    const secondGuid = mocks.trayConstructor.mock.calls[1][1]
+
+    expect(firstGuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(secondGuid).toBe(firstGuid)
+  })
+
+  it('uses a new portable tray identity when the portable install root moves', () => {
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'D:\\PortableApps\\CherryStudio')
+    mocks.platform.isPortable = true
+    mocks.normalizedExecutablePath.mockReturnValueOnce('D:\\PortableApps\\CherryStudio\\cherry-studio-portable.exe')
+
+    activateTray()
+    const firstGuid = mocks.trayConstructor.mock.calls[0][1]
+
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'E:\\Apps\\CherryStudio')
+    mocks.normalizedExecutablePath.mockReturnValueOnce('E:\\Apps\\CherryStudio\\cherry-studio-portable.exe')
     activateTray()
 
-    expect(mocks.trayConstructor.mock.calls.map((call) => call.length)).toEqual([1, 1])
+    expect(mocks.trayConstructor.mock.calls[1][1]).not.toBe(firstGuid)
   })
 
   it('does not pass a Windows tray identity on macOS or Linux', () => {
