@@ -64,11 +64,13 @@ import {
   applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
+  isCustomProviderNamespace,
   mergeCustomProviderParameters,
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import {
+  collectBodyRoutedTargets,
   extractReasoningBodyParams,
   filterReasoningForProviderOptions,
   normalizeRequestedSelection,
@@ -591,6 +593,7 @@ function buildAgentOptions(
     aiSdkProviderId,
     endpointType,
     reasoning,
+    reasoningProfile,
     serviceTierControl
   } = scope
 
@@ -602,11 +605,9 @@ function buildAgentOptions(
   // operation and extracted here so providerOptions stays request-body-free.
   const reasoningBodyParams = extractReasoningBodyParams(reasoning)
   const hasReasoningBody = Object.keys(reasoningBodyParams).length > 0
-  // Targets the resolved wire routes through the raw body — call-level overrides on
-  // these keys follow the same route instead of traveling via providerOptions.
-  const bodyRoutedTargets = new Set(
-    reasoning.emissions.filter((emission) => emission.delivery === 'request-body').map((emission) => emission.target)
-  )
+  // Targets the resolved wire may route through the raw body even when the active
+  // invocation emits nothing (e.g. gateway `reasoning_effort: none` on self-hosted).
+  const bodyRoutedTargets = collectBodyRoutedTargets(reasoningProfile.wire)
   const reasoningForProviderOptions = hasReasoningBody ? filterReasoningForProviderOptions(reasoning) : reasoning
   let providerOptions = buildCapabilityProviderOptions(
     model,
@@ -644,14 +645,18 @@ function buildAgentOptions(
 
     if (Object.keys(customParameters.providerParams).length > 0) {
       // Body-routed keys (e.g. `chat_template_kwargs`) travel only through the
-      // raw-body layer below — a providerOptions copy would echo into the SDK
-      // body and beat the call-override chain in the final fetch merge.
-      const providerParamsForOptions = Object.fromEntries(
-        Object.entries(customParameters.providerParams).filter(
-          ([key]) => !isBodyRoutedOverrideKey(key, bodyRoutedTargets)
+      // raw-body layer below — peel them from provider-option namespaces too.
+      const { providerParamsForOptions, bodyParams: bodyRoutedCustomParams } =
+        peelBodyRoutedFromAssistantProviderParams(
+          customParameters.providerParams,
+          provider.id,
+          providerOptions as Record<string, Record<string, unknown>>,
+          bodyRoutedTargets
         )
-      )
-      customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      customBodyParams = {
+        ...selectCustomBodyParameters(providerParamsForOptions, providerOptions, provider.id),
+        ...bodyRoutedCustomParams
+      }
       if (Object.keys(providerParamsForOptions).length > 0) {
         providerOptions = mergeCustomProviderParameters(
           providerOptions,
@@ -798,6 +803,51 @@ function isBodyRoutedOverrideKey(key: string, bodyRoutedTargets: ReadonlySet<str
     if (target.startsWith(prefix)) return true
   }
   return false
+}
+
+function shouldRouteNamespaceFieldToBody(nestedKey: string, bodyRoutedTargets: ReadonlySet<string>): boolean {
+  return isBodyRoutedOverrideKey(nestedKey, bodyRoutedTargets)
+}
+
+function peelBodyRoutedFromAssistantProviderParams(
+  providerParams: Record<string, unknown>,
+  rawProviderId: string,
+  providerOptions: Record<string, Record<string, unknown>>,
+  bodyRoutedTargets: ReadonlySet<string>
+): { providerParamsForOptions: Record<string, unknown>; bodyParams: Record<string, unknown> } {
+  const providerParamsForOptions: Record<string, unknown> = {}
+  const bodyParams: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(providerParams)) {
+    if (isBodyRoutedOverrideKey(key, bodyRoutedTargets)) {
+      mergeBodyOverrideValue(bodyParams, key, value)
+      continue
+    }
+
+    if (
+      isCustomProviderNamespace(key, providerOptions, rawProviderId) &&
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    ) {
+      const kept: Record<string, unknown> = {}
+      for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+        if (shouldRouteNamespaceFieldToBody(nestedKey, bodyRoutedTargets)) {
+          mergeBodyOverrideValue(bodyParams, nestedKey, nestedValue)
+        } else {
+          kept[nestedKey] = nestedValue
+        }
+      }
+      if (Object.keys(kept).length > 0) {
+        providerParamsForOptions[key] = kept
+      }
+      continue
+    }
+
+    providerParamsForOptions[key] = value
+  }
+
+  return { providerParamsForOptions, bodyParams }
 }
 
 function mergeBodyOverrideValue(body: Record<string, unknown>, key: string, value: unknown): void {

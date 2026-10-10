@@ -12,7 +12,11 @@ import {
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 import { makeModel } from '../../__tests__/fixtures'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+import {
+  collectBodyRoutedTargets,
+  encodeReasoningInvocation,
+  resolveReasoningInvocation
+} from '../reasoningSerializers'
 
 describe('Claude Opus 5.5 reasoning requests', () => {
   const controls = inferReasoningControls('claude-opus-5-5')
@@ -120,6 +124,11 @@ describe('resolveReasoningInvocation budget constraints', () => {
 
     expect(encodeReasoningInvocation(enabled)).toEqual({ think: true })
     expect(encodeReasoningInvocation(disabled)).toEqual({ think: false })
+  })
+
+  it('collects request-body targets from every wire mode on the profile', () => {
+    const targets = collectBodyRoutedTargets(REASONING_FORMAT_PROFILES['self-hosted'].wire)
+    expect(targets.has('chat_template_kwargs.enable_thinking')).toBe(true)
   })
 
   it('encodes the self-hosted chat_template_kwargs toggle', () => {
