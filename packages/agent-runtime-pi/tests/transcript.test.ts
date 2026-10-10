@@ -259,4 +259,40 @@ describe('session transcript', () => {
     await expect(creating).rejects.toMatchObject({ code })
     expect(calls).toHaveLength(0)
   })
+
+  const message = (content: unknown, role = 'user') => ({
+    kind: 'message',
+    id: 'b',
+    timestamp: 1,
+    message: { role, content }
+  })
+  it.each<{ label: string; entry: unknown }>([
+    { label: 'null user content', entry: message(null) },
+    { label: 'non-string text', entry: message([{ type: 'text', text: 42 }]) },
+    { label: 'null assistant content', entry: message(null, 'assistant') },
+    {
+      label: 'non-string tool output',
+      entry: message(
+        [{ type: 'tool-result', toolCallId: 'c', toolName: 'x', output: { type: 'text', value: 42 } }],
+        'tool'
+      )
+    },
+    {
+      label: 'non-string compaction boundary',
+      entry: { kind: 'compaction', id: 'b', timestamp: 1, summary: 's', firstKeptEntryId: null, tokensBefore: 1 }
+    },
+    {
+      label: 'non-string edit target',
+      entry: { kind: 'context-edit', id: 'b', timestamp: 1, targetId: 42, replacement: null }
+    }
+  ])('refuses $label as an invalid entry before creating anything', async ({ entry }) => {
+    const { model, calls } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
+    const creating = createTestSession({
+      port: streamTextPort(model).port,
+      transcript: [user('a'), entry] as TranscriptEntry[]
+    })
+
+    await expect(creating).rejects.toMatchObject({ name: 'TranscriptError', code: 'invalid_entry', entryId: 'b' })
+    expect(calls).toHaveLength(0)
+  })
 })
