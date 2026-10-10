@@ -172,7 +172,8 @@ export async function buildEnvironment(
   const proxyEnvironment = getProxyEnvironment(process.env)
   const loginShellEnv = await getClaudeCodeLoginShellEnvironment(proxyEnvironment)
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
-  const hasUserMise = hasUserMiseEnv(loginShellEnv)
+  // User mise ownership comes from the raw login shell, not Cherry's layered contract.
+  const hasUserMise = hasUserMiseEnv(await getRawShellEnv())
   const bunPath = hasUserMise ? await getStandaloneBinaryPath('bun') : await getBinaryPath('bun')
 
   // API key and base URL are injected by the agent-session runtime query builder.

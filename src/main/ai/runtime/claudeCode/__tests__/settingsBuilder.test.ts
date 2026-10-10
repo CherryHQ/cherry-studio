@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   refreshRawShellEnv: vi.fn(),
   withCherryShellEnv: vi.fn((rawEnv: Record<string, string>) => ({ ...rawEnv })),
   getBinaryPath: vi.fn(),
+  getStandaloneBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
@@ -238,7 +239,8 @@ vi.mock('@main/i18n', () => ({
 }))
 
 vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryPath: mocks.getBinaryPath
+  getBinaryPath: mocks.getBinaryPath,
+  getStandaloneBinaryPath: mocks.getStandaloneBinaryPath
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
@@ -389,6 +391,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.refreshShellEnv.mockResolvedValue({})
     mocks.refreshRawShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
+    mocks.getStandaloneBinaryPath.mockResolvedValue('/cherry.bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => path.join(root, agentId))
@@ -405,14 +408,16 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('preserves managed CLI paths from the login-shell environment', async () => {
-    mocks.getRawShellEnv.mockResolvedValue({
+    mocks.getRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.withCherryShellEnv.mockImplementation((raw: Record<string, string>) => ({
+      ...raw,
       PATH: '/managed/shims:/usr/bin',
       MISE_DATA_DIR: '/managed',
       MISE_CONFIG_DIR: '/managed/config',
       MISE_CACHE_DIR: '/managed/cache',
       MISE_STATE_DIR: '/managed/state',
       MISE_SHIMS_DIR: '/managed/shims'
-    })
+    }))
 
     const settings = await buildClaudeCodeSessionSettings(
       {
