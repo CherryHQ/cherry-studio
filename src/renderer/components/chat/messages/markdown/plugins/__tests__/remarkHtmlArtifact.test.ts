@@ -15,6 +15,65 @@ function parse(source: string, withLatexMath = false): Root {
 }
 
 describe('remarkHtmlArtifact', () => {
+  it('keeps native disclosure boundaries around Markdown instead of creating empty previews', () => {
+    const tree = parse(String.raw`Before
+
+<details>
+<summary>Answer (click to expand)</summary>
+
+$$
+y = \frac{1}{2x} - \frac{1}{2x^3}
+$$
+
+**Quick check:** This content should be hidden while the disclosure is closed.
+</details>
+
+After`)
+
+    expect(tree.children.some((child) => child.type === 'code')).toBe(false)
+    expect(tree.children).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'html', value: '<details>\n<summary>Answer (click to expand)</summary>' }),
+        expect.objectContaining({ type: 'html', value: '</details>' })
+      ])
+    )
+  })
+
+  it('keeps nested disclosures and their raw HTML content on the native Markdown path', () => {
+    const tree = parse(`<details title="</details>">
+<summary>Outer</summary>
+
+<!-- </details> is only a comment -->
+
+<details>
+<summary>Inner</summary>
+
+<div>Hidden content</div>
+
+</details>
+
+</details>
+
+<div>Independent preview</div>`)
+
+    expect(tree.children.filter((child) => child.type === 'code')).toEqual([
+      expect.objectContaining({ lang: 'html', value: '<div>Independent preview</div>' })
+    ])
+  })
+
+  it.each([
+    '<details><summary>Answer</summary>Content</details>',
+    '<!-- note --><DETAILS open><SUMMARY>Answer</SUMMARY>Content</DETAILS>',
+    '<summary>Answer</summary>'
+  ])('keeps compact native disclosure HTML: %s', (source) => {
+    expect(parse(source).children).toEqual([expect.objectContaining({ type: 'html', value: source })])
+  })
+
+  it('still previews an independent HTML fragment that contains a disclosure', () => {
+    const source = '<div><details><summary>Preview</summary>Content</details></div>'
+    expect(parse(source).children).toEqual([expect.objectContaining({ type: 'code', lang: 'html', value: source })])
+  })
+
   it('converts top-level raw HTML regions into HTML code nodes', () => {
     const tree = parse(`## Before
 

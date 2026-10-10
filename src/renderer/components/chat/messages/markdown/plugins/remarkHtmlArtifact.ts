@@ -1,3 +1,4 @@
+import { Parser } from 'htmlparser2'
 import type { Code, Html, Root, RootContent } from 'mdast'
 import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
@@ -11,6 +12,7 @@ const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
 const LEADING_HTML_DOCTYPE_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>))*\s*<!doctype(?:\s|>)/i
 // A *closed* opening tag, so a half-streamed `<div` never counts as a fragment.
 const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
+const NATIVE_DISCLOSURE_BOUNDARY_REGEX = /^<\/?(?:details|summary)(?:\s|\/?>)/i
 
 interface SourceRange {
   start: number
@@ -19,6 +21,25 @@ interface SourceRange {
 
 function stripLeadingHtmlMetadata(value: string): string {
   return value.replace(LEADING_HTML_METADATA_REGEX, '').trimStart()
+}
+
+function createNativeDisclosureGuard(): (node: Html) => boolean {
+  let depth = 0
+  const parser = new Parser({
+    onopentag(name) {
+      if (name === 'details') depth += 1
+    },
+    onclosetag(name) {
+      if (name === 'details') depth -= 1
+    }
+  })
+
+  return (node) => {
+    const isNative = depth > 0 || NATIVE_DISCLOSURE_BOUNDARY_REGEX.test(stripLeadingHtmlMetadata(node.value))
+    // Keep the parser open across mdast nodes separated by Markdown body content.
+    if (isNative) parser.write(node.value)
+    return isNative
+  }
 }
 
 /**
@@ -116,8 +137,12 @@ function createHtmlCodeNode(node: Html): Code {
 
 function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
   const ranges: SourceRange[] = []
+  const isNativeDisclosure = createNativeDisclosureGuard()
 
   for (let index = 0; index < tree.children.length; index += 1) {
+    const child = tree.children[index]
+    if (child?.type === 'html' && isNativeDisclosure(child)) continue
+
     const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
     if (documentEndIndex !== undefined) {
       const range = getSourceRange(tree.children.slice(index, documentEndIndex + 1))
@@ -126,7 +151,6 @@ function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
       continue
     }
 
-    const child = tree.children[index]
     const range = child ? getSourceRange([child]) : undefined
     if (!child || !range) continue
 
@@ -184,8 +208,16 @@ export function transformMarkdownOutsideHtmlArtifacts(source: string, transform:
 export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   const source = String(file)
   const children: RootContent[] = []
+  const isNativeDisclosure = createNativeDisclosureGuard()
 
   for (let index = 0; index < tree.children.length; index += 1) {
+    const child = tree.children[index]
+    if (!child) continue
+    if (child.type === 'html' && isNativeDisclosure(child)) {
+      children.push(child)
+      continue
+    }
+
     const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
     if (documentEndIndex !== undefined) {
       const documentNodes = tree.children.slice(index, documentEndIndex + 1)
@@ -199,8 +231,6 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
       continue
     }
 
-    const child = tree.children[index]
-    if (!child) continue
     children.push(
       child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)
         ? createHtmlCodeNode(child)
