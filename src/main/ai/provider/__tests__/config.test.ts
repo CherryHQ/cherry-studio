@@ -1,3 +1,4 @@
+import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1424,6 +1425,49 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         expect(settings.baseURL).toBe(expectedBaseUrl)
       }
     )
+
+    it('delivers custom SenseNova image edits as JSON through the configured Electron transport', async () => {
+      const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible')
+      const provider = makeProvider({
+        id: 'custom-sensenova',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'https://token.sensenova.cn/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const config = await providerToAiSdkConfig(
+        provider,
+        makeModel({
+          providerId: provider.id,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+        })
+      )
+      const spy = vi.spyOn(net, 'fetch').mockImplementation(async (_input, init) => {
+        expect(JSON.parse(String(init?.body)).images).toEqual([{ image_url: 'data:image/png;base64,AQ==' }])
+        return Response.json({ data: [{ b64_json: 'edited-image' }] })
+      })
+      try {
+        const result = await createOpenAICompatible(config.providerSettings as OpenAICompatibleProviderSettings)
+          .imageModel('sensenova-u1.5-fast')
+          .doGenerate({
+            prompt: 'a glacier',
+            n: 1,
+            size: undefined,
+            aspectRatio: undefined,
+            seed: undefined,
+            providerOptions: {},
+            files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) }],
+            mask: undefined
+          })
+        expect(result.images).toEqual(['edited-image'])
+      } finally {
+        spy.mockRestore()
+      }
+    })
 
     it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {
       // Two things ride on this id. The generic OpenAICompatibleImageModel would POST
