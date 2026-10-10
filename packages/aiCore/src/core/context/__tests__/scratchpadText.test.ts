@@ -128,6 +128,27 @@ Example:
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
   })
 
+  it('preserves fenced scratchpad literals inside nested blockquote-indented fences', () => {
+    const input = `<summary>
+> > ~~~xml
+> > <thinking>literal example</thinking>
+> > ~~~
+</summary>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
+  it('preserves scratchpad literals in an unclosed fence through end of input', () => {
+    const input = `<summary>
+\`\`\`xml
+<thinking>literal example</thinking>`
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
+  it('strips slash-prefixed analysis content and unwraps the summary', () => {
+    const input = '<analysis>/src/a.ts holds state</analysis><summary>Keep a.ts</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep a.ts')
+  })
+
   it('preserves fenced scratchpad literals when the closing fence uses CRLF', () => {
     const input = `<summary>\r\n\`\`\`xml\r\n<thinking>literal example</thinking>\r\n\`\`\`\r\n</summary>`
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')

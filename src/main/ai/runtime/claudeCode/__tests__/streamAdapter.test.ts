@@ -2481,6 +2481,46 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('internal')
     })
 
+    it('reconciles multi-block assistant snapshots without duplicating visible text', () => {
+      const { adapter, parts } = createAdapter()
+      const blockA = '<thinking>a</thinking>\nHello'
+      const blockB = '<thinking>b</thinking>\nWorld'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: blockA } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: blockB } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: blockA },
+            { type: 'text', text: blockB }
+          ]
+        }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('HelloWorld')
+    })
+
     it('does not append a stray suffix when a streamed block is reconciled against an assistant snapshot', () => {
       const { adapter, parts } = createAdapter()
       const raw = '<thinking>hidden</thinking>\nVisible'

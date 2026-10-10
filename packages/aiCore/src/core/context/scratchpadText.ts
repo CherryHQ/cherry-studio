@@ -3,13 +3,18 @@ export const MODEL_SCRATCHPAD_TAG_NAMES = ['analysis', 'assessment', 'thinking']
 
 const MODEL_SCRATCHPAD_TAG_SET = new Set<string>(MODEL_SCRATCHPAD_TAG_NAMES)
 
-const SCRATCHPAD_TAG_OPEN_SUFFIX = '(?:>(?!/)|\\s+[^>]*[^/]>)'
+/** Paired-tag opener; self-closing tags (`<thinking />`) are excluded. */
+const PAIRED_TAG_OPEN_SUFFIX = '(?:\\s+(?:[^/>]|"[^"]*"|\'[^\']*\')*)?>'
 
 const SCRATCHPAD_OPENING_TAG = new RegExp(
-  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})${SCRATCHPAD_TAG_OPEN_SUFFIX}`,
+  `^\\s*<(${MODEL_SCRATCHPAD_TAG_NAMES.join('|')})${PAIRED_TAG_OPEN_SUFFIX}`,
   'i'
 )
-const NON_SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<([a-z][a-z0-9-]*)${SCRATCHPAD_TAG_OPEN_SUFFIX}`, 'i')
+const NON_SCRATCHPAD_OPENING_TAG = new RegExp(`^\\s*<([a-z][a-z0-9-]*)${PAIRED_TAG_OPEN_SUFFIX}`, 'i')
+
+function isSelfClosingTagOpener(opener: string): boolean {
+  return /\/\s*>$/.test(opener)
+}
 const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
 const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
 const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
@@ -17,7 +22,7 @@ const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+
 function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
   const lineStart = text.lastIndexOf('\n', fenceMarkerIndex - 1) + 1
   const prefix = text.slice(lineStart, fenceMarkerIndex)
-  return /^> ?$/.test(prefix) ? lineStart : fenceMarkerIndex
+  return /^(?:> ?)+$/.test(prefix) ? lineStart : fenceMarkerIndex
 }
 
 function maskCodeFences(text: string): { text: string; fences: string[] } {
@@ -44,11 +49,15 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closePattern = new RegExp(`(?:\\r\\n|\\n)(?:> ?)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
+    const closePattern = new RegExp(
+      `(?:\\r\\n|\\n)(?:(?:> ?)+)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`
+    )
     const closeMatch = closePattern.exec(text.slice(afterOpen))
     if (!closeMatch) {
-      out += text[fenceStart]
-      pos = fenceStart + 1
+      const fenceEnd = text.length
+      fences.push(text.slice(fenceStart, fenceEnd))
+      out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
+      pos = fenceEnd
       continue
     }
 
@@ -81,7 +90,9 @@ export function textHasUnclosedCodeFence(text: string): boolean {
     const fenceChar = openMatch[1]
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
-    const closePattern = new RegExp(`(?:\\r\\n|\\n)(?:> ?)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`)
+    const closePattern = new RegExp(
+      `(?:\\r\\n|\\n)(?:(?:> ?)+)?[ \\t]*\\${fenceChar}{${fenceLen},}[ \\t]*(?:\\r\\n|\\n|$)`
+    )
     const closeMatch = closePattern.exec(text.slice(afterOpen))
     if (!closeMatch) return true
     pos = afterOpen + closeMatch.index + closeMatch[0].length
@@ -95,7 +106,10 @@ function isModelScratchpadTagName(tag: string): boolean {
 
 export function textStartsWithModelScratchpadTag(text: string): boolean {
   const match = text.match(SCRATCHPAD_OPENING_TAG)
-  return match ? isModelScratchpadTagName(match[1]) : false
+  if (!match || !isModelScratchpadTagName(match[1])) {
+    return false
+  }
+  return !isSelfClosingTagOpener(match[0])
 }
 
 /** Opening markup that is not a known model scratchpad wrapper (e.g. `<p>`, `<thinking-note>`). */
@@ -107,7 +121,8 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
   if (textStartsWithModelScratchpadTag(trimmed)) {
     return false
   }
-  return NON_SCRATCHPAD_OPENING_TAG.test(trimmed)
+  const match = trimmed.match(NON_SCRATCHPAD_OPENING_TAG)
+  return match ? !isSelfClosingTagOpener(match[0]) : false
 }
 
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
@@ -124,7 +139,7 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
   do {
     previous = out
     for (const tag of MODEL_SCRATCHPAD_TAG_NAMES) {
-      const block = new RegExp(`<${tag}${SCRATCHPAD_TAG_OPEN_SUFFIX}[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
+      const block = new RegExp(`<${tag}${PAIRED_TAG_OPEN_SUFFIX}[\\s\\S]*?<\\/${tag}\\s*>`, 'gi')
       out = out.replace(block, '')
     }
   } while (out !== previous)

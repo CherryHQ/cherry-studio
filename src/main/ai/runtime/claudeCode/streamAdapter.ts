@@ -1219,11 +1219,23 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+    const visibleText = content
+      .map((c: BetaContentBlock) => (c.type === 'text' ? c.text : ''))
+      .map((blockText) => this.normalizeParentlessAssistantBlockText(blockText, ctx))
+      .join('')
 
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    if (visibleText) {
+      this.handleAssistantText(visibleText, sdkParentToolUseId, ctx)
     }
+  }
+
+  /** Per content block so multi-block streaming offsets match snapshot reconciliation. */
+  private normalizeParentlessAssistantBlockText(blockText: string, ctx: StreamContext): string {
+    if (!blockText) return ''
+    if (!ctx.filterParentlessScratchpadText || !textStartsWithModelScratchpadTag(blockText)) {
+      return blockText
+    }
+    return stripKnownModelScratchpadBlocksPreservingCodeFences(blockText).trimStart()
   }
 
   private handleAssistantToolUse(
@@ -1293,15 +1305,8 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(visibleText: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
-    let visibleText = text
-    if (ctx.filterParentlessScratchpadText && textStartsWithModelScratchpadTag(text)) {
-      visibleText = stripKnownModelScratchpadBlocksPreservingCodeFences(text).trimStart()
-      if (!visibleText) {
-        return
-      }
-    }
     if (ctx.hasReceivedStreamEvents) {
       const deltaText = visibleText.length > ctx.streamedTextLength ? visibleText.slice(ctx.streamedTextLength) : ''
 
