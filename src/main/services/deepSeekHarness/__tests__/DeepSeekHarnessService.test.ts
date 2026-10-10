@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   rollbackConfig: vi.fn(),
   providerGet: vi.fn(),
   providerGetApiKeys: vi.fn(),
+  providerResolveApiKey: vi.fn(),
   modelGet: vi.fn(),
   gatewayStart: vi.fn(),
   gatewayEnsureKey: vi.fn(),
@@ -40,7 +41,11 @@ vi.mock('node:child_process', async (importOriginal) => ({
 }))
 vi.mock('@application', () => ({ application: { get: mocks.appGet, getPath: mocks.appGetPath } }))
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { getByProviderId: mocks.providerGet, getApiKeys: mocks.providerGetApiKeys }
+  providerService: {
+    getByProviderId: mocks.providerGet,
+    getApiKeys: mocks.providerGetApiKeys,
+    resolveApiKey: mocks.providerResolveApiKey
+  }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGet } }))
 vi.mock('@main/core/platform', () => ({
@@ -169,6 +174,7 @@ describe('DeepSeekHarnessService', () => {
     })
     mocks.providerGet.mockReturnValue(provider)
     mocks.providerGetApiKeys.mockReturnValue([{ id: 'key', key: 'sk-direct', isEnabled: true }])
+    mocks.providerResolveApiKey.mockReturnValue({ value: 'sk-direct' })
     mocks.modelGet.mockReturnValue(model)
     mocks.writeConfig.mockResolvedValue({
       credentials: { path: '/mock/home/.dsh/.credentials.yaml', written: 'written credentials' },
@@ -374,6 +380,20 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
+  it('writes the no-key placeholder for auth-optional providers without an API key', async () => {
+    mocks.providerGet.mockReturnValue({ ...provider, authOptional: true })
+    mocks.providerResolveApiKey.mockReturnValue({ value: '' })
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+
+    await expect(service.start(startInput)).resolves.toEqual({ success: true, url: 'http://127.0.0.1:43123' })
+    expect(mocks.writeConfig).toHaveBeenCalledWith(
+      '/mock/home/.dsh',
+      expect.objectContaining({ credentialValue: 'no-key-required' })
+    )
+    await service.stop()
+  })
+
   it('does not expose provider request headers through the DeepSeek Harness settings route', async () => {
     mocks.providerGet.mockReturnValue({
       ...provider,
@@ -389,7 +409,7 @@ describe('DeepSeekHarnessService', () => {
 
   it('rejects direct mode when an OAuth-obtained API key is no longer available', async () => {
     mocks.providerGet.mockReturnValue({ ...provider, authType: 'oauth' })
-    mocks.providerGetApiKeys.mockReturnValue([])
+    mocks.providerResolveApiKey.mockReturnValue({ value: '' })
 
     const result = await new DeepSeekHarnessService().start(startInput)
 

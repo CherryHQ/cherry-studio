@@ -9,6 +9,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
+import { resolveEffectivePreferredKeyId } from '@data/services/providerApiKeySelection'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
@@ -703,11 +704,16 @@ function deriveRouteFacts(
     }
   }
 
+  const providerApiKeys = providerService.getApiKeys(primaryProvider.id)
+  const primaryEffectiveKeyId = resolveEffectivePreferredKeyId(providerApiKeys, primaryModel.apiKeyId)
   const shouldUseGateway = modelRefs.some(
     (ref) =>
       requiresAgentGateway(ref.providerId) ||
       ref.providerId !== primaryProvider.id ||
-      !usesAnthropicMessagesEndpoint(ref)
+      !usesAnthropicMessagesEndpoint(ref) ||
+      // The direct spawn exports one ANTHROPIC_API_KEY for every alias, so a
+      // sub-model with its own key binding needs the gateway to serve it.
+      resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) !== primaryEffectiveKeyId
   )
 
   if (shouldUseGateway) {
@@ -749,11 +755,18 @@ function deriveRouteFacts(
     sonnet: with1mSuffix(sonnetRef.apiModelId, sonnetRef.contextWindow, isAnthropicNative),
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
+  const modelKeyBindings = [primaryRef, opusRef, sonnetRef, haikuRef]
+    .map(
+      (ref) =>
+        `${ref.providerId}/${ref.modelId}:${resolveEffectivePreferredKeyId(providerApiKeys, ref.model?.apiKeyId) ?? ''}`
+    )
+    .join(';')
   return {
     branch: 'direct',
     baseUrl: anthropicBaseUrl,
     credentialsFingerprint: fingerprintCredentials([
       ...enabledKeys.map((key) => `api-key:${key}`),
+      `model-api-key-bindings:${modelKeyBindings}`,
       ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
     ]),
     toolSearchCompatible,
@@ -806,7 +819,7 @@ async function resolveClaudeCodeRuntimeRoute(
       }
     }
     case 'direct': {
-      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id, undefined, primaryModel.apiKeyId)
       // Keyless local servers (registry authOptional) carry no credential; the
       // SDK still needs a non-empty token. Ollama-endpoint custom providers
       // keep their established stand-in.

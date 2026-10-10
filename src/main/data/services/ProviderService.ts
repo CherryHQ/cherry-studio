@@ -43,10 +43,10 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
 import { isRetiredProvider } from '../retiredProviders'
+import { selectProviderApiKey, type ResolvedProviderApiKey } from './providerApiKeySelection'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
@@ -120,38 +120,7 @@ function rowToReasoningProviderContext(
  */
 export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
 
-/** Safe identity snapshot for the API key selected for one provider request. */
-export interface ProviderApiKeySnapshot {
-  id: string
-  label?: string
-  masked: string
-}
-
-/**
- * Non-secret result of ProviderService's API-key selection.
- *
- * ProviderService owns stored-key selection only. Provider SDK configuration
- * owns the final serving-credential receipt because a builder may replace this
- * selection with OAuth, IAM, or another provider-level credential.
- */
-export type ProviderApiKeySelection =
-  | ({ attribution: 'explicit' | 'matched' } & ProviderApiKeySnapshot)
-  | { attribution: 'unknown' }
-
-/** The selected API-key value and its safe identity, resolved atomically. */
-export interface ResolvedProviderApiKey {
-  value: string
-  apiKeySelection: ProviderApiKeySelection
-}
-
-/**
- * Persisted credential receipts must never retain a raw short key, even
- * though the transient display helper intentionally leaves it recognizable.
- */
-function maskApiKeyForSnapshot(key: string): string {
-  const masked = maskApiKey(key)
-  return masked === key ? '****' : masked
-}
+export type { ProviderApiKeySelection, ProviderApiKeySnapshot, ResolvedProviderApiKey } from './providerApiKeySelection'
 
 function assertManagedCherryProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (!isManagedCherryProviderId(providerId) || Object.keys(dto).length === 0) {
@@ -207,29 +176,6 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
     seenIds.add(normalized.id)
     return normalized
   })
-}
-
-function toResolvedProviderApiKey(
-  value: string,
-  attribution: 'explicit' | 'matched',
-  entry: ApiKeyEntry
-): ResolvedProviderApiKey {
-  return {
-    value,
-    apiKeySelection: {
-      attribution,
-      id: entry.id,
-      ...(entry.label ? { label: entry.label } : {}),
-      masked: maskApiKeyForSnapshot(entry.key)
-    }
-  }
-}
-
-function unknownCredential(value: string): ResolvedProviderApiKey {
-  return {
-    value,
-    apiKeySelection: { attribution: 'unknown' }
-  }
 }
 
 /**
@@ -668,44 +614,17 @@ class ProviderService {
    * actually serves the request. An explicit override is never rotated, but is
    * matched back to a stored key when possible.
    */
-  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
+  resolveApiKey(providerId: string, override?: string, preferredKeyId?: string | null): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
     assertProviderAvailable(row, providerId)
 
-    const allKeys = row.apiKeys ?? []
-    if (override !== undefined) {
-      const matched = allKeys.find((entry) => entry.key === override)
-      return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
-    }
-
-    const enabledKeys = allKeys.filter((k) => k.isEnabled)
-
-    if (enabledKeys.length === 0) {
-      return unknownCredential('')
-    }
-
-    if (enabledKeys.length === 1) {
-      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
-    }
-
-    // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = rotationCacheKey(providerId)
-    const lastUsedKeyId = cache.get<string>(cacheKey)
-
-    if (!lastUsedKeyId) {
-      cache.set(cacheKey, enabledKeys[0].id)
-      return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
-    }
-
-    const currentIndex = enabledKeys.findIndex((k) => k.id === lastUsedKeyId)
-    const nextIndex = (currentIndex + 1) % enabledKeys.length
-    const nextKey = enabledKeys[nextIndex]
-    cache.set(cacheKey, nextKey.id)
-
-    return toResolvedProviderApiKey(nextKey.key, 'explicit', nextKey)
+    return selectProviderApiKey(row.apiKeys ?? [], override, preferredKeyId, {
+      getLastUsedKeyId: () => cache.get<string>(rotationCacheKey(providerId)),
+      setLastUsedKeyId: (keyId) => cache.set(rotationCacheKey(providerId), keyId)
+    })
   }
 
   /**

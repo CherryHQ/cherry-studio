@@ -301,7 +301,8 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
-  'notes'
+  'notes',
+  'apiKeyId'
 ]
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
@@ -456,7 +457,8 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    apiKeyId: row.apiKeyId ?? undefined
   }
 }
 
@@ -470,7 +472,8 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    notes: row.notes ?? undefined
+    notes: row.notes ?? undefined,
+    apiKeyId: row.apiKeyId ?? undefined
   }
 }
 
@@ -990,12 +993,41 @@ class ModelService {
     return this.enrichRowsFromRegistryTx(db, rows)
   }
 
+  private assertApiKeyBindingValid(
+    providerId: string,
+    modelId: string,
+    apiKeyId: string | null | undefined,
+    getProviderKeyIds: (pid: string) => Set<string>
+  ): void {
+    if (apiKeyId === '') {
+      throw DataApiErrorFactory.invalidOperation(
+        `update model ${providerId}/${modelId}`,
+        'api key id must not be empty'
+      )
+    }
+    if (apiKeyId != null && apiKeyId !== '') {
+      if (!getProviderKeyIds(providerId).has(apiKeyId)) {
+        throw DataApiErrorFactory.invalidOperation(
+          `update model ${providerId}/${modelId}`,
+          'api key does not belong to this provider'
+        )
+      }
+    }
+  }
+
   /**
    * Update an existing model
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
     providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
+
+    this.assertApiKeyBindingValid(
+      providerId,
+      modelId,
+      dto.apiKeyId,
+      (pid) => new Set(providerService.getApiKeys(pid).map((entry) => entry.id))
+    )
 
     const db = application.get('DbService').getDb()
 
@@ -1045,9 +1077,18 @@ class ModelService {
     assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
+    const providerKeyIds = new Map<string, Set<string>>()
 
     for (const { providerId, modelId, patch } of items) {
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
+      this.assertApiKeyBindingValid(providerId, modelId, patch.apiKeyId, (pid) => {
+        let keyIds = providerKeyIds.get(pid)
+        if (!keyIds) {
+          keyIds = new Set(providerService.getApiKeys(pid).map((entry) => entry.id))
+          providerKeyIds.set(pid, keyIds)
+        }
+        return keyIds
+      })
     }
 
     const rows = db.transaction((tx) => {
